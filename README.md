@@ -7,7 +7,7 @@
 ## 运行
 
 ```sh
-python3 -m http.server 8080 --bind 127.0.0.1
+python3 tools/sz/serve.py --port 8080
 ```
 
 打开 <http://127.0.0.1:8080/>，需要支持 WebGPU 的桌面浏览器（新版 Chrome 或 Edge）。
