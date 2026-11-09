@@ -9,11 +9,13 @@ from pathlib import Path
 
 from shapely import STRtree
 from shapely.geometry import MultiPolygon, Polygon, box, shape
-from shapely.ops import transform
+from shapely.geometry.base import BaseGeometry
+from shapely.ops import transform, unary_union
 from shapely.validation import make_valid
 
 from building_parent_review import apply_reviewed_building_parent_uses
 from geo import project
+from roads import CLASS_OF, DEFAULT_WIDTH, LANE_WIDTH
 
 ROOT = Path(__file__).resolve().parents[2]
 OVERTURE = ROOT / 'data/raw/overture/buildings-2026-10-21.0.jsonl'
@@ -27,6 +29,13 @@ MIN_AREA = 16.0
 ESTIMATE_SEED = 20261118
 UNDERGROUND_TAGS = ('name', 'building', 'building:part', 'building:levels', 'building:levels:underground',
                     'layer', 'location', 'height', 'min_height')
+
+# 卫星轮廓误识别过滤阈值，出处 docs/15-IMPROVEMENT-PLAN.md 3.2
+MISIDENTIFIED_MAX_AREA = 300.0
+PLAZA_GREEN_SHARE = 0.6
+CARRIAGEWAY_SHARE = 0.8
+CARRIAGEWAY_BUFFER = 1.0
+MISIDENTIFIED_REPORT_LIMIT = 300
 
 # 立面类型编号，和 js/sz-mvp/buildings.js 的 FACADE 表一一对应
 FACADES = ['glass_tower', 'office', 'residential_tower', 'residential_low', 'village', 'industrial', 'public', 'landmark']
@@ -107,6 +116,159 @@ def _polygons(geom):
     if isinstance(geom, MultiPolygon):
         return list(geom.geoms)
     return [g for g in getattr(geom, 'geoms', []) if isinstance(g, Polygon)]
+
+
+def _local_areas(entries, clip_local):
+    """把 OSM 缓存里的经纬度面转成局部米制坐标，供误识别过滤使用。"""
+    out = []
+    for entry in entries:
+        geom = _to_local(entry['geom']).intersection(clip_local)
+        if geom.is_empty:
+            continue
+        out.append({'id': entry.get('id'), 'geom': geom})
+    return out
+
+
+def _road_half_width(tags):
+    """车行道半宽：优先 OSM width，其次车道数，最后按道路等级取默认值。"""
+    width = _num(tags.get('width'))
+    if width and width > 0:
+        return width / 2
+    lanes = _num(tags.get('lanes'))
+    if lanes and lanes >= 1:
+        return lanes * LANE_WIDTH / 2
+    return DEFAULT_WIDTH.get(CLASS_OF.get(tags.get('highway')), 7.0) / 2
+
+
+def _local_carriageways(entries):
+    """只取地表车行道；桥面和隧道不代表地面轮廓所在的铺装。"""
+    out = []
+    for entry in entries:
+        tags = entry.get('tags', {})
+        if tags.get('bridge', 'no') not in ('no', 'false', '0'):
+            continue
+        if tags.get('tunnel', 'no') not in ('no', 'false', '0'):
+            continue
+        out.append({'id': entry.get('id'), 'geom': _to_local(entry['geom']),
+                    'halfWidthM': _road_half_width(tags)})
+    return out
+
+
+def _indexed(entries):
+    """统一 {id, geom} 和裸几何两种输入，返回条目列表和空间索引。"""
+    items = []
+    for entry in entries:
+        if isinstance(entry, BaseGeometry):
+            items.append({'id': None, 'geom': entry})
+        else:
+            items.append({**entry, 'id': entry.get('id')})
+    geoms = [item['geom'] for item in items]
+    return items, (STRtree(geoms) if geoms else None)
+
+
+def _covered_share(polygon, items, tree):
+    """多边形被索引面覆盖的比例和命中的来源 id；重叠面先求并集，避免重复计数。"""
+    if tree is None:
+        return 0.0, []
+    pieces, ids = [], []
+    for index in tree.query(polygon, predicate='intersects'):
+        intersection = items[index]['geom'].intersection(polygon)
+        if intersection.is_empty or intersection.area <= 0:
+            continue
+        pieces.append(intersection)
+        identity = items[index]['id']
+        if identity and identity not in ids:
+            ids.append(identity)
+    if not pieces:
+        return 0.0, []
+    return min(unary_union(pieces).area / polygon.area, 1.0), ids
+
+
+def _carriageway_share(polygon, items, tree, buffer_m, buffers, reach):
+    """多边形落在车行道范围（半宽 + 1 米浮动缓冲）内的比例；缓冲按道路惰性缓存。"""
+    if tree is None:
+        return 0.0, []
+    pieces, ids = [], []
+    for index in tree.query(polygon.buffer(reach), predicate='intersects'):
+        buffered = buffers.get(index)
+        if buffered is None:
+            buffered = items[index]['geom'].buffer(items[index]['halfWidthM'] + buffer_m)
+            buffers[index] = buffered
+        intersection = polygon.intersection(buffered)
+        if intersection.is_empty or intersection.area <= 0:
+            continue
+        pieces.append(intersection)
+        identity = items[index]['id']
+        if identity and identity not in ids:
+            ids.append(identity)
+    if not pieces:
+        return 0.0, []
+    return min(unary_union(pieces).area / polygon.area, 1.0), ids
+
+
+def filter_misidentified_footprints(candidates, plaza_geoms, green_geoms, road_lines, report, *,
+                                    counterpart_geoms=(), max_area_m2=MISIDENTIFIED_MAX_AREA,
+                                    plaza_green_share=PLAZA_GREEN_SHARE,
+                                    carriageway_share=CARRIAGEWAY_SHARE, buffer_m=CARRIAGEWAY_BUFFER,
+                                    report_key='globfpMisidentified', source_label='GloBFP-only'):
+    """按 docs/15 第 3.2 节的规则筛掉只来自某个补充来源（GloBFP 或 Overture）的广场设施/路面误识别轮廓。
+
+    输入几何都是局部米制坐标。candidates 是某一补充来源的候选（GlobFP 或 Overture）；
+    counterpart_geoms 为已有对照轮廓，命中即保留，绝不因为误识别规则丢掉有对照的楼。
+    返回 (kept, dropped)，所有丢弃项连同原因写进 report[report_key]，不静默丢对象。
+    GlobFP 和 Overture 两条补充路径共用这份规则，用 report_key / source_label 区分报告段落。
+    """
+    plaza_items, plaza_tree = _indexed(plaza_geoms)
+    green_items, green_tree = _indexed(green_geoms)
+    surface_items, surface_tree = _indexed(plaza_items + green_items)
+    road_items, road_tree = _indexed(road_lines)
+    _counterpart_items, counterpart_tree = _indexed(counterpart_geoms)
+    # 查询半径只和道路总最大半宽有关，循环外算一次，否则每个候选都要扫一遍全部道路
+    road_reach = max((item['halfWidthM'] for item in road_items), default=0.0) + buffer_m
+    road_buffers = {}
+    kept, dropped = [], []
+    for candidate in candidates:
+        polygon = candidate['geom']
+        area = polygon.area
+        if area >= max_area_m2:
+            kept.append(candidate)
+            continue
+        # numpy 数组不能用布尔判断（索引 0 会被当成 False），按长度判断是否命中
+        if counterpart_tree is not None and len(counterpart_tree.query(polygon, predicate='intersects')) > 0:
+            kept.append(candidate)
+            continue
+        surface_share, surface_ids = _covered_share(polygon, surface_items, surface_tree)
+        plaza_share, _ = _covered_share(polygon, plaza_items, plaza_tree)
+        green_share, _ = _covered_share(polygon, green_items, green_tree)
+        reasons = []
+        if surface_share >= plaza_green_share:
+            if plaza_share >= plaza_green_share:
+                reasons.append('plaza')
+            if green_share >= plaza_green_share:
+                reasons.append('green')
+            if not reasons:
+                reasons.append('plaza-green')
+        road_share, road_ids = _carriageway_share(polygon, road_items, road_tree, buffer_m, road_buffers, road_reach)
+        if road_share >= carriageway_share:
+            reasons.append('carriageway')
+        if not reasons:
+            kept.append(candidate)
+            continue
+        labels = [f'plaza-or-green:{identity}' for identity in surface_ids[:4]]
+        labels += [f'road:{identity}' for identity in road_ids[:4]]
+        dropped.append({'id': candidate.get('id'), 'areaM2': round(area, 1),
+                        'reason': '+'.join(reasons), 'inside': labels})
+    report[report_key] = {
+        'rule': (f'{source_label}, area<{max_area_m2:g} m2, and (>= {plaza_green_share:.0%} inside OSM plaza/green '
+                 f'or >= {carriageway_share:.0%} inside ground carriageway buffer {buffer_m:g} m)'),
+        'count': len(dropped),
+        'areaM2': round(sum(item['areaM2'] for item in dropped), 1),
+        'objects': dropped[:MISIDENTIFIED_REPORT_LIMIT],
+        'candidates': len(candidates),
+        'kept': len(kept),
+        'truncated': len(dropped) > MISIDENTIFIED_REPORT_LIMIT,
+    }
+    return kept, dropped
 
 
 def ensure_globfp():
@@ -317,9 +479,15 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True):
         kept.append(r)
     records = kept
 
+    # 误识别过滤共用的 OSM 面/线只转一次局部坐标，GlobFP 和 Overture 两条补充路径共用
+    plaza_local = _local_areas(osm.get('plaza', []), clip_local)
+    green_local = _local_areas(osm.get('green', []), clip_local)
+    carriageways = _local_carriageways(osm.get('roads', []))
+
     osm_geoms = [r['geom'] for r in records] + withheld_footprints
     osm_tree = STRtree(osm_geoms)
-    dropped = added = 0
+    duplicates = 0
+    overture_candidates = []
     with OVERTURE.open() as f:
         for line in f:
             rec = json.loads(line)
@@ -333,17 +501,17 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True):
                     continue
                 idx = osm_tree.query(poly, predicate='intersects')
                 if any(osm_geoms[i].intersection(poly).area > 0.25 * poly.area for i in idx):
-                    dropped += 1
+                    duplicates += 1
                     continue
-                records.append({
+                record = {
                     'id': 'overture/' + rec['id'], 'geom': poly, 'src': 'overture',
                     'kind': rec.get('subtype') or rec.get('class'),
                     'oHeight': rec.get('height'), 'oFloors': rec.get('num_floors'),
                     'minHeight': 0.0, 'name': (rec.get('name') or None), 'isPart': False,
-                })
-                added += 1
-    report['overtureAdded'] = added
-    report['overtureDuplicates'] = dropped
+                }
+                records.append(record)
+                overture_candidates.append(record)
+    report['overtureDuplicates'] = duplicates
 
     gb_polys, gb_heights, gb_excluded = load_globfp(clip_local, report)
     gb_tree = STRtree(gb_polys)
@@ -352,7 +520,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True):
     # GloBFP 里和现有轮廓基本不重叠的，作为补充建筑（城中村等 OSM 和 Overture 漏掉的楼）
     all_geoms = [r['geom'] for r in records] + withheld_footprints
     all_tree = STRtree(all_geoms)
-    gb_added = 0
+    gb_candidates = []
     for i, g in enumerate(gb_polys):
         if i in gb_excluded or g.area < 30:
             continue
@@ -362,12 +530,30 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True):
         clipped = g.intersection(clip_local)
         if clipped.area < 30:
             continue
-        records.append({
+        gb_candidates.append({
             'id': f'globfp/{i}', 'geom': clipped, 'src': 'globfp', 'kind': None,
             'gbHeight': gb_heights[i], 'minHeight': 0.0, 'name': None, 'isPart': False,
         })
-        gb_added += 1
+    # 只对 GloBFP 补充路径做误识别过滤；广场设施、车棚等不能生成楼体，全部列进构建报告
+    kept_candidates, _dropped_candidates = filter_misidentified_footprints(
+        gb_candidates, plaza_local, green_local, carriageways, report, counterpart_geoms=all_geoms,
+    )
+    records.extend(kept_candidates)
+    gb_added = len(kept_candidates)
     report['globfpAdded'] = gb_added
+
+    # Overture-only 补充楼同样按 docs/15 3.2 的规则过滤广场设施/路面误识别；
+    # 有 OSM 轮廓对照的楼一律保留（counterpart_geoms 只给 OSM，不含其他 Overture 轮廓）。
+    # 放在 GlobFP 之后执行，GlobFP 候选的去重对照集仍是全部 Overture 补充记录，globfpMisidentified 口径不变。
+    kept_overture, _dropped_overture = filter_misidentified_footprints(
+        overture_candidates, plaza_local, green_local, carriageways, report,
+        counterpart_geoms=osm_geoms,
+        report_key='overtureMisidentified', source_label='Overture-only (no OSM building)',
+    )
+    kept_overture_ids = {id(record) for record in kept_overture}
+    records = [record for record in records
+               if record.get('src') != 'overture' or id(record) in kept_overture_ids]
+    report['overtureAdded'] = len(kept_overture)
 
     out = []
     min_height_corrections = []

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import osmium
 from shapely import wkb
-from shapely.geometry import LineString, box
+from shapely.geometry import LineString, Polygon, box
 from shapely.ops import unary_union
 
 from geo import BAY_CONTEXT_BBOX
@@ -13,7 +13,8 @@ from geo import BAY_CONTEXT_BBOX
 ROOT = Path(__file__).resolve().parents[2]
 PBF = ROOT / 'data/raw/guangdong-latest.osm.pbf'
 CACHE = ROOT / 'data/raw/cache/osm-phase1.pkl'
-CACHE_VERSION = 5
+# 6：新增 plaza 键，旧缓存没有该键，必须重新解析，不能静默漏掉广场面。
+CACHE_VERSION = 6
 
 GREEN_LANDUSE = {'grass', 'forest', 'recreation_ground', 'village_green', 'meadow', 'park'}
 GREEN_LEISURE = {'park', 'garden', 'nature_reserve', 'golf_course', 'pitch'}
@@ -24,13 +25,21 @@ KEEP_TAGS = (
     'name', 'name:en', 'height', 'building:levels', 'building', 'building:part', 'min_height',
     'building:levels:underground', 'building:use', 'location',
     'highway', 'lanes', 'width', 'oneway', 'bridge', 'tunnel', 'layer', 'leisure', 'landuse',
-    'natural', 'water', 'wetland', 'amenity', 'man_made',
+    'natural', 'water', 'wetland', 'amenity', 'man_made', 'place',
     'junction', 'access', 'vehicle', 'motor_vehicle', 'motorcar',
 )
+
+# OSM 广场面的两种画法：行人专用面、place=square/plaza 点面
+PLAZA_PLACES = {'square', 'plaza'}
 
 
 def _tags(obj):
     return {k: obj.tags[k] for k in KEEP_TAGS if k in obj.tags}
+
+
+def _is_plaza(t):
+    """判定行人广场面，只用于误识别建筑过滤，不参与建筑/绿地/水体分类。"""
+    return t.get('highway') == 'pedestrian' or t.get('place') in PLAZA_PLACES
 
 
 def _classify_area(t):
@@ -60,9 +69,20 @@ def read_osm(bbox, use_cache=True):
     wkbf = osmium.geom.WKBFactory()
     out = {'cacheVersion': CACHE_VERSION, 'bbox': bbox, 'bayContextBbox': BAY_CONTEXT_BBOX,
            'roads': [], 'coastline': [], 'bayCoastline': [], 'shoreWetlands': [],
-           'buildings': [], 'water': [], 'wetland': [], 'green': []}
+           'buildings': [], 'water': [], 'wetland': [], 'green': [], 'plaza': []}
+    # 闭合的 highway=pedestrian 面可能同时以 area 和 way 出现，按 OSM id 去重并保留面积更大的面
+    plazas = {}
 
-    keys = ('building', 'building:part', 'highway', 'natural', 'water', 'leisure', 'landuse', 'waterway')
+    def add_plaza(osm_id, tags, geom):
+        if not geom.intersects(clip) or geom.is_empty:
+            return
+        previous = plazas.get(osm_id)
+        if previous is None or geom.area > previous['geom'].area:
+            plazas[osm_id] = {'id': osm_id, 'tags': tags, 'geom': geom}
+
+    keys = ('building', 'building:part', 'highway', 'natural', 'water', 'leisure', 'landuse', 'waterway',
+            'place')
+
     fp = (osmium.FileProcessor(str(PBF))
           .with_locations()
           .with_areas()
@@ -78,8 +98,9 @@ def read_osm(bbox, use_cache=True):
             if 'waterway' in obj.tags:
                 t['waterway'] = obj.tags['waterway']
             kind = _classify_area(t)
+            plaza = _is_plaza(t)
             shore_wetland = t.get('natural') in ('wetland', 'mud')
-            if kind is None and not shore_wetland:
+            if kind is None and not shore_wetland and not plaza:
                 continue
             try:
                 geom = wkb.loads(wkbf.create_multipolygon(obj), hex=True)
@@ -87,6 +108,8 @@ def read_osm(bbox, use_cache=True):
                 continue
             osm_id = f"{'way' if obj.from_way() else 'relation'}/{obj.orig_id()}"
             entry = {'id': osm_id, 'tags': t, 'geom': geom}
+            if plaza:
+                add_plaza(osm_id, t, geom)
             if shore_wetland and geom.intersects(coastal_coverage):
                 out['shoreWetlands'].append(entry)
             if kind is not None and geom.intersects(clip):
@@ -113,6 +136,12 @@ def read_osm(bbox, use_cache=True):
             elif near_phase:
                 out['roads'].append({'id': f'way/{obj.id}', 'tags': _tags(obj), 'geom': LineString(coords),
                                      'nodeRefs': [nd.ref for nd in obj.nodes]})
+                # 部分闭合行人面不会被 osmium 面积装配器识别，这里按闭合 way 兜底收进 plaza
+                closed = len(coords) >= 4 and coords[0] == coords[-1]
+                if closed and _is_plaza(_tags(obj)) and obj.tags.get('area') != 'no':
+                    add_plaza(f'way/{obj.id}', _tags(obj), Polygon(coords))
+
+    out['plaza'] = list(plazas.values())
 
     CACHE.parent.mkdir(parents=True, exist_ok=True)
     with CACHE.open('wb') as f:

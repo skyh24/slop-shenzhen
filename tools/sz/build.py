@@ -23,6 +23,8 @@ from streetscape import build_streetscape
 from terrain import build_terrain
 from terrain_exclusions import chunjian_exclusions
 from terrain_surface import build_terrain_surface
+from road_surface import build_road_surface
+from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
 
@@ -90,15 +92,22 @@ def main():
     road_graph = build_roadgraph(osm, clip, report)
     apply_beihuan_sections(road_graph, report)
     road_graph['turnRestrictions'] = build_turn_restrictions(PBF, road_graph, report)
+    # 春茧两座封闭厅是已核实的地面裁除区：派生路面不得改写馆内格点，先按原始 DSM 求出并复用。
+    exclusions = chunjian_exclusions(buildings, terrain, osm['roads'])
+    # 路面走廊用 FABDEM 基线派生平滑高程；原始 DSM 在走廊外不变，报告记录逐段前后高差。
+    terrain = build_road_surface(terrain, road_graph, report,
+                                 excluded_polygons=[exclusion['poly'] for exclusion in exclusions])
     road_frontage = build_road_frontage(PBF, osm, road_graph, buildings, report)
     terrain_surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland,
-                                          exclusions=chunjian_exclusions(buildings, terrain, osm['roads']))
+                                          exclusions=exclusions)
     metro = build_metro(clip, report, use_cache=not args.no_cache)
 
     landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
     landmarks = landmark_entries(landmark_manifest)
     parks = build_parks(landmark_manifest, green, land, water, report)
     streetscape = build_streetscape(PBF, osm, parks, report)
+    trees = build_trees(osm, clip, land, water, wetland, green, parks, streetscape, buildings, report,
+                        pbf=PBF, road_graph=road_graph)
     bridges = build_bridges(PBF, landmark_manifest, report)
     lm_index = {lm['id']: i for i, lm in enumerate(landmarks)}
 
@@ -149,6 +158,8 @@ def main():
         payload['seaSurface'] = {**sea_surface, 'polygons': [enc_poly(p) for p in sea_surface['polygons']]}
     if streetscape:
         payload['streetscape'] = streetscape
+    if trees:
+        payload['trees'] = trees
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode()
