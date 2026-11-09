@@ -1,0 +1,54 @@
+{
+  "verifiedAt": "2026-11-09",
+  "status": "research-only-not-runtime-input",
+  "candidates": [
+    {
+      "id": "shenzhen-bay-culture-square",
+      "name": "深圳湾文化广场",
+      "userReference": "人才公园附近的新艺术馆",
+      "identityStatus": "用户于2026-11-09明确确认所指为深圳湾文化广场；公开来源确认该场馆及与人才公园连接关系",
+      "osmBinding": null,
+      "geometryStatus": "建筑师页面提供剖面及一、二层平面图链接；尚未配准或提取尺寸，不可直接生成定位模型",
+      "sources": [
+        {
+          "url": "https://www.i-mad.com/articles/shenzhen-bay-culture-square-completion",
+          "publisher": "MAD Architects",
+          "publishedAt": "2026-08-04",
+          "access": "page-read",
+          "facts": [
+            "建筑与人才公园相接",
+            "屋顶公共空间及东侧下沉道路连接步行空间",
+            "自然白色花岗岩曲面体量",
+            "页面包含剖面和楼层平面图"
+          ],
+          "heightCaution": "文中28米为北馆最高展厅叙述，不应直接当整栋外轮廓建筑高度"
+        },
+        {
+          "url": "https://www.szns.gov.cn/szsnsqrmzfbgswzgkml/szsnsqrmzfbgswzgkml/qt/gzdt/content/post_12512842.html",
+          "publisher": "深圳市南山区人民政府",
+          "publishedAt": "2025-11-24",
+          "access": "search-index-text; direct-open-timeout",
+          "facts": [
+            "报道2025年11月23日面向公众全面开放"
+          ]
+        },
+        {
+          "url": "https://www.szns.gov.cn/mlns/whns/whcg/content/post_12605761.html",
+          "publisher": "深圳市南山区人民政府",
+          "publishedAt": "2026-01-19",
+          "access": "search-index-text; direct-open-timeout",
+          "facts": [
+            "介绍9座石头状建筑",
+            "地铁13号线人才公园站B1出口"
+          ]
+        }
+      ],
+      "dateCaution": "政府报道的开放日期与建筑师完工文章发布日期属于不同事件，不能把2026文章日期认作首次开放日",
+      "unresolved": [
+        "OSM对象及现有包覆盖",
+        "各体量轮廓与外部高度",
+        "可通行屋面、入口及道路竖向关系"
+      ]
+    }
+  ]
+}
