@@ -15,6 +15,12 @@ const PODIUM_EXPAND_MAX_M = 9;
 const PODIUM_HEIGHT_FRACTION = 0.16;
 const PODIUM_HEIGHT_MAX_M = 20;
 const PODIUM_MIN_HEIGHT_M = 6;
+// 屋顶细节：女儿墙 + 电梯机房/空调机组体块。类型、位置、数量都是显示估计（estimate），
+// 不属于建筑高度来源；只加在真实足迹内，不生成碰撞体。
+const PARAPET_MIN_HEIGHT_M = 20;
+const PARAPET_HEIGHT_M = 0.9;
+const ROOF_EQUIPMENT_MIN_HEIGHT_M = 60;
+const ROOF_EQUIPMENT_MAX = 3;
 const flatRing = ring => ring.flatMap(p => [p.x, p.z]);
 
 function ringArea(ring) {
@@ -32,6 +38,33 @@ function expandRing(ring, expand) {
   const radius = Math.sqrt(ringArea(ring) / Math.PI);
   const scale = 1 + expand / Math.max(radius, 6);
   return ring.map(p => ({ x: cx + (p.x - cx) * scale, z: cz + (p.z - cz) * scale }));
+}
+
+function roofPlan(building, polygon) {
+  const parapet = building.height >= PARAPET_MIN_HEIGHT_M ? PARAPET_HEIGHT_M : 0;
+  const equipment = [];
+  if (building.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M) {
+    const ring = polygon.outer;
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const point of ring) {
+      minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x);
+      minZ = Math.min(minZ, point.z); maxZ = Math.max(maxZ, point.z);
+    }
+    const seed = buildingSeed(building.id);
+    const count = 1 + Math.floor(seed * ROOF_EQUIPMENT_MAX);
+    const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+    const span = Math.min(maxX - minX, maxZ - minZ);
+    for (let index = 0; index < count; index++) {
+      const angle = (seed * 7.3 + index * 2.1) % (Math.PI * 2);
+      const radius = span * (0.08 + 0.06 * ((seed + index * 0.37) % 1));
+      const sizeX = Math.min(9, Math.max(3, span * (0.1 + 0.05 * ((seed + index * 0.21) % 1))));
+      const sizeZ = Math.min(9, Math.max(3, span * (0.09 + 0.04 * ((seed + index * 0.53) % 1))));
+      const height = 2 + ((seed + index * 0.31) % 1) * 3;
+      equipment.push({ x: cx + Math.cos(angle) * radius, z: cz + Math.sin(angle) * radius,
+        sizeX, sizeZ, height });
+    }
+  }
+  return { parapet, equipment };
 }
 
 function podiumPlan(building) {
@@ -91,6 +124,18 @@ export function buildCityBlocks(scene, options = {}) {
       allBlocks.push({ ...building, id: `${building.id}:podium`, isPodium: true,
         baseY: placement.baseY, minY: placement.minY, maxY: top });
     }
+    const roofPolygon = building.polygons[0];
+    const roof = roofPlan(building, roofPolygon);
+    if (roof.parapet > 0) {
+      addWalls(batch, [roofPolygon.outer].map(flatRing), placement.maxY, placement.maxY + roof.parapet, meta, placement.baseY);
+    }
+    for (const unit of roof.equipment) {
+      const base = [[unit.x - unit.sizeX / 2, unit.z - unit.sizeZ / 2], [unit.x + unit.sizeX / 2, unit.z - unit.sizeZ / 2],
+        [unit.x + unit.sizeX / 2, unit.z + unit.sizeZ / 2], [unit.x - unit.sizeX / 2, unit.z + unit.sizeZ / 2]]
+        .map(([x, z]) => [x, z]);
+      addWalls(batch, [base.flat()], placement.maxY, placement.maxY + unit.height, meta, placement.baseY);
+      addFlatPolygon(batch, [base.flat()], placement.maxY + unit.height, meta);
+    }
     allBlocks.push({ ...building, baseY: placement.baseY, minY: placement.minY, maxY: placement.maxY });
   }
   const material = createBuildingMaterial();
@@ -102,7 +147,8 @@ export function buildCityBlocks(scene, options = {}) {
     group.add(mesh);
   }
   scene.add(group);
-  return { group, colliders, allBlocks, update() {},
+  return { group, colliders, allBlocks, roofs: allBlocks.filter(block => !block.isPodium && block.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M).length,
+    update() {},
     dispose() {
       group.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
       material.dispose();

@@ -1,13 +1,13 @@
 # 当前交接：Slop Shenzhen
 
-更新：2026-11-10 凌晨（round 5）。正式入口可运行深圳。九条硬性要求仍无一条整体验收通过，M9 未通过，因此没有 baseline 标签。历史交接见[HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md)，本轮证据见 `docs/qa/round2/README.md`（本地）。
+更新：2026-11-10 凌晨（round 6）。正式入口可运行深圳。九条硬性要求仍无一条整体验收通过，M9 未通过，因此没有 baseline 标签。历史交接见[HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md)，本轮证据见 `docs/qa/round2/README.md`（本地）。
 
 ## 1. 当前状态
 
 - 分支 `dsh-42a55797-ff5c`（工作树 `.agents/worktrees/`）；main 已含 round 1（`3117db1`）。
 - 共享包 `js/sz-city.json.gz`：6,957,206 B；SHA-256 `bd70c3553c99e3ac6d6aacd0856677742f7e0573d56451085cc45b1af6a4d8bf`（新增 `air` 无人机航线数据）。
 - 38,057 建筑、58,773 树、534 地面块 / 386,824 三角；新增 `sites` 段：21 个地标 / 43 个 OSM 场地对象。
-- 测试：Node **426 pass / 0 fail / 0 skip**（Three 0.187.0）；Python **97 OK**。
+- 测试：Node **427 pass / 0 fail / 0 skip**（Three 0.187.0）；Python **97 OK**。
 - 构建：`.venv/bin/python tools/sz/build.py` 缓存命中约 54 s；`--no-cache` 重读 PBF。
 
 ## 2. round 2 已交付（保留）
@@ -54,6 +54,15 @@
 | 性能诊断 | 夜间开灯带：drawCalls 413→416、三角 0.745→0.749 M，无额外帧率损失；自动化浏览器仍是 30 Hz 基准，不能当 M9 证据 | L3 |
 
 **结论**：`docs/10-PERF-QA.md` Q7 的“灯光秀未实现”已补，但完整 Q7（地铁逐线、四时段、观赏路线）仍未回归。
+
+## 2e. 本轮新增（round 6）
+
+| 项 | 结果 | 等级 |
+| --- | --- | --- |
+| 普通建筑屋顶细节 | `js/sz-buildings.js`：≥20 m 建筑加 0.9 m 女儿墙，≥60 m 按 id 固定种子加 1–3 个电梯机房/空调机组体块（3–9 m 见方、2–5 m 高，estimate）；不新增碰撞体、几何仍并入原渲染批次、draw call 不增；测试断言屋顶可射线命中 | L4（无人机俯视可见） |
+| M9 重试 | 着色器热缓存下 2560×1440 仍 p50 33.3 ms（blank 页 16.7 ms），A/B 隐藏组不改变 p50 → 浏览器对后台/未聚焦窗口的 WebGPU 节流，非场景负载；M9 仍需可见聚焦窗口重测 | 未通过 |
+
+**结论**：3.1 的屋顶形状已补；3.2 可通行立交匝道、3.6 UI 逐项复核、M9 仍是发布前硬缺口。
 
 ## 3. 下一步（按优先级）
 

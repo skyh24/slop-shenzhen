@@ -144,3 +144,25 @@ test('tall ordinary towers gain an estimated podium with matching display and co
   blocks.dispose();
   elevated.dispose();
 });
+
+test('ordinary towers get estimated parapets and rooftop equipment without new colliders', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+  const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
+  const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    'three/webgpu': THREE,
+    './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
+    './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
+    './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
+    './sz-building-layout.js': { buildingPlacement, buildingSeed }
+  } });
+  const scene = new THREE.Scene();
+  const tower = { ...building, id: 'way/2001', height: 150, minHeight: 0, polygons: [{ outer, holes: [] }] };
+  const blocks = buildCityBlocks(scene, { buildings: [{ ...tower, facade: 'office' }], terrain: grid });
+  assert.equal(blocks.roofs, 1);
+  assert.equal(blocks.colliders.filter(collider => collider.type === 'building').length, 1,
+    'roof details must not add colliders');
+  scene.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster(new THREE.Vector3(19.9, 300, 0), new THREE.Vector3(0, -1, 0));
+  const hits = ray.intersectObjects(blocks.group.children);
+  assert.ok(hits.length > 0 && hits[0].point.y >= 10, 'roof surface remains raycastable');
+  blocks.dispose();
+});
