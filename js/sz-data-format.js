@@ -110,5 +110,6 @@ export function decodeCityPayload(raw) {
     frame: { origin: raw.origin, bearingDeg: 0, units: 'm' }, bounds: raw.bounds,
     coverage: raw.coverage.map(polygon), land: raw.land.map(polygon), water: raw.water.map(polygon),
     wetland: raw.wetland.map(polygon), green: raw.green.map(polygon),
-    roadGraph: raw.roadGraph, terrain: raw.terrain, landmarks: raw.landmarks } };
+    roadGraph: raw.roadGraph, terrain: raw.terrain, terrainSurface: raw.terrainSurface,
+    metro: raw.metro, landmarks: raw.landmarks } };
 }

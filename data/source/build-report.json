@@ -1,5 +1,5 @@
 {
-  "formatVersion": 1,
+  "formatVersion": 2,
   "origin": [
     114.0545,
     22.5463
@@ -32,12 +32,15 @@
     "civic-center",
     "convention-center",
     "dji-sky-city",
+    "futian-station",
     "huaqiangbei",
     "ping-an",
+    "super-hq",
     "talent-park",
     "tencent-binhai",
     "upperhills",
-    "window-of-world"
+    "window-of-world",
+    "xili-station"
   ],
   "landmarksWithoutBuilding": [
     "chunjian",
@@ -46,7 +49,9 @@
     "kk100",
     "lianhuashan",
     "sea-world",
-    "shenzhen-bay-park"
+    "shenzhen-bay-bridge",
+    "shenzhen-bay-park",
+    "yanjiang-expressway"
   ],
   "landPieces": 1,
   "landAreaKm2": 113.4,
@@ -56,6 +61,456 @@
   "green": 2140,
   "roads": 16493,
   "roadKm": 2673.6,
-  "outputBytes": 1437418,
-  "seconds": 11.9
+  "terrain": {
+    "stepM": 25,
+    "samples": 281934,
+    "nonzeroSamples": 241496,
+    "minHeightM": -13.6,
+    "maxHeightM": 429.3,
+    "extrema": {
+      "minimum": {
+        "heightM": -13.6,
+        "lon": 113.9412414,
+        "lat": 22.5180802,
+        "x": -11650,
+        "z": 3125
+      },
+      "maximum": {
+        "heightM": 429.3,
+        "lon": 113.9811007,
+        "lat": 22.5761001,
+        "x": -7550,
+        "z": -3300
+      }
+    },
+    "belowSeaLevelSamples": 447,
+    "qualityStatus": "source-preserved; geographic plausibility review pending",
+    "sources": [
+      {
+        "id": "copernicus-dem-N22E113",
+        "sha256": "074e13244e6da6745bcf76150fdc6e06f774140a7aac796785922fce962eacbb",
+        "samplesPerSide": 3600,
+        "sampleSpacingArcSeconds": 1,
+        "verticalDatum": "EGM2008",
+        "productType": "DSM"
+      },
+      {
+        "id": "copernicus-dem-N22E114",
+        "sha256": "b950ab75642d6684fe08c82b6aa3bb087c1d35acd229ef0e6e6586e1b0868fa3",
+        "samplesPerSide": 3600,
+        "sampleSpacingArcSeconds": 1,
+        "verticalDatum": "EGM2008",
+        "productType": "DSM"
+      }
+    ],
+    "processing": {
+      "resampling": "bilinear",
+      "filter": "none",
+      "featherM": 0,
+      "verticalOffsetM": 0,
+      "verticalScale": 1,
+      "quantizationM": 0.1,
+      "heightSource": "copernicus-glo30-dsm",
+      "voidPolicy": "fail-build",
+      "coverage": "full bounding rectangle; render with separate land and water polygons"
+    },
+    "limitations": [
+      "25 m output grid does not increase native source resolution",
+      "Source snapshot is not a current ground survey; buildings and canopy may affect DEM",
+      "Terrain not yet connected to runtime surfaces or controllers",
+      "Water surface and bridge deck elevations require separate source data"
+    ]
+  },
+  "roadGraph": {
+    "nodes": 7842,
+    "links": 11238,
+    "lengthKm": 1412.32,
+    "bridgeLinks": 498,
+    "tunnelLinks": 93,
+    "widthSources": {
+      "estimate-from-class": 6965,
+      "estimate-from-lanes": 4269,
+      "osm-width": 4
+    },
+    "skipped": {
+      "accessRestricted": 135,
+      "nonDrivableClass": 18408
+    },
+    "connectivity": {
+      "components": 605,
+      "largestNodes": 6984,
+      "largestNodeFraction": 0.8906,
+      "largestLinks": 10282,
+      "largestLinkFraction": 0.9149
+    },
+    "limitations": [
+      "Turn restrictions and conditional access are not yet imported",
+      "Bridge and tunnel vertical profiles require source verification; layer is not height",
+      "Not yet connected to runtime traffic or controllers"
+    ]
+  },
+  "terrainSurface": {
+    "chunks": 534,
+    "vertices": 245187,
+    "triangles": 386740,
+    "areaKm2": 105.759659,
+    "areaErrorM2": -1.7e-06,
+    "seconds": 2.76,
+    "waterLevelsGenerated": false,
+    "heightSource": "copernicus-glo30-dsm"
+  },
+  "metro": {
+    "network": "深圳地铁",
+    "snapshot": {
+      "sourceId": "osm-guangdong",
+      "sha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+      "bytes": 174793884,
+      "snapshotAt": "2026-11-08T23:59:19Z",
+      "url": "https://download.geofabrik.de/asia/china/guangdong-261108.osm.pbf"
+    },
+    "routeRelations": 42,
+    "lineRefs": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "6B",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "16",
+      "20"
+    ],
+    "coveredLineRefs": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "13",
+      "14"
+    ],
+    "segments": 109,
+    "stations": 81,
+    "entrances": 382,
+    "unassociatedCandidates": 48,
+    "missingRouteRefs": [],
+    "colourConflicts": [],
+    "excludedTrackMembers": [],
+    "outsideCoverageStationRefs": [
+      "node/13452687740"
+    ],
+    "chegongmiao": {
+      "stations": [
+        {
+          "id": "node/5214901838",
+          "entityType": "station",
+          "name": "车公庙",
+          "nameEn": "Chegongmiao",
+          "ref": null,
+          "x": -3275.07,
+          "z": 826.35,
+          "lon": 114.0226605,
+          "lat": 22.5388378,
+          "lineRefs": [
+            "1",
+            "7",
+            "9",
+            "11"
+          ],
+          "routeIds": [
+            "relation/13163478",
+            "relation/21395022",
+            "relation/2287554",
+            "relation/6450277",
+            "relation/6781618",
+            "relation/7913935",
+            "relation/9318441",
+            "relation/9629865",
+            "relation/9699771"
+          ],
+          "source": "https://www.openstreetmap.org/node/5214901838",
+          "positionSource": "osm-node",
+          "association": {
+            "method": "stop-area-route-membership",
+            "relationIds": [
+              "relation/7713744",
+              "relation/7713745",
+              "relation/7713752",
+              "relation/7913924",
+              "relation/9746530"
+            ]
+          }
+        }
+      ],
+      "entrances": [
+        {
+          "id": "node/1491790878",
+          "entityType": "entrance",
+          "name": "",
+          "nameEn": "",
+          "ref": "C",
+          "x": -3524.22,
+          "z": 862.29,
+          "lon": 114.0202384,
+          "lat": 22.5385132,
+          "lineRefs": [
+            "1",
+            "7",
+            "9",
+            "11"
+          ],
+          "routeIds": [
+            "relation/2287554",
+            "relation/7913935"
+          ],
+          "source": "https://www.openstreetmap.org/node/1491790878",
+          "positionSource": "osm-node",
+          "association": {
+            "method": "stop-area-route-membership",
+            "relationIds": [
+              "relation/7713744"
+            ]
+          },
+          "stationIds": [
+            "node/5214901838"
+          ],
+          "stationNames": [
+            "车公庙"
+          ]
+        },
+        {
+          "id": "node/1491790879",
+          "entityType": "entrance",
+          "name": "",
+          "nameEn": "",
+          "ref": "D2",
+          "x": -3394.32,
+          "z": 880.75,
+          "lon": 114.0215012,
+          "lat": 22.5383465,
+          "lineRefs": [
+            "1",
+            "7",
+            "9",
+            "11"
+          ],
+          "routeIds": [
+            "relation/2287554",
+            "relation/7913935"
+          ],
+          "source": "https://www.openstreetmap.org/node/1491790879",
+          "positionSource": "osm-node",
+          "association": {
+            "method": "stop-area-route-membership",
+            "relationIds": [
+              "relation/7713744"
+            ]
+          },
+          "stationIds": [
+            "node/5214901838"
+          ],
+          "stationNames": [
+            "车公庙"
+          ]
+        },
+        {
+          "id": "node/1491790883",
+          "entityType": "entrance",
+          "name": "",
+          "nameEn": "",
+          "ref": "D1",
+          "x": -3362.82,
+          "z": 851.17,
+          "lon": 114.0218075,
+          "lat": 22.5386136,
+          "lineRefs": [
+            "1",
+            "7",
+            "9",
+            "11"
+          ],
+          "routeIds": [
+            "relation/2287554",
+            "relation/7913935"
+          ],
+          "source": "https://www.openstreetmap.org/node/1491790883",
+          "positionSource": "osm-node",
+          "association": {
+            "method": "stop-area-route-membership",
+            "relationIds": [
+              "relation/7713744"
+            ]
+          },
+          "stationIds": [
+            "node/5214901838"
+          ],
+          "stationNames": [
+            "车公庙"
+          ]
+        },
+        {
+          "id": "node/1491790884",
+          "entityType": "entrance",
+          "name": "",
+          "nameEn": "",
+          "ref": "B",
+          "x": -3540.8,
+          "z": 766.83,
+          "lon": 114.0200772,
+          "lat": 22.5393753,
+          "lineRefs": [
+            "1",
+            "7",
+            "9",
+            "11"
+          ],
+          "routeIds": [
+            "relation/2287554",
+            "relation/7913935"
+          ],
+          "source": "https://www.openstreetmap.org/node/1491790884",
+          "positionSource": "osm-node",
+          "association": {
+            "method": "stop-area-route-membership",
+            "relationIds": [
+              "relation/7713744"
+            ]
+          },
+          "stationIds": [
+            "node/5214901838"
+          ],
+          "stationNames": [
+            "车公庙"
+          ]
+        },
+        {
+          "id": "node/1492127784",
+          "entityType": "entrance",
+          "name": "",
+          "nameEn": "",
+          "ref": "A",
+          "x": -3405.99,
+          "z": 744.73,
+          "lon": 114.0213878,
+          "lat": 22.5395748,
+          "lineRefs": [
+            "1",
+            "7",
+            "9",
+            "11"
+          ],
+          "routeIds": [
+            "relation/2287554",
+            "relation/7913935"
+          ],
+          "source": "https://www.openstreetmap.org/node/1492127784",
+          "positionSource": "osm-node",
+          "association": {
+            "method": "stop-area-route-membership",
+            "relationIds": [
+              "relation/7713744"
+            ]
+          },
+          "stationIds": [
+            "node/5214901838"
+          ],
+          "stationNames": [
+            "车公庙"
+          ]
+        },
+        {
+          "id": "node/4823463502",
+          "entityType": "entrance",
+          "name": "",
+          "nameEn": "",
+          "ref": "F",
+          "x": -3205.49,
+          "z": 959.32,
+          "lon": 114.023337,
+          "lat": 22.537637,
+          "lineRefs": [
+            "1",
+            "7",
+            "9",
+            "11"
+          ],
+          "routeIds": [
+            "relation/6781618",
+            "relation/9629865"
+          ],
+          "source": "https://www.openstreetmap.org/node/4823463502",
+          "positionSource": "osm-node",
+          "association": {
+            "method": "stop-area-route-membership",
+            "relationIds": [
+              "relation/7713745"
+            ]
+          },
+          "stationIds": [
+            "node/5214901838"
+          ],
+          "stationNames": [
+            "车公庙"
+          ]
+        },
+        {
+          "id": "node/5187498612",
+          "entityType": "entrance",
+          "name": "",
+          "nameEn": "",
+          "ref": "J1",
+          "x": -3002.86,
+          "z": 774.44,
+          "lon": 114.0253069,
+          "lat": 22.5393065,
+          "lineRefs": [
+            "1",
+            "7",
+            "9",
+            "11"
+          ],
+          "routeIds": [
+            "relation/6781618",
+            "relation/9629865"
+          ],
+          "source": "https://www.openstreetmap.org/node/5187498612",
+          "positionSource": "osm-node",
+          "association": {
+            "method": "stop-area-route-membership",
+            "relationIds": [
+              "relation/7713745"
+            ]
+          },
+          "stationIds": [
+            "node/5214901838"
+          ],
+          "stationNames": [
+            "车公庙"
+          ]
+        }
+      ]
+    },
+    "limitations": [
+      "OSM snapshot membership, not a live operator station/entrance inventory",
+      "Unassociated candidates are excluded from confirmed station and entrance layers",
+      "Combined ref 2;8 services retain both line references on shared track",
+      "Vertical track elevations are unresolved; layer and level are not metres",
+      "Not yet attached to scene or maps"
+    ]
+  },
+  "outputBytes": 6409580,
+  "seconds": 17.9
 }

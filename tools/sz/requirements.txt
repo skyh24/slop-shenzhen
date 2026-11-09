@@ -1,5 +1,5 @@
 osmium>=4.0
-shapely>=2.0
+shapely>=2.1
 numpy>=2.0
 pyshp>=2.3
 tifffile>=2025.1

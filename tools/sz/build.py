@@ -15,6 +15,8 @@ from osm import read_osm
 from roads import CLASSES, build_roads
 from roadgraph import build_roadgraph
 from terrain import build_terrain
+from terrain_surface import build_terrain_surface
+from metro import build_metro
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'js/sz-city.json.gz'
@@ -76,6 +78,8 @@ def main():
     roads = build_roads(osm, clip, report)
     terrain = build_terrain(clip, report, source=args.terrain_source)
     road_graph = build_roadgraph(osm, clip, report)
+    terrain_surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland)
+    metro = build_metro(clip, report, use_cache=not args.no_cache)
 
     landmarks = landmark_entries()
     lm_index = {lm['id']: i for i, lm in enumerate(landmarks)}
@@ -86,6 +90,8 @@ def main():
     payload = {
         'version': FORMAT_VERSION,
         'terrain': terrain,
+        'terrainSurface': terrain_surface,
+        'metro': metro,
         'roadGraph': road_graph,
         'origin': [ORIGIN_LON, ORIGIN_LAT],
         'bounds': [round(minx), round(minz), round(maxx), round(maxz)],
