@@ -9,7 +9,8 @@ export function triangleHeight(triangle, x, z) {
   const v = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / determinant;
   const w = 1 - u - v;
   if (Math.min(u, v, w) < -1e-7) return null;
-  return a.y * u + b.y * v + c.y * w;
+  // 同高平台需返回与侧面上界完全相同的值，避免浮点舍入触发侧碰。
+  return a.y + (b.y - a.y) * v + (c.y - a.y) * w;
 }
 
 export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
@@ -60,7 +61,10 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
     if (!Number.isFinite(previousY)) return null;
     const reachable = candidates.filter(c => c.height <= previousY + maxStepUp && c.height >= previousY - maxDrop);
     const same = reachable.find(c => c.surfaceId === previousSurfaceId);
-    if (same) return same;
+    if (same) {
+      // 下坡跨过已建平台时先接触较高的上表面。桥下仍沿当前地面，不向上吸附。
+      return reachable.findLast(c => c.height > same.height + 1e-7 && c.height <= previousY + 1e-7) ?? same;
+    }
     return reachable.sort((a, b) => Math.abs(a.height - previousY) - Math.abs(b.height - previousY)
       || a.surfaceId.localeCompare(b.surfaceId))[0] ?? null;
   }
