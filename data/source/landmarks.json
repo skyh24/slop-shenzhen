@@ -1,0 +1,121 @@
+{
+  "note": "Landmark bindings verified against OSM via Overpass on 2026-11-09 (snapshot guangdong-261108). heightM is the value used at runtime; heightSource says where it came from. status=verified means OSM value agrees with a public reference; status=osm means only OSM so far; status=conflict needs a decision before M4.",
+  "landmarks": [
+    {
+      "id": "tencent-binhai", "name": "腾讯滨海大厦", "phase": 1,
+      "center": [22.52585, 113.93035],
+      "osm": { "site": "way/737149477", "parts": { "southTower": "way/694152192", "northTower": "way/694152193", "links": ["way/775462995", "way/775462996", "way/775462997"] } },
+      "heights": { "southTower": 245.8, "northTower": 194.8 },
+      "heightSource": "osm", "status": "osm"
+    },
+    {
+      "id": "chunsun", "name": "中国华润大厦（春笋）", "phase": 1,
+      "center": [22.51779, 113.94161],
+      "osm": { "building": "way/529272473", "site": "relation/19692110" },
+      "heightM": 392.5, "heightSource": "osm", "status": "osm"
+    },
+    {
+      "id": "chunjian", "name": "深圳湾体育中心（春茧）", "phase": 1,
+      "center": [22.52132, 113.94477],
+      "osm": { "site": "way/542049855" },
+      "heightSource": "estimate", "status": "todo"
+    },
+    {
+      "id": "talent-park", "name": "深圳人才公园", "phase": 1,
+      "center": [22.51368, 113.94356],
+      "osm": { "park": "relation/18459537", "phase2": "relation/10737694", "trail": "relation/19398338", "metro": "way/1339765112" },
+      "status": "osm"
+    },
+    {
+      "id": "shenzhen-bay-park", "name": "深圳湾公园", "phase": 1,
+      "center": [22.50073, 113.95380],
+      "osm": { "park": "relation/8133384", "greenway": "relation/18220656" },
+      "status": "osm"
+    },
+    {
+      "id": "window-of-world", "name": "世界之窗", "phase": 1,
+      "center": [22.53754, 113.96800],
+      "osm": { "park": "way/236402460", "eiffel": "way/264187661", "pyramids": ["way/1150884224", "way/1150884225", "way/1150884226"], "monorail": ["way/245754221", "way/969439362", "way/969439363"], "metro": "way/1197685533" },
+      "heights": { "eiffel": 108 },
+      "heightSource": "reference", "status": "conflict",
+      "conflict": "OSM tags the Eiffel replica height=170; widely published figure is 108 m (1:3 scale). Using 108 until checked."
+    },
+    {
+      "id": "dji-sky-city", "name": "大疆天空之城", "phase": 1,
+      "center": [22.58038, 113.93798],
+      "osm": { "site": "way/1019891882", "parts": { "eastTower": "relation/15569215", "westTower": "relation/14781210", "linkBridge": "way/1110959408" } },
+      "heights": { "linkBridgeTop": 117 },
+      "heightSource": "osm", "status": "osm",
+      "todo": "Tower heights missing in OSM; find published figures."
+    },
+    {
+      "id": "iec-xiangmihu", "name": "深圳国际交流中心（APEC 2026 主会场）", "phase": 1,
+      "center": [22.54735, 114.02410],
+      "osm": { "site": "way/1080860977", "lake": "way/25482483", "lakePark": "way/1361069232", "hotels": ["node/14322540131", "node/14322540132"] },
+      "heightSource": "estimate", "status": "todo"
+    },
+    {
+      "id": "chegongmiao", "name": "车公庙片区", "phase": 1,
+      "center": [22.53849, 114.02254],
+      "osm": { "metro": "way/412443234", "interchangeBridge": "way/1210209012" },
+      "status": "osm"
+    },
+    {
+      "id": "civic-center", "name": "深圳市民中心", "phase": 1,
+      "center": [22.54626, 114.05452],
+      "osm": { "building": "relation/10837975", "southSquare": "way/183106112", "metro": "way/864705250" },
+      "heightSource": "estimate", "status": "todo"
+    },
+    {
+      "id": "lianhuashan", "name": "莲花山公园", "phase": 1,
+      "center": [22.55668, 114.05325],
+      "osm": { "park": "way/41281446" },
+      "status": "osm"
+    },
+    {
+      "id": "ping-an", "name": "平安金融中心", "phase": 1,
+      "center": [22.53664, 114.05036],
+      "osm": { "building": "way/535860513", "site": "relation/9137146", "southTower": "way/773719240" },
+      "heightM": 599.1, "heightSource": "osm", "status": "verified"
+    },
+    {
+      "id": "convention-center", "name": "深圳会展中心（福田）", "phase": 1,
+      "center": [22.53352, 114.05475],
+      "osm": { "building": "way/146862823" },
+      "heightM": 35, "heightSource": "osm", "status": "osm"
+    },
+    {
+      "id": "upperhills", "name": "深业上城", "phase": 1,
+      "center": [22.56012, 114.06511],
+      "osm": { "site": "way/674566923", "tower1": "way/684494961", "tower2": "way/684494959", "mall": "way/684494957" },
+      "heights": { "tower1": 388.1, "tower2": 299.3 },
+      "heightSource": "osm", "status": "verified"
+    },
+    {
+      "id": "huaqiangbei", "name": "华强北（电子科技大厦、赛格广场）", "phase": 1,
+      "center": [22.54418, 114.08280],
+      "osm": { "electronicsTower": "way/476254579", "electronicsTowerD": "way/351753440", "segPlaza": "way/64896107" },
+      "heights": { "segPlazaRoof": 291.6 },
+      "heightSource": "osm", "status": "osm",
+      "note": "Lies inside the phase-1 box (east edge 114.085), so it can move up from phase 2."
+    },
+    {
+      "id": "sea-world", "name": "海上世界（明华轮）", "phase": 2,
+      "center": [22.48634, 113.91193],
+      "osm": { "ship": "way/105683429", "plaza": "way/543176177", "artsCenter": "way/740022007", "nuwa": "node/5250978477", "nuwaPark": "way/733499600" },
+      "status": "osm"
+    },
+    {
+      "id": "kk100", "name": "京基100（京基百纳）", "phase": 2,
+      "center": [22.54573, 114.10158],
+      "osm": { "tower": "way/781166572", "site": "way/164033632" },
+      "heightM": 441.8, "heightSource": "osm", "status": "verified"
+    },
+    {
+      "id": "diwang", "name": "地王大厦（信兴广场）", "phase": 2,
+      "center": [22.54534, 114.10552],
+      "osm": { "building": "way/64601041", "site": "way/773700365" },
+      "heightSource": "estimate", "status": "todo"
+    }
+  ]
+}

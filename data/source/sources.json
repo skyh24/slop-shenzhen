@@ -1,0 +1,62 @@
+{
+  "generated": "2026-11-09",
+  "note": "Pre-APEC snapshot set. Re-fetch OSM after 2026-11-19 (APEC leaders' meeting) and diff counts in build-report.json.",
+  "bbox": { "west": 113.88, "south": 22.455, "east": 114.135, "north": 22.60 },
+  "sources": [
+    {
+      "id": "osm-guangdong",
+      "file": "data/raw/guangdong-latest.osm.pbf",
+      "url": "https://download.geofabrik.de/asia/china/guangdong-latest.osm.pbf",
+      "resolved": "https://download.geofabrik.de/asia/china/guangdong-261108.osm.pbf",
+      "lastModified": "2026-11-08T23:59:19Z",
+      "bytes": 174793884,
+      "sha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+      "license": "ODbL-1.0"
+    },
+    {
+      "id": "overture-buildings",
+      "file": "data/raw/overture/buildings-2026-10-21.0.jsonl",
+      "url": "s3://overturemaps-us-west-2/release/2026-10-21.0/theme=buildings/type=building/*",
+      "release": "2026-10-21.0",
+      "extract": "duckdb bbox filter: xmin<114.135 AND xmax>113.88 AND ymin<22.60 AND ymax>22.455",
+      "features": 109569,
+      "bytes": 45372883,
+      "sha256": "0028f8116503f4a48d4b6e0a03b770c7f3267f86154945077e3a421d8d5d7f1e",
+      "license": "ODbL-1.0"
+    },
+    {
+      "id": "globfp-2265",
+      "file": "data/raw/globfp/2265.zip",
+      "url": "https://ndownloader.figshare.com/files/57131525",
+      "bytes": 170628543,
+      "sha256": "1afdd8cd03b31e9b215242630b283c5d2cb880b8648b411fdcf92d8e0f2acdc1",
+      "license": "CC-BY-4.0",
+      "citation": "Che, Y. et al., 2024, ESSD 16, 5357-5374"
+    },
+    {
+      "id": "globfp-2269",
+      "file": "data/raw/globfp/2269.zip",
+      "url": "https://ndownloader.figshare.com/files/57131471",
+      "bytes": 71481999,
+      "sha256": "84ecfcb9bd9e2e342d124b8842d72d1891f127fe46eb4fa1f8f2901b2571b226",
+      "license": "CC-BY-4.0",
+      "citation": "Che, Y. et al., 2024, ESSD 16, 5357-5374"
+    },
+    {
+      "id": "terrain-N22E113",
+      "file": "data/raw/terrain/N22E113.hgt.gz",
+      "url": "https://elevation-tiles-prod.s3.amazonaws.com/skadi/N22/N22E113.hgt.gz",
+      "bytes": 7193463,
+      "sha256": "9d3301dd0ed572aa8fa9c8a3ac36e4f9dd37923112b2838eb4937dadcf726536",
+      "license": "Mapzen Terrain Tiles (USGS SRTM)"
+    },
+    {
+      "id": "terrain-N22E114",
+      "file": "data/raw/terrain/N22E114.hgt.gz",
+      "url": "https://elevation-tiles-prod.s3.amazonaws.com/skadi/N22/N22E114.hgt.gz",
+      "bytes": 6641418,
+      "sha256": "18fb0d6bbe88c5032b36b197e9db9b3e933936b818fb666ec551b9be7e1c010e",
+      "license": "Mapzen Terrain Tiles (USGS SRTM)"
+    }
+  ]
+}

@@ -54,7 +54,7 @@ test('survey tree locations are unique, quantized and inside the detailed map', 
 test('tree generator filters and deduplicates locations, and signed deltas round trip', async () => {
   const bytes = execFileSync('python3', ['-B', '-c', `
 import runpy, sys
-m = runpy.run_path('tools/build-trees.py')
+m = runpy.run_path('tools/ny/build-trees.py')
 m['prepare'].__globals__['load_frame'] = lambda: (lambda x, z: (x, z), [(0, 0), (100, 0), (100, 100), (0, 100)])
 def row(x, z, structure='Full', condition='Good'):
     return {'location': {'coordinates': [x, z]}, 'tpstructure': structure, 'tpcondition': condition}

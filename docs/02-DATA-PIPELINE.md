@@ -15,17 +15,21 @@
 | Overture Maps Buildings | `s3://overturemaps-us-west-2/release/2026-10-21.0/theme=buildings` | `2026-10-21.0`（下载时的最新版） | 补全建筑轮廓，自带部分高度和层数 |
 | 3D-GloBFP | figshare 文章 28904453（第 IX 部分），网格 `2265`、`2269`（下载地址见 `sources.json`） | 参考年份 2020 | 缺高度时的遥感估算高度 |
 | Terrain Tiles | `elevation-tiles-prod/skadi/N22/N22E113.hgt.gz`、`N22E114.hgt.gz` | Mapzen / Tilezen，底图来自 USGS SRTM | 莲花山、塘朗山等山体起伏 |
-| 地标高度 | `data/source/landmark-heights.json`，人工核对 | 每条附出处 | 地标总高 |
+| 地标高度 | `data/source/landmarks.json`，人工核对 | 每条附出处 | 地标总高 |
 
 ### APEC 时间点
 
-用户要求“APEC 前后最新的数据”。APEC 2026 由中国主办，领导人会议周在深圳举行（2026 年 11 月）。本项目的做法：
+用户要求“APEC 前后最新的数据”。已核实（2026-11-09）：
 
-1. 使用 2026 年 11 月下载的 Geofabrik 广东快照（时间戳见 `sources.json`）和当时最新的 Overture `2026-10-21.0`
-2. APEC 会场如果在关外（例如宝安），只在 `00-SCOPE.md` 记为范围外，不扩图
-3. 会后如果 OSM 有明显更新（新开道路、新竣工楼），重新下载快照，跑同一条管线，对比建筑和道路数量写进 `data/source/build-report.json`
+- 第三十三次领导人非正式会议：**2026 年 11 月 18 日至 19 日**，深圳；工商领导人峰会 11 月 17 日至 18 日
+- 主会场：**深圳国际交流中心**，福田区香蜜湖（OSM way `1080860977`，`amenity=conference_centre`，中心约 `22.5473N, 114.0241E`），在一期范围内
+- 出处：外交部与新华社公告（日期、城市），深圳市政府外事办 2026-09-23《深圳APEC氛围持续升温》（道旗、公交涂装），多家媒体报道会场；官方领导人公告只写城市，没写具体建筑
 
-官方日期和会场以 APEC 官网公告为准，待核实后写进 `00-SCOPE.md`。
+快照策略：
+
+1. **会前快照（已锁定）**：Geofabrik `guangdong-261108.osm.pbf`（2026-11-08）、Overture `2026-10-21.0`，哈希见 `data/source/sources.json`。M1 到 M9 都用这一套
+2. **会后快照（见 [TASKS.md](TASKS.md) 的 M1 数据）**：11 月 20 日之后重新下载 Geofabrik，跑同一条管线，把建筑、道路、地名数量的差异写进 `data/source/build-report.json`。有实质变化（新开道路、竣工楼、香蜜湖片区改造）才切换
+3. **会期氛围**：深南大道、滨河大道、滨海大道的双语道旗，公交 APEC 主题涂装，平安金融中心、京基100、华润大厦的 APEC 主题灯光秀，都做成可开关的“APEC 周”主题（见 [06-STREETSCAPE.md](06-STREETSCAPE.md)），默认开启
 
 ## 处理步骤
 
@@ -46,12 +50,12 @@ flowchart TD
   blocks --> geo
   terrain --> geo
   land --> geo
-  lmk[landmark-heights.json] --> merge
+  lmk[landmarks.json] --> merge
 ```
 
 ### 1. 坐标
 
-原点 `114.0596E, 22.5431N`。用和纽约 `geo-base.mjs`、武汉 `build-wuhan.py` 相同的椭球局部切平面公式：
+原点 `114.0545E, 22.5463N`（市民中心主楼）。用和纽约 `geo-base.mjs`、武汉 `build-wuhan.py` 相同的椭球局部切平面公式：
 
 ```
 KX = (π/180) · N(φ0) · cos φ0
@@ -82,7 +86,7 @@ z = −(lat − lat0) · KY
 1. 读 OSM 建筑（保留 `height`、`building:levels`、`building`、`name`）
 2. 读 Overture，和 OSM 轮廓重叠超过 25% 的丢掉
 3. 楼高按顺序取第一个可用值：
-   1. `landmark-heights.json` 里核实过的值（只对地标）
+   1. `landmarks.json` 里核实过的值（只对地标）
    2. OSM `height`
    3. OSM `building:levels × 3.2 m`
    4. Overture `height`

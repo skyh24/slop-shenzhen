@@ -6,6 +6,9 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 
 | 文件 | 内容 |
 | --- | --- |
+| [HANDOFF.md](HANDOFF.md) | **从这里开始**：现状、下一步、已知的坑、启动提示 |
+| [CONVENTIONS.md](CONVENTIONS.md) | 开发规范：语言、代码风格、坐标、数据、建模、验收、Git |
+| [RESEARCH.md](RESEARCH.md) | 前期调研：参考仓库、武汉教训、数据源、APEC、地标核实、检索服务状况 |
 | [00-SCOPE.md](00-SCOPE.md) | 场景简报：分期范围、坐标约定、地标清单、暂缓与待确认事项 |
 | [01-ARCHITECTURE.md](01-ARCHITECTURE.md) | 纽约原版各模块保留、改造还是替换，以及新增模块 |
 | [02-DATA-PIPELINE.md](02-DATA-PIPELINE.md) | 数据源、锁定的快照、处理步骤、楼高规则、许可 |

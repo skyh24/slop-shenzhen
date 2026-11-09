@@ -4,10 +4,10 @@
 
 ## M0 底座
 
-- [ ] 把 `ref/slop-newyork/` 复制到仓库根目录（`ref/` 保留只读）
-- [ ] `git init`，加 `.gitignore`（`data/raw/`、`.venv/`、`node_modules/`）
-- [ ] 保留纽约原版 `LICENSE` 和作者署名，README 写明派生关系
-- [ ] 本地 `python3 -m http.server 8080` 跑起纽约原版，确认能进入
+- [x] 把 `ref/slop-newyork/` 复制到仓库根目录（`ref/` 保留只读）
+- [x] `git init`，加 `.gitignore`（`data/raw/`、`.venv/`、`node_modules/`）
+- [x] 保留纽约原版 `LICENSE` 和作者署名，README 写明派生关系
+- [x] 本地 `python3 -m http.server 8080` 跑起纽约原版，确认能进入
 
 ## M1 数据
 
@@ -19,8 +19,10 @@
 - [ ] `tools/sz/terrain.py`：山体掩膜地形
 - [ ] `tools/sz/landmarks.py`：地标轮廓对位
 - [ ] `tools/sz/build.py`：一键生成，输出 `build-report.json`
-- [ ] `data/source/landmark-heights.json`：地标高度和出处
-- [ ] 核实 APEC 2026 深圳的日期和会场
+- [~] `data/source/landmarks.json`：地标 OSM 绑定已核实，剩余楼高冲突和缺口见文件里的 `status`
+- [x] 核实 APEC 2026 深圳的日期和会场（11 月 18 至 19 日，福田香蜜湖深圳国际交流中心）
+- [x] `data/source/sources.json`：会前快照的地址、日期、SHA-256
+- [ ] 会后（11 月 20 日之后）重新下载 OSM 快照，对比差异
 
 ## M1 打包
 
@@ -54,10 +56,12 @@
 - [ ] 世界之窗
 - [ ] 深圳湾公园（含春茧）
 - [ ] 车公庙片区
+- [ ] 深圳国际交流中心和香蜜湖（APEC 主会场）
 - [ ] 市民中心
 - [ ] 平安国际金融中心
 - [ ] 会展中心
 - [ ] 深业上城
+- [ ] 华强北（电子科技大厦、赛格广场、步行街），已确认在一期范围内
 
 ## M5 地面交通
 
@@ -83,6 +87,7 @@
 - [ ] 红树林和滩涂
 - [ ] 远景天际线
 - [ ] 夜景灯光秀
+- [ ] APEC 周主题：道旗、公交涂装、地标灯光动画、会场标识（开关 `theme.apec`）
 
 ## M8 界面与玩法
 
@@ -99,8 +104,7 @@
 
 ## M10 二期
 
-- [ ] 扩数据范围到蛇口、华强北、罗湖
+- [ ] 扩数据范围到蛇口、罗湖
 - [ ] 海上世界（明华轮）
-- [ ] 赛格广场和华强北步行街
 - [ ] 京基 100
 - [ ] 高架桥面可以通行
