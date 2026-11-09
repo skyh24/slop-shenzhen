@@ -35,6 +35,9 @@
   <link rel="modulepreload" href="./js/sz-road-frontage.js" />
   <link rel="modulepreload" href="./js/sz-intersection-control.js" />
   <link rel="modulepreload" href="./js/sz-streetscape.js" />
+  <link rel="modulepreload" href="./js/sz-street-lamps.js" />
+  <link rel="modulepreload" href="./js/sz-trees.js" />
+  <link rel="modulepreload" href="./js/sz-apec.js" />
   <link rel="modulepreload" href="./js/sz-building-layout.js" />
   <link rel="modulepreload" href="./js/sz-landmarks/parts.js" />
   <link rel="modulepreload" href="./js/sz-landmarks/tencent-binhai.js" />
@@ -118,6 +121,7 @@
       <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m20 20-4.6-4.6"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/></symbol>
+      <symbol id="i-apec" viewBox="0 0 24 24"><path d="M6 3v18M6 4.5h11l-2.6 3.4L17 11H6"/></symbol>
     </defs>
   </svg>
 
@@ -168,6 +172,9 @@
       <span class="toolbar-divider" aria-hidden="true"></span>
       <button id="btn-teleport" class="tool-btn" type="button" popovertarget="teleport-popover" data-tip="ui.teleportTitle" data-label="ui.teleportTitle">
         <svg class="icon" aria-hidden="true"><use href="#i-pin"/></svg><span class="tool-label" data-text="ui.teleport"></span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+      </button>
+      <button id="btn-apec" class="tool-btn" type="button" data-tip="apecTheme.hint" data-label="apecTheme.label" aria-pressed="true">
+        <svg class="icon" aria-hidden="true"><use href="#i-apec"/></svg><span class="tool-label" data-text="apecTheme.label"></span>
       </button>
       <button id="btn-open-map" class="tool-btn" type="button" data-tip="ui.openMap" data-label="ui.map" aria-keyshortcuts="M">
         <svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span class="tool-label" data-text="ui.map"></span><kbd>M</kbd>

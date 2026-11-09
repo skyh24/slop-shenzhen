@@ -1,0 +1,198 @@
+const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const { join } = require('node:path');
+const { pathToFileURL } = require('node:url');
+const test = require('node:test');
+const { loadModule } = require('./helpers/module.cjs');
+
+const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
+const THREE_STUB = {};
+const trees = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE_STUB } });
+
+const SPECIES = ['ficus', 'camphor', 'phoenix', 'bauhinia', 'royal-palm', 'kapok'];
+const SOURCES = ['osm-node', 'osm-row', 'simulated-street', 'simulated-park'];
+const APPEARANCE = ['osm-tags', 'species-estimate'];
+
+// 分米整数输入，和共享包里的 trees 段一致。
+function makePayload(records) {
+  return {
+    version: 1,
+    count: records.length,
+    x: records.map(record => record.x),
+    z: records.map(record => record.z),
+    height: records.map(record => record.height ?? 110),
+    crown: records.map(record => record.crown ?? 90),
+    species: records.map(record => SPECIES.indexOf(record.species ?? 'ficus')),
+    source: records.map(record => SOURCES.indexOf(record.source ?? 'simulated-street')),
+    appearance: records.map(record => APPEARANCE.indexOf(record.appearance ?? 'species-estimate')),
+    speciesNames: SPECIES,
+    sources: SOURCES,
+    appearanceSources: APPEARANCE,
+    osm: records.flatMap((record, index) => (record.osm ? [[index, record.osm]] : [])),
+    stats: { requested: records.length, kept: records.length, countsBySource: {} },
+    limitations: []
+  };
+}
+
+test('tree payload decodes decimetres to metres and keeps provenance', () => {
+  const payload = makePayload([
+    { x: -123, z: 456, height: 110, crown: 90, species: 'camphor', source: 'osm-node',
+      appearance: 'osm-tags', osm: 'node/123' },
+    { x: 12, z: -34, height: 55, crown: 40, species: 'bauhinia', source: 'simulated-park' }
+  ]);
+  const decoded = trees.decodeTreePayload(payload);
+  assert.equal(decoded.count, 2);
+  assert.equal(decoded.x[0], -12.3);
+  assert.equal(decoded.z[0], 45.6);
+  assert.equal(decoded.height[0], 11);
+  assert.equal(decoded.crown[0], 9);
+  assert.deepEqual([...decoded.speciesNames], [...SPECIES]);
+  assert.deepEqual([...decoded.sources], [...SOURCES]);
+  assert.equal(decoded.osm.get(0), 'node/123');
+  assert.equal(decoded.osm.has(1), false);
+  assert.equal(trees.decodeTreePayload(undefined), null);
+  assert.equal(trees.decodeTreePayload(null), null);
+  const empty = trees.decodeTreePayload(makePayload([]));
+  assert.equal(empty.count, 0);
+});
+
+test('tree payload validation rejects malformed arrays, lengths and enums', () => {
+  const good = makePayload([{ x: 0, z: 0, osm: 'node/1', source: 'osm-node' }]);
+  const cases = [
+    [() => ({ ...good, version: 2 }), /version/],
+    [() => ({ ...good, count: 60001 }), /count/],
+    [() => ({ ...good, x: [0, 1] }), /length/],
+    [() => ({ ...good, x: [1.5] }), /x values/],
+    [() => ({ ...good, height: [0] }), /height range/],
+    [() => ({ ...good, crown: [-1] }), /crown range/],
+    [() => ({ ...good, species: [99] }), /species index/],
+    [() => ({ ...good, source: [99] }), /source index/],
+    [() => ({ ...good, appearance: [9] }), /appearance index/],
+    [() => ({ ...good, appearanceSources: ['osm-tags'] }), /appearanceSources/],
+    [() => ({ ...good, osm: [[0, 'relation/1']] }), /osm id/],
+    [() => ({ ...good, osm: [[3, 'node/1']] }), /osm index/],
+    [() => ({ ...good, osm: [[0, 'node/1'], [0, 'node/2']] }), /osm duplicate/],
+    [() => ({ ...good, osm: [[0, 'node/1']], source: [2] }), /osm source/]
+  ];
+  for (const [build, pattern] of cases) {
+    assert.throws(() => trees.decodeTreePayload(build()), pattern);
+  }
+});
+
+test('tree chunks are deterministic and keyed by 1000 m cells', () => {
+  const payload = makePayload([
+    { x: 40, z: -40 },
+    { x: 12000, z: 500 },
+    { x: -15000, z: -25000 }
+  ]);
+  const decoded = trees.decodeTreePayload(payload);
+  const chunks = trees.planTreeChunks(decoded);
+  assert.deepEqual([...chunks.keys()], ['-2,-3', '0,-1', '1,0']);
+  assert.equal(chunks.get('0,-1')[0].index, 0);
+  assert.equal(chunks.get('0,-1')[0].x, 4);
+  assert.equal(chunks.get('0,-1')[0].height, 11);
+  const again = trees.planTreeChunks(decoded);
+  assert.equal(JSON.stringify([...again.entries()]), JSON.stringify([...chunks.entries()]));
+  const smaller = trees.planTreeChunks(decoded, 500);
+  assert.deepEqual([...smaller.keys()], ['-3,-5', '0,-1', '2,0']);
+  assert.equal(trees.planTreeChunks(null).size, 0);
+  assert.throws(() => trees.planTreeChunks(decoded, 0), /chunk size/);
+});
+
+test('tree LOD keeps near crowns under 180 m and hides beyond 900 m', () => {
+  assert.equal(trees.treeLod(0), 'near');
+  assert.equal(trees.treeLod(179.999), 'near');
+  assert.equal(trees.treeLod(180), 'far');
+  assert.equal(trees.treeLod(500), 'far');
+  assert.equal(trees.treeLod(900), 'far');
+  assert.equal(trees.treeLod(900.001), 'hidden');
+  assert.equal(trees.treeLod(Infinity), 'hidden');
+  assert.equal(trees.treeLod(150, 200, 400), 'near');
+  assert.equal(trees.treeLod(300, 200, 400), 'far');
+  assert.equal(trees.treeLod(450, 200, 400), 'hidden');
+});
+
+const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
+
+test('instanced tree chunks place trunks on the lowest probe height and switch LOD by camera', { skip: !threeDir }, async () => {
+  const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
+  const model = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE } });
+  const payload = makePayload([
+    { x: 0, z: 0, height: 120, crown: 100, osm: 'node/1', source: 'osm-node', appearance: 'osm-tags' },
+    { x: 15000, z: 0, height: 120, crown: 100, source: 'simulated-park' },
+    { x: 5000, z: 5000, height: 120, crown: 100 }, // 车行道上的候选：运行时跳过
+    { x: -5000, z: -5000, height: 120, crown: 100 }, // 地形高程未知
+    { x: 11000, z: 0, height: 120, crown: 100 }, // 步道冲突
+    { x: 21000, z: 0, height: 120, crown: 100 } // 建筑冲突
+  ]);
+  const groundHeight = (x, z) => (Math.abs(x + 500) < 1.5 && Math.abs(z + 500) < 1.5 ? null : 5);
+  const roadHeight = (x, z) => (x > 495 && x < 505 && z > 495 && z < 505 ? 4 : null);
+  const pathAt = (x, z) => (x > 1095 && x < 1105 ? ['footway'] : []);
+  const building = {
+    minY: 0, maxY: 30, minX: 2050, maxX: 2150, minZ: -50, maxZ: 50,
+    polygon: { outer: [{ x: 2050, z: -50 }, { x: 2150, z: -50 }, { x: 2150, z: 50 }, { x: 2050, z: 50 }], holes: [] }
+  };
+  const scene = new THREE.Scene();
+  const built = model.buildSzTrees(scene, payload, { groundHeight, roadHeight, pathAt, colliders: [building] });
+  scene.updateMatrixWorld(true);
+  assert.equal(built.statistics.placed, 2);
+  assert.equal(JSON.stringify(built.statistics.skipped), JSON.stringify({
+    unsupportedGround: 1, roadConflict: 1, pathConflict: 1, buildingConflict: 1
+  }));
+  assert.equal(built.statistics.payloadCount, 6);
+  assert.equal(built.statistics.chunks, 2);
+  assert.equal(built.group.children.length, 6);
+  assert.equal(built.colliders.length, 2);
+  assert.equal(built.colliders[0].type, 'tree');
+  assert.equal(built.colliders[0].sourceId, 'node/1');
+  assert.equal(built.colliders[0].minY, 5);
+  assert.ok(built.colliders[0].maxY > 5);
+
+  const trunkMesh = built.group.getObjectByName('tree-trunks:0,0');
+  const matrix = new THREE.Matrix4();
+  trunkMesh.getMatrixAt(0, matrix);
+  assert.equal(matrix.elements[13], 5);
+
+  // 近/远/隐藏三档切换：初始相机在原点时 0,0 块用近冠。
+  const nearMesh = built.group.getObjectByName('tree-crowns-near:0,0/0,0');
+  const farMesh = built.group.getObjectByName('tree-crowns-far:0,0/0,0');
+  assert.equal(nearMesh.visible, true);
+  assert.equal(farMesh.visible, false);
+  assert.equal(built.statistics.visible.nearCells, 1);
+  assert.equal(built.statistics.visible.hiddenCells, 1);
+  assert.equal(built.statistics.lodCells, 2);
+
+  built.update(new THREE.Vector3(0, 5, 700));
+  assert.equal(nearMesh.visible, false);
+  assert.equal(farMesh.visible, true);
+  assert.equal(built.statistics.visible.farCells, 1);
+  assert.equal(built.statistics.visible.hiddenCells, 1);
+
+  built.update(new THREE.Vector3(1500, 5, 0));
+  assert.equal(nearMesh.visible, false);
+  assert.equal(built.group.getObjectByName('tree-crowns-near:1,0/6,0').visible, true);
+  assert.equal(built.statistics.visible.hiddenCells, 1);
+  assert.equal(built.statistics.visible.nearCells, 1);
+
+  built.update(new THREE.Vector3(0, 5, 5000));
+  assert.equal(built.statistics.visible.chunks, 0);
+  assert.equal(nearMesh.visible, false);
+  assert.equal(farMesh.visible, false);
+
+  built.dispose();
+  assert.equal(scene.children.length, 0);
+});
+
+test('missing or empty tree payload leaves scene untouched apart from an empty group', { skip: !threeDir }, async () => {
+  const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
+  const model = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE } });
+  const scene = new THREE.Scene();
+  const built = model.buildSzTrees(scene, undefined, {});
+  assert.equal(built.group.children.length, 0);
+  assert.equal(built.statistics.placed, 0);
+  built.dispose();
+  assert.equal(scene.children.length, 0);
+  const withCount = model.buildSzTrees(scene, makePayload([{ x: 0, z: 0 }]), {});
+  assert.equal(withCount.statistics.skipped.unsupportedGround, 1);
+  withCount.dispose();
+});

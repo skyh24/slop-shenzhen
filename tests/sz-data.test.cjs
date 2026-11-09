@@ -23,7 +23,9 @@ test('runtime adapter preserves every building source, footprint, hole and verti
   const { decodeCityPayload, decodePoly } = await modulePromise;
   const { buildings, geo } = decodeCityPayload(raw);
   assert.equal(buildings.length, raw.buildings.h.length);
-  assert.ok(buildings.length > 39000);
+  // 误识别过滤（docs/15-IMPROVEMENT-PLAN.md 3.2）会移除少数落在广场/绿地/车行道内的小轮廓，
+  // 因此总数从约 39.9k 降到约 38.1k；这里只保留数量级保护，不锁定具体数量。
+  assert.ok(buildings.length > 37500);
   let holes = 0, raisedParts = 0;
   buildings.forEach((building, i) => {
     assert.equal(building.id, raw.buildings.id[i]);

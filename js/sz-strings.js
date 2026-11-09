@@ -171,5 +171,20 @@ export const STR = {
   apec: 'APEC 主题',
   stats: (b, c, d) => `建筑 ${b.toLocaleString()} 栋 · 车辆 ${c} 辆 · 无人机 ${d} 架`,
   help: '拖动平移 · 右键旋转 · 滚轮缩放 · 点地标跳转',
-  apecBanner: 'APEC CHINA 2026 · 深圳 · 11月18—19日'
+  apecBanner: 'APEC CHINA 2026 · 深圳 · 11月18—19日',
+  // APEC 周城市元素模块（js/sz-apec.js）用到的文案；不改动上面的 apec / apecBanner 旧键
+  apecTheme: {
+    label: 'APEC 主题',
+    hint: 'APEC 周城市氛围，会期 11 月 11—21 日',
+    bannerLine1: 'APEC CHINA 2026',
+    bannerLine2: '相约深圳',
+    newsCenter: '新闻中心',
+    venueGate: 'APEC CHINA 2026',
+    venueGateSub: '深圳国际交流中心',
+    flowerSea: '香蜜湖花海',
+    flowerBed: 'APEC 主题花坛',
+    giftExpo: 'APEC 国礼展',
+    broadcastTruck: '转播车',
+    illustrativeNote: '花坛、转播车和门前偏移为示意布置'
+  }
 };

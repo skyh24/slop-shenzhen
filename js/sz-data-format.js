@@ -43,6 +43,35 @@ function validateStreetscape(streetscape, parks) {
   }
 }
 
+function validateTrees(trees) {
+  if (trees === undefined) return;
+  requireData(trees?.version === 1 && Number.isSafeInteger(trees.count) && trees.count >= 0, 'trees header');
+  for (const key of ['x', 'z', 'height', 'crown', 'species', 'source', 'appearance']) {
+    requireData(Array.isArray(trees[key]) && trees[key].length === trees.count, `trees.${key}`);
+  }
+  const integers = (values, min) => values.every(value => Number.isSafeInteger(value) && value >= min);
+  requireData(integers(trees.x, -10000000) && integers(trees.z, -10000000) && integers(trees.height, 0)
+    && integers(trees.crown, 0) && integers(trees.species, 0) && integers(trees.source, 0)
+    && integers(trees.appearance, 0), 'trees values');
+  const { speciesNames, sources, appearanceSources } = trees;
+  requireData(Array.isArray(speciesNames) && speciesNames.length > 0
+    && speciesNames.every(name => typeof name === 'string' && name.length > 0), 'trees species names');
+  requireData(Array.isArray(sources) && sources.length > 0 && sources.every(name => ['osm-node', 'osm-row', 'simulated-street', 'simulated-park'].includes(name)), 'trees sources');
+  requireData(Array.isArray(appearanceSources) && appearanceSources.length > 0
+    && appearanceSources.every(name => ['osm-tags', 'species-estimate'].includes(name)), 'trees appearance sources');
+  requireData(trees.species.every(index => index < speciesNames.length)
+    && trees.source.every(index => index < sources.length)
+    && trees.appearance.every(index => index < appearanceSources.length), 'trees enum ranges');
+  const osmIndices = new Set();
+  requireData(Array.isArray(trees.osm) && trees.osm.every(entry => {
+    const valid = Array.isArray(entry) && Number.isSafeInteger(entry[0]) && entry[0] >= 0 && entry[0] < trees.count
+      && /^(?:node|way)\/\d+$/.test(entry[1]) && trees.source[entry[0]] <= 1 && !osmIndices.has(entry[0]);
+    if (valid) osmIndices.add(entry[0]);
+    return valid;
+  }), 'trees osm identities');
+  requireData(trees.limitations === undefined || Array.isArray(trees.limitations), 'trees limitations');
+}
+
 export function decodeRing(flat) {
   requireData(Array.isArray(flat) && flat.length >= 4 && flat.length % 2 === 0, 'coordinate sequence');
   const out = new Float64Array(flat.length);
@@ -154,6 +183,7 @@ export function validateCityPayload(raw) {
     }
   }
   validateStreetscape(raw.streetscape, raw.parks ?? []);
+  validateTrees(raw.trees);
   for (let i = 0; i < buildings.h.length; i++) {
     requireData(typeof buildings.id[i] === 'string' && buildings.id[i].length > 0, 'building identity');
     requireData(Number.isFinite(buildings.h[i]) && Number.isFinite(buildings.minH[i])
@@ -240,6 +270,7 @@ export function decodeCityPayload(raw) {
     bridges: raw.bridges ?? [],
     seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },
     streetscape: raw.streetscape ?? null,
+    trees: raw.trees ?? null,
     parks: (raw.parks ?? []).map(park => ({ ...park, areas: park.areas.map(area => ({ ...area, polygon: polygon(area.polygon) })) }))
   } };
 }

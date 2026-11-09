@@ -12,6 +12,9 @@ import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads } from './sz-roads.js';
 import { buildSzRoadFrontage } from './sz-road-frontage.js';
 import { buildSzStreetscape } from './sz-streetscape.js';
+import { buildSzStreetLamps } from './sz-street-lamps.js';
+import { buildSzTrees } from './sz-trees.js';
+import { buildApecTheme } from './sz-apec.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
 import { buildShenzhenBayBridge } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
@@ -168,7 +171,21 @@ async function initApp() {
   const streetscape = buildSzStreetscape(scene, GEO.streetscape, GEO.terrainSurface, {
     groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, colliders: buildings
   });
-  const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders];
+  // 主干道路灯：点位由源路网中心线派生，夜间发光与地面光池在 update 里随时段切换。
+  const streetLamps = buildSzStreetLamps(scene, GEO.roadGraph, {
+    groundHeight: ground.groundHeight, roadHeight: roads.roadHeight
+  });
+  // 树木：OSM 来源点加带标注的模拟行道树/公园树，接触面与铺装/建筑冲突在运行时复核。
+  const trees = buildSzTrees(scene, GEO.trees, {
+    groundHeight: ground.groundHeight, roadHeight: roads.roadHeight,
+    pathAt: streetscape.pathAt, colliders: buildings
+  });
+  // APEC 周城市元素：会期内默认打开，模块内所有几何都在主题开关下。
+  const apecTheme = buildApecTheme(scene, {
+    roadGraph: GEO.roadGraph, terrain: GEO.terrain, landmarks: GEO.landmarks, buildings: REAL_BUILDINGS, area: GEO.bounds
+  });
+  if (qa) { window.__szLamps = streetLamps; window.__szTrees = trees; window.__szApec = apecTheme; }
+  const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...trees.colliders];
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = createSzTraffic(scene, GEO.roadGraph, {
     roadHeight: roads.roadHeight,
@@ -266,7 +283,7 @@ async function initApp() {
     // 每类静态分块共用材质和顶点布局，预编译其中一块即可。
     for (const chunk of chunks) chunk.userData.sharesPipelineWith = first;
   }
-  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, streetscape.group, roadFrontage.group].filter(Boolean), lightingSystem.sunLight.shadow);
+  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, streetscape.group, roadFrontage.group, streetLamps.group, trees.group, apecTheme.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [
     traffic.group,
@@ -445,6 +462,26 @@ async function initApp() {
     });
   }
 
+  // APEC 主题开关：会期内默认打开；玩家手动切换后在本机记住选择。
+  const apecButton = document.getElementById('btn-apec');
+  const APEC_STATE_KEY = 'sz-apec-enabled';
+  function setApecTheme(enabled, { persist = true } = {}) {
+    const active = apecTheme.setEnabled(enabled);
+    sceneUniforms.apec.value = active ? 1 : 0;
+    if (apecButton) {
+      apecButton.classList.toggle('active', active);
+      apecButton.setAttribute('aria-pressed', String(active));
+    }
+    if (persist) {
+      try { localStorage.setItem(APEC_STATE_KEY, active ? '1' : '0'); } catch { /* 存储不可用不影响主题 */ }
+    }
+    return active;
+  }
+  apecButton?.addEventListener('click', () => setApecTheme(!apecTheme.enabled));
+  let savedApec = null;
+  try { savedApec = localStorage.getItem(APEC_STATE_KEY); } catch { /* ignore */ }
+  setApecTheme(savedApec === null ? apecTheme.enabled : savedApec === '1', { persist: false });
+
   // Popovers (native [popover]: light dismiss & Esc for free) open against the control that toggles them: data-anchor
   // names the element they sit above / below, data-align the one whose right edge they line up with
   const popovers = document.querySelectorAll('.popover[popover]');
@@ -611,6 +648,9 @@ async function initApp() {
 
   const openMapBtn = document.getElementById('btn-open-map');
   if (openMapBtn) openMapBtn.addEventListener('click', () => mapSystem.toggleFullMap(true));
+
+  // QA 专用传送：只在本机回环地址的 ?qa=1 下暴露，便于固定机位复测。
+  if (qa) window.__szTeleport = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null, { exact: true });
 
   if (hudToggleBtn) {
     hudToggleBtn.addEventListener('click', () => {
@@ -872,6 +912,9 @@ async function initApp() {
     controllerManager.update(dt, elapsed, cameraSystem.initialized ? cameraSystem.currentPos : null, driveInput);
     cameraSystem.update(dt, elapsed);
     streetscape.update(cameraSystem.camera.position);
+    streetLamps.update(cameraSystem.camera.position, lightingSystem.uNightFactor.value);
+    trees.update(cameraSystem.camera.position);
+    apecTheme.update(dt, lightingSystem.uNightFactor.value);
     const simulationEnd = measureFrame ? performance.now() : 0;
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();
