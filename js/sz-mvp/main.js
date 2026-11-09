@@ -136,7 +136,9 @@ async function main() {
 
   const followBtn = document.createElement('button');
   followBtn.textContent = STR.follow;
+  followBtn.disabled = !air.evtol;
   followBtn.onclick = () => {
+    if (!air.evtol) return;
     following = !following;
     fly = null;
     followBtn.classList.toggle('active', following);
@@ -147,7 +149,8 @@ async function main() {
   };
   const routesBtn = document.createElement('button');
   routesBtn.textContent = STR.routes;
-  routesBtn.classList.add('active');
+  routesBtn.disabled = air.droneCount === 0;
+  routesBtn.classList.toggle('active', air.routeLines.visible);
   routesBtn.onclick = () => {
     air.routeLines.visible = !air.routeLines.visible;
     routesBtn.classList.toggle('active', air.routeLines.visible);
