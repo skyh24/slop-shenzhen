@@ -1,0 +1,24 @@
+import { terrainHeight } from './sz-terrain.js';
+
+export function buildingPlacement(building, grid) {
+  const baseY = terrainHeight(grid, building.cx, building.cz);
+  if (baseY === null) throw new Error(`Missing building terrain: ${building.id}`);
+  const minY = baseY + building.minHeight;
+  const maxY = baseY + building.height;
+  if (!Number.isFinite(minY) || !Number.isFinite(maxY) || maxY <= minY) {
+    throw new Error(`Invalid building vertical bounds: ${building.id}`);
+  }
+  // DEM 锚点是派生放置基准，并非建筑测绘的基础标高；显示和碰撞共用它。
+  const colliders = building.polygons.map(polygon => ({
+    type: 'building', name: building.id, sourceId: building.id, polygon,
+    minX: building.minX, maxX: building.maxX, minZ: building.minZ, maxZ: building.maxZ,
+    minY, maxY, heightSource: building.heightSource, baseSource: 'dem-footprint-bounds-center'
+  }));
+  return { baseY, minY, maxY, colliders };
+}
+
+export function buildingSeed(id) {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619) >>> 0;
+  return h / 4294967296;
+}
