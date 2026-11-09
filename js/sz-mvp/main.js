@@ -188,7 +188,8 @@ async function main() {
   }
 
   renderer.setAnimationLoop((now) => {
-    const dt = Math.min((now - last) / 1000, 0.1);
+    // 首帧的 rAF 时间戳可能早于初始化末尾，负步长会让曲线参数越界。
+    const dt = Math.max(0, Math.min((now - last) / 1000, 0.1));
     last = now;
     traffic.update(dt);
     followOffset.copy(camera.position).sub(controls.target);
