@@ -1,4 +1,4 @@
-"""地形数据的方向、掩膜和异常输入回归。"""
+"""地形数据的方向、保真度和异常输入回归。"""
 import gzip
 import sys
 import tempfile
@@ -37,23 +37,24 @@ class TerrainTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Invalid HGT'):
                 HgtSampler(folder).sample(114.5, 22.5)
 
-    def test_mask_water_and_missing_regions(self):
+    def test_source_heights_are_not_flattened_or_feathered(self):
         class ConstantSampler:
             def sample(self, lon, lat):
-                return 100
-        geom = box(ORIGIN_LON - 200 / KX, ORIGIN_LAT - 200 / KY,
-                   ORIGIN_LON + 200 / KX, ORIGIN_LAT + 200 / KY)
-        osm = {'green': [{'id': 'way/41281446', 'geom': geom}]}
-        clip = box(-300, -300, 300, 300)
+                return -12.3
         report = {}
-        grid = build_terrain(osm, clip, [clip], [{'poly': box(-25, -25, 25, 25)}],
-                             report, sampler=ConstantSampler())
-        def height(x, z):
-            i, j = round((x - grid['x0']) / 25), round((z - grid['z0']) / 25)
-            return grid['heights'][j * grid['nx'] + i] * grid['heightScale']
-        self.assertEqual(height(0, 0), 0)
-        self.assertEqual(height(250, 0), 0)
-        self.assertEqual(height(100, 100), 100)
-        self.assertGreater(height(175, 0), 0)
-        self.assertLess(height(175, 0), 100)
-        self.assertEqual(report['terrain']['missingMaskIds'], ['way/98999987'])
+        grid = build_terrain(box(-300, -300, 300, 300), report, sampler=ConstantSampler())
+        self.assertTrue(all(h == -123 for h in grid['heights']))
+        self.assertEqual(grid['processing']['featherM'], 0)
+        self.assertEqual(grid['processing']['verticalScale'], 1)
+        self.assertEqual(grid['processing']['verticalOffsetM'], 0)
+        self.assertEqual(report['terrain']['minHeightM'], -12.3)
+
+    def test_peak_is_preserved_and_hash_mismatch_fails(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'N22E114.hgt.gz'
+            tile = np.zeros((5, 5), dtype='>i2')
+            tile[2, 2] = 106
+            path.write_bytes(gzip.compress(tile.tobytes()))
+            self.assertEqual(HgtSampler(folder).sample(114.5, 22.5), 106)
+            with self.assertRaisesRegex(ValueError, 'hash mismatch'):
+                HgtSampler(folder, {'N22E114': 'incorrect'}).sample(114.5, 22.5)

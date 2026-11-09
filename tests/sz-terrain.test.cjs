@@ -17,10 +17,10 @@ test('terrain contact matches both rendered triangle planes and boundary vertice
     }
   }
   assert.equal(terrainHeight(grid, -12.5, 62.5), 15, 'diagonal is planar rather than bilinear');
-  assert.equal(terrainHeight(grid, -26, 50), 0);
-  assert.equal(terrainHeight(null, 0, 0), 0);
+  assert.equal(terrainHeight(grid, -26, 50), null);
+  assert.equal(terrainHeight(null, 0, 0), null);
 });
 
-test('HGT pipeline preserves geographic orientation, excludes water and reports absent masks', () => {
+test('HGT pipeline preserves source elevations and validates provenance', () => {
   execFileSync(join(root, '.venv/bin/python'), ['-m', 'unittest', 'discover', '-s', 'tools/sz/tests', '-p', 'test_terrain.py'], { cwd: root, stdio: 'pipe' });
 });

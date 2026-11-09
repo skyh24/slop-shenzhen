@@ -1,9 +1,9 @@
 // 高度查询与网格共用东北—西南对角线，禁止用双线性插值替代三角面接触。
 export function terrainHeight(grid, x, z) {
-  if (!grid) return 0;
+  if (!grid || !Number.isFinite(x) || !Number.isFinite(z)) return null;
   const fx = (x - grid.x0) / grid.step;
   const fz = (z - grid.z0) / grid.step;
-  if (fx < 0 || fz < 0 || fx > grid.nx - 1 || fz > grid.nz - 1) return 0;
+  if (fx < 0 || fz < 0 || fx > grid.nx - 1 || fz > grid.nz - 1) return null;
   const i = Math.min(Math.floor(fx), grid.nx - 2);
   const j = Math.min(Math.floor(fz), grid.nz - 2);
   const u = fx - i;

@@ -71,7 +71,7 @@ def main():
     print(f'buildings: {len(buildings)} in {time.time() - t0:.1f}s', flush=True)
     land, water, wetland, green = build_land(osm, clip, buildings, report)
     roads = build_roads(osm, clip, report)
-    terrain = build_terrain(osm, clip, land, water, report)
+    terrain = build_terrain(clip, report)
 
     landmarks = landmark_entries()
     lm_index = {lm['id']: i for i, lm in enumerate(landmarks)}
