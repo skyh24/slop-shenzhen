@@ -14,6 +14,7 @@
 | OpenStreetMap | Geofabrik 广东切片 `guangdong-latest.osm.pbf` | 下载时的快照，时间戳和哈希见 `data/source/sources.json` | 道路、海岸线、水系、公园、绿地、地铁出入口、树点、地名、一部分建筑 |
 | Overture Maps Buildings | `s3://overturemaps-us-west-2/release/2026-10-21.0/theme=buildings` | `2026-10-21.0`（下载时的最新版） | 补全建筑轮廓，自带部分高度和层数 |
 | 3D-GloBFP | figshare 文章 28904453（第 IX 部分），网格 `2265`、`2269`（下载地址见 `sources.json`） | 参考年份 2020 | 缺高度时的遥感估算高度 |
+| Copernicus GLO-30 | AWS `copernicus-dem-30m`，N22E113/N22E114 GeoTIFF | AWS 2021 发布，点注册、1 角秒，EGM2008；不是最新实测地面 | 当前默认地形，保留 DSM 局限 |
 | Terrain Tiles | `elevation-tiles-prod/skadi/N22/N22E113.hgt.gz`、`N22E114.hgt.gz` | Mapzen / Tilezen，底图来自 USGS SRTM | 莲花山、塘朗山等山体起伏 |
 | 地标高度 | `data/source/landmarks.json`，人工核对 | 每条附出处 | 地标总高 |
 
@@ -100,9 +101,9 @@ z = −(lat − lat0) · KY
 
 ### 5. 地形
 
-按用户 2026-11-09 的要求尽量采用真实高程：校验 HGT 快照 SHA-256 后，对整个范围包围盒双线性重采样为 25 米网格，分米量化。不平滑、不按公园掩膜压平低地、不羽化到零、不按目标山高缩放；负高程保留。缺失文件、哈希不符、参与插值的空值均让构建失败，不能用虚构高度填补。
+按用户 2026-11-09 的要求尽量采用真实高程：校验高程快照 SHA-256 后，对整个范围包围盒双线性重采样为 25 米网格，分米量化。不平滑、不按公园掩膜压平低地、不羽化到零、不按目标山高缩放；负高程保留。缺失文件、哈希不符、参与插值的空值均让构建失败，不能用虚构高度填补。
 
-输出记录源文件哈希、原生角秒间距与处理参数。25 米是输出间距，不代表新增测量精度；旧 DEM 可能包含树冠或建筑回波，不宣称为最新实测地面。陆地和水体在渲染时按真实面裁切，不通过改写 DEM 高程解决；道路、建筑、控制器接入时共用三角面高度。桥面标高另查来源，OSM layer 只表示上下关系，不当作测量高度。
+输出记录源文件哈希、原生角秒间距与处理参数。25 米是输出间距，不代表新增测量精度；DEM/DSM 可能包含树冠或建筑回波，不宣称为最新实测地面。陆地和水体在渲染时按真实面裁切，不通过改写 DEM 高程解决；道路、建筑、控制器接入时共用三角面高度。桥面标高另查来源，OSM layer 只表示上下关系，不当作测量高度。
 
 ### 6. 打包
 
@@ -117,3 +118,7 @@ z = −(lat − lat0) · KY
 - 3D-GloBFP：CC BY 4.0，引用 Che, Y. et al., 2024, ESSD 16, 5357–5374
 - Terrain Tiles：Mapzen / Tilezen，地形数据来自 USGS
 - 代码：MIT，沿用纽约原版
+
+### 高程产品切换（2026-11-09）
+
+默认改用 Copernicus GLO-30；`--terrain-source hgt` 可重现旧结果。对照工具为 `.venv/bin/python tools/sz/audit_terrain.py`，输出 `data/source/terrain-audit.json`。原 HGT 的显著负高程尾部未在第二套产品重现；不采用统一偏移修补、不压平负值。Copernicus 仍是 DSM，可包含建筑、树冠和旧 DEM 填补，接入道路时不能宣称为实测裸地。来源与许可见 [高程数据署名](../data/source/ATTRIBUTION.md)。

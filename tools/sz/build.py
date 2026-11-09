@@ -60,6 +60,8 @@ def landmark_entries():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-cache', action='store_true', help='re-read the OSM PBF instead of the pickle cache')
+    ap.add_argument('--terrain-source', choices=['copernicus', 'hgt'], default='copernicus',
+                    help='select a traceable elevation product without modifying source heights')
     args = ap.parse_args()
 
     t0 = time.time()
@@ -72,7 +74,7 @@ def main():
     print(f'buildings: {len(buildings)} in {time.time() - t0:.1f}s', flush=True)
     land, water, wetland, green = build_land(osm, clip, buildings, report)
     roads = build_roads(osm, clip, report)
-    terrain = build_terrain(clip, report)
+    terrain = build_terrain(clip, report, source=args.terrain_source)
     road_graph = build_roadgraph(osm, clip, report)
 
     landmarks = landmark_entries()

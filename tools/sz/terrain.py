@@ -1,4 +1,4 @@
-"""从锁定的 HGT 重采样地形，不人为调整山高、低地或公园边界。"""
+"""从锁定的高程产品重采样地形，不人为调整山高、低地或公园边界。"""
 
 import gzip
 import hashlib
@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from geo import KX, KY, ORIGIN_LAT, ORIGIN_LON
+from copernicus import CopernicusSampler
 
 ROOT = Path(__file__).resolve().parents[2]
 VOID = -32768
@@ -56,13 +57,20 @@ class HgtSampler:
         return height
 
 
-def build_terrain(clip, report, sampler=None, step=25):
+def build_terrain(clip, report, sampler=None, step=25, source='copernicus'):
     if step <= 0 or not math.isfinite(step):
         raise ValueError('Terrain step must be finite and positive')
     if sampler is None:
         sources = json.loads((ROOT / 'data/source/sources.json').read_text())['sources']
-        hashes = {s['id'].removeprefix('terrain-'): s['sha256'] for s in sources if s['id'].startswith('terrain-')}
-        sampler = HgtSampler(ROOT / 'data/raw/terrain', hashes)
+        if source == 'copernicus':
+            prefix = 'copernicus-dem-'
+            hashes = {s['id'].removeprefix(prefix): s['sha256'] for s in sources if s['id'].startswith(prefix)}
+            sampler = CopernicusSampler(ROOT / 'data/raw/terrain/copernicus', hashes)
+        elif source == 'hgt':
+            hashes = {s['id'].removeprefix('terrain-'): s['sha256'] for s in sources if s['id'].startswith('terrain-')}
+            sampler = HgtSampler(ROOT / 'data/raw/terrain', hashes)
+        else:
+            raise ValueError(f'Unsupported terrain source: {source}')
     minx, minz, maxx, maxz = clip.bounds
     x0, z0 = math.floor(minx / step) * step, math.floor(minz / step) * step
     nx, nz = math.ceil((maxx - x0) / step) + 1, math.ceil((maxz - z0) / step) + 1
@@ -89,7 +97,8 @@ def build_terrain(clip, report, sampler=None, step=25):
         'sourceIds': [s['id'] for s in source_records], 'sources': source_records,
         'processing': {'resampling': 'bilinear', 'filter': 'none', 'featherM': 0,
                        'verticalOffsetM': 0, 'verticalScale': 1, 'quantizationM': 0.1,
-                       'heightSource': 'terrain-tiles-dem', 'voidPolicy': 'fail-build',
+                       'heightSource': 'copernicus-glo30-dsm' if source == 'copernicus' else 'terrain-tiles-dem',
+                       'voidPolicy': 'fail-build',
                        'coverage': 'full bounding rectangle; render with separate land and water polygons'},
     }
     report['terrain'] = {

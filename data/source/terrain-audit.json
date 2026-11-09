@@ -1,0 +1,117 @@
+{
+  "date": "2026-11-09",
+  "points": [
+    {
+      "id": "origin",
+      "name": "市民中心原点",
+      "lon": 114.0545,
+      "lat": 22.5463,
+      "hgtM": -1.95,
+      "copernicusM": 8.17,
+      "deltaM": 10.12
+    },
+    {
+      "id": "hgt-minimum",
+      "name": "旧 HGT 最低点",
+      "lon": 113.94926188498734,
+      "lat": 22.528013547562107,
+      "hgtM": -54.03,
+      "copernicusM": -0.44,
+      "deltaM": 53.59
+    },
+    {
+      "id": "tencent-binhai",
+      "name": "腾讯滨海大厦",
+      "lat": 22.52585,
+      "lon": 113.93035,
+      "hgtM": 5.84,
+      "copernicusM": 3.02,
+      "deltaM": -2.82
+    },
+    {
+      "id": "talent-park",
+      "name": "深圳人才公园",
+      "lat": 22.51368,
+      "lon": 113.94356,
+      "hgtM": -4.0,
+      "copernicusM": 1.0,
+      "deltaM": 5.0
+    },
+    {
+      "id": "dji-sky-city",
+      "name": "大疆天空之城",
+      "lat": 22.58038,
+      "lon": 113.93798,
+      "hgtM": 34.36,
+      "copernicusM": 29.94,
+      "deltaM": -4.42
+    },
+    {
+      "id": "lianhuashan",
+      "name": "莲花山公园",
+      "lat": 22.55668,
+      "lon": 114.05325,
+      "hgtM": 61.65,
+      "copernicusM": 75.32,
+      "deltaM": 13.67
+    },
+    {
+      "id": "ping-an",
+      "name": "平安金融中心",
+      "lat": 22.53664,
+      "lon": 114.05036,
+      "hgtM": 0.41,
+      "copernicusM": 5.71,
+      "deltaM": 5.3
+    }
+  ],
+  "gridStepM": 100,
+  "samples": 13720,
+  "sources": [
+    {
+      "id": "terrain-N22E114",
+      "sha256": "18fb0d6bbe88c5032b36b197e9db9b3e933936b818fb666ec551b9be7e1c010e",
+      "samplesPerSide": 3601,
+      "sampleSpacingArcSeconds": 1.0
+    },
+    {
+      "id": "terrain-N22E113",
+      "sha256": "9d3301dd0ed572aa8fa9c8a3ac36e4f9dd37923112b2838eb4937dadcf726536",
+      "samplesPerSide": 3601,
+      "sampleSpacingArcSeconds": 1.0
+    },
+    {
+      "id": "copernicus-dem-N22E114",
+      "sha256": "b950ab75642d6684fe08c82b6aa3bb087c1d35acd229ef0e6e6586e1b0868fa3",
+      "samplesPerSide": 3600,
+      "sampleSpacingArcSeconds": 1,
+      "verticalDatum": "EGM2008",
+      "productType": "DSM"
+    },
+    {
+      "id": "copernicus-dem-N22E113",
+      "sha256": "074e13244e6da6745bcf76150fdc6e06f774140a7aac796785922fce962eacbb",
+      "samplesPerSide": 3600,
+      "sampleSpacingArcSeconds": 1,
+      "verticalDatum": "EGM2008",
+      "productType": "DSM"
+    }
+  ],
+  "summary": {
+    "hgtMinM": -37.97,
+    "copernicusMinM": -7.19,
+    "hgtBelowMinus10M": 53,
+    "copernicusBelowMinus10M": 0,
+    "medianAbsoluteDifferenceM": 5.0
+  },
+  "limitations": [
+    "Includes water and buildings; these are not surveyed ground control points",
+    "Sources differ in acquisition dates, vertical reference and surface treatment; Copernicus may include older DEM infill",
+    "A smaller negative tail does not prove ground accuracy",
+    "Landmark centers are not mountain peaks or roof height measurements"
+  ],
+  "references": [
+    "https://registry.opendata.aws/copernicus-dem/",
+    "https://copernicus-dem-30m.s3.amazonaws.com/readme.html"
+  ]
+}
