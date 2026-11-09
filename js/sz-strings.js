@@ -151,7 +151,7 @@ export const STR = {
     observatory: '平安上空', bryantPark: '腾讯滨海双塔', waterfront: '深圳湾天际线', drone: '城市航拍',
     djiSkyCity: '大疆天空之城', pingAnTower: '远看平安金融中心', chunsunTower: '后海上空看春笋',
     civicRoof: '北侧上空看市民中心', chunjianShell: '深圳湾上空看春茧', cultureSquare: '后海看文化广场',
-    conventionCenter: '西北侧上空看会展中心', bayBridge: '深圳湾公园远眺大桥'
+    conventionCenter: '西北侧上空看会展中心', upperhills: '莲花山上空看深业上城', bayBridge: '深圳湾公园远眺大桥'
   },
   subtitle: 'MVP 预览 · 南山 + 福田 · APEC 2026 深圳',
   loading: '正在载入深圳……',

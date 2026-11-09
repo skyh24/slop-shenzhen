@@ -6,6 +6,7 @@ const { loadModule } = require('./helpers/module.cjs');
 
 const source = readFileSync(join(__dirname, '../js/controllers.js'), 'utf8');
 const polygonCollision = loadModule(readFileSync(join(__dirname, '../js/building-collision.js'), 'utf8'));
+const { createSurfaceResolver } = loadModule(readFileSync(join(__dirname, '../js/sz-controller-surfaces.js'), 'utf8'));
 
 function eventTarget() {
   const listeners = new Map();
@@ -939,12 +940,106 @@ test('movement cannot skip a narrow unknown strip between two supported endpoint
 
 test('controller surface queries retain resolved elevated support and unknown remains null', () => {
   const { controller } = keyboardHarness();
-  const resolver = loadModule(readFileSync(join(__dirname, '../js/sz-controller-surfaces.js'), 'utf8'));
-  controller.surfaceResolver = resolver.createSurfaceResolver({ groundHeight: x => x < 10 ? 7 : null });
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: x => x < 10 ? 7 : null });
   delete controller.getGroundHeight;
   controller.entities = { person: { _support: { height: 7, surfaceId: 'terrain' } } };
   assert.equal(controller.getGroundHeight(0, 0), 7);
   assert.equal(controller.getGroundHeight(20, 0), null);
+});
+
+function walkingPlatform(name, top, bottom = 0) {
+  const minX = 1, maxX = 4, minZ = -2, maxZ = 2;
+  const corners = [[minX, minZ], [maxX, minZ], [maxX, maxZ], [minX, maxZ]].map(([x, z]) => ({ x, y: top, z }));
+  return {
+    collider: { name, minX, maxX, minZ, maxZ, minY: bottom, maxY: top, polygon: { outer: corners, holes: [] } },
+    surface: { id: name, heightSource: 'fixture-measured',
+      triangles: [[corners[0], corners[1], corners[2]], [corners[0], corners[2], corners[3]]] }
+  };
+}
+
+function walkingHarness(platform, extraColliders = [], { x = 0, y = 0, z = 0, jumping = false } = {}) {
+  const { controller, ent } = teleportHarness('person', [platform.collider, ...extraColliders]);
+  delete controller.getGroundHeight;
+  controller.groundHeight = () => 0;
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: controller.groundHeight, surfaces: [platform.surface] });
+  Object.assign(ent.position, { x, y, z });
+  Object.assign(ent, { heading: Math.PI / 2, speed: 0, jumping, jumpPrep: 0, verticalVel: jumping ? -3 : 0,
+    _safePosition: { x, y, z }, _support: { height: 0, surfaceId: 'terrain' } });
+  return { controller, ent, walk(frames, forward = 0.2) {
+    controller.keys.forward = forward;
+    for (let i = 0; i < frames; i++) controller.updatePerson(1 / 60);
+  } };
+}
+
+test('walking steps onto a low rendered platform and keeps its footing after stopping and switching modes', () => {
+  const { controller, ent, walk } = walkingHarness(walkingPlatform('low', 0.24));
+  walk(128);
+  assert.ok(ent.position.x > 2 && ent.position.x < 4);
+  assert.equal(ent.position.y, 0.24);
+  assert.equal(ent._support.surfaceId, 'low');
+  walk(30, 0);
+  assert.equal(ent.position.y, 0.24);
+
+  const car = teleportHarness('car').ent;
+  Object.assign(car.position, { x: 0.4, y: 0, z: 0 });
+  car.heading = 0;
+  car._safePosition = { x: 0, y: 0, z: 0 };
+  car._support = { height: 0, surfaceId: 'terrain' };
+  controller.entities.car = car;
+  const resolver = controller.surfaceResolver;
+  controller.surfaceResolver = { ...resolver, footing() { throw new Error('The vehicle must not use pedestrian footing'); } };
+  controller.setMode('car');
+  controller.resolveHorizontalCollision(car.position, 1.35, car);
+  assert.ok(car.position.x <= 0.15);
+  assert.equal(car.position.y, 0);
+  assert.equal(car._support.surfaceId, 'terrain');
+  controller.surfaceResolver = resolver;
+  controller.setMode('person');
+  walk(1, 0);
+  assert.equal(ent._support.surfaceId, 'low');
+  assert.equal(ent.position.y, 0.24);
+});
+
+test('walking cannot climb a high platform or cross a side wall while stepping onto a low one', () => {
+  const side = { minX: 1, maxX: 1.16, minZ: -2, maxZ: 2, minY: 0, maxY: 1.2 };
+  for (const [platform, walls] of [[walkingPlatform('high', 0.72), []], [walkingPlatform('low', 0.24), [side]]]) {
+    const { ent, walk } = walkingHarness(platform, walls);
+    walk(180);
+    assert.ok(ent.position.x <= 0.521);
+    assert.equal(ent.position.y, 0);
+    assert.equal(ent._support.surfaceId, 'terrain');
+  }
+});
+
+test('bridge levels keep walking and jumping on their own supported surfaces', () => {
+  const bridge = walkingPlatform('bridge', 4, 3.68);
+  const below = walkingHarness(bridge);
+  below.walk(220);
+  assert.ok(below.ent.position.x > 4);
+  assert.equal(below.ent.position.y, 0);
+  assert.equal(below.ent._support.surfaceId, 'terrain');
+  const above = walkingHarness(bridge, [], { x: 2, y: 5.1, jumping: true });
+  above.walk(100, 0);
+  assert.equal(above.ent.position.y, 4);
+  assert.equal(above.ent._support.surfaceId, 'bridge');
+  assert.equal(above.ent.jumping, false);
+
+  above.walk(180, 1);
+  const edge = bridge.collider.maxX - 0.48;
+  assert.ok(above.ent.position.x > edge - 0.1 && above.ent.position.x <= edge + 1e-6);
+  assert.equal(above.ent.position.y, 4);
+  above.controller.keys.up = true;
+  above.walk(7, 1);
+  above.controller.keys.up = false;
+  above.walk(14, 1);
+  assert.equal(above.ent.jumping, true);
+  assert.ok(above.ent.position.y > 4.5);
+  assert.ok(above.ent.position.x <= edge + 1e-6);
+  above.walk(60, 1);
+  assert.equal(above.ent.position.y, 4);
+  assert.equal(above.ent.jumping, false);
+  assert.ok(above.ent.position.x <= edge + 1e-6);
+  assert.equal(above.ent._support.surfaceId, 'bridge');
 });
 
 test('vehicle collision uses the outside edge of its rendered geometry envelope', () => {

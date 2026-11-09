@@ -23,6 +23,7 @@ const CAMERA_PRESETS = [
   { id: 'chunjianShell', name: STR.cameraNames.chunjianShell, category: 'scenic', fov: 55 },
   { id: 'cultureSquare', name: STR.cameraNames.cultureSquare, category: 'scenic', fov: 52 },
   { id: 'conventionCenter', name: STR.cameraNames.conventionCenter, category: 'scenic', fov: 52 },
+  { id: 'upperhills', name: STR.cameraNames.upperhills, category: 'scenic', fov: 52 },
   { id: 'bayBridge',   name: STR.cameraNames.bayBridge, category: 'scenic', fov: 44 }
 ];
 
@@ -196,7 +197,9 @@ class CameraSystem {
 
     const totalYaw = entity.heading + this.orbitYawOffset;
 
-    switch (this.activePresetId) {
+    const preset = this.getActivePreset();
+    const mode = preset.category === 'scenic' ? 'scenic' : this.activePresetId;
+    switch (mode) {
       case 'chase': {
         const dist = entity.chaseDistance * this.zoomMultiplier * (1 + Math.min(0.25, this.smoothedSpeed * 0.01));
         const height = entity.chaseHeight * this.zoomMultiplier + Math.sin(this.orbitPitchOffset) * dist * 0.85;
@@ -262,23 +265,8 @@ class CameraSystem {
         break;
       }
 
-      case 'centralPark':
-      case 'fifthAve':
-      case 'timesSquare':
-      case 'chryslerGCT':
-      case 'observatory':
-      case 'bryantPark':
-      case 'waterfront':
-      case 'drone':
-      case 'bayBridge':
-      case 'conventionCenter':
-      case 'cultureSquare':
-      case 'chunjianShell':
-      case 'civicRoof':
-      case 'chunsunTower':
-      case 'pingAnTower':
-      case 'djiSkyCity': {
-        const shot = getScenicCamera(this.activePresetId, elapsed);
+      case 'scenic': {
+        const shot = getScenicCamera(preset.id, elapsed);
         desiredPos.set(...shot.position);
         desiredLook.set(...shot.target);
         break;

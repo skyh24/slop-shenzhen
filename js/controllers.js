@@ -26,6 +26,8 @@ const BICYCLE_DRIVE = {
   rolling: 0.1, drag: 0.004, coast: 0.45, brake: 10.5
 };
 const EVTOL_DRIVE = { speed: 36, verticalSpeed: 6, altitude: 400 };
+const PERSON_STEP_UP = 0.38;
+const CONTACT_EPSILON = 1e-5;
 
 function driveSpeed(speed, throttle, dt, drive, serviceBrake = 0) {
   // Turning can project tiny sideways motion back into speed after braking to zero.
@@ -668,7 +670,10 @@ class ThirdPersonControllerManager {
     for (const dx of [-halfX, 0, halfX]) {
       for (const dz of [-halfZ, 0, halfZ]) {
         if (dx === 0 && dz === 0) continue;
-        const support = this.surfaceResolver.resolve(x + dx * cos + dz * sin, z - dx * sin + dz * cos, options);
+        // 圆形脚印的对角采样沿圆周，矩形车身仍检查四角。
+        const scale = !body.car && dx !== 0 && dz !== 0 ? Math.SQRT1_2 : 1;
+        const offsetX = dx * scale, offsetZ = dz * scale;
+        const support = this.surfaceResolver.resolve(x + offsetX * cos + offsetZ * sin, z - offsetX * sin + offsetZ * cos, options);
         if (!support || Math.abs(support.height - center.height) > 1.5) return null;
       }
     }
@@ -722,6 +727,22 @@ class ThirdPersonControllerManager {
         .some(c => buildingContact(c, x, support.height, z, body)));
   }
 
+  personStep(pos, body, entity, near) {
+    const previous = entity?._safePosition;
+    const floor = entity?._support;
+    if (!previous || !floor || entity.jumping || entity.jumpPrep > 0 || Math.abs(pos.y - floor.height) > 0.3) return null;
+    const travel = Math.hypot(pos.x - previous.x, pos.z - previous.z);
+    if (travel > 0.5 || (travel < 1e-7 && floor.surfaceId === 'terrain')) return null;
+    const step = this.surfaceResolver.footing?.(pos.x, pos.z, body.radius,
+      floor.height, Math.min(pos.y, floor.height) + PERSON_STEP_UP);
+    if (!step) return null;
+    const y = step.height + CONTACT_EPSILON;
+    // 先在抬脚前后的位置用完整人物体核对净空和侧墙，再落脚到实际三角面。
+    if (near.some(c => buildingContact(c, pos.x, y, pos.z, body)
+      || buildingContact(c, previous.x, y, previous.z, body))) return null;
+    return step;
+  }
+
   resolveHorizontalCollision(pos, radius, carEntity = null, entity = carEntity) {
     const mode = entity?.type || this.activeMode;
     const heli = mode === 'helicopter';
@@ -752,6 +773,15 @@ class ThirdPersonControllerManager {
     let gx = pos.x;
     let gz = pos.z;
     let near = this.nearColliders(gx, gz, reach);
+    if (mode === 'person') {
+      const step = this.personStep(pos, body, entity, near);
+      if (step) {
+        pos.y = step.height;
+        entity._support = step;
+        entity._safePosition = { x: pos.x, y: pos.y, z: pos.z };
+        return;
+      }
+    }
     for (let i = 0; i < near.length; i++) {
       const c = near[i];
       if (buildingContact(c, pos.x, pos.y, pos.z, body, contact)) {
@@ -918,8 +948,8 @@ class ThirdPersonControllerManager {
       p.position.x += Math.sin(p.heading) * walkSpeed * dt;
       p.position.z += Math.cos(p.heading) * walkSpeed * dt;
       this.resolveHorizontalCollision(p.position, 0.48, null, p);
-      const nextGroundY = this.getGroundHeight(p.position.x, p.position.z, 'person');
-    if (Number.isFinite(nextGroundY)) p.position.y = nextGroundY;
+      const nextGroundY = p._support?.height ?? this.getGroundHeight(p.position.x, p.position.z, 'person');
+      if (Number.isFinite(nextGroundY)) p.position.y = nextGroundY;
       if (!p.speed) p.heading += Math.PI;
     }
 
@@ -995,8 +1025,8 @@ class ThirdPersonControllerManager {
       else if (p.speed < 0 && actualFwd > p.speed) p.speed = Math.min(0, actualFwd);
     }
 
-    const groundY = this.getGroundHeight(p.position.x, p.position.z, 'person');
-        if (!Number.isFinite(groundY)) return;
+    const groundY = p._support?.height ?? this.getGroundHeight(p.position.x, p.position.z, 'person');
+    if (!Number.isFinite(groundY)) return;
     const JumpLeadTime = 0.085;
     if (this.keys.up && p.position.y <= groundY + 0.02 && !p.jumping && !(p.jumpPrep > 0)) {
       p.jumpPrep = JumpLeadTime;
@@ -1016,8 +1046,16 @@ class ThirdPersonControllerManager {
         p.jumpPrep = 0;
       }
       p.verticalVel -= 14.5 * dt;
-      p.position.y += p.verticalVel * dt;
-      if (p.position.y <= groundY) {
+      const nextY = p.position.y + p.verticalVel * dt;
+      const landing = p.verticalVel < 0
+        ? this.surfaceResolver.footing?.(p.position.x, p.position.z, 0.48, nextY, p.position.y) : null;
+      p.position.y = nextY;
+      if (landing && landing.height >= groundY) {
+        p._support = landing;
+        p.position.y = landing.height;
+        p.verticalVel = 0;
+        p.jumping = false;
+      } else if (p.position.y <= groundY) {
         p.position.y = groundY;
         p.verticalVel = 0;
         p.jumping = false;

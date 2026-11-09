@@ -13,6 +13,37 @@ export function triangleHeight(triangle, x, z) {
   return a.y + (b.y - a.y) * v + (c.y - a.y) * w;
 }
 
+function heightInDisc(triangle, x, z, radius) {
+  let highest = triangleHeight(triangle, x, z) ?? -Infinity;
+  const [a, b, c] = triangle;
+  const bx = b.x - a.x, bz = b.z - a.z, cx = c.x - a.x, cz = c.z - a.z;
+  const determinant = bx * cz - bz * cx;
+  if (Math.abs(determinant) < 1e-10) return -Infinity;
+  const dyB = b.y - a.y, dyC = c.y - a.y;
+  const slopeX = (dyB * cz - bz * dyC) / determinant;
+  const slopeZ = (bx * dyC - dyB * cx) / determinant;
+  const slope = Math.hypot(slopeX, slopeZ);
+  if (slope > 1e-10) {
+    const rim = triangleHeight(triangle, x + slopeX * radius / slope, z + slopeZ * radius / slope);
+    if (rim !== null) highest = Math.max(highest, rim);
+  }
+  // 极值在圆周的上坡方向或三角形边上。裁边保留前脚碰到的窄踏面。
+  for (let i = 0; i < 3; i++) {
+    const p = triangle[i], q = triangle[(i + 1) % 3];
+    const dx = q.x - p.x, dz = q.z - p.z;
+    const length2 = dx * dx + dz * dz;
+    if (length2 <= 1e-10) continue;
+    const center = ((x - p.x) * dx + (z - p.z) * dz) / length2;
+    const errorX = p.x + dx * center - x, errorZ = p.z + dz * center - z;
+    const room = radius * radius - errorX * errorX - errorZ * errorZ;
+    if (room < 0) continue;
+    const half = Math.sqrt(room / length2);
+    const from = Math.max(0, center - half), to = Math.min(1, center + half);
+    if (from <= to) highest = Math.max(highest, p.y + (q.y - p.y) * (q.y > p.y ? to : from));
+  }
+  return highest;
+}
+
 export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
   if (typeof groundHeight !== 'function') throw new Error('A terrain contact function is required');
   const cells = new Map();
@@ -74,5 +105,21 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
     return at(x, z).filter(c => c.height <= y + 1e-7).at(-1) ?? null;
   }
 
-  return { at, resolve, below };
+  function footing(x, z, radius, minY, maxY) {
+    if (![x, z, radius, minY, maxY].every(Number.isFinite) || radius <= 0 || minY > maxY) return null;
+    let best = null;
+    for (let ix = Math.floor((x - radius) / CELL); ix <= Math.floor((x + radius) / CELL); ix++) {
+      for (let iz = Math.floor((z - radius) / CELL); iz <= Math.floor((z + radius) / CELL); iz++) {
+        for (const { surfaceId, heightSource, triangle } of cells.get(`${ix},${iz}`) || []) {
+          const height = heightInDisc(triangle, x, z, radius);
+          if (height >= minY - 1e-7 && height <= maxY + 1e-7 && (!best || height > best.height)) {
+            best = { height, surfaceId, heightSource };
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  return { at, resolve, below, footing };
 }

@@ -28,16 +28,21 @@ const convention = loadModule(readLandmark('convention-center.js'), { imports: {
 const loadCulture = THREE => loadModule(readLandmark('shenzhen-bay-culture-square.js'), { imports: {
   'three/webgpu': THREE, '../building-collision.js': collision, '../sz-terrain.js': terrain, './parts.js': parts
 } });
+const loadUpperhills = THREE => loadModule(readLandmark('upperhills.js'), { imports: {
+  'three/webgpu': THREE, 'three/tsl': {}, '../sz-materials.js': {}, '../sz-terrain.js': terrain,
+  '../building-collision.js': collision, './parts.js': parts
+} });
 const culture = loadCulture({});
-const loadPlan = cultureModule => loadModule(readLandmark('layout.js'), { imports: {
+const upperhills = loadUpperhills({});
+const loadPlan = (cultureModule, upperhillsModule = upperhills) => loadModule(readLandmark('layout.js'), { imports: {
   './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun,
   './civic-center.js': civic, './chunjian.js': stadium, './shenzhen-bay-culture-square.js': cultureModule,
-  './convention-center.js': convention
+  './convention-center.js': convention, './upperhills.js': upperhillsModule
 } });
 const { planSzLandmarks } = loadPlan(culture);
 const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
 const { buildings, geo } = decodeCityPayload(JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz')))));
-const fixture = buildings.filter(building => !culture.sourceIds.includes(building.id));
+const fixture = buildings.filter(building => !culture.sourceIds.includes(building.id) && !upperhills.sourceIds.includes(building.id));
 const plan = planSzLandmarks(fixture, geo.terrain);
 const byId = new Map(buildings.map(building => [building.id, building]));
 const byLandmark = new Map(plan.plans.map(landmark => [landmark.id, landmark.parts]));
@@ -231,11 +236,25 @@ test('China Resources Tower contact preserves the radial entrance band and does 
 });
 
 const threePackageDir = process.env.SZ_THREE_PACKAGE_DIR;
+test('UpperHills registration replaces exactly its source footprints and leaves the surroundings', { skip: !threePackageDir }, async () => {
+  const THREE = await import(new URL('build/three.webgpu.js', pathToFileURL(join(threePackageDir, '/'))));
+  const { planSzLandmarks } = loadPlan(culture, loadUpperhills(THREE));
+  const snapshot = buildings.filter(building => !culture.sourceIds.includes(building.id));
+  const complete = planSzLandmarks(snapshot, geo.terrain);
+  assert.ok(complete.plans.some(row => row.id === 'upperhills' && row.parts.length > 0));
+  assert.ok(upperhills.sourceIds.every(id => complete.skipIds.has(id)));
+  assert.equal(complete.skipIds.has('way/1431501352'), false);
+  assert.equal(complete.skipIds.has('globfp/30143'), false);
+  const incomplete = planSzLandmarks(snapshot.filter(building => building.id !== 'way/684494959'), geo.terrain);
+  assert.equal(incomplete.plans.some(row => row.id === 'upperhills'), false);
+  assert.ok(upperhills.sourceIds.every(id => !incomplete.skipIds.has(id)));
+});
+
 test('Culture Square replaces its source box with nine distinct stone volumes and a court-cut landscaped deck',
   { skip: !threePackageDir }, async () => {
     const THREE = await import(new URL('build/three.webgpu.js', pathToFileURL(join(threePackageDir, '/'))));
     const museum = loadCulture(THREE);
-    const { planSzLandmarks } = loadPlan(museum);
+    const { planSzLandmarks } = loadPlan(museum, loadUpperhills(THREE));
     const withCulture = planSzLandmarks(buildings, geo.terrain);
     assert.equal(culture.sourceIds.length, 6);
     assert.ok(culture.sourceIds.every(id => withCulture.skipIds.has(id)));

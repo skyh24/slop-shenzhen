@@ -21,6 +21,16 @@ test('flat contact triangles return the exact top of the rendered solid', async 
   }
 });
 
+test('a circular footprint finds the highest real contact across triangle edges and a curved rim', async () => {
+  const { createSurfaceResolver } = await modulePromise;
+  const resolver = createSurfaceResolver({ groundHeight: () => 0,
+    surfaces: [{ id: 'ramp', heightSource: 'fixture-measured', triangles: [triangle] }] });
+  assert.ok(Math.abs(resolver.footing(5, 2, 0.5, 10.5, 11.2).height - 11.1) < 1e-8);
+  assert.ok(Math.abs(resolver.footing(-0.2, 2, 0.5, 9.9, 10.2).height - 10.06) < 1e-8);
+  assert.equal(resolver.footing(-0.6, 2, 0.5, 9.9, 10.2), null);
+  assert.equal(resolver.footing(5, 2, 0.5, 0, 0.38), null);
+});
+
 test('underpass and elevated contacts retain their current level without snapping', async () => {
   const { createSurfaceResolver } = await modulePromise;
   const resolver = createSurfaceResolver({ groundHeight: () => 0,

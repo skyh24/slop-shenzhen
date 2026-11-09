@@ -183,6 +183,51 @@
       "bytes": 41431272,
       "sha256": "ec90ab22e6d9c1fb3da48f5f47bdb705cd57529defc97dc346e3b224ee42cc14",
       "role": "Public design and site elevation comparison; vertical datum and as-built status not established for terrain calibration"
+    },
+    {
+      "id": "upperhills-loft-urbanus",
+      "file": "data/raw/landmarks/upperhills-loft-urbanus.pdf",
+      "url": "https://jzgc.cug.edu.cn/__local/8/E8/62/74A57C11FB42E83DBF8C2337AB1_0F9F0F2B_458244.pdf?e=.pdf",
+      "downloadedAt": "2026-11-09",
+      "bytes": 4555332,
+      "sha256": "bac1fc2f2fe5017d44f7ba6e25e5ac9ad648202ade5ece2bff391e2e0c2569b4",
+      "role": "Urbanus published plans, sections and built photographs; model reference, not a ground survey"
+    },
+    {
+      "id": "upperhills-som-01",
+      "file": "data/raw/landmarks/upperhills-som-01.jpg",
+      "url": "https://www.som.com/wp-content/uploads/2021/07/shen-ye-upper-hills_1575x900_dave-burk-som_01.jpg",
+      "downloadedAt": "2026-11-09",
+      "bytes": 969796,
+      "sha256": "f7256771a56e93f880d65b7329b7589af350b42ecee5873200e1428775683758",
+      "role": "SOM built-project photograph; procedural silhouette, bridge and facade reference"
+    },
+    {
+      "id": "upperhills-som-02",
+      "file": "data/raw/landmarks/upperhills-som-02.jpg",
+      "url": "https://www.som.com/wp-content/uploads/2021/07/shen-ye-upper-hills_1575x900_dave-burk-som_02.jpg",
+      "downloadedAt": "2026-11-09",
+      "bytes": 1001233,
+      "sha256": "e5d1885feeedebe845774c6f596f6e62333507b808a7e46d4ff80af516305659",
+      "role": "SOM built-project photograph; procedural silhouette, bridge and facade reference"
+    },
+    {
+      "id": "upperhills-som-03",
+      "file": "data/raw/landmarks/upperhills-som-03.jpg",
+      "url": "https://www.som.com/wp-content/uploads/2021/07/shen-ye-upper-hills_1575x900_dave-burk-som_03.jpg",
+      "downloadedAt": "2026-11-09",
+      "bytes": 1404825,
+      "sha256": "6ad5b1f7435e2feea7141ae609b5d9cac7e4973cc52add5eedad588f633a9337",
+      "role": "SOM built-project photograph; procedural silhouette, bridge and facade reference"
+    },
+    {
+      "id": "upperhills-som-07",
+      "file": "data/raw/landmarks/upperhills-som-07.jpg",
+      "url": "https://www.som.com/wp-content/uploads/2021/07/shen-ye-upper-hills_1575x900_dave-burk-som_07.jpg",
+      "downloadedAt": "2026-11-09",
+      "bytes": 1690933,
+      "sha256": "326939e86cc98bc4e9925fae48199793528427050fc5c27afeb8057c591fa266",
+      "role": "SOM built-project photograph; procedural silhouette, bridge and facade reference"
     }
   ]
 }

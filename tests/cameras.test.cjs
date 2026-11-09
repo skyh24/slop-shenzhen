@@ -57,14 +57,19 @@ function cameraHarness(entity = {
   };
   window.innerWidth = 1600;
   window.innerHeight = 900;
-  const { CameraSystem } = loadModule(source, {
+  const scenicCalls = [];
+  const getScenicCamera = (id, elapsed) => {
+    scenicCalls.push([id, elapsed]);
+    return { position: [100, 200, 300], target: [10, 20, 30] };
+  };
+  const { CAMERA_PRESETS, CameraSystem } = loadModule(source, {
     globals: { window, document },
-    imports: { 'three/webgpu': { Vector3, PerspectiveCamera }, './sz-camera-presets.js': { getScenicCamera: () => ({ position: [100, 200, 300], target: [0, 0, 0] }) },
+    imports: { 'three/webgpu': { Vector3, PerspectiveCamera }, './sz-camera-presets.js': { getScenicCamera },
       './sz-strings.js': { STR: { cameraNames: {} } } }
   });
   const camera = new CameraSystem(canvas, { getActiveEntity: () => entity });
   return {
-    camera, canvas, controls, window, document, captured, entity,
+    camera, canvas, controls, window, document, captured, entity, CAMERA_PRESETS, scenicCalls,
     pointer(target, type, id, x, y = 0, pointerType = 'touch', button = 0) {
       const event = {
         pointerId: id, clientX: x, clientY: y, pointerType, button,
@@ -81,6 +86,21 @@ function cameraHarness(entity = {
 function close(actual, expected) {
   assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} should equal ${expected}`);
 }
+
+test('every scenic preset updates the rendered camera with its position and target', () => {
+  const { camera, CAMERA_PRESETS, scenicCalls } = cameraHarness();
+  const presets = CAMERA_PRESETS.filter(preset => preset.category === 'scenic');
+  assert.ok(presets.some(preset => preset.id === 'upperhills'));
+  for (const preset of presets) {
+    camera.setCameraPreset(preset.id, true);
+    camera.update(1 / 60, 10);
+    assert.deepEqual(scenicCalls.at(-1), [preset.id, 10]);
+    assert.deepEqual(camera.camera.position, new Vector3(100, 200, 300));
+    assert.deepEqual(camera.camera.target, new Vector3(10, 20, 30));
+    assert.equal(camera.camera.fov, preset.fov);
+  }
+  assert.equal(scenicCalls.length, presets.length);
+});
 
 test('UI touches neither move nor release an active canvas orbit', () => {
   const h = cameraHarness();
