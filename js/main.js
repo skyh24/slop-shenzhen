@@ -15,6 +15,7 @@ import { buildSzStreetscape } from './sz-streetscape.js';
 import { buildSzStreetLamps } from './sz-street-lamps.js';
 import { buildSzTrees } from './sz-trees.js';
 import { buildApecTheme } from './sz-apec.js';
+import { buildApecCityElements } from './sz-apec-city.js';
 import { gatePoint, gateYaw, gateDeckY, flowerSeaAnchor, flowerSeaDeckY } from './sz-landmarks/iec-xiangmihu.js';
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
@@ -205,6 +206,14 @@ async function initApp() {
       iecFlowerSea: { x: flowerSeaAnchor.x, z: flowerSeaAnchor.z, baseY: flowerSeaDeckY }
     }
   });
+  // APEC 城市元素：路侧 LED 大屏、会场巡逻机器人、西丽站围挡公益广告，随主题开关显隐。
+  const apecCity = buildApecCityElements(scene, {
+    terrain: GEO.terrain, landmarks: GEO.landmarks, sites: GEO.sites,
+    anchors: {
+      iecGate: { x: gatePoint.x, z: gatePoint.z, yaw: gateYaw, baseY: gateDeckY },
+      iecFlowerSea: { x: flowerSeaAnchor.x, z: flowerSeaAnchor.z, baseY: flowerSeaDeckY }
+    }
+  });
   // 地铁出入口：点位来自 OSM 已核实节点；雨棚/站名牌是外观参数，吸附到实际渲染地面。
   const metroEntrances = buildSzMetroEntrances(scene, GEO.metro, {
     groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, pathAt: streetscape.pathAt,
@@ -221,6 +230,7 @@ async function initApp() {
     }) : null;
   if (qa) {
     window.__szLamps = streetLamps; window.__szTrees = trees; window.__szApec = apecTheme;
+    window.__szApecCity = apecCity;
     window.__szMetroEntrances = metroEntrances; window.__szFutian = futianStation; window.__szXili = xiliConstruction;
   }
   const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...trees.colliders,
@@ -507,6 +517,7 @@ async function initApp() {
   const APEC_STATE_KEY = 'sz-apec-enabled';
   function setApecTheme(enabled, { persist = true } = {}) {
     const active = apecTheme.setEnabled(enabled);
+    apecCity.group.visible = active;
     sceneUniforms.apec.value = active ? 1 : 0;
     if (apecButton) {
       apecButton.classList.toggle('active', active);
@@ -955,6 +966,7 @@ async function initApp() {
     streetLamps.update(cameraSystem.camera.position, lightingSystem.uNightFactor.value);
     trees.update(cameraSystem.camera.position);
     apecTheme.update(dt, lightingSystem.uNightFactor.value);
+    apecCity.update(dt, lightingSystem.uNightFactor.value);
     metroEntrances.update(cameraSystem.currentPos);
     futianStation?.update(cameraSystem.currentPos);
     xiliConstruction?.update();

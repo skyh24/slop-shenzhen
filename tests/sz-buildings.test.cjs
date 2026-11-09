@@ -120,3 +120,27 @@ test('one-kilometre building batches preserve every triangle attribute and colli
   }
   assert.deepEqual(triangles(coarse.group), triangles(fine.group));
 });
+
+test('tall ordinary towers gain an estimated podium with matching display and collision', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+  const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
+  const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    'three/webgpu': THREE,
+    './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
+    './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
+    './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
+    './sz-building-layout.js': { buildingPlacement, buildingSeed }
+  } });
+  const scene = new THREE.Scene();
+  const tower = { ...building, id: 'way/999', height: 120, minHeight: 0, polygons: [{ outer, holes: [] }] };
+  const blocks = buildCityBlocks(scene, { buildings: [{ ...tower, facade: 'office' }], terrain: grid });
+  const podium = blocks.colliders.find(collider => collider.type === 'building-podium');
+  assert.ok(podium, 'podium collider exists');
+  assert.ok(podium.minX < building.minX && podium.maxX > building.maxX, 'podium extends past the tower footprint');
+  assert.ok(podium.maxY - podium.minY >= 6 && podium.maxY - podium.minY <= 20, 'podium height is inside the budget');
+  assert.ok(podium.minY + (podium.maxY - podium.minY) < 120 - 30, 'tower still reads above the podium');
+  // 架空或矮建筑不生成裙房
+  const elevated = buildCityBlocks(scene, { buildings: [{ ...tower, id: 'way/1000', minHeight: 20, facade: 'office' }], terrain: grid });
+  assert.equal(elevated.colliders.some(collider => collider.type === 'building-podium'), false);
+  blocks.dispose();
+  elevated.dispose();
+});
