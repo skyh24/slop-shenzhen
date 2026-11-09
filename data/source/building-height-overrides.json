@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "note": "按公开资料逐个核实的楼高覆盖。只覆盖已确认的楼，不批量改估计值；heightSource 记为 published。楼高口径为公开资料的总建筑高度（含尖顶，不含天线），单位米。位置和足迹仍用 OSM 源数据。",
+  "entries": [
+    {
+      "osmId": "way/1443942677",
+      "name": "招商银行全球总部大厦",
+      "heightM": 393.0,
+      "sources": [
+        "https://zh.wikipedia.org/wiki/深圳摩天大楼列表",
+        "https://en.wikipedia.org/wiki/List_of_tallest_buildings_in_Shenzhen"
+      ],
+      "verifiedAt": "2026-11-09",
+      "note": "OSM 部件为 387 m / 75 层；公开列表为 393 m / 77 层、2025 年完工。"
+    },
+    {
+      "osmId": "way/875261266",
+      "name": "深圳长富金茂大厦",
+      "heightM": 304.3,
+      "sources": [
+        "https://zh.wikipedia.org/wiki/深圳摩天大楼列表",
+        "https://en.wikipedia.org/wiki/List_of_tallest_buildings_in_Shenzhen"
+      ],
+      "verifiedAt": "2026-11-09",
+      "note": "OSM 303 m / 68 层；公开列表 304.3 m / 68 层。"
+    },
+    {
+      "osmId": "way/545225939",
+      "name": "深圳东海商务中心A座（OSM 名称：东海国际公寓A座）",
+      "heightM": 306.0,
+      "sources": [
+        "https://zh.wikipedia.org/wiki/深圳东海商务中心",
+        "https://en.wikipedia.org/wiki/List_of_tallest_buildings_in_Shenzhen"
+      ],
+      "verifiedAt": "2026-11-09",
+      "note": "OSM 308.62 m / 82 层；CTBUH 与中文维基为 306 m / 85 层，A 座为中国最高纯公寓。"
+    },
+    {
+      "osmId": "way/545225940",
+      "name": "深圳东海商务中心B座（OSM 名称：东海国际公寓B座）",
+      "heightM": 261.0,
+      "sources": [
+        "https://zh.wikipedia.org/wiki/深圳东海商务中心",
+        "https://en.wikipedia.org/wiki/List_of_tallest_buildings_in_Shenzhen"
+      ],
+      "verifiedAt": "2026-11-09",
+      "note": "OSM 283.61 m / 75 层；CTBUH 与中文维基为 261 m / 72 层，OSM 值偏高约 8.7%。"
+    }
+  ]
+}

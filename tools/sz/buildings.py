@@ -21,6 +21,7 @@ GLOBFP_DIR = ROOT / 'data/raw/globfp'
 GLOBFP_SZ = GLOBFP_DIR / 'globfp-sz.jsonl'
 LANDMARKS = ROOT / 'data/source/landmarks.json'
 FOOTPRINT_REVIEWS = ROOT / 'data/source/building-footprint-reviews.json'
+HEIGHT_OVERRIDES = ROOT / 'data/source/building-height-overrides.json'
 
 LEVEL_HEIGHT = 3.2
 MIN_AREA = 16.0
@@ -32,7 +33,7 @@ UNDERGROUND_TAGS = ('name', 'building', 'building:part', 'building:levels', 'bui
 FACADES = ['glass_tower', 'office', 'residential_tower', 'residential_low', 'village', 'industrial', 'public', 'landmark']
 CATEGORIES = ['unknown', 'residential', 'commercial', 'industrial', 'public']
 HEIGHT_SOURCES = ['landmark', 'osm-height', 'osm-levels', 'overture-height', 'overture-floors',
-                  'globfp', 'globfp-overlap', 'estimate']
+                  'globfp', 'globfp-overlap', 'estimate', 'published']
 
 RESIDENTIAL = {'residential', 'apartments', 'house', 'dormitory', 'detached', 'terrace', 'semidetached_house'}
 COMMERCIAL = {'commercial', 'office', 'retail', 'hotel', 'supermarket', 'mall'}
@@ -107,6 +108,25 @@ def _polygons(geom):
     if isinstance(geom, MultiPolygon):
         return list(geom.geoms)
     return [g for g in getattr(geom, 'geoms', []) if isinstance(g, Polygon)]
+
+
+def load_height_overrides(path=HEIGHT_OVERRIDES):
+    """读取逐个核实的楼高覆盖。没有文件时返回空表，不因缺文件改变默认生成结果。"""
+    if not Path(path).exists():
+        return {}
+    data = json.loads(Path(path).read_text())
+    if data.get('version') != 1:
+        raise ValueError('Unsupported building height override version')
+    overrides = {}
+    for entry in data.get('entries', []):
+        osm_id = entry.get('osmId')
+        height = entry.get('heightM')
+        if not isinstance(osm_id, str) or not osm_id or not isinstance(height, (int, float)) or height <= 0:
+            raise ValueError(f'Invalid building height override: {entry}')
+        if not entry.get('sources'):
+            raise ValueError(f'Building height override has no sources: {osm_id}')
+        overrides[osm_id] = {**entry, 'heightM': float(height)}
+    return overrides
 
 
 def ensure_globfp():
@@ -242,8 +262,9 @@ def _facade(category, height, area, landmark):
     return 'office' if area > 1500 else 'residential_low'
 
 
-def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True):
+def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, height_overrides=None):
     bindings = load_landmark_bindings()
+    overrides = load_height_overrides() if height_overrides is None else height_overrides
     records = []
     underground = []
     vertical_conflicts = []
@@ -376,6 +397,8 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True):
 
     out = []
     min_height_corrections = []
+    applied_overrides = []
+    matched_overrides = set()
     counts = {s: 0 for s in HEIGHT_SOURCES}
     for r in records:
         pieces = _polygons(r['geom'].simplify(0.3, preserve_topology=True))
@@ -428,6 +451,16 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True):
                 height, source = overlap_h / overlap_a, 'globfp-overlap'
         if not height or height < 2.5:
             height, source = _estimate(category, area, r['id']), 'estimate'
+        override = overrides.get(r['id'])
+        if override:
+            matched_overrides.add(r['id'])
+            applied_overrides.append({
+                'id': r['id'], 'name': override.get('name'),
+                'previousHeightM': round(height, 1), 'previousHeightSource': source,
+                'heightM': override['heightM'], 'sources': override['sources'],
+                'verifiedAt': override.get('verifiedAt'), 'note': override.get('note'),
+            })
+            height, source = override['heightM'], 'published'
         height = min(height, 650.0)
         min_height = r.get('minHeight', 0.0)
         reason = _vertical_conflict(min_height, height)
@@ -459,6 +492,11 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True):
     report['buildingMinHeightCorrections'] = min_height_corrections
     report['excludedBuildingVerticalBounds'] = vertical_conflicts
     report['heightEstimate'] = {'method': 'category-area-seeded-jitter', 'seed': ESTIMATE_SEED, 'seedBy': 'building-id'}
+    report['buildingHeightOverrides'] = {
+        'source': str(HEIGHT_OVERRIDES.relative_to(ROOT)),
+        'applied': applied_overrides,
+        'unused': sorted(set(overrides) - matched_overrides),
+    }
     found = sorted({b['landmark'] for b in out if b['landmark']})
     expected = sorted({v['landmark'] for v in bindings.values()})
     report['landmarkBuildingsBound'] = found

@@ -96,6 +96,7 @@ z = −(lat − lat0) · KY
    5. Overture `num_floors × 3.2 m`
    6. 3D-GloBFP：交并比至少 0.6、面积比至少 0.65、中心距不超过 12 米，且没有相近的第二候选
    7. 按用途和占地估算，标 `estimate`
+   8. `data/source/building-height-overrides.json` 里逐个公开资料核实的值（最后应用，标 `published`；必须带来源链接，构建报告记录原值和未使用项）
 4. 每栋楼记录 `heightSource`、`category`、`facade`
 5. 面积小于 16 平方米或大半在水里的轮廓丢掉
 

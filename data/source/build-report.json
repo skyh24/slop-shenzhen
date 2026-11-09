@@ -1039,13 +1039,14 @@
   "buildings": 39956,
   "heightSources": {
     "landmark": 6,
-    "osm-height": 955,
+    "osm-height": 951,
     "osm-levels": 4219,
     "overture-height": 2,
     "overture-floors": 22,
     "globfp": 17982,
     "globfp-overlap": 8549,
-    "estimate": 8221
+    "estimate": 8221,
+    "published": 4
   },
   "buildingMinHeightCorrections": [
     {
@@ -1065,6 +1066,64 @@
     "method": "category-area-seeded-jitter",
     "seed": 20261118,
     "seedBy": "building-id"
+  },
+  "buildingHeightOverrides": {
+    "source": "data/source/building-height-overrides.json",
+    "applied": [
+      {
+        "id": "way/545225939",
+        "name": "深圳东海商务中心A座（OSM 名称：东海国际公寓A座）",
+        "previousHeightM": 308.6,
+        "previousHeightSource": "osm-height",
+        "heightM": 306.0,
+        "sources": [
+          "https://zh.wikipedia.org/wiki/深圳东海商务中心",
+          "https://en.wikipedia.org/wiki/List_of_tallest_buildings_in_Shenzhen"
+        ],
+        "verifiedAt": "2026-11-09",
+        "note": "OSM 308.62 m / 82 层；CTBUH 与中文维基为 306 m / 85 层，A 座为中国最高纯公寓。"
+      },
+      {
+        "id": "way/545225940",
+        "name": "深圳东海商务中心B座（OSM 名称：东海国际公寓B座）",
+        "previousHeightM": 283.6,
+        "previousHeightSource": "osm-height",
+        "heightM": 261.0,
+        "sources": [
+          "https://zh.wikipedia.org/wiki/深圳东海商务中心",
+          "https://en.wikipedia.org/wiki/List_of_tallest_buildings_in_Shenzhen"
+        ],
+        "verifiedAt": "2026-11-09",
+        "note": "OSM 283.61 m / 75 层；CTBUH 与中文维基为 261 m / 72 层，OSM 值偏高约 8.7%。"
+      },
+      {
+        "id": "way/875261266",
+        "name": "深圳长富金茂大厦",
+        "previousHeightM": 303.0,
+        "previousHeightSource": "osm-height",
+        "heightM": 304.3,
+        "sources": [
+          "https://zh.wikipedia.org/wiki/深圳摩天大楼列表",
+          "https://en.wikipedia.org/wiki/List_of_tallest_buildings_in_Shenzhen"
+        ],
+        "verifiedAt": "2026-11-09",
+        "note": "OSM 303 m / 68 层；公开列表 304.3 m / 68 层。"
+      },
+      {
+        "id": "way/1443942677",
+        "name": "招商银行全球总部大厦",
+        "previousHeightM": 387.0,
+        "previousHeightSource": "osm-height",
+        "heightM": 393.0,
+        "sources": [
+          "https://zh.wikipedia.org/wiki/深圳摩天大楼列表",
+          "https://en.wikipedia.org/wiki/List_of_tallest_buildings_in_Shenzhen"
+        ],
+        "verifiedAt": "2026-11-09",
+        "note": "OSM 部件为 387 m / 75 层；公开列表为 393 m / 77 层、2025 年完工。"
+      }
+    ],
+    "unused": []
   },
   "landmarkBuildingsBound": [
     "chunsun",
@@ -1481,7 +1540,7 @@
     "triangles": 386824,
     "areaKm2": 105.747093,
     "areaErrorM2": -1.71e-06,
-    "seconds": 3.22,
+    "seconds": 2.72,
     "waterLevelsGenerated": false,
     "heightSource": "copernicus-glo30-dsm",
     "exclusions": [
@@ -2294,6 +2353,6 @@
     "namedBuildings": 5989,
     "buildingsWithLevels": 4985
   },
-  "outputBytes": 6565964,
-  "seconds": 65.3
+  "outputBytes": 6565984,
+  "seconds": 48.8
 }

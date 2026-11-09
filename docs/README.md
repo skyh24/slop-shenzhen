@@ -15,6 +15,7 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [13-DATA-DETAIL-PILOT.md](13-DATA-DETAIL-PILOT.md) | 新数据源小范围验证：本地测绘/总图、Overture部件与路网、CMAB、树木公园；样区、字段溯源、分步接入与实际通行验收 |
 | [14-CITY-EXPLORATION-PLAN.md](14-CITY-EXPLORATION-PLAN.md) | 后续探索体验：楼栋/小区/场地名称搜索与区域高亮、地铁透视模拟、重点区域建模、人车流、导航与快捷上下车/1秒起降 |
 | [15-IMPROVEMENT-PLAN.md](15-IMPROVEMENT-PLAN.md) | 2026-11-09 晚的现状评审：实际画面问题、卡住的原因、改进顺序和文档精简建议 |
+| [16-BUILDING-HEIGHT-AUDIT.md](16-BUILDING-HEIGHT-AUDIT.md) | 楼高与周边建筑核对：公开资料对照表、4 栋公开资料修正、照片对照和已知缺口 |
 | [CONVENTIONS.md](CONVENTIONS.md) | 开发规范：语言、代码风格、坐标、数据、建模、验收、Git |
 | [RESEARCH.md](RESEARCH.md) | 前期调研：参考仓库、武汉教训、数据源、APEC、地标核实、检索服务状况 |
 | [00-SCOPE.md](00-SCOPE.md) | 场景简报：分期范围、坐标约定、地标清单、暂缓与待确认事项 |
