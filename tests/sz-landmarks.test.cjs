@@ -35,12 +35,22 @@ const loadUpperhills = THREE => loadModule(readLandmark('upperhills.js'), { impo
 const nonferrous = loadModule(readLandmark('nonferrous-tower.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': {}, '../sz-materials.js': {}, './parts.js': parts
 } });
+const loadIec = (THREE, tsl = {}, materials = {}) => loadModule(readLandmark('iec-xiangmihu.js'), { imports: {
+  'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': materials, '../sz-terrain.js': terrain, './parts.js': parts
+} });
+const iec = loadIec({});
+const loadSuperHq = (THREE, tsl = {}, materials = {}) => loadModule(readLandmark('super-hq.js'), { imports: {
+  'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': materials, '../sz-terrain.js': terrain,
+  '../building-collision.js': collision, './parts.js': parts
+} });
+const superHq = loadSuperHq({});
 const culture = loadCulture({});
 const upperhills = loadUpperhills({});
-const loadPlan = (cultureModule, upperhillsModule = upperhills) => loadModule(readLandmark('layout.js'), { imports: {
+const loadPlan = (cultureModule, upperhillsModule = upperhills, iecModule = iec, superHqModule = superHq) => loadModule(readLandmark('layout.js'), { imports: {
   './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun,
   './civic-center.js': civic, './chunjian.js': stadium, './shenzhen-bay-culture-square.js': cultureModule,
-  './convention-center.js': convention, './upperhills.js': upperhillsModule, './nonferrous-tower.js': nonferrous
+  './convention-center.js': convention, './upperhills.js': upperhillsModule, './nonferrous-tower.js': nonferrous,
+  './iec-xiangmihu.js': iecModule, './super-hq.js': superHqModule
 } });
 const { planSzLandmarks } = loadPlan(culture);
 const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
@@ -386,4 +396,58 @@ test('actual roof triangles share the render vertices and collision elevation', 
   assert.equal(panelSupport.below(4, 4, 30).height, 16);
   const panelNormals = panelModel.group.children[0].geometry.attributes.normal;
   assert.ok(panelNormals.getY(panelNormals.count - 1) > 0);
+});
+
+test('site-only landmarks join the plan with their verified sites and retire their stale footprints', () => {
+  // fixture 排除 culture/upperhills 源对象，避免用空 THREE stub 触发它们的几何构建。
+  const withSites = planSzLandmarks(fixture, geo.terrain, geo.sites);
+  const plans = new Map(withSites.plans.map(landmark => [landmark.id, landmark.parts]));
+  assert.ok(plans.has('iec-xiangmihu') && plans.get('iec-xiangmihu').length > 0);
+  assert.ok(plans.has('super-hq') && plans.get('super-hq').length > 0);
+  const iecSkips = iec.optionalSkipIds.filter(id => byId.has(id));
+  const superSkips = superHq.optionalSkipIds.filter(id => byId.has(id));
+  assert.ok(iecSkips.length > 0 && superSkips.length > 0, 'stale generic footprints exist in the snapshot');
+  for (const id of [...iecSkips, ...superSkips]) assert.ok(withSites.skipIds.has(id), id);
+  // 没有 sites 时退回空计划，不能凭地标 id 造体量。
+  const withoutSites = planSzLandmarks(fixture, geo.terrain);
+  assert.equal(withoutSites.plans.some(landmark => landmark.id === 'super-hq'), false);
+  assert.equal(withoutSites.plans.some(landmark => landmark.id === 'iec-xiangmihu'), false);
+});
+
+const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
+test('new site landmarks build and render through the shared material dispatcher', { skip: !threeDir }, async () => {
+  const packageUrl = pathToFileURL(join(threeDir, '/'));
+  const THREE = await import(new URL('build/three.webgpu.js', packageUrl));
+  const tsl = await import(new URL('build/three.tsl.js', packageUrl));
+  const atmosphere = { sceneUniforms: { night: tsl.uniform(0), show: tsl.uniform(0), apec: tsl.uniform(0) } };
+  const iecModel = loadIec(THREE, tsl, atmosphere);
+  const superModel = loadSuperHq(THREE, tsl, atmosphere);
+  const materials = loadModule(readLandmark('materials.js'), { imports: {
+    'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': atmosphere,
+    './shenzhen-bay-culture-square.js': { createCulturePavingMask: () => ({}) },
+    './upperhills.js': { createUpperhillsMaterial: () => new THREE.MeshBasicMaterial() },
+    './nonferrous-tower.js': { createNonferrousMaterial: () => new THREE.MeshBasicMaterial() },
+    './iec-xiangmihu.js': iecModel, './super-hq.js': superModel
+  } });
+  const { renderLandmark } = loadModule(readLandmark('render.js'), { imports: {
+    'three/webgpu': THREE, '../sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } })
+  } });
+  const planWithSites = planSzLandmarks(fixture, geo.terrain, geo.sites);
+  for (const landmarkId of ['iec-xiangmihu', 'super-hq']) {
+    const plan = planWithSites.plans.find(item => item.id === landmarkId);
+    assert.ok(plan, landmarkId);
+    const rendered = renderLandmark(plan, materials.createLandmarkMaterial);
+    assert.ok(rendered.group.children.length > 0, `${landmarkId} renders meshes`);
+    let triangles = 0;
+    rendered.group.traverse(mesh => {
+      const geometry = mesh.geometry;
+      if (!geometry) return;
+      const position = geometry.getAttribute('position');
+      assert.ok(position.count > 0 && Number.isFinite(position.getX(0)), `${landmarkId} geometry is finite`);
+      triangles += (geometry.index ? geometry.index.count : position.count) / 3;
+      if (mesh.material?.dispose) mesh.material.dispose();
+    });
+    assert.ok(triangles > 0 && triangles < 300000, `${landmarkId} triangle budget: ${triangles}`);
+    rendered.group.traverse(mesh => mesh.geometry?.dispose());
+  }
 });

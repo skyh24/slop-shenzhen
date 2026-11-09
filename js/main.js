@@ -6,7 +6,7 @@ import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
-import { getLocationLabel, getLocationInfo, inBounds, isTypingInField, findGroundArrival, LANDMARK_SITES, TELEPORT_LOCATIONS } from './sz-city-config.js';
+import { getLocationLabel, getLocationInfo, inBounds, isWater, isTypingInField, findGroundArrival, LANDMARK_SITES, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { buildSzGround } from './sz-ground.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads } from './sz-roads.js';
@@ -15,7 +15,11 @@ import { buildSzStreetscape } from './sz-streetscape.js';
 import { buildSzStreetLamps } from './sz-street-lamps.js';
 import { buildSzTrees } from './sz-trees.js';
 import { buildApecTheme } from './sz-apec.js';
+import { gatePoint, gateYaw, gateDeckY, flowerSeaAnchor, flowerSeaDeckY } from './sz-landmarks/iec-xiangmihu.js';
+import { buildSzMetroEntrances } from './sz-metro-entrances.js';
+import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
+import { polygonContains } from './building-collision.js';
 import { buildShenzhenBayBridge } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
 import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
@@ -165,7 +169,19 @@ async function initApp() {
   const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
-  const cityBlocks = buildCityBlocks(scene, { skipIds: landmarks.skipIds, renderChunkSize: qa?.chunkSize });
+  // 超级总部/西丽场地按「建好形态/在建工地」接管：场地内旧通用楼不再单独渲染，避免与地标和工地重叠。
+  const skipIds = new Set(landmarks.skipIds);
+  for (const landmarkId of ['super-hq', 'xili-station']) {
+    for (const role of Object.values(GEO.sites?.[landmarkId] ?? {})) {
+      for (const building of REAL_BUILDINGS) {
+        if (skipIds.has(building.id)) continue;
+        for (const polygon of role.polygons) {
+          if (polygonContains(polygon, building.cx, building.cz)) { skipIds.add(building.id); break; }
+        }
+      }
+    }
+  }
+  const cityBlocks = buildCityBlocks(scene, { skipIds, renderChunkSize: qa?.chunkSize });
   markInit('blocks');
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders];
   const streetscape = buildSzStreetscape(scene, GEO.streetscape, GEO.terrainSurface, {
@@ -182,10 +198,33 @@ async function initApp() {
   });
   // APEC 周城市元素：会期内默认打开，模块内所有几何都在主题开关下。
   const apecTheme = buildApecTheme(scene, {
-    roadGraph: GEO.roadGraph, terrain: GEO.terrain, landmarks: GEO.landmarks, buildings: REAL_BUILDINGS, area: GEO.bounds
+    roadGraph: GEO.roadGraph, terrain: GEO.terrain, landmarks: GEO.landmarks, buildings: REAL_BUILDINGS, area: GEO.bounds,
+    // 国际交流中心模型给出的真实门廊/花海台面锚点，避免 APEC 标识埋进新建筑或花坛落到台下。
+    anchors: {
+      iecGate: { x: gatePoint.x, z: gatePoint.z, yaw: gateYaw, baseY: gateDeckY },
+      iecFlowerSea: { x: flowerSeaAnchor.x, z: flowerSeaAnchor.z, baseY: flowerSeaDeckY }
+    }
   });
-  if (qa) { window.__szLamps = streetLamps; window.__szTrees = trees; window.__szApec = apecTheme; }
-  const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...trees.colliders];
+  // 地铁出入口：点位来自 OSM 已核实节点；雨棚/站名牌是外观参数，吸附到实际渲染地面。
+  const metroEntrances = buildSzMetroEntrances(scene, GEO.metro, {
+    groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, pathAt: streetscape.pathAt,
+    colliders: buildings, isWater
+  });
+  // 福田站只建地面出入口/采光天窗；西丽站只做在建工地围挡/塔吊/基坑，不造站房。
+  const futianStation = GEO.sites?.['futian-station']?.station
+    ? buildFutianStation(scene, GEO.sites['futian-station'].station, {
+      groundHeight: ground.groundHeight, colliders: buildings
+    }) : null;
+  const xiliConstruction = GEO.sites?.['xili-station']?.site
+    ? buildXiliConstruction(scene, GEO.sites['xili-station'].site, {
+      groundHeight: ground.groundHeight, isWater
+    }) : null;
+  if (qa) {
+    window.__szLamps = streetLamps; window.__szTrees = trees; window.__szApec = apecTheme;
+    window.__szMetroEntrances = metroEntrances; window.__szFutian = futianStation; window.__szXili = xiliConstruction;
+  }
+  const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...trees.colliders,
+    ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? [])];
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = createSzTraffic(scene, GEO.roadGraph, {
     roadHeight: roads.roadHeight,
@@ -283,7 +322,8 @@ async function initApp() {
     // 每类静态分块共用材质和顶点布局，预编译其中一块即可。
     for (const chunk of chunks) chunk.userData.sharesPipelineWith = first;
   }
-  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, streetscape.group, roadFrontage.group, streetLamps.group, trees.group, apecTheme.group].filter(Boolean), lightingSystem.sunLight.shadow);
+  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, streetscape.group, roadFrontage.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
+    futianStation?.group, xiliConstruction?.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [
     traffic.group,
@@ -915,6 +955,9 @@ async function initApp() {
     streetLamps.update(cameraSystem.camera.position, lightingSystem.uNightFactor.value);
     trees.update(cameraSystem.camera.position);
     apecTheme.update(dt, lightingSystem.uNightFactor.value);
+    metroEntrances.update(cameraSystem.currentPos);
+    futianStation?.update(cameraSystem.currentPos);
+    xiliConstruction?.update();
     const simulationEnd = measureFrame ? performance.now() : 0;
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();

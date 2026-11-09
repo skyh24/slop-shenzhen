@@ -152,7 +152,9 @@ export const STR = {
     djiSkyCity: '大疆天空之城', pingAnTower: '远看平安金融中心', chunsunTower: '后海上空看春笋',
     civicRoof: '北侧上空看市民中心', chunjianShell: '深圳湾上空看春茧', cultureSquare: '后海看文化广场',
     conventionCenter: '西北侧上空看会展中心', upperhills: '莲花山上空看深业上城',
-    nonferrousTower: '西南侧看中国有色大厦', bayBridge: '深圳湾公园远眺大桥'
+    nonferrousTower: '西南侧看中国有色大厦',
+    iecXiangmihu: '香蜜湖看国际交流中心', superHq: '深圳湾看超级总部双塔',
+    bayBridge: '深圳湾公园远眺大桥'
   },
   subtitle: 'MVP 预览 · 南山 + 福田 · APEC 2026 深圳',
   loading: '正在载入深圳……',

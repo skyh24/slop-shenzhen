@@ -241,7 +241,7 @@ export function landmarkFootprint(buildings, id) {
 }
 
 // 三处会场/展点标识。会展中心用真实建筑轮廓定位，其余用核实过的地标中心加示意偏移
-export function apecSignSites({ landmarks = [], buildings = [], area = null } = {}) {
+export function apecSignSites({ landmarks = [], buildings = [], area = null, anchors = null } = {}) {
   const signs = [];
   const conventionBounds = landmarkFootprint(buildings, 'convention-center');
   const conventionCenter = landmarkCenter(landmarks, 'convention-center');
@@ -262,20 +262,22 @@ export function apecSignSites({ landmarks = [], buildings = [], area = null } = 
     });
   }
   const xiangmihu = landmarkCenter(landmarks, 'iec-xiangmihu');
-  if (xiangmihu) {
+  const gate = anchors?.iecGate;
+  if (xiangmihu || gate) {
     signs.push({
       id: 'iec-xiangmihu-gate',
       landmark: 'iec-xiangmihu',
       kind: 'venue-gate',
       text: STR.apecTheme.venueGate,
       subText: STR.apecTheme.venueGateSub,
-      x: xiangmihu.x,
-      z: xiangmihu.z + 70,
-      yaw: 0,
+      x: gate ? gate.x : xiangmihu.x,
+      z: gate ? gate.z : xiangmihu.z + 70,
+      baseY: gate && Number.isFinite(gate.baseY) ? gate.baseY : null,
+      yaw: gate && Number.isFinite(gate.yaw) ? gate.yaw : 0,
       widthM: 10,
       heightM: 1.8,
       mountM: 1.1,
-      source: 'landmark-center+illustrative-offset'
+      source: gate ? 'landmark-model-gate' : 'landmark-center+illustrative-offset'
     });
   }
   const upperhills = landmarkCenter(landmarks, 'upperhills');
@@ -313,16 +315,20 @@ export function apecSupportVehicles(signs) {
 }
 
 // 花田/花坛：地点来自核实过的地标中心，范围和花量为示意布置
-export function apecFlowerBeds({ landmarks = [], area = null } = {}) {
+export function apecFlowerBeds({ landmarks = [], area = null, anchors = null } = {}) {
   const beds = [];
   const xiangmihu = landmarkCenter(landmarks, 'iec-xiangmihu');
-  if (xiangmihu) {
+  const sea = anchors?.iecFlowerSea;
+  if (xiangmihu || sea) {
+    const baseX = sea ? sea.x : xiangmihu.x;
+    const baseZ = sea ? sea.z : xiangmihu.z + 55;
+    const baseY = sea && Number.isFinite(sea.baseY) ? sea.baseY : null;
     beds.push({ id: 'iec-xiangmihu-flower-sea', landmark: 'iec-xiangmihu', label: STR.apecTheme.flowerSea,
-      x: xiangmihu.x, z: xiangmihu.z + 55, radiusXM: 18, radiusZM: 12, count: 220, seed: 11,
-      source: 'illustrative' });
+      x: baseX, z: baseZ, baseY, radiusXM: 18, radiusZM: 12, count: 220, seed: 11,
+      source: sea ? 'landmark-model-lawn' : 'illustrative' });
     beds.push({ id: 'iec-xiangmihu-lake-bed', landmark: 'iec-xiangmihu', label: STR.apecTheme.flowerSea,
-      x: xiangmihu.x - 55, z: xiangmihu.z + 115, radiusXM: 26, radiusZM: 8, count: 160, seed: 12,
-      source: 'illustrative' });
+      x: baseX + 38, z: baseZ + 26, baseY, radiusXM: 26, radiusZM: 8, count: 160, seed: 12,
+      source: sea ? 'landmark-model-lawn+illustrative-offset' : 'illustrative' });
   }
   const lianhuashan = landmarkCenter(landmarks, 'lianhuashan');
   if (lianhuashan) {
@@ -334,11 +340,11 @@ export function apecFlowerBeds({ landmarks = [], area = null } = {}) {
 }
 
 // 计划层：只做布点和来源标注，不建几何；测试和统计都用它
-export function planApecTheme({ roadGraph = null, landmarks = [], buildings = [], area = null } = {}) {
+export function planApecTheme({ roadGraph = null, landmarks = [], buildings = [], area = null, anchors = null } = {}) {
   const banners = roadGraph ? bannerSites(roadGraph) : [];
-  const signs = apecSignSites({ landmarks, buildings, area });
+  const signs = apecSignSites({ landmarks, buildings, area, anchors });
   return { banners, signs, trucks: apecSupportVehicles(signs),
-    flowerBeds: apecFlowerBeds({ landmarks, area }) };
+    flowerBeds: apecFlowerBeds({ landmarks, area, anchors }) };
 }
 
 // 统计口径：数量来自布点计划，渲染器只负责把计划变成网格
@@ -551,7 +557,8 @@ function buildSignLayer(group, geometry, textureFor, signs, groundY) {
     const postMaterial = new THREE.MeshStandardNodeMaterial({ color: APEC_COLORS.pole, roughness: 0.62, metalness: 0.4 });
     const signGroup = new THREE.Group();
     signGroup.name = `apec-sign:${sign.id}`;
-    signGroup.position.set(sign.x, groundY(sign.x, sign.z), sign.z);
+    const signBaseY = Number.isFinite(sign.baseY) ? sign.baseY : groundY(sign.x, sign.z);
+    signGroup.position.set(sign.x, signBaseY, sign.z);
     signGroup.rotation.y = sign.yaw;
     const board = new THREE.Mesh(geometry.signBoard, material);
     board.name = `apec-sign-board:${sign.id}`;
@@ -581,7 +588,7 @@ function buildFlowerLayer(group, geometry, beds, groundY) {
   const objects = [];
   let flowers = 0;
   for (const bed of beds) {
-    const centerY = groundY(bed.x, bed.z);
+    const centerY = Number.isFinite(bed.baseY) ? bed.baseY : groundY(bed.x, bed.z);
     const bedMaterial = new THREE.MeshStandardNodeMaterial({
       color: APEC_COLORS.bed, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
     });
@@ -640,7 +647,7 @@ function buildTruckLayer(group, geometry, trucks, groundY) {
 // ---------- 对外入口 ----------
 
 export function buildApecTheme(scene, {
-  roadGraph = null, terrain = null, landmarks = [], buildings = [], area = null, now = null
+  roadGraph = null, terrain = null, landmarks = [], buildings = [], area = null, now = null, anchors = null
 } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('APEC theme requires a scene');
   const group = new THREE.Group();
@@ -648,7 +655,7 @@ export function buildApecTheme(scene, {
   group.visible = false;
   scene.add(group);
 
-  const plan = planApecTheme({ roadGraph, landmarks, buildings, area });
+  const plan = planApecTheme({ roadGraph, landmarks, buildings, area, anchors });
   const initialEnabled = isApecEnabledAt(now ?? new Date());
   const statistics = summarizeApecPlan(plan, { enabled: initialEnabled });
   const geometries = createApecGeometry();

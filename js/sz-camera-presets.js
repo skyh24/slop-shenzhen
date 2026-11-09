@@ -60,6 +60,8 @@ export function getScenicCamera(id, elapsed = 0) {
     case 'conventionCenter': return { position: anchor('convention-center', -140, 224.1, -522), target: anchor('convention-center', 0, -0.9, 0) };
     case 'upperhills': return { position: anchor('upperhills', -586.4, 196.2, 70.4), target: anchor('upperhills', -1.4, 171.2, 50.4) };
     case 'nonferrousTower': return nonferrousShot();
+    case 'iecXiangmihu': return { position: [-2892, 32, -330], target: [-2945, 24, -175] };
+    case 'superHq': return { position: anchor('super-hq', 90, 205, 900), target: anchor('super-hq', 0, 175, 0) };
     case 'bayBridge': return bayBridgeShot();
     default: throw new Error(`Unhandled scenic camera: ${id}`);
   }

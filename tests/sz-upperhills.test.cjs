@@ -48,7 +48,8 @@ test('UpperHills geometry renders its sourced towers and separated public levels
   const upperhills = loadUpperhills(THREE, tsl, atmosphere);
   const { createLandmarkMaterial } = loadModule(read('sz-landmarks/materials.js'), { imports: {
     'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': atmosphere,
-    './shenzhen-bay-culture-square.js': {}, './upperhills.js': upperhills, './nonferrous-tower.js': {}
+    './shenzhen-bay-culture-square.js': {}, './upperhills.js': upperhills, './nonferrous-tower.js': {},
+    './iec-xiangmihu.js': {}, './super-hq.js': {}
   } });
   const { build } = upperhills;
   const model = build(sources, geo.terrain);
