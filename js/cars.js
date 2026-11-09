@@ -1,5 +1,7 @@
 import * as THREE from 'three/webgpu';
-import { cityUniforms } from './tsl-materials.js';
+// 只取时段 uniform：直接依赖 city-lighting-materials.js，避免把纽约 tsl-materials.js（它读 city-config / nyc-geodata）
+// 拉进深圳运行时。
+import { cityUniforms } from './city-lighting-materials.js';
 import {
   Fn,
   If,
@@ -59,6 +61,27 @@ const CAR_PARTS = {
   FRONT: 7,
   REAR: 8
 };
+
+// 城市涂装开关：默认纽约行为完全不变，深圳入口 sz-vehicles.js 在模块初始化时切到 shenzhen。
+// 材质缓存键带 locale，切换时清空，同一 spec 不会跨城市复用 shader。livery 编号也按城市解释：
+// 纽约 1 = NYPD、2 = 绿出租、3 = TLC、4 = 双色车顶；深圳 1 = 深圳出租空车、5 = 深圳出租载客。
+const CAR_LOCALES = ['newyork', 'shenzhen'];
+let _carLocale = 'newyork';
+let _carPlateTextureLocale = null;
+
+function carLocale() {
+  return _carLocale;
+}
+
+function setCarLocale(locale) {
+  if (!CAR_LOCALES.includes(locale)) throw new Error(`Unhandled car locale: ${locale}`);
+  if (locale === _carLocale) return _carLocale;
+  _carLocale = locale;
+  _carPlateTexture = null;
+  _carPlateTextureLocale = null;
+  _carMaterialCache.clear();
+  return _carLocale;
+}
 
 // Design tables. Curves are [z, value] control points (z = +front); nose / tail entries are [length, tip value,
 // superellipse exponent] roundings of the same quantities into the tips.
@@ -164,7 +187,59 @@ const BODY_SPECS = {
     rearWiper: true
   }
 };
-BODY_SPECS.taxi = Object.assign({}, BODY_SPECS.sedan, { name: 'taxi', sign: true });
+// 深圳出租车（比亚迪 e6 类纯电两厢 MPV）：高车身、平直车顶、直立尾门与后窗、短前悬、短而略斜的机舱盖、5 门大侧窗。
+// 尾部不用轿车的斜背尾箱：tail 收圆很短且不加 tailRake，尾门面接近垂直；后窗从 deck 到 roofRear 只前倾约 16°。
+BODY_SPECS.taxi = {
+  name: 'taxi',
+  zFront: 2.3,
+  zRear: -2.4,
+  wheelRadius: 0.34,
+  wheelZ: 1.4,
+  wheelX: 0.77,
+  archGap: 0.05,
+  archFlare: 0.022,
+  tuck: 0.065,
+  halfWidth: [[2.3, 0.862], [1.4, 0.885], [0, 0.885], [-1.4, 0.885], [-2.4, 0.872]],
+  sill: [[2.3, 0.3], [1.2, 0.28], [-1.2, 0.28], [-2.4, 0.32]],
+  shoulder: [[2.3, 0.72], [1.75, 0.8], [1.4, 0.82], [0, 0.86], [-1.4, 0.9], [-2.4, 0.9]],
+  edge: [[2.2, 0.94], [1.7, 1.0], [1.2, 1.03], [0.6, 1.05], [0, 1.06], [-1.0, 1.08], [-1.8, 1.1], [-2.3, 1.1], [-2.36, 1.08]],
+  crown: [[2.2, 0.04], [1.4, 0.035], [1.1, 0.004], [-2.4, 0.004]],
+  tumble: [[2.3, 0.12], [0.9, 0.1], [-1.6, 0.1], [-2.4, 0.11]],
+  nose: { halfWidth: [0.32, 0.66, 2.8], edge: [0.16, 0.9, 2.6], crown: [0.14, 0.012, 2], sill: [0.18, 0.34, 2], shoulder: [0.22, 0.62, 2.6] },
+  // 尾部收圆长度很短（≤0.1 m），尾门是接近垂直的平面，后保险杠与尾灯直接长在上面
+  tail: { halfWidth: [0.09, 0.85, 3.2], edge: [0.05, 1.06, 3], crown: [0.05, 0.006, 2], sill: [0.07, 0.36, 2], shoulder: [0.09, 0.86, 3] },
+  noseRake: { length: 0.52, y: [[0.3, 0.09], [0.42, 0], [0.62, 0], [0.78, 0.05], [0.95, 0.12]], plan: 0.09 },
+  cabin: {
+    cowl: 0.95,
+    roofFront: 0.52,
+    roofRear: -2.22,
+    deck: -2.38,
+    roofY: [[0.52, 1.63], [-0.4, 1.675], [-1.2, 1.68], [-2.22, 1.645]],
+    rail: [0.7, 0.72],
+    inset: 0.03,
+    bulge: 0.012,
+    roofEdge: 0.055,
+    roofCrown: 0.032,
+    roofRound: 4,
+    pillars: [-0.34, -1.85],
+    glassEnd: -2.28
+  },
+  doors: [0.92, -0.34, -1.85], // 前门、后门、尾门侧缝
+  handles: [0.42, -0.62],
+  headlight: [0.6, 0.86, 0.23, 0.05],
+  taillight: [0.72, 0.93, 0.12, 0.11], // 尾门两侧靠上的尾灯（尾门面高度约 0.36–1.07 m）
+  grille: [0.72, 0.34, 0.06],
+  intake: [0.46, 0.52, 0.1],
+  plates: [0.52, 0.64],
+  bumperLine: [0.8, 0.66],
+  bumpers: [[0.48, 0.04], [0.52, 0.06]],
+  chrome: true,
+  cladding: 0,
+  sign: true,
+  rails: false,
+  rearWiper: true,
+  szWaist: 0.6 // 深圳出租白色腰线高度：腰线以下白漆、以上天蓝
+};
 BODY_SPECS.pickup = {
   name: 'pickup',
   zFront: 2.74,
@@ -1298,38 +1373,89 @@ function createCarWheelMaterial({ instanced = false, style = 0, wheelRadius = BO
   return mat;
 }
 
-// One small generated atlas serves every rear plate (3 Empire Gold + 1 Excelsior White), with mipmaps for distant traffic.
+// One small generated atlas serves every rear plate, with mipmaps for distant traffic. New York keeps its 4-row
+// Empire Gold / Excelsior White atlas; Shenzhen uses 8 rows sampled as 3 green NEV plates + 1 blue plate per 4
+// variants (75% / 25%), matching docs/07-VEHICLES.md.
+const NY_PLATE_ROWS = [
+  { bg: '#f2b718', bar: '#14233c', fg: '#14233c', label: 'KBM-4728' },
+  { bg: '#e8edf2', bar: '#162b4c', fg: '#162b4c', label: 'JTR-8319' },
+  { bg: '#f2b718', bar: '#14233c', fg: '#14233c', label: 'HXL-2506' },
+  { bg: '#f0b416', bar: '#14233c', fg: '#14233c', label: 'T748219C' }
+];
+// 粤B 新能源绿牌（白到浅绿渐变、黑字）与普通蓝牌（蓝底白字）；大车黄牌留给公交涂装单独生成。
+const SZ_PLATE_ROWS = [
+  { kind: 'nev', label: '粤B·D12345' },
+  { kind: 'nev', label: '粤B·F67890' },
+  { kind: 'nev', label: '粤B·D88621' },
+  { kind: 'nev', label: '粤B·F13579' },
+  { kind: 'nev', label: '粤B·D20486' },
+  { kind: 'nev', label: '粤B·F90218' },
+  { kind: 'blue', label: '粤B·12A34' },
+  { kind: 'blue', label: '粤B·8K672' }
+];
+
+function drawNewYorkPlate(ctx, row) {
+  const { bg, bar, fg, label } = NY_PLATE_ROWS[row];
+  const y0 = row * 64;
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, y0, 128, 64);
+  ctx.fillStyle = bar;
+  ctx.fillRect(0, y0, 128, 13);
+  ctx.fillRect(0, y0 + 56, 128, 8);
+  ctx.fillStyle = bg;
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('NEW YORK', 64, y0 + 7);
+  ctx.fillStyle = fg;
+  ctx.font = 'bold 21px monospace';
+  ctx.fillText(label, 64, y0 + 35);
+}
+
+function drawShenzhenPlate(ctx, row, width) {
+  const { kind, label } = SZ_PLATE_ROWS[row];
+  const y0 = row * 48;
+  const height = 48;
+  if (kind === 'nev') {
+    const gradient = ctx.createLinearGradient(0, y0, 0, y0 + height);
+    gradient.addColorStop(0, '#f7fcf8');
+    gradient.addColorStop(1, '#a8dcb9');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, y0, width, height);
+    ctx.strokeStyle = '#3f7a52';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(2, y0 + 2, width - 4, height - 4);
+    ctx.fillStyle = '#14210f';
+  } else {
+    ctx.fillStyle = '#1c5fa8';
+    ctx.fillRect(0, y0, width, height);
+    ctx.strokeStyle = '#dbe7f4';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(2, y0 + 2, width - 4, height - 4);
+    ctx.fillStyle = '#f4f8fd';
+  }
+  ctx.font = 'bold 30px "PingFang SC", "Microsoft YaHei", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, width / 2, y0 + height / 2 + 1);
+}
+
 function carPlateTexture() {
-  if (_carPlateTexture) return _carPlateTexture;
+  if (_carPlateTexture && _carPlateTextureLocale === _carLocale) return _carPlateTexture;
+  const shenzhen = _carLocale === 'shenzhen';
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 256;
+  canvas.width = shenzhen ? 256 : 128;
+  canvas.height = shenzhen ? SZ_PLATE_ROWS.length * 48 : NY_PLATE_ROWS.length * 64;
   const ctx = canvas.getContext('2d');
-  const rows = [
-    { bg: '#f2b718', bar: '#14233c', fg: '#14233c', label: 'KBM-4728' },
-    { bg: '#e8edf2', bar: '#162b4c', fg: '#162b4c', label: 'JTR-8319' },
-    { bg: '#f2b718', bar: '#14233c', fg: '#14233c', label: 'HXL-2506' },
-    { bg: '#f0b416', bar: '#14233c', fg: '#14233c', label: 'T748219C' }
-  ];
-  rows.forEach(({ bg, bar, fg, label }, row) => {
-    const y0 = row * 64;
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, y0, 128, 64);
-    ctx.fillStyle = bar;
-    ctx.fillRect(0, y0, 128, 13);
-    ctx.fillRect(0, y0 + 56, 128, 8);
-    ctx.fillStyle = bg;
-    ctx.font = 'bold 9px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('NEW YORK', 64, y0 + 7);
-    ctx.fillStyle = fg;
-    ctx.font = 'bold 21px monospace';
-    ctx.fillText(label, 64, y0 + 35);
-  });
+  const rows = shenzhen ? SZ_PLATE_ROWS : NY_PLATE_ROWS;
+  for (let row = 0; row < rows.length; row++) {
+    if (shenzhen) drawShenzhenPlate(ctx, row, canvas.width);
+    else drawNewYorkPlate(ctx, row);
+  }
   _carPlateTexture = new THREE.CanvasTexture(canvas);
   _carPlateTexture.colorSpace = THREE.SRGBColorSpace;
   _carPlateTexture.anisotropy = 16;
+  _carPlateTextureLocale = _carLocale;
   return _carPlateTexture;
 }
 
@@ -1343,11 +1469,12 @@ function carPlateTexture() {
  * more than once into temporaries), so the fragment shader evaluates each SDF a single time.
  */
 function createLoftedCarMaterial(spec, fixedColorHex = null) {
-  const cacheKey = `${spec.name}_${fixedColorHex ?? 'instanced'}`;
+  const cacheKey = `${_carLocale}_${spec.name}_${fixedColorHex ?? 'instanced'}`;
   if (_carMaterialCache.has(cacheKey)) {
     return _carMaterialCache.get(cacheKey);
   }
 
+  const shenzhen = _carLocale === 'shenzhen';
   const L = carLayout(spec);
   const cab = spec.cabin;
   const fixed = fixedColorHex !== null;
@@ -1459,6 +1586,15 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   const isTwoTone = fixed ? float(0.0) : max(isLivery(4.0), step(abs(trimCode.sub(3.0)), 0.25));
   const isBlackout = step(abs(trimCode.sub(2.0)), 0.25);
   const hasChrome = max(float(spec.chrome ? 1.0 : 0.0), step(abs(trimCode.sub(1.0)), 0.25)).mul(one.sub(isBlackout));
+  // 深圳出租：实例车用 livery 1（空车）/ 5（载客），固定色玩家车按 spec.sign 判定。纽约分支不计算这些节点。
+  const isSzTaxi = shenzhen
+    ? fixed ? float(spec.sign ? 1.0 : 0.0) : max(isLivery(1.0), isLivery(5.0))
+    : float(0.0);
+  const isSzAvailable = shenzhen
+    ? fixed ? float(spec.sign ? 1.0 : 0.0) : isLivery(1.0)
+    : float(0.0);
+  // 深圳出租车白色腰线高度来自车体 spec（szWaist），下半身白、上半部与车顶天蓝。
+  const szWaistY = spec.szWaist ?? 0.66;
 
   // Wheel arches: distance from the nearest axle in side view (or from the hub of a centred, spinning wheel)
   const isCenteredWheel = step(abs(p.z), wheelR.add(0.05)).mul(max(isTyre, isAlloy));
@@ -1560,13 +1696,19 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     const outCol = vec3(color(0x181b1f)).toVar();
 
     // Sample plate texture outside If() so hardware mipmaps + anisotropy filter cleanly without derivative issues
-    const plateVariant = floor(fract(paint.r.mul(7).add(paint.g.mul(13)).add(paint.b.mul(17)).add(isTLC.mul(0.75))).mul(4));
+    const plateSeed = shenzhen
+      ? paint.r.mul(7).add(paint.g.mul(13)).add(paint.b.mul(17))
+        .add(livery.mul(0.37)).add(trimCode.mul(0.19)).add(isMetallic.mul(0.11))
+      : paint.r.mul(7).add(paint.g.mul(13)).add(paint.b.mul(17)).add(isTLC.mul(0.75));
+    const plateVariant = floor(fract(plateSeed).mul(4));
+    const plateRows = shenzhen ? 8.0 : 4.0;
+    const plateRowBase = shenzhen ? plateVariant.mul(2) : plateVariant;
     const isFrontSide = smoothstep(-0.02, 0.02, n.z);
     const plateSignX = mix(float(-0.31), float(0.31), isFrontSide);
     const plateCenterY = mix(float(plateR), float(plateF), isFrontSide);
     const plateUV = vec2(
       clamp(p.x.div(plateSignX).add(0.5), 0.02, 0.98),
-      clamp(p.y.sub(plateCenterY).div(0.115).add(0.5), 0.06, 0.94).add(plateVariant).div(4.0)
+      clamp(p.y.sub(plateCenterY).div(0.115).add(0.5), 0.06, 0.94).add(plateRowBase).div(plateRows)
     );
     const plateCol = texture(carPlateTexture(), plateUV).rgb;
 
@@ -1582,32 +1724,49 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
       }
       const grime = smoothstep(sillY + 0.16, sillY - 0.01, p.y).mul(0.2);
       bCol.assign(mix(bCol, color(0x2d2b28), grime));
+      if (shenzhen) {
+        // 深圳出租：侧面腰线以下为白身，上半部与车顶保持天蓝；前后保险杠按参考照片保持蓝色
+        const waistSide = smoothstep(0.35, 0.55, abs(n.x)).mul(isSzTaxi);
+        const waist = smoothstep(szWaistY + 0.008, szWaistY - 0.008, p.y).mul(waistSide);
+        bCol.assign(mix(bCol, color(0xf2f5f7), waist));
+      }
 
       // Side doors, handles & liveries (evaluated only on side-facing body fragments)
       If(isSide.greaterThan(0.05), () => {
         const hasLivery = max(isPolice, max(isBoro, float(spec.sign ? 1.0 : 0.0)));
         If(hasLivery.greaterThan(0.5), () => {
-          const along = smoothstep(spec.zRear + 0.22, spec.zRear + 0.3, p.z).mul(smoothstep(spec.zFront - 0.28, spec.zFront - 0.36, p.z));
-          const stripe = band(p.y.sub(0.57), 0.072, fwY).mul(along);
-          const pin = band(p.y.sub(0.675), 0.011, fwY).mul(along);
-          const letterPattern = mix(float(0.35), smoothstep(0.2, 0.55, sin(p.z.mul(72.0))), fadeFine(fwZ));
-          const lettering = letterPattern
-            .mul(band(p.y.sub(0.765), 0.042, fwY))
-            .mul(band(p.z.sub(doorMid), 0.24, fwZ));
-          const polMask = isPolice.mul(isSide).mul(ao);
-          bCol.assign(mix(mix(bCol, color(0x1b3d8a), max(stripe, lettering).mul(polMask)), color(0x6ba5dc), pin.mul(polMask)));
+          if (shenzhen) {
+            // 车门白字「深圳出租」的合成字块（玩家车另有 canvas 贴字）
+            const letterPattern = mix(float(0.3), smoothstep(0.2, 0.55, sin(p.z.mul(72.0))), fadeFine(fwZ));
+            const lettering = letterPattern
+              .mul(band(p.y.sub(szWaistY + 0.075), 0.034, fwY))
+              .mul(band(p.z.sub(doorMid), 0.23, fwZ))
+              .mul(isSzTaxi)
+              .mul(ao);
+            bCol.assign(mix(bCol, color(0xeef4f8), lettering));
+          } else {
+            const along = smoothstep(spec.zRear + 0.22, spec.zRear + 0.3, p.z).mul(smoothstep(spec.zFront - 0.28, spec.zFront - 0.36, p.z));
+            const stripe = band(p.y.sub(0.57), 0.072, fwY).mul(along);
+            const pin = band(p.y.sub(0.675), 0.011, fwY).mul(along);
+            const letterPattern = mix(float(0.35), smoothstep(0.2, 0.55, sin(p.z.mul(72.0))), fadeFine(fwZ));
+            const lettering = letterPattern
+              .mul(band(p.y.sub(0.765), 0.042, fwY))
+              .mul(band(p.z.sub(doorMid), 0.24, fwZ));
+            const polMask = isPolice.mul(isSide).mul(ao);
+            bCol.assign(mix(mix(bCol, color(0x1b3d8a), max(stripe, lettering).mul(polMask)), color(0x6ba5dc), pin.mul(polMask)));
 
-          const hasTaxiBadge = max(float(spec.sign ? 1.0 : 0.0), isBoro).mul(isSide);
-          const badge = rrect(vec2(p.z.sub(doorMid), p.y.sub(0.66)), vec2(0.21, 0.052), 0.012, fwZY).mul(hasTaxiBadge);
-          const emblemUV = vec2(abs(p.z.sub(doorMid)).sub(0.15), p.y.sub(0.66));
-          const emblemLen = length(emblemUV);
-          const emblemW = abs(emblemUV.x).mul(fwZ).add(abs(emblemUV.y).mul(fwY)).div(max(emblemLen, 0.0001));
-          const emblem = cov(emblemLen.sub(0.039), emblemW);
-          const letters = mix(float(0.4), smoothstep(0.15, 0.55, sin(p.z.mul(95.0))), fadeFine(fwZ))
-            .mul(band(p.z.sub(doorMid), 0.1, fwZ))
-            .mul(band(p.y.sub(0.66), 0.028, fwY));
-          const badgeFg = mix(color(0xffbe14), color(0xeaf4e6), isBoro).mul(ao);
-          bCol.assign(mix(mix(bCol, color(0x121417), badge), badgeFg, max(emblem, letters).mul(badge)));
+            const hasTaxiBadge = max(float(spec.sign ? 1.0 : 0.0), isBoro).mul(isSide);
+            const badge = rrect(vec2(p.z.sub(doorMid), p.y.sub(0.66)), vec2(0.21, 0.052), 0.012, fwZY).mul(hasTaxiBadge);
+            const emblemUV = vec2(abs(p.z.sub(doorMid)).sub(0.15), p.y.sub(0.66));
+            const emblemLen = length(emblemUV);
+            const emblemW = abs(emblemUV.x).mul(fwZ).add(abs(emblemUV.y).mul(fwY)).div(max(emblemLen, 0.0001));
+            const emblem = cov(emblemLen.sub(0.039), emblemW);
+            const letters = mix(float(0.4), smoothstep(0.15, 0.55, sin(p.z.mul(95.0))), fadeFine(fwZ))
+              .mul(band(p.z.sub(doorMid), 0.1, fwZ))
+              .mul(band(p.y.sub(0.66), 0.028, fwY));
+            const badgeFg = mix(color(0xffbe14), color(0xeaf4e6), isBoro).mul(ao);
+            bCol.assign(mix(mix(bCol, color(0x121417), badge), badgeFg, max(emblem, letters).mul(badge)));
+          }
         });
 
         const frontOfSlide = spec.slidingDoor ? smoothstep(spec.slidingDoor[0] + 0.02, spec.slidingDoor[0] + 0.06, p.z) : one;
@@ -1794,7 +1953,13 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     }).ElseIf(isSign.greaterThan(0.5), () => {
       const signFace = smoothstep(0.55, 0.75, abs(n.z));
       const signGlyph = signGlyphMask();
-      outCol.assign(mix(color(0xf3efe2), mix(color(0xfff1b8), color(0x15181b), signGlyph), signFace));
+      if (shenzhen) {
+        // 深圳顶灯：白底蓝字 TAXI，空车时整面透绿光
+        const face = mix(color(0xeef4f8), color(0x2fbf71), isSzAvailable.mul(0.7));
+        outCol.assign(mix(face, color(0x15509a), signGlyph.mul(one.sub(isSzAvailable.mul(0.55)))));
+      } else {
+        outCol.assign(mix(color(0xf3efe2), mix(color(0xfff1b8), color(0x15181b), signGlyph), signFace));
+      }
     });
 
     return outCol;
@@ -1867,7 +2032,13 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     }).ElseIf(isSign.greaterThan(0.5), () => {
       const signFace = smoothstep(0.55, 0.75, abs(n.z));
       const signGlyph = signGlyphMask();
-      emit.assign(color(0xffe28a).mul(signFace.mul(one.sub(signGlyph.mul(0.9))).mul(1.65)));
+      if (shenzhen) {
+        // 空车顶灯亮绿，载客时只剩暗白底
+        const glow = isSzAvailable.mul(2.1).add(0.16);
+        emit.assign(color(0x3ce081).mul(signFace.mul(one.sub(signGlyph.mul(0.85))).mul(glow)));
+      } else {
+        emit.assign(color(0xffe28a).mul(signFace.mul(one.sub(signGlyph.mul(0.9))).mul(1.65)));
+      }
     }).ElseIf(isWindow.mul(brake).greaterThan(0.5), () => {
       const chmsl = chmslMask(() => {
         const rear = polygonEdge(ax, p.z, rearGlassPlanes, 0.085, fwX, fwZ);
@@ -1905,5 +2076,8 @@ export {
   carStyleCode,
   buildLightbarGeometry,
   createLightbarMaterial,
-  buildBodyLoft
+  buildBodyLoft,
+  taxiSignPlacement,
+  carLocale,
+  setCarLocale
 };
