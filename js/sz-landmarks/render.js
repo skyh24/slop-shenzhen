@@ -34,12 +34,18 @@ function readTriangles(batch, firstIndex) {
 
 const quadUv = (w, h) => [[0, 0], [w, 0], [w, h], [0, h]];
 
-function addFace(batch, corners, uv) {
-  const [a, b, c] = corners;
+function faceNormal([a, b, c]) {
   const ab = new THREE.Vector3(b.x - a.x, b.y - a.y, b.z - a.z);
   const ac = new THREE.Vector3(c.x - a.x, c.y - a.y, c.z - a.z);
-  const n = ab.cross(ac).normalize();
-  const ids = corners.map((p, i) => batch.vertex(p.x, p.y, p.z, n.x, n.y, n.z, ...uv[i]));
+  return ab.cross(ac).normalize();
+}
+
+function addFace(batch, corners, uv, normals) {
+  const face = normals ? null : faceNormal(corners);
+  const ids = corners.map((p, i) => {
+    const n = normals ? normals[i] : face;
+    return batch.vertex(p.x, p.y, p.z, n.x, n.y, n.z, ...uv[i]);
+  });
   batch.tri(ids[0], ids[1], ids[2]);
   if (ids.length === 4) batch.tri(ids[0], ids[2], ids[3]);
 }
@@ -63,19 +69,31 @@ function addSpan(batch, part) {
 
 function addLoft(batch, part) {
   const { lower, upper, minY, maxY } = part.loft;
-  addBottom(batch, [flatten(lower)], minY);
+  const skin = part.loftSkin;
+  if (skin?.bottom !== false) addBottom(batch, [flatten(lower)], minY);
   const y0 = minY - part.uvOriginY;
   const y1 = maxY - part.uvOriginY;
+  const sides = lower.map((p, i) => {
+    const j = (i + 1) % lower.length;
+    return [{ ...p, y: minY }, { ...upper[i], y: maxY }, { ...upper[j], y: maxY }, { ...lower[j], y: minY }];
+  });
+  const faceNormals = part.smoothSides && !skin ? sides.map(faceNormal) : null;
+  const smooth = faceNormals?.map((n, i) => n.clone().add(faceNormals[(i - 1 + lower.length) % lower.length]).normalize());
   let u0 = 0, u1 = 0;
   for (let i = 0; i < lower.length; i++) {
     const j = (i + 1) % lower.length;
     const lowWidth = Math.hypot(lower[j].x - lower[i].x, lower[j].z - lower[i].z);
     const highWidth = Math.hypot(upper[j].x - upper[i].x, upper[j].z - upper[i].z);
-    addFace(batch, [{ ...lower[i], y: minY }, { ...upper[i], y: maxY }, { ...upper[j], y: maxY }, { ...lower[j], y: minY }],
-      [[u0, y0], [u1, y1], [u1 + highWidth, y1], [u0 + lowWidth, y0]]);
+    const coords = skin ? [[skin.u[i], skin.v[0]], [skin.u[i], skin.v[1]],
+      [skin.u[i + 1], skin.v[1]], [skin.u[i + 1], skin.v[0]]]
+      : [[u0, y0], [u1, y1], [u1 + highWidth, y1], [u0 + lowWidth, y0]];
+    const normals = skin ? [skin.lower[i], skin.upper[i], skin.upper[j], skin.lower[j]]
+      : smooth && [smooth[i], smooth[i], smooth[j], smooth[j]];
+    addFace(batch, sides[i], coords, normals);
     u0 += lowWidth;
     u1 += highWidth;
   }
+  if (skin?.top === false && !part.roofContact) return null;
   const firstIndex = batch.idx.length;
   addFlatPolygon(batch, [flatten(upper)], maxY);
   return part.roofContact ? readTriangles(batch, firstIndex) : null;
@@ -83,18 +101,20 @@ function addLoft(batch, part) {
 
 function addRoofPanel(batch, part) {
   const { outer, bottom, top } = part.roofPanel;
+  const skin = part.roofSkin;
   const low = outer.map((p, i) => ({ ...p, y: bottom[i] }));
   const high = outer.map((p, i) => ({ ...p, y: top[i] }));
   const uv = vertices => vertices.map(p => [p.x, p.z]);
   addFace(batch, low, uv(low));
   for (let i = 0; i < 3; i++) {
+    if (skin && !skin.walls[i]) continue;
     const j = (i + 1) % 3;
     addFace(batch, [low[i], high[i], high[j], low[j]], quadUv(part.top[i] - part.bottom[i],
       Math.hypot(outer[i].x - outer[j].x, outer[i].z - outer[j].z)));
   }
   const firstIndex = batch.idx.length;
   high.reverse();
-  addFace(batch, high, uv(high));
+  addFace(batch, high, skin ? [...skin.uv].reverse() : uv(high), skin ? [...skin.normals].reverse() : null);
   return part.roofContact ? readTriangles(batch, firstIndex) : null;
 }
 

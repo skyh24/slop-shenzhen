@@ -92,6 +92,97 @@
       "productType": "DSM",
       "verticalDatum": "EGM2008",
       "role": "default terrain product; DSM, not surveyed bare-earth DTM"
+    },
+    {
+      "id": "chunsun-kpf-profile",
+      "file": "data/raw/landmarks/chunsun-kpf-profile.jpg",
+      "url": "https://images.squarespace-cdn.com/content/v1/5901147d6a4963a462c4a3f9/1493680206347-NUV9E4WWDNQJTZUTZNW4/130328_2040_China_Rec_Building_Diagram_03.jpg",
+      "downloadedAt": "2026-11-09",
+      "bytes": 894324,
+      "sha256": "fbce586caf6fa63ea3c9692cbf7e423a87babbb6078730b39176caf4b9acbddd",
+      "role": "KPF design section published by design participant Charles Portelli; reference only"
+    },
+    {
+      "id": "culture-square-mad-section",
+      "file": "data/raw/landmarks/culture-square-mad-section.jpg",
+      "url": "https://cdn.sanity.io/images/2d8zs6ec/production/15d0dbda8602e68f929b40816a8825dc19ff6bd3-2697x707.jpg",
+      "downloadedAt": "2026-11-09",
+      "bytes": 145280,
+      "sha256": "53c1c3928653d3c0e3243690aaa48c53988d2e96d2cdf210bd6369361f5e5412",
+      "role": "MAD completion article section with metric scale; relative form reference"
+    },
+    {
+      "id": "culture-square-mad-floor-1",
+      "file": "data/raw/landmarks/culture-square-mad-floor-1.jpg",
+      "url": "https://cdn.sanity.io/images/2d8zs6ec/production/9b4b2e973741a8a6a2a63aaab4105b0e7c425d8f-2720x2159.jpg",
+      "downloadedAt": "2026-11-09",
+      "bytes": 931467,
+      "sha256": "3e356f60c5cf942767c63b8e02b62b6a3552911cee3382734f88cd88c4c33d6a",
+      "role": "MAD completion article first-floor plan with metric scale; site-registration reference"
+    },
+    {
+      "id": "culture-square-mad-floor-2",
+      "file": "data/raw/landmarks/culture-square-mad-floor-2.jpg",
+      "url": "https://cdn.sanity.io/images/2d8zs6ec/production/d4836117a4c502d25beb6bec3ea967b813b00ca5-2606x2135.jpg",
+      "downloadedAt": "2026-11-09",
+      "bytes": 826205,
+      "sha256": "e32b2e4e17785ee7b995988d00d57458f80a51b4768f3d06e7535e7375659c3c",
+      "role": "MAD completion article second-floor plan with metric scale; volume-distribution reference"
+    },
+    {
+      "id": "culture-square-mad-volumes",
+      "file": "data/raw/landmarks/culture-square-mad-volumes.jpg",
+      "url": "https://cdn.sanity.io/images/2d8zs6ec/production/bf007d8f8aa7bcb592d2a6feded52b9df8c8bf50-2480x3508.jpg",
+      "downloadedAt": "2026-11-09",
+      "bytes": 673627,
+      "sha256": "929f1391cf50451818ec4c8df1925366b45d7479c5abc1c6e3921732c7f9cb01",
+      "role": "MAD completion article spatial diagram; volume assignment and planted-roof topology"
+    },
+    {
+      "id": "dji-bridge-figure-3",
+      "file": "data/raw/landmarks/dji-bridge-figure-3.jpg",
+      "url": "https://pubs-data.cstam.org.cn//lxqkw-data/zdgcxb/2026/4/PIC/202407037-3.jpg",
+      "downloadedAt": "2026-11-09",
+      "bytes": 301582,
+      "sha256": "2b19f82ef2145a60491c4fad371caa5605e257b84167cf8656a88fcac6832e1f",
+      "role": "Engineering journal figure 3; dimensioned central bridge deck section"
+    },
+    {
+      "id": "dji-bridge-figure-4",
+      "file": "data/raw/landmarks/dji-bridge-figure-4.jpg",
+      "url": "https://pubs-data.cstam.org.cn//lxqkw-data/zdgcxb/2026/4/PIC/202407037-4.jpg",
+      "downloadedAt": "2026-11-09",
+      "bytes": 461842,
+      "sha256": "10a04fd1694352797a8abd5fe40443a70d4e19dc01ebc89fa1342a98b32d9d49",
+      "role": "Engineering journal figure 4; dimensioned plan and anchor spans"
+    },
+    {
+      "id": "dji-bridge-figure-5",
+      "file": "data/raw/landmarks/dji-bridge-figure-5.jpg",
+      "url": "https://pubs-data.cstam.org.cn//lxqkw-data/zdgcxb/2026/4/PIC/202407037-5.jpg",
+      "downloadedAt": "2026-11-09",
+      "bytes": 392611,
+      "sha256": "96c7e46a55b3363e42fc1668cfcca58930e8fec39e9393dcf1f84a550e7b1589",
+      "role": "Engineering journal figure 5; relative deck and cable elevations"
+    },
+    {
+      "id": "shenzhen-public-survey-catalog-2026",
+      "file": "data/raw/terrain-candidates/shenzhen-public-survey-catalog-2026.xlsx",
+      "url": "https://www.sz.gov.cn/attachment/1/1708/1708809/12759230.xlsx",
+      "reference": "https://www.sz.gov.cn/szzt2010/wgkzl/glgk/jgxxgk/gtzy/content/post_12759230.html",
+      "checkedAt": "2026-11-09",
+      "bytes": 11409,
+      "sha256": "c300e89b6dbcc924e17a441d4ac275b918b3ae1a3f42b207dd8169e7af059ebd",
+      "role": "Public survey catalogue only; terrain maps and LiDAR are supplied by application, not downloaded elevation data"
+    },
+    {
+      "id": "chegongmiao-d1-landscape-2022",
+      "file": "data/raw/streetscape/chegongmiao-d1-landscape-2022.pdf",
+      "url": "https://cgj.sz.gov.cn/attachment/0/944/944691/9539774.pdf",
+      "checkedAt": "2026-11-09",
+      "bytes": 41431272,
+      "sha256": "ec90ab22e6d9c1fb3da48f5f47bdb705cd57529defc97dc346e3b224ee42cc14",
+      "role": "Public design and site elevation comparison; vertical datum and as-built status not established for terrain calibration"
     }
   ]
 }

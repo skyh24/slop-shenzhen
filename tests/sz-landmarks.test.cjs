@@ -18,24 +18,43 @@ const tencent = loadModule(readLandmark('tencent-binhai.js'), { imports: { './pa
 const dji = loadModule(readLandmark('dji-sky-city.js'), { imports: { '../building-collision.js': collision, './parts.js': parts } });
 const pingAn = loadModule(readLandmark('ping-an.js'), { imports: { './parts.js': parts } });
 const chunsun = loadModule(readLandmark('chunsun.js'), { imports: { './parts.js': parts } });
-const { planSzLandmarks } = loadModule(readLandmark('layout.js'), { imports: {
-  './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun
+const civic = loadModule(readLandmark('civic-center.js'), { imports: {
+  '../building-collision.js': collision, './parts.js': parts
 } });
+const stadium = loadModule(readLandmark('chunjian.js'), { imports: {
+  '../building-collision.js': collision, './parts.js': parts
+} });
+const convention = loadModule(readLandmark('convention-center.js'), { imports: { '../sz-terrain.js': terrain, './parts.js': parts } });
+const loadCulture = THREE => loadModule(readLandmark('shenzhen-bay-culture-square.js'), { imports: {
+  'three/webgpu': THREE, '../building-collision.js': collision, '../sz-terrain.js': terrain, './parts.js': parts
+} });
+const culture = loadCulture({});
+const loadPlan = cultureModule => loadModule(readLandmark('layout.js'), { imports: {
+  './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun,
+  './civic-center.js': civic, './chunjian.js': stadium, './shenzhen-bay-culture-square.js': cultureModule,
+  './convention-center.js': convention
+} });
+const { planSzLandmarks } = loadPlan(culture);
 const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
 const { buildings, geo } = decodeCityPayload(JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz')))));
-const plan = planSzLandmarks(buildings, geo.terrain);
+const fixture = buildings.filter(building => !culture.sourceIds.includes(building.id));
+const plan = planSzLandmarks(fixture, geo.terrain);
 const byId = new Map(buildings.map(building => [building.id, building]));
 const byLandmark = new Map(plan.plans.map(landmark => [landmark.id, landmark.parts]));
 
 test('landmarks retire only the explicit source objects and keep the fallback on incomplete snapshots', () => {
-  assert.deepEqual([...plan.skipIds].sort(), [...tencent.sourceIds, ...dji.sourceIds, ...pingAn.sourceIds, ...chunsun.sourceIds].sort());
-  assert.equal(plan.skipIds.size, 149);
+  const verifiedDuplicates = civic.optionalSkipIds.filter(id => byId.has(id));
+  assert.deepEqual([...plan.skipIds].sort(), [...tencent.sourceIds, ...dji.sourceIds, ...pingAn.sourceIds, ...chunsun.sourceIds,
+    ...civic.sourceIds, ...verifiedDuplicates, ...stadium.sourceIds, ...convention.sourceIds].sort());
+  assert.ok(byLandmark.has('civic-center'));
+  assert.ok(byLandmark.has('chunjian'));
+  assert.ok(byLandmark.has('convention-center'));
   assert.equal(plan.skipIds.has('globfp/3517'), false);
   assert.equal(plan.skipIds.has('globfp/47955'), false);
-  const partial = planSzLandmarks(buildings.filter(building => building.id !== 'way/694152193'), geo.terrain);
+  const partial = planSzLandmarks(fixture.filter(building => building.id !== 'way/694152193'), geo.terrain);
   assert.equal(partial.skipIds.has('way/694152192'), false);
   assert.equal(partial.skipIds.has('way/1110959408'), true);
-  const missingSpire = planSzLandmarks(buildings.filter(building => building.id !== 'way/1472466096'), geo.terrain);
+  const missingSpire = planSzLandmarks(fixture.filter(building => building.id !== 'way/1472466096'), geo.terrain);
   assert.ok(pingAn.sourceIds.every(id => !missingSpire.skipIds.has(id)));
   assert.equal(plan.skipIds.has('way/775171565'), false);
   assert.equal(plan.skipIds.has('way/1253254379'), false);
@@ -212,6 +231,80 @@ test('China Resources Tower contact preserves the radial entrance band and does 
 });
 
 const threePackageDir = process.env.SZ_THREE_PACKAGE_DIR;
+test('Culture Square replaces its source box with nine distinct stone volumes and a court-cut landscaped deck',
+  { skip: !threePackageDir }, async () => {
+    const THREE = await import(new URL('build/three.webgpu.js', pathToFileURL(join(threePackageDir, '/'))));
+    const museum = loadCulture(THREE);
+    const { planSzLandmarks } = loadPlan(museum);
+    const withCulture = planSzLandmarks(buildings, geo.terrain);
+    assert.equal(culture.sourceIds.length, 6);
+    assert.ok(culture.sourceIds.every(id => withCulture.skipIds.has(id)));
+    const model = withCulture.plans.find(p => p.id === 'shenzhen-bay-culture-square');
+    const source = byId.get('way/1441599159');
+    const stone = model.parts.filter(p => p.loft);
+    assert.equal(new Set(stone.map(p => p.id.split(':')[1])).size, 9);
+    assert.equal(new Set(stone.map(p => p.sourceId)).size, 6);
+    assert.ok(stone.every(p => p.heightSource === 'estimate' && p.smoothSides));
+    assert.ok(stone.every(p => p.polygon.outer.every(v => collision.polygonContains(source.polygons[0], v.x, v.z))));
+    const roof = model.parts.filter(p => p.roofPanel);
+    assert.ok(roof.length > 200 && roof.every(p => p.style === 'culturePark' && !p.roofContact && p.baseSource === 'dem-roof-point-samples'));
+    assert.ok(roof.every(p => {
+      const outer = p.polygon.outer;
+      return collision.polygonContains(source.polygons[0], outer.reduce((a, b) => a + b.x, 0) / 3,
+        outer.reduce((a, b) => a + b.z, 0) / 3);
+    }));
+    const north = stone.filter(p => p.id.includes(':north-monolith:'));
+    assert.ok(Math.abs(north.at(-1).maxY - north[0].minY - 52.1) < 1e-4);
+    assert.ok(north.length >= 20 && north.every(p => p.style === 'cultureMonolith'));
+    for (let i = 1; i < north.length; i++) {
+      const previous = north[i - 1], current = north[i];
+      assert.equal(previous.maxY, current.minY);
+      assert.deepEqual(previous.loft.upper, current.loft.lower);
+      assert.equal(previous.loftSkin.upper, current.loftSkin.lower);
+      assert.equal(previous.loftSkin.top, false);
+      assert.equal(current.loftSkin.bottom, false);
+    }
+    const courtyard = { x: -11782.04, z: 3560.06 };
+    assert.ok(roof.every(p => !collision.polygonContains(p.polygon, courtyard.x, courtyard.z)));
+    const roofNormals = new Map();
+    for (const part of roof) {
+      assert.equal(parts.partCollider(part).roofPanel, part.roofPanel);
+      for (const [i, p] of part.roofPanel.outer.entries()) {
+        const key = `${p.x},${part.roofPanel.top[i]},${p.z}`;
+        const normal = part.roofSkin.normals[i];
+        assert.ok(normal.y > 0);
+        if (roofNormals.has(key)) assert.equal(roofNormals.get(key), normal);
+        else roofNormals.set(key, normal);
+      }
+    }
+    assert.ok(roofNormals.size < roof.length);
+    assert.ok(roof.flatMap(p => p.roofSkin.walls).filter(Boolean).length < roof.length);
+    const geometry = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } });
+    const { renderLandmark } = loadModule(readLandmark('render.js'), {
+      imports: { 'three/webgpu': THREE, '../sz-geometry.js': geometry }
+    });
+    const material = new THREE.MeshStandardMaterial();
+    const rendered = renderLandmark(model, () => material);
+    const park = rendered.group.children.find(mesh => mesh.name === 'culturePark');
+    const { position, normal } = park.geometry.attributes;
+    for (let i = 0; i < position.count; i++) {
+      const key = `${position.getX(i)},${position.getY(i)},${position.getZ(i)}`;
+      const expected = roofNormals.get(key);
+      if (expected && normal.getY(i) > 0) {
+        assert.ok(Math.hypot(expected.x - normal.getX(i), expected.y - normal.getY(i), expected.z - normal.getZ(i)) < 1e-6);
+        roofNormals.delete(key);
+      }
+    }
+    assert.equal(roofNormals.size, 0);
+    assert.equal(rendered.surfaces.length, 0);
+    for (const mesh of rendered.group.children) mesh.geometry.dispose();
+    material.dispose();
+    const paving = museum.createCulturePavingMask();
+    const coverage = paving.image.data.filter(value => value > 200).length / paving.image.data.length;
+    assert.ok(coverage > 0.02 && coverage < 0.06);
+    paving.dispose();
+  });
+
 test('actual roof triangles share the render vertices and collision elevation', { skip: !threePackageDir }, async () => {
   const THREE = await import(new URL('build/three.webgpu.js', pathToFileURL(join(threePackageDir, '/'))));
   const geometry = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } });
@@ -253,7 +346,7 @@ test('actual roof triangles share the render vertices and collision elevation', 
   const crown = pingAnModel.group.children.find(mesh => mesh.name === 'pingAnCrown');
   assert.equal(crown.geometry.boundingBox.max.y, byLandmark.get('ping-an').find(row => row.style === 'pingAnCrown').maxY);
   const panel = parts.roofPanelPart('test-roof', byId.get('way/1110959408'),
-    [{ x: 0, y: 10, z: 0 }, { x: 12, y: 22, z: 0 }, { x: 0, y: 16, z: 12 }], [1, 2, 3], 'civicRoof', { roofContact: true });
+    [{ x: 0, y: 10, z: 0 }, { x: 12, y: 22, z: 0 }, { x: 0, y: 16, z: 12 }], [1, 2, 3], 'civicRoofBlue', { roofContact: true });
   const panelModel = renderLandmark({ id: 'test-roof', parts: [panel] }, () => material);
   const panelSupport = createSurfaceResolver({ groundHeight: () => 0, surfaces: panelModel.surfaces });
   assert.equal(panelSupport.below(4, 4, 30).height, 16);

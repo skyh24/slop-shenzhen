@@ -9,7 +9,7 @@ export function baseAt(building, terrain) {
 }
 
 function part({ id, source, polygon, bottom, top, style, derived = false, roofContact = false,
-  heightSource = source.heightSource, baseSourceId = source.id }) {
+  heightSource = source.heightSource, baseSource = 'dem-footprint-bounds-center', baseSourceId = source.id }) {
   const bounds = {
     minX: Math.min(...polygon.outer.map(p => p.x)), maxX: Math.max(...polygon.outer.map(p => p.x)),
     minZ: Math.min(...polygon.outer.map(p => p.z)), maxZ: Math.max(...polygon.outer.map(p => p.z)),
@@ -18,7 +18,7 @@ function part({ id, source, polygon, bottom, top, style, derived = false, roofCo
   };
   return {
     id, sourceId: source.id, sourceHeight: source.height, sourceHeightSource: source.heightSource, heightSource,
-    baseSource: 'dem-footprint-bounds-center', baseSourceId, layoutSource: derived ? 'derived' : 'osm-footprint',
+    baseSource, baseSourceId, layoutSource: derived ? 'derived' : 'osm-footprint',
     polygon, bottom, top, style, roofContact, ...bounds
   };
 }
@@ -48,7 +48,7 @@ export function spanPart(id, source, a, b, widthA, widthB, depth, style, {
 }
 
 export function loftPart(id, source, lower, upper, bottom, top, style, {
-  roofContact = false, heightSource = 'estimate', baseSourceId = source.id, uvOriginY = bottom
+  roofContact = false, heightSource = 'estimate', baseSourceId = source.id, uvOriginY = bottom, smoothSides = false
 } = {}) {
   if (lower.length < 3 || upper.length !== lower.length || !(top > bottom)) {
     throw new Error(`Invalid landmark loft: ${id}`);
@@ -68,11 +68,11 @@ export function loftPart(id, source, lower, upper, bottom, top, style, {
   const rings = { lower: roundRing(lower), upper: roundRing(upper) };
   const polygon = { outer: convexHull([...rings.lower, ...rings.upper]), holes: [] };
   const volume = part({ id, source, polygon, bottom, top, style, derived: true, roofContact, heightSource, baseSourceId });
-  return { ...volume, loft: { ...rings, minY: volume.minY, maxY: volume.maxY }, uvOriginY };
+  return { ...volume, loft: { ...rings, minY: volume.minY, maxY: volume.maxY }, uvOriginY, smoothSides };
 }
 
 export function roofPanelPart(id, source, triangle, depth, style, {
-  roofContact = false, heightSource = 'estimate', baseSourceId = source.id
+  roofContact = false, heightSource = 'estimate', baseSource, baseSourceId = source.id
 } = {}) {
   const depths = Array.isArray(depth) ? depth : [depth, depth, depth];
   if (triangle.length !== 3 || !triangle.every(p => [p.x, p.y, p.z].every(Number.isFinite))
@@ -85,7 +85,8 @@ export function roofPanelPart(id, source, triangle, depth, style, {
   const outer = vertices.map(p => point(p.x, p.z));
   const top = vertices.map(p => p.top);
   const bottom = vertices.map(p => p.bottom);
-  const panel = part({ id, source, polygon: { outer, holes: [] }, bottom, top, style, derived: true, roofContact, heightSource, baseSourceId });
+  const panel = part({ id, source, polygon: { outer, holes: [] }, bottom, top, style, derived: true, roofContact,
+    heightSource, baseSource, baseSourceId });
   return { ...panel, roofPanel: { outer, bottom, top } };
 }
 
