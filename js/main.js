@@ -703,6 +703,56 @@ async function initApp() {
     });
   });
 
+  // 地铁菜单：列出 GEO 里官方线路色的线路，默认全部关闭；点击后只画选中线路。
+  const metroLinesEl = document.getElementById('metro-lines');
+  if (metroLinesEl && Array.isArray(GEO.metro?.lines)) {
+    const metroSelection = new Set();
+    const lineButtons = new Map();
+    const applyMetroSelection = () => {
+      mapSystem.setMetroLines([...metroSelection]);
+      for (const [ref, button] of lineButtons) {
+        const on = metroSelection.has(ref);
+        button.setAttribute('aria-pressed', String(on));
+        button.classList.toggle('active', on);
+      }
+    };
+    const lines = [...GEO.metro.lines].sort((a, b) => {
+      const na = Number.parseFloat(a.ref), nb = Number.parseFloat(b.ref);
+      if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+      return String(a.ref).localeCompare(String(b.ref), 'en');
+    });
+    for (const line of lines) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'pop-item metro-line';
+      button.setAttribute('aria-pressed', 'false');
+      button.dataset.lineRef = line.ref;
+      button.dataset.label = STR.metro.line(line.ref);
+      const swatch = document.createElement('span');
+      swatch.className = 'metro-swatch';
+      swatch.style.background = line.colour;
+      swatch.setAttribute('aria-hidden', 'true');
+      const label = document.createElement('span');
+      label.textContent = STR.metro.line(line.ref);
+      button.append(swatch, label);
+      button.addEventListener('click', () => {
+        if (metroSelection.has(line.ref)) metroSelection.delete(line.ref);
+        else metroSelection.add(line.ref);
+        applyMetroSelection();
+      });
+      metroLinesEl.appendChild(button);
+      lineButtons.set(line.ref, button);
+    }
+    document.getElementById('metro-show-all')?.addEventListener('click', () => {
+      for (const line of lines) metroSelection.add(line.ref);
+      applyMetroSelection();
+    });
+    document.getElementById('metro-hide-all')?.addEventListener('click', () => {
+      metroSelection.clear();
+      applyMetroSelection();
+    });
+  }
+
   const openMapBtn = document.getElementById('btn-open-map');
   if (openMapBtn) openMapBtn.addEventListener('click', () => mapSystem.toggleFullMap(true));
 
