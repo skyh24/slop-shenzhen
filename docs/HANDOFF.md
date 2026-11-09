@@ -1,13 +1,13 @@
 # 当前交接：Slop Shenzhen
 
-更新：2026-11-10 凌晨（round 7）。正式入口可运行深圳。九条硬性要求仍无一条整体验收通过，M9 未通过，因此没有 baseline 标签。历史交接见[HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md)，本轮证据见 `docs/qa/round2/README.md`（本地）。
+更新：2026-11-10 凌晨（round 8）。正式入口可运行深圳。九条硬性要求仍无一条整体验收通过，M9 未通过，因此没有 baseline 标签。历史交接见[HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md)，本轮证据见 `docs/qa/round2/README.md`（本地）。
 
 ## 1. 当前状态
 
 - 分支 `dsh-42a55797-ff5c`（工作树 `.agents/worktrees/`）；main 已含 round 1（`3117db1`）。
 - 共享包 `js/sz-city.json.gz`：6,957,206 B；SHA-256 `bd70c3553c99e3ac6d6aacd0856677742f7e0573d56451085cc45b1af6a4d8bf`（新增 `air` 无人机航线数据）。
 - 38,057 建筑、58,773 树、534 地面块 / 386,824 三角；新增 `sites` 段：21 个地标 / 43 个 OSM 场地对象。
-- 测试：Node **427 pass / 0 fail / 0 skip**（Three 0.187.0）；Python **97 OK**。
+- 测试：Node **433 pass / 0 fail / 0 skip**（Three 0.187.0）；Python **97 OK**。
 - 构建：`.venv/bin/python tools/sz/build.py` 缓存命中约 54 s；`--no-cache` 重读 PBF。
 
 ## 2. round 2 已交付（保留）
@@ -72,6 +72,15 @@
 | UI 回归 | `docs/qa/round7/ui-audit.json`：23 个相机、4 个时段、APEC/无人机/高铁图层开关、0 console error | L4 |
 
 **结论**：3.4 的地图菜单从空壳变为可用；逐线走向与官方图核对、3.2 立交可通行、3.6 逐项复核、M9 仍是缺口。
+
+## 2g. 本轮新增（round 8）
+
+| 项 | 结果 | 等级 |
+| --- | --- | --- |
+| 车公庙立交匝道（硬性要求 3.2） | `js/sz-elevated-roads.js`：37 条 bridge/layer 链路 → 桥面缎带 + 桥墩（6,019 m 桥面、47,261 m²、10,876 三角、147 墩、12 分块）；桥面高度按 layer×4.8 m 估计；37 个 walkable surface 接入控制器，浏览器实测可站在桥面（y≈11.75 m） | L4；L5 完整走通未做 |
+| 模型卡 | `docs/landmarks/chegongmiao-interchange.md`：来源(OSM 链路/宽度/名称) vs 估计(层高/桥墩/坡度)，明确不能当测绘高程 | L2 |
+
+**结论**：3.2 从“完全缺匝道”推进到车公庙范围可站立；其他立交、沿江高速远景、完整 Q8 走通仍是缺口。
 
 ## 3. 下一步（按优先级）
 

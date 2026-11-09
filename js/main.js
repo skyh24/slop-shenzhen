@@ -24,6 +24,7 @@ import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js
 import { buildSzLandmarks } from './sz-landmarks/index.js';
 import { polygonContains } from './building-collision.js';
 import { buildShenzhenBayBridge } from './sz-landmarks/shenzhen-bay-bridge.js';
+import { buildSzElevatedRoads } from './sz-elevated-roads.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
 import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
 import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
@@ -163,6 +164,8 @@ async function initApp() {
   markInit('ground');
   await showLoadingStage(STR.startup.roads, 'roads');
   const roads = buildSzRoads(scene, GEO.roadGraph, GEO.terrainSurface);
+  // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
+  const elevatedRoads = buildSzElevatedRoads(scene, { graph: GEO.roadGraph, terrainSurface: GEO.terrainSurface });
   const roadFrontage = buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, {
     groundHeight: ground.groundHeight, roadHeight: roads.roadHeight
   });
@@ -237,6 +240,7 @@ async function initApp() {
   if (qa) {
     window.__szLamps = streetLamps; window.__szTrees = trees; window.__szApec = apecTheme;
     window.__szApecCity = apecCity; window.__szDrones = drones; window.__szLightShow = lightShow;
+    window.__szElevatedRoads = elevatedRoads;
     window.__szMetroEntrances = metroEntrances; window.__szFutian = futianStation; window.__szXili = xiliConstruction;
   }
   const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...trees.colliders,
@@ -253,7 +257,7 @@ async function initApp() {
   await showLoadingStage(STR.startup.controllers, 'controllers');
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
     groundHeight: (x, z) => roadFrontage.contactHeight(x, z) ?? ground.groundHeight(x, z),
-    surfaces: landmarks.surfaces,
+    surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces],
     nearTraffic: traffic.nearColliders
   });
   const initialMode = controllerManager.activeMode;
@@ -332,7 +336,7 @@ async function initApp() {
   markInit('controllers');
 
   await showLoadingStage(STR.startup.culling, 'culling');
-  const cullingRoots = [ground.group, roads.group, cityBlocks.group];
+  const cullingRoots = [ground.group, roads.group, elevatedRoads.group, cityBlocks.group];
   for (const root of cullingRoots) {
     const [first, ...chunks] = root.children;
     // 每类静态分块共用材质和顶点布局，预编译其中一块即可。
