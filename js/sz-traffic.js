@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { routeSignalStops } from './sz-intersection-control.js';
-import { isGroundRoad, roadLinkPoints } from './sz-roads.js';
+import { isGroundRoad, roadTravelPoints } from './sz-roads.js';
 import { createTrafficVehicleGeometry, VEHICLE_SPECS } from './sz-vehicles.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { vehicleContact } from './vehicle-physics.js';
@@ -8,8 +8,13 @@ import { vehicleContact } from './vehicle-physics.js';
 const SPAWN_CELL = 100;
 const SEARCH_RADIUS = 360;
 const DESPAWN_RADIUS = 430;
+const NEAR_ROUTE_END_RADIUS = 160;
+const RECYCLE_CLEARANCE = 40;
 const BODY_CELL = 32;
 const SIGNAL_EXIT_BUFFER = 12;
+const RAMP_LANE_BLEND = 36;
+const ROUTE_RANGE = 560;
+const REVIEWED_MAINLINE_RANGE = 1500;
 const FLEET = [
   { type: 'taxi', count: 6, speed: 10 },
   { type: 'sedan', color: 0xc7ced2, count: 12, speed: 11 },
@@ -39,14 +44,15 @@ export function createTrafficGraph(graph, { canTurn = () => true } = {}) {
     if (!isGroundRoad(metadata)) continue;
     const link = graph.links[i];
     const [a, b, name, width, lanes, direction] = link;
-    const points = roadLinkPoints(graph, link);
+    const points = roadTravelPoints(graph, link, metadata);
     if (points.length < 2) continue;
     for (const sign of direction === 0 ? [1, -1] : [direction]) {
       const from = sign === 1 ? a : b;
       const to = sign === 1 ? b : a;
       const path = sign === 1 ? points : [...points].reverse();
       const edge = { from, to, sign, width, lanes, direction, name: graph.names[name],
-        osmId: metadata.osmId, sourceIndex: i, segments: [], next: [] };
+        osmId: metadata.osmId, highway: metadata.highway, sourceIndex: i, segments: [], next: [],
+        travelWidth: metadata.crossSection ? lanes * metadata.crossSection.laneWidthM : null };
       for (let j = 1; j < path.length; j++) {
         const start = path[j - 1];
         const end = path[j];
@@ -83,26 +89,103 @@ export function createTrafficGraph(graph, { canTurn = () => true } = {}) {
 }
 
 export function usableWidth(edge, halfWidth) {
-  return edge.width >= (edge.direction === 0 ? 4 : 2) * halfWidth + 0.16;
+  return (edge.travelWidth ?? edge.width) >= (edge.direction === 0 ? 4 : 2) * halfWidth + 0.16;
 }
 
 export function laneOffsets(edge) {
   if (!edge.direction) return [Math.min(edge.width / 4, 2.3)];
   const count = Number.isInteger(edge.lanes) && edge.lanes > 0 ? edge.lanes : 1;
-  return Array.from({ length: count }, (_, i) => edge.width * ((i + 0.5) / count - 0.5));
+  return Array.from({ length: count }, (_, i) => (edge.travelWidth ?? edge.width) * ((i + 0.5) / count - 0.5));
 }
 
-function routeSegments(marker, model, random, detailedRoads, laneChoice) {
+const isTrunkRamp = edge => edge?.highway === 'trunk_link';
+
+function segmentEnd({ x, z, dx, dz, length }) {
+  return { x: x + dx * length, z: z + dz * length };
+}
+
+function joinRampLane(segments, from, to) {
+  if (!from && !to) return segments;
+  const first = segments[0];
+  const last = segmentEnd(segments.at(-1));
+  const ends = [0];
+  for (const { length } of segments) ends.push(ends.at(-1) + length);
+  const total = ends.at(-1);
+  const blend = Math.min(RAMP_LANE_BLEND, total / (from && to ? 2 : 1));
+  const stations = new Set(ends);
+  for (let d = 4; d < blend; d += 4) {
+    if (from) stations.add(d);
+    if (to) stations.add(total - d);
+  }
+  if (from) stations.add(blend);
+  if (to) stations.add(total - blend);
+  const result = [];
+  let previous = null;
+  let index = 0;
+  for (const s of [...stations].sort((a, b) => a - b)) {
+    while (index < segments.length - 1 && s > ends[index + 1]) index++;
+    const seg = segments[index];
+    const position = s - ends[index];
+    let x = seg.x + seg.dx * position;
+    let z = seg.z + seg.dz * position;
+    for (const [anchor, source, distance] of [[from, first, s], [to, last, total - s]]) {
+      if (!anchor || distance >= blend) continue;
+      const t = distance / blend;
+      const weight = 1 - t * t * (3 - 2 * t);
+      x += (anchor.x - source.x) * weight;
+      z += (anchor.z - source.z) * weight;
+    }
+    if (previous) {
+      const dx = x - previous.x, dz = z - previous.z;
+      const length = Math.hypot(dx, dz);
+      if (length > 1e-5) result.push({ ...previous, dx: dx / length, dz: dz / length, length, edge: seg.edge });
+    }
+    previous = { x, z };
+  }
+  return result;
+}
+
+function guideReviewedRamps(segments) {
+  if (!segments.some(segment => segment.edge?.travelWidth)) return segments;
+  const guided = [];
+  for (let i = 0; i < segments.length;) {
+    const first = segments[i];
+    if (!isTrunkRamp(first.edge)) {
+      guided.push(first);
+      i++;
+      continue;
+    }
+    let end = i + 1;
+    while (segments[end]?.edge === first.edge) end++;
+    const previous = segments[i - 1];
+    const next = segments[end];
+    // 沿真实匝道走向逐渐对齐中心线，整个过渡仍由可见沥青和碰撞预检。
+    guided.push(...joinRampLane(segments.slice(i, end), previous?.edge?.travelWidth ? segmentEnd(previous) : null,
+      next?.edge?.travelWidth ? next : null));
+    i = end;
+  }
+  return guided;
+}
+
+export function routeSegments(marker, model, random, detailedRoads, laneChoice) {
   const segments = [];
   const used = new Set();
   let edge = marker.edge;
   let index = marker.segment;
   let start = Math.max(0, marker.distance - 16);
-  let remaining = 560;
-  while (edge && remaining > 0 && segments.length < 80) {
+  let remaining = ROUTE_RANGE;
+  let reviewed = false;
+  while (edge && remaining > 0 && segments.length < (reviewed ? 160 : 80)) {
+    if (edge.travelWidth && !reviewed) {
+      // 复核快速路多保留一段续行预算，避免按通用街区预算截停在主线上。
+      remaining += REVIEWED_MAINLINE_RANGE - ROUTE_RANGE;
+      reviewed = true;
+    }
     used.add(edge.sourceIndex);
-    const offsets = detailedRoads.has(edge.osmId) ? laneOffsets(edge) : [edge.direction === 0 ? Math.min(edge.width / 4, 2.3) : 0];
-    const lanes = offsets.filter(offset => Math.abs(offset) + model.hx + 0.08 <= edge.width / 2);
+    const useLanes = edge.travelWidth || detailedRoads.has(edge.osmId);
+    const offsets = useLanes ? laneOffsets(edge) : [edge.direction === 0 ? Math.min(edge.width / 4, 2.3) : 0];
+    const halfWidth = (edge.travelWidth ?? edge.width) / 2;
+    const lanes = offsets.filter(offset => Math.abs(offset) + model.hx + 0.08 <= halfWidth);
     const offset = lanes[Math.min(lanes.length - 1, Math.floor(laneChoice * lanes.length))] ?? 0;
     for (; index < edge.segments.length && remaining > 0; index++) {
       const segment = edge.segments[index];
@@ -113,14 +196,20 @@ function routeSegments(marker, model, random, detailedRoads, laneChoice) {
       remaining -= length;
       start = 0;
     }
-    const choices = edge.next.filter(next => !used.has(next.sourceIndex) && usableWidth(next, model.hx));
-    edge = choices[Math.floor(random() * choices.length)];
+    // 已复核分幅的右侧匝道只与最外车道衔接，避免在分岔鼻端横穿内侧车道。
+    const outerLane = offset === offsets.at(-1);
+    const choices = edge.next.filter(next => !used.has(next.sourceIndex) && usableWidth(next, model.hx)
+      && (!edge.travelWidth || outerLane || !isTrunkRamp(next)));
+    const next = choices[Math.floor(random() * choices.length)];
+    if (isTrunkRamp(edge) && next?.travelWidth) laneChoice = 1;
+    edge = next;
     index = 0;
   }
   return segments;
 }
 
-export function laneRoute(segments, maxBend = 3.2) {
+export function laneRoute(path, maxBend = 3.2) {
+  const segments = guideReviewedRamps(path);
   const samples = [];
   const bend = (a, b) => a && b ? Math.min(maxBend, a.length * 0.36, b.length * 0.36) : 0;
   function add(x, z, dx, dz, edge) {
@@ -311,7 +400,7 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
   const contact = {};
   const transform = new THREE.Object3D();
   const statistics = { directedEdges: network.edges.length, active: 0, spawned: 0, signalEntries: 0, signalWaits: 0,
-    signalExitRejects: 0 };
+    signalExitRejects: 0, nearEndRejects: 0, mainlineEndRejects: 0, offscreenRecycled: 0 };
   let refill = 0;
   let spawnKey = null;
   let candidates = [];
@@ -360,6 +449,10 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
       if (distance < 44 ** 2 || distance > SEARCH_RADIUS ** 2 || !usableWidth(marker.edge, model.hx)) continue;
       const laneChoice = detailedRoads.size ? random() : 0.5;
       const samples = laneRoute(routeSegments(marker, model, random, detailedRoads, laneChoice));
+      if (samples.at(-1)?.edge.travelWidth) {
+        statistics.mainlineEndRejects++;
+        continue;
+      }
       const first = Math.max(6, model.hz + 1);
       const limit = (samples.at(-1)?.s ?? 0) - model.hz - 1;
       if (limit < first + 42 || !poseOnRoute(samples, first, model, roadHeight, actor.pose)) continue;
@@ -378,9 +471,18 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
       if (last - first < 42) continue;
       const stops = routeStops.filter(stop => stop.s <= last + model.z + model.hz);
       const exitsBlocked = stops.some(stop => stop.clearS + SIGNAL_EXIT_BUFFER > last);
-      const terminal = poseOnRoute(samples, last, model, roadHeight, scratch);
-      if (exitsBlocked || signals && terminal && signals.contains(scratch.x, scratch.z, rearMargin + SIGNAL_EXIT_BUFFER)) {
+      if (!poseOnRoute(samples, last, model, roadHeight, scratch)) continue;
+      if (scratch.edge.travelWidth) {
+        statistics.mainlineEndRejects++;
+        continue;
+      }
+      if (exitsBlocked || signals?.contains(scratch.x, scratch.z, rearMargin + SIGNAL_EXIT_BUFFER)) {
         statistics.signalExitRejects++;
+        continue;
+      }
+      // 路面验证截短的行程同样检查终点，避免在玩家附近制造永久队尾。
+      if (squareDistance(scratch.x, scratch.z, focus) < NEAR_ROUTE_END_RADIUS ** 2) {
+        statistics.nearEndRejects++;
         continue;
       }
       actor.route = samples;
@@ -462,7 +564,7 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
     actor.s = s;
   }
 
-  function update(dt, focus, entities = [], elapsedSeconds = null) {
+  function update(dt, focus, entities = [], elapsedSeconds = null, isVisible = null) {
     if (!Number.isFinite(focus?.x) || !Number.isFinite(focus?.z)) return;
     dt = Math.max(0, Math.min(dt, 0.05));
     simulationTime += dt;
@@ -471,8 +573,14 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
     for (const actor of vehicles) {
       if (!actor.route) continue;
       const distance = squareDistance(actor.pose.x, actor.pose.z, focus);
-      if (distance > DESPAWN_RADIUS ** 2 || (actor.stalled > 5 && distance > 130 ** 2)) dropRoute(actor);
-      else if (dt) advance(actor, dt, clock);
+      const outside = distance > DESPAWN_RADIUS ** 2;
+      const terminal = actor.s >= actor.end - 1e-6 && distance > RECYCLE_CLEARANCE ** 2;
+      const blocked = actor.stalled > 5 && distance > 130 ** 2;
+      // 视锥内保留实体和碰撞；未提供视锥时只按远距上限回收。
+      if ((outside || terminal || blocked) && (isVisible ? !isVisible(actor.collider) : outside)) {
+        dropRoute(actor);
+        statistics.offscreenRecycled++;
+      } else if (dt) advance(actor, dt, clock);
     }
     refill -= dt;
     if (refill <= 0 && vehicles.some(actor => !actor.route)) {

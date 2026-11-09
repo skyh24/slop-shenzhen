@@ -1,7 +1,8 @@
-import { GEO } from './sz-geodata.js';
+import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
 import { terrainHeight } from './sz-terrain.js';
 
 const landmarks = new Map(GEO.landmarks.map(l => [l.id, l]));
+const nonferrousTower = REAL_BUILDINGS.find(b => b.id === 'way/1163682856');
 
 function anchor(id, dx = 0, dy = 0, dz = 0) {
   const landmark = landmarks.get(id);
@@ -24,6 +25,14 @@ function bayBridgeShot() {
   if (!bridge) return { position, target: [landmark.x, position[1], landmark.z] };
   const [north, south] = bridge.spans.map(span => span.tower);
   return { position, target: [(north.x + south.x) / 2, (north.y + south.y) / 2, (north.z + south.z) / 2] };
+}
+
+function nonferrousShot() {
+  // 缺失部件的旧包仍可在已核实的塔身足迹中心取景。
+  const { cx = -3369.45, cz = 897.4 } = nonferrousTower ?? {};
+  const base = terrainHeight(GEO.terrain, cx, cz);
+  if (base === null) throw new Error('Missing scenic terrain: nonferrousTower');
+  return { position: [cx - 55.55, base + 13.55, cz + 77.6], target: [cx - 6.55, base + 36.55, cz + 8.6] };
 }
 
 // 机位偏移是取景设计，不代表实测观景台位置或真实运营航线。
@@ -50,6 +59,7 @@ export function getScenicCamera(id, elapsed = 0) {
     }
     case 'conventionCenter': return { position: anchor('convention-center', -140, 224.1, -522), target: anchor('convention-center', 0, -0.9, 0) };
     case 'upperhills': return { position: anchor('upperhills', -586.4, 196.2, 70.4), target: anchor('upperhills', -1.4, 171.2, 50.4) };
+    case 'nonferrousTower': return nonferrousShot();
     case 'bayBridge': return bayBridgeShot();
     default: throw new Error(`Unhandled scenic camera: ${id}`);
   }

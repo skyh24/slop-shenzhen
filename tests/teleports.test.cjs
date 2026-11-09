@@ -45,9 +45,9 @@ test('teleport destinations bind the retained buttons to Shenzhen roads on the r
 test('every scenic camera exposed by the entry resolves against the Shenzhen snapshot', () => {
   const cameras = [...read('index.html').matchAll(/data-camera="([^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(cameras.slice(0, 3), ['chase', 'action', 'pov']);
-  assert.equal(cameras.length, 20);
-  assert.deepEqual(cameras.slice(-9), ['djiSkyCity', 'pingAnTower', 'chunsunTower', 'civicRoof', 'chunjianShell',
-    'cultureSquare', 'conventionCenter', 'upperhills', 'bayBridge']);
+  assert.equal(cameras.length, 21);
+  assert.deepEqual(cameras.slice(-10), ['djiSkyCity', 'pingAnTower', 'chunsunTower', 'civicRoof', 'chunjianShell',
+    'cultureSquare', 'conventionCenter', 'upperhills', 'nonferrousTower', 'bayBridge']);
   for (const id of cameras.slice(3)) {
     for (const elapsed of [0, 40, 120]) {
       const { position, target } = getScenicCamera(id, elapsed);

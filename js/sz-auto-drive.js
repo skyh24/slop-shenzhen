@@ -1,4 +1,6 @@
 import { insideSignalBounds } from './sz-intersection-control.js';
+import { writeTrafficCollider } from './sz-traffic.js';
+import { vehicleContact } from './vehicle-physics.js';
 
 const ACTOR = 'player-autodrive';
 const ROAD_MARGIN = 0.05;
@@ -60,6 +62,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   let status = 'idle';
   const statistics = { routeLength: 0, travelled: 0, signalWaits: 0, intersectionWaits: 0, signalEntries: 0 };
   const intersectionMargin = Math.hypot(model.hx, model.hz) + 0.35;
+  const candidate = {}, contact = {};
 
   function release() {
     if (reservation) control.release(reservation, ACTOR);
@@ -149,6 +152,19 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
         if (!hasRoadFootprint(roadHeight, model, x, z, heading)) {
           run.unsafe = true;
           return false;
+        }
+        // 控制器在积分及碰撞推出后都检查候选，用当前悬架姿态和同源车身核对近车净空。
+        const pivot = car.chassisPivot;
+        writeTrafficCollider(candidate, model, { x, y: car.position.y + (pivot?.position.y ?? 0), z,
+          heading, sin: Math.sin(heading), cos: Math.cos(heading),
+          pitch: pivot?.rotation.x ?? 0, roll: pivot?.rotation.z ?? 0 });
+        const extent = Math.max(x - candidate.minX, candidate.maxX - x, z - candidate.minZ, candidate.maxZ - z);
+        for (const body of nearTraffic(x, z, extent)) {
+          if (candidate.minY < body.maxY && candidate.maxY > body.minY && vehicleContact(candidate, body, contact)) {
+            run.stalled = 0;
+            if (status === 'driving') status = 'traffic';
+            return false;
+          }
         }
         if (!signal || reservation || signal.s - run.s > 20
           || frontDistance(signal.approach, model, x, z, heading) < -ROAD_MARGIN) return true;

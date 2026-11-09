@@ -7,6 +7,7 @@ import { sourceIds as chunjianIds, build as buildChunjian } from './chunjian.js'
 import { sourceIds as cultureIds, build as buildCulture } from './shenzhen-bay-culture-square.js';
 import { sourceIds as conventionIds, build as buildConvention } from './convention-center.js';
 import { sourceIds as upperhillsIds, build as buildUpperhills } from './upperhills.js';
+import { sourceIds as nonferrousIds, optionalSkipIds as nonferrousDuplicates, build as buildNonferrous } from './nonferrous-tower.js';
 
 const definitions = [
   { id: 'tencent-binhai', sourceIds: tencentIds, build: buildTencent },
@@ -17,7 +18,8 @@ const definitions = [
   { id: 'chunjian', sourceIds: chunjianIds, build: buildChunjian },
   { id: 'shenzhen-bay-culture-square', sourceIds: cultureIds, build: buildCulture },
   { id: 'convention-center', sourceIds: conventionIds, build: buildConvention },
-  { id: 'upperhills', sourceIds: upperhillsIds, build: buildUpperhills }
+  { id: 'upperhills', sourceIds: upperhillsIds, build: buildUpperhills },
+  { id: 'nonferrous-tower', sourceIds: nonferrousIds, optionalSkipIds: nonferrousDuplicates, build: buildNonferrous }
 ];
 
 export function planSzLandmarks(buildings, terrain) {

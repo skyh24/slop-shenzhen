@@ -32,7 +32,7 @@ const vehicleSpecs = {
   taxi: { track: 1.54, wheelbase: 2.8 }, sedan: { track: 1.62, wheelbase: 2.92 },
   suv: { track: 1.63, wheelbase: 2.77 }, bus: { track: 2.05, wheelbase: 5.9 }
 };
-const { createTrafficGraph, createSzTraffic, trafficModelBounds, writeTrafficCollider } = load('sz-traffic.js', {
+const { createTrafficGraph, createSzTraffic, laneOffsets, laneRoute, routeSegments, trafficModelBounds, writeTrafficCollider } = load('sz-traffic.js', {
   'three/webgpu': three,
   './sz-intersection-control.js': signalModule,
   './sz-roads.js': roads,
@@ -66,6 +66,39 @@ test('traffic follows the OSM source directions and never connects geometric cro
   assert.equal(edges[1].next.length, 0);
 });
 
+test('traffic follows reviewed travel lanes and leaves the outer shoulder unoccupied', () => {
+  const graph = {
+    nodes: [0, 0, 80, 0], names: ['North Ring'], links: [[0, 1, 0, 17, 4, 1, []]],
+    metadata: [{ ...groundRoad(1), crossSection: { laneWidthM: 3.5, points: [0, 0, 8, 80, 0, 8] } }]
+  };
+  const [edge] = createTrafficGraph(graph).edges;
+  assert.equal(edge.segments[0].z, -1);
+  assert.equal(edge.travelWidth, 14);
+  assert.deepEqual(Array.from(laneOffsets(edge)), [-5.25, -1.75, 1.75, 5.25]);
+});
+
+test('traffic connects a reviewed expressway ramp to the outside lane without crossing through lanes', () => {
+  const profile = (id, from, to) => ({ ...groundRoad(id), crossSection: { laneWidthM: 3.5, points: [from, 0, 8, to, 0, 8] } });
+  const ramp = id => ({ ...groundRoad(id), highway: 'trunk_link' });
+  const graph = {
+    nodes: [0, 0, 200, 0, 500, 0, 450, 30, -160, 18], names: ['North Ring', 'Ramp'],
+    links: [[0, 1, 0, 17, 4, 1, []], [1, 3, 1, 6.5, 0, 1, []], [1, 2, 0, 17, 4, 1, []], [4, 0, 1, 6.5, 0, 1, []]],
+    metadata: [profile(1, 0, 200), ramp(2), profile(3, 200, 500), ramp(4)]
+  };
+  const [main, exit, straight, entry] = createTrafficGraph(graph).edges;
+  const path = (edge, choice) => routeSegments({ edge, segment: 0, distance: 20 }, { hx: 1 }, () => 0, new Set(), choice);
+  assert.ok(path(main, 0.1).some(segment => segment.edge === straight));
+  assert.ok(path(main, 0.1).every(segment => segment.edge !== exit));
+  const outbound = laneRoute(path(main, 0.9));
+  assert.ok(outbound.some(point => point.edge === exit));
+  assert.ok(outbound.filter(point => Math.abs(point.x - 200) < 6)
+    .every(point => Math.abs(point.z - 4.25) < 0.7 && point.dx > 0.98));
+  const inbound = laneRoute(path(entry, 0.1));
+  assert.ok(inbound.some(point => point.edge === main));
+  assert.ok(inbound.filter(point => Math.abs(point.x) < 6)
+    .every(point => Math.abs(point.z - 4.25) < 0.7 && point.dx > 0.98));
+});
+
 test('traffic collision bounds are the same local model box with the rendered yaw', () => {
   const model = trafficModelBounds({ min: { x: -1, y: 0, z: -2 }, max: { x: 1, y: 2, z: 3 } }, vehicleSpecs.taxi);
   const body = writeTrafficCollider({}, model, { x: 8, y: 6, z: 11, sin: 1, cos: 0, pitch: 0, roll: 0 });
@@ -94,6 +127,49 @@ test('traffic stops before a player and uses its drawn position for collision qu
   const position = [actor.pose.x, actor.pose.y, actor.pose.z];
   assert.ok(traffic.group.children[0].transforms.some(values => position.every((value, index) => value === values[index])));
   assert.ok(traffic.nearColliders(actor.pose.x, actor.pose.z, 0).includes(actor.collider));
+});
+
+test('traffic refuses finite routes that would park vehicles close to the focus', () => {
+  const graph = {
+    nodes: [0, 0, 200, 0], names: ['Road'], links: [[0, 1, 0, 8, 2, 1, []]], metadata: [groundRoad(1)]
+  };
+  const traffic = createSzTraffic(new Group(), graph, { roadHeight: () => 6 });
+  for (let frame = 0; frame < 30; frame++) traffic.update(0.05, { x: 100, z: 0 });
+  assert.equal(traffic.statistics.active, 0);
+  assert.ok(traffic.statistics.nearEndRejects > 0);
+});
+
+test('traffic does not plan a stationary queue at a reviewed mainline endpoint', () => {
+  const graph = {
+    nodes: [0, 0, 900, 0], names: ['North Ring'], links: [[0, 1, 0, 17, 4, 1, []]],
+    metadata: [{ ...groundRoad(1), crossSection: { laneWidthM: 3.5, points: [0, 0, 8, 900, 0, 8] } }]
+  };
+  const traffic = createSzTraffic(new Group(), graph, { roadHeight: () => 6 });
+  for (let frame = 0; frame < 30; frame++) traffic.update(0.05, { x: 100, z: 0 });
+  assert.equal(traffic.statistics.active, 0);
+  assert.ok(traffic.statistics.mainlineEndRejects > 0);
+});
+
+test('traffic keeps a visible terminal vehicle and its collider until the camera looks away', () => {
+  const graph = {
+    nodes: [0, 0, 900, 0], names: ['Road'], links: [[0, 1, 0, 8, 2, 1, []]], metadata: [groundRoad(1)]
+  };
+  const traffic = createSzTraffic(new Group(), graph, { roadHeight: () => 6 });
+  const focus = { x: 250, z: 0 };
+  traffic.update(0, focus);
+  const actor = traffic.vehicles.find(vehicle => vehicle.route);
+  const original = actor.route;
+  for (let frame = 0; frame < 1600 && actor.s < actor.end; frame++) {
+    traffic.update(0.05, focus, [], null, () => true);
+  }
+  assert.equal(actor.s, actor.end);
+  for (let frame = 0; frame < 120; frame++) traffic.update(0.05, focus, [], null, () => true);
+  assert.equal(actor.route, original);
+  assert.ok(traffic.nearColliders(actor.pose.x, actor.pose.z, 0).includes(actor.collider));
+  assert.equal(traffic.statistics.offscreenRecycled, 0);
+  traffic.update(0.05, focus, [], null, body => body !== actor.collider);
+  assert.notEqual(actor.route, original);
+  assert.equal(traffic.statistics.offscreenRecycled, 1);
 });
 
 function signalRoad() {

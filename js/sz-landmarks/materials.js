@@ -4,6 +4,7 @@ import { abs, cameraPosition, color, dot, float, floor, fract, fwidth, max, mix,
 import { sceneUniforms } from '../sz-materials.js';
 import { createCulturePavingMask } from './shenzhen-bay-culture-square.js';
 import { createUpperhillsMaterial } from './upperhills.js';
+import { createNonferrousMaterial } from './nonferrous-tower.js';
 
 const styles = {
   tencentTower: { metal: 0xc9d0d5, glass: 0x60819c, roof: 0x879096, bay: 1.58, floor: 4.87, fin: 0.22, sill: 0.092, lit: 0.15, rough: 0.16, glow: 0xeeeaf2 },
@@ -128,6 +129,7 @@ function conventionCover(glazed) {
 export function createLandmarkMaterial(name) {
   if (Object.hasOwn(styles, name)) return facadeMaterial(styles[name]);
   if (name.startsWith('upperhills')) return createUpperhillsMaterial(name);
+  if (name.startsWith('nonferrous')) return createNonferrousMaterial(name);
   switch (name) {
     case 'djiBrace': return new THREE.MeshStandardMaterial({ color: 0xc4cbd0, metalness: 0.34, roughness: 0.37 });
     case 'djiDeck': return new THREE.MeshStandardMaterial({ color: 0x596570, metalness: 0.36, roughness: 0.62 });

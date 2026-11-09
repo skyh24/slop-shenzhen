@@ -224,6 +224,15 @@ async function initApp() {
   }
 
   const cameraSystem = new CameraSystem(renderer.domElement, controllerManager);
+  const trafficFrustum = new THREE.Frustum();
+  const trafficViewProjection = new THREE.Matrix4();
+  const trafficBounds = new THREE.Box3();
+  function isTrafficVisible(body) {
+    if (!cameraSystem.initialized) return true;
+    trafficBounds.min.set(body.minX, body.minY, body.minZ);
+    trafficBounds.max.set(body.maxX, body.maxY, body.maxZ);
+    return trafficFrustum.intersectsBox(trafficBounds);
+  }
   const touchControls = new TouchControls(controllerManager, STR.touchActions);
   const soundButton = document.getElementById('btn-sound');
   const audioSystem = new CityAudioSystem({ controllerManager }, {
@@ -722,7 +731,9 @@ async function initApp() {
       }) },
       roadFrontage: { ...roadFrontage.statistics, intersections: roadFrontage.control.intersections.map(intersection => ({
         id: intersection.id, approaches: intersection.approaches.map(({ osmNodeId, group, stopX, stopZ }) => ({ osmNodeId, group, stopX, stopZ }))
-      })), clock: elapsed, control: roadFrontage.control.snapshot?.(elapsed) ?? [] },
+      })), clock: elapsed, control: roadFrontage.control.snapshot?.(elapsed) ?? [],
+        crossSections: GEO.roadGraph.metadata.flatMap(({ crossSection, osmId }, i) => crossSection
+          ? [{ id: crossSection.id, osmId, widthM: GEO.roadGraph.links[i][3], lanes: GEO.roadGraph.links[i][4], stations: crossSection.points.length / 3 }] : []) },
       autoDrive: { status: autoDrive.status, ...autoDrive.statistics,
         route: mapSystem.driveRoute && { from: [mapSystem.driveRoute.from.x, mapSystem.driveRoute.from.z],
           to: [mapSystem.driveRoute.to.x, mapSystem.driveRoute.to.z], length: mapSystem.driveRoute.length,
@@ -847,7 +858,14 @@ async function initApp() {
 
     gamepadControls.update(dt);
     roadFrontage.update(elapsed);
-    traffic.update(dt, controllerManager.getActiveEntity().position, players, elapsed);
+    if (cameraSystem.initialized) {
+      // 用上一帧实际相机视锥保护正在显示的车，包含整个碰撞包络。
+      const camera = cameraSystem.camera;
+      camera.updateMatrixWorld();
+      trafficFrustum.setFromProjectionMatrix(trafficViewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
+        camera.coordinateSystem, camera.reversedDepth);
+    }
+    traffic.update(dt, controllerManager.getActiveEntity().position, players, elapsed, isTrafficVisible);
     const { forward, backward, left, right } = controllerManager.keys;
     const driveInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode,
       manual: !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right) });

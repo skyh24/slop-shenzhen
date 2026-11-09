@@ -32,12 +32,15 @@ const loadUpperhills = THREE => loadModule(readLandmark('upperhills.js'), { impo
   'three/webgpu': THREE, 'three/tsl': {}, '../sz-materials.js': {}, '../sz-terrain.js': terrain,
   '../building-collision.js': collision, './parts.js': parts
 } });
+const nonferrous = loadModule(readLandmark('nonferrous-tower.js'), { imports: {
+  'three/webgpu': {}, 'three/tsl': {}, '../sz-materials.js': {}, './parts.js': parts
+} });
 const culture = loadCulture({});
 const upperhills = loadUpperhills({});
 const loadPlan = (cultureModule, upperhillsModule = upperhills) => loadModule(readLandmark('layout.js'), { imports: {
   './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun,
   './civic-center.js': civic, './chunjian.js': stadium, './shenzhen-bay-culture-square.js': cultureModule,
-  './convention-center.js': convention, './upperhills.js': upperhillsModule
+  './convention-center.js': convention, './upperhills.js': upperhillsModule, './nonferrous-tower.js': nonferrous
 } });
 const { planSzLandmarks } = loadPlan(culture);
 const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
@@ -48,12 +51,13 @@ const byId = new Map(buildings.map(building => [building.id, building]));
 const byLandmark = new Map(plan.plans.map(landmark => [landmark.id, landmark.parts]));
 
 test('landmarks retire only the explicit source objects and keep the fallback on incomplete snapshots', () => {
-  const verifiedDuplicates = civic.optionalSkipIds.filter(id => byId.has(id));
+  const verifiedDuplicates = [...civic.optionalSkipIds, ...nonferrous.optionalSkipIds].filter(id => byId.has(id));
   assert.deepEqual([...plan.skipIds].sort(), [...tencent.sourceIds, ...dji.sourceIds, ...pingAn.sourceIds, ...chunsun.sourceIds,
-    ...civic.sourceIds, ...verifiedDuplicates, ...stadium.sourceIds, ...convention.sourceIds].sort());
+    ...civic.sourceIds, ...verifiedDuplicates, ...stadium.sourceIds, ...convention.sourceIds, ...nonferrous.sourceIds].sort());
   assert.ok(byLandmark.has('civic-center'));
   assert.ok(byLandmark.has('chunjian'));
   assert.ok(byLandmark.has('convention-center'));
+  assert.ok(byLandmark.has('nonferrous-tower'));
   assert.equal(plan.skipIds.has('globfp/3517'), false);
   assert.equal(plan.skipIds.has('globfp/47955'), false);
   const partial = planSzLandmarks(fixture.filter(building => building.id !== 'way/694152193'), geo.terrain);
@@ -65,6 +69,17 @@ test('landmarks retire only the explicit source objects and keep the fallback on
   assert.equal(plan.skipIds.has('way/1253254379'), false);
   assert.equal(plan.skipIds.has('way/529272469'), false);
   assert.equal(plan.skipIds.has('way/1441599159'), false);
+});
+
+test('the Nonferrous pilot retires its verified parent only with the complete sourced model', () => {
+  const duplicate = { ...byId.get(nonferrous.sourceIds[0]), id: nonferrous.optionalSkipIds[0] };
+  const complete = planSzLandmarks([...fixture, duplicate], geo.terrain);
+  assert.ok(complete.skipIds.has(duplicate.id));
+  assert.equal(complete.skipIds.has('way/1163682853'), false);
+  const missing = fixture.filter(b => b.id !== nonferrous.sourceIds[2]);
+  const fallback = planSzLandmarks([...missing, duplicate], geo.terrain);
+  assert.equal(fallback.skipIds.has(duplicate.id), false);
+  assert.ok(nonferrous.sourceIds.every(id => !fallback.skipIds.has(id)));
 });
 
 test('Tencent preserves both tower heights and source intervals for all three links', () => {

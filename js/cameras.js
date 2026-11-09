@@ -24,6 +24,7 @@ const CAMERA_PRESETS = [
   { id: 'cultureSquare', name: STR.cameraNames.cultureSquare, category: 'scenic', fov: 52 },
   { id: 'conventionCenter', name: STR.cameraNames.conventionCenter, category: 'scenic', fov: 52 },
   { id: 'upperhills', name: STR.cameraNames.upperhills, category: 'scenic', fov: 52 },
+  { id: 'nonferrousTower', name: STR.cameraNames.nonferrousTower, category: 'scenic', fov: 58 },
   { id: 'bayBridge',   name: STR.cameraNames.bayBridge, category: 'scenic', fov: 44 }
 ];
 

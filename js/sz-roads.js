@@ -14,6 +14,26 @@ export function roadLinkPoints(graph, [start, end, , , , , inner]) {
   return points.filter((p, i) => !i || p.x !== points[i - 1].x || p.z !== points[i - 1].z);
 }
 
+function roadSectionPoints(graph, link, metadata) {
+  const source = metadata.crossSection?.points;
+  if (!source) return roadLinkPoints(graph, link);
+  const points = [];
+  for (let i = 0; i < source.length; i += 3) points.push({ x: source[i], z: source[i + 1], leftM: source[i + 2] });
+  return points;
+}
+
+export function roadTravelPoints(graph, link, metadata) {
+  if (!metadata.crossSection) return roadLinkPoints(graph, link);
+  const points = roadSectionPoints(graph, link, metadata);
+  const halfTravel = link[4] * metadata.crossSection.laneWidthM / 2;
+  return points.map((p, i) => {
+    const a = points[Math.max(0, i - 1)], b = points[Math.min(points.length - 1, i + 1)];
+    const length = Math.hypot(b.x - a.x, b.z - a.z);
+    const offset = (halfTravel - p.leftM) / length;
+    return { x: p.x - (b.z - a.z) * offset, z: p.z + (b.x - a.x) * offset };
+  });
+}
+
 export function convexHull(points) {
   const sorted = [...points].sort((a, b) => a.x - b.x || a.z - b.z);
   function half(vertices) {
@@ -90,18 +110,21 @@ function indexRoadFootprints(graph, grid) {
     const link = graph.links[index];
     const [start, end, name, width, lanes, direction] = link;
     const source = { ...metadata, linkIndex: index, name: graph.names[name], width, lanes, direction };
-    const points = roadLinkPoints(graph, link);
+    const points = roadSectionPoints(graph, link, metadata);
     let previous = null;
     for (let i = 1; i < points.length; i++) {
       const a = points[i - 1];
       const b = points[i];
       const dx = b.x - a.x;
       const dz = b.z - a.z;
-      const scale = width / (2 * Math.hypot(dx, dz));
-      const ox = dz * scale;
-      const oz = -dx * scale;
-      const startSection = [{ x: a.x + ox, z: a.z + oz }, { x: a.x - ox, z: a.z - oz }];
-      const endSection = [{ x: b.x + ox, z: b.z + oz }, { x: b.x - ox, z: b.z - oz }];
+      const length = Math.hypot(dx, dz);
+      const section = p => {
+        const left = (p.leftM ?? width / 2) / length;
+        const right = width / length - left;
+        return [{ x: p.x + dz * left, z: p.z - dx * left }, { x: p.x - dz * right, z: p.z + dx * right }];
+      };
+      const startSection = section(a);
+      const endSection = section(b);
       addFootprint([startSection[0], endSection[0], endSection[1], startSection[1]], [source]);
       if (previous) {
         // 按外侧路缘补斜接，避免急弯处的直角切口和无界延长。
@@ -363,7 +386,7 @@ export function buildSzRoads(scene, graph, terrainSurface, options = {}) {
   group.name = 'shenzhen-source-roads';
   // 深度偏移只处理共面绘制，接触仍由真实地形三角面提供。
   const material = options.material ?? new THREE.MeshStandardNodeMaterial({
-    color: 0x51585a, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
+    color: 0x363a3c, roughness: 0.96, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
   });
   const meshes = [];
   for (const chunk of layout.chunks) {

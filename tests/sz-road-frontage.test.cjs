@@ -25,6 +25,26 @@ test('road frontage resolves its four source approach nodes on ground-only direc
   assert.equal(source.entrances[0].status, 'source-entrance-ground-connection-unresolved');
 });
 
+test('Beihuan markings and the median use only the reviewed directed source links', () => {
+  const manifest = JSON.parse(readFileSync(join(__dirname, '../data/source/beihuan-profile.json'), 'utf8'));
+  const { links, metadata, nodeIds } = raw.roadGraph;
+  const selected = [];
+  for (const [i, { osmId, crossSection }] of metadata.entries()) {
+    if (!crossSection) continue;
+    const [a, b, , width, lanes, direction] = links[i];
+    assert.equal(crossSection.id, manifest.id);
+    assert.equal(direction, 1);
+    assert.equal(lanes, manifest.section.lanesPerDirection);
+    assert.equal(width, lanes * crossSection.laneWidthM + crossSection.outerShoulderM);
+    selected.push([osmId, nodeIds[a], nodeIds[b]].join(':'));
+  }
+  const expected = manifest.directions.flatMap(({ links }) => links.map(keys => keys.join(':')));
+  assert.deepEqual(selected.sort(), expected.sort());
+  const features = raw.roadFrontage.features.filter(feature => feature.id.startsWith(`${manifest.id}:`));
+  assert.deepEqual(features.map(feature => feature.kind).sort(), ['median', 'paint']);
+  assert.ok(features.every(feature => feature.trianglesXZ.length > 0));
+});
+
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 test('pilot paint and raised surfaces stay on their own geometry and signal fixtures share instance bounds', { skip: !threeDir }, async () => {
   const loadThree = p => import(pathToFileURL(join(threeDir, 'build', p)));

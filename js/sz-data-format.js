@@ -173,13 +173,27 @@ export function validateCityPayload(raw) {
   requireData(graph && Array.isArray(graph.nodes) && graph.nodes.length % 2 === 0
     && graph.nodes.every(Number.isFinite) && graph.nodeIds?.length === graph.nodes.length / 2
     && Array.isArray(graph.links) && graph.metadata?.length === graph.links.length && Array.isArray(graph.names), 'road graph');
-  for (const [a, b, name, width, lanes, direction, inner] of graph.links) {
+  for (const [index, [a, b, name, width, lanes, direction, inner]] of graph.links.entries()) {
     requireData(Number.isInteger(a) && Number.isInteger(b) && a >= 0 && b >= 0
       && a < graph.nodeIds.length && b < graph.nodeIds.length && a !== b
       && Number.isInteger(name) && typeof graph.names[name] === 'string'
       && Number.isFinite(width) && width > 0 && Number.isInteger(lanes) && lanes >= 0
       && [-1, 0, 1].includes(direction) && Array.isArray(inner) && inner.length % 2 === 0
       && inner.every(Number.isFinite), 'road graph link');
+    const road = graph.metadata[index];
+    if (road?.crossSection !== undefined) {
+      const section = road.crossSection;
+      const stations = section?.points;
+      requireData(section?.id === 'beihuan-xinzhou' && section.laneCountSource === 'municipal-design-and-relative-imagery'
+        && road.heightSource === 'terrain' && !road.bridge && !road.tunnel && !road.layer
+        && direction === 1 && lanes > 0 && Number.isFinite(section.laneWidthM) && section.laneWidthM > 0
+        && Number.isFinite(section.outerShoulderM) && section.outerShoulderM >= 0
+        && Math.abs(width - lanes * section.laneWidthM - section.outerShoulderM) < 1e-3
+        && Array.isArray(stations) && stations.length >= 6 && stations.length % 3 === 0
+        && stations.every((value, i) => Number.isFinite(value) && (i % 3 !== 2 || value > 0 && value < width))
+        && stations[0] === graph.nodes[a * 2] && stations[1] === graph.nodes[a * 2 + 1]
+        && stations.at(-3) === graph.nodes[b * 2] && stations.at(-2) === graph.nodes[b * 2 + 1], 'road graph cross section');
+    }
   }
   if (graph.turnRestrictions !== undefined) {
     const { version, source, rules } = graph.turnRestrictions ?? {};

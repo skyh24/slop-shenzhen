@@ -85,3 +85,21 @@ test('crossings and coincident source segments produce one layer of asphalt', ()
   assert.equal(statistics.renderedLinks, 3);
   assert.equal(chunks[0].sources.length, 3);
 });
+
+test('reviewed asymmetric carriageways preserve a planted median on the source terrain', () => {
+  const graph = {
+    nodes: [2, 14, 18, 14, 18, 4, 2, 4], names: ['North Ring'],
+    links: [[0, 1, 0, 7, 2, 1, []], [2, 3, 0, 7, 2, 1, []]],
+    metadata: [
+      { ...groundRoad('way/1'), crossSection: { laneWidthM: 3, points: [2, 14, 2, 10, 14, 3, 18, 14, 4] } },
+      { ...groundRoad('way/2'), crossSection: { laneWidthM: 3, points: [18, 4, 2, 2, 4, 2] } }
+    ]
+  };
+  const { chunks } = createRoadSurfaceLayout(graph, flat);
+  const height = createRoadHeightSampler(chunks, flat.grid);
+  assert.equal(height(10, 5.5), 5);
+  assert.equal(height(10, 9.5), null);
+  assert.equal(height(10, 11.5), 5);
+  assert.equal(height(10, 17), 5);
+  assert.equal(height(10, 18.5), null);
+});

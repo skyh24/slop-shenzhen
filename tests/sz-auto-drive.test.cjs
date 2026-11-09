@@ -8,17 +8,20 @@ const { loadModule } = require('./helpers/module.cjs');
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const load = (file, imports = {}) => loadModule(read(file), { imports });
 const signalApi = load('sz-intersection-control.js');
-const { createAutoDrive, hasRoadFootprint } = load('sz-auto-drive.js', { './sz-intersection-control.js': signalApi });
-const model = { hx: 1.1, hz: 2.4, x: 0, z: 0, halfWheelbase: 1.4, halfTrack: 0.77,
-  corners: [[-1.1, -2.4], [-1.1, 2.4], [1.1, -2.4], [1.1, 2.4]] };
 const surface = load('sz-controller-surfaces.js');
 const roads = load('sz-roads.js', { 'three/webgpu': {} });
 const collision = load('building-collision.js');
+const physics = load('vehicle-physics.js');
 const traffic = load('sz-traffic.js', { 'three/webgpu': {}, './sz-intersection-control.js': signalApi,
-  './sz-roads.js': roads, './sz-vehicles.js': {}, './building-collision.js': collision, './vehicle-physics.js': {} });
+  './sz-roads.js': roads, './sz-vehicles.js': {}, './building-collision.js': collision, './vehicle-physics.js': physics });
+const { createAutoDrive, hasRoadFootprint } = load('sz-auto-drive.js', {
+  './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic, './vehicle-physics.js': physics
+});
 const { createDrivePlanner, createTurnFilter } = load('sz-drive-route.js', {
   './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic
 });
+const bounds = { min: { x: -1.1, y: 0, z: -2.4 }, max: { x: 1.1, y: 1.81, z: 2.4 } };
+const model = traffic.trafficModelBounds(bounds, { wheelbase: 2.8, track: 1.54 });
 
 const groundRoad = id => ({ osmId: `way/${id}`, heightSource: 'terrain', layer: 0, bridge: false, tunnel: false });
 const rule = (restriction, from, to, via, viaWays = []) => ({ osmId: 'relation/1', restriction,
@@ -87,6 +90,10 @@ test('starting is explicit and signal occupancy survives manual takeover inside 
   assert.equal(tick(8).permitMove(-2, 0, car.heading), false, 'a stopped vehicle blocks an otherwise open green exit');
   trafficBodies.length = 0;
   const green = tick(8);
+  trafficBodies.push({ x: -2, z: 1.9, sin: 1, cos: 0, halfW: 1.2, halfL: 2.4, minY: 2, maxY: 4 });
+  assert.equal(green.permitMove(-2, 0, car.heading), false, 'candidate contact is checked before reserving the intersection');
+  assert.equal(auto.statistics.signalEntries, 0);
+  trafficBodies.length = 0;
   assert.equal(green.permitMove(-2, 0, car.heading), true);
   car.position.x = 6;
   assert.equal(tick(8.5, true), null);
@@ -101,6 +108,37 @@ test('starting is explicit and signal occupancy survives manual takeover inside 
   assert.equal(auto.statistics.intersectionWaits, 1);
 });
 
+test('a North Ring vehicle contact outside route lookahead waits and clears without aborting', () => {
+  // 碰撞候选与环境车包络取自北环新洲段堵车实录。
+  const { x, y, z, heading } = { x: -1943.91213244, y: 24.70868285, z: -1832.06503373, heading: -1.3909399904 };
+  const recordedModel = traffic.trafficModelBounds({
+    min: { x: -1.11500001, y: 0, z: -2.36949992 }, max: { x: 1.11500001, y: 1.80900002, z: 2.37986207 }
+  }, { wheelbase: 2.8, track: 1.54 });
+  const obstacle = { x: -1946.70521145, z: -1830.47853599, sin: -0.7223695469, cos: 0.6915072217,
+    halfW: 0.9965146844, halfL: 2.4836900634, minY: 24.00839280, maxY: 26.59889426 };
+  const dx = Math.sin(heading), dz = Math.cos(heading);
+  // 将试路中心移到侧面，令沿线预判无阻挡，单独覆盖碰撞推出后的候选检查。
+  const from = { x: x - 3 * dz, z: z + 3 * dx, dx, dz };
+  const route = { from, length: 50, stops: [], limits: [9], samples: [
+    { x: from.x, z: from.z, s: 0 }, { x: from.x + 50 * dx, z: from.z + 50 * dz, s: 50 }
+  ] };
+  const car = { position: { x: from.x, y, z: from.z }, heading, speed: 0 };
+  const nearby = [obstacle];
+  const auto = createAutoDrive({ model: recordedModel, roadHeight: () => y, nearTraffic: () => nearby });
+  assert.equal(auto.start(route, car, 'car'), true);
+  const tick = elapsed => auto.update(car, { dt: 1 / 60, elapsed, mode: 'car', manual: false });
+  for (let frame = 0; frame < 8 * 60; frame++) {
+    const input = tick(frame / 60);
+    assert.equal(auto.status, 'driving');
+    assert.equal(input.permitMove(x, z, heading), false);
+    assert.equal(auto.status, 'traffic');
+  }
+  nearby[0] = { ...obstacle, minY: obstacle.minY + 5, maxY: obstacle.maxY + 5 };
+  assert.equal(tick(8).permitMove(x, z, heading), true, 'an overhead vehicle can share the same horizontal position');
+  assert.equal(auto.status, 'driving');
+  assert.equal(auto.active, true);
+});
+
 test('the player car uses existing physics on the sourced eastbound Shennan signal approach', () => {
   const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
   const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
@@ -109,13 +147,12 @@ test('the player car uses existing physics on the sourced eastbound Shennan sign
   assert.equal(geo.roadGraph.turnRestrictions.source, 'osm-guangdong');
   const { chunks } = roads.createRoadSurfaceLayout(geo.roadGraph, geo.terrainSurface);
   const roadHeight = roads.createRoadHeightSampler(chunks, geo.terrainSurface.grid);
-  const groundHeight = load('sz-ground-surface.js', {}).createGroundSurfaceSampler(geo.terrainSurface);
+  const groundHeight = load('sz-ground-surface.js').createGroundSurfaceSampler(geo.terrainSurface);
   const { ThirdPersonControllerManager } = load('controllers.js', { 'three/webgpu': {}, './sz-city-config.js': {
     ISLAND_BOUNDS: { minX: geo.bounds[0], minZ: geo.bounds[1], maxX: geo.bounds[2], maxZ: geo.bounds[3] }
   }, './sz-controller-surfaces.js': surface, './sz-park-arrivals.js': {}, './sz-strings.js': {}, './city-lighting-materials.js': {},
   './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } }, './pedestrians.js': {},
   './vehicle-lights.js': {}, './building-collision.js': collision });
-  const bounds = { min: { x: -model.hx, y: 0, z: -model.hz }, max: { x: model.hx, y: 1.81, z: model.hz } };
   const car = { type: 'car', collisionBounds: bounds, chassisPivot: { rotation: { x: 0, z: 0 }, position: { y: 0 } }, wheels: [],
     position: {}, speed: 0, vx: 0, vz: 0, angularVel: 0, pitchVel: 0, rollVel: 0, heaveY: 0, heaveVel: 0, steerAngle: 0, wheelSpin: 0 };
   const controller = Object.assign(Object.create(ThirdPersonControllerManager.prototype), { entities: { car }, activeMode: 'car', keys: {},
