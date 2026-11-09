@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "verifiedAt": "2026-11-09",
+  "status": "research-evidence-not-runtime-routes",
+  "routes": [
+    {
+      "id": "houhai-talent-park",
+      "name": "后海商圈—人才公园",
+      "source": "https://www.szns.gov.cn/bsfw/hlwzwfw/zwdt_140139/content/post_10830667.html",
+      "sourcePublishedAt": "2023-09-12",
+      "openedAt": "2023-09-04",
+      "verifiedAt": "2026-11-09",
+      "originDescription": "深圳湾大街与后海滨路交会中心附近的后海商圈起飞点",
+      "destinationDescription": "深圳人才公园潮汐广场",
+      "originCoordinate": null,
+      "destinationCoordinate": null,
+      "track": null,
+      "cruiseAltitudeM": null,
+      "evidenceLevel": "published-endpoint-descriptions",
+      "limitations": [
+        "未核对起降柜中心坐标，未达到30米位置验收",
+        "公开文章未提供逐点航迹或飞行高度",
+        "2023年开航报道不能证明2026年11月仍正常运营"
+      ]
+    }
+  ],
+  "shows": [
+    {
+      "id": "talent-park-show-2026-procurement",
+      "source": "https://www.szns.gov.cn/xxgk/bmxxgk/qcgj/qtgk_157931/xxxm/zbgg/content/post_12871783.html",
+      "sourcePublishedAt": "2026-07-01",
+      "verifiedAt": "2026-11-09",
+      "location": "深圳人才公园",
+      "procurementOptionsDroneCounts": [
+        1000,
+        2000
+      ],
+      "status": "procurement-specification",
+      "limitations": [
+        "采购方案不等于实际演出记录",
+        "没有提供队形、飞行坐标或实时排期"
+      ]
+    }
+  ]
+}
