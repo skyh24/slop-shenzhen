@@ -111,8 +111,8 @@ test('tall buildings get a double-sided roof sign sized from the name', () => {
   const building = boxBuilding({ name: '深圳湾一号', height: 120, facade: 'glass_tower', levels: 30 });
   const spec = signs.planBuildingSigns(building, { roadGraph: roadAtZ(80) });
   assert.equal(spec.kind, 'roof');
-  assert.ok(spec.width >= 10 && spec.width <= 40);
-  assert.ok(spec.height >= 3 && spec.height <= 8);
+  assert.ok(spec.width >= 10 && spec.width <= 44);
+  assert.ok(spec.height >= 3 && spec.height <= 9);
   assert.ok(spec.width <= spec.wallLength + 1e-9);
   assert.ok(spec.y > 120, 'roof sign stands above the roof');
   assert.ok(Math.abs(spec.y - (120 + 0.35 + spec.height / 2)) < 1e-9);
@@ -126,7 +126,7 @@ test('levels refine the entrance sign height when available', () => {
   const withoutLevels = signs.planBuildingSigns(boxBuilding({ name: '无人层数', height: 30, levels: -1, facade: 'office' }),
     { roadGraph: roadAtZ(60) });
   assert.ok(withLevels.y < withoutLevels.y);
-  assert.ok(withLevels.y >= 3.5 && withLevels.y <= 5);
+  assert.ok(withLevels.y >= 2.6 && withLevels.y <= 3.8);
 });
 
 test('missing names, unit-only names and landmarks never produce signs', () => {
@@ -264,3 +264,54 @@ test('baseY from cityBlocks keeps signs at terrain height', () => {
     { roadGraph: roadAtZ(80) });
   assert.ok(roof.y > 112, `roof sign should stand on the raised roof, got ${roof.y}`);
 });
+
+test('compound gate sign needs at least two unit-only siblings and stays on the road-facing wall', () => {
+  const anchor = boxBuilding({ id: 'a1', name: '测试花园1栋', category: 'residential', facade: 'residential_tower', height: 40, cx: 0, cz: 0 });
+  const memberB = boxBuilding({ id: 'a2', name: '2栋', category: 'residential', facade: 'residential_tower', height: 40, cx: 24, cz: 0 });
+  const memberC = boxBuilding({ id: 'a3', name: '3栋', category: 'residential', facade: 'residential_tower', height: 40, cx: 48, cz: 0 });
+  const oneMember = signs.planCompoundSign({ name: '测试花园', members: [memberB] }, { roadGraph: roadAtZ(60) });
+  assert.equal(oneMember, null, 'a single unit-only building is not a compound');
+  const spec = signs.planCompoundSign({ name: '测试花园', members: [memberB, memberC] }, { roadGraph: roadAtZ(60) });
+  assert.equal(spec.kind, 'compound');
+  assert.equal(spec.variant, 'residential');
+  assert.equal(spec.members, 2);
+  assert.ok(spec.width >= 6 && spec.width <= spec.wallLength + 1e-9);
+  assert.ok(spec.height >= 1.8 && spec.height <= 3.2);
+  assert.ok(spec.y > spec.height / 2, 'gate sign stands above its base');
+  assert.ok(Number.isFinite(spec.rotationY) && spec.targetId === 'a2', 'nearest member to the road carries the sign');
+  assert.equal(signs.planCompoundSign(null, {}), null);
+});
+
+test('unit-only residential buildings join a compound name for HUD and a single gate sign',
+  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+    const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
+    const runtime = loadSigns(THREE);
+    const created = [];
+    const createTexture = (info) => {
+      created.push(info);
+      return { isTexture: true, colorSpace: null, anisotropy: 0, needsUpdate: false, dispose() {} };
+    };
+    const buildings = [
+      boxBuilding({ id: 'c1', name: '海边花园1栋', category: 'residential', facade: 'residential_tower', height: 45, cx: -20, cz: 0 }),
+      boxBuilding({ id: 'c2', name: '2栋', category: 'residential', facade: 'residential_tower', height: 45, cx: 0, cz: 0 }),
+      boxBuilding({ id: 'c3', name: '3栋', category: 'residential', facade: 'residential_tower', height: 45, cx: 22, cz: 0 }),
+      boxBuilding({ id: 'c4', name: '4栋', category: 'residential', facade: 'residential_low', height: 24, cx: 44, cz: 0 })
+    ];
+    const api = runtime.buildBuildingSigns(new THREE.Scene(), {
+      buildings, roadGraph: roadAtZ(80), createTexture, maxChunkOps: 16
+    });
+    assert.equal(api.statistics.compoundClusters, 1);
+    for (let i = 0; i < 8; i++) api.update({ x: 10, y: 0, z: 0 });
+    assert.ok(api.statistics.compounds >= 1, `expected a compound sign, got ${api.statistics.compounds}`);
+    const compound = [];
+    api.group.traverse(object => {
+      if (object.isMesh && object.userData.sign?.kind === 'compound') compound.push(object);
+    });
+    assert.equal(compound.length, 1, 'one gate sign per compound');
+    assert.equal(compound[0].userData.sign.name, '海边花园');
+    assert.ok(created.some(info => info.kind === 'compound' && info.name === '海边花园'));
+    // 小区内单元楼在 HUD 里也显示小区名
+    assert.equal(api.nearestName(22, 0), '海边花园');
+    assert.equal(api.nearestName(-20, 0), '海边花园');
+    api.dispose();
+  });

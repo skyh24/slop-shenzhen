@@ -6,7 +6,7 @@ import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
-import { getLocationLabel, getLocationInfo, inBounds, isTypingInField, findGroundArrival, LANDMARK_SITES, TELEPORT_LOCATIONS } from './sz-city-config.js';
+import { getLocationLabel, getLocationInfo, inBounds, isTypingInField, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { buildSzGround } from './sz-ground.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads } from './sz-roads.js';
@@ -531,11 +531,23 @@ async function initApp() {
 
   let locationText = '';
   let locationBuilding = '';
+  // 普通楼没有名称时，用附近地标名兜底，让平安、春笋这类专模也有定位提示。
+  function nearestLandmarkName(x, z, radius = 240) {
+    let best = null;
+    for (const landmark of SZ_LANDMARKS) {
+      if (!Number.isFinite(landmark.x) || !Number.isFinite(landmark.z)) continue;
+      const distance = Math.hypot(landmark.x - x, landmark.z - z);
+      if (distance > radius) continue;
+      if (!best || distance < best.distance) best = { name: landmark.name, distance };
+    }
+    return best ? best.name : null;
+  }
+
   function renderLocation(x, z) {
     if (!elLocation) return;
     const label = getLocationLabel(x, z);
-    // 就近建筑名只作定位提示；没有具名建筑时保持原样。
-    const buildingName = buildingSigns.nearestName(x, z) ?? '';
+    // 就近建筑名只作定位提示；普通楼无名称时退回附近地标名。
+    const buildingName = buildingSigns.nearestName(x, z) ?? nearestLandmarkName(x, z) ?? '';
     if (label === locationText && buildingName === locationBuilding) return;
     locationText = label;
     locationBuilding = buildingName;
@@ -785,7 +797,9 @@ async function initApp() {
       },
       signs: {
         signs: buildingSigns.statistics.signs, textures: buildingSigns.statistics.textures,
-        chunks: buildingSigns.statistics.chunks, updateMs: buildingSigns.statistics.updateMs
+        chunks: buildingSigns.statistics.chunks, compounds: buildingSigns.statistics.compounds,
+        compoundClusters: buildingSigns.statistics.compoundClusters,
+        updateMs: buildingSigns.statistics.updateMs
       },
       renderer: { backend: renderer.backend.constructor.name, initialized: renderer.initialized,
         animationRegistered: Boolean(renderer.getAnimationLoop()), frame: renderer.info.frame, renderedFrames,

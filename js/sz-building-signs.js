@@ -11,6 +11,10 @@ export const ROOF_UNLOAD_RADIUS = ROOF_RADIUS * 1.3;
 export const NEAREST_NAME_RADIUS = 150;
 export const ROOF_SIGN_MIN_HEIGHT = 60;
 export const MAX_SIGN_TEXTURES = 160;
+// 小区门牌：把只有单元号（1栋/A座）的住宅楼按邻近具名住宅聚成小区，只在小区临路边立一块门牌。
+export const COMPOUND_RADIUS = 90;
+export const COMPOUND_CELL = 100;
+export const COMPOUND_MIN_MEMBERS = 2;
 
 const ROAD_QUERY_RADIUS = 400;
 const ROAD_CELL = 200;
@@ -29,6 +33,8 @@ const UNIT_SUFFIX = /(?:第\s*)?[0-9A-Za-z一二三四五六七八九十百]+\s*
 const UNIT_ONLY = /^(?:(?:第\s*)?[0-9A-Za-z一二三四五六七八九十百]+\s*(?:栋|座|号楼|号|单元|期)\s*)+$/u;
 // 4D、2A、T2-A、9-2、29D,30-3 这类纯门牌编号：没有可读楼名，不出牌。
 const UNIT_CODE_ONLY = /^[0-9A-Za-z,+&/\-]+$/;
+// 机构/写字楼名不做小区门牌的锚点，避免把“某某大队”当成住宅小区名。
+const INSTITUTION_NAME = /(公司|集团|学校|小学|中学|大学|幼儿园|医院|法院|公安|派出所|大队|中队|支队|政府|委员会|管理处|工业|厂房|仓库|银行|酒店|宾馆|商场|超市|市场|基地|园区|大厦|写字楼)/u;
 
 function nowMs() {
   return typeof performance === 'object' && performance && typeof performance.now === 'function'
@@ -260,9 +266,9 @@ function roofTextureInfo(name, building = null) {
   const chars = charCount(name);
   // 真实深圳高楼屋顶字牌通常 20–40 米宽、5 米以上高，远看才认得出；低于 60 米只做入口牌。
   const tall = Number.isFinite(building?.height) ? building.height : ROOF_SIGN_MIN_HEIGHT;
-  const scale = clamp(tall / 150, 0.75, 1.7);
-  const width = clamp((chars * 2.6 + 6) * scale, 10, 40);
-  const height = clamp(width / 4.4, 3.4, 8);
+  const scale = clamp(tall / 150, 0.75, 2.0);
+  const width = clamp((chars * 2.6 + 6) * scale, 10, 44);
+  const height = clamp(width / 4.4, 3.4, 9);
   return { kind: 'roof', variant: 'warm', name, chars, width, height, aspect: width / height };
 }
 
@@ -276,7 +282,7 @@ function planEntrance(building, name, wall, baseY) {
   const minY = baseY + (Number.isFinite(building.minHeight) ? building.minHeight : 0);
   const topY = baseY + (Number.isFinite(building.height) ? building.height : 0);
   const floorHeight = floorHeightOf(building);
-  let y = minY + clamp(floorHeight * 1.15, 3.5, 5.0);
+  let y = minY + clamp(floorHeight * 0.9, 2.6, 3.8);
   y = Math.min(y, topY - height / 2 - 0.15);
   y = Math.max(y, minY + height / 2 + 0.4);
   if (y + height / 2 > topY + 0.001) return null;
@@ -291,12 +297,48 @@ function planRoof(building, name, wall, baseY) {
   let width = info.width;
   if (width > wall.length - 0.6) width = wall.length - 0.6;
   if (width < 5) return null;
-  const height = clamp(width / 4.4, 3.0, 8);
+  const height = clamp(width / 4.4, 3.0, 9);
   const bottomY = baseY + (Number.isFinite(building.height) ? building.height : 0) + 0.35;
   return { kind: 'roof', name, variant: info.variant, width, height, aspect: width / height,
     x: wall.midX - wall.normalX * 0.8, y: bottomY + height / 2, z: wall.midZ - wall.normalZ * 0.8,
     normalX: wall.normalX, normalZ: wall.normalZ, rotationY: Math.atan2(wall.normalX, wall.normalZ),
     wallLength: wall.length, chars: info.chars };
+}
+
+// 小区门牌：取小区内离最近道路最近的一栋楼，在它朝路的墙上放一块双面门牌。
+// 名称来自具名邻居的显示名（推断的小区归属，只用于显示，不回写建筑数据）。
+export function planCompoundSign(cluster, options = {}) {
+  if (!cluster || !cluster.name || !Array.isArray(cluster.members) || cluster.members.length < COMPOUND_MIN_MEMBERS) return null;
+  const roadIndex = options.roadIndex ?? options.roadGraph;
+  let target = null;
+  let bestDistance = Infinity;
+  for (const member of cluster.members) {
+    if (!member || !Number.isFinite(member.cx) || !Number.isFinite(member.cz)) continue;
+    const road = roadIndex && typeof roadIndex.query === 'function' ? roadIndex.query(member.cx, member.cz) : null;
+    const distance = road ? road.distance : Math.hypot(member.cx - cluster.members[0].cx, member.cz - cluster.members[0].cz);
+    if (!target || distance < bestDistance) { target = member; bestDistance = distance; }
+  }
+  if (!target) return null;
+  const chars = charCount(cluster.name);
+  let height = clamp(2.0 + chars * 0.06, 2.0, 2.8);
+  let aspect = clamp(3.4 + chars * 0.2, 3.4, 6.0);
+  let width = height * aspect;
+  const wall = selectSignWall(target, roadIndex, Math.min(width, 12));
+  if (!wall) return null;
+  width = Math.min(width, wall.length - 0.3);
+  if (width < 6) return null;
+  height = width / aspect;
+  const baseY = baseYOf(target, options);
+  const minY = baseY + (Number.isFinite(target.minHeight) ? target.minHeight : 0);
+  const topY = baseY + (Number.isFinite(target.height) ? target.height : 0);
+  let y = minY + clamp(1.6 + height * 0.5, 2.2, 3.4);
+  y = Math.min(y, topY - height / 2 - 0.15);
+  y = Math.max(y, minY + height / 2 + 0.4);
+  if (y + height / 2 > topY + 0.001) return null;
+  return { kind: 'compound', name: cluster.name, variant: 'residential', width, height, aspect,
+    x: wall.midX + wall.normalX * 0.12, y, z: wall.midZ + wall.normalZ * 0.12,
+    normalX: wall.normalX, normalZ: wall.normalZ, rotationY: Math.atan2(wall.normalX, wall.normalZ),
+    wallLength: wall.length, chars, members: cluster.members.length, targetId: target.id };
 }
 
 // 纯规划函数：不建纹理、不碰 THREE，便于单测和确定性检查。没有可用名称/墙面时返回 null。
@@ -398,16 +440,14 @@ export function buildBuildingSigns(scene, options = {}) {
   // 分块与名称索引只依赖建筑数据；纹理和几何在 update 时按距离产生。
   const chunkBuildings = new Map();
   const nameCells = new Map();
+  const compoundByChunk = new Map();
   const chunkKeyOf = (x, z) => `${Math.floor(x / SIGN_CHUNK_SIZE)},${Math.floor(z / SIGN_CHUNK_SIZE)}`;
-  for (const building of buildings) {
+  const displayNameByBuilding = new Map();
+
+  // 把具名楼加入 HUD 索引；同一栋可能跨多个 200m 索引格。
+  function addNameCellEntry(building, display) {
     const cx = Number.isFinite(building?.cx) ? building.cx : (building?.minX + building?.maxX) / 2;
     const cz = Number.isFinite(building?.cz) ? building.cz : (building?.minZ + building?.maxZ) / 2;
-    if (!Number.isFinite(cx) || !Number.isFinite(cz)) continue;
-    const key = chunkKeyOf(cx, cz);
-    if (!chunkBuildings.has(key)) chunkBuildings.set(key, []);
-    chunkBuildings.get(key).push(building);
-    const display = buildingDisplayName(building);
-    if (!display) continue;
     const minX = Number.isFinite(building.minX) ? building.minX : cx;
     const maxX = Number.isFinite(building.maxX) ? building.maxX : cx;
     const minZ = Number.isFinite(building.minZ) ? building.minZ : cz;
@@ -419,6 +459,78 @@ export function buildBuildingSigns(scene, options = {}) {
         nameCells.get(cellKey).push({ building, display, minX, maxX, minZ, maxZ });
       }
     }
+  }
+
+  for (const building of buildings) {
+    const cx = Number.isFinite(building?.cx) ? building.cx : (building?.minX + building?.maxX) / 2;
+    const cz = Number.isFinite(building?.cz) ? building.cz : (building?.minZ + building?.maxZ) / 2;
+    if (!Number.isFinite(cx) || !Number.isFinite(cz)) continue;
+    const key = chunkKeyOf(cx, cz);
+    if (!chunkBuildings.has(key)) chunkBuildings.set(key, []);
+    chunkBuildings.get(key).push(building);
+    const display = buildingDisplayName(building);
+    displayNameByBuilding.set(building, display);
+    if (display) addNameCellEntry(building, display);
+  }
+
+  // 小区门牌：只有单元号的住宅楼按 90m 邻域归到具名住宅；至少两栋才成一个小区。
+  // 名称与归属是显示推断，不回写源数据，也不改变每栋楼的入口牌规则。
+  function buildCompoundClusters() {
+    const anchors = [];
+    const unitOnly = [];
+    for (const building of buildings) {
+      if (!building || building.facade === 'landmark' || !isResidential(building)
+        || typeof building.name !== 'string' || !building.name.trim()) continue;
+      if (!Number.isFinite(building.cx) || !Number.isFinite(building.cz)) continue;
+      const display = displayNameByBuilding.get(building);
+      if (display) {
+        // 只把像住宅小区的名字当锚点；机构名仍保留这栋楼自己的入口牌。
+        if (!INSTITUTION_NAME.test(display)) anchors.push({ display, building, x: building.cx, z: building.cz });
+      } else unitOnly.push(building);
+    }
+    if (!anchors.length || !unitOnly.length) return;
+    const anchorCells = new Map();
+    for (const anchor of anchors) {
+      const key = `${Math.floor(anchor.x / COMPOUND_CELL)},${Math.floor(anchor.z / COMPOUND_CELL)}`;
+      if (!anchorCells.has(key)) anchorCells.set(key, []);
+      anchorCells.get(key).push(anchor);
+    }
+    const clusters = new Map();
+    for (const member of unitOnly) {
+      let best = null;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const key = `${Math.floor(member.cx / COMPOUND_CELL) + dx},${Math.floor(member.cz / COMPOUND_CELL) + dz}`;
+          for (const anchor of anchorCells.get(key) || []) {
+            const distance = Math.hypot(anchor.x - member.cx, anchor.z - member.cz);
+            if (distance > COMPOUND_RADIUS) continue;
+            if (!best || distance < best.distance) best = { anchor, distance };
+          }
+        }
+      }
+      if (!best) continue;
+      // 同一显示名 + 200m 格视为同一小区，避免一个小区立多块门牌。
+      const clusterKey = `${best.anchor.display}|${Math.floor(best.anchor.x / 200)},${Math.floor(best.anchor.z / 200)}`;
+      let cluster = clusters.get(clusterKey);
+      if (!cluster) {
+        cluster = { name: best.anchor.display, anchor: best.anchor.building, members: [] };
+        clusters.set(clusterKey, cluster);
+      }
+      cluster.members.push(member);
+    }
+    let count = 0;
+    for (const cluster of clusters.values()) {
+      if (cluster.members.length < COMPOUND_MIN_MEMBERS) continue;
+      let sx = 0;
+      let sz = 0;
+      for (const member of cluster.members) { sx += member.cx; sz += member.cz; }
+      const key = chunkKeyOf(sx / cluster.members.length, sz / cluster.members.length);
+      if (!compoundByChunk.has(key)) compoundByChunk.set(key, []);
+      compoundByChunk.get(key).push(cluster);
+      for (const member of cluster.members) addNameCellEntry(member, cluster.name);
+      count++;
+    }
+    statistics.compoundClusters = count;
   }
 
   let roadIndex = null;
@@ -434,8 +546,9 @@ export function buildBuildingSigns(scene, options = {}) {
   let textureClock = 0;
   let lastNight = -1;
   let disposed = false;
-  const statistics = { signs: 0, textures: 0, chunks: 0, updateMs: 0,
+  const statistics = { signs: 0, textures: 0, chunks: 0, updateMs: 0, compounds: 0, compoundClusters: 0,
     texturesCreated: 0, texturesDisposed: 0, namedBuildings: buildings.filter(b => buildingDisplayName(b)).length };
+  buildCompoundClusters();
 
   function chunkCenter(key) {
     const [cx, cz] = key.split(',').map(Number);
@@ -511,7 +624,7 @@ export function buildBuildingSigns(scene, options = {}) {
       entry.refs++;
       return entry.geometry;
     }
-    const geometry = kind === 'roof'
+    const geometry = kind === 'roof' || kind === 'compound'
       ? doubleSidedPanelGeometry(width, height)
       : new THREE.PlaneGeometry(width, height);
     entry = { geometry, refs: 1 };
@@ -536,8 +649,9 @@ export function buildBuildingSigns(scene, options = {}) {
       const chunkGroup = new THREE.Group();
       chunkGroup.name = `BuildingSigns:${key}`;
       group.add(chunkGroup);
-      state = { key, group: chunkGroup, entrance: [], roof: [], entranceDone: false, roofDone: false,
-        entranceCursor: 0, roofCursor: 0 };
+      state = { key, group: chunkGroup, entrance: [], roof: [], compound: [],
+        entranceDone: false, roofDone: false, compoundDone: false,
+        entranceCursor: 0, roofCursor: 0, compoundCursor: 0 };
       chunks.set(key, state);
     }
     return state;
@@ -574,11 +688,40 @@ export function buildBuildingSigns(scene, options = {}) {
     if (cursor >= list.length) state[`${kind}Done`] = true;
   }
 
+  // 小区门牌：和入口牌同半径生成，每块每帧受同一预算限制。
+  function generateCompounds(state, budget) {
+    if (state.compoundDone) return;
+    const list = compoundByChunk.get(state.key) || [];
+    let cursor = state.compoundCursor;
+    for (; cursor < list.length; cursor++) {
+      if (budget.remaining <= 0 || !canCreateTextures) break;
+      const spec = planCompoundSign(list[cursor], { ...options, roadIndex: getRoadIndex() });
+      if (!spec) continue;
+      const texture = acquireTexture(spec);
+      if (!texture) continue;
+      budget.remaining--;
+      const material = acquireMaterial(texture.key, texture.texture, 'compound');
+      const geometry = acquireGeometry('compound', spec.width, spec.height);
+      const mesh = new THREE.Mesh(geometry, material.material);
+      mesh.name = `BuildingSign:compound:${list[cursor].name}`;
+      mesh.position.set(spec.x, spec.y, spec.z);
+      mesh.rotation.y = spec.rotationY;
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      mesh.userData.sign = { kind: 'compound', buildingId: null, name: spec.name, compound: true };
+      state.group.add(mesh);
+      state.compound.push({ mesh, textureKey: texture.key, spec });
+    }
+    state.compoundCursor = cursor;
+    if (cursor >= list.length) state.compoundDone = true;
+  }
+
   function generateChunk(key, wantEntrance, wantRoof, budget) {
     const state = ensureChunkState(key);
     const list = chunkBuildings.get(key) || [];
     if (wantEntrance) generateKind(state, 'entrance', list, budget);
     if (wantRoof) generateKind(state, 'roof', list, budget);
+    if (wantEntrance) generateCompounds(state, budget);
   }
 
   function disposeSigns(state, kind) {
@@ -594,8 +737,8 @@ export function buildBuildingSigns(scene, options = {}) {
   }
 
   function pruneChunk(state) {
-    if (state.entrance.length || state.roof.length) return;
-    if (!state.entranceDone && !state.roofDone) {
+    if (state.entrance.length || state.compound.length || state.roof.length) return;
+    if (!state.entranceDone && !state.compoundDone && !state.roofDone) {
       group.remove(state.group);
       chunks.delete(state.key);
     }
@@ -624,12 +767,15 @@ export function buildBuildingSigns(scene, options = {}) {
   function refreshStatistics() {
     let signs = 0;
     let activeChunks = 0;
+    let compounds = 0;
     for (const state of chunks.values()) {
-      const count = state.entrance.length + state.roof.length;
+      const count = state.entrance.length + state.roof.length + state.compound.length;
       signs += count;
+      compounds += state.compound.length;
       if (count) activeChunks++;
     }
     statistics.signs = signs;
+    statistics.compounds = compounds;
     statistics.textures = textureCache.size;
     statistics.chunks = activeChunks;
   }
@@ -651,11 +797,14 @@ export function buildBuildingSigns(scene, options = {}) {
       if (state.entrance.length && distance > ENTRANCE_UNLOAD_RADIUS) {
         operations.push({ type: 'unload', kind: 'entrance', state, distance });
       }
+      if (state.compound.length && distance > ENTRANCE_UNLOAD_RADIUS) {
+        operations.push({ type: 'unload', kind: 'compound', state, distance });
+      }
       if (state.roof.length && distance > ROOF_UNLOAD_RADIUS) {
         operations.push({ type: 'unload', kind: 'roof', state, distance });
       }
       // 远到连屋顶牌都卸载了，就把空块状态也删掉，避免跨城长跑后块表无限增长。
-      if (!state.entrance.length && !state.roof.length && distance > ROOF_UNLOAD_RADIUS) {
+      if (!state.entrance.length && !state.compound.length && !state.roof.length && distance > ROOF_UNLOAD_RADIUS) {
         group.remove(state.group);
         chunks.delete(state.key);
       }
@@ -672,8 +821,11 @@ export function buildBuildingSigns(scene, options = {}) {
         if (distance > ROOF_RADIUS || !chunkBuildings.has(key)) continue;
         const state = chunks.get(key);
         const wantEntrance = distance <= ENTRANCE_RADIUS && !(state && state.entranceDone);
+        const wantCompound = distance <= ENTRANCE_RADIUS && !(state && state.compoundDone);
         const wantRoof = !(state && state.roofDone);
-        if (wantEntrance || wantRoof) operations.push({ type: 'load', key, distance, entrance: wantEntrance, roof: wantRoof });
+        if (wantEntrance || wantCompound || wantRoof) {
+          operations.push({ type: 'load', key, distance, entrance: wantEntrance || wantCompound, roof: wantRoof });
+        }
       }
     }
     operations.sort((a, b) => {
@@ -725,6 +877,7 @@ export function buildBuildingSigns(scene, options = {}) {
     disposed = true;
     for (const state of chunks.values()) {
       disposeSigns(state, 'entrance');
+      disposeSigns(state, 'compound');
       disposeSigns(state, 'roof');
       group.remove(state.group);
     }

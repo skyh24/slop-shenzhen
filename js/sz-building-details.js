@@ -437,6 +437,8 @@ function planBalconies(building, edges, placement, rand, facade, floorHeight, fl
       columns.push(t);
     }
     if (!columns.length) continue;
+    // 高层住宅的阳台从 2 层起，给首层入口牌和雨棚留出净空；低层住宅仍从 1 层起。
+    const firstBalconyFloor = building.height >= 24 ? 2 : 1;
     let placed = false;
     for (const t of columns) {
       const wx = edge.ax + edge.ux * t;
@@ -444,7 +446,7 @@ function planBalconies(building, edges, placement, rand, facade, floorHeight, fl
       // 同一列竖向位置相同，只需按整列高度查一次邻楼，避免逐层重复检测。
       if (blockedByNeighbours(options.neighbours, building, wx + edge.outX * depth * 0.5, wz + edge.outZ * depth * 0.5,
         width, depth, edge.ux, -edge.uz, placement.minY + floorHeight, wallTop)) continue;
-      for (let floor = 1; floor < floors; floor++) {
+      for (let floor = firstBalconyFloor; floor < floors; floor++) {
         const y = placement.minY + floorHeight * floor;
         if (y + 1.1 > wallTop) break;
         if (balconies.length >= MAX_BALCONIES) break;
@@ -660,12 +662,18 @@ function appendBalcony(b, balcony) {
   const uz = Math.sin(yaw);
   // 外挑板
   addBox(b, x + outX * d * 0.5, y - 0.08, z + outZ * d * 0.5, w, 0.16, d, yaw);
-  // 正面栏杆
-  addBox(b, x + outX * (d - 0.05), y + 0.5, z + outZ * (d - 0.05), w, 1.0, 0.08, yaw);
-  // 两侧栏杆
+  // 正面做镂空栏杆：上下横杆 + 三根立柱，近看能透光，不再是一块实心方盒。
+  // 栏杆件只有这一列阳台会用到；单块三角面超预算时由分块裁剪器整体减楼。
+  addBox(b, x + outX * (d - 0.05), y + 0.13, z + outZ * (d - 0.05), w, 0.07, 0.06, yaw);
+  addBox(b, x + outX * (d - 0.03), y + 0.9, z + outZ * (d - 0.03), w, 0.06, 0.12, yaw);
+  for (const offset of [-1, 0, 1]) {
+    addBox(b, x + ux * offset * (w / 2 - 0.25) + outX * (d - 0.05), y + 0.52,
+      z + uz * offset * (w / 2 - 0.25) + outZ * (d - 0.05), 0.06, 0.78, 0.06, yaw);
+  }
+  // 两侧栏板保留薄板，挡住栏杆端头。
   for (const sign of [-1, 1]) {
-    addBox(b, x + ux * sign * (w / 2 - 0.05) + outX * d * 0.5, y + 0.5,
-      z + uz * sign * (w / 2 - 0.05) + outZ * d * 0.5, 0.08, 1.0, d, yaw);
+    addBox(b, x + ux * sign * (w / 2 - 0.04) + outX * d * 0.5, y + 0.42,
+      z + uz * sign * (w / 2 - 0.04) + outZ * d * 0.5, 0.06, 0.84, d, yaw);
   }
 }
 

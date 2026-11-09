@@ -250,8 +250,10 @@ export function createBuildingMaterial({ showLandmarkLights = false } = {}) {
   const light = mix(probability.mul(num(0.26)), lit, detail);
   const windowColor = mix(color(0xd7e6ff), color(0xffc58b), warmth);
   const windowGlow = windowColor.mul(glazed).mul(light).mul(night).mul(num(0.8));
+  // 首层灯光压暗并按套间变化：原来整条店面同样亮，夜景里像一条发光带。
   const groundGlow = mix(color(0xd9e6f0), color(0xffd49a), warmth)
-    .mul(groundGlass.add(groundDoor.mul(num(0.7)))).mul(num(0.5)).mul(night);
+    .mul(groundGlass.add(groundDoor.mul(num(0.7)))).mul(num(0.34))
+    .mul(occupancy.mul(num(0.45)).add(num(0.55))).mul(night);
   m.emissiveNode = windowGlow.add(groundGlow);
 
   if (showLandmarkLights) {
