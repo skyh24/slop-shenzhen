@@ -1,5 +1,5 @@
 {
-  "status": "audit-only",
+  "status": "audit-only except fabdem-bristol-v1.2 adopted for the derived road-surface corridor (still not a global terrain replacement)",
   "checkedAt": "2026-11-09",
   "localEvidence": [
     {
@@ -83,7 +83,8 @@
           "bytes": 13929353,
           "sha256": "328281e83e64814004dc602bac865caf8d5a5bc143aca49bb96cc26226a4b94d"
         }
-      ]
+      ],
+      "usage": "adopted 2026-11-09 as the baseline for the derived road-surface corridor only (tools/sz/road_surface.py, build-report roadSurface); global terrain remains Copernicus DSM. Non-commercial license."
     },
     {
       "id": "alos-jaxa-aw3d30-v3.2",

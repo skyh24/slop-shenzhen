@@ -1,6 +1,6 @@
 {
   "generated": "2026-11-09",
-  "note": "Pre-APEC snapshot set. Re-fetch OSM after 2026-11-19 (APEC leaders' meeting) and diff counts in build-report.json.",
+  "note": "Pre-APEC snapshot set. Re-fetch OSM after 2026-11-19 (APEC leaders' meeting) and diff counts in build-report.json. FABDEM V1-2 (CC BY-NC-SA, non-commercial) is used only as the labelled baseline for the derived road-surface corridor; it is not a global terrain replacement.",
   "bbox": {
     "west": 113.88,
     "south": 22.455,
@@ -653,6 +653,31 @@
       "alsoInVersions": [
         7
       ]
+    },
+    {
+      "id": "fabdem-bristol-v1.2-road-surface",
+      "productType": "modelled DTM with buildings and forest removed, derived from Copernicus GLO-30",
+      "verticalDatum": "EGM2008",
+      "spacingArcsec": 1,
+      "acquisition": "source GLO-30 mainly 2011-2015; FABDEM release 2023-01",
+      "license": "CC BY-NC-SA 4.0 plus Copernicus attribution terms; non-commercial use only",
+      "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+      "reference": "https://research-information.bris.ac.uk/en/datasets/fabdem-v1-2/",
+      "licenseReference": "https://data.bris.ac.uk/datasets/s5hqmjcdj8yo2ibzi9b4ew3sn/readme.txt",
+      "files": [
+        {
+          "path": "data/raw/terrain/audit/N22E113_FABDEM_V1-2.tif",
+          "bytes": 15527400,
+          "sha256": "1d37c8c7f4f23b72b5cca337994113100db7758973ae51bfbf4a97d3307960dc"
+        },
+        {
+          "path": "data/raw/terrain/audit/N22E114_FABDEM_V1-2.tif",
+          "bytes": 13929353,
+          "sha256": "328281e83e64814004dc602bac865caf8d5a5bc143aca49bb96cc26226a4b94d"
+        }
+      ],
+      "downloadedAt": "2026-11-09",
+      "usage": "Baseline only for the explicitly derived road corridor surface (tools/sz/road_surface.py). Never replaces the global terrain; raw Copernicus DSM heights are preserved outside the road corridor and recorded before/after in build-report.json."
     }
   ]
 }
