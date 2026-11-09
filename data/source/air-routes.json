@@ -1,16 +1,164 @@
 {
-  "version": 2,
+  "version": 3,
   "verifiedAt": "2026-11-09",
-  "status": "no-operational-track-verified",
-  "note": "已撤除MVP虚构的8条配送航线、站点配对及载人机自动环游。公开航线、站点和表演证据见air-evidence.json；端点描述不等于已核实航迹。",
-  "droneCruiseAltitude": null,
-  "droneStations": [],
-  "droneRoutes": [],
+  "status": "source-endpoints-schematic-tracks",
+  "note": "端点有公开来源、航迹与巡航高度为示意；没有公开的真实航迹，不得写成实测。已撤除 MVP 虚构航线，见 docs/research/drone-routes.md。",
+  "droneCruiseAltitude": {
+    "valueM": 100,
+    "source": "estimate",
+    "note": "配送巡航高度无公开来源；100 m 是画面取舍（高于一般天桥/树冠与 100 m 以下楼群），量级参考 2018 年深圳'追梦'晚会'造型离地百米'报道。"
+  },
+  "apecSuspension": {
+    "windows": [
+      {
+        "from": "2026-11-07",
+        "to": "2026-11-10",
+        "areas": "福田区、南山区",
+        "sourceUrl": "https://m.bendibao.com/show1015411.html",
+        "sourcePublisher": "深圳本地宝（转深圳市人民政府通告）",
+        "sourcePublishedAt": "2026-11-03",
+        "verifiedAt": "2026-11-09"
+      },
+      {
+        "from": "2026-11-11",
+        "to": "2026-11-21",
+        "areas": "全市（不含深汕特别合作区）",
+        "sourceUrl": "https://m.bendibao.com/show1015411.html",
+        "sourcePublisher": "深圳本地宝（转深圳市人民政府通告）",
+        "sourcePublishedAt": "2026-11-03",
+        "verifiedAt": "2026-11-09"
+      }
+    ],
+    "operatorNotice": {
+      "text": "美团无人机深圳 11-11 至 11-21 暂停运营",
+      "sourceUrl": "https://m.bendibao.com/show1015599.html",
+      "sourcePublisher": "深圳本地宝",
+      "sourcePublishedAt": "2026-11-09",
+      "verifiedAt": "2026-11-09"
+    }
+  },
+  "droneStations": [
+    {
+      "id": "meituan-tidal-plaza",
+      "name": "美团无人机·人才公园潮汐广场",
+      "operator": "美团无人机",
+      "kind": "landing",
+      "x": -11404.6,
+      "z": 3607.8,
+      "coordinateSource": "OSM 人才公园中心代理（潮汐广场精确柜位未公开）",
+      "coordinatePrecisionM": 250,
+      "confidence": "endpoints-high suspension-high",
+      "sourceUrls": [
+        "https://www.szns.gov.cn/bsfw/hlwzwfw/zwdt_140139/content/post_10830667.html",
+        "https://www.meituan.com/news/NN230904058001287"
+      ],
+      "sourcePublisher": "深圳市南山区政府、美团新闻",
+      "sourcePublishedAt": "2023-09-12",
+      "verifiedAt": "2026-11-09"
+    },
+    {
+      "id": "meituan-coastcity",
+      "name": "美团无人机·海岸城商圈起飞点",
+      "operator": "美团无人机",
+      "kind": "takeoff",
+      "x": -12771.7,
+      "z": 2882.2,
+      "coordinateSource": "海岸城购物中心 OSM relation/8841461（精确起飞柜位未公开）",
+      "coordinatePrecisionM": 200,
+      "confidence": "endpoints-high suspension-high",
+      "sourceUrls": [
+        "https://www.szns.gov.cn/bsfw/hlwzwfw/zwdt_140139/content/post_10830667.html",
+        "https://www.meituan.com/news/NN230904058001287"
+      ],
+      "sourcePublisher": "深圳市南山区政府、美团新闻",
+      "sourcePublishedAt": "2023-09-12",
+      "verifiedAt": "2026-11-09"
+    },
+    {
+      "id": "meituan-center-park",
+      "name": "美团无人机·中心公园（C2 区位置未公开）",
+      "operator": "美团无人机",
+      "kind": "park",
+      "x": 1625.0,
+      "z": -212.0,
+      "coordinateSource": "OSM way/604205294 公园标注面中心，C2 具体位置未公开",
+      "coordinatePrecisionM": 600,
+      "confidence": "points-medium vertices-low",
+      "sourceUrls": [
+        "https://m.bendibao.com/show1015599.html",
+        "https://k.sina.com.cn/article_5787187353_158f1789902002als2.html?from=tech"
+      ],
+      "sourcePublisher": "深圳本地宝、羊城派",
+      "sourcePublishedAt": "2026-11-09",
+      "verifiedAt": "2026-11-09"
+    },
+    {
+      "id": "meituan-lianhuashan",
+      "name": "美团无人机·莲花山公园（公园级近似）",
+      "operator": "美团无人机",
+      "kind": "park",
+      "x": -128.5,
+      "z": -1148.0,
+      "coordinateSource": "莲花山公园 OSM 中心（data/source/landmarks.json）",
+      "coordinatePrecisionM": 300,
+      "confidence": "points-medium vertices-low",
+      "sourceUrls": [
+        "https://m.bendibao.com/show1015599.html",
+        "https://k.sina.com.cn/article_5787187353_158f1789902002als2.html?from=tech"
+      ],
+      "sourcePublisher": "深圳本地宝、羊城派",
+      "sourcePublishedAt": "2026-11-09",
+      "verifiedAt": "2026-11-09"
+    }
+  ],
+  "droneRoutes": [
+    {
+      "id": "meituan-talent-coastcity",
+      "name": "人才公园潮汐广场 ⇄ 海岸城商圈（美团无人机常态化航线）",
+      "operator": "美团无人机",
+      "fromStationId": "meituan-coastcity",
+      "toStationId": "meituan-tidal-plaza",
+      "lengthM": 1548,
+      "trackStatus": "schematic",
+      "altitudeM": 100,
+      "altitudeSource": "estimate",
+      "confidence": "endpoints-high track-schematic",
+      "sourceUrls": [
+        "https://www.meituan.com/news/NN230904058001287",
+        "https://www.szns.gov.cn/bsfw/hlwzwfw/zwdt_140139/content/post_10830667.html"
+      ],
+      "sourcePublisher": "美团新闻、深圳市南山区政府",
+      "sourcePublishedAt": "2023-09-04",
+      "verifiedAt": "2026-11-09",
+      "note": "运营方称约 1 km，量的是起飞点到公园内下单位置；两端直线约 1.5 km。"
+    },
+    {
+      "id": "meituan-center-park-lianhuashan",
+      "name": "中心公园 C2 ⇄ 莲花山公园（美团福田航线群，端点配对为低置信度）",
+      "operator": "美团无人机",
+      "fromStationId": "meituan-center-park",
+      "toStationId": "meituan-lianhuashan",
+      "lengthM": 1988,
+      "trackStatus": "schematic",
+      "altitudeM": 100,
+      "altitudeSource": "estimate",
+      "confidence": "points-medium vertices-low track-schematic",
+      "sourceUrls": [
+        "https://m.bendibao.com/show1015599.html",
+        "https://k.sina.com.cn/article_5787187353_158f1789902002als2.html?from=tech"
+      ],
+      "sourcePublisher": "深圳本地宝、羊城派",
+      "sourcePublishedAt": "2026-11-09",
+      "verifiedAt": "2026-11-09",
+      "note": "福田区共有 10 条航线、媒体只列点位未给端点配对；C2 区具体位置未公开，端点用公园标注面近似。"
+    }
+  ],
   "evtolLoop": null,
   "evidenceFile": "data/source/air-evidence.json",
   "unresolved": [
-    "起降点逐站影像复核和30米位置精度",
-    "配送航线逐点路径与飞行高度",
-    "2026年11月当前运营或停运状态"
+    "起降点逐站影像复核和 30 米位置精度",
+    "配送航线逐点路径与真实飞行高度",
+    "2026-11 之后当前运营或停运状态的持续复核",
+    "中心公园 C2 区具体位置与取餐柜位置"
   ]
 }

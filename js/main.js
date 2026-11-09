@@ -16,6 +16,7 @@ import { buildSzStreetLamps } from './sz-street-lamps.js';
 import { buildSzTrees } from './sz-trees.js';
 import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
+import { buildSzDroneRoutes } from './sz-drone-routes.js';
 import { gatePoint, gateYaw, gateDeckY, flowerSeaAnchor, flowerSeaDeckY } from './sz-landmarks/iec-xiangmihu.js';
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
@@ -228,9 +229,11 @@ async function initApp() {
     ? buildXiliConstruction(scene, GEO.sites['xili-station'].site, {
       groundHeight: ground.groundHeight, isWater
     }) : null;
+  // 无人机航线：端点来自 air 段公开来源；航迹示意，会期低空管控时停在站点。
+  const drones = buildSzDroneRoutes(scene, { air: GEO.air, terrain: GEO.terrain });
   if (qa) {
     window.__szLamps = streetLamps; window.__szTrees = trees; window.__szApec = apecTheme;
-    window.__szApecCity = apecCity;
+    window.__szApecCity = apecCity; window.__szDrones = drones;
     window.__szMetroEntrances = metroEntrances; window.__szFutian = futianStation; window.__szXili = xiliConstruction;
   }
   const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...trees.colliders,
@@ -967,6 +970,7 @@ async function initApp() {
     trees.update(cameraSystem.camera.position);
     apecTheme.update(dt, lightingSystem.uNightFactor.value);
     apecCity.update(dt, lightingSystem.uNightFactor.value);
+    drones.update(dt);
     metroEntrances.update(cameraSystem.currentPos);
     futianStation?.update(cameraSystem.currentPos);
     xiliConstruction?.update();

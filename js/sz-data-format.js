@@ -72,6 +72,42 @@ function validateTrees(trees) {
   requireData(trees.limitations === undefined || Array.isArray(trees.limitations), 'trees limitations');
 }
 
+function validateAir(air) {
+  if (air === undefined) return;
+  requireData(air?.version >= 3 && typeof air.verifiedAt === 'string'
+    && ['source-endpoints-schematic-tracks', 'no-operational-track-verified'].includes(air.status), 'air routes header');
+  const stations = defs => {
+    requireData(Array.isArray(defs) && defs.length > 0, 'air drone stations');
+    const ids = new Set();
+    for (const station of defs) {
+      requireData(typeof station?.id === 'string' && station.id.length > 0 && !ids.has(station.id)
+        && typeof station.name === 'string' && station.name.length > 0
+        && typeof station.operator === 'string' && Number.isFinite(station.x) && Number.isFinite(station.z)
+        && typeof station.coordinateSource === 'string'
+        && Array.isArray(station.sourceUrls) && station.sourceUrls.length > 0
+        && station.sourceUrls.every(url => /^https?:\/\//.test(url))
+        && typeof station.verifiedAt === 'string', 'air drone station');
+      ids.add(station.id);
+    }
+    return ids;
+  };
+  const stationIds = stations(air.droneStations);
+  requireData(Array.isArray(air.droneRoutes) && air.droneRoutes.length > 0, 'air drone routes');
+  for (const route of air.droneRoutes) {
+    requireData(typeof route?.id === 'string' && typeof route.name === 'string'
+      && stationIds.has(route.fromStationId) && stationIds.has(route.toStationId)
+      && Number.isFinite(route.lengthM) && route.lengthM > 0
+      && route.trackStatus === 'schematic'
+      && Number.isFinite(route.altitudeM) && route.altitudeM > 0 && route.altitudeSource === 'estimate'
+      && Array.isArray(route.sourceUrls) && route.sourceUrls.length > 0
+      && typeof route.verifiedAt === 'string', 'air drone route');
+  }
+  const suspension = air.apecSuspension;
+  requireData(suspension && Array.isArray(suspension.windows) && suspension.windows.length > 0
+    && suspension.windows.every(window => typeof window.from === 'string' && typeof window.to === 'string'
+      && window.from <= window.to && typeof window.sourceUrl === 'string'), 'air APEC suspension');
+}
+
 function validateSites(sites) {
   if (sites === undefined) return;
   requireData(sites?.version === 1 && sites.source === 'osm-guangdong'
@@ -231,6 +267,7 @@ export function validateCityPayload(raw) {
   validateStreetscape(raw.streetscape, raw.parks ?? []);
   validateTrees(raw.trees);
   validateSites(raw.sites);
+  validateAir(raw.air);
   for (let i = 0; i < buildings.h.length; i++) {
     requireData(typeof buildings.id[i] === 'string' && buildings.id[i].length > 0, 'building identity');
     requireData(Number.isFinite(buildings.h[i]) && Number.isFinite(buildings.minH[i])
@@ -319,6 +356,7 @@ export function decodeCityPayload(raw) {
     streetscape: raw.streetscape ?? null,
     trees: raw.trees ?? null,
     sites: decodeSites(raw.sites),
+    air: raw.air ?? null,
     parks: (raw.parks ?? []).map(park => ({ ...park, areas: park.areas.map(area => ({ ...area, polygon: polygon(area.polygon) })) }))
   } };
 }

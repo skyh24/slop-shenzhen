@@ -29,6 +29,8 @@ const MAP = {
   bridge: '#c08a3e',
   route: '#ffc21a',
   rail: '#6f93c9',
+  droneRoute: '#7fd0ff',
+  droneStation: '#ffcf6b',
   railFill: 'rgba(111, 147, 201, 0.20)',
   search: '#5fd0ff',
   halo: 'rgba(8, 11, 15, 0.9)'
@@ -262,6 +264,20 @@ function mapLayers() {
     }
     const points = polygons.flatMap(polygon => polygon.outer);
     layers.hsr.push({ ...station, path, bounds: boundsOf(points) });
+  }
+  // 无人机航线图层：端点来自 air 段（有来源+核实日期），航迹是两端直线示意。
+  layers.drones = { routes: [], stations: [] };
+  if (GEO.air?.droneStations && GEO.air?.droneRoutes) {
+    const stationById = new Map(GEO.air.droneStations.map(station => [station.id, station]));
+    layers.drones.stations = GEO.air.droneStations.map(station => ({ ...station, bounds: boundsOf([station]) }));
+    for (const route of GEO.air.droneRoutes) {
+      const from = stationById.get(route.fromStationId);
+      const to = stationById.get(route.toStationId);
+      if (!from || !to) continue;
+      const path = new Path2D();
+      addLine(path, [from, to]);
+      layers.drones.routes.push({ ...route, path, bounds: boundsOf([from, to]), from, to });
+    }
   }
   const metroColours = new Map((GEO.metro?.lines || []).map(line => [line.ref, line.colour]));
   layers.metro = (GEO.metro?.segments || []).map(segment => {

@@ -1,13 +1,13 @@
 # 当前交接：Slop Shenzhen
 
-更新：2026-11-10 凌晨（round 3）。正式入口可运行深圳。九条硬性要求仍无一条整体验收通过，M9 未通过，因此没有 baseline 标签。历史交接见[HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md)，本轮证据见 `docs/qa/round2/README.md`（本地）。
+更新：2026-11-10 凌晨（round 4）。正式入口可运行深圳。九条硬性要求仍无一条整体验收通过，M9 未通过，因此没有 baseline 标签。历史交接见[HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md)，本轮证据见 `docs/qa/round2/README.md`（本地）。
 
 ## 1. 当前状态
 
 - 分支 `dsh-42a55797-ff5c`（工作树 `.agents/worktrees/`）；main 已含 round 1（`3117db1`）。
-- 共享包 `js/sz-city.json.gz`：6,951,369 B；SHA-256 `005f69260f932f06070dbdd936db9b7e8cd4e0aef965a7cf572197548ca6ff14`。
+- 共享包 `js/sz-city.json.gz`：6,957,206 B；SHA-256 `bd70c3553c99e3ac6d6aacd0856677742f7e0573d56451085cc45b1af6a4d8bf`（新增 `air` 无人机航线数据）。
 - 38,057 建筑、58,773 树、534 地面块 / 386,824 三角；新增 `sites` 段：21 个地标 / 43 个 OSM 场地对象。
-- 测试：Node **418 pass / 0 fail / 0 skip**（Three 0.187.0）；Python **97 OK**。
+- 测试：Node **423 pass / 0 fail / 0 skip**（Three 0.187.0）；Python **97 OK**。
 - 构建：`.venv/bin/python tools/sz/build.py` 缓存命中约 54 s；`--no-cache` 重读 PBF。
 
 ## 2. round 2 已交付（保留）
@@ -36,10 +36,20 @@
 
 **M9 部分采样**：2560×1440 下 drawCalls 448–474、三角 ≤1.91 M，在预算内；但自动化浏览器被 Chromium 节流到 30 Hz（A/B 隐藏组 p50 恒 33.3 ms），FPS 不能作为 M9 证据，需可见窗口 60 Hz、≥60 s/段、冷热各 5 次重测。
 
+## 2c. 本轮新增（round 4）
+
+| 项 | 结果 | 等级 |
+| --- | --- | --- |
+| 无人机航线（硬性要求 3） | `data/source/air-routes.json` v3：4 站点/2 航线，全部带 sourceUrls+verifiedAt；`trackStatus='schematic'`、`altitudeSource='estimate'`；`js/sz-drone-routes.js` 2×2 架四旋翼 100 m 往返，APEC 管控窗口自动停在起降点；`air` 段随共享包发布（6,957,206 B），运行时解码并校验 | L4（地图画面可见）；L5（降落/取餐）未做 |
+| 无人机地图图层 | 全图「无人机」开关：示意航线虚线 + 4 个来源站点，放大后显示核实日期；小程序标签防压字 | L4 |
+| APEC 管控停运 | 2026-11-07~11-10 福田+南山、11-11~11-21 全市窗口来自市政府通告；2026-11-10 实测 `suspended=true` | L3 |
+
+**数据变更**：本轮重建共享包（air 段），无 PBF 变化；`data/source/air-routes.json`、`js/sz-city.json.gz`、`data/source/build-report.json` 一起更新。
+
 ## 3. 下一步（按优先级）
 
-1. **无人机可见航线（硬性要求 3）**：按 `docs/research/drone-routes.md` 的 R1（人才公园—海岸城，约 1.5 km）/R2（中心公园 C2—莲花山，约 2.1 km）建示意航线与起降点，标 `estimate` 与来源/核实日期；会期 11-11~11-21 停运状态要能显示。缺少真实航迹，不能写成实测。
-2. **L5 实走**：用真实 Chrome/Edge 打开 <http://127.0.0.1:8080/>，按 `docs/qa/round3/README.md` 复核新模型/大屏/围挡近景，走一遍地铁出入口与西丽围挡，记录碰撞/通行断点。
+1. **L5 实走**：用真实 Chrome/Edge 打开 <http://127.0.0.1:8080/>，复核无人机站点/航线（管控期停运）、APEC 大屏、地铁出入口、西丽围挡近景，走一遍碰撞/通行并记录断点。
+2. **无人机细节（可选）**：人才公园潮汐广场取餐柜/降落场景、空中视角看 100 m 航线；仍需标注航迹/高度为示意。
 3. **真实地面依据**：2025 地形图 / 2024 LiDAR 申请；派生路面仍是估计（接缝最大新增高差 4.1 m）。
 4. **APEC 剩余**：会展 2 号馆媒体中心细部、公交涂装、候车亭海报、夜景灯光秀联动；会期 11-11 起默认开关自动打开，需复测。
 5. **超级总部/国际交流中心细节**：C 塔幕墙分格、双塔平面旋转、连廊双幅桥面；IEC 实景对照、酒店塔数与高度复核；两处都缺施工图，维持 estimate。

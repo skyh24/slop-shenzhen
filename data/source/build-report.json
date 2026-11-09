@@ -1036,8 +1036,8 @@
   "globfpCandidates": 51434,
   "globfpMisidentified": {
     "rule": "GloBFP-only, area<300 m2, and (>= 60% inside OSM plaza/green or >= 80% inside ground carriageway buffer 1 m)",
-    "count": 595,
-    "areaM2": 67744.8,
+    "count": 578,
+    "areaM2": 65924.9,
     "objects": [
       {
         "id": "globfp/554",
@@ -1383,8 +1383,8 @@
         "areaM2": 104.3,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/1347507368",
           "plaza-or-green:way/571629098",
+          "plaza-or-green:way/1347507368",
           "road:way/883827047"
         ]
       },
@@ -1393,8 +1393,8 @@
         "areaM2": 48.3,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/1347507366",
           "plaza-or-green:way/571629098",
+          "plaza-or-green:way/1347507366",
           "road:way/357765495"
         ]
       },
@@ -1491,9 +1491,8 @@
       {
         "id": "globfp/3350",
         "areaM2": 31.4,
-        "reason": "plaza+carriageway",
+        "reason": "carriageway",
         "inside": [
-          "plaza-or-green:way/246998955",
           "road:way/246998955",
           "road:way/775709510"
         ]
@@ -1951,23 +1950,6 @@
         ]
       },
       {
-        "id": "globfp/5750",
-        "areaM2": 39.5,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/636685828"
-        ]
-      },
-      {
-        "id": "globfp/5751",
-        "areaM2": 48.5,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/636685828",
-          "road:way/636685828"
-        ]
-      },
-      {
         "id": "globfp/5753",
         "areaM2": 226.1,
         "reason": "green",
@@ -2033,39 +2015,6 @@
         ]
       },
       {
-        "id": "globfp/5774",
-        "areaM2": 44.7,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/636685828"
-        ]
-      },
-      {
-        "id": "globfp/5775",
-        "areaM2": 36.1,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/636685828"
-        ]
-      },
-      {
-        "id": "globfp/5776",
-        "areaM2": 43.7,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/636685828"
-        ]
-      },
-      {
-        "id": "globfp/5780",
-        "areaM2": 244.9,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/636685828",
-          "road:way/636685828"
-        ]
-      },
-      {
         "id": "globfp/5788",
         "areaM2": 213.4,
         "reason": "carriageway",
@@ -2083,25 +2032,6 @@
         "inside": [
           "plaza-or-green:way/173622150",
           "road:way/1056394551"
-        ]
-      },
-      {
-        "id": "globfp/6021",
-        "areaM2": 139.4,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/555076526",
-          "road:way/555593802"
-        ]
-      },
-      {
-        "id": "globfp/6043",
-        "areaM2": 130.0,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/555076526",
-          "road:way/555150031",
-          "road:way/555076526"
         ]
       },
       {
@@ -2244,10 +2174,9 @@
       {
         "id": "globfp/6927",
         "areaM2": 50.1,
-        "reason": "plaza+green",
+        "reason": "green",
         "inside": [
-          "plaza-or-green:way/236402460",
-          "plaza-or-green:way/264353338"
+          "plaza-or-green:way/236402460"
         ]
       },
       {
@@ -2337,18 +2266,6 @@
         "reason": "green",
         "inside": [
           "plaza-or-green:way/207170378"
-        ]
-      },
-      {
-        "id": "globfp/7918",
-        "areaM2": 260.1,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/555332448",
-          "road:way/694439451",
-          "road:way/694439452",
-          "road:way/555332448",
-          "road:way/555332447"
         ]
       },
       {
@@ -2879,7 +2796,6 @@
         "areaM2": 232.8,
         "reason": "green",
         "inside": [
-          "plaza-or-green:relation/14532492",
           "plaza-or-green:relation/14532493",
           "plaza-or-green:relation/14532495",
           "road:way/1051283387",
@@ -2899,7 +2815,6 @@
         "areaM2": 69.0,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/941452886",
           "plaza-or-green:relation/14532495",
           "plaza-or-green:relation/14532496",
           "road:way/941452886",
@@ -2921,15 +2836,6 @@
         "reason": "carriageway",
         "inside": [
           "road:way/1568438180"
-        ]
-      },
-      {
-        "id": "globfp/13386",
-        "areaM2": 265.0,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/884076669",
-          "road:way/1418227039"
         ]
       },
       {
@@ -3034,14 +2940,6 @@
         ]
       },
       {
-        "id": "globfp/15209",
-        "areaM2": 33.7,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/884076669"
-        ]
-      },
-      {
         "id": "globfp/15565",
         "areaM2": 69.2,
         "reason": "carriageway",
@@ -3079,9 +2977,8 @@
       {
         "id": "globfp/16378",
         "areaM2": 60.6,
-        "reason": "plaza+carriageway",
+        "reason": "carriageway",
         "inside": [
-          "plaza-or-green:way/1051446501",
           "road:way/1051446504",
           "road:way/1051446501"
         ]
@@ -3367,16 +3264,6 @@
         ]
       },
       {
-        "id": "globfp/20132",
-        "areaM2": 167.4,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/231885261",
-          "road:way/231885290",
-          "road:way/231885261"
-        ]
-      },
-      {
         "id": "globfp/20347",
         "areaM2": 107.8,
         "reason": "carriageway",
@@ -3421,9 +3308,8 @@
       {
         "id": "globfp/20534",
         "areaM2": 52.3,
-        "reason": "plaza+green",
+        "reason": "green",
         "inside": [
-          "plaza-or-green:relation/9650829",
           "plaza-or-green:way/236402460"
         ]
       },
@@ -3466,7 +3352,6 @@
         "areaM2": 50.1,
         "reason": "carriageway",
         "inside": [
-          "plaza-or-green:way/555332426",
           "road:way/1466301582",
           "road:way/555086115",
           "road:way/555332426",
@@ -3621,9 +3506,8 @@
       {
         "id": "globfp/21964",
         "areaM2": 53.9,
-        "reason": "plaza+carriageway",
+        "reason": "carriageway",
         "inside": [
-          "plaza-or-green:way/565253634",
           "road:way/246778685",
           "road:way/565253634"
         ]
@@ -3701,17 +3585,119 @@
           "road:way/898510464",
           "road:way/220882370"
         ]
+      },
+      {
+        "id": "globfp/23272",
+        "areaM2": 36.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/434341900"
+        ]
+      },
+      {
+        "id": "globfp/23708",
+        "areaM2": 44.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1081152922"
+        ]
+      },
+      {
+        "id": "globfp/23720",
+        "areaM2": 34.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1081152922"
+        ]
+      },
+      {
+        "id": "globfp/24609",
+        "areaM2": 100.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1426525671"
+        ]
+      },
+      {
+        "id": "globfp/24896",
+        "areaM2": 48.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1426525671"
+        ]
+      },
+      {
+        "id": "globfp/24967",
+        "areaM2": 57.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1426525671"
+        ]
+      },
+      {
+        "id": "globfp/25074",
+        "areaM2": 74.0,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1426525671"
+        ]
+      },
+      {
+        "id": "globfp/25103",
+        "areaM2": 38.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1426525671"
+        ]
+      },
+      {
+        "id": "globfp/25107",
+        "areaM2": 70.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1434738599",
+          "road:way/1434738597",
+          "road:way/1426525671"
+        ]
+      },
+      {
+        "id": "globfp/25196",
+        "areaM2": 180.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/234738773"
+        ]
+      },
+      {
+        "id": "globfp/25280",
+        "areaM2": 62.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/489349408",
+          "road:way/489345485",
+          "road:way/489345484"
+        ]
+      },
+      {
+        "id": "globfp/25357",
+        "areaM2": 240.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626542",
+          "road:way/563509505",
+          "road:way/563509543"
+        ]
       }
     ],
     "candidates": 8334,
-    "kept": 7739,
+    "kept": 7756,
     "truncated": true
   },
-  "globfpAdded": 7739,
+  "globfpAdded": 7756,
   "overtureMisidentified": {
     "rule": "Overture-only (no OSM building), area<300 m2, and (>= 60% inside OSM plaza/green or >= 80% inside ground carriageway buffer 1 m)",
-    "count": 1304,
-    "areaM2": 136548.7,
+    "count": 1269,
+    "areaM2": 133380.3,
     "objects": [
       {
         "id": "overture/287aac5a-e7b5-4154-af23-dfc782deb6f0",
@@ -3727,8 +3713,8 @@
         "areaM2": 115.4,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/1347507368",
-          "plaza-or-green:way/571629098"
+          "plaza-or-green:way/571629098",
+          "plaza-or-green:way/1347507368"
         ]
       },
       {
@@ -3736,8 +3722,8 @@
         "areaM2": 284.0,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/571629098",
-          "plaza-or-green:way/1347580496"
+          "plaza-or-green:way/1347580496",
+          "plaza-or-green:way/571629098"
         ]
       },
       {
@@ -3799,14 +3785,6 @@
         ]
       },
       {
-        "id": "overture/e16a1e83-de32-4d54-bdc9-4f7f32764d9b",
-        "areaM2": 16.8,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/1434392998"
-        ]
-      },
-      {
         "id": "overture/faf8ccfc-2829-4e5e-ba4f-f0e5f4fa02cd",
         "areaM2": 160.5,
         "reason": "green",
@@ -3865,14 +3843,6 @@
         "reason": "green",
         "inside": [
           "plaza-or-green:way/237522702"
-        ]
-      },
-      {
-        "id": "overture/fea31a84-7892-40db-8fbe-12ce07b03df7",
-        "areaM2": 67.4,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/233712933"
         ]
       },
       {
@@ -4036,32 +4006,6 @@
         "reason": "green",
         "inside": [
           "plaza-or-green:way/241588749"
-        ]
-      },
-      {
-        "id": "overture/3b9acd41-d2fd-4bf1-9623-290e5018ddc4",
-        "areaM2": 27.0,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/234757970"
-        ]
-      },
-      {
-        "id": "overture/48b2281b-7596-4f61-965b-39d77dcff8d9",
-        "areaM2": 23.6,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/234757970",
-          "road:way/234757970"
-        ]
-      },
-      {
-        "id": "overture/63e734e1-6783-42df-b76e-fc4efca6411d",
-        "areaM2": 296.6,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/582303824",
-          "road:way/1282922805"
         ]
       },
       {
@@ -4449,17 +4393,6 @@
         ]
       },
       {
-        "id": "overture/bd49b485-9527-4f5d-b7a4-562f5c44ea78",
-        "areaM2": 116.6,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/555076526",
-          "road:way/555150031",
-          "road:way/555076526",
-          "road:way/1052673735"
-        ]
-      },
-      {
         "id": "overture/a1e7211f-c71f-4b58-8cc7-8f17d3dd1f61",
         "areaM2": 251.5,
         "reason": "green",
@@ -4653,8 +4586,8 @@
         "areaM2": 54.0,
         "reason": "green",
         "inside": [
-          "plaza-or-green:relation/15626544",
-          "plaza-or-green:way/289960247"
+          "plaza-or-green:way/289960247",
+          "plaza-or-green:relation/15626544"
         ]
       },
       {
@@ -4662,8 +4595,8 @@
         "areaM2": 32.4,
         "reason": "green",
         "inside": [
-          "plaza-or-green:relation/15626544",
-          "plaza-or-green:way/289960247"
+          "plaza-or-green:way/289960247",
+          "plaza-or-green:relation/15626544"
         ]
       },
       {
@@ -4792,9 +4725,9 @@
         "areaM2": 40.4,
         "reason": "green",
         "inside": [
-          "plaza-or-green:relation/15626544",
           "plaza-or-green:way/246116718",
-          "plaza-or-green:way/246116719"
+          "plaza-or-green:way/246116719",
+          "plaza-or-green:relation/15626544"
         ]
       },
       {
@@ -4802,9 +4735,9 @@
         "areaM2": 44.9,
         "reason": "green",
         "inside": [
-          "plaza-or-green:relation/15626544",
           "plaza-or-green:way/246116718",
-          "plaza-or-green:way/246116719"
+          "plaza-or-green:way/246116719",
+          "plaza-or-green:relation/15626544"
         ]
       },
       {
@@ -5161,28 +5094,25 @@
       {
         "id": "overture/0deb0afa-6f7e-4175-9d84-a6dd8f5c84f5",
         "areaM2": 50.8,
-        "reason": "plaza+green",
+        "reason": "green",
         "inside": [
-          "plaza-or-green:way/236402460",
-          "plaza-or-green:way/264353338"
+          "plaza-or-green:way/236402460"
         ]
       },
       {
         "id": "overture/49af5596-5b94-4e09-83b0-2918111efcd9",
         "areaM2": 37.6,
-        "reason": "plaza+green",
+        "reason": "green",
         "inside": [
-          "plaza-or-green:way/236402460",
-          "plaza-or-green:way/264353338"
+          "plaza-or-green:way/236402460"
         ]
       },
       {
         "id": "overture/55ee2ed8-50a7-4873-829a-6dda39ee591b",
         "areaM2": 82.3,
-        "reason": "plaza+green",
+        "reason": "green",
         "inside": [
-          "plaza-or-green:way/236402460",
-          "plaza-or-green:way/264353338"
+          "plaza-or-green:way/236402460"
         ]
       },
       {
@@ -5212,9 +5142,8 @@
       {
         "id": "overture/4543ed92-2a21-44a1-bc38-051f1b294efe",
         "areaM2": 27.8,
-        "reason": "plaza+green",
+        "reason": "green",
         "inside": [
-          "plaza-or-green:relation/9650829",
           "plaza-or-green:way/236402460"
         ]
       },
@@ -5400,15 +5329,6 @@
         ]
       },
       {
-        "id": "overture/8241b12e-2d6b-4a52-94fd-dd5f37bd2f34",
-        "areaM2": 294.1,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/555863593",
-          "road:way/555863593"
-        ]
-      },
-      {
         "id": "overture/40a3fbce-3b01-4ec1-8208-231e8c7b7c4d",
         "areaM2": 36.0,
         "reason": "green",
@@ -5503,15 +5423,6 @@
         "inside": [
           "plaza-or-green:way/236402460",
           "road:way/264350261"
-        ]
-      },
-      {
-        "id": "overture/cf5fccdb-d758-4a0a-821f-f59111f2e3c3",
-        "areaM2": 79.2,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/264350261",
-          "road:way/694439457"
         ]
       },
       {
@@ -5638,15 +5549,6 @@
         "reason": "green",
         "inside": [
           "plaza-or-green:way/230848517"
-        ]
-      },
-      {
-        "id": "overture/ebd8ea61-1970-4e76-bd4a-58e8adf6b606",
-        "areaM2": 33.7,
-        "reason": "plaza",
-        "inside": [
-          "plaza-or-green:way/234216379",
-          "road:way/231530787"
         ]
       },
       {
@@ -5954,8 +5856,8 @@
         "areaM2": 159.8,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/533912107",
-          "plaza-or-green:way/533912115"
+          "plaza-or-green:way/533912115",
+          "plaza-or-green:way/533912107"
         ]
       },
       {
@@ -6014,8 +5916,8 @@
         "areaM2": 119.6,
         "reason": "green",
         "inside": [
-          "plaza-or-green:relation/15626543",
-          "plaza-or-green:relation/15626532"
+          "plaza-or-green:relation/15626532",
+          "plaza-or-green:relation/15626543"
         ]
       },
       {
@@ -6214,23 +6116,95 @@
         "inside": [
           "plaza-or-green:way/1434749071"
         ]
+      },
+      {
+        "id": "overture/03353341-f8fb-4c29-9cf1-67221b6f9390",
+        "areaM2": 63.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1434749071"
+        ]
+      },
+      {
+        "id": "overture/48681e7b-b2ad-4a29-9985-f61bdd9547c3",
+        "areaM2": 95.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1434749071"
+        ]
+      },
+      {
+        "id": "overture/9720f037-6acb-47bf-9e78-e9be660dcf4d",
+        "areaM2": 24.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/245755647"
+        ]
+      },
+      {
+        "id": "overture/b7f8f4be-d214-4b8c-89c3-ae2189feeb21",
+        "areaM2": 67.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/292349379"
+        ]
+      },
+      {
+        "id": "overture/f492b345-7200-4943-a4e7-6f7912fd5157",
+        "areaM2": 20.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/292349379"
+        ]
+      },
+      {
+        "id": "overture/aae68642-dee9-4a47-b4f8-69555afec057",
+        "areaM2": 215.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/292349367"
+        ]
+      },
+      {
+        "id": "overture/90208d08-f578-48d8-988f-28599041fe16",
+        "areaM2": 18.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626542"
+        ]
+      },
+      {
+        "id": "overture/0f917893-5637-4d11-b03a-e81b0e7537e8",
+        "areaM2": 27.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626542"
+        ]
+      },
+      {
+        "id": "overture/18c6631f-951e-4b3c-acbe-e4b1f587f49a",
+        "areaM2": 35.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626542"
+        ]
       }
     ],
     "candidates": 18931,
-    "kept": 17627,
+    "kept": 17662,
     "truncated": true
   },
-  "overtureAdded": 17627,
-  "buildings": 38057,
+  "overtureAdded": 17662,
+  "buildings": 38109,
   "heightSources": {
     "landmark": 6,
     "osm-height": 955,
     "osm-levels": 4219,
     "overture-height": 2,
     "overture-floors": 22,
-    "globfp": 16673,
+    "globfp": 16714,
     "globfp-overlap": 8467,
-    "estimate": 7713
+    "estimate": 7724
   },
   "buildingMinHeightCorrections": [
     {
@@ -8334,11 +8308,11 @@
     ],
     "unresolvedLinks": [],
     "timing": {
-      "baselineSeconds": 0.113,
-      "stationSeconds": 0.283,
-      "profileSeconds": 2.782,
-      "vertexSeconds": 1.201,
-      "totalSeconds": 4.556
+      "baselineSeconds": 0.051,
+      "stationSeconds": 0.14,
+      "profileSeconds": 0.943,
+      "vertexSeconds": 0.789,
+      "totalSeconds": 2.025
     },
     "limitations": [
       "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
@@ -8469,7 +8443,7 @@
     "triangles": 386824,
     "areaKm2": 105.747093,
     "areaErrorM2": -1.71e-06,
-    "seconds": 4.12,
+    "seconds": 2.77,
     "waterLevelsGenerated": false,
     "heightSource": "copernicus-glo30-dsm",
     "exclusions": [
@@ -9250,41 +9224,40 @@
   "trees": {
     "status": "generated",
     "requested": 159225,
-    "kept": 58773,
+    "kept": 58934,
     "cap": 60000,
     "countsBySource": {
       "osm-node": 391,
       "osm-row": 663,
-      "simulated-street": 27566,
-      "simulated-park": 30153
+      "simulated-street": 27586,
+      "simulated-park": 30294
     },
     "speciesCounts": {
-      "ficus": 17584,
-      "camphor": 12973,
-      "phoenix": 9393,
-      "bauhinia": 6977,
-      "royal-palm": 7130,
-      "kapok": 4716
+      "ficus": 17628,
+      "camphor": 13008,
+      "phoenix": 9421,
+      "bauhinia": 7001,
+      "royal-palm": 7148,
+      "kapok": 4728
     },
     "appearanceSources": {
       "osm-tags": 25,
-      "species-estimate": 58748
+      "species-estimate": 58909
     },
     "streetLengthM": 907692.2,
     "parkAreaM2": 40753269.7,
     "dropped": {
       "park-building": 888,
       "park-density": 25935,
-      "park-duplicate": 665,
-      "park-plaza": 144,
+      "park-duplicate": 668,
       "park-road": 2025,
       "park-water": 4148,
       "park-wetland": 5979,
-      "street-building": 1757,
-      "street-density": 16392,
+      "street-building": 1759,
+      "street-density": 16406,
       "street-junction": 24154,
       "street-outside-clip": 52,
-      "street-plaza": 74,
+      "street-plaza": 38,
       "street-road-corridor": 18238,
       "street-water": 1,
       "total-cap": 0
@@ -9294,8 +9267,8 @@
     },
     "skippedAreas": {},
     "parkKept": {
-      "destination": 3599,
-      "otherGreen": 26554
+      "destination": 3619,
+      "otherGreen": 26675
     },
     "rules": {
       "streetClasses": [
@@ -9429,7 +9402,7 @@
       "kept": 1054,
       "conflicts": {
         "road": 133,
-        "building": 38
+        "building": 39
       }
     },
     "limitations": [
@@ -9560,6 +9533,6 @@
     ],
     "missingCount": 13
   },
-  "outputBytes": 6951369,
-  "seconds": 61.5
+  "outputBytes": 6957206,
+  "seconds": 32.3
 }

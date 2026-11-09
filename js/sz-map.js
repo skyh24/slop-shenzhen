@@ -65,6 +65,7 @@ class NYCMapSystem {
     this.waypoint = null;
     this.metroLines = new Set();
     this.hsrVisible = false;
+    this.dronesVisible = false;
     this.isPlanningDrive = false;
     this.driveStart = null;
     this.driveEnd = null;
@@ -151,6 +152,18 @@ class NYCMapSystem {
         this.hsrVisible = !this.hsrVisible;
         hsrButton.setAttribute('aria-pressed', String(this.hsrVisible));
         hsrButton.classList.toggle('active', this.hsrVisible);
+        this.miniCache = null;
+        this.fullStaticKey = '';
+        this.renderFullMap();
+      });
+    }
+
+    const droneButton = document.getElementById('map-drones');
+    if (droneButton) {
+      droneButton.addEventListener('click', () => {
+        this.dronesVisible = !this.dronesVisible;
+        droneButton.setAttribute('aria-pressed', String(this.dronesVisible));
+        droneButton.classList.toggle('active', this.dronesVisible);
         this.miniCache = null;
         this.fullStaticKey = '';
         this.renderFullMap();
@@ -534,6 +547,38 @@ class NYCMapSystem {
           ctx.strokeText(label, X, Y);
           ctx.fillStyle = '#cfe0ff';
           ctx.fillText(label, X, Y);
+        }
+      }
+    }
+    if (this.dronesVisible) {
+      const drones = layers.drones;
+      if (drones) {
+        ctx.strokeStyle = MAP.droneRoute;
+        ctx.lineWidth = 2 / v.s;
+        ctx.setLineDash([9 / v.s, 6 / v.s]);
+        for (const route of drones.routes) {
+          if (!v.sees(route.bounds)) continue;
+          ctx.stroke(route.path);
+        }
+        ctx.setLineDash([]);
+        for (const station of drones.stations) {
+          if (!v.sees(station.bounds)) continue;
+          ctx.fillStyle = MAP.droneStation;
+          ctx.beginPath();
+          ctx.arc(v.toX(station.x), v.toY(station.z), 4 / v.s, 0, Math.PI * 2);
+          ctx.fill();
+          if (!isMinimap && v.s >= 0.32) {
+            // 缩到城市级时只画站点名，放大后才显示核实日期，避免标签互相压住。
+            const label = v.s >= 0.85 ? `${station.name}（${station.verifiedAt} 核实）` : station.name;
+            ctx.font = '600 ' + (10 / v.s) + 'px ' + FONT;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.lineWidth = 3 / v.s;
+            ctx.strokeStyle = MAP.halo;
+            ctx.strokeText(label, v.toX(station.x), v.toY(station.z) - 10 / v.s);
+            ctx.fillStyle = '#d8ecff';
+            ctx.fillText(label, v.toX(station.x), v.toY(station.z) - 10 / v.s);
+          }
         }
       }
     }

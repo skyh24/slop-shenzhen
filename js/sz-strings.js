@@ -113,6 +113,12 @@ export const STR = {
     none: '全部隐藏',
     line: ref => `${ref} 号线`
   },
+  drones: {
+    title: '无人机航线',
+    layer: '无人机航线图层',
+    statusSuspended: '会期低空管控：停运',
+    altitudeEstimate: '巡航高度约 100 m（估计）'
+  },
   hsr: {
     title: '高铁图层',
     futian: '福田站（地下高铁）',

@@ -13,6 +13,16 @@ function fixture(roads = []) {
       segments: [{ lineRefs: ['1'], points: [1, 1, 50, 50] }, { lineRefs: ['4'], points: [30, 10, 70, 30] }],
       stations: [{ name: 'Station', x: 20, z: 30, lineRefs: ['1'] }]
     },
+    air: {
+      version: 3, verifiedAt: '2026-11-09', status: 'source-endpoints-schematic-tracks',
+      droneStations: [
+        { id: 'a', name: 'A 站', x: 10, z: 20, verifiedAt: '2026-11-09', operator: '美团无人机' },
+        { id: 'b', name: 'B 站', x: 80, z: 60, verifiedAt: '2026-11-09', operator: '美团无人机' }
+      ],
+      droneRoutes: [{ id: 'r', name: 'A ⇄ B', fromStationId: 'a', toStationId: 'b', lengthM: 500,
+        trackStatus: 'schematic', altitudeM: 100, altitudeSource: 'estimate', verifiedAt: '2026-11-09' }],
+      apecSuspension: { windows: [{ from: '2026-11-07', to: '2026-11-21', sourceUrl: 'https://example.com' }] }
+    },
     sites: {
       'futian-station': { station: { polygons: [{ outer: [{ x: 10, z: 10 }, { x: 40, z: 10 }, { x: 40, z: 40 }, { x: 10, z: 40 }], holes: [] }] } },
       'xili-station': { site: { polygons: [{ outer: [{ x: 55, z: 55 }, { x: 90, z: 55 }, { x: 90, z: 90 }, { x: 55, z: 90 }], holes: [] }] } }
@@ -122,4 +132,25 @@ test('HSR layer draws only verified station footprints and stays off by default'
   assert.equal(layers.hsr.length, 2);
   assert.equal(layers.hsr.find(station => station.id === 'xili-station').underConstruction, true);
   assert.equal(layers.hsr.find(station => station.id === 'futian-station').underConstruction, false);
+});
+
+test('drone layer draws sourced route lines and stations only when enabled', () => {
+  const { context, map } = fixture();
+  const strokes = [];
+  const fills = [];
+  const ctx = new Proxy({}, {
+    get: (_, key) => (key === 'fillText' || key === 'strokeText') ? () => {} : () => {},
+    set: (_, key, value) => {
+      if (key === 'strokeStyle') strokes.push(value);
+      if (key === 'fillStyle') fills.push(value);
+      return true;
+    }
+  });
+  const view = vm.runInContext('new MapView(50,50,1,100,100)', context);
+  map.drawWorld(ctx, view, false);
+  assert.ok(!strokes.includes('#7fd0ff'));
+  map.dronesVisible = true;
+  map.drawWorld(ctx, view, false);
+  assert.ok(strokes.includes('#7fd0ff'), 'schematic drone route uses the drone colour');
+  assert.ok(fills.includes('#ffcf6b'), 'sourced stations get a marker');
 });

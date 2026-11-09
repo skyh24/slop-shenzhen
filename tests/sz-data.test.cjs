@@ -89,3 +89,32 @@ test('landmark sites decode verified OSM site polygons for model placement', asy
     for (const role of roles) assert.ok(geo.sites[landmarkId]?.[role], `${landmarkId}.${role} decoded`);
   }
 });
+
+test('air routes decode only source-endpoint schematic drone tracks', async () => {
+  const { decodeCityPayload } = await modulePromise;
+  const rawAir = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
+  const { geo } = decodeCityPayload(rawAir);
+  assert.ok(rawAir.air && rawAir.air.version >= 3);
+  assert.equal(geo.air.droneStations.length, 4);
+  assert.equal(geo.air.droneRoutes.length, 2);
+  for (const station of geo.air.droneStations) {
+    assert.ok(Number.isFinite(station.x) && Number.isFinite(station.z));
+    assert.ok(station.sourceUrls.length > 0);
+    assert.match(station.verifiedAt, /^\d{4}-\d{2}-\d{2}$/);
+  }
+  for (const route of geo.air.droneRoutes) {
+    assert.equal(route.trackStatus, 'schematic');
+    assert.equal(route.altitudeSource, 'estimate');
+    assert.ok(route.lengthM > 1000);
+    assert.ok(geo.air.droneStations.some(station => station.id === route.fromStationId));
+    assert.ok(geo.air.droneStations.some(station => station.id === route.toStationId));
+  }
+  assert.ok(geo.air.apecSuspension.windows.length >= 2);
+  // 把示意航迹写成实测、或删掉来源，都必须被校验拒绝。
+  const measured = JSON.parse(JSON.stringify(rawAir));
+  measured.air.droneRoutes[0].trackStatus = 'measured';
+  assert.throws(() => decodeCityPayload(measured), /air drone route/);
+  const unsourced = JSON.parse(JSON.stringify(rawAir));
+  unsourced.air.droneStations[0].sourceUrls = [];
+  assert.throws(() => decodeCityPayload(unsourced), /air drone station/);
+});
