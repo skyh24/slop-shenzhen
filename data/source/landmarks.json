@@ -52,7 +52,13 @@
       "id": "iec-xiangmihu", "name": "深圳国际交流中心（APEC 2026 主会场）", "phase": 1,
       "center": [22.54735, 114.02410],
       "osm": { "site": "way/1080860977", "lake": "way/25482483", "lakePark": "way/1361069232", "hotels": ["node/14322540131", "node/14322540132"] },
-      "heightSource": "estimate", "status": "todo"
+      "heightSource": "estimate", "status": "todo",
+      "apec": {
+        "role": "Leaders' Meeting main venue (Nov 18-19); CEO Summit (Nov 17-18) reported here; site includes the Wuzhou hotel; Xiangmi Lake flower sea outside the gates",
+        "metro": "Xiangmi and Xiangmei North (lines 2/8)",
+        "sources": ["https://www.shenzhen-guide.com/guides/apec-2026-shenzhen-visitor-guide", "https://hao.cnyes.com/post/277089", "https://news.mingpao.com/pns/%E4%B8%AD%E5%9C%8B/article/20261109/s00013/1794155294115/"],
+        "verifiedAt": "2026-11-09"
+      }
     },
     {
       "id": "chegongmiao", "name": "车公庙片区", "phase": 1,
@@ -70,7 +76,12 @@
       "id": "lianhuashan", "name": "莲花山公园", "phase": 1,
       "center": [22.55668, 114.05325],
       "osm": { "park": "way/41281446" },
-      "status": "osm"
+      "status": "osm",
+      "apec": {
+        "role": "Giant APEC-themed flower bed in the park",
+        "sources": ["https://gd.ifeng.com/c/8xLW0H6sKCT"],
+        "verifiedAt": "2026-11-09"
+      }
     },
     {
       "id": "ping-an", "name": "平安金融中心", "phase": 1,
@@ -82,14 +93,24 @@
       "id": "convention-center", "name": "深圳会展中心（福田）", "phase": 1,
       "center": [22.53352, 114.05475],
       "osm": { "building": "way/146862823" },
-      "heightM": 35, "heightSource": "osm", "status": "osm"
+      "heightM": 35, "heightSource": "osm", "status": "osm",
+      "apec": {
+        "role": "APEC Leaders' Week press center in Hall 2, open from Nov 11",
+        "sources": ["http://sz.people.com.cn/n2/2026/1109/c202846-41745356.html"],
+        "verifiedAt": "2026-11-09"
+      }
     },
     {
       "id": "upperhills", "name": "深业上城", "phase": 1,
       "center": [22.56012, 114.06511],
       "osm": { "site": "way/674566923", "tower1": "way/684494961", "tower2": "way/684494959", "mall": "way/684494957" },
       "heights": { "tower1": 388.1, "tower2": 299.3 },
-      "heightSource": "osm", "status": "verified"
+      "heightSource": "osm", "status": "verified",
+      "apec": {
+        "role": "APEC state gifts exhibition, South Zone T2 floor 3, 2026-10-01 to 2027",
+        "sources": ["https://www.shenzhendecoded.com/zh-Hant/guides/apec-2026-shenzhen"],
+        "verifiedAt": "2026-11-09"
+      }
     },
     {
       "id": "huaqiangbei", "name": "华强北（电子科技大厦、赛格广场）", "phase": 1,
@@ -116,6 +137,54 @@
       "center": [22.54534, 114.10552],
       "osm": { "building": "way/64601041", "site": "way/773700365" },
       "heightSource": "estimate", "status": "todo"
+    },
+    {
+      "id": "super-hq", "name": "深圳湾超级总部基地", "phase": 1,
+      "center": [22.52454, 113.96920],
+      "osm": { "site": "way/336349626", "cmbTower": "way/1443942674", "exhibitionHall": "way/555593808", "metroStation": "way/1349162932" },
+      "heights": { "cmbTower": 387 },
+      "heightSource": "osm", "status": "todo",
+      "design": {
+        "towerC": { "eastM": 400, "eastFloors": 73, "westM": 336, "westFloors": 66, "skybridgeM": 119.15, "architect": "Zaha Hadid Architects", "state": "structure topped out, curtain wall in progress" },
+        "heightSource": "design",
+        "sources": ["http://www.hunanjz.com/UploadFiles/File/202605/639143539440250021.pdf", "http://www.news.cn/digital/20251027/627948c3f33543758d32e65d176d3016/c.html", "https://content.foshanplus.com/newsDetails.html?newsId=1011615"],
+        "verifiedAt": "2026-11-09"
+      },
+      "note": "Rendered in its built-out form. Tower C is not in OSM yet; locate it at the centre of the cross axes from the design drawings. Plots still under construction use design heights where published, otherwise estimate, and must say so in heightSource."
+    },
+    {
+      "id": "shenzhen-bay-bridge", "name": "深圳湾公路大桥", "phase": 1,
+      "center": [22.47315, 113.95826],
+      "osm": { "route": "relation/9184867" },
+      "lengthM": 5545, "status": "osm",
+      "note": "Lies south of the phase-1 box (22.495N); far-view model with S-curved deck and the cable-stayed main span, seen from Shenzhen Bay Park."
+    },
+    {
+      "id": "yanjiang-expressway", "name": "广深沿江高速（海上高架）", "phase": 1,
+      "center": [22.56030, 113.85790],
+      "osm": { "route": "relation/6371344" },
+      "status": "osm",
+      "note": "Far view to the west along the Qianhai and Bao'an shoreline; the Shenzhen-Zhongshan Link main bridge (way/1465183398) is a horizon silhouette further west."
+    },
+    {
+      "id": "futian-station", "name": "福田站（广深港高铁，地下）", "phase": 1,
+      "center": [22.54235, 114.05024],
+      "osm": { "station": "way/800275814" },
+      "status": "osm",
+      "note": "Underground station; model the ground-level entrances and concourse skylights, and draw the line on the map."
+    },
+    {
+      "id": "xili-station", "name": "深圳西丽站（在建）", "phase": 1,
+      "center": [22.56795, 113.94035],
+      "osm": { "site": "way/402048868" },
+      "status": "osm",
+      "note": "Under construction, completion planned for 2028-12; show a construction site with cranes and hoarding.",
+      "sources": ["https://www.21jingji.com/article/20260602/herald/668f8304ef37b1cb76f27cf3c612ef49.html"]
+    },
+    {
+      "id": "shenzhen-station", "name": "深圳站（罗湖）", "phase": 2,
+      "center": [22.53430, 114.11210],
+      "status": "todo"
     }
   ]
 }

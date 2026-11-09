@@ -9,7 +9,7 @@
 ## 阅读顺序
 
 1. 本文件
-2. [11-MVP.md](11-MVP.md)：MVP 做到哪里、哪里粗糙、**六条硬性要求和验收标准**
+2. [11-MVP.md](11-MVP.md)：MVP 做到哪里、哪里粗糙、**九条硬性要求和验收标准**
 3. [CONVENTIONS.md](CONVENTIONS.md)：语言、代码风格、数据和验收规则，必须遵守
 4. [RESEARCH.md](RESEARCH.md)：参考仓库的结论、武汉的教训、APEC 和地标核实、检索服务状况
 5. [00-SCOPE.md](00-SCOPE.md)、[01-ARCHITECTURE.md](01-ARCHITECTURE.md)、[02-DATA-PIPELINE.md](02-DATA-PIPELINE.md)
@@ -52,13 +52,13 @@ python3 -m venv .venv            # 已存在可跳过
 
 ### 3. 换上纽约引擎和界面（M2）
 
-照 [01-ARCHITECTURE.md](01-ARCHITECTURE.md) 换掉 `city-config.js`、`city-grid.js`、`boroughs.js`，把 `tools/sz/` 的数据接进纽约的地面、路网、车辆、相机模块。界面和操作按 11-MVP 第 3.5 节**和纽约原版一一对应**。验收：从市民中心开车到深圳湾公园，不卡、不穿楼、路名正确；1 到 4 号移动方式、`V` 相机、`M` 地图都能用。
+照 [01-ARCHITECTURE.md](01-ARCHITECTURE.md) 换掉 `city-config.js`、`city-grid.js`、`boroughs.js`，把 `tools/sz/` 的数据接进纽约的地面、路网、车辆、相机模块。界面和操作按 11-MVP 第 3.6 节**和纽约原版一一对应**。验收：从市民中心开车到深圳湾公园，不卡、不穿楼、路名正确；1 到 4 号移动方式、`V` 相机、`M` 地图都能用。
 
 MVP 里能搬过去的：`js/sz-mvp/materials.js` 的立面着色器和夜景灯光、`traffic.js` 的出租车和绿牌、`air.js` 的飞行器和无人机模型。搬完删掉 `mvp.html` 和 `js/sz-mvp/`。
 
 ### 4. 之后
 
-按 11-MVP 第 4 节的顺序：地标建模、地铁、真实无人机航线、观感和性能。
+按 11-MVP 第 4 节的顺序：可通行立交、地标建模（含超级总部、深圳湾大桥远景）、地铁菜单和高铁站、真实无人机航线、APEC 会场和城市元素、观感和性能。APEC 会期是 11 月 11 日至 21 日，APEC 元素最好赶在这之前能看到。
 
 ## 已知的坑
 
@@ -96,12 +96,13 @@ open http://127.0.0.1:8080/mvp.html              # MVP 预览，?time=night 看�
 
 新开对话、切到主力模型后，可以直接粘贴：
 
-> 你在 `slop-shenzhen` 仓库里继续做深圳城市漫游项目。先完整阅读 `docs/HANDOFF.md`、`docs/11-MVP.md`、`docs/CONVENTIONS.md`、`docs/RESEARCH.md`。`docs/11-MVP.md` 第 3 节的六条是硬性要求：还原建筑、还原地形地貌、真实无人机航线、地铁线路、交互和界面跟纽约原版一致、观感。按 `HANDOFF.md` 的“下一步”顺序做，每完成一项就勾选 `TASKS.md`、更新 `HANDOFF.md`，每个模块在浏览器里截图对照实景、跑测试、提交推送。和我对话用中文。
+> 你在 `slop-shenzhen` 仓库里继续做深圳城市漫游项目。先完整阅读 `docs/HANDOFF.md`、`docs/11-MVP.md`、`docs/CONVENTIONS.md`、`docs/RESEARCH.md`。`docs/11-MVP.md` 第 3 节的九条是硬性要求：还原建筑、还原地形地貌（含可通行立交和深圳湾大桥远景）、真实无人机航线、地铁线路（菜单默认不显示）、高铁站、交互和界面跟纽约原版一致、超级总部建好形态、APEC 会场和元素、观感。按 `HANDOFF.md` 的“下一步”顺序做，每完成一项就勾选 `TASKS.md`、更新 `HANDOFF.md`，每个模块在浏览器里截图对照实景、跑测试、提交推送。和我对话用中文。
 
 ## 变更记录
 
 | 日期 | 内容 |
 | --- | --- |
+| 2026-11-09 | 加入计划：一期可通行立交匝道、深圳湾大桥和沿江高速远景、超级总部建好形态、工具栏地铁菜单（默认不显示）、高铁站、APEC 会场和城市元素；`landmarks.json` 新增 6 个条目，给 4 个已有地标加 `apec` 来源字段；硬性要求从六条改为九条 |
 | 2026-11-09 | 完成 MVP 预览（`mvp.html`、`js/sz-mvp/`、`tools/sz/`）；新增 `11-MVP.md`，写明粗糙之处和六条硬性要求；调研真实无人机站点（美团）和地铁数据；改 08、09 号文档 |
 | 2026-11-09 | 新增根目录 `AGENTS.md`，作为代理入口，汇总硬性规则和命令 |
 | 2026-11-09 | 建立底座和全部规划文档；下载并锁定原始数据；核实 APEC 日期和会场（新增国际交流中心地标）；用 OSM 核实全部地标，改正坐标和原点；华强北提前到一期；删除依赖纽约原始数据的两份测试；新增 RESEARCH、CONVENTIONS、HANDOFF |
