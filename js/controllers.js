@@ -15,17 +15,18 @@ import { loftContactPolygon, polygonContact, roofPanelContactPolygon, spanContac
 const groundCollider = { type: 'ground' };
 
 const CAR_DRIVE = {
-  speed: 36, reverseSpeed: 10.5, acceleration: 4.5,
+  speed: 120 / 3.6, reverseSpeed: 10.5, acceleration: 4.5, forwardAcceleration: 120 / 3.6 / 4,
   powerSpeed: 14.5, // Above 52 km/h, engine power limits acceleration.
   rolling: 0.18, drag: 0.0012, coast: 0.6, brake: 9,
   wheelbase: VEHICLE_SPECS.taxi.wheelbase, grip: 9.5, cornering: 10.5
 };
 const BICYCLE_DRIVE = {
-  speed: 19, reverseSpeed: 4.5, acceleration: 6.5,
+  speed: 60 / 3.6, reverseSpeed: 4.5, acceleration: 6.5, forwardAcceleration: 60 / 3.6 / 4,
   powerSpeed: 10.5, // Above 38 km/h, rider power limits acceleration.
   rolling: 0.1, drag: 0.004, coast: 0.45, brake: 10.5
 };
-const EVTOL_DRIVE = { speed: 36, verticalSpeed: 6, altitude: 400 };
+const CAR_AUTO_DRIVE = { ...CAR_DRIVE, speed: 36, forwardAcceleration: null };
+const EVTOL_DRIVE = { speed: 500 / 3.6, acceleration: 500 / 3.6 / 4, reverseSpeed: 21.6, verticalSpeed: 6, altitude: 400 };
 const PERSON_STEP_UP = 0.38;
 const CONTACT_EPSILON = 1e-5;
 
@@ -42,6 +43,10 @@ function driveSpeed(speed, throttle, dt, drive, serviceBrake = 0) {
   const coasting = Math.max(0, magnitude - deceleration * dt) / (1 + drive.drag * magnitude * dt);
   if (!throttle || brakeStrength) return Math.sign(speed) * coasting;
 
+  // 玩家正向全油门按净加速度在4秒达速；松键、制动和倒车仍使用原阻力。
+  if (throttle > 0 && drive.forwardAcceleration) {
+    return Math.min(Math.max(drive.speed, coasting), magnitude + throttle * drive.forwardAcceleration * dt);
+  }
   const limit = throttle < 0 ? drive.reverseSpeed : drive.speed;
   let acceleration = drive.acceleration;
   if (drive.powerSpeed) acceleration *= drive.powerSpeed / Math.max(drive.powerSpeed, magnitude);
@@ -1101,7 +1106,7 @@ class ThirdPersonControllerManager {
       const vx = sin * c.speed + c.vx, vz = cos * c.speed + c.vz;
       const forward = vx * sin + vz * cos;
       const sideways = vx * cos - vz * sin;
-      const speed = driveSpeed(forward, throttle, step, CAR_DRIVE, serviceBrake);
+      const speed = driveSpeed(forward, throttle, step, driveInput ? CAR_AUTO_DRIVE : CAR_DRIVE, serviceBrake);
       const acceleration = (speed - forward) / step;
       // Braking and cornering share tire grip; air resistance does not use it.
       const tireAcceleration = acceleration + CAR_DRIVE.drag * forward * Math.abs(forward);
@@ -1286,8 +1291,8 @@ class ThirdPersonControllerManager {
     else if (this.keys.down) vertInput = -this.keys.down;
 
     if (fwdInput !== 0) {
-      h.speed += fwdInput * 24.0 * dt;
-      h.speed = Math.max(-maxHorizSpeed * 0.6, Math.min(maxHorizSpeed, h.speed));
+      h.speed += fwdInput * (fwdInput > 0 && h.speed >= 0 ? EVTOL_DRIVE.acceleration : 24.0) * dt;
+      h.speed = Math.max(-EVTOL_DRIVE.reverseSpeed, Math.min(maxHorizSpeed, h.speed));
     } else {
       h.speed *= Math.max(0, 1 - dt * 1.8);
     }
