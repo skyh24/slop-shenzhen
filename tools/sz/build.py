@@ -1,4 +1,4 @@
-"""一条命令从原始快照生成 MVP 运行数据：js/sz-mvp/data/sz-mvp.json.gz 和 data/source/build-report.json。"""
+"""一条命令从原始快照生成共享城市数据和审计报告。"""
 
 import argparse
 import gzip
@@ -17,12 +17,12 @@ from roadgraph import build_roadgraph
 from terrain import build_terrain
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / 'js/sz-mvp/data/sz-mvp.json.gz'
+OUT = ROOT / 'js/sz-city.json.gz'
 REPORT = ROOT / 'data/source/build-report.json'
 LANDMARKS = ROOT / 'data/source/landmarks.json'
 AIR = ROOT / 'data/source/air-routes.json'
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 FAR_PAD = 30000
 
 
@@ -87,6 +87,7 @@ def main():
         'roadGraph': road_graph,
         'origin': [ORIGIN_LON, ORIGIN_LAT],
         'bounds': [round(minx), round(minz), round(maxx), round(maxz)],
+        'coverage': [enc_poly(p) for p in getattr(clip, 'geoms', [clip])],
         'enums': {'facade': FACADES, 'category': CATEGORIES, 'heightSource': HEIGHT_SOURCES, 'roadClass': CLASSES},
         'land': [enc_poly(p) for p in land],
         'farLand': [enc_poly(p) for p in getattr(far_land, 'geoms', [far_land])],
@@ -102,6 +103,7 @@ def main():
             'pts': [enc_ring(r['line'].coords, strip_closure=False) for r in roads],
         },
         'buildings': {
+            'id': [b['id'] for b in buildings],
             'rings': [enc_poly(b['poly']) for b in buildings],
             'h': [b['height'] for b in buildings],
             'minH': [b['minHeight'] for b in buildings],
@@ -120,6 +122,8 @@ def main():
     report['outputBytes'] = OUT.stat().st_size
     report['seconds'] = round(time.time() - t0, 1)
     REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+    # 共享包成功写出后移除旧产物，避免正式版与预览读取不同快照。
+    (ROOT / 'js/sz-mvp/data/sz-mvp.json.gz').unlink(missing_ok=True)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
