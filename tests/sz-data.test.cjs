@@ -61,3 +61,31 @@ test('coordinate decoder rejects truncated or fractional delta streams', async (
   assert.throws(() => decodeRing([1, 2, 3]), /coordinate sequence/);
   assert.throws(() => decodeRing([0, 0, 0.5, 3]), /coordinate delta/);
 });
+
+test('landmark sites decode verified OSM site polygons for model placement', async () => {
+  const { decodeCityPayload } = await modulePromise;
+  const { geo } = decodeCityPayload(raw);
+  assert.ok(raw.sites && raw.sites.version === 1 && raw.sites.source === 'osm-guangdong');
+  assert.ok(geo.sites && Object.keys(geo.sites).length >= 15);
+  for (const [landmarkId, roles] of Object.entries(geo.sites)) {
+    assert.equal(typeof landmarkId, 'string');
+    for (const [role, site] of Object.entries(roles)) {
+      assert.match(site.osmId, /^(?:way|relation)\/\d+$/);
+      assert.ok(site.polygons.length > 0);
+      for (const polygon of site.polygons) {
+        assert.ok(polygon.outer.length >= 3);
+        for (const point of polygon.outer) assert.ok(Number.isFinite(point.x) && Number.isFinite(point.z));
+      }
+      assert.ok(role.length > 0);
+    }
+  }
+  const expected = {
+    'super-hq': ['site', 'cmbTower', 'exhibitionHall', 'metroStation'],
+    'iec-xiangmihu': ['site', 'lake', 'lakePark'],
+    'xili-station': ['site'],
+    'futian-station': ['station']
+  };
+  for (const [landmarkId, roles] of Object.entries(expected)) {
+    for (const role of roles) assert.ok(geo.sites[landmarkId]?.[role], `${landmarkId}.${role} decoded`);
+  }
+});

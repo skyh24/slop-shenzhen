@@ -161,7 +161,7 @@ async function initApp() {
   });
   markInit('roads');
   await showLoadingStage(STR.startup.landmarks, 'landmarks');
-  const landmarks = buildSzLandmarks(scene, { buildings: REAL_BUILDINGS, terrain: GEO.terrain });
+  const landmarks = buildSzLandmarks(scene, { buildings: REAL_BUILDINGS, terrain: GEO.terrain, sites: GEO.sites });
   const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');

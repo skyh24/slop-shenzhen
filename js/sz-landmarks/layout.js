@@ -22,16 +22,19 @@ const definitions = [
   { id: 'nonferrous-tower', sourceIds: nonferrousIds, optionalSkipIds: nonferrousDuplicates, build: buildNonferrous }
 ];
 
-export function planSzLandmarks(buildings, terrain) {
+export function planSzLandmarks(buildings, terrain, sites = {}) {
   const source = new Map(buildings.map(building => [building.id, building]));
   const skipIds = new Set();
   const plans = [];
   for (const definition of definitions) {
     // 快照缺少部件时保留原通用建筑。只有全套地标几何可生成时才接管源对象。
-    if (!definition.sourceIds.every(id => source.has(id))) continue;
-    const parts = definition.build(source, terrain);
+    const sourceIds = definition.sourceIds ?? [];
+    if (!sourceIds.every(id => source.has(id))) continue;
+    // 场地轮廓来自 bucket 里人工核对过的 OSM 对象；模型另有源建筑时两者都传。
+    const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {} };
+    const parts = definition.build(source, terrain, context);
     if (parts.length === 0) continue;
-    for (const id of definition.sourceIds) skipIds.add(id);
+    for (const id of sourceIds) skipIds.add(id);
     for (const id of definition.optionalSkipIds ?? []) if (source.has(id)) skipIds.add(id);
     plans.push({ id: definition.id, parts });
   }

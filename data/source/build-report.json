@@ -8334,11 +8334,11 @@
     ],
     "unresolvedLinks": [],
     "timing": {
-      "baselineSeconds": 0.113,
-      "stationSeconds": 0.302,
-      "profileSeconds": 1.857,
-      "vertexSeconds": 1.601,
-      "totalSeconds": 4.066
+      "baselineSeconds": 0.058,
+      "stationSeconds": 0.159,
+      "profileSeconds": 1.063,
+      "vertexSeconds": 0.918,
+      "totalSeconds": 2.334
     },
     "limitations": [
       "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
@@ -8469,7 +8469,7 @@
     "triangles": 386824,
     "areaKm2": 105.747093,
     "areaErrorM2": -1.71e-06,
-    "seconds": 4.63,
+    "seconds": 2.97,
     "waterLevelsGenerated": false,
     "heightSource": "copernicus-glo30-dsm",
     "exclusions": [
@@ -9471,6 +9471,94 @@
       ]
     }
   ],
-  "outputBytes": 6945906,
-  "seconds": 53.5
+  "landmarkSites": {
+    "source": "osm-guangdong",
+    "requestedObjects": 62,
+    "resolvedObjects": 49,
+    "landmarks": 21,
+    "roles": 43,
+    "missing": [
+      {
+        "osmId": "relation/6371344",
+        "roles": [
+          "yanjiang-expressway:route"
+        ]
+      },
+      {
+        "osmId": "relation/8133384",
+        "roles": [
+          "shenzhen-bay-park:park"
+        ]
+      },
+      {
+        "osmId": "relation/9137146",
+        "roles": [
+          "ping-an:site"
+        ]
+      },
+      {
+        "osmId": "relation/9184867",
+        "roles": [
+          "shenzhen-bay-bridge:route"
+        ]
+      },
+      {
+        "osmId": "relation/10737694",
+        "roles": [
+          "talent-park:phase2"
+        ]
+      },
+      {
+        "osmId": "relation/10837975",
+        "roles": [
+          "civic-center:building"
+        ]
+      },
+      {
+        "osmId": "relation/18220656",
+        "roles": [
+          "shenzhen-bay-park:greenway"
+        ]
+      },
+      {
+        "osmId": "relation/18459537",
+        "roles": [
+          "talent-park:park"
+        ]
+      },
+      {
+        "osmId": "relation/19398338",
+        "roles": [
+          "talent-park:trail"
+        ]
+      },
+      {
+        "osmId": "relation/19692110",
+        "roles": [
+          "chunsun:site"
+        ]
+      },
+      {
+        "osmId": "way/245754221",
+        "roles": [
+          "window-of-world:monorail"
+        ]
+      },
+      {
+        "osmId": "way/969439362",
+        "roles": [
+          "window-of-world:monorail"
+        ]
+      },
+      {
+        "osmId": "way/969439363",
+        "roles": [
+          "window-of-world:monorail"
+        ]
+      }
+    ],
+    "missingCount": 13
+  },
+  "outputBytes": 6952911,
+  "seconds": 69.5
 }

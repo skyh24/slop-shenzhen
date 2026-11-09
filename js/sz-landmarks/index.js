@@ -4,8 +4,8 @@ import { createLandmarkMaterial } from './materials.js';
 import { partCollider } from './parts.js';
 import { renderLandmark } from './render.js';
 
-export function buildSzLandmarks(scene, { buildings, terrain }) {
-  const { plans, skipIds } = planSzLandmarks(buildings, terrain);
+export function buildSzLandmarks(scene, { buildings, terrain, sites = {} }) {
+  const { plans, skipIds } = planSzLandmarks(buildings, terrain, sites);
   const group = new THREE.Group();
   group.name = 'ShenzhenLandmarks';
   const colliders = [];

@@ -72,6 +72,52 @@ function validateTrees(trees) {
   requireData(trees.limitations === undefined || Array.isArray(trees.limitations), 'trees limitations');
 }
 
+function validateSites(sites) {
+  if (sites === undefined) return;
+  requireData(sites?.version === 1 && sites.source === 'osm-guangdong'
+    && sites.sites && typeof sites.sites === 'object' && !Array.isArray(sites.sites), 'landmark sites header');
+  for (const [landmarkId, roles] of Object.entries(sites.sites)) {
+    requireData(typeof landmarkId === 'string' && landmarkId.length > 0
+      && roles && typeof roles === 'object' && !Array.isArray(roles), 'landmark site record');
+    for (const [role, site] of Object.entries(roles)) {
+      requireData(typeof role === 'string' && role.length > 0
+        && typeof site?.osmId === 'string' && /^(?:way|relation)\/\d+$/.test(site.osmId)
+        && Array.isArray(site.polygons) && site.polygons.length > 0, 'landmark site polygon source');
+      for (const rings of site.polygons) {
+        requireData(Array.isArray(rings) && rings.length > 0 && rings.every(ring =>
+          Array.isArray(ring) && ring.length >= 6 && ring.length % 2 === 0
+          && ring.every(value => Number.isSafeInteger(value))), 'landmark site rings');
+      }
+    }
+  }
+}
+
+export function decodeSites(sites) {
+  if (sites === undefined) return null;
+  const decoded = {};
+  for (const [landmarkId, roles] of Object.entries(sites.sites)) {
+    decoded[landmarkId] = {};
+    for (const [role, site] of Object.entries(roles)) {
+      decoded[landmarkId][role] = {
+        osmId: site.osmId,
+        polygons: site.polygons.map(rings => {
+          const decodedRings = rings.map(ring => {
+            const out = [];
+            let x = 0, z = 0;
+            for (let i = 0; i < ring.length; i += 2) {
+              x += ring[i]; z += ring[i + 1];
+              out.push({ x: x / 10, z: z / 10 });
+            }
+            return out;
+          });
+          return { outer: decodedRings[0], holes: decodedRings.slice(1) };
+        })
+      };
+    }
+  }
+  return decoded;
+}
+
 export function decodeRing(flat) {
   requireData(Array.isArray(flat) && flat.length >= 4 && flat.length % 2 === 0, 'coordinate sequence');
   const out = new Float64Array(flat.length);
@@ -184,6 +230,7 @@ export function validateCityPayload(raw) {
   }
   validateStreetscape(raw.streetscape, raw.parks ?? []);
   validateTrees(raw.trees);
+  validateSites(raw.sites);
   for (let i = 0; i < buildings.h.length; i++) {
     requireData(typeof buildings.id[i] === 'string' && buildings.id[i].length > 0, 'building identity');
     requireData(Number.isFinite(buildings.h[i]) && Number.isFinite(buildings.minH[i])
@@ -271,6 +318,7 @@ export function decodeCityPayload(raw) {
     seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },
     streetscape: raw.streetscape ?? null,
     trees: raw.trees ?? null,
+    sites: decodeSites(raw.sites),
     parks: (raw.parks ?? []).map(park => ({ ...park, areas: park.areas.map(area => ({ ...area, polygon: polygon(area.polygon) })) }))
   } };
 }

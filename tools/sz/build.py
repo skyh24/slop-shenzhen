@@ -13,6 +13,7 @@ from bridges import build_bridges
 from buildings import CATEGORIES, FACADES, HEIGHT_SOURCES, build_buildings
 from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project
 from land import build_land
+from landmark_sites import build_landmark_sites
 from osm import PBF, read_osm
 from parks import build_parks
 from road_frontage import build_road_frontage
@@ -109,6 +110,7 @@ def main():
     trees = build_trees(osm, clip, land, water, wetland, green, parks, streetscape, buildings, report,
                         pbf=PBF, road_graph=road_graph)
     bridges = build_bridges(PBF, landmark_manifest, report)
+    sites = build_landmark_sites(landmark_manifest, report)
     lm_index = {lm['id']: i for i, lm in enumerate(landmarks)}
 
     minx, minz, maxx, maxz = clip.bounds
@@ -152,6 +154,7 @@ def main():
         'parks': [{**park, 'areas': [{**area, 'polygon': enc_poly(area['polygon'])}
                                     for area in park['areas']]} for park in parks],
         'bridges': bridges,
+        'sites': sites,
         'air': json.loads(AIR.read_text()),
     }
     if sea_surface:
