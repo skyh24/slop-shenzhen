@@ -8334,11 +8334,11 @@
     ],
     "unresolvedLinks": [],
     "timing": {
-      "baselineSeconds": 0.058,
-      "stationSeconds": 0.159,
-      "profileSeconds": 1.063,
-      "vertexSeconds": 0.918,
-      "totalSeconds": 2.334
+      "baselineSeconds": 0.113,
+      "stationSeconds": 0.283,
+      "profileSeconds": 2.782,
+      "vertexSeconds": 1.201,
+      "totalSeconds": 4.556
     },
     "limitations": [
       "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
@@ -8469,7 +8469,7 @@
     "triangles": 386824,
     "areaKm2": 105.747093,
     "areaErrorM2": -1.71e-06,
-    "seconds": 2.97,
+    "seconds": 4.12,
     "waterLevelsGenerated": false,
     "heightSource": "copernicus-glo30-dsm",
     "exclusions": [
@@ -9250,40 +9250,41 @@
   "trees": {
     "status": "generated",
     "requested": 159225,
-    "kept": 58935,
+    "kept": 58773,
     "cap": 60000,
     "countsBySource": {
       "osm-node": 391,
       "osm-row": 663,
-      "simulated-street": 27587,
-      "simulated-park": 30294
+      "simulated-street": 27566,
+      "simulated-park": 30153
     },
     "speciesCounts": {
-      "ficus": 17628,
-      "camphor": 13009,
-      "phoenix": 9421,
-      "bauhinia": 7001,
-      "royal-palm": 7148,
-      "kapok": 4728
+      "ficus": 17584,
+      "camphor": 12973,
+      "phoenix": 9393,
+      "bauhinia": 6977,
+      "royal-palm": 7130,
+      "kapok": 4716
     },
     "appearanceSources": {
       "osm-tags": 25,
-      "species-estimate": 58910
+      "species-estimate": 58748
     },
     "streetLengthM": 907692.2,
     "parkAreaM2": 40753269.7,
     "dropped": {
       "park-building": 888,
       "park-density": 25935,
-      "park-duplicate": 668,
+      "park-duplicate": 665,
+      "park-plaza": 144,
       "park-road": 2025,
       "park-water": 4148,
       "park-wetland": 5979,
       "street-building": 1757,
-      "street-density": 16406,
+      "street-density": 16392,
       "street-junction": 24154,
       "street-outside-clip": 52,
-      "street-plaza": 39,
+      "street-plaza": 74,
       "street-road-corridor": 18238,
       "street-water": 1,
       "total-cap": 0
@@ -9293,8 +9294,8 @@
     },
     "skippedAreas": {},
     "parkKept": {
-      "destination": 3619,
-      "otherGreen": 26675
+      "destination": 3599,
+      "otherGreen": 26554
     },
     "rules": {
       "streetClasses": [
@@ -9436,7 +9437,7 @@
       "只有 PBF 里 natural=tree / natural=tree_row 的点位有来源；没有 height / diameter_crown 标签的树，树高和冠幅按树种范围估计（appearance=species-estimate）。",
       "树龄没有数据来源，未建模。",
       "避让只按本地几何判定建筑退让 2 m、水体、湿地、车行道、pedestrian 广场走廊和已知步道；树池、地下管线、架空线、入口净空未核实。",
-      "OSM 的 highway 面（area=yes 广场）不在现有 osm.py 产出里，plaza 只覆盖 pedestrian 线状走廊。",
+      "广场避让来自 OSM highway=pedestrian/place=square 的线状和面状对象；其他未映射的铺装广场仍可能被补种。",
       "绿地图层包含山体林地（面积远大于城市公园），受 60000 株总量上限约束，非地标绿地按面积配额等距抽样，密度低于满铺。",
       "树种从固定权重表里按种子抽取，不对应深圳市政实际种植清单。"
     ]
@@ -9559,6 +9560,6 @@
     ],
     "missingCount": 13
   },
-  "outputBytes": 6952911,
-  "seconds": 69.5
+  "outputBytes": 6951369,
+  "seconds": 61.5
 }

@@ -13,6 +13,7 @@ import numpy as np
 import osmium
 from shapely import STRtree, points as shapely_points
 from shapely.geometry import LineString, Point
+from shapely.ops import transform
 
 from geo import KX, KY, ORIGIN_LAT, ORIGIN_LON, project
 from roads import CLASS_OF, _num, road_dimensions
@@ -73,7 +74,7 @@ LIMITATIONS = [
     '树龄没有数据来源，未建模。',
     '避让只按本地几何判定建筑退让 2 m、水体、湿地、车行道、pedestrian 广场走廊和已知步道；'
     '树池、地下管线、架空线、入口净空未核实。',
-    'OSM 的 highway 面（area=yes 广场）不在现有 osm.py 产出里，plaza 只覆盖 pedestrian 线状走廊。',
+    '广场避让来自 OSM highway=pedestrian/place=square 的线状和面状对象；其他未映射的铺装广场仍可能被补种。',
     '绿地图层包含山体林地（面积远大于城市公园），受 60000 株总量上限约束，'
     '非地标绿地按面积配额等距抽样，密度低于满铺。',
     '树种从固定权重表里按种子抽取，不对应深圳市政实际种植清单。',
@@ -272,8 +273,13 @@ def _walk_extra_lines(osm):
 
 
 def _plaza_lines(osm):
-    """pedestrian 线状广场/步行街走廊；OSM 的 area=yes 广场面当前管线不产出。"""
+    """pedestrian 线状广场/步行街走廊 + OSM 广场面（osm.py 的 plaza 键）。"""
     lines = []
+    for plaza in osm.get('plaza', []):
+        polygon = _poly_of(plaza)
+        if polygon is not None and not polygon.is_empty:
+            # osm.py 的广场面保留经纬度，这里转成局部米制后再作为避让掩膜。
+            lines.append(transform(lambda lon, lat: project(lon, lat), polygon))
     for road in osm.get('roads', []):
         tags = road['tags']
         if tags.get('highway') != 'pedestrian':
@@ -538,6 +544,7 @@ def build_trees(osm, clip_local, land, water, wetland, green, parks, streetscape
         wetland_hit = masks['wetland'].hits(xs, zs)
         road_hit = masks['walk'].hits(xs, zs)
         path_hit = masks['path'].hits(xs, zs)
+        plaza_hit = masks['plaza'].hits(xs, zs)
         occupied = {}
         for index, item in enumerate(park_candidates):
             if building_hit[index]:
@@ -550,6 +557,8 @@ def build_trees(osm, clip_local, land, water, wetland, green, parks, streetscape
                 dropped['park-road'] += 1
             elif path_hit[index]:
                 dropped['park-path'] += 1
+            elif plaza_hit[index]:
+                dropped['park-plaza'] += 1
             else:
                 cell = (int(math.floor(item['x'] / 4.0)), int(math.floor(item['z'] / 4.0)))
                 duplicate = False
