@@ -21,6 +21,9 @@ LANDMARKS = ROOT / 'data/source/landmarks.json'
 
 LEVEL_HEIGHT = 3.2
 MIN_AREA = 16.0
+ESTIMATE_SEED = 20261118
+UNDERGROUND_TAGS = ('name', 'building', 'building:part', 'building:levels', 'building:levels:underground',
+                    'layer', 'location', 'height', 'min_height')
 
 # 立面类型编号，和 js/sz-mvp/buildings.js 的 FACADE 表一一对应
 FACADES = ['glass_tower', 'office', 'residential_tower', 'residential_low', 'village', 'industrial', 'public', 'landmark']
@@ -41,6 +44,24 @@ def _num(value):
         return None
     m = re.match(r'^\s*([0-9]+(?:\.[0-9]+)?)', str(value))
     return float(m.group(1)) if m else None
+
+
+def _underground_reason(tags):
+    location = tags.get('location')
+    if location == 'underground':
+        return 'location-underground'
+    levels = tags.get('building:levels', '').strip()
+    zero_levels = re.fullmatch(r'0(?:\.0+)?', levels) is not None
+    # 地下层数可以与地上体量共存，负 layer 只表示相对上下关系。
+    if ((levels and not zero_levels) or (_num(tags.get('height')) or 0) > 0
+            or (_num(tags.get('min_height')) or 0) > 0):
+        return None
+    if zero_levels and location not in ('surface', 'overground', 'roof'):
+        if (_num(tags.get('building:levels:underground')) or 0) > 0:
+            return 'zero-levels-with-underground-floors'
+        if re.fullmatch(r'-[1-9]\d*', tags.get('layer', '').strip()):
+            return 'zero-levels-with-negative-layer'
+    return None
 
 
 def _category(kind):
@@ -134,7 +155,7 @@ def load_landmark_bindings():
     return bindings
 
 
-def _estimate(category, area, rng):
+def _estimate(category, area, identity):
     if category == 'industrial':
         base = 14 if area < 3000 else 20
     elif category == 'residential':
@@ -145,6 +166,7 @@ def _estimate(category, area, rng):
         base = 18
     else:
         base = 9 if area < 120 else (15 if area < 400 else (24 if area < 1500 else 30))
+    rng = random.Random(f'{ESTIMATE_SEED}:{identity}')
     return round(base * rng.uniform(0.8, 1.25), 1)
 
 
@@ -173,13 +195,26 @@ def _facade(category, height, area, landmark):
 def build_buildings(osm, clip_local, report):
     bindings = load_landmark_bindings()
     records = []
+    underground = []
 
     for b in osm['buildings']:
         t = b['tags']
         geom = _to_local(b['geom'])
-        for poly in _polygons(geom.intersection(clip_local)):
-            if poly.area < MIN_AREA:
-                continue
+        polygons = [p for p in _polygons(geom.intersection(clip_local)) if p.area >= MIN_AREA]
+        if not polygons:
+            continue
+        reason = _underground_reason(t)
+        if reason:
+            entry = {'id': b['id'], 'reason': reason, 'tags': {key: t[key] for key in UNDERGROUND_TAGS if key in t}}
+            if b['id'] in bindings:
+                entry['landmark'] = bindings[b['id']]['landmark']
+            # 正尺寸没有提供地上几何的证据，保留异义标签供复核。
+            conflicts = {key: t[key] for key in ('building:levels', 'height', 'min_height') if (_num(t.get(key)) or 0) > 0}
+            if conflicts:
+                entry['conflicts'] = conflicts
+            underground.append(entry)
+            continue
+        for poly in polygons:
             records.append({
                 'id': b['id'], 'geom': poly, 'src': 'osm',
                 'kind': t.get('building') or t.get('building:part'),
@@ -188,6 +223,7 @@ def build_buildings(osm, clip_local, report):
                 'isPart': 'building:part' in t,
             })
     report['osmBuildings'] = len(records)
+    report['excludedUndergroundBuildings'] = underground
 
     # 有 building:part 的建筑外框只留部件，避免外框和部件叠在一起
     part_tree = STRtree([r['geom'] for r in records if r['isPart']])
@@ -260,7 +296,6 @@ def build_buildings(osm, clip_local, report):
         gb_added += 1
     report['globfpAdded'] = gb_added
 
-    rng = random.Random(20261118)
     out = []
     counts = {s: 0 for s in HEIGHT_SOURCES}
     for r in records:
@@ -311,7 +346,7 @@ def build_buildings(osm, clip_local, report):
             elif overlap_a >= 0.5 * area:
                 height, source = overlap_h / overlap_a, 'globfp-overlap'
         if not height or height < 2.5:
-            height, source = _estimate(category, area, rng), 'estimate'
+            height, source = _estimate(category, area, r['id']), 'estimate'
         height = min(height, 650.0)
         counts[source] += 1
         landmark = binding['landmark'] if binding else None
@@ -323,6 +358,7 @@ def build_buildings(osm, clip_local, report):
         })
     report['buildings'] = len(out)
     report['heightSources'] = counts
+    report['heightEstimate'] = {'method': 'category-area-seeded-jitter', 'seed': ESTIMATE_SEED, 'seedBy': 'building-id'}
     found = sorted({b['landmark'] for b in out if b['landmark']})
     expected = sorted({v['landmark'] for v in bindings.values()})
     report['landmarkBuildingsBound'] = found

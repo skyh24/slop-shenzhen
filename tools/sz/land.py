@@ -45,7 +45,7 @@ def build_land(osm, clip_local, buildings, report):
             g = _to_local(it['geom']).intersection(clip_local)
             for p in _polys(g):
                 if p.area >= min_area:
-                    out.append({'poly': p.simplify(0.8, preserve_topology=True), 'name': it['tags'].get('name')})
+                    out.append({'id': it['id'], 'poly': p.simplify(0.8, preserve_topology=True), 'name': it['tags'].get('name')})
         return out
 
     water = layer(osm['water'], 200)

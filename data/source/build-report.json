@@ -10,47 +10,1007 @@
     114.085,
     22.588
   ],
-  "osmBuildings": 12934,
+  "osmBuildings": 12853,
+  "excludedUndergroundBuildings": [
+    {
+      "id": "way/412443234",
+      "reason": "location-underground",
+      "tags": {
+        "name": "车公庙站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      },
+      "landmark": "chegongmiao"
+    },
+    {
+      "id": "way/412778222",
+      "reason": "location-underground",
+      "tags": {
+        "name": "石厦",
+        "building": "yes",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/412778223",
+      "reason": "location-underground",
+      "tags": {
+        "name": "石厦",
+        "building": "yes",
+        "layer": "-2",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/413305369",
+      "reason": "location-underground",
+      "tags": {
+        "building": "yes",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/800275813",
+      "reason": "location-underground",
+      "tags": {
+        "name": "莲花西站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/800275814",
+      "reason": "location-underground",
+      "tags": {
+        "name": "福田站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-2",
+        "location": "underground"
+      },
+      "landmark": "futian-station"
+    },
+    {
+      "id": "way/800275815",
+      "reason": "location-underground",
+      "tags": {
+        "name": "购物公园站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/800275816",
+      "reason": "location-underground",
+      "tags": {
+        "name": "会展中心站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/800275817",
+      "reason": "location-underground",
+      "tags": {
+        "name": "連城新天地一期",
+        "building": "retail",
+        "building:levels": "0",
+        "building:levels:underground": "1",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/864705250",
+      "reason": "location-underground",
+      "tags": {
+        "name": "市民中心站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      },
+      "landmark": "civic-center"
+    },
+    {
+      "id": "way/865658015",
+      "reason": "location-underground",
+      "tags": {
+        "name": "农林站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/865658017",
+      "reason": "location-underground",
+      "tags": {
+        "name": "安托山站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/865658025",
+      "reason": "location-underground",
+      "tags": {
+        "name": "深云站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/865658035",
+      "reason": "location-underground",
+      "tags": {
+        "name": "西丽",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/921772943",
+      "reason": "location-underground",
+      "tags": {
+        "name": "大学城站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1018426473",
+      "reason": "location-underground",
+      "tags": {
+        "name": "少年宫站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1018426474",
+      "reason": "location-underground",
+      "tags": {
+        "name": "莲花村站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1018426475",
+      "reason": "location-underground",
+      "tags": {
+        "name": "冬瓜岭站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1081148105",
+      "reason": "location-underground",
+      "tags": {
+        "name": "珠光站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1137533075",
+      "reason": "location-underground",
+      "tags": {
+        "name": "福田口岸站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "1",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1137533076",
+      "reason": "location-underground",
+      "tags": {
+        "name": "福民站",
+        "building": "train_station",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1137533078",
+      "reason": "location-underground",
+      "tags": {
+        "name": "福田口岸站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "relation/15525717",
+      "reason": "location-underground",
+      "tags": {
+        "name": "岗厦北站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-2",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1169311418",
+      "reason": "location-underground",
+      "tags": {
+        "name": "红树湾站",
+        "building": "train_station",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1169311419",
+      "reason": "location-underground",
+      "tags": {
+        "name": "红树湾南站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1194892360",
+      "reason": "location-underground",
+      "tags": {
+        "name": "后海站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1194924337",
+      "reason": "location-underground",
+      "tags": {
+        "name": "深圳湾公园站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1195269080",
+      "reason": "location-underground",
+      "tags": {
+        "name": "岗厦站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1195269081",
+      "reason": "location-underground",
+      "tags": {
+        "name": "連城新天地二期",
+        "building": "retail",
+        "building:levels": "0",
+        "building:levels:underground": "1",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1197472719",
+      "reason": "location-underground",
+      "tags": {
+        "name": "竹子林站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1197685531",
+      "reason": "location-underground",
+      "tags": {
+        "name": "白石洲站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1197685533",
+      "reason": "location-underground",
+      "tags": {
+        "name": "世界之窗站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      },
+      "landmark": "window-of-world"
+    },
+    {
+      "id": "way/1212730064",
+      "reason": "location-underground",
+      "tags": {
+        "name": "高新园站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1212730070",
+      "reason": "location-underground",
+      "tags": {
+        "name": "深大站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1279570287",
+      "reason": "location-underground",
+      "tags": {
+        "name": "燕南站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1279570288",
+      "reason": "location-underground",
+      "tags": {
+        "name": "华强北站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-2",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1279570289",
+      "reason": "location-underground",
+      "tags": {
+        "name": "华强南站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1279570290",
+      "reason": "location-underground",
+      "tags": {
+        "name": "华强路站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1301536051",
+      "reason": "location-underground",
+      "tags": {
+        "name": "香蜜湖站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1302652254",
+      "reason": "location-underground",
+      "tags": {
+        "name": "华侨城站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1302652255",
+      "reason": "location-underground",
+      "tags": {
+        "name": "侨城东站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1302698768",
+      "reason": "location-underground",
+      "tags": {
+        "name": "湾厦站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1302698769",
+      "reason": "location-underground",
+      "tags": {
+        "name": "海月站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1302698770",
+      "reason": "location-underground",
+      "tags": {
+        "name": "登良站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1304084106",
+      "reason": "location-underground",
+      "tags": {
+        "name": "科苑站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1304084107",
+      "reason": "location-underground",
+      "tags": {
+        "name": "粤海门站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1304084108",
+      "reason": "location-underground",
+      "tags": {
+        "name": "高新南站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1309409396",
+      "reason": "location-underground",
+      "tags": {
+        "name": "香梅站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1309409397",
+      "reason": "location-underground",
+      "tags": {
+        "name": "香梅北站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1309409398",
+      "reason": "location-underground",
+      "tags": {
+        "name": "景田站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "relation/17962049",
+      "reason": "location-underground",
+      "tags": {
+        "name": "华新站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-2",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1309874875",
+      "reason": "location-underground",
+      "tags": {
+        "name": "梅景站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1311279286",
+      "reason": "location-underground",
+      "tags": {
+        "name": "深康站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1311279287",
+      "reason": "location-underground",
+      "tags": {
+        "name": "侨城北站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1311279288",
+      "reason": "location-underground",
+      "tags": {
+        "name": "侨香站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1311279289",
+      "reason": "location-underground",
+      "tags": {
+        "name": "香蜜站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1335897569",
+      "reason": "location-underground",
+      "tags": {
+        "name": "深湾站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1338561345",
+      "reason": "location-underground",
+      "tags": {
+        "name": "皇岗口岸站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1338561346",
+      "reason": "location-underground",
+      "tags": {
+        "name": "皇岗村站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1338561347",
+      "reason": "location-underground",
+      "tags": {
+        "name": "福保站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1338561348",
+      "reason": "location-underground",
+      "tags": {
+        "name": "益田站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1339765112",
+      "reason": "location-underground",
+      "tags": {
+        "name": "人才公园站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      },
+      "landmark": "talent-park"
+    },
+    {
+      "id": "way/1339765113",
+      "reason": "location-underground",
+      "tags": {
+        "name": "深圳湾口岸站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1339995649",
+      "reason": "location-underground",
+      "tags": {
+        "name": "高新北站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1339995650",
+      "reason": "location-underground",
+      "tags": {
+        "name": "高新中站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1340019877",
+      "reason": "location-underground",
+      "tags": {
+        "name": "深大南站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1340470401",
+      "reason": "location-underground",
+      "tags": {
+        "name": "桃源村站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1340485069",
+      "reason": "location-underground",
+      "tags": {
+        "name": "赤尾站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1343639938",
+      "reason": "location-underground",
+      "tags": {
+        "name": "莲花北站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1345394381",
+      "reason": "location-underground",
+      "tags": {
+        "name": "沙尾站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1345394382",
+      "reason": "location-underground",
+      "tags": {
+        "name": "上沙站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1345394383",
+      "reason": "location-underground",
+      "tags": {
+        "name": "下沙站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1345398573",
+      "reason": "location-underground",
+      "tags": {
+        "name": "福星站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1345407329",
+      "reason": "location-underground",
+      "tags": {
+        "name": "黄木岗站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-2",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1345691406",
+      "reason": "location-underground",
+      "tags": {
+        "name": "内湖停车场",
+        "building": "depot",
+        "building:levels": "0",
+        "building:levels:underground": "1",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1460974431",
+      "reason": "location-underground",
+      "tags": {
+        "name": "西丽高铁站",
+        "building": "construction",
+        "building:levels": "0",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1462297503",
+      "reason": "location-underground",
+      "tags": {
+        "name": "留仙洞站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1462297504",
+      "reason": "location-underground",
+      "tags": {
+        "name": "石鼓站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1462500938",
+      "reason": "location-underground",
+      "tags": {
+        "name": "华强南站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1470898435",
+      "reason": "location-underground",
+      "tags": {
+        "name": "皇岗口岸站",
+        "building": "construction",
+        "building:levels": "0",
+        "building:levels:underground": "4",
+        "layer": "-2",
+        "location": "underground"
+      }
+    }
+  ],
   "overtureAdded": 18931,
   "overtureDuplicates": 12131,
   "globfpCandidates": 51434,
-  "globfpAdded": 8027,
-  "buildings": 39730,
+  "globfpAdded": 8335,
+  "buildings": 39957,
   "heightSources": {
     "landmark": 6,
     "osm-height": 955,
     "osm-levels": 4219,
     "overture-height": 2,
     "overture-floors": 22,
-    "globfp": 17678,
-    "globfp-overlap": 8550,
-    "estimate": 8298
+    "globfp": 17983,
+    "globfp-overlap": 8549,
+    "estimate": 8221
+  },
+  "heightEstimate": {
+    "method": "category-area-seeded-jitter",
+    "seed": 20261118,
+    "seedBy": "building-id"
   },
   "landmarkBuildingsBound": [
-    "chegongmiao",
     "chunsun",
     "civic-center",
     "convention-center",
     "dji-sky-city",
-    "futian-station",
     "huaqiangbei",
     "ping-an",
     "super-hq",
-    "talent-park",
     "tencent-binhai",
     "upperhills",
     "window-of-world",
     "xili-station"
   ],
   "landmarksWithoutBuilding": [
+    "chegongmiao",
     "chunjian",
     "diwang",
+    "futian-station",
     "iec-xiangmihu",
     "kk100",
     "lianhuashan",
     "sea-world",
     "shenzhen-bay-bridge",
     "shenzhen-bay-park",
+    "talent-park",
     "yanjiang-expressway"
   ],
   "landPieces": 1,
@@ -121,6 +1081,128 @@
       "Water surface and bridge deck elevations require separate source data"
     ]
   },
+  "seaSurface": {
+    "status": "generated",
+    "nominalHeightM": 0,
+    "source": {
+      "osmSnapshotId": "osm-guangdong",
+      "coastlineIds": [
+        "way/1009065155",
+        "way/1145579603",
+        "way/1153410451",
+        "way/1153410452",
+        "way/1164594031",
+        "way/1172645417",
+        "way/1172645442",
+        "way/1302209870",
+        "way/1446878041",
+        "way/1446878045",
+        "way/1446878048",
+        "way/1446878054",
+        "way/166444191",
+        "way/245505707",
+        "way/325015311",
+        "way/486370377",
+        "way/555719075",
+        "way/601776176",
+        "way/601778701",
+        "way/630851924",
+        "way/704597602",
+        "way/704597603",
+        "way/708709869",
+        "way/730965554",
+        "way/78389987",
+        "way/788249306",
+        "way/788249307",
+        "way/788249308",
+        "way/818852735",
+        "way/909074065",
+        "way/928363019"
+      ],
+      "excludedWetlandIds": [
+        "relation/13025948",
+        "relation/18500602",
+        "relation/2761910",
+        "relation/9796900",
+        "relation/9796901",
+        "relation/9796902",
+        "way/1311289879",
+        "way/1311289880",
+        "way/1311978703",
+        "way/1311978704",
+        "way/1311978705",
+        "way/1311978706",
+        "way/1311978707",
+        "way/1311978708",
+        "way/1311978709",
+        "way/1347342818",
+        "way/1348494023",
+        "way/205615028",
+        "way/217564556",
+        "way/217564557",
+        "way/231691678",
+        "way/448747053",
+        "way/571629069",
+        "way/620102557",
+        "way/708046032",
+        "way/708709865",
+        "way/708709866",
+        "way/708709867",
+        "way/708709868",
+        "way/708709870",
+        "way/788249301",
+        "way/788249302",
+        "way/788249303",
+        "way/788249304",
+        "way/788249305",
+        "way/788335581",
+        "way/809935882",
+        "way/815854839",
+        "way/815854840",
+        "way/815854841",
+        "way/815854842",
+        "way/815854843",
+        "way/815854844",
+        "way/815854845",
+        "way/815854846",
+        "way/901463838",
+        "way/901463839",
+        "way/901463840",
+        "way/901463841",
+        "way/901463842",
+        "way/901463843",
+        "way/901463844",
+        "way/901463845",
+        "way/910545251",
+        "way/911342885",
+        "way/911342886",
+        "way/911342891",
+        "way/933903020",
+        "way/933903021",
+        "way/933903022",
+        "way/933903023",
+        "way/933903024",
+        "way/933903025",
+        "way/933903026",
+        "way/933903027",
+        "way/933903028"
+      ],
+      "geometry": "osm-coastline-directed-water-side",
+      "verticalDatum": "EGM2008",
+      "heightMethod": "copernicus-glo30-ocean-editing",
+      "handbook": "https://dataspace.copernicus.eu/sites/default/files/media/files/2024-06/geo1988-copernicusdem-spe-002_producthandbook_i5.0.pdf",
+      "contextBoundsLonLat": [
+        113.915,
+        22.455,
+        114.061,
+        22.526
+      ]
+    },
+    "phase1AreaKm2": 18.798959,
+    "contextAreaKm2": 27.02415,
+    "polygons": 1,
+    "holes": 30
+  },
   "roadGraph": {
     "nodes": 7842,
     "links": 11238,
@@ -155,7 +1237,7 @@
     "triangles": 386740,
     "areaKm2": 105.759659,
     "areaErrorM2": -1.7e-06,
-    "seconds": 2.76,
+    "seconds": 2.8,
     "waterLevelsGenerated": false,
     "heightSource": "copernicus-glo30-dsm"
   },
@@ -511,6 +1593,65 @@
       "Not yet attached to scene or maps"
     ]
   },
-  "outputBytes": 6409580,
-  "seconds": 17.9
+  "parks": {
+    "parks": [
+      {
+        "id": "talent-park",
+        "osmId": "relation/18459537",
+        "areas": 1,
+        "arrivalSamples": 20
+      },
+      {
+        "id": "shenzhen-bay-park",
+        "osmId": "relation/8133384",
+        "areas": 12,
+        "arrivalSamples": 24
+      },
+      {
+        "id": "window-of-world",
+        "osmId": "way/236402460",
+        "areas": 1,
+        "arrivalSamples": 16
+      },
+      {
+        "id": "lianhuashan",
+        "osmId": "way/41281446",
+        "areas": 1,
+        "arrivalSamples": 2
+      }
+    ],
+    "unresolvedSourceIds": []
+  },
+  "bridges": [
+    {
+      "id": "shenzhen-bay-bridge",
+      "osmRelationId": 9184867,
+      "stations": 782,
+      "verticalDatum": "nominal-waterline-visual-reference",
+      "absoluteDeckHeightsResolved": false,
+      "playable": false,
+      "designLengthM": 5545,
+      "primaryLengthM": 5549.99,
+      "oppositeLengthM": 5282.25,
+      "omittedPortCrossingStationM": -1786.25,
+      "resolvedOppositeStartM": -1745,
+      "resolvedOppositeEndM": 3460.066,
+      "towers": [
+        {
+          "id": 6048306333,
+          "stationM": -1071.844,
+          "mainSpanM": 180,
+          "stayPairs": 12
+        },
+        {
+          "id": 6048306332,
+          "stationM": 237.496,
+          "mainSpanM": 210,
+          "stayPairs": 13
+        }
+      ]
+    }
+  ],
+  "outputBytes": 6439556,
+  "seconds": 46.9
 }

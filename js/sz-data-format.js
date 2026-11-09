@@ -3,6 +3,18 @@ function requireData(condition, field) {
   if (!condition) throw new Error(`Invalid Shenzhen city data: ${field}`);
 }
 
+function validateSeaSurface(surface) {
+  if (surface === undefined) return;
+  const source = surface?.source;
+  const validOsmId = id => typeof id === 'string' && /^(?:way|relation)\/\d+$/.test(id);
+  requireData(surface?.version === 1 && surface.heightM === 0 && source?.verticalDatum === 'EGM2008'
+    && source.heightMethod === 'copernicus-glo30-ocean-editing'
+    && source.geometry === 'osm-coastline-directed-water-side' && source.osmSnapshotId === 'osm-guangdong'
+    && Array.isArray(source.coastlineIds) && source.coastlineIds.length > 0 && source.coastlineIds.every(validOsmId)
+    && Array.isArray(source.excludedWetlandIds) && source.excludedWetlandIds.every(validOsmId)
+    && Array.isArray(surface.polygons) && surface.polygons.length > 0, 'sea surface and source');
+}
+
 export function decodeRing(flat) {
   requireData(Array.isArray(flat) && flat.length >= 4 && flat.length % 2 === 0, 'coordinate sequence');
   const out = new Float64Array(flat.length);
@@ -35,6 +47,45 @@ function polygon(rings) {
   return { outer: points[0], holes: points.slice(1) };
 }
 
+function validateBridges(bridges, landmarkIds) {
+  if (bridges === undefined) return;
+  requireData(Array.isArray(bridges), 'bridges');
+  const positive = n => Number.isFinite(n) && n > 0;
+  const laneCount = n => Number.isInteger(n) && n > 0;
+  for (const bridge of bridges) {
+    requireData(landmarkIds.has(bridge?.id) && Number.isSafeInteger(bridge.source?.osmRelationId)
+      && bridge.source.verticalDatum === 'nominal-waterline-visual-reference'
+      && Array.isArray(bridge.stations) && bridge.stations.length > 1
+      && Array.isArray(bridge.spans) && bridge.spans.length > 0, 'bridge source');
+    const oppositeStations = new Set();
+    let previous = -Infinity;
+    for (const p of bridge.stations) {
+      requireData([p?.stationM, p?.x, p?.y, p?.z].every(Number.isFinite) && p.stationM > previous
+        && laneCount(p.lanes), 'bridge station');
+      previous = p.stationM;
+      if (p.oppositeX === undefined && p.oppositeZ === undefined && p.oppositeLanes === undefined) continue;
+      requireData(Number.isFinite(p.oppositeX) && Number.isFinite(p.oppositeZ) && laneCount(p.oppositeLanes), 'opposite bridge station');
+      oppositeStations.add(p.stationM);
+    }
+    let lastSpanEnd = bridge.stations[0].stationM;
+    for (const span of bridge.spans) {
+      const tower = span?.tower;
+      const supports = span?.supportStationsM;
+      requireData(span?.startM >= lastSpanEnd && span.startM < span.endM
+        && Array.isArray(supports) && supports[0] === span.startM && supports.at(-1) === span.endM
+        && supports.every((s, i) => oppositeStations.has(s) && (i === 0 || s > supports[i - 1]))
+        && supports.includes(tower?.stationM) && [tower.x, tower.y, tower.z, tower.capY, tower.topY, tower.lean].every(Number.isFinite)
+        && tower.capY < tower.y && tower.y < tower.topY && Number.isSafeInteger(tower.osmNodeId)
+        && [span.deckWidthM, span.girderDepthM, span.mainSpanM, span.backSpanM].every(positive)
+        && [-1, 1].includes(span.mainDirection) && Number.isInteger(span.stayPairs) && span.stayPairs > 1, 'bridge span');
+      lastSpanEnd = span.endM;
+    }
+    const a = bridge.approach, light = bridge.lighting;
+    requireData([a?.deckWidthM, a?.girderDepthM, a?.typicalPierSpacingM, a?.pierWidthM, a?.pierDepthM,
+      light?.designSpacingM ?? light?.estimatedSpacingM, light?.designHeightM].every(positive), 'bridge approach and lighting');
+  }
+}
+
 export async function readCityPayload(url, fetcher = fetch) {
   const response = await fetcher(url);
   if (!response.ok) throw new Error(`City data request failed: ${response.status}`);
@@ -59,6 +110,21 @@ export function validateCityPayload(raw) {
     requireData(Array.isArray(buildings[key]) && buildings[key].length === buildings.h.length, `buildings.${key}`);
   }
   requireData(Array.isArray(raw.landmarks), 'landmarks');
+  requireData(raw.parks === undefined || Array.isArray(raw.parks), 'parks');
+  const landmarkIds = new Set(raw.landmarks.map(landmark => landmark.id));
+  validateBridges(raw.bridges, landmarkIds);
+  validateSeaSurface(raw.seaSurface);
+  const isOsmId = id => typeof id === 'string' && /^(?:way|relation)\/\d+$/.test(id);
+  for (const park of raw.parks ?? []) {
+    requireData(landmarkIds.has(park?.id) && isOsmId(park.osmId)
+      && park.source === `https://www.openstreetmap.org/${park.osmId}`
+      && Array.isArray(park.areas) && park.areas.length > 0, 'park source');
+    for (const area of park.areas) {
+      requireData(isOsmId(area?.osmId) && Array.isArray(area.polygon) && area.polygon.length > 0
+        && Array.isArray(area.arrivals) && area.arrivals.every(point => Array.isArray(point)
+          && point.length === 2 && point.every(Number.isFinite)), 'park area and arrival samples');
+    }
+  }
   for (let i = 0; i < buildings.h.length; i++) {
     requireData(typeof buildings.id[i] === 'string' && buildings.id[i].length > 0, 'building identity');
     requireData(Number.isFinite(buildings.h[i]) && Number.isFinite(buildings.minH[i])
@@ -111,5 +177,9 @@ export function decodeCityPayload(raw) {
     coverage: raw.coverage.map(polygon), land: raw.land.map(polygon), water: raw.water.map(polygon),
     wetland: raw.wetland.map(polygon), green: raw.green.map(polygon),
     roadGraph: raw.roadGraph, terrain: raw.terrain, terrainSurface: raw.terrainSurface,
-    metro: raw.metro, landmarks: raw.landmarks } };
+    metro: raw.metro, landmarks: raw.landmarks,
+    bridges: raw.bridges ?? [],
+    seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },
+    parks: (raw.parks ?? []).map(park => ({ ...park, areas: park.areas.map(area => ({ ...area, polygon: polygon(area.polygon) })) }))
+  } };
 }

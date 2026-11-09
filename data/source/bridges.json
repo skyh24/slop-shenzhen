@@ -1,0 +1,93 @@
+{
+  "shenzhen-bay-bridge": {
+    "checkedOn": "2026-11-09",
+    "osmRelationId": 9184867,
+    "osmSnapshotId": "osm-guangdong",
+    "designLengthM": 5545,
+    "verticalDatum": "nominal-waterline-visual-reference",
+    "primary": {
+      "direction": "southbound",
+      "boundaryNodeId": 5468670298,
+      "wayIds": [660499360, 111708099, 276506948, 1164423104, 660499420, 276506946, 568424506]
+    },
+    "opposite": {
+      "direction": "northbound",
+      "boundaryNodeId": 5468670299,
+      "wayIds": [161557691, 1164423108, 568424517, 1164423103, 1164423109, 1164423107, 1164423106, 101316157, 276506947],
+      "resolvedStartStationM": -1745
+    },
+    "approach": {
+      "deckWidthM": 16.55,
+      "girderDepthM": 4,
+      "typicalPierSpacingM": 75,
+      "pierWidthM": 6,
+      "pierDepthM": 2.5,
+      "northEndDeckY": 8,
+      "southEndDeckY": 12
+    },
+    "spans": [
+      {
+        "id": "shenzhen",
+        "towerNodeId": 6048306333,
+        "supportOffsetsM": [-180, 0, 90, 165],
+        "mainSpanM": 180,
+        "mainDirection": -1,
+        "backSpanM": 90,
+        "deckWidthM": 38.6,
+        "girderDepthM": 4.12,
+        "deckAboveCapM": 23.179,
+        "assumedCapY": 0,
+        "towerHeightAboveCapM": 139.053,
+        "towerBaseSectionM": [6, 11],
+        "towerTopSectionM": [4, 6],
+        "leanRiseRatio": 0.1763269807,
+        "stayPairs": 12,
+        "stayMainSpacingM": 12,
+        "stayBackSpacingM": 3,
+        "estimatedFirstMainAnchorM": 33,
+        "estimatedLastBackAnchorM": 88,
+        "publishedClearanceM": 17,
+        "estimatedDeckEndOffsetsM": [-1.4, -1.1]
+      },
+      {
+        "id": "hong-kong",
+        "towerNodeId": 6048306332,
+        "supportOffsetsM": [-248.17, -173.585, -99, 0, 210],
+        "mainSpanM": 210,
+        "mainDirection": 1,
+        "backSpanM": 99,
+        "deckWidthM": 38.6,
+        "girderDepthM": 4.1,
+        "deckYApproxM": 37,
+        "assumedCapY": 3,
+        "pileCapPlanM": [26.6, 27.8],
+        "towerHeightAboveCapM": 155,
+        "towerBaseSectionM": [15, 20],
+        "towerTopSectionM": [4, 6],
+        "leanRiseRatio": 0.2,
+        "stayPairs": 13,
+        "stayMainSpacingM": 12,
+        "stayBackSpacingM": 3,
+        "estimatedFirstMainAnchorM": 36,
+        "estimatedLastBackAnchorM": 96,
+        "estimatedDeckEndOffsetsM": [-3.8, -1.2]
+      }
+    ],
+    "lighting": {
+      "designSpacingM": 15,
+      "designHeightM": 12
+    },
+    "sources": {
+      "osm": "https://www.openstreetmap.org/relation/9184867",
+      "owner": "https://www.hyd.gov.hk/en/information_corner/hyd_factsheets/doc/e_Shenzhen_Bay_Bridge.pdf",
+      "shenzhenStructure": "https://pnr.sz.gov.cn/attachment/1/1551/1551105/12048526.pdf",
+      "shenzhenTower": "https://pubs.cstam.org.cn/data/article/jdc/preview/pdf/dlxykzxb201001012.pdf",
+      "shenzhenClearance": "https://www.sz.msa.gov.cn/u/cms/portal_wai/202103/129890.pdf",
+      "hongKongStructure": "https://www.aisc.org/media/katkr1ky/jang-2005-wsbs-final.pdf",
+      "hongKongDesign": "https://www.researchgate.net/publication/281033909_DESIGN_OF_HONG_KONG-SHENZHEN_WESTERN_CORRIDOR",
+      "hongKongConstruction": "https://www.devb.gov.hk/filemanager/en/content_592/8_high_perfor_concrete_hkswc_ii_mr_sy_chan_dr_herber.pdf",
+      "approachDesign": "https://www.epd.gov.hk/eia/files/applications/en/pp_81/eia_1552/progress/action_3324/section13.htm",
+      "hongKongInvestigation": "https://www.hyd.gov.hk/en/our_services/structures/doc/SBB_HK_Investigation_2019.pdf"
+    }
+  }
+}

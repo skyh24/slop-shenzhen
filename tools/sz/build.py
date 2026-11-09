@@ -8,12 +8,15 @@ from pathlib import Path
 
 from shapely.geometry import box
 
+from bridges import build_bridges
 from buildings import CATEGORIES, FACADES, HEIGHT_SOURCES, build_buildings
 from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project
 from land import build_land
-from osm import read_osm
+from osm import PBF, read_osm
+from parks import build_parks
 from roads import CLASSES, build_roads
 from roadgraph import build_roadgraph
+from sea_surface import build_sea_surface
 from terrain import build_terrain
 from terrain_surface import build_terrain_surface
 from metro import build_metro
@@ -47,10 +50,9 @@ def enc_poly(poly):
     return rings
 
 
-def landmark_entries():
-    data = json.loads(LANDMARKS.read_text())
+def landmark_entries(landmarks):
     out = []
-    for lm in data['landmarks']:
+    for lm in landmarks:
         lat, lon = lm['center']
         x, z = project(lon, lat)
         h = lm.get('heightM') or max(lm.get('heights', {}).values(), default=0)
@@ -77,11 +79,15 @@ def main():
     land, water, wetland, green = build_land(osm, clip, buildings, report)
     roads = build_roads(osm, clip, report)
     terrain = build_terrain(clip, report, source=args.terrain_source)
+    sea_surface = build_sea_surface(osm, clip, land, terrain, report)
     road_graph = build_roadgraph(osm, clip, report)
     terrain_surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland)
     metro = build_metro(clip, report, use_cache=not args.no_cache)
 
-    landmarks = landmark_entries()
+    landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
+    landmarks = landmark_entries(landmark_manifest)
+    parks = build_parks(landmark_manifest, green, land, water, report)
+    bridges = build_bridges(PBF, landmark_manifest, report)
     lm_index = {lm['id']: i for i, lm in enumerate(landmarks)}
 
     minx, minz, maxx, maxz = clip.bounds
@@ -121,8 +127,13 @@ def main():
             'lm': [lm_index.get(b['landmark'], -1) for b in buildings],
         },
         'landmarks': landmarks,
+        'parks': [{**park, 'areas': [{**area, 'polygon': enc_poly(area['polygon'])}
+                                    for area in park['areas']]} for park in parks],
+        'bridges': bridges,
         'air': json.loads(AIR.read_text()),
     }
+    if sea_surface:
+        payload['seaSurface'] = {**sea_surface, 'polygons': [enc_poly(p) for p in sea_surface['polygons']]}
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode()

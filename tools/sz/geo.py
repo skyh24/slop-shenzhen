@@ -24,6 +24,9 @@ PHASE1_BOXES = [
 ]
 PHASE1_BBOX = (113.920, 22.495, 114.085, 22.588)
 
+# 只用于深圳湾远景的岸线裁切，南界取锁定数据清单的南界。
+BAY_CONTEXT_BBOX = (113.915, 22.455, 114.061, 22.526)
+
 
 def project(lon, lat):
     return ((lon - ORIGIN_LON) * KX, -(lat - ORIGIN_LAT) * KY)

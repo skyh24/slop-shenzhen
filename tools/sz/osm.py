@@ -6,11 +6,14 @@ from pathlib import Path
 import osmium
 from shapely import wkb
 from shapely.geometry import LineString, box
+from shapely.ops import unary_union
+
+from geo import BAY_CONTEXT_BBOX
 
 ROOT = Path(__file__).resolve().parents[2]
 PBF = ROOT / 'data/raw/guangdong-latest.osm.pbf'
 CACHE = ROOT / 'data/raw/cache/osm-phase1.pkl'
-CACHE_VERSION = 2
+CACHE_VERSION = 4
 
 GREEN_LANDUSE = {'grass', 'forest', 'recreation_ground', 'village_green', 'meadow', 'park'}
 GREEN_LEISURE = {'park', 'garden', 'nature_reserve', 'golf_course', 'pitch'}
@@ -19,6 +22,7 @@ WATER_LANDUSE = {'reservoir', 'basin'}
 
 KEEP_TAGS = (
     'name', 'name:en', 'height', 'building:levels', 'building', 'building:part', 'min_height',
+    'building:levels:underground', 'location',
     'highway', 'lanes', 'width', 'oneway', 'bridge', 'tunnel', 'layer', 'leisure', 'landuse',
     'natural', 'water', 'wetland', 'amenity', 'man_made',
     'junction', 'access', 'vehicle', 'motor_vehicle', 'motorcar',
@@ -45,13 +49,18 @@ def read_osm(bbox, use_cache=True):
     if use_cache and CACHE.exists():
         with CACHE.open('rb') as f:
             cached = pickle.load(f)
-        if cached.get('bbox') == bbox and cached.get('cacheVersion') == CACHE_VERSION:
+        if (cached.get('bbox') == bbox and cached.get('bayContextBbox') == BAY_CONTEXT_BBOX
+                and cached.get('cacheVersion') == CACHE_VERSION):
             return cached
 
     w, s, e, n = bbox
     clip = box(w, s, e, n)
+    bay_context = box(*BAY_CONTEXT_BBOX)
+    coastal_coverage = unary_union([clip, bay_context])
     wkbf = osmium.geom.WKBFactory()
-    out = {'cacheVersion': CACHE_VERSION, 'bbox': bbox, 'roads': [], 'coastline': [], 'buildings': [], 'water': [], 'wetland': [], 'green': []}
+    out = {'cacheVersion': CACHE_VERSION, 'bbox': bbox, 'bayContextBbox': BAY_CONTEXT_BBOX,
+           'roads': [], 'coastline': [], 'bayCoastline': [], 'shoreWetlands': [],
+           'buildings': [], 'water': [], 'wetland': [], 'green': []}
 
     keys = ('building', 'building:part', 'highway', 'natural', 'water', 'leisure', 'landuse', 'waterway')
     fp = (osmium.FileProcessor(str(PBF))
@@ -69,16 +78,19 @@ def read_osm(bbox, use_cache=True):
             if 'waterway' in obj.tags:
                 t['waterway'] = obj.tags['waterway']
             kind = _classify_area(t)
-            if kind is None:
+            shore_wetland = t.get('natural') in ('wetland', 'mud')
+            if kind is None and not shore_wetland:
                 continue
             try:
                 geom = wkb.loads(wkbf.create_multipolygon(obj), hex=True)
             except Exception:
                 continue
-            if not geom.intersects(clip):
-                continue
             osm_id = f"{'way' if obj.from_way() else 'relation'}/{obj.orig_id()}"
-            out[kind + 's' if kind == 'building' else kind].append({'id': osm_id, 'tags': t, 'geom': geom})
+            entry = {'id': osm_id, 'tags': t, 'geom': geom}
+            if shore_wetland and geom.intersects(coastal_coverage):
+                out['shoreWetlands'].append(entry)
+            if kind is not None and geom.intersects(clip):
+                out[kind + 's' if kind == 'building' else kind].append(entry)
         elif isinstance(obj, osmium.osm.Way):
             hw = obj.tags.get('highway')
             coast = obj.tags.get('natural') == 'coastline'
@@ -88,13 +100,18 @@ def read_osm(bbox, use_cache=True):
                 coords = [(nd.lon, nd.lat) for nd in obj.nodes]
             except osmium.InvalidLocationError:
                 continue
-            if len(coords) < 2 or not any(inside(*c) for c in coords):
+            if len(coords) < 2:
                 continue
-            line = LineString(coords)
+            near_phase = any(inside(*c) for c in coords)
             if coast:
-                out['coastline'].append({'id': f'way/{obj.id}', 'geom': line})
-            else:
-                out['roads'].append({'id': f'way/{obj.id}', 'tags': _tags(obj), 'geom': line,
+                line = LineString(coords)
+                entry = {'id': f'way/{obj.id}', 'geom': line}
+                if near_phase:
+                    out['coastline'].append(entry)
+                if line.intersects(bay_context):
+                    out['bayCoastline'].append(entry)
+            elif near_phase:
+                out['roads'].append({'id': f'way/{obj.id}', 'tags': _tags(obj), 'geom': LineString(coords),
                                      'nodeRefs': [nd.ref for nd in obj.nodes]})
 
     CACHE.parent.mkdir(parents=True, exist_ok=True)
