@@ -52,6 +52,16 @@ async function initApp() {
   let renderedFrames = 0;
   let elapsed = 0;
   const query = new URLSearchParams(location.search);
+  // QA 固定机位：?qa=1&cam=x,y,z,tx,ty,tz，只用于同机位截图对照，不影响普通入口。
+  const freeCamera = (() => {
+    const value = query.get('cam');
+    if (!value || query.get('qa') !== '1') return null;
+    const numbers = value.split(',').map(Number);
+    if (numbers.length !== 6 || !numbers.every(Number.isFinite)) {
+      throw new Error('Invalid QA camera: expected x,y,z,tx,ty,tz');
+    }
+    return numbers;
+  })();
   const qa = ['127.0.0.1', 'localhost'].includes(location.hostname) && query.get('qa') === '1' ? {
     chunkSize: query.get('chunks') === '500' ? 500 : BUILDING_RENDER_CHUNK_SIZE,
     startup: {}, frames: [], gpu: [], queue: [], previousFrameAt: null, queryPending: false, queuePending: false
@@ -922,6 +932,11 @@ async function initApp() {
       manual: !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right) });
     controllerManager.update(dt, elapsed, cameraSystem.initialized ? cameraSystem.currentPos : null, driveInput);
     cameraSystem.update(dt, elapsed);
+    if (freeCamera) {
+      cameraSystem.camera.position.set(freeCamera[0], freeCamera[1], freeCamera[2]);
+      cameraSystem.camera.lookAt(freeCamera[3], freeCamera[4], freeCamera[5]);
+      cameraSystem.camera.updateMatrixWorld();
+    }
     streetscape.update(cameraSystem.camera.position);
     buildingSigns.update(cameraSystem.camera.position);
     buildingSigns.group.updateMatrixWorld(true);
