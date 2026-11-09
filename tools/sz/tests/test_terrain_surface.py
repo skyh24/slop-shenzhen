@@ -1,13 +1,17 @@
 """显示网格的岸线、水洞、三角面共面和分块接缝测试。"""
 
+import json
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from shapely.geometry import Polygon, box
+from shapely.geometry import LineString, Polygon, box
 from shapely.ops import unary_union
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from geo import KX, KY, ORIGIN_LAT, ORIGIN_LON
+from terrain_exclusions import SOURCE, _footprint_signature, chunjian_exclusions
 from terrain_surface import build_terrain_surface
 
 
@@ -78,3 +82,85 @@ class TerrainSurfaceTests(unittest.TestCase):
         self.assertEqual(plain['chunks'][0]['positions'], colored['chunks'][0]['positions'])
         self.assertEqual(plain['chunks'][0]['indices'], colored['chunks'][0]['indices'])
         self.assertTrue(all(kind == 1 for kind in colored['chunks'][0]['kinds']))
+
+    def test_enclosed_cut_preserves_original_planes_across_chunks_and_water(self):
+        g = grid()
+        original = g['heights'].copy()
+        coverage = box(0, 0, 50, 50)
+        water = box(5, 11, 21, 32)
+        mask = Polygon([(18, 16), (33, 21), (29, 33), (19, 27)])
+        exclusion = {'id': 'hall', 'poly': mask, 'interiorGround': 'unknown'}
+        report = {}
+        surface = build_terrain_surface(g, coverage, [coverage], [{'poly': water}], report,
+                                        chunk_size=25, exclusions=[exclusion])
+        expected = coverage.difference(water.union(mask))
+        polygons = []
+        for face in faces(surface):
+            polygon = Polygon([(x, z) for x, y, z in face])
+            polygons.append(polygon)
+            self.assertAlmostEqual(polygon.intersection(mask).area, 0, places=8)
+            for x, y, z in face:
+                self.assertAlmostEqual(y, sample(g, x, z), places=8)
+        self.assertAlmostEqual(unary_union(polygons).symmetric_difference(expected).area, 0, places=8)
+        self.assertEqual(g['heights'], original)
+        self.assertEqual(surface['heightSource'], 'fixture-dem')
+        self.assertEqual(surface['exclusions'], report['terrainSurface']['exclusions'])
+        removal = surface['exclusions'][0]
+        self.assertEqual(removal['interiorGround'], 'unknown')
+        self.assertAlmostEqual(removal['areaM2'], mask.difference(water).area, places=6)
+        self.assertTrue(Polygon(removal['polygonXZ']).equals(mask))
+
+
+class ChunjianExclusionTests(unittest.TestCase):
+    def setUp(self):
+        self.pool = box(-65, -75, 65, 75)
+        self.gym = box(90, -80, 230, 80)
+        self.concourse = box(240, -75, 320, 75).difference(box(260, -12, 290, 12))
+        stadium = box(330, -100, 500, 100).difference(box(350, -80, 470, 80))
+        self.buildings = [dict(id=id_, poly=poly, minHeight=0) for id_, poly in [
+            ('way/665408866', self.pool), ('way/665408865', self.gym),
+            ('relation/9244351', self.concourse), ('relation/9244350', stadium)
+        ]]
+        self.old_dsm = {'x0': -75, 'z0': -75, 'step': 25, 'nx': 14, 'nz': 7, 'heightScale': 0.1,
+                        'heights': [325] * (14 * 7), 'processing': {'heightSource': 'copernicus-glo30-dsm'}}
+        self.manifest = json.loads(SOURCE.read_text())
+        self.manifest['chunjian']['requiredFootprints'] = {building['id']: _footprint_signature(building['poly'])
+                                                            for building in self.buildings}
+
+    def exclusions(self, buildings, terrain=None, roads=()):
+        with patch('terrain_exclusions.SOURCE') as source:
+            source.read_text.return_value = json.dumps(self.manifest)
+            return chunjian_exclusions(buildings, self.old_dsm if terrain is None else terrain, roads)
+
+    def test_chunjian_exclusions_require_old_dsm_complete_halls_and_route_clearance(self):
+        other_dem = {**self.old_dsm, 'processing': {'heightSource': 'different-dem'}}
+        self.assertEqual(self.exclusions(self.buildings, other_dem), [])
+        self.assertEqual(self.exclusions(self.buildings[:-1]), [])
+        self.assertEqual(self.exclusions([*self.buildings, self.buildings[0]]), [])
+        masks = self.exclusions(self.buildings)
+        self.assertEqual([mask['sourceId'] for mask in masks], ['way/665408866', 'way/665408865'])
+        self.assertTrue(self.pool.contains_properly(masks[0]['poly']))
+        self.assertTrue(self.gym.contains_properly(masks[1]['poly']))
+        self.assertEqual(masks[0]['dsmGridSamples']['minM'], 32.5)
+
+        points = [(ORIGIN_LON + x / KX, ORIGIN_LAT - 46 / KY) for x in [-60, 60]]
+        route = {'id': 'way/1', 'geom': LineString(points)}
+        self.assertEqual([mask['sourceId'] for mask in self.exclusions(self.buildings, roads=[route])], ['way/665408865'])
+
+    def test_chunjian_withholds_source_footprint_drift_including_a_shifted_opening(self):
+        pool, gym, arch, stadium = self.buildings
+        shifted_opening = box(240, -75, 320, 75).difference(box(262, -12, 292, 12))
+        self.assertEqual(shifted_opening.bounds, self.concourse.bounds)
+        self.assertEqual(shifted_opening.area, self.concourse.area)
+        self.assertEqual(len(shifted_opening.interiors), len(self.concourse.interiors))
+        self.assertEqual(self.exclusions([pool, gym, {**arch, 'poly': shifted_opening}, stadium]), [])
+        self.assertEqual(self.exclusions([{**pool, 'poly': box(-50, -75, 50, 75)}, gym, arch, stadium]), [])
+
+    def test_chunjian_requires_clearance_from_glazing_even_with_a_reviewed_footprint(self):
+        pool, *others = self.buildings
+        for half_width in [50, 60]:
+            with self.subTest(half_width=half_width):
+                revised = box(-half_width, -75, half_width, 75)
+                self.manifest['chunjian']['requiredFootprints'][pool['id']] = _footprint_signature(revised)
+                masks = self.exclusions([{**pool, 'poly': revised}, *others])
+                self.assertEqual([mask['sourceId'] for mask in masks], ['way/665408865'])

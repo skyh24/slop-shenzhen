@@ -1,4 +1,4 @@
-"""地面建筑与地下源对象的分流回归。"""
+"""建筑源对象的高程、覆盖和分流回归。"""
 
 import json
 import sys
@@ -24,12 +24,17 @@ def feature(identity, geom, tags):
 
 
 class BuildingTests(unittest.TestCase):
-    def build(self, features, overture=(), bindings=None):
+    def build(self, features, overture=(), bindings=None, globfp=(), reviews=()):
         report = {}
         with tempfile.TemporaryDirectory() as directory:
             overture_file = Path(directory) / 'buildings.jsonl'
             overture_file.write_text('\n'.join(map(json.dumps, overture)))
-            with (patch('buildings.OVERTURE', overture_file), patch('buildings.load_globfp', return_value=([], [])),
+            globfp_file = Path(directory) / 'globfp.jsonl'
+            globfp_file.write_text('\n'.join(map(json.dumps, globfp)))
+            reviews_file = Path(directory) / 'reviews.json'
+            reviews_file.write_text(json.dumps({'version': 1, 'globfpExclusions': reviews}))
+            with (patch('buildings.OVERTURE', overture_file), patch('buildings.GLOBFP_SZ', globfp_file),
+                  patch('buildings.FOOTPRINT_REVIEWS', reviews_file),
                   patch('buildings.load_landmark_bindings', return_value=bindings or {})):
                 output = build_buildings({'buildings': features}, box(-1, -1, 200, 200), report)
         return {item['id']: item for item in output}, report
@@ -75,3 +80,74 @@ class BuildingTests(unittest.TestCase):
         without_first, _ = self.build([other])
         self.assertEqual(with_both['way/2']['height'], without_first['way/2']['height'])
         self.assertEqual(with_both['way/2']['heightSource'], 'estimate')
+
+    def test_explicit_bridge_clearance_survives_decimetre_encoding_without_thickening(self):
+        bridge = feature(1484673350, footprint(10, 10, 8), {'building': 'bridge', 'height': '6.33',
+                                                         'min_height': '5.4', 'location': 'overground', 'layer': '1'})
+        part = feature(183019558, footprint(30, 10, 8), {'building:part': 'service', 'height': '10 m', 'min_height': '4.2 m'})
+        by_id, report = self.build([bridge, part])
+        self.assertEqual((by_id[bridge['id']]['minHeight'], by_id[bridge['id']]['height']), (5.4, 6.3))
+        self.assertEqual((by_id[part['id']]['minHeight'], by_id[part['id']]['height']), (4.2, 10))
+        self.assertEqual(report['buildingMinHeightCorrections'], [
+            {'id': bridge['id'], 'tags': {'height': '6.33', 'min_height': '5.4'}, 'heightSource': 'osm-height',
+             'heightM': 6.3, 'minHeightM': 5.4, 'previousMinHeightM': 5.3}
+        ])
+        self.assertEqual(report['excludedBuildingVerticalBounds'], [])
+
+    def test_vertical_conflicts_keep_the_valid_parent_and_prevent_duplicate_solid_fallback(self):
+        parent = footprint(10, 10, 8)
+        roof = footprint(30, 10, 8)
+        features = [
+            feature(1, parent, {'building': 'yes', 'height': '12'}),
+            feature(2, parent, {'building:part': 'yes', 'height': '9', 'min_height': '10'}),
+            feature(3, roof, {'building': 'roof', 'height': '6.33', 'min_height': '6.31'}),
+            feature(4, footprint(50, 10, 8), {'building': 'bridge', 'height': '8', 'min_height': '8'}),
+            feature(5, footprint(70, 10, 8), {'building': 'bridge', 'height': '9', 'min_height': '4 ft'}),
+            feature(6, footprint(90, 10, 8), {'building': 'bridge', 'building:levels': '1', 'min_height': '4'}),
+        ]
+        by_id, report = self.build(features, [{'id': 'same-roof', 'geom': mapping(roof), 'height': 8}],
+                                   globfp=[{'Height': 10, 'g': mapping(roof)}])
+        self.assertEqual(list(by_id), ['way/1'])
+        self.assertEqual(by_id['way/1']['height'], 12)
+        self.assertEqual(report['overtureDuplicates'], 1)
+        conflicts = report['excludedBuildingVerticalBounds']
+        self.assertEqual([(row['id'], row['scope'], row['reason']) for row in conflicts], [
+            ('way/2', 'osm-tags', 'minimum-not-below-top'),
+            ('way/3', 'osm-tags', 'interval-collapses-at-decimetre-precision'),
+            ('way/4', 'osm-tags', 'minimum-not-below-top'),
+            ('way/5', 'osm-tags', 'unresolved-explicit-metres'),
+            ('way/6', 'resolved-top', 'minimum-not-below-top'),
+        ])
+        self.assertEqual(conflicts[1]['tags'], {'height': '6.33', 'min_height': '6.31'})
+        self.assertEqual(conflicts[-1]['heightSource'], 'osm-levels')
+
+    def test_review_excludes_only_the_anchored_footprint_and_cannot_supply_another_building_height(self):
+        target = footprint(10, 10, 10)
+        nearby = footprint(40, 10, 10)
+        raw = [{'sourceId': 'globfp-tile', 'OGC_FID': 9, 'Height': 80, 'g': mapping(target)},
+               {'sourceId': 'globfp-nearby', 'OGC_FID': 9, 'Height': 80, 'g': mapping(nearby)}]
+        review = {'sourceId': 'globfp-tile', 'sourceFid': 9, 'bboxWgs84': target.bounds,
+                  'rawHeightM': 80, 'reason': 'reviewed-open-road'}
+        by_id, report = self.build([], globfp=raw, reviews=[review])
+        self.assertEqual(list(by_id), ['globfp/1'])
+        self.assertEqual(by_id['globfp/1']['height'], 80)
+        self.assertEqual(report['excludedGlobfpFootprints'], [{**review, 'bboxWgs84': list(target.bounds), 'id': 'globfp/0',
+                                                               'heightSource': 'globfp', 'match': 'source-tile-fid-and-bounds'}])
+        existing = feature(1, target, {'building': 'yes'})
+        by_id, _ = self.build([existing], globfp=raw, reviews=[review])
+        self.assertEqual(by_id['way/1']['heightSource'], 'estimate')
+        self.assertEqual(by_id['globfp/1']['heightSource'], 'globfp')
+
+    def test_review_rejects_conflicting_source_identity_and_accepts_the_exact_legacy_cache_record(self):
+        target = footprint(10, 10, 10)
+        legacy = {'Height': 8, 'g': mapping(target)}
+        review = {'sourceId': 'globfp-tile', 'sourceFid': 9, 'bboxWgs84': target.bounds, 'rawHeightM': 8}
+        with self.assertRaisesRegex(ValueError, 'footprints missing'):
+            self.build([], globfp=[{**legacy, 'OGC_FID': 10}], reviews=[review])
+        with self.assertRaisesRegex(ValueError, 'footprints missing'):
+            self.build([], globfp=[{**legacy, 'sourceId': 'globfp-nearby', 'OGC_FID': 9}], reviews=[review])
+        with self.assertRaisesRegex(ValueError, 'conflicting source records'):
+            self.build([], globfp=[legacy, legacy], reviews=[review])
+        by_id, report = self.build([], globfp=[legacy], reviews=[review])
+        self.assertEqual(by_id, {})
+        self.assertEqual(report['excludedGlobfpFootprints'][0]['match'], 'legacy-bounds-and-height')

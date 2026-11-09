@@ -966,21 +966,101 @@
       }
     }
   ],
+  "reviewedBuildingParentUses": {
+    "status": "applied",
+    "parentId": "way/135907001",
+    "useSource": "derived-parent-source",
+    "partIds": [
+      "way/1163682856",
+      "way/1163682857",
+      "way/1163682858"
+    ],
+    "objects": [
+      {
+        "id": "way/1163682856",
+        "kind": "commercial",
+        "status": "applied",
+        "useSource": "derived-parent-source"
+      },
+      {
+        "id": "way/1163682857",
+        "kind": "commercial",
+        "status": "applied",
+        "useSource": "derived-parent-source"
+      },
+      {
+        "id": "way/1163682858",
+        "kind": "commercial",
+        "status": "applied",
+        "useSource": "derived-parent-source"
+      }
+    ]
+  },
   "overtureAdded": 18931,
   "overtureDuplicates": 12131,
+  "excludedGlobfpFootprints": [
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 41021,
+      "bboxWgs84": [
+        114.02271764381571,
+        22.538813164093966,
+        114.02296164892385,
+        22.538906995032953
+      ],
+      "rawHeightM": 8.406392000000002,
+      "reason": "reviewed-open-road",
+      "checkedAt": "2026-11-09",
+      "description": "车公庙深南大道南侧辅路的开敞分流段。影像可辨车道标线和分流鼻端，北侧高架是独立对象。",
+      "osmWayIds": [
+        "way/837565287",
+        "way/860523333",
+        "way/879817607"
+      ],
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "imageProvider": "Vantor Vivid Advanced",
+        "acquiredAt": "2026-01-25",
+        "release": 43291,
+        "releasedAt": "2026-10-29",
+        "resolutionM": 0.34,
+        "absoluteAccuracyM": 8.47,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/19/228438/428201",
+        "imageSha256": "3d643a7b74a7cccd5a9420d179d3963c561614b06411b8c23372626bfaa4c5db",
+        "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.02284%2C22.53886%2C19"
+      },
+      "id": "globfp/8379",
+      "heightSource": "globfp",
+      "match": "source-fid-and-bounds"
+    }
+  ],
   "globfpCandidates": 51434,
-  "globfpAdded": 8335,
-  "buildings": 39957,
+  "globfpAdded": 8334,
+  "buildings": 39956,
   "heightSources": {
     "landmark": 6,
     "osm-height": 955,
     "osm-levels": 4219,
     "overture-height": 2,
     "overture-floors": 22,
-    "globfp": 17983,
+    "globfp": 17982,
     "globfp-overlap": 8549,
     "estimate": 8221
   },
+  "buildingMinHeightCorrections": [
+    {
+      "id": "way/1484673350",
+      "tags": {
+        "height": "6.33",
+        "min_height": "5.4"
+      },
+      "heightSource": "osm-height",
+      "heightM": 6.3,
+      "minHeightM": 5.4,
+      "previousMinHeightM": 5.3
+    }
+  ],
+  "excludedBuildingVerticalBounds": [],
   "heightEstimate": {
     "method": "category-area-seeded-jitter",
     "seed": 20261118,
@@ -1211,9 +1291,10 @@
     "bridgeLinks": 498,
     "tunnelLinks": 93,
     "widthSources": {
-      "estimate-from-class": 6965,
+      "estimate-from-class": 6958,
       "estimate-from-lanes": 4269,
-      "osm-width": 4
+      "osm-width": 4,
+      "reviewed-cross-section-estimate": 7
     },
     "skipped": {
       "accessRestricted": 135,
@@ -1231,6 +1312,21 @@
       "Bridge and tunnel vertical profiles require source verification; layer is not height",
       "Unresolved vertical links are excluded from traffic and automatic driving"
     ]
+  },
+  "beihuanCrossSection": {
+    "id": "beihuan-xinzhou",
+    "sourceSnapshot": "osm-guangdong",
+    "directedLinks": 7,
+    "stations": 159,
+    "pavedWidthEstimateM": 17.0,
+    "laneCount": 4,
+    "innerWidthRangeM": [
+      6.238,
+      9
+    ],
+    "medianTargetEstimateM": 3.15,
+    "captureDate": "2026-01-25",
+    "publicationDate": "2026-10-29"
   },
   "turnRestrictions": {
     "source": "osm-guangdong",
@@ -1337,6 +1433,29 @@
           "way/1241802791",
           "way/1241802794"
         ]
+      },
+      {
+        "id": "beihuan-xinzhou",
+        "bounds": [
+          -2787.559430960265,
+          -2032.0371119664908,
+          -1342.3487296695512,
+          -1616.7706721913437
+        ],
+        "roadIds": [
+          "way/1466159023",
+          "way/1466159024",
+          "way/1468770634"
+        ],
+        "unresolvedVerticalWays": [],
+        "sidewalkIds": [],
+        "crossingIds": [],
+        "medianSource": {
+          "source": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.0352%2C22.5628%2C19",
+          "positionSource": "documented-median-between-osm-carriageways",
+          "boundarySource": "derived-estimate",
+          "areaM2": 4172.25
+        }
       }
     ],
     "unresolvedPedestrianWays": [],
@@ -1350,21 +1469,377 @@
         "nearestPavingM": 13.93
       }
     ],
-    "features": 8,
-    "planarTriangles": 2679,
+    "features": 10,
+    "planarTriangles": 6108,
     "medianShrubsEstimated": 260,
     "signalApproaches": 4,
     "signalTimingSource": "user-defined-game-simulation"
   },
   "terrainSurface": {
     "chunks": 534,
-    "vertices": 245187,
-    "triangles": 386740,
-    "areaKm2": 105.759659,
-    "areaErrorM2": -1.7e-06,
-    "seconds": 2.69,
+    "vertices": 245306,
+    "triangles": 386824,
+    "areaKm2": 105.747093,
+    "areaErrorM2": -1.71e-06,
+    "seconds": 2.72,
     "waterLevelsGenerated": false,
-    "heightSource": "copernicus-glo30-dsm"
+    "heightSource": "copernicus-glo30-dsm",
+    "exclusions": [
+      {
+        "id": "chunjian-pool-interior",
+        "sourceId": "way/665408866",
+        "landmarkId": "chunjian",
+        "reason": "enclosed-hall-dsm-return",
+        "boundarySource": "conservative-plan-and-source-footprint",
+        "interiorGround": "unknown",
+        "verifiedAt": "2026-11-09",
+        "evidence": [
+          "https://www.axscom.jp/legacy/en/project/no03341/",
+          "https://www.szns.gov.cn/mlns/whns/tycg/content/post_12589347.html",
+          "https://www.lfspaceframe.com/news/shenzhen-bay-sports-hall-steel-structure/"
+        ],
+        "dsmGridSamples": {
+          "stepM": 25,
+          "count": 6,
+          "minM": 29.4,
+          "maxM": 39.6
+        },
+        "nearestSourceRoute": {
+          "id": "way/1436530898",
+          "distanceM": 20.176
+        },
+        "areaM2": 4463.452735,
+        "boundsXZ": [
+          -11495.289857,
+          2761.137059,
+          -11427.289857,
+          2845.137059
+        ],
+        "polygonXZ": [
+          [
+            -11427.289857,
+            2803.137059
+          ],
+          [
+            -11427.806394,
+            2810.430282
+          ],
+          [
+            -11429.340308,
+            2817.501905
+          ],
+          [
+            -11431.844994,
+            2824.137059
+          ],
+          [
+            -11435.244346,
+            2830.134138
+          ],
+          [
+            -11439.435079,
+            2835.310925
+          ],
+          [
+            -11444.289857,
+            2839.510126
+          ],
+          [
+            -11449.661172,
+            2842.604149
+          ],
+          [
+            -11455.385819,
+            2844.498984
+          ],
+          [
+            -11461.289857,
+            2845.137059
+          ],
+          [
+            -11467.193895,
+            2844.498984
+          ],
+          [
+            -11472.918542,
+            2842.604149
+          ],
+          [
+            -11478.289857,
+            2839.510126
+          ],
+          [
+            -11483.144636,
+            2835.310925
+          ],
+          [
+            -11487.335368,
+            2830.134138
+          ],
+          [
+            -11490.734721,
+            2824.137059
+          ],
+          [
+            -11493.239406,
+            2817.501905
+          ],
+          [
+            -11494.773321,
+            2810.430282
+          ],
+          [
+            -11495.289857,
+            2803.137059
+          ],
+          [
+            -11494.773321,
+            2795.843835
+          ],
+          [
+            -11493.239406,
+            2788.772213
+          ],
+          [
+            -11490.734721,
+            2782.137059
+          ],
+          [
+            -11487.335368,
+            2776.139979
+          ],
+          [
+            -11483.144636,
+            2770.963192
+          ],
+          [
+            -11478.289857,
+            2766.763992
+          ],
+          [
+            -11472.918542,
+            2763.669969
+          ],
+          [
+            -11467.193895,
+            2761.775133
+          ],
+          [
+            -11461.289857,
+            2761.137059
+          ],
+          [
+            -11455.385819,
+            2761.775133
+          ],
+          [
+            -11449.661172,
+            2763.669969
+          ],
+          [
+            -11444.289857,
+            2766.763992
+          ],
+          [
+            -11439.435079,
+            2770.963192
+          ],
+          [
+            -11435.244346,
+            2776.139979
+          ],
+          [
+            -11431.844994,
+            2782.137059
+          ],
+          [
+            -11429.340308,
+            2788.772213
+          ],
+          [
+            -11427.806394,
+            2795.843835
+          ]
+        ]
+      },
+      {
+        "id": "chunjian-gym-interior",
+        "sourceId": "way/665408865",
+        "landmarkId": "chunjian",
+        "reason": "enclosed-hall-dsm-return",
+        "boundarySource": "conservative-plan-and-source-footprint",
+        "interiorGround": "unknown",
+        "verifiedAt": "2026-11-09",
+        "evidence": [
+          "https://www.axscom.jp/legacy/en/project/no03341/",
+          "https://rm-static.djicdn.com/documents/71710/094bab48c8e24172239652747237195.pdf#page=25",
+          "https://www.lfspaceframe.com/news/shenzhen-bay-sports-hall-steel-structure/"
+        ],
+        "dsmGridSamples": {
+          "stepM": 25,
+          "count": 13,
+          "minM": 37.1,
+          "maxM": 44.6
+        },
+        "nearestSourceRoute": {
+          "id": "way/529272431",
+          "distanceM": 23.344
+        },
+        "areaM2": 8101.729316,
+        "boundsXZ": [
+          -11403.797088,
+          2765.055606,
+          -11307.797088,
+          2873.055606
+        ],
+        "polygonXZ": [
+          [
+            -11307.797088,
+            2819.055606
+          ],
+          [
+            -11308.526316,
+            2828.432607
+          ],
+          [
+            -11310.691842,
+            2837.524693
+          ],
+          [
+            -11314.227869,
+            2846.055606
+          ],
+          [
+            -11319.026955,
+            2853.766136
+          ],
+          [
+            -11324.943283,
+            2860.422005
+          ],
+          [
+            -11331.797088,
+            2865.820977
+          ],
+          [
+            -11339.380121,
+            2869.799007
+          ],
+          [
+            -11347.461975,
+            2872.235224
+          ],
+          [
+            -11355.797088,
+            2873.055606
+          ],
+          [
+            -11364.1322,
+            2872.235224
+          ],
+          [
+            -11372.214055,
+            2869.799007
+          ],
+          [
+            -11379.797088,
+            2865.820977
+          ],
+          [
+            -11386.650893,
+            2860.422005
+          ],
+          [
+            -11392.567221,
+            2853.766136
+          ],
+          [
+            -11397.366307,
+            2846.055606
+          ],
+          [
+            -11400.902334,
+            2837.524693
+          ],
+          [
+            -11403.06786,
+            2828.432607
+          ],
+          [
+            -11403.797088,
+            2819.055606
+          ],
+          [
+            -11403.06786,
+            2809.678604
+          ],
+          [
+            -11400.902334,
+            2800.586518
+          ],
+          [
+            -11397.366307,
+            2792.055606
+          ],
+          [
+            -11392.567221,
+            2784.345075
+          ],
+          [
+            -11386.650893,
+            2777.689206
+          ],
+          [
+            -11379.797088,
+            2772.290234
+          ],
+          [
+            -11372.214055,
+            2768.312204
+          ],
+          [
+            -11364.1322,
+            2765.875987
+          ],
+          [
+            -11355.797088,
+            2765.055606
+          ],
+          [
+            -11347.461975,
+            2765.875987
+          ],
+          [
+            -11339.380121,
+            2768.312204
+          ],
+          [
+            -11331.797088,
+            2772.290234
+          ],
+          [
+            -11324.943283,
+            2777.689206
+          ],
+          [
+            -11319.026955,
+            2784.345075
+          ],
+          [
+            -11314.227869,
+            2792.055606
+          ],
+          [
+            -11310.691842,
+            2800.586518
+          ],
+          [
+            -11308.526316,
+            2809.678604
+          ]
+        ]
+      }
+    ]
   },
   "metro": {
     "network": "深圳地铁",
@@ -1814,6 +2289,6 @@
       ]
     }
   ],
-  "outputBytes": 6483532,
-  "seconds": 19.6
+  "outputBytes": 6537062,
+  "seconds": 20.2
 }

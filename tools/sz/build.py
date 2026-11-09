@@ -8,6 +8,7 @@ from pathlib import Path
 
 from shapely.geometry import box
 
+from beihuan import apply_beihuan_sections
 from bridges import build_bridges
 from buildings import CATEGORIES, FACADES, HEIGHT_SOURCES, build_buildings
 from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project
@@ -20,6 +21,7 @@ from roadgraph import build_roadgraph
 from sea_surface import build_sea_surface
 from streetscape import build_streetscape
 from terrain import build_terrain
+from terrain_exclusions import chunjian_exclusions
 from terrain_surface import build_terrain_surface
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
@@ -67,6 +69,8 @@ def landmark_entries(landmarks):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-cache', action='store_true', help='re-read the OSM PBF instead of the pickle cache')
+    ap.add_argument('--without-building-use-review', action='store_true',
+                    help='reproduce the pre-review appearance for the scoped building pilot')
     ap.add_argument('--terrain-source', choices=['copernicus', 'hgt'], default='copernicus',
                     help='select a traceable elevation product without modifying source heights')
     args = ap.parse_args()
@@ -77,16 +81,18 @@ def main():
     osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache)
     print(f'osm loaded in {time.time() - t0:.1f}s', flush=True)
 
-    buildings = build_buildings(osm, clip, report)
+    buildings = build_buildings(osm, clip, report, reviewed_parent_uses=not args.without_building_use_review)
     print(f'buildings: {len(buildings)} in {time.time() - t0:.1f}s', flush=True)
     land, water, wetland, green = build_land(osm, clip, buildings, report)
     roads = build_roads(osm, clip, report)
     terrain = build_terrain(clip, report, source=args.terrain_source)
     sea_surface = build_sea_surface(osm, clip, land, terrain, report)
     road_graph = build_roadgraph(osm, clip, report)
+    apply_beihuan_sections(road_graph, report)
     road_graph['turnRestrictions'] = build_turn_restrictions(PBF, road_graph, report)
     road_frontage = build_road_frontage(PBF, osm, road_graph, buildings, report)
-    terrain_surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland)
+    terrain_surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland,
+                                          exclusions=chunjian_exclusions(buildings, terrain, osm['roads']))
     metro = build_metro(clip, report, use_cache=not args.no_cache)
 
     landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']

@@ -1,16 +1,18 @@
 """合并 OSM 和 Overture 建筑轮廓，按优先级确定楼高，并给出用途和立面类型。"""
 
 import json
+import math
 import random
 import re
 import subprocess
 from pathlib import Path
 
 from shapely import STRtree
-from shapely.geometry import MultiPolygon, Polygon, shape
+from shapely.geometry import MultiPolygon, Polygon, box, shape
 from shapely.ops import transform
 from shapely.validation import make_valid
 
+from building_parent_review import apply_reviewed_building_parent_uses
 from geo import project
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,6 +20,7 @@ OVERTURE = ROOT / 'data/raw/overture/buildings-2026-10-21.0.jsonl'
 GLOBFP_DIR = ROOT / 'data/raw/globfp'
 GLOBFP_SZ = GLOBFP_DIR / 'globfp-sz.jsonl'
 LANDMARKS = ROOT / 'data/source/landmarks.json'
+FOOTPRINT_REVIEWS = ROOT / 'data/source/building-footprint-reviews.json'
 
 LEVEL_HEIGHT = 3.2
 MIN_AREA = 16.0
@@ -44,6 +47,20 @@ def _num(value):
         return None
     m = re.match(r'^\s*([0-9]+(?:\.[0-9]+)?)', str(value))
     return float(m.group(1)) if m else None
+
+
+def _metres(value):
+    match = re.fullmatch(r'\s*([0-9]+(?:\.[0-9]+)?)\s*(?:m\s*)?', str(value))
+    number = float(match.group(1)) if match else None
+    return number if number is not None and math.isfinite(number) else None
+
+
+def _vertical_conflict(min_height, height):
+    if min_height >= height:
+        return 'minimum-not-below-top'
+    if round(min_height, 1) >= round(height, 1):
+        return 'interval-collapses-at-decimetre-precision'
+    return None
 
 
 def _underground_reason(tags):
@@ -100,19 +117,28 @@ def ensure_globfp():
         '2269': '2269_112.5_20.0_115.0_22.5_HKMacauCN_guangdongCN.shp',
     }
     reads = ' UNION ALL '.join(
-        f"SELECT * FROM ST_Read('/vsizip/{GLOBFP_DIR / (k + '.zip')}/{v}')" for k, v in shp.items())
+        f"SELECT 'globfp-{k}' AS sourceId, OGC_FID, Height, geom "
+        f"FROM ST_Read('/vsizip/{GLOBFP_DIR / (k + '.zip')}/{v}')" for k, v in shp.items())
     sql = (
         "INSTALL spatial; LOAD spatial; "
-        f"COPY (SELECT Height, ST_AsGeoJSON(geom) AS g FROM ({reads}) "
+        f"COPY (SELECT sourceId, OGC_FID, Height, ST_AsGeoJSON(geom) AS g FROM ({reads}) "
         "WHERE ST_XMin(geom) < 114.135 AND ST_XMax(geom) > 113.88 AND ST_YMin(geom) < 22.60 AND ST_YMax(geom) > 22.455) "
         f"TO '{GLOBFP_SZ}' (FORMAT JSON);"
     )
     subprocess.run(['duckdb', '-c', sql], check=True)
 
 
-def load_globfp(clip_local):
+def load_globfp(clip_local, report):
     ensure_globfp()
+    manifest = json.loads(FOOTPRINT_REVIEWS.read_text())
+    if manifest['version'] != 1:
+        raise ValueError('Unsupported building footprint review version')
+    reviews = [entry for entry in manifest['globfpExclusions']
+               if _to_local(box(*entry['bboxWgs84'])).intersects(clip_local)]
     polys, heights = [], []
+    excluded = set()
+    audit = []
+    matched = set()
     with GLOBFP_SZ.open() as f:
         for line in f:
             rec = json.loads(line)
@@ -120,13 +146,37 @@ def load_globfp(clip_local):
             if not h or h <= 0:
                 continue
             g = rec['g']
-            geom = _to_local(shape(json.loads(g) if isinstance(g, str) else g))
+            geographic = shape(json.loads(g) if isinstance(g, str) else g)
+            geom = _to_local(geographic)
             if not geom.intersects(clip_local):
                 continue
+            fid = rec.get('OGC_FID')
+            tile = rec.get('sourceId')
+            review = next((entry for entry in reviews if (tile is None or tile == entry['sourceId'])
+                           and (fid is None or fid == entry['sourceFid'])
+                           and all(abs(a - b) < 1e-7 for a, b in zip(geographic.bounds, entry['bboxWgs84']))), None)
+            if review:
+                identity = (review['sourceId'], review['sourceFid'])
+                if identity in matched or abs(h - review['rawHeightM']) > 1e-3:
+                    raise ValueError(f'Reviewed GloBFP footprint has conflicting source records: {identity}')
+                matched.add(identity)
             for p in _polygons(geom):
+                index = len(polys)
                 polys.append(p)
                 heights.append(float(h))
-    return polys, heights
+                # 保留源序号。排除项同时退出补充楼体和其他楼的高度回填。
+                if review:
+                    excluded.add(index)
+                    match = 'legacy-bounds-and-height' if fid is None else 'source-fid-and-bounds'
+                    if tile is not None and fid is not None:
+                        match = 'source-tile-fid-and-bounds'
+                    audit.append({**review, 'id': f'globfp/{index}', 'heightSource': 'globfp',
+                                  'match': match})
+    missing = {(entry['sourceId'], entry['sourceFid']) for entry in reviews} - matched
+    if missing:
+        raise ValueError(f'Reviewed GloBFP footprints missing: {sorted(missing)}')
+    report['excludedGlobfpFootprints'] = audit
+    return polys, heights, excluded
 
 
 def load_landmark_bindings():
@@ -192,10 +242,12 @@ def _facade(category, height, area, landmark):
     return 'office' if area > 1500 else 'residential_low'
 
 
-def build_buildings(osm, clip_local, report):
+def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True):
     bindings = load_landmark_bindings()
     records = []
     underground = []
+    vertical_conflicts = []
+    withheld_footprints = []
 
     for b in osm['buildings']:
         t = b['tags']
@@ -214,16 +266,37 @@ def build_buildings(osm, clip_local, report):
                 entry['conflicts'] = conflicts
             underground.append(entry)
             continue
+        height, min_height, vertical_tags = _num(t.get('height')), 0.0, None
+        if 'min_height' in t:
+            vertical_tags = {key: t[key] for key in ('height', 'min_height') if key in t}
+            height, min_height = _metres(t.get('height')), _metres(t['min_height'])
+            if min_height is None or ('height' in t and height is None):
+                reason = 'unresolved-explicit-metres'
+            else:
+                reason = _vertical_conflict(min_height, height) if height is not None else None
+            if reason:
+                # 异常部件不顶替父楼。保留轮廓用于去重，避免同一体量由遥感数据重新填实。
+                vertical_conflicts.append({'id': b['id'], 'reason': reason, 'scope': 'osm-tags',
+                                           'tags': vertical_tags, 'polygons': len(polygons)})
+                withheld_footprints.extend(polygons)
+                continue
         for poly in polygons:
             records.append({
                 'id': b['id'], 'geom': poly, 'src': 'osm',
                 'kind': t.get('building') or t.get('building:part'),
-                'height': _num(t.get('height')), 'levels': _num(t.get('building:levels')),
-                'minHeight': _num(t.get('min_height')) or 0.0, 'name': t.get('name'),
+                'buildingType': t.get('building'), 'buildingPartType': t.get('building:part'),
+                'explicitUse': t.get('building:use'),
+                'height': height, 'levels': _num(t.get('building:levels')),
+                'minHeight': min_height, 'verticalTags': vertical_tags, 'name': t.get('name'),
                 'isPart': 'building:part' in t,
             })
     report['osmBuildings'] = len(records)
     report['excludedUndergroundBuildings'] = underground
+
+    if reviewed_parent_uses:
+        apply_reviewed_building_parent_uses(records, report)
+    else:
+        report['reviewedBuildingParentUses'] = {'status': 'disabled-for-comparison'}
 
     # 有 building:part 的建筑外框只留部件，避免外框和部件叠在一起
     part_tree = STRtree([r['geom'] for r in records if r['isPart']])
@@ -244,8 +317,8 @@ def build_buildings(osm, clip_local, report):
         kept.append(r)
     records = kept
 
-    osm_tree = STRtree([r['geom'] for r in records])
-    osm_geoms = [r['geom'] for r in records]
+    osm_geoms = [r['geom'] for r in records] + withheld_footprints
+    osm_tree = STRtree(osm_geoms)
     dropped = added = 0
     with OVERTURE.open() as f:
         for line in f:
@@ -272,16 +345,16 @@ def build_buildings(osm, clip_local, report):
     report['overtureAdded'] = added
     report['overtureDuplicates'] = dropped
 
-    gb_polys, gb_heights = load_globfp(clip_local)
+    gb_polys, gb_heights, gb_excluded = load_globfp(clip_local, report)
     gb_tree = STRtree(gb_polys)
     report['globfpCandidates'] = len(gb_polys)
 
     # GloBFP 里和现有轮廓基本不重叠的，作为补充建筑（城中村等 OSM 和 Overture 漏掉的楼）
-    all_tree = STRtree([r['geom'] for r in records])
-    all_geoms = [r['geom'] for r in records]
+    all_geoms = [r['geom'] for r in records] + withheld_footprints
+    all_tree = STRtree(all_geoms)
     gb_added = 0
     for i, g in enumerate(gb_polys):
-        if g.area < 30:
+        if i in gb_excluded or g.area < 30:
             continue
         idx = all_tree.query(g, predicate='intersects')
         if sum(all_geoms[j].intersection(g).area for j in idx) > 0.15 * g.area:
@@ -297,6 +370,7 @@ def build_buildings(osm, clip_local, report):
     report['globfpAdded'] = gb_added
 
     out = []
+    min_height_corrections = []
     counts = {s: 0 for s in HEIGHT_SOURCES}
     for r in records:
         pieces = _polygons(r['geom'].simplify(0.3, preserve_topology=True))
@@ -330,6 +404,8 @@ def build_buildings(osm, clip_local, report):
             best = None
             overlap_h = overlap_a = 0.0
             for i in idx:
+                if i in gb_excluded:
+                    continue
                 g = gb_polys[i]
                 inter = g.intersection(poly).area
                 if inter <= 0:
@@ -348,16 +424,31 @@ def build_buildings(osm, clip_local, report):
         if not height or height < 2.5:
             height, source = _estimate(category, area, r['id']), 'estimate'
         height = min(height, 650.0)
+        min_height = r.get('minHeight', 0.0)
+        reason = _vertical_conflict(min_height, height)
+        if reason:
+            vertical_conflicts.append({'id': r['id'], 'reason': reason, 'scope': 'resolved-top',
+                                       'tags': r.get('verticalTags'), 'heightM': height, 'heightSource': source})
+            continue
+        rounded_min = round(min_height, 1)
+        if r.get('verticalTags'):
+            previous_min = round(min(min_height, height - 1), 1)
+            if rounded_min != previous_min:
+                min_height_corrections.append({'id': r['id'], 'tags': r['verticalTags'], 'heightSource': source,
+                                               'heightM': round(height, 1), 'minHeightM': rounded_min,
+                                               'previousMinHeightM': previous_min})
         counts[source] += 1
         landmark = binding['landmark'] if binding else None
         out.append({
             'id': r['id'], 'poly': poly, 'height': round(height, 1),
-            'minHeight': round(min(r.get('minHeight', 0.0), height - 1), 1),
+            'minHeight': rounded_min,
             'category': category, 'facade': _facade(category, height, area, landmark),
             'heightSource': source, 'landmark': landmark, 'name': r.get('name'),
         })
     report['buildings'] = len(out)
     report['heightSources'] = counts
+    report['buildingMinHeightCorrections'] = min_height_corrections
+    report['excludedBuildingVerticalBounds'] = vertical_conflicts
     report['heightEstimate'] = {'method': 'category-area-seeded-jitter', 'seed': ESTIMATE_SEED, 'seedBy': 'building-id'}
     found = sorted({b['landmark'] for b in out if b['landmark']})
     expected = sorted({v['landmark'] for v in bindings.values()})

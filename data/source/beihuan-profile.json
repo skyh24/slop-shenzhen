@@ -1,0 +1,69 @@
+{
+  "id": "beihuan-xinzhou",
+  "checkedAt": "2026-11-09",
+  "osmSnapshotId": "osm-guangdong",
+  "evidence": {
+    "beihuanDesign": "https://pnr.sz.gov.cn/attachment/1/1442/1442495/10537363.pdf",
+    "beihuanImagery": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.0352%2C22.5628%2C19",
+    "xinzhouOperations": "https://szjj.sz.gov.cn/m/YD_ZWGK/YD_TZGG/YD_GGSB/content/post_4443047.html"
+  },
+  "imagery": {
+    "captureDate": "2026-01-25",
+    "publicationDate": "2026-10-29",
+    "releaseId": 43291,
+    "provider": "Vantor Vivid Advanced",
+    "resolutionM": 0.34,
+    "absoluteAccuracyM": 8.47,
+    "tileTemplate": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/{zoom}/{row}/{column}",
+    "metadataService": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query",
+    "rawDirectory": "data/raw/streetscape/beihuan-20260125",
+    "samples": [
+      {"lonLat": [114.02765, 22.5614], "tile": [19, 428208, 228402], "sha256": "28c6476b8372fcd371b0e118af137d94e00275fcf88502ccb99779e784a2645c"},
+      {"lonLat": [114.0318, 22.5622], "tile": [19, 428214, 228401], "sha256": "bc369c96a732d862d60ec3d47791051e9113813982ffd2898b5ac2bf090897c9"},
+      {"lonLat": [114.0352, 22.5628], "tile": [19, 428219, 228400], "sha256": "c5731302fe325c719d411f278f49dc77a4eee77f60e295861435fae6f4bd874a"},
+      {"lonLat": [114.0385, 22.5633], "tile": [19, 428224, 228399], "sha256": "024e1a548b19fbc5af6219edeff8992b31613294544dfea8af32e9b6faa7d99c"},
+      {"lonLat": [114.0411, 22.56385], "tile": [19, 428228, 228399], "sha256": "e8b6b3c122d9264c44a4f888428adb5f7a9191dd551d83e52e0e23792dc025d1"}
+    ]
+  },
+  "section": {
+    "lanesPerDirection": 4,
+    "laneWidthEstimateM": 3.5,
+    "outerShoulderEstimateM": 3,
+    "medianTargetEstimateM": 3.15,
+    "innerWidthLimitsM": [6.05, 9],
+    "maxStationStepM": 24
+  },
+  "directions": [
+    {
+      "direction": "eastbound",
+      "links": [
+        ["way/1468770634", "node/4899192475", "node/549760818"],
+        ["way/1468770634", "node/549760818", "node/4899192478"],
+        ["way/1468770634", "node/4899192478", "node/549760035"],
+        ["way/1468770634", "node/549760035", "node/12444115695"]
+      ]
+    },
+    {
+      "direction": "westbound",
+      "links": [
+        ["way/1466159023", "node/549760261", "node/549760263"],
+        ["way/1466159023", "node/549760263", "node/549760265"],
+        ["way/1466159024", "node/549760265", "node/549760714"]
+      ]
+    }
+  ],
+  "corridor": {
+    "id": "beihuan-xinzhou",
+    "bounds": [114.0274, 22.5609, 114.04145, 22.56465],
+    "roadNames": ["北环大道"],
+    "profileOnly": "beihuan-xinzhou",
+    "sidewalks": [],
+    "crossings": [],
+    "median": {
+      "opposingChains": [["way/1468770634"], ["way/1466159023", "way/1466159024"]],
+      "bounds": [114.0276, 22.561, 114.0413, 22.5645],
+      "edgeInsetEstimateM": 0.12,
+      "evidence": "beihuanImagery"
+    }
+  }
+}

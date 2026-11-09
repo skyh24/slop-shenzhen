@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "globfpExclusions": [
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 41021,
+      "bboxWgs84": [114.02271764381571, 22.538813164093966, 114.02296164892385, 22.538906995032953],
+      "rawHeightM": 8.406392000000002,
+      "reason": "reviewed-open-road",
+      "checkedAt": "2026-11-09",
+      "description": "车公庙深南大道南侧辅路的开敞分流段。影像可辨车道标线和分流鼻端，北侧高架是独立对象。",
+      "osmWayIds": ["way/837565287", "way/860523333", "way/879817607"],
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "imageProvider": "Vantor Vivid Advanced",
+        "acquiredAt": "2026-01-25",
+        "release": 43291,
+        "releasedAt": "2026-10-29",
+        "resolutionM": 0.34,
+        "absoluteAccuracyM": 8.47,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/19/228438/428201",
+        "imageSha256": "3d643a7b74a7cccd5a9420d179d3963c561614b06411b8c23372626bfaa4c5db",
+        "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.02284%2C22.53886%2C19"
+      }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-"""从已核实的道路、过街、步道和信号节点提取车公庙试点。"""
+"""从已核实的道路、过街、步道和信号节点生成街道试点。"""
 
 import json
 import math
@@ -8,8 +8,9 @@ from pathlib import Path
 import osmium
 from shapely import constrained_delaunay_triangles
 from shapely.geometry import LineString, MultiPoint, Point, Polygon, box
-from shapely.ops import substring, unary_union
+from shapely.ops import linemerge, substring, unary_union
 
+from beihuan import MANIFEST as BEIHUAN_MANIFEST
 from geo import project
 from land import _polys
 from roads import _num
@@ -88,10 +89,54 @@ def _unit_tangent(line, s):
     return (b.x - a.x) / length, (b.y - a.y) / length
 
 
+def _profile_layout(link):
+    profile = link['meta']['crossSection']
+    points = list(zip(profile['points'][::3], profile['points'][1::3], profile['points'][2::3]))
+    width = link['width']
+    travel_width = link['lanes'] * profile['laneWidthM']
+    travel, footprints = [], []
+    for i, (x, z, left) in enumerate(points):
+        a, b = points[max(0, i - 1)], points[min(i + 1, len(points) - 1)]
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        shift = (travel_width / 2 - left) / math.hypot(dx, dz)
+        travel.append((x - dz * shift, z + dx * shift))
+
+    def section(point, rx, rz):
+        x, z, left = point
+        right = width - left
+        return [(x - rx * left, z - rz * left), (x + rx * right, z + rz * right)]
+
+    # 与 sz-roads 的斜接和端点断面一致，避免把绿带铺到沥青里。
+    previous = None
+    for a, b in zip(points, points[1:]):
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        length = math.hypot(dx, dz)
+        start = section(a, -dz / length, dx / length)
+        end = section(b, -dz / length, dx / length)
+        footprints.append(Polygon([start[0], end[0], end[1], start[1]]))
+        if previous:
+            prev_dx, prev_dz, prev_end = previous
+            side = 0 if prev_dx * dz - prev_dz * dx > 0 else 1
+            bevel = Polygon([a[:2], prev_end[side], start[side]])
+            if bevel.area > 1e-8:
+                footprints.append(bevel)
+        else:
+            from_section = start
+        previous = dx, dz, end
+    return {'asphalt': unary_union(footprints), 'travel': LineString(travel), 'travelWidth': travel_width,
+            'fromSection': from_section, 'toSection': end}
+
+
 def _asphalt_mask(links, extent):
     footprints, junctions = [], defaultdict(list)
     for link in links:
         if not _ground(link['meta']):
+            continue
+        if 'crossSection' in link['meta']:
+            profile = link['profile'] = _profile_layout(link)
+            footprints.append(profile['asphalt'].intersection(extent))
+            junctions[link['from']].extend(profile['fromSection'])
+            junctions[link['to']].extend(profile['toSection'])
             continue
         line, width = link['line'], link['width']
         footprints.append(_buffer(line.intersection(extent), width))
@@ -163,29 +208,35 @@ def _lane_paint(links, clip, preserve, marking_width):
     for link in links:
         if link['direction'] == 0 or link['lanes'] < 1:
             continue
-        line = link['line']
-        half = link['width'] / 2
-        drivable = _buffer(line, link['width']).intersection(clip).difference(preserve)
+        profile = link.get('profile')
+        line, travel_width = (profile['travel'], profile['travelWidth']) if profile else (link['line'], link['width'])
+        half = travel_width / 2
+        asphalt = profile['asphalt'] if profile else _buffer(line, travel_width)
+        drivable = asphalt.intersection(clip).difference(preserve)
         if drivable.is_empty:
             continue
         source_ids.append(link['meta']['osmId'])
         for offset in (-half + 0.27, half - 0.27):
             paint.append(_buffer(line.offset_curve(offset, join_style='bevel'), marking_width).intersection(drivable))
         for i in range(1, link['lanes']):
-            offset = -half + i * link['width'] / link['lanes']
+            offset = -half + i * travel_width / link['lanes']
             for fragment in _lines(line.offset_curve(offset, join_style='bevel').intersection(clip)):
                 paint += [_buffer(dash, marking_width).intersection(drivable) for dash in _dash_parts(fragment)]
     return unary_union(paint), source_ids
 
 
-def _median(spec, osm_ways, occupied):
+def _median(spec, osm_ways, occupied, ground_links):
     clip = _local_box(spec['bounds'])
-    lines = [max(_lines(_way_line(osm_ways[i]).intersection(clip)), key=lambda line: line.length)
-             for i in spec['opposingWayIds']]
+    if 'opposingChains' in spec:
+        axes = [linemerge([link['line'] for link in ground_links if link['meta']['osmId'] in chain])
+                for chain in spec['opposingChains']]
+    else:
+        axes = [_way_line(osm_ways[i]) for i in spec['opposingWayIds']]
+    lines = [max(_lines(axis.intersection(clip)), key=lambda line: line.length) for axis in axes]
     chains = [list(line.coords) if line.coords[0][0] < line.coords[-1][0] else list(line.coords)[::-1] for line in lines]
     between = Polygon(chains[0] + chains[1][::-1])
     if not between.is_valid:
-        raise ValueError('Reviewed Shennan median axes no longer bound a simple corridor')
+        raise ValueError('Reviewed median axes no longer bound a simple corridor')
     return between.difference(occupied.buffer(spec['edgeInsetEstimateM']))
 
 
@@ -248,6 +299,8 @@ def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, repo
         clip = clips[spec['id']]
         local_links = [link for link in links if link['name'] in spec['roadNames'] and link['line'].intersects(clip)]
         ground_links = [link for link in local_links if _ground(link['meta'])]
+        if profile_id := spec.get('profileOnly'):
+            ground_links = [link for link in ground_links if link['meta'].get('crossSection', {}).get('id') == profile_id]
         paving, crossings, raised, flush, zebra, cross_shape, missing = _pedestrian_features(spec, osm_ways, way_tags,
                                                                                             clip, asphalt, building_mask, style)
         unresolved += missing
@@ -260,8 +313,9 @@ def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, repo
         polygons = [('sidewalk', pavement_ids, raised, style['sidewalkRiseM']), ('paving', pavement_ids, flush, 0),
                     ('paint', road_ids + crossings_ids, marks.union(zebra), 0)]
         if median := spec.get('median'):
-            island = _median(median, osm_ways, asphalt.union(building_mask))
-            polygons.append(('median', median['opposingWayIds'], island, style['medianRiseM']))
+            island = _median(median, osm_ways, asphalt.union(building_mask), ground_links)
+            median_ids = median.get('opposingWayIds') or [identity for chain in median['opposingChains'] for identity in chain]
+            polygons.append(('median', median_ids, island, style['medianRiseM']))
             shrub_sites.extend(_shrub_sites(island))
             corridor['medianSource'] = {'source': manifest['evidence'][median['evidence']],
                                         'positionSource': 'documented-median-between-osm-carriageways',
@@ -294,6 +348,10 @@ def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, repo
 
 def build_road_frontage(pbf, osm, graph, buildings, report):
     manifest = json.loads(MANIFEST.read_text())
+    if 'beihuanCrossSection' in report:
+        beihuan = json.loads(BEIHUAN_MANIFEST.read_text())
+        manifest['corridors'].append(beihuan['corridor'])
+        manifest['evidence'].update(beihuan['evidence'])
     ways = {i for corridor in manifest['corridors'] for key in ('sidewalks', 'crossings') for i in corridor[key]}
     nodes = {item['osmNodeId'] for junction in manifest['intersections'] for item in junction['approaches']}
     nodes |= {i for corridor in manifest['corridors'] for i in corridor.get('entranceNodeIds', [])}

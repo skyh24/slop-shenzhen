@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "chunjian": {
+    "verifiedAt": "2026-11-09",
+    "heightSource": "copernicus-glo30-dsm",
+    "scope": "Conservative enclosed hall interiors only; the surrounding reticulated canopy, external circulation and open apertures are outside the masks.",
+    "requiredFootprints": {
+      "way/665408866": {
+        "boundsXZ": [-11534.180, 2730.593, -11406.302, 2875.681],
+        "areaM2": 13174.870,
+        "holes": 0,
+        "ringSha256": "9c99e3e53612dc515256572e64481ab25a442b0934d9f3e38849dba1db3605d6"
+      },
+      "way/665408865": {
+        "boundsXZ": [-11426.299, 2732.852, -11285.295, 2905.259],
+        "areaM2": 19273.495,
+        "holes": 0,
+        "ringSha256": "0ec4db72f97bff14ff7f808ce974b80b5d62b1f8bf6539e813d5b4bb52cbc6d9"
+      },
+      "relation/9244351": {
+        "boundsXZ": [-11307.226, 2730.803, -11164.875, 2947.008],
+        "areaM2": 11784.060,
+        "holes": 1,
+        "ringSha256": "4a141637150911174f1649416e88b4a1fdc6e06bd54e7e1b844ccae2987b7601"
+      },
+      "relation/9244350": {
+        "boundsXZ": [-11238.020, 2725.034, -11019.737, 2966.254],
+        "areaM2": 22521.737,
+        "holes": 1,
+        "ringSha256": "0561c065817b4b3f720056d4aabb3d57ef837eb8e3fd61f280c5d6ef553b77dd"
+      }
+    },
+    "routeGuardM": 8,
+    "minGlazingMarginM": 6,
+    "halls": [
+      {
+        "id": "chunjian-pool-interior",
+        "sourceId": "way/665408866",
+        "centerOffsetXFraction": 0.07,
+        "radiiM": [34, 42],
+        "glazingRadiiFractions": [0.325, 0.4],
+        "evidence": [
+          "https://www.axscom.jp/legacy/en/project/no03341/",
+          "https://www.szns.gov.cn/mlns/whns/tycg/content/post_12589347.html",
+          "https://www.lfspaceframe.com/news/shenzhen-bay-sports-hall-steel-structure/"
+        ]
+      },
+      {
+        "id": "chunjian-gym-interior",
+        "sourceId": "way/665408865",
+        "centerOffsetXFraction": 0,
+        "radiiM": [48, 54],
+        "glazingRadiiFractions": [0.4, 0.4],
+        "evidence": [
+          "https://www.axscom.jp/legacy/en/project/no03341/",
+          "https://rm-static.djicdn.com/documents/71710/094bab48c8e24172239652747237195.pdf#page=25",
+          "https://www.lfspaceframe.com/news/shenzhen-bay-sports-hall-steel-structure/"
+        ]
+      }
+    ]
+  }
+}

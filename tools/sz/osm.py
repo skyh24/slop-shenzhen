@@ -13,7 +13,7 @@ from geo import BAY_CONTEXT_BBOX
 ROOT = Path(__file__).resolve().parents[2]
 PBF = ROOT / 'data/raw/guangdong-latest.osm.pbf'
 CACHE = ROOT / 'data/raw/cache/osm-phase1.pkl'
-CACHE_VERSION = 4
+CACHE_VERSION = 5
 
 GREEN_LANDUSE = {'grass', 'forest', 'recreation_ground', 'village_green', 'meadow', 'park'}
 GREEN_LEISURE = {'park', 'garden', 'nature_reserve', 'golf_course', 'pitch'}
@@ -22,7 +22,7 @@ WATER_LANDUSE = {'reservoir', 'basin'}
 
 KEEP_TAGS = (
     'name', 'name:en', 'height', 'building:levels', 'building', 'building:part', 'min_height',
-    'building:levels:underground', 'location',
+    'building:levels:underground', 'building:use', 'location',
     'highway', 'lanes', 'width', 'oneway', 'bridge', 'tunnel', 'layer', 'leisure', 'landuse',
     'natural', 'water', 'wetland', 'amenity', 'man_made',
     'junction', 'access', 'vehicle', 'motor_vehicle', 'motorcar',

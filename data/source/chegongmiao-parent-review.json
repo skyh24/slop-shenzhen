@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "pilotId": "shennan-chegongmiao",
+  "checkedAt": "2026-11-09",
+  "osmSnapshotId": "osm-guangdong",
+  "overtureRelease": "2026-10-21.0",
+  "name": "中国有色大厦",
+  "status": "reviewed-for-display-pilot",
+  "parent": {
+    "osmId": "way/135907001",
+    "osmVersion": 5,
+    "overtureId": "decad456-eee1-4bc4-8917-76bb0aab35e8",
+    "boundsXZ": [-3399.526, 871.893, -3339.393, 925.579],
+    "areaM2": 2326.893,
+    "sourceUse": "commercial",
+    "sourceUseTag": "building=commercial",
+    "overtureOsmOverlapFraction": 1.0,
+    "partUnionCoverageFraction": 1.0
+  },
+  "parts": [
+    {
+      "osmId": "way/1163682856",
+      "osmVersion": 1,
+      "overtureId": "9312b1d2-7d49-37ae-b912-e9825826a63c",
+      "boundsXZ": [-3399.526, 873.665, -3339.393, 921.105],
+      "areaM2": 1737.191,
+      "role": "tower",
+      "numFloorsOsm": 26,
+      "insideParentFraction": 1.0,
+      "displayFacade": "glass_tower"
+    },
+    {
+      "osmId": "way/1163682857",
+      "osmVersion": 1,
+      "overtureId": "a9914d4c-8c1d-31b9-9453-f3a32a48196b",
+      "boundsXZ": [-3376.383, 871.893, -3342.788, 898.094],
+      "areaM2": 240.286,
+      "role": "podium",
+      "numFloorsOsm": 6,
+      "insideParentFraction": 1.0,
+      "displayFacade": "office"
+    },
+    {
+      "osmId": "way/1163682858",
+      "osmVersion": 1,
+      "overtureId": "a065472d-5c5b-3b2e-9aed-32e61ec44c75",
+      "boundsXZ": [-3395.062, 900.364, -3366.672, 925.579],
+      "areaM2": 349.416,
+      "role": "podium",
+      "numFloorsOsm": 6,
+      "insideParentFraction": 1.0,
+      "displayFacade": "office"
+    }
+  ],
+  "useSource": "derived-parent-source",
+  "facadeSource": "photograph-guided-procedural-estimate",
+  "evidence": {
+    "currentUse": "https://static.cninfo.com.cn/finalpage/2025-11-24/1224820640.PDF",
+    "assetAppraisal": "https://pdf.dfcfw.com/pdf/H2_AN201511130011406167_01.pdf#page=7",
+    "photographs": [
+      "https://www.zg-ys.cn/images/0loupantu/2.jpg",
+      "https://www.zg-ys.cn/images/0loupantu/3.jpg",
+      "https://www.zg-ys.cn/images/0loupantu/4.jpg"
+    ],
+    "photoCaptureDate": null,
+    "usageDescription": "综合楼。来源确认项目含办公、商业、公寓，父级 commercial 仅用于本次通用建筑表现。"
+  }
+}
