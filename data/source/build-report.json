@@ -996,7 +996,6 @@
       }
     ]
   },
-  "overtureAdded": 18931,
   "overtureDuplicates": 12131,
   "excludedGlobfpFootprints": [
     {
@@ -1035,17 +1034,5203 @@
     }
   ],
   "globfpCandidates": 51434,
-  "globfpAdded": 8334,
-  "buildings": 39956,
+  "globfpMisidentified": {
+    "rule": "GloBFP-only, area<300 m2, and (>= 60% inside OSM plaza/green or >= 80% inside ground carriageway buffer 1 m)",
+    "count": 595,
+    "areaM2": 67744.8,
+    "objects": [
+      {
+        "id": "globfp/554",
+        "areaM2": 292.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/696336345"
+        ]
+      },
+      {
+        "id": "globfp/792",
+        "areaM2": 39.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1052020257"
+        ]
+      },
+      {
+        "id": "globfp/808",
+        "areaM2": 36.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1052020258",
+          "road:way/1052020257"
+        ]
+      },
+      {
+        "id": "globfp/1001",
+        "areaM2": 37.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/875261263"
+        ]
+      },
+      {
+        "id": "globfp/1068",
+        "areaM2": 155.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1286291877"
+        ]
+      },
+      {
+        "id": "globfp/1118",
+        "areaM2": 37.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1052020225"
+        ]
+      },
+      {
+        "id": "globfp/1405",
+        "areaM2": 161.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/536684244"
+        ]
+      },
+      {
+        "id": "globfp/1410",
+        "areaM2": 44.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/358676792",
+          "road:way/1050452916"
+        ]
+      },
+      {
+        "id": "globfp/1486",
+        "areaM2": 112.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626532"
+        ]
+      },
+      {
+        "id": "globfp/1500",
+        "areaM2": 161.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/386160808",
+          "road:way/96327306"
+        ]
+      },
+      {
+        "id": "globfp/1544",
+        "areaM2": 37.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1479496039"
+        ]
+      },
+      {
+        "id": "globfp/1547",
+        "areaM2": 79.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1479496039"
+        ]
+      },
+      {
+        "id": "globfp/1736",
+        "areaM2": 112.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1268377415"
+        ]
+      },
+      {
+        "id": "globfp/1739",
+        "areaM2": 277.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "plaza-or-green:relation/18653916"
+        ]
+      },
+      {
+        "id": "globfp/1741",
+        "areaM2": 269.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "globfp/1742",
+        "areaM2": 143.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "globfp/1743",
+        "areaM2": 270.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "globfp/1789",
+        "areaM2": 161.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/587453583"
+        ]
+      },
+      {
+        "id": "globfp/1827",
+        "areaM2": 51.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "road:way/246115215"
+        ]
+      },
+      {
+        "id": "globfp/1833",
+        "areaM2": 179.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "globfp/1834",
+        "areaM2": 283.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "road:way/246115215"
+        ]
+      },
+      {
+        "id": "globfp/1841",
+        "areaM2": 196.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1169311440"
+        ]
+      },
+      {
+        "id": "globfp/1852",
+        "areaM2": 246.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "road:way/25529503",
+          "road:way/390949399",
+          "road:way/1058988264"
+        ]
+      },
+      {
+        "id": "globfp/1878",
+        "areaM2": 179.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1302660168",
+          "road:way/1302690658",
+          "road:way/1302690657",
+          "road:way/1302690656"
+        ]
+      },
+      {
+        "id": "globfp/1884",
+        "areaM2": 41.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1302690643",
+          "road:way/1302660148"
+        ]
+      },
+      {
+        "id": "globfp/2008",
+        "areaM2": 161.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1287096255",
+          "road:way/586589638"
+        ]
+      },
+      {
+        "id": "globfp/2035",
+        "areaM2": 112.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1052247917",
+          "road:way/1420454342"
+        ]
+      },
+      {
+        "id": "globfp/2068",
+        "areaM2": 87.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1270106179",
+          "plaza-or-green:way/1270106178"
+        ]
+      },
+      {
+        "id": "globfp/2070",
+        "areaM2": 188.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1270106178",
+          "road:way/1350617347"
+        ]
+      },
+      {
+        "id": "globfp/2074",
+        "areaM2": 66.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1270106178",
+          "road:way/1350617362"
+        ]
+      },
+      {
+        "id": "globfp/2077",
+        "areaM2": 47.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "road:way/246115215"
+        ]
+      },
+      {
+        "id": "globfp/2102",
+        "areaM2": 35.9,
+        "reason": "green+carriageway",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "road:way/246115215"
+        ]
+      },
+      {
+        "id": "globfp/2104",
+        "areaM2": 33.5,
+        "reason": "green+carriageway",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "road:way/246115215"
+        ]
+      },
+      {
+        "id": "globfp/2314",
+        "areaM2": 64.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "globfp/2402",
+        "areaM2": 159.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1270106179",
+          "plaza-or-green:way/1270106178",
+          "road:way/1350617363"
+        ]
+      },
+      {
+        "id": "globfp/2404",
+        "areaM2": 60.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1270106179",
+          "plaza-or-green:way/1270106178",
+          "road:way/1350617362"
+        ]
+      },
+      {
+        "id": "globfp/2434",
+        "areaM2": 43.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/242558381"
+        ]
+      },
+      {
+        "id": "globfp/2558",
+        "areaM2": 115.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/238150214"
+        ]
+      },
+      {
+        "id": "globfp/2562",
+        "areaM2": 31.0,
+        "reason": "green+carriageway",
+        "inside": [
+          "plaza-or-green:way/571629098",
+          "road:way/883827047",
+          "road:way/883827046"
+        ]
+      },
+      {
+        "id": "globfp/2563",
+        "areaM2": 104.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1347507368",
+          "plaza-or-green:way/571629098",
+          "road:way/883827047"
+        ]
+      },
+      {
+        "id": "globfp/2565",
+        "areaM2": 48.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1347507366",
+          "plaza-or-green:way/571629098",
+          "road:way/357765495"
+        ]
+      },
+      {
+        "id": "globfp/2567",
+        "areaM2": 145.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/238150214",
+          "plaza-or-green:way/1347507368"
+        ]
+      },
+      {
+        "id": "globfp/2571",
+        "areaM2": 100.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/238150214",
+          "road:way/246782405",
+          "road:way/259011169",
+          "road:way/246782413"
+        ]
+      },
+      {
+        "id": "globfp/2576",
+        "areaM2": 79.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/238150214",
+          "road:way/1287753837"
+        ]
+      },
+      {
+        "id": "globfp/2577",
+        "areaM2": 47.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/238150214",
+          "road:way/1287753837"
+        ]
+      },
+      {
+        "id": "globfp/2578",
+        "areaM2": 86.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/238150214",
+          "road:way/1287741990",
+          "road:way/1287753837"
+        ]
+      },
+      {
+        "id": "globfp/2579",
+        "areaM2": 96.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/885656027",
+          "road:way/996247126"
+        ]
+      },
+      {
+        "id": "globfp/2678",
+        "areaM2": 95.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/731536928"
+        ]
+      },
+      {
+        "id": "globfp/2679",
+        "areaM2": 95.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/731536928"
+        ]
+      },
+      {
+        "id": "globfp/2683",
+        "areaM2": 106.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/731536928",
+          "road:way/1311059118"
+        ]
+      },
+      {
+        "id": "globfp/2940",
+        "areaM2": 57.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231534954"
+        ]
+      },
+      {
+        "id": "globfp/3350",
+        "areaM2": 31.4,
+        "reason": "plaza+carriageway",
+        "inside": [
+          "plaza-or-green:way/246998955",
+          "road:way/246998955",
+          "road:way/775709510"
+        ]
+      },
+      {
+        "id": "globfp/3360",
+        "areaM2": 40.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/26968057"
+        ]
+      },
+      {
+        "id": "globfp/3383",
+        "areaM2": 70.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1041692962"
+        ]
+      },
+      {
+        "id": "globfp/3466",
+        "areaM2": 69.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1350607886",
+          "plaza-or-green:way/246970998",
+          "road:way/1344496585",
+          "road:way/1350607888",
+          "road:way/1344496586"
+        ]
+      },
+      {
+        "id": "globfp/3689",
+        "areaM2": 125.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/69347635",
+          "road:way/1191357761"
+        ]
+      },
+      {
+        "id": "globfp/3943",
+        "areaM2": 167.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/358904129",
+          "plaza-or-green:way/581532606",
+          "road:way/357192510"
+        ]
+      },
+      {
+        "id": "globfp/4092",
+        "areaM2": 61.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467"
+        ]
+      },
+      {
+        "id": "globfp/4093",
+        "areaM2": 61.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467",
+          "road:way/835229207"
+        ]
+      },
+      {
+        "id": "globfp/4095",
+        "areaM2": 37.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467",
+          "plaza-or-green:way/690827081",
+          "road:way/835229207"
+        ]
+      },
+      {
+        "id": "globfp/4096",
+        "areaM2": 77.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467",
+          "road:way/835229207"
+        ]
+      },
+      {
+        "id": "globfp/4151",
+        "areaM2": 142.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1332832713"
+        ]
+      },
+      {
+        "id": "globfp/4162",
+        "areaM2": 256.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1332832713",
+          "road:way/895941563"
+        ]
+      },
+      {
+        "id": "globfp/4181",
+        "areaM2": 276.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/690827081"
+        ]
+      },
+      {
+        "id": "globfp/4230",
+        "areaM2": 47.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467",
+          "plaza-or-green:way/1361617580",
+          "road:way/757864479"
+        ]
+      },
+      {
+        "id": "globfp/4261",
+        "areaM2": 264.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467",
+          "plaza-or-green:way/1361617580",
+          "road:way/669511635"
+        ]
+      },
+      {
+        "id": "globfp/4268",
+        "areaM2": 140.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467",
+          "plaza-or-green:way/1361617578",
+          "road:way/669511635"
+        ]
+      },
+      {
+        "id": "globfp/4270",
+        "areaM2": 199.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467",
+          "plaza-or-green:way/1361617578"
+        ]
+      },
+      {
+        "id": "globfp/4307",
+        "areaM2": 64.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467"
+        ]
+      },
+      {
+        "id": "globfp/4308",
+        "areaM2": 109.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467"
+        ]
+      },
+      {
+        "id": "globfp/4309",
+        "areaM2": 201.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467"
+        ]
+      },
+      {
+        "id": "globfp/4416",
+        "areaM2": 180.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1197473305",
+          "road:way/1287753826"
+        ]
+      },
+      {
+        "id": "globfp/4498",
+        "areaM2": 123.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467"
+        ]
+      },
+      {
+        "id": "globfp/4502",
+        "areaM2": 56.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467"
+        ]
+      },
+      {
+        "id": "globfp/4525",
+        "areaM2": 108.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467"
+        ]
+      },
+      {
+        "id": "globfp/4548",
+        "areaM2": 61.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467",
+          "road:way/264254197"
+        ]
+      },
+      {
+        "id": "globfp/4553",
+        "areaM2": 112.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467",
+          "road:way/264254197"
+        ]
+      },
+      {
+        "id": "globfp/4588",
+        "areaM2": 116.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617579",
+          "plaza-or-green:way/236402467",
+          "road:way/694439486"
+        ]
+      },
+      {
+        "id": "globfp/4590",
+        "areaM2": 155.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617579",
+          "plaza-or-green:way/236402467",
+          "road:way/757864471",
+          "road:way/694439486"
+        ]
+      },
+      {
+        "id": "globfp/4591",
+        "areaM2": 64.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467",
+          "road:way/757864471",
+          "road:way/694439486"
+        ]
+      },
+      {
+        "id": "globfp/4592",
+        "areaM2": 86.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467",
+          "road:way/757864471",
+          "road:way/694439486"
+        ]
+      },
+      {
+        "id": "globfp/4593",
+        "areaM2": 68.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402467",
+          "road:way/757864471",
+          "road:way/694439486"
+        ]
+      },
+      {
+        "id": "globfp/4643",
+        "areaM2": 128.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617567",
+          "plaza-or-green:way/236402467",
+          "road:way/694439476",
+          "road:way/610188515"
+        ]
+      },
+      {
+        "id": "globfp/4645",
+        "areaM2": 64.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617567",
+          "plaza-or-green:way/236402467"
+        ]
+      },
+      {
+        "id": "globfp/4741",
+        "areaM2": 59.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749",
+          "road:way/231781963"
+        ]
+      },
+      {
+        "id": "globfp/4744",
+        "areaM2": 52.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749",
+          "road:way/231781969"
+        ]
+      },
+      {
+        "id": "globfp/4757",
+        "areaM2": 101.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1272413427",
+          "plaza-or-green:way/1304345191",
+          "road:way/984606891"
+        ]
+      },
+      {
+        "id": "globfp/4758",
+        "areaM2": 264.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1272413427",
+          "plaza-or-green:way/1304345191",
+          "road:way/984607881",
+          "road:way/1229833469",
+          "road:way/984606891"
+        ]
+      },
+      {
+        "id": "globfp/4846",
+        "areaM2": 66.0,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231985722"
+        ]
+      },
+      {
+        "id": "globfp/4870",
+        "areaM2": 123.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/8299232"
+        ]
+      },
+      {
+        "id": "globfp/4913",
+        "areaM2": 62.0,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/232096325",
+          "road:way/234216379"
+        ]
+      },
+      {
+        "id": "globfp/4951",
+        "areaM2": 66.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/232096327"
+        ]
+      },
+      {
+        "id": "globfp/5034",
+        "areaM2": 97.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1429423852"
+        ]
+      },
+      {
+        "id": "globfp/5096",
+        "areaM2": 186.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/638856669",
+          "road:way/1305597270"
+        ]
+      },
+      {
+        "id": "globfp/5134",
+        "areaM2": 61.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1429423852"
+        ]
+      },
+      {
+        "id": "globfp/5424",
+        "areaM2": 195.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/40954715",
+          "road:way/638856656",
+          "road:way/1382209056"
+        ]
+      },
+      {
+        "id": "globfp/5488",
+        "areaM2": 68.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/659870817"
+        ]
+      },
+      {
+        "id": "globfp/5489",
+        "areaM2": 82.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/659870817"
+        ]
+      },
+      {
+        "id": "globfp/5520",
+        "areaM2": 53.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/490173505",
+          "road:way/923999673"
+        ]
+      },
+      {
+        "id": "globfp/5525",
+        "areaM2": 259.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1238125140"
+        ]
+      },
+      {
+        "id": "globfp/5565",
+        "areaM2": 117.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/40954706"
+        ]
+      },
+      {
+        "id": "globfp/5566",
+        "areaM2": 280.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/535068820",
+          "road:way/1051282773",
+          "road:way/40954706"
+        ]
+      },
+      {
+        "id": "globfp/5750",
+        "areaM2": 39.5,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/636685828"
+        ]
+      },
+      {
+        "id": "globfp/5751",
+        "areaM2": 48.5,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/636685828",
+          "road:way/636685828"
+        ]
+      },
+      {
+        "id": "globfp/5753",
+        "areaM2": 226.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1197473305",
+          "road:way/1287753825"
+        ]
+      },
+      {
+        "id": "globfp/5754",
+        "areaM2": 189.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1197473305",
+          "road:way/1287753818",
+          "road:way/1287753817"
+        ]
+      },
+      {
+        "id": "globfp/5755",
+        "areaM2": 141.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1197473305"
+        ]
+      },
+      {
+        "id": "globfp/5756",
+        "areaM2": 141.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1197473305",
+          "road:way/1287753826",
+          "road:way/1287753825"
+        ]
+      },
+      {
+        "id": "globfp/5757",
+        "areaM2": 155.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1197473305",
+          "road:way/1287753818"
+        ]
+      },
+      {
+        "id": "globfp/5759",
+        "areaM2": 131.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1197473305",
+          "road:way/1287753817"
+        ]
+      },
+      {
+        "id": "globfp/5761",
+        "areaM2": 200.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1197473305",
+          "road:way/1287753819",
+          "road:way/1287753823"
+        ]
+      },
+      {
+        "id": "globfp/5774",
+        "areaM2": 44.7,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/636685828"
+        ]
+      },
+      {
+        "id": "globfp/5775",
+        "areaM2": 36.1,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/636685828"
+        ]
+      },
+      {
+        "id": "globfp/5776",
+        "areaM2": 43.7,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/636685828"
+        ]
+      },
+      {
+        "id": "globfp/5780",
+        "areaM2": 244.9,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/636685828",
+          "road:way/636685828"
+        ]
+      },
+      {
+        "id": "globfp/5788",
+        "areaM2": 213.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/879817599",
+          "road:way/490173504",
+          "road:way/1126957193",
+          "road:way/638856658"
+        ]
+      },
+      {
+        "id": "globfp/5943",
+        "areaM2": 114.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/173622150",
+          "road:way/1056394551"
+        ]
+      },
+      {
+        "id": "globfp/6021",
+        "areaM2": 139.4,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/555076526",
+          "road:way/555593802"
+        ]
+      },
+      {
+        "id": "globfp/6043",
+        "areaM2": 130.0,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/555076526",
+          "road:way/555150031",
+          "road:way/555076526"
+        ]
+      },
+      {
+        "id": "globfp/6053",
+        "areaM2": 278.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/690827081"
+        ]
+      },
+      {
+        "id": "globfp/6136",
+        "areaM2": 163.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/555375914",
+          "road:way/555150024"
+        ]
+      },
+      {
+        "id": "globfp/6151",
+        "areaM2": 85.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "road:way/264352251"
+        ]
+      },
+      {
+        "id": "globfp/6204",
+        "areaM2": 253.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "globfp/6311",
+        "areaM2": 198.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1081134202",
+          "road:way/1307183167"
+        ]
+      },
+      {
+        "id": "globfp/6326",
+        "areaM2": 126.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1081134202",
+          "road:way/1307183166",
+          "road:way/1307183167"
+        ]
+      },
+      {
+        "id": "globfp/6327",
+        "areaM2": 53.9,
+        "reason": "green+carriageway",
+        "inside": [
+          "plaza-or-green:way/1081134202",
+          "road:way/1307183166",
+          "road:way/1307183167"
+        ]
+      },
+      {
+        "id": "globfp/6329",
+        "areaM2": 80.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1081134202",
+          "road:way/1307183167"
+        ]
+      },
+      {
+        "id": "globfp/6511",
+        "areaM2": 137.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "globfp/6632",
+        "areaM2": 129.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/564172371"
+        ]
+      },
+      {
+        "id": "globfp/6678",
+        "areaM2": 250.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "globfp/6711",
+        "areaM2": 34.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/569220627"
+        ]
+      },
+      {
+        "id": "globfp/6755",
+        "areaM2": 44.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/569220627",
+          "road:way/227688483"
+        ]
+      },
+      {
+        "id": "globfp/6859",
+        "areaM2": 49.0,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/227688483"
+        ]
+      },
+      {
+        "id": "globfp/6904",
+        "areaM2": 65.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/555380547"
+        ]
+      },
+      {
+        "id": "globfp/6916",
+        "areaM2": 81.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/555380547"
+        ]
+      },
+      {
+        "id": "globfp/6927",
+        "areaM2": 50.1,
+        "reason": "plaza+green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "plaza-or-green:way/264353338"
+        ]
+      },
+      {
+        "id": "globfp/6932",
+        "areaM2": 202.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "globfp/7052",
+        "areaM2": 199.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/207170378"
+        ]
+      },
+      {
+        "id": "globfp/7053",
+        "areaM2": 178.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/207170378"
+        ]
+      },
+      {
+        "id": "globfp/7280",
+        "areaM2": 203.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "globfp/7376",
+        "areaM2": 143.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/532810317"
+        ]
+      },
+      {
+        "id": "globfp/7430",
+        "areaM2": 84.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1167351735",
+          "road:way/1167351734"
+        ]
+      },
+      {
+        "id": "globfp/7558",
+        "areaM2": 247.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/207170378"
+        ]
+      },
+      {
+        "id": "globfp/7592",
+        "areaM2": 84.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1083773364"
+        ]
+      },
+      {
+        "id": "globfp/7778",
+        "areaM2": 33.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/532810271"
+        ]
+      },
+      {
+        "id": "globfp/7792",
+        "areaM2": 133.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/207170378"
+        ]
+      },
+      {
+        "id": "globfp/7795",
+        "areaM2": 143.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/207170378"
+        ]
+      },
+      {
+        "id": "globfp/7918",
+        "areaM2": 260.1,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/555332448",
+          "road:way/694439451",
+          "road:way/694439452",
+          "road:way/555332448",
+          "road:way/555332447"
+        ]
+      },
+      {
+        "id": "globfp/8042",
+        "areaM2": 121.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231983453"
+        ]
+      },
+      {
+        "id": "globfp/8079",
+        "areaM2": 271.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527",
+          "road:way/237892845",
+          "road:way/319099132"
+        ]
+      },
+      {
+        "id": "globfp/8128",
+        "areaM2": 253.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/958548496",
+          "road:way/1095317748",
+          "road:way/879817599"
+        ]
+      },
+      {
+        "id": "globfp/8279",
+        "areaM2": 197.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1534583475",
+          "road:way/1348679791",
+          "road:way/1348679792",
+          "road:way/1081179782",
+          "road:way/1348679790"
+        ]
+      },
+      {
+        "id": "globfp/8388",
+        "areaM2": 54.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1155178377",
+          "road:way/958548497"
+        ]
+      },
+      {
+        "id": "globfp/8392",
+        "areaM2": 118.9,
+        "reason": "green+carriageway",
+        "inside": [
+          "plaza-or-green:way/1534583475",
+          "road:way/1348679811",
+          "road:way/1348679810",
+          "road:way/1348679804"
+        ]
+      },
+      {
+        "id": "globfp/8399",
+        "areaM2": 152.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1083453771"
+        ]
+      },
+      {
+        "id": "globfp/8437",
+        "areaM2": 140.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/173622150",
+          "road:way/766833084"
+        ]
+      },
+      {
+        "id": "globfp/8529",
+        "areaM2": 121.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/892901021",
+          "road:way/1080860979",
+          "road:way/1077629922"
+        ]
+      },
+      {
+        "id": "globfp/8572",
+        "areaM2": 80.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1080294578",
+          "road:way/1080294574"
+        ]
+      },
+      {
+        "id": "globfp/8781",
+        "areaM2": 245.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1289255858",
+          "plaza-or-green:way/1343475582",
+          "road:way/1080461069",
+          "road:way/1080863500",
+          "road:way/1351181523"
+        ]
+      },
+      {
+        "id": "globfp/9000",
+        "areaM2": 183.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1377918122"
+        ]
+      },
+      {
+        "id": "globfp/9139",
+        "areaM2": 235.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1362986800",
+          "plaza-or-green:way/545246937"
+        ]
+      },
+      {
+        "id": "globfp/9141",
+        "areaM2": 137.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1362986800",
+          "plaza-or-green:way/545246937",
+          "road:way/662697508"
+        ]
+      },
+      {
+        "id": "globfp/9144",
+        "areaM2": 250.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1362986800",
+          "plaza-or-green:way/545246937",
+          "road:way/1044172870"
+        ]
+      },
+      {
+        "id": "globfp/9149",
+        "areaM2": 70.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/545246937"
+        ]
+      },
+      {
+        "id": "globfp/9152",
+        "areaM2": 239.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1362986798",
+          "plaza-or-green:way/545246937",
+          "road:way/1044172882"
+        ]
+      },
+      {
+        "id": "globfp/9165",
+        "areaM2": 80.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1054407528",
+          "road:way/1054407530"
+        ]
+      },
+      {
+        "id": "globfp/9222",
+        "areaM2": 74.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/830725879",
+          "road:way/1051282802"
+        ]
+      },
+      {
+        "id": "globfp/9223",
+        "areaM2": 37.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1388432760",
+          "road:way/1388432759"
+        ]
+      },
+      {
+        "id": "globfp/9244",
+        "areaM2": 51.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1064264084"
+        ]
+      },
+      {
+        "id": "globfp/9284",
+        "areaM2": 174.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/885105259"
+        ]
+      },
+      {
+        "id": "globfp/9298",
+        "areaM2": 141.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1299464970",
+          "road:way/564102789"
+        ]
+      },
+      {
+        "id": "globfp/9869",
+        "areaM2": 65.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/996181416",
+          "road:way/564122758",
+          "road:way/222976657",
+          "road:way/564122757"
+        ]
+      },
+      {
+        "id": "globfp/9969",
+        "areaM2": 56.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1052605143"
+        ]
+      },
+      {
+        "id": "globfp/10043",
+        "areaM2": 71.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/881161576"
+        ]
+      },
+      {
+        "id": "globfp/10794",
+        "areaM2": 36.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/283873800"
+        ]
+      },
+      {
+        "id": "globfp/10938",
+        "areaM2": 43.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/40998267",
+          "road:way/1571617985",
+          "road:way/1382209055"
+        ]
+      },
+      {
+        "id": "globfp/10952",
+        "areaM2": 200.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/273652996"
+        ]
+      },
+      {
+        "id": "globfp/11287",
+        "areaM2": 220.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/14532495",
+          "plaza-or-green:relation/14532496",
+          "road:way/902662885"
+        ]
+      },
+      {
+        "id": "globfp/11292",
+        "areaM2": 52.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/14532495",
+          "plaza-or-green:relation/14532496"
+        ]
+      },
+      {
+        "id": "globfp/11543",
+        "areaM2": 74.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1553347018",
+          "road:way/1552015910"
+        ]
+      },
+      {
+        "id": "globfp/11578",
+        "areaM2": 269.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1553347017",
+          "road:way/1553347019",
+          "road:way/1568438182"
+        ]
+      },
+      {
+        "id": "globfp/11589",
+        "areaM2": 58.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/41019611",
+          "road:way/996181409",
+          "road:way/819859505",
+          "road:way/996750278"
+        ]
+      },
+      {
+        "id": "globfp/11649",
+        "areaM2": 119.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/14532495"
+        ]
+      },
+      {
+        "id": "globfp/11650",
+        "areaM2": 197.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/14532495"
+        ]
+      },
+      {
+        "id": "globfp/11652",
+        "areaM2": 164.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/14532493",
+          "plaza-or-green:relation/14532495"
+        ]
+      },
+      {
+        "id": "globfp/11655",
+        "areaM2": 134.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/14532493",
+          "plaza-or-green:relation/14532495",
+          "road:way/928276623"
+        ]
+      },
+      {
+        "id": "globfp/11656",
+        "areaM2": 216.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1055055371",
+          "plaza-or-green:relation/14532493",
+          "plaza-or-green:relation/14532495",
+          "road:way/1051283387"
+        ]
+      },
+      {
+        "id": "globfp/11759",
+        "areaM2": 42.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1431608272"
+        ]
+      },
+      {
+        "id": "globfp/11765",
+        "areaM2": 70.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1431608272"
+        ]
+      },
+      {
+        "id": "globfp/11864",
+        "areaM2": 44.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/166998811"
+        ]
+      },
+      {
+        "id": "globfp/11903",
+        "areaM2": 71.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1051226054"
+        ]
+      },
+      {
+        "id": "globfp/11911",
+        "areaM2": 75.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1044157173",
+          "road:way/1044157157",
+          "road:way/1044157174"
+        ]
+      },
+      {
+        "id": "globfp/11994",
+        "areaM2": 68.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1431608272"
+        ]
+      },
+      {
+        "id": "globfp/12038",
+        "areaM2": 231.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1049679763",
+          "road:way/1047320136",
+          "road:way/1051283378",
+          "road:way/1047320132"
+        ]
+      },
+      {
+        "id": "globfp/12039",
+        "areaM2": 143.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/282885042",
+          "road:way/1052197162"
+        ]
+      },
+      {
+        "id": "globfp/12199",
+        "areaM2": 75.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231534939",
+          "road:way/231534941"
+        ]
+      },
+      {
+        "id": "globfp/12219",
+        "areaM2": 69.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231534941"
+        ]
+      },
+      {
+        "id": "globfp/12231",
+        "areaM2": 46.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231534941"
+        ]
+      },
+      {
+        "id": "globfp/12358",
+        "areaM2": 48.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1044157158"
+        ]
+      },
+      {
+        "id": "globfp/12426",
+        "areaM2": 35.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231534954"
+        ]
+      },
+      {
+        "id": "globfp/12590",
+        "areaM2": 250.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1044157179"
+        ]
+      },
+      {
+        "id": "globfp/12642",
+        "areaM2": 79.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1044157158"
+        ]
+      },
+      {
+        "id": "globfp/12745",
+        "areaM2": 52.0,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231534933"
+        ]
+      },
+      {
+        "id": "globfp/12903",
+        "areaM2": 85.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/217650944",
+          "road:way/231534958"
+        ]
+      },
+      {
+        "id": "globfp/13080",
+        "areaM2": 56.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1051282781"
+        ]
+      },
+      {
+        "id": "globfp/13084",
+        "areaM2": 78.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1051282781"
+        ]
+      },
+      {
+        "id": "globfp/13094",
+        "areaM2": 232.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/14532492",
+          "plaza-or-green:relation/14532493",
+          "plaza-or-green:relation/14532495",
+          "road:way/1051283387",
+          "road:way/1051283391"
+        ]
+      },
+      {
+        "id": "globfp/13108",
+        "areaM2": 60.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/41019611"
+        ]
+      },
+      {
+        "id": "globfp/13143",
+        "areaM2": 69.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/941452886",
+          "plaza-or-green:relation/14532495",
+          "plaza-or-green:relation/14532496",
+          "road:way/941452886",
+          "road:way/902662883"
+        ]
+      },
+      {
+        "id": "globfp/13258",
+        "areaM2": 53.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1055657915",
+          "road:way/282885042"
+        ]
+      },
+      {
+        "id": "globfp/13300",
+        "areaM2": 56.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1568438180"
+        ]
+      },
+      {
+        "id": "globfp/13386",
+        "areaM2": 265.0,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/884076669",
+          "road:way/1418227039"
+        ]
+      },
+      {
+        "id": "globfp/13430",
+        "areaM2": 56.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/282885047"
+        ]
+      },
+      {
+        "id": "globfp/13489",
+        "areaM2": 136.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/14532495",
+          "road:way/1055055373",
+          "road:way/1051283389"
+        ]
+      },
+      {
+        "id": "globfp/14014",
+        "areaM2": 71.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1430129493"
+        ]
+      },
+      {
+        "id": "globfp/14016",
+        "areaM2": 63.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1430129507"
+        ]
+      },
+      {
+        "id": "globfp/14125",
+        "areaM2": 46.0,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1054118589",
+          "road:way/1044157167"
+        ]
+      },
+      {
+        "id": "globfp/14128",
+        "areaM2": 229.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1092639028",
+          "road:way/1092639000"
+        ]
+      },
+      {
+        "id": "globfp/14236",
+        "areaM2": 123.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231532382",
+          "road:way/1462845253"
+        ]
+      },
+      {
+        "id": "globfp/14294",
+        "areaM2": 75.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1092639027"
+        ]
+      },
+      {
+        "id": "globfp/14317",
+        "areaM2": 35.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/638856648"
+        ]
+      },
+      {
+        "id": "globfp/14816",
+        "areaM2": 276.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/731536928"
+        ]
+      },
+      {
+        "id": "globfp/14903",
+        "areaM2": 77.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/659870824"
+        ]
+      },
+      {
+        "id": "globfp/14992",
+        "areaM2": 37.0,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231532388"
+        ]
+      },
+      {
+        "id": "globfp/15209",
+        "areaM2": 33.7,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/884076669"
+        ]
+      },
+      {
+        "id": "globfp/15565",
+        "areaM2": 69.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/40988608",
+          "road:way/589010530"
+        ]
+      },
+      {
+        "id": "globfp/15580",
+        "areaM2": 44.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1036811496"
+        ]
+      },
+      {
+        "id": "globfp/15786",
+        "areaM2": 78.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/827602243"
+        ]
+      },
+      {
+        "id": "globfp/16272",
+        "areaM2": 68.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/27104970",
+          "road:way/273649890",
+          "road:way/273649892"
+        ]
+      },
+      {
+        "id": "globfp/16378",
+        "areaM2": 60.6,
+        "reason": "plaza+carriageway",
+        "inside": [
+          "plaza-or-green:way/1051446501",
+          "road:way/1051446504",
+          "road:way/1051446501"
+        ]
+      },
+      {
+        "id": "globfp/16391",
+        "areaM2": 112.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1067522793"
+        ]
+      },
+      {
+        "id": "globfp/16466",
+        "areaM2": 103.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1431601652"
+        ]
+      },
+      {
+        "id": "globfp/16489",
+        "areaM2": 59.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/914046804"
+        ]
+      },
+      {
+        "id": "globfp/16517",
+        "areaM2": 62.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1442257965"
+        ]
+      },
+      {
+        "id": "globfp/16597",
+        "areaM2": 45.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/822189769",
+          "road:way/229396282"
+        ]
+      },
+      {
+        "id": "globfp/17089",
+        "areaM2": 88.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/223456857"
+        ]
+      },
+      {
+        "id": "globfp/17125",
+        "areaM2": 169.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/223456857",
+          "road:way/1462845263"
+        ]
+      },
+      {
+        "id": "globfp/17187",
+        "areaM2": 256.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/731536928",
+          "road:way/325371808"
+        ]
+      },
+      {
+        "id": "globfp/17470",
+        "areaM2": 111.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231532379",
+          "road:way/659870814"
+        ]
+      },
+      {
+        "id": "globfp/17491",
+        "areaM2": 36.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1044258905",
+          "road:way/231532384"
+        ]
+      },
+      {
+        "id": "globfp/17663",
+        "areaM2": 54.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/923999673",
+          "road:way/223456774"
+        ]
+      },
+      {
+        "id": "globfp/17707",
+        "areaM2": 50.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1044157135",
+          "road:way/231532381",
+          "road:way/231532376"
+        ]
+      },
+      {
+        "id": "globfp/17772",
+        "areaM2": 188.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/638856669"
+        ]
+      },
+      {
+        "id": "globfp/17826",
+        "areaM2": 119.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/923999673",
+          "road:way/1429423852",
+          "road:way/1429423855"
+        ]
+      },
+      {
+        "id": "globfp/17856",
+        "areaM2": 195.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/923999673",
+          "road:way/1429423852",
+          "road:way/1429423855"
+        ]
+      },
+      {
+        "id": "globfp/17902",
+        "areaM2": 78.0,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1429423852"
+        ]
+      },
+      {
+        "id": "globfp/18936",
+        "areaM2": 59.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/853864529"
+        ]
+      },
+      {
+        "id": "globfp/18958",
+        "areaM2": 278.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/34900358",
+          "road:way/853206479"
+        ]
+      },
+      {
+        "id": "globfp/18959",
+        "areaM2": 53.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/34900358",
+          "road:way/853206479"
+        ]
+      },
+      {
+        "id": "globfp/18960",
+        "areaM2": 175.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/34900358",
+          "road:way/853206479"
+        ]
+      },
+      {
+        "id": "globfp/18962",
+        "areaM2": 202.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/34900358",
+          "road:way/853206479"
+        ]
+      },
+      {
+        "id": "globfp/19048",
+        "areaM2": 33.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/854137897"
+        ]
+      },
+      {
+        "id": "globfp/19266",
+        "areaM2": 100.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1282952526",
+          "road:way/535157594"
+        ]
+      },
+      {
+        "id": "globfp/19379",
+        "areaM2": 71.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/232792237"
+        ]
+      },
+      {
+        "id": "globfp/19813",
+        "areaM2": 202.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1354404501",
+          "road:way/775735686",
+          "road:way/775709453",
+          "road:way/996890883",
+          "road:way/775709443"
+        ]
+      },
+      {
+        "id": "globfp/19858",
+        "areaM2": 219.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1041692962",
+          "road:way/775709469"
+        ]
+      },
+      {
+        "id": "globfp/19859",
+        "areaM2": 198.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1041692962",
+          "road:way/775709469"
+        ]
+      },
+      {
+        "id": "globfp/19902",
+        "areaM2": 37.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1510509500"
+        ]
+      },
+      {
+        "id": "globfp/20035",
+        "areaM2": 120.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1229200700",
+          "road:way/1229200699"
+        ]
+      },
+      {
+        "id": "globfp/20061",
+        "areaM2": 71.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1510509500"
+        ]
+      },
+      {
+        "id": "globfp/20069",
+        "areaM2": 94.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1510509500"
+        ]
+      },
+      {
+        "id": "globfp/20108",
+        "areaM2": 115.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1510509501"
+        ]
+      },
+      {
+        "id": "globfp/20132",
+        "areaM2": 167.4,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/231885261",
+          "road:way/231885290",
+          "road:way/231885261"
+        ]
+      },
+      {
+        "id": "globfp/20347",
+        "areaM2": 107.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1351535173"
+        ]
+      },
+      {
+        "id": "globfp/20445",
+        "areaM2": 113.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617531",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "globfp/20449",
+        "areaM2": 56.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "globfp/20452",
+        "areaM2": 38.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "globfp/20493",
+        "areaM2": 150.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "road:way/494899056"
+        ]
+      },
+      {
+        "id": "globfp/20534",
+        "areaM2": 52.3,
+        "reason": "plaza+green",
+        "inside": [
+          "plaza-or-green:relation/9650829",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "globfp/20537",
+        "areaM2": 146.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "globfp/20715",
+        "areaM2": 117.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/557222443",
+          "road:way/623043131"
+        ]
+      },
+      {
+        "id": "globfp/20726",
+        "areaM2": 119.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/555323838",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "globfp/20742",
+        "areaM2": 40.0,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/264298140"
+        ]
+      },
+      {
+        "id": "globfp/20820",
+        "areaM2": 50.1,
+        "reason": "carriageway",
+        "inside": [
+          "plaza-or-green:way/555332426",
+          "road:way/1466301582",
+          "road:way/555086115",
+          "road:way/555332426",
+          "road:way/563832289"
+        ]
+      },
+      {
+        "id": "globfp/20902",
+        "areaM2": 251.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1051817801",
+          "road:way/1463427745",
+          "road:way/1463427744",
+          "road:way/1051817800"
+        ]
+      },
+      {
+        "id": "globfp/20942",
+        "areaM2": 288.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/20171343",
+          "road:way/220880941"
+        ]
+      },
+      {
+        "id": "globfp/20944",
+        "areaM2": 53.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/533958918"
+        ]
+      },
+      {
+        "id": "globfp/21005",
+        "areaM2": 65.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/434341922"
+        ]
+      },
+      {
+        "id": "globfp/21175",
+        "areaM2": 80.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231676385",
+          "road:way/1271852288"
+        ]
+      },
+      {
+        "id": "globfp/21187",
+        "areaM2": 43.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231676385",
+          "road:way/222088986",
+          "road:way/1282922811"
+        ]
+      },
+      {
+        "id": "globfp/21191",
+        "areaM2": 87.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1468280143",
+          "road:way/1229833481"
+        ]
+      },
+      {
+        "id": "globfp/21192",
+        "areaM2": 88.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1468280143",
+          "road:way/1229833481",
+          "road:way/1229833476"
+        ]
+      },
+      {
+        "id": "globfp/21375",
+        "areaM2": 135.0,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/898510376"
+        ]
+      },
+      {
+        "id": "globfp/21598",
+        "areaM2": 46.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/246780194",
+          "road:way/741503060"
+        ]
+      },
+      {
+        "id": "globfp/21729",
+        "areaM2": 96.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/245755643"
+        ]
+      },
+      {
+        "id": "globfp/21736",
+        "areaM2": 57.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/18482361",
+          "plaza-or-green:way/207170378",
+          "road:way/1473799848"
+        ]
+      },
+      {
+        "id": "globfp/21737",
+        "areaM2": 98.9,
+        "reason": "green+carriageway",
+        "inside": [
+          "plaza-or-green:way/207170378",
+          "road:way/1275488547",
+          "road:way/1473799849"
+        ]
+      },
+      {
+        "id": "globfp/21777",
+        "areaM2": 104.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/18482360",
+          "plaza-or-green:way/207170378",
+          "road:way/492869938"
+        ]
+      },
+      {
+        "id": "globfp/21889",
+        "areaM2": 40.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/264298140"
+        ]
+      },
+      {
+        "id": "globfp/21914",
+        "areaM2": 36.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/264298140"
+        ]
+      },
+      {
+        "id": "globfp/21964",
+        "areaM2": 53.9,
+        "reason": "plaza+carriageway",
+        "inside": [
+          "plaza-or-green:way/565253634",
+          "road:way/246778685",
+          "road:way/565253634"
+        ]
+      },
+      {
+        "id": "globfp/21988",
+        "areaM2": 220.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/532810333"
+        ]
+      },
+      {
+        "id": "globfp/22037",
+        "areaM2": 252.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/532810333"
+        ]
+      },
+      {
+        "id": "globfp/22438",
+        "areaM2": 65.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1426525671"
+        ]
+      },
+      {
+        "id": "globfp/22450",
+        "areaM2": 52.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/238024835",
+          "road:way/434341906"
+        ]
+      },
+      {
+        "id": "globfp/22472",
+        "areaM2": 37.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/238024834"
+        ]
+      },
+      {
+        "id": "globfp/22581",
+        "areaM2": 39.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1426525671"
+        ]
+      },
+      {
+        "id": "globfp/22625",
+        "areaM2": 42.7,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1426525671"
+        ]
+      },
+      {
+        "id": "globfp/22878",
+        "areaM2": 297.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/489345483"
+        ]
+      },
+      {
+        "id": "globfp/23047",
+        "areaM2": 117.1,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/898510464",
+          "road:way/220882370"
+        ]
+      }
+    ],
+    "candidates": 8334,
+    "kept": 7739,
+    "truncated": true
+  },
+  "globfpAdded": 7739,
+  "overtureMisidentified": {
+    "rule": "Overture-only (no OSM building), area<300 m2, and (>= 60% inside OSM plaza/green or >= 80% inside ground carriageway buffer 1 m)",
+    "count": 1304,
+    "areaM2": 136548.7,
+    "objects": [
+      {
+        "id": "overture/287aac5a-e7b5-4154-af23-dfc782deb6f0",
+        "areaM2": 26.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/238150214",
+          "plaza-or-green:way/1347507373"
+        ]
+      },
+      {
+        "id": "overture/35a91574-259f-4d06-b16a-68eb3d6f4712",
+        "areaM2": 115.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1347507368",
+          "plaza-or-green:way/571629098"
+        ]
+      },
+      {
+        "id": "overture/80208b4d-eebe-46d0-9060-b45ac4e6328b",
+        "areaM2": 284.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/571629098",
+          "plaza-or-green:way/1347580496"
+        ]
+      },
+      {
+        "id": "overture/7965c856-f390-4c27-b02a-abb3f1871f19",
+        "areaM2": 42.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/571629098",
+          "plaza-or-green:way/1347580498"
+        ]
+      },
+      {
+        "id": "overture/c991bd5f-2f4e-4d3d-8559-04d01f68b709",
+        "areaM2": 66.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1479496039"
+        ]
+      },
+      {
+        "id": "overture/a5404e08-15ee-4dcd-98f1-2559d40b1ee6",
+        "areaM2": 80.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1479496039"
+        ]
+      },
+      {
+        "id": "overture/9a6e4c3d-4bf2-41df-b162-e4c582d9e0cb",
+        "areaM2": 26.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626532"
+        ]
+      },
+      {
+        "id": "overture/26538a1b-8c2f-4cca-88bb-94c1b2e2082c",
+        "areaM2": 161.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/542876267"
+        ]
+      },
+      {
+        "id": "overture/80a2c870-5dfa-4ca7-b7f4-2cc73afca090",
+        "areaM2": 161.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/542876268"
+        ]
+      },
+      {
+        "id": "overture/a08fa794-ee7e-4b61-a1ed-73a895e725a7",
+        "areaM2": 201.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1354404501",
+          "road:way/775735686"
+        ]
+      },
+      {
+        "id": "overture/e16a1e83-de32-4d54-bdc9-4f7f32764d9b",
+        "areaM2": 16.8,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/1434392998"
+        ]
+      },
+      {
+        "id": "overture/faf8ccfc-2829-4e5e-ba4f-f0e5f4fa02cd",
+        "areaM2": 160.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/734084479"
+        ]
+      },
+      {
+        "id": "overture/9c62575d-4d42-40e1-8a5c-663474131fb4",
+        "areaM2": 134.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1041692962"
+        ]
+      },
+      {
+        "id": "overture/67a5978a-f8c0-4818-9ee3-0abafddd38bb",
+        "areaM2": 146.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1041692962",
+          "road:way/246751406"
+        ]
+      },
+      {
+        "id": "overture/b688d8ec-ef24-4177-983f-8055b58d50ae",
+        "areaM2": 45.0,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/1031889492",
+          "road:way/101317852"
+        ]
+      },
+      {
+        "id": "overture/11378dea-bc1c-4d39-9a1e-719d241611fd",
+        "areaM2": 22.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/680992418",
+          "road:way/1416570857",
+          "road:way/1416570858",
+          "road:way/1031889492"
+        ]
+      },
+      {
+        "id": "overture/01072f5a-14e2-47a5-80ff-3739c5502595",
+        "areaM2": 166.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1164503589"
+        ]
+      },
+      {
+        "id": "overture/8ab0eeff-769b-4e0d-bb31-adafff419e59",
+        "areaM2": 247.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237522702"
+        ]
+      },
+      {
+        "id": "overture/fea31a84-7892-40db-8fbe-12ce07b03df7",
+        "areaM2": 67.4,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/233712933"
+        ]
+      },
+      {
+        "id": "overture/f7e85fd8-d8b3-4ead-963e-5c87e7e46fee",
+        "areaM2": 36.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749",
+          "road:way/231781961"
+        ]
+      },
+      {
+        "id": "overture/72645687-5f20-47af-acf2-7c9db57fc0b3",
+        "areaM2": 124.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/1f659284-0bd0-4352-8508-c7d24484291d",
+        "areaM2": 122.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/b4d26e83-f469-48f3-afc3-8bf14231f209",
+        "areaM2": 84.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/b30e4236-58f3-48e1-8994-cec0754409aa",
+        "areaM2": 116.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/1d5b8e08-34ac-49c1-be1b-47d0b38da2f4",
+        "areaM2": 86.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/ed6abb17-ea5c-4db6-8d0a-75775e704ce3",
+        "areaM2": 89.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/02f07ee0-fac4-4d4d-8c96-2bdc0ca8c471",
+        "areaM2": 75.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/efe9b4df-9815-4ee2-beb2-bc29198f5ced",
+        "areaM2": 17.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/ef187e05-2b48-43b7-8082-f9d402eec2c0",
+        "areaM2": 128.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/ba9f5869-1db8-469b-ae35-12666ccbb332",
+        "areaM2": 141.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/1f1618be-f78c-47bf-aca6-ac1219779755",
+        "areaM2": 26.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/f5f5cee5-633f-4bba-86b6-6c58b02a9dd8",
+        "areaM2": 104.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/9afc6961-5737-4b87-947a-a9bca472eaec",
+        "areaM2": 169.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/8585b846-6021-4fe6-9150-50f3dddd3f46",
+        "areaM2": 205.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749",
+          "road:way/231781963"
+        ]
+      },
+      {
+        "id": "overture/14a2884a-ac5f-41f1-a45d-fac619ee3597",
+        "areaM2": 38.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749",
+          "road:way/231781963"
+        ]
+      },
+      {
+        "id": "overture/c12d4b0a-7865-430f-8326-17169d58a59a",
+        "areaM2": 107.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/048b5063-72b7-4fc5-9710-19441daefa4b",
+        "areaM2": 191.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/06575947-09b8-4596-923a-a088e90e27aa",
+        "areaM2": 24.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/b33c5ba3-f63c-4e0d-9fb2-08a94e21e5e9",
+        "areaM2": 176.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/241588749"
+        ]
+      },
+      {
+        "id": "overture/3b9acd41-d2fd-4bf1-9623-290e5018ddc4",
+        "areaM2": 27.0,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/234757970"
+        ]
+      },
+      {
+        "id": "overture/48b2281b-7596-4f61-965b-39d77dcff8d9",
+        "areaM2": 23.6,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/234757970",
+          "road:way/234757970"
+        ]
+      },
+      {
+        "id": "overture/63e734e1-6783-42df-b76e-fc4efca6411d",
+        "areaM2": 296.6,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/582303824",
+          "road:way/1282922805"
+        ]
+      },
+      {
+        "id": "overture/13767e3d-63a1-4a17-9d42-01d8f51bb2a7",
+        "areaM2": 114.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/231311274"
+        ]
+      },
+      {
+        "id": "overture/ceb12be4-2283-4c79-bb30-4f9a62ef71ac",
+        "areaM2": 137.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1304345191"
+        ]
+      },
+      {
+        "id": "overture/13dd0ffa-ac19-40df-b343-ff311eee8ae5",
+        "areaM2": 101.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/724264873"
+        ]
+      },
+      {
+        "id": "overture/6369b725-2882-4e52-af2a-619d612f187b",
+        "areaM2": 181.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/737149491"
+        ]
+      },
+      {
+        "id": "overture/5a818bc5-a026-4dd4-82fe-82765d381c12",
+        "areaM2": 272.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/376392646"
+        ]
+      },
+      {
+        "id": "overture/4a35fdab-a8b8-48a6-b433-b47a63ec4ce8",
+        "areaM2": 276.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/737149491"
+        ]
+      },
+      {
+        "id": "overture/3f81036e-d507-4c56-88a5-6986985d69ac",
+        "areaM2": 43.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/737149491"
+        ]
+      },
+      {
+        "id": "overture/2ebb7b13-fbf5-4b5d-b7bd-a352a188d313",
+        "areaM2": 31.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1270106178",
+          "road:way/1350617365"
+        ]
+      },
+      {
+        "id": "overture/7f4a8256-018c-468f-af56-77cff61acc66",
+        "areaM2": 54.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1270106178"
+        ]
+      },
+      {
+        "id": "overture/8ebdc910-8955-4d27-9a2f-d7763af70f5e",
+        "areaM2": 247.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1270106178"
+        ]
+      },
+      {
+        "id": "overture/8e43bb70-d569-4e8a-932a-9d45035965af",
+        "areaM2": 53.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1270106178"
+        ]
+      },
+      {
+        "id": "overture/58171c09-bce1-45f4-a2b7-8373afc0dea1",
+        "areaM2": 188.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1270106178"
+        ]
+      },
+      {
+        "id": "overture/2bd254e2-468a-4fea-8a5a-5486f793ee9a",
+        "areaM2": 62.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1270106178"
+        ]
+      },
+      {
+        "id": "overture/132ec17f-12cd-4333-ba87-591ab80f466a",
+        "areaM2": 99.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1270106179",
+          "plaza-or-green:way/1270106178"
+        ]
+      },
+      {
+        "id": "overture/134f4b55-b7c9-4f39-a690-6d4b0c2ab7a9",
+        "areaM2": 202.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1302690647",
+          "road:way/680992417"
+        ]
+      },
+      {
+        "id": "overture/d13a9d52-58ed-42c9-8844-b646256db60d",
+        "areaM2": 107.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/587453567"
+        ]
+      },
+      {
+        "id": "overture/caefedbc-bba7-4689-974a-1a25ad79617d",
+        "areaM2": 204.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/587453569"
+        ]
+      },
+      {
+        "id": "overture/6d4dd5b6-01f5-4e35-8e80-b057d8408295",
+        "areaM2": 112.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/587453568"
+        ]
+      },
+      {
+        "id": "overture/b9c98ee5-54a7-4bac-96cc-758468a08d7d",
+        "areaM2": 161.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/386160808",
+          "road:way/96327306"
+        ]
+      },
+      {
+        "id": "overture/5a3ca570-1816-4426-8e8b-f63d97792616",
+        "areaM2": 46.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "plaza-or-green:relation/18653916"
+        ]
+      },
+      {
+        "id": "overture/1fa1dbc9-05db-4b85-8562-ac64f31dd205",
+        "areaM2": 101.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "plaza-or-green:relation/18653916"
+        ]
+      },
+      {
+        "id": "overture/abb7e5fd-d2f1-4ce0-bd5e-f6ad0ae6710a",
+        "areaM2": 222.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/beeef6bb-74da-4835-ad45-3a92e8237ad7",
+        "areaM2": 202.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/0c2b3786-2079-40e6-b2be-78bfaaf87672",
+        "areaM2": 283.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/c7890bd2-c931-49a0-9354-27a940ec5e40",
+        "areaM2": 222.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/7803b14f-beb6-4981-b37e-2ff82a9b0a9c",
+        "areaM2": 283.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/340202f3-42bf-4c83-93cc-4e428b3293d9",
+        "areaM2": 267.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/0f67f963-7c11-455d-944a-c5b8733a36ec",
+        "areaM2": 23.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/4207389a-c45f-42a0-b133-a08d2a434dbb",
+        "areaM2": 215.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/b7494fbb-adec-4ff0-9698-107c35c09682",
+        "areaM2": 134.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/c42f7525-1e15-44d2-b14c-6a47b8865f4f",
+        "areaM2": 182.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/f52bfe72-57cf-4578-9b2a-2850e5030ed7",
+        "areaM2": 251.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/5fbe4352-39cd-4748-b129-83a475d4e249",
+        "areaM2": 17.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/8affb75d-c6ac-4bff-b3ea-1c98ca158499",
+        "areaM2": 16.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/d483cc90-3ad5-44df-a0e5-b3086897cb3f",
+        "areaM2": 283.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/d547a148-6159-4214-a070-36946961a786",
+        "areaM2": 35.9,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/255653772",
+          "road:way/231542490"
+        ]
+      },
+      {
+        "id": "overture/69ccb7e2-3227-46a5-aab2-d3e2054bbe8d",
+        "areaM2": 18.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/587453583"
+        ]
+      },
+      {
+        "id": "overture/3e01ef7e-636d-41f4-bc0c-64db785dc3ed",
+        "areaM2": 49.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1268377415"
+        ]
+      },
+      {
+        "id": "overture/a1e5f8d2-e22f-4755-a82b-9942553280ac",
+        "areaM2": 107.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1268377415"
+        ]
+      },
+      {
+        "id": "overture/b225974c-56eb-4ef7-bc08-10d22949e89f",
+        "areaM2": 67.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1268377415"
+        ]
+      },
+      {
+        "id": "overture/b59a3c93-2655-42b0-a32a-06ff441dad70",
+        "areaM2": 263.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1268377415"
+        ]
+      },
+      {
+        "id": "overture/bf0b4491-bc0e-4c0e-99b1-5b06747d83e9",
+        "areaM2": 71.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/690827081"
+        ]
+      },
+      {
+        "id": "overture/5396f83d-49f5-4023-9bd6-1ad648fcb90f",
+        "areaM2": 218.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/690827081"
+        ]
+      },
+      {
+        "id": "overture/d6320757-2cec-4f60-b94f-cd03deb673cf",
+        "areaM2": 18.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/690827081"
+        ]
+      },
+      {
+        "id": "overture/4aed1548-8ee3-4e13-ad43-07934fa23244",
+        "areaM2": 99.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/28780b48-4ee0-4397-a3ac-21995437f12b",
+        "areaM2": 248.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/347da63d-07ae-42ff-8c10-6c2c5b7e52bc",
+        "areaM2": 91.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/690827081",
+          "road:way/1300201202"
+        ]
+      },
+      {
+        "id": "overture/bd49b485-9527-4f5d-b7a4-562f5c44ea78",
+        "areaM2": 116.6,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/555076526",
+          "road:way/555150031",
+          "road:way/555076526",
+          "road:way/1052673735"
+        ]
+      },
+      {
+        "id": "overture/a1e7211f-c71f-4b58-8cc7-8f17d3dd1f61",
+        "areaM2": 251.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/780bf5e5-c503-45d8-9064-863a09f3f7b3",
+        "areaM2": 287.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/442aeaeb-6b5b-4574-9bb5-d44e242e9497",
+        "areaM2": 146.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/ec6b3e78-a6fc-4ee3-a970-77d6a80ff14c",
+        "areaM2": 269.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/db12aa33-0706-44d1-b464-453c7d835a81",
+        "areaM2": 27.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/893bd371-68a7-4b1a-8b83-a48cb336f3c7",
+        "areaM2": 118.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "road:way/246115215"
+        ]
+      },
+      {
+        "id": "overture/0a3eefdd-4219-4e33-8cdc-97cf1835352c",
+        "areaM2": 73.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "plaza-or-green:way/1356848908",
+          "road:way/885671542"
+        ]
+      },
+      {
+        "id": "overture/63605c16-9e3a-40f5-b57a-94e0e32b361c",
+        "areaM2": 262.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/cf917f40-a375-40bc-a92e-77922dee529b",
+        "areaM2": 251.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/43f8b923-cb59-42e6-a079-7634e0c25c99",
+        "areaM2": 229.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/52d673f4-0102-43c1-a77d-d495393651ff",
+        "areaM2": 78.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/9d5dfcbb-4441-479a-9f95-381c3e8726c3",
+        "areaM2": 22.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/2f845700-42b2-4a99-8ea7-d0104065eff4",
+        "areaM2": 112.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/e0d243e9-ac74-4a07-a650-b5ca656f7eec",
+        "areaM2": 67.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/bf0cb36e-0c82-447b-98d1-cda4132821c8",
+        "areaM2": 161.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/c40dc4b6-aaff-42d5-84f5-ecbcd26cfef5",
+        "areaM2": 110.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/2dd54c7e-cad5-4eb9-8784-b420dd32d064",
+        "areaM2": 121.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/42b63700-87be-49a6-8d68-b791c7e611d0",
+        "areaM2": 98.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/d0145f89-0095-48e8-9956-fc448da78426",
+        "areaM2": 112.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/185ca35e-3829-4849-aaf6-155f39db9f1f",
+        "areaM2": 229.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/3f14bc01-cac9-42d9-b11c-82b145623e90",
+        "areaM2": 111.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/2c00b8ed-047a-4dcf-a85f-7799da18220d",
+        "areaM2": 22.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/583444384",
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/866db5de-8cf6-4202-9bec-28abb290f635",
+        "areaM2": 17.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/583444384",
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/7ed554ce-8d46-47c6-b56d-4f43ee58e92d",
+        "areaM2": 54.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "plaza-or-green:way/289960247"
+        ]
+      },
+      {
+        "id": "overture/bb9332b4-06ff-4e05-9f62-504db3ef6e9e",
+        "areaM2": 32.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "plaza-or-green:way/289960247"
+        ]
+      },
+      {
+        "id": "overture/ae71b9f1-e1e3-4a42-aaaa-d68ed8804719",
+        "areaM2": 134.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/08890f89-fe07-4ee1-ba54-ee4501b6a287",
+        "areaM2": 246.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/3e91377e-6c94-4865-8610-cc79026b57f2",
+        "areaM2": 116.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/3677889d-3324-44b4-b571-1357ec783bfc",
+        "areaM2": 74.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/818227bd-64ee-40a5-a81a-27888b351f33",
+        "areaM2": 32.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/26f02629-f727-474a-8900-c8c1be79898a",
+        "areaM2": 219.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/15524646-8ab6-4ac9-b045-d8a8aabe737e",
+        "areaM2": 53.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/98db01cd-6edc-4608-aea3-ce9b9517fc83",
+        "areaM2": 80.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/6b45be0b-873a-410e-ae54-3d5b09a1ad02",
+        "areaM2": 51.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/0734065e-d889-4205-9883-e88d7cbf5ecc",
+        "areaM2": 65.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/1177dccd-f671-4653-8e1c-181fbfba9b45",
+        "areaM2": 76.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "road:way/251478161"
+        ]
+      },
+      {
+        "id": "overture/7ab77788-6a4d-4e77-9f59-c920d57b8cb1",
+        "areaM2": 54.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/8053c307-375c-44ab-ae50-0297bb6e4994",
+        "areaM2": 35.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/a04c19ad-4ff5-45f5-848f-9909b230ce2a",
+        "areaM2": 33.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/915a24b2-8716-49b3-af9e-e841c217680c",
+        "areaM2": 121.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/2f42743b-e46c-4897-9b5e-68ef03744d46",
+        "areaM2": 40.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "plaza-or-green:way/246116718",
+          "plaza-or-green:way/246116719"
+        ]
+      },
+      {
+        "id": "overture/1b6f6033-2520-44b9-b89a-33bbc0e869a5",
+        "areaM2": 44.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544",
+          "plaza-or-green:way/246116718",
+          "plaza-or-green:way/246116719"
+        ]
+      },
+      {
+        "id": "overture/7ac529a1-fcd3-468c-827e-a9a2492e1fb1",
+        "areaM2": 89.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/ab2884c6-57ad-4606-b887-ac3738bae156",
+        "areaM2": 78.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/225abe92-73c7-4501-980f-20688c041cba",
+        "areaM2": 64.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/18b94371-4125-4d7b-834c-16426a784e32",
+        "areaM2": 98.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626544"
+        ]
+      },
+      {
+        "id": "overture/0c648af8-0a40-4a94-9714-5e5497f926a2",
+        "areaM2": 16.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/22947f60-70f8-41d3-be81-3d2ad016a2c5",
+        "areaM2": 49.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "road:way/264352251"
+        ]
+      },
+      {
+        "id": "overture/b28164c0-f18c-4ead-aa58-14bf4bd5e1f0",
+        "areaM2": 20.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/3838dcdb-f529-4178-8a6f-22a8d8f227e1",
+        "areaM2": 21.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "road:way/264352251"
+        ]
+      },
+      {
+        "id": "overture/896d9eee-324f-4424-96b2-e24166522c8c",
+        "areaM2": 67.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/7cd5101e-37ea-41eb-8aaa-ddbff6183834",
+        "areaM2": 50.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/46deb011-0c57-4e11-ad30-f2aed65ca653",
+        "areaM2": 46.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/961299e4-aee4-43b1-839f-0eabaeb6f004",
+        "areaM2": 35.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/a460e251-a3f0-4404-9302-d1fa15a686c1",
+        "areaM2": 78.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/138f2314-ed7e-4b59-a000-cb7b27bec42d",
+        "areaM2": 24.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/2597d301-bb72-4672-822c-4d34d0e30e7e",
+        "areaM2": 99.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/73971245-5c07-4a91-a72b-1aacfbe26c62",
+        "areaM2": 124.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/c15741f5-507b-44cb-932c-262ea1cbdf8e",
+        "areaM2": 139.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "road:way/694439468",
+          "road:way/264196038"
+        ]
+      },
+      {
+        "id": "overture/e1795a1a-b084-4d14-9db3-404e86679b91",
+        "areaM2": 40.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/b970c1cf-452b-4967-9db1-bbe3dc572b8c",
+        "areaM2": 144.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "plaza-or-green:way/1361617536"
+        ]
+      },
+      {
+        "id": "overture/55144b3f-992e-4bab-8bd4-a8951d425922",
+        "areaM2": 73.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/36b73892-7282-4fb0-a475-613feea204f3",
+        "areaM2": 128.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "plaza-or-green:way/1361617535"
+        ]
+      },
+      {
+        "id": "overture/b58dc09b-0d5c-45a5-8697-a65038f7968e",
+        "areaM2": 70.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "plaza-or-green:way/1361617535"
+        ]
+      },
+      {
+        "id": "overture/3f18ed5d-1286-46e1-907c-b7f8ceef7dbc",
+        "areaM2": 54.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/d510db57-7033-4bbd-bc24-44da8274e5cb",
+        "areaM2": 50.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/581e6aba-d909-4d6b-8cfe-5cc841aa1049",
+        "areaM2": 61.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/42b50282-0d00-4acd-80b7-908f831b75a4",
+        "areaM2": 71.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/7ea78f9c-d49f-4f12-8bdd-bfce3aab4af6",
+        "areaM2": 50.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/38e0cfc7-185a-4836-8406-b884900b565b",
+        "areaM2": 78.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/ed44d795-e103-44fc-a3a9-c72af34cc40e",
+        "areaM2": 85.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "plaza-or-green:way/1361617537"
+        ]
+      },
+      {
+        "id": "overture/c2091574-3b51-4151-83ec-6a3a50eca4cb",
+        "areaM2": 182.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "plaza-or-green:way/1361617537"
+        ]
+      },
+      {
+        "id": "overture/0be61fd8-909c-4e0f-bc77-a5f0b884db50",
+        "areaM2": 54.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "plaza-or-green:way/1361617537"
+        ]
+      },
+      {
+        "id": "overture/54580fc1-2001-42d0-9de2-856903745591",
+        "areaM2": 181.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "plaza-or-green:way/1361617537"
+        ]
+      },
+      {
+        "id": "overture/84319f2d-4b61-43d0-a7a7-6ddc98b43f8e",
+        "areaM2": 113.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617538",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/447b731d-6e60-461a-85f2-83fd0fd3d110",
+        "areaM2": 67.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617538",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/7a0f57a9-2d1c-4cca-bce5-fc4215a148cc",
+        "areaM2": 124.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/7ef2bfd2-7dd9-4c3d-86cf-ac67640a3d22",
+        "areaM2": 185.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617539",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/a01c27ce-c137-41fe-90b6-90f88621230a",
+        "areaM2": 53.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/e0835ee5-68aa-4599-99aa-f95099c4b031",
+        "areaM2": 172.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617539",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/625b6af0-b469-4f8e-a661-a988ef2c0288",
+        "areaM2": 47.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/8e6eb87f-83ae-4895-b444-698dd2a1b2de",
+        "areaM2": 81.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/29c07621-2042-42fe-b7f1-77c5671022d8",
+        "areaM2": 44.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/6cac6130-abc8-4662-971a-395ec895e007",
+        "areaM2": 40.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/0deb0afa-6f7e-4175-9d84-a6dd8f5c84f5",
+        "areaM2": 50.8,
+        "reason": "plaza+green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "plaza-or-green:way/264353338"
+        ]
+      },
+      {
+        "id": "overture/49af5596-5b94-4e09-83b0-2918111efcd9",
+        "areaM2": 37.6,
+        "reason": "plaza+green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "plaza-or-green:way/264353338"
+        ]
+      },
+      {
+        "id": "overture/55ee2ed8-50a7-4873-829a-6dda39ee591b",
+        "areaM2": 82.3,
+        "reason": "plaza+green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "plaza-or-green:way/264353338"
+        ]
+      },
+      {
+        "id": "overture/e46e7606-0b2a-402c-85a0-82b941d74b45",
+        "areaM2": 56.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/2b2b734c-c576-41e1-ab3a-1ab587500508",
+        "areaM2": 101.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/33b99272-bfa9-45d6-a92a-0779294fa756",
+        "areaM2": 62.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/4543ed92-2a21-44a1-bc38-051f1b294efe",
+        "areaM2": 27.8,
+        "reason": "plaza+green",
+        "inside": [
+          "plaza-or-green:relation/9650829",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/d78773b3-034c-48ad-96fc-c1b495e4468e",
+        "areaM2": 24.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/87043523-6793-4546-b443-8a20a2b0f5b2",
+        "areaM2": 161.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/b7b155d1-81b3-48ab-b89a-b87881d1a897",
+        "areaM2": 143.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/b2d44ab3-f462-4e56-b793-484b953a72fa",
+        "areaM2": 60.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/82e2851c-0dde-4647-b86f-14df2a933b9d",
+        "areaM2": 33.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/cc4cddf8-d31d-484e-8714-929b37e83995",
+        "areaM2": 143.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/c1fbafcd-5575-4d9d-a631-7a3ac7394ded",
+        "areaM2": 91.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/f9c7e058-c398-425e-ac32-379c2d975d34",
+        "areaM2": 44.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/820e84a1-c057-40a1-9648-124a7b4aa690",
+        "areaM2": 89.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/f8a5ddcf-d205-4e44-9355-5507fcc8ed8d",
+        "areaM2": 97.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617531",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/d8635d6c-50d7-4d2d-adb5-ceace617961c",
+        "areaM2": 53.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/6a3792cf-9c79-4acc-b3d7-13f165f225ef",
+        "areaM2": 85.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "road:way/494899059"
+        ]
+      },
+      {
+        "id": "overture/15f3c912-6b53-475f-a5a9-0b06a7d129d8",
+        "areaM2": 18.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/ea844baa-9640-4811-a542-2ac2d81f64b6",
+        "areaM2": 74.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/56567be7-cf69-4d42-9dc6-f9562664ad2a",
+        "areaM2": 115.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/cee05a66-f049-4518-9d11-1f3f0f6a7b56",
+        "areaM2": 36.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/1ad02199-5ca8-40ee-88f1-ad182637c710",
+        "areaM2": 103.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/8e37a14b-abcf-452a-b621-aa4e349ae6d1",
+        "areaM2": 98.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617539",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/bd321834-21ab-47ff-8698-502f86ab1e7e",
+        "areaM2": 185.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/2fc8fae3-a117-4986-8e2c-428644cbe864",
+        "areaM2": 251.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617538",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/58de1aaa-f49c-4d6d-977f-b5a9109fd355",
+        "areaM2": 18.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1361617538",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/8322ff07-65f1-4601-aaf7-56ff4a8b47d2",
+        "areaM2": 20.2,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/246760362"
+        ]
+      },
+      {
+        "id": "overture/8241b12e-2d6b-4a52-94fd-dd5f37bd2f34",
+        "areaM2": 294.1,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/555863593",
+          "road:way/555863593"
+        ]
+      },
+      {
+        "id": "overture/40a3fbce-3b01-4ec1-8208-231e8c7b7c4d",
+        "areaM2": 36.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "road:way/264194871"
+        ]
+      },
+      {
+        "id": "overture/5ead60fa-cc69-431e-9da5-38337d925522",
+        "areaM2": 62.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "road:way/264194871"
+        ]
+      },
+      {
+        "id": "overture/ad74b7ee-de8e-4cb5-9f57-7e57fe2daade",
+        "areaM2": 76.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "road:way/264194871"
+        ]
+      },
+      {
+        "id": "overture/50421bcc-bc8a-49f6-ba42-94eefbc16261",
+        "areaM2": 107.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/555323838",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/95087db0-fbaf-415c-9657-2fdc2db07504",
+        "areaM2": 39.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/555323838",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/52417ace-c39b-4b1e-a09d-06b20d73f702",
+        "areaM2": 71.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/555323838",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/42006906-9a23-440d-9c81-0b56bc70a506",
+        "areaM2": 102.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/555641999",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/0f2454ff-44da-4444-b161-d9ba6df409ee",
+        "areaM2": 153.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/555641999",
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/9b82b557-88c1-442a-928c-d0217379ffe5",
+        "areaM2": 47.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/8554e4e7-63a4-4f46-aef5-4073e1061763",
+        "areaM2": 123.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460"
+        ]
+      },
+      {
+        "id": "overture/536d9534-0c03-413e-a77e-7932aed45359",
+        "areaM2": 34.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/236402460",
+          "road:way/264350261"
+        ]
+      },
+      {
+        "id": "overture/cf5fccdb-d758-4a0a-821f-f59111f2e3c3",
+        "areaM2": 79.2,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/264350261",
+          "road:way/694439457"
+        ]
+      },
+      {
+        "id": "overture/a52951b1-fa5f-4418-861c-51430e4f9051",
+        "areaM2": 21.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/434342334",
+          "road:way/434342686",
+          "road:way/434342269"
+        ]
+      },
+      {
+        "id": "overture/03f7202e-87a5-481a-a2df-fd7a55d4ac1b",
+        "areaM2": 168.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/231522459"
+        ]
+      },
+      {
+        "id": "overture/0e82dff4-9bd2-48d3-93a1-a102f6ad63c2",
+        "areaM2": 45.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/231522459",
+          "road:way/231676385"
+        ]
+      },
+      {
+        "id": "overture/54c17954-daa2-4baa-8e3b-a01887aaa014",
+        "areaM2": 71.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/487811124"
+        ]
+      },
+      {
+        "id": "overture/c62323d3-7f59-4c29-8fe6-723f1d4906d0",
+        "areaM2": 161.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/487811124"
+        ]
+      },
+      {
+        "id": "overture/bd8bdde6-aec3-40ae-a4a3-4a0ef19c113e",
+        "areaM2": 107.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/487811124"
+        ]
+      },
+      {
+        "id": "overture/98bdf6cc-ac06-4496-8ebe-585f81477aab",
+        "areaM2": 67.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/487811124"
+        ]
+      },
+      {
+        "id": "overture/d66887de-7ddc-49db-bacc-891a89433a9c",
+        "areaM2": 28.3,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/232501008"
+        ]
+      },
+      {
+        "id": "overture/6d651dc4-bd1a-4f54-958d-2a8431b0e4af",
+        "areaM2": 116.8,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/69347634"
+        ]
+      },
+      {
+        "id": "overture/6d8acfe3-c699-45e3-9b16-71ed2d56c1de",
+        "areaM2": 112.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527",
+          "plaza-or-green:way/984609249"
+        ]
+      },
+      {
+        "id": "overture/6e02dd4e-d6b8-4f11-91ad-393d7a258e3c",
+        "areaM2": 188.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527"
+        ]
+      },
+      {
+        "id": "overture/2195a2c6-9d20-4f7a-8083-09c2a86b501d",
+        "areaM2": 40.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527"
+        ]
+      },
+      {
+        "id": "overture/1d7d3d79-8e95-41d8-a8a7-0a1911d3241a",
+        "areaM2": 35.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527",
+          "plaza-or-green:way/984609249"
+        ]
+      },
+      {
+        "id": "overture/3826f35d-6e9b-45a2-8e0e-c3c7cb009a8f",
+        "areaM2": 18.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527",
+          "plaza-or-green:way/984609249"
+        ]
+      },
+      {
+        "id": "overture/80eeed66-b247-4947-b8ac-a5eae883b12b",
+        "areaM2": 27.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/230848517"
+        ]
+      },
+      {
+        "id": "overture/ebd8ea61-1970-4e76-bd4a-58e8adf6b606",
+        "areaM2": 33.7,
+        "reason": "plaza",
+        "inside": [
+          "plaza-or-green:way/234216379",
+          "road:way/231530787"
+        ]
+      },
+      {
+        "id": "overture/b44235e6-2d34-4ed8-ba80-a0f7dfa167b1",
+        "areaM2": 42.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527"
+        ]
+      },
+      {
+        "id": "overture/1b69306c-a07e-4762-8d22-20aae31c8a92",
+        "areaM2": 287.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527"
+        ]
+      },
+      {
+        "id": "overture/8c3c4499-56bf-4e1a-8403-b590825fa3b9",
+        "areaM2": 201.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527"
+        ]
+      },
+      {
+        "id": "overture/38737ecf-a214-4b4c-8977-be6b9c811989",
+        "areaM2": 246.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527"
+        ]
+      },
+      {
+        "id": "overture/d88d4211-6c04-4cd5-96b9-4d1e8b515341",
+        "areaM2": 26.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527"
+        ]
+      },
+      {
+        "id": "overture/524226fe-e8b9-4860-8e69-f623c2d17f02",
+        "areaM2": 55.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527"
+        ]
+      },
+      {
+        "id": "overture/d08ac1bb-403c-43d8-b4b4-bfbb9b8aa154",
+        "areaM2": 47.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527"
+        ]
+      },
+      {
+        "id": "overture/838ee355-209b-4c6a-9228-e61fec7dd912",
+        "areaM2": 50.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527"
+        ]
+      },
+      {
+        "id": "overture/d1906736-b43a-41aa-ae8e-deade0458c70",
+        "areaM2": 91.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1468280143"
+        ]
+      },
+      {
+        "id": "overture/8a1f3d27-df19-4875-a24c-2f8844779a00",
+        "areaM2": 62.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1356851481",
+          "plaza-or-green:way/215912569"
+        ]
+      },
+      {
+        "id": "overture/fcf5ba8e-2e41-4c39-acf5-255bb42c314c",
+        "areaM2": 127.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1356851481",
+          "plaza-or-green:way/215912569",
+          "road:way/232097108"
+        ]
+      },
+      {
+        "id": "overture/f7afc03c-d345-4bc6-a880-6ed064778360",
+        "areaM2": 107.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1468280143",
+          "road:way/1229833481"
+        ]
+      },
+      {
+        "id": "overture/289d7345-919a-49cd-b3c7-078143d2e441",
+        "areaM2": 290.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1468280143"
+        ]
+      },
+      {
+        "id": "overture/6e294bb3-5cc7-46d2-982f-668bb1fc8ae1",
+        "areaM2": 35.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/237893527",
+          "road:way/319099133"
+        ]
+      },
+      {
+        "id": "overture/6972585b-556e-4d07-9e03-d6e07c5257d6",
+        "areaM2": 89.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/220656022"
+        ]
+      },
+      {
+        "id": "overture/97174756-7d87-4e59-9a2e-f88a99716d61",
+        "areaM2": 278.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/220656022"
+        ]
+      },
+      {
+        "id": "overture/b2ff2037-39b0-4cf8-9ed4-f086c9d477d8",
+        "areaM2": 287.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/220656022"
+        ]
+      },
+      {
+        "id": "overture/f16dac52-12e0-4d50-9de3-545342bccdc6",
+        "areaM2": 22.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/234739073"
+        ]
+      },
+      {
+        "id": "overture/825ede9d-a58f-424e-8cd6-146005e20aa3",
+        "areaM2": 50.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1276361913",
+          "road:way/456347471"
+        ]
+      },
+      {
+        "id": "overture/94f5a9a3-038b-4376-b2fe-73714b6888ca",
+        "areaM2": 18.6,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/234738612"
+        ]
+      },
+      {
+        "id": "overture/41b9d468-34ed-4ef5-a35a-2b2e0f83101e",
+        "areaM2": 76.4,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/231901941"
+        ]
+      },
+      {
+        "id": "overture/8e8fb797-bd9c-437a-8984-d7350d2dddd4",
+        "areaM2": 82.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1081134214"
+        ]
+      },
+      {
+        "id": "overture/8e93a9f1-9d28-4edd-953c-2aff903d7203",
+        "areaM2": 20.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/943577646"
+        ]
+      },
+      {
+        "id": "overture/53905451-bcb2-4ae9-8001-c631546db960",
+        "areaM2": 161.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1425730019"
+        ]
+      },
+      {
+        "id": "overture/b6a764c2-875f-4e55-b1ee-95ef96adb1c7",
+        "areaM2": 262.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1081134196"
+        ]
+      },
+      {
+        "id": "overture/4adcc6c5-4e8c-46c8-8ce7-913569e15da3",
+        "areaM2": 155.7,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1081134196"
+        ]
+      },
+      {
+        "id": "overture/919c51ec-1d29-4129-83fe-5398a2efa768",
+        "areaM2": 39.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1081134196"
+        ]
+      },
+      {
+        "id": "overture/27150d62-b851-4a3c-8f00-fd88f56ea558",
+        "areaM2": 202.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/264811009"
+        ]
+      },
+      {
+        "id": "overture/08c0a807-e161-4bf9-9392-9714f7721374",
+        "areaM2": 269.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/264811014"
+        ]
+      },
+      {
+        "id": "overture/774bbfc8-5561-42cf-af88-c6dc1c7e131d",
+        "areaM2": 258.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/264811011"
+        ]
+      },
+      {
+        "id": "overture/5ac3a294-18a0-4c9d-9bf2-088c255f508d",
+        "areaM2": 22.5,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/894305093",
+          "road:way/1050942992"
+        ]
+      },
+      {
+        "id": "overture/db216e03-4bbc-43b8-8937-c1ab22521aa2",
+        "areaM2": 65.0,
+        "reason": "carriageway",
+        "inside": [
+          "road:way/292313599"
+        ]
+      },
+      {
+        "id": "overture/c55f0184-f0d1-465e-a981-7748a11e93da",
+        "areaM2": 89.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/533912107"
+        ]
+      },
+      {
+        "id": "overture/ba4f5d71-bca5-4222-a918-88d64513d753",
+        "areaM2": 67.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/533912107"
+        ]
+      },
+      {
+        "id": "overture/5f37085d-dc7d-4c8d-96df-a04b69eeee5f",
+        "areaM2": 116.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/533912107",
+          "road:way/533912109",
+          "road:way/1460057058"
+        ]
+      },
+      {
+        "id": "overture/a970fd90-277f-44fb-adde-a63048e454db",
+        "areaM2": 202.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/533912107",
+          "road:way/1462329057",
+          "road:way/1462329056",
+          "road:way/533912108"
+        ]
+      },
+      {
+        "id": "overture/653bd0db-e1c6-438d-a8d7-778891f655a6",
+        "areaM2": 159.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/533912107",
+          "plaza-or-green:way/533912115"
+        ]
+      },
+      {
+        "id": "overture/532435fe-d61b-48d0-8096-be08b25d5f09",
+        "areaM2": 50.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626532",
+          "plaza-or-green:relation/15626542"
+        ]
+      },
+      {
+        "id": "overture/c478a9a1-6d8c-4d03-a018-ae5a14884e94",
+        "areaM2": 71.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626542",
+          "road:way/925798980"
+        ]
+      },
+      {
+        "id": "overture/d7bfbd9f-487b-4ba2-8d28-200902e63fbf",
+        "areaM2": 49.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626542",
+          "road:way/925798980"
+        ]
+      },
+      {
+        "id": "overture/70ac7c2a-92c0-42d3-a863-4fcd667fc2a0",
+        "areaM2": 71.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626543"
+        ]
+      },
+      {
+        "id": "overture/78f273c4-f4b1-411c-93a5-815fa3be8e0d",
+        "areaM2": 252.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626543"
+        ]
+      },
+      {
+        "id": "overture/8fa87d3a-e45c-4425-9403-614ec3493b60",
+        "areaM2": 228.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626543"
+        ]
+      },
+      {
+        "id": "overture/9f1c7c9a-c164-4015-a76e-a59a14e3d74d",
+        "areaM2": 119.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626543",
+          "plaza-or-green:relation/15626532"
+        ]
+      },
+      {
+        "id": "overture/11ecd0e1-4b23-48ce-aeb7-93f485c6e497",
+        "areaM2": 168.2,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626540",
+          "plaza-or-green:relation/15626532"
+        ]
+      },
+      {
+        "id": "overture/efe2a3fd-7c07-41cc-8790-df15a1111e4b",
+        "areaM2": 79.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626540",
+          "plaza-or-green:relation/15626532"
+        ]
+      },
+      {
+        "id": "overture/a4b593b6-7d7a-4d75-a431-ea0edf231853",
+        "areaM2": 18.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/246260675",
+          "plaza-or-green:relation/15626540",
+          "plaza-or-green:relation/15626532"
+        ]
+      },
+      {
+        "id": "overture/81349d42-d536-48d5-b3cb-d568f5f83ab2",
+        "areaM2": 18.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626540",
+          "plaza-or-green:relation/15626532"
+        ]
+      },
+      {
+        "id": "overture/8e08f23f-8da5-494e-b3f3-72fc208169f3",
+        "areaM2": 262.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1349467554"
+        ]
+      },
+      {
+        "id": "overture/502f4c3a-5808-42a4-b01e-4827e9116ec0",
+        "areaM2": 168.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1349467554"
+        ]
+      },
+      {
+        "id": "overture/5407436d-15fb-4f8e-adf6-cd2b4e89d50a",
+        "areaM2": 134.4,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1349467554"
+        ]
+      },
+      {
+        "id": "overture/0b7ac77a-e1e4-4def-9122-4ec39bd5e1f0",
+        "areaM2": 197.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1349467554"
+        ]
+      },
+      {
+        "id": "overture/3b80d2f1-43d6-489e-b212-2b79861e7fbe",
+        "areaM2": 152.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1349467554"
+        ]
+      },
+      {
+        "id": "overture/6da6c46c-ace6-4025-a07f-970aacd45231",
+        "areaM2": 131.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1349467554"
+        ]
+      },
+      {
+        "id": "overture/6d100d27-7bbb-4ba3-bec4-3b92a666e778",
+        "areaM2": 227.5,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626543"
+        ]
+      },
+      {
+        "id": "overture/99418834-09ad-42f4-8fd2-5df69b660fe5",
+        "areaM2": 232.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626543"
+        ]
+      },
+      {
+        "id": "overture/8602aafa-c0af-4fe2-a113-e4eccb97c62c",
+        "areaM2": 228.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626543"
+        ]
+      },
+      {
+        "id": "overture/94e72b45-d368-4727-bef1-d33c693189f0",
+        "areaM2": 56.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:relation/15626543"
+        ]
+      },
+      {
+        "id": "overture/552405ef-1bbd-4c84-b043-7b5468ce1fef",
+        "areaM2": 201.8,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1434749071"
+        ]
+      },
+      {
+        "id": "overture/6aa30e88-f133-48ca-ade9-f8905000b037",
+        "areaM2": 207.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1434749071"
+        ]
+      },
+      {
+        "id": "overture/b9f466ef-7a81-405a-8bef-1f14524440bd",
+        "areaM2": 184.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1434749071"
+        ]
+      },
+      {
+        "id": "overture/a0e9560d-f184-4836-b934-5e9ba695e458",
+        "areaM2": 50.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1434749071"
+        ]
+      },
+      {
+        "id": "overture/26caa76a-5e67-442e-8a4d-c0aa550b71a9",
+        "areaM2": 98.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1434749071"
+        ]
+      },
+      {
+        "id": "overture/dd240871-0775-4d0c-85cc-2c4721f77194",
+        "areaM2": 23.9,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1434749071"
+        ]
+      },
+      {
+        "id": "overture/85e7afab-baf2-4f45-9325-e539bb6755d9",
+        "areaM2": 73.0,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1434749071"
+        ]
+      },
+      {
+        "id": "overture/f0e89cb9-3d1c-4732-91f1-ca408d5e873e",
+        "areaM2": 133.3,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1434749071"
+        ]
+      },
+      {
+        "id": "overture/86f17279-91fa-4ee2-b8e1-256f8874a9bc",
+        "areaM2": 185.6,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1434749071"
+        ]
+      },
+      {
+        "id": "overture/4772bec9-9ea3-4903-8c62-98a365a1ab13",
+        "areaM2": 72.1,
+        "reason": "green",
+        "inside": [
+          "plaza-or-green:way/1434749071"
+        ]
+      }
+    ],
+    "candidates": 18931,
+    "kept": 17627,
+    "truncated": true
+  },
+  "overtureAdded": 17627,
+  "buildings": 38057,
   "heightSources": {
     "landmark": 6,
     "osm-height": 955,
     "osm-levels": 4219,
     "overture-height": 2,
     "overture-floors": 22,
-    "globfp": 17982,
-    "globfp-overlap": 8549,
-    "estimate": 8221
+    "globfp": 16673,
+    "globfp-overlap": 8467,
+    "estimate": 7713
   },
   "buildingMinHeightCorrections": [
     {
@@ -1364,6 +6549,1809 @@
       "Conditional access is not modeled"
     ]
   },
+  "roadSurface": {
+    "status": "applied",
+    "heightSource": "derived-road",
+    "baseline": {
+      "heightSource": "derived-road",
+      "sourceId": "fabdem-bristol-v1.2",
+      "productType": "modelled DTM from Copernicus GLO-30",
+      "verticalDatum": "EGM2008",
+      "acquisition": "source GLO-30 mainly 2011–2015; FABDEM release 2023-01",
+      "license": "CC BY-NC-SA 4.0 plus Copernicus attribution terms; commercial licensing is separate",
+      "licenseReference": "https://data.bris.ac.uk/datasets/s5hqmjcdj8yo2ibzi9b4ew3sn/readme.txt",
+      "reference": "https://research-information.bris.ac.uk/en/datasets/fabdem-v1-2/",
+      "checkedAt": "2026-11-09",
+      "files": [
+        {
+          "path": "data/raw/terrain/audit/N22E113_FABDEM_V1-2.tif",
+          "sha256": "1d37c8c7f4f23b72b5cca337994113100db7758973ae51bfbf4a97d3307960dc",
+          "bytes": 15527400
+        },
+        {
+          "path": "data/raw/terrain/audit/N22E114_FABDEM_V1-2.tif",
+          "sha256": "328281e83e64814004dc602bac865caf8d5a5bc143aca49bb96cc26226a4b94d",
+          "bytes": 13929353
+        }
+      ],
+      "sampler": "manifest-geotiff",
+      "attribution": "FABDEM V1-2 (University of Bristol) contains modified Copernicus GLO-30 elevation data; CC BY-NC-SA 4.0 plus Copernicus attribution terms."
+    },
+    "rule": {
+      "stationSpacingM": 10.0,
+      "gradeClampPasses": 3,
+      "maxGradePercentByClass": {
+        "local": 10.0,
+        "motorway": 6.0,
+        "pedestrian": 10.0,
+        "primary": 7.0,
+        "secondary": 8.0,
+        "service": 10.0,
+        "tertiary": 10.0,
+        "trunk": 6.0
+      },
+      "stationMedianFilterWindow": 7,
+      "referenceRule": "reference = median_filter(min(median_filter(FABDEM), original DSM runtime height), 7) with nodata fallbacks; lowering only",
+      "raiseCapM": 0.5,
+      "plateauBufferSteps": 1.5,
+      "plateauBufferRule": "nearest station half width + 1.5 * terrain step",
+      "transitionM": 15.0,
+      "maxTransitionSlope": 0.2,
+      "maxTransitionM": 45.0,
+      "transitionRule": "width = clip(|profile - original DSM| / maxTransitionSlope, minTransitionM, maxTransitionM)",
+      "plateauRelaxation": {
+        "iterations": 10,
+        "alpha": 0.5,
+        "scope": "derived vertices only; original terrain is a fixed boundary"
+      },
+      "insideStepLimit": {
+        "limitM": 1.7,
+        "iterations": 60,
+        "scope": "adjacent derived vertices inside one corridor, with the raise cap applied"
+      },
+      "rimFadeLayers": 3,
+      "steepTerrainExclusion": {
+        "maxLocalDsmStepM": 3.0,
+        "rule": "terrain cells steeper than this keep the original DSM"
+      },
+      "nodeLevelRelaxation": {
+        "iterations": 10,
+        "rule": "shared node levels relaxed so endpoints fit the class grade allowance"
+      },
+      "junctionContinuity": "shared nodes use the median of incident resolved link reference endpoints",
+      "quantizationM": 0.1,
+      "terrainStepM": 25.0,
+      "method": "FABDEM station baseline median-filtered to reject residual building/canopy spikes, then reduced to min(filtered FABDEM, original DSM runtime height) per station with nodata fallbacks; the reference series is median-filtered again; shared nodes pinned to the median incident reference endpoint and relaxed within the class grade allowance; class grade clamp with forward/backward passes; flat cross-section; plateau radius = nearest station half width + 1.5 terrain steps; adaptive smoothstep transition (15 m minimum, widened where the profile differs from the DSM); bounded Laplacian relaxation and an inside-corridor single-cell step limit; derived vertices never exceed the original DSM by more than the raise cap; quantized to terrain heightScale"
+    },
+    "links": {
+      "total": 11238,
+      "eligible": 10478,
+      "resolved": 10478,
+      "unresolved": 0,
+      "gradeInfeasible": 0,
+      "excluded": {
+        "bridge": 498,
+        "layer": 93,
+        "shortLength": 76,
+        "tunnel": 93
+      },
+      "excludedTerrain": 0,
+      "maxAbsDeltaM": 47.381,
+      "p95AbsDeltaM": 10.449,
+      "medianAbsDeltaM": 3.382,
+      "overFiveMetres": 3150,
+      "reference": {
+        "rule": "reference = min(median-filtered FABDEM, original DSM runtime height), then median-filtered",
+        "medianBiasM": -2.097,
+        "p10BiasM": -5.643,
+        "p90BiasM": -0.055,
+        "maxRaiseBiasM": 0.125,
+        "definition": "biasM = median reference - median original DSM along the centreline; positive means the reference still sits above the DSM"
+      }
+    },
+    "stations": {
+      "count": 143708,
+      "spacingM": 10.0,
+      "medianFilterWindow": 7,
+      "spikeLimitM": 3.0,
+      "filteredLinks": 9823,
+      "spikeSamplesOverLimit": 27,
+      "maxRejectedSpikeM": 5.172
+    },
+    "vertices": {
+      "total": 281934,
+      "derived": 66155,
+      "plateau": 53118,
+      "transition": 13037,
+      "changed": 63872,
+      "changedFraction": 0.22655,
+      "maxAbsDeltaM": 8.2,
+      "p95AbsDeltaM": 2.6,
+      "maxAdjacentDeltaM": 1.8,
+      "plateauAdjacentDeltaM": 1.8,
+      "rimAdjacentDeltaM": 7.0,
+      "rimNewStepM": 4.1,
+      "insideNewStepM": 1.7,
+      "adjacentStepsOver2M": 0,
+      "adjacentStepsOver5M": 0,
+      "plateauStepsOver2M": 0,
+      "raisedCapped": 14057,
+      "maxRaiseM": 0.5,
+      "excluded": 19,
+      "limitM": 0.5
+    },
+    "classes": {
+      "motorway": {
+        "links": 198,
+        "changedVertices": 2085,
+        "maxAbsDeltaM": 14.589,
+        "p95AbsDeltaM": 8.259
+      },
+      "trunk": {
+        "links": 459,
+        "changedVertices": 2587,
+        "maxAbsDeltaM": 11.651,
+        "p95AbsDeltaM": 6.897
+      },
+      "primary": {
+        "links": 2997,
+        "changedVertices": 14547,
+        "maxAbsDeltaM": 46.545,
+        "p95AbsDeltaM": 8.001
+      },
+      "secondary": {
+        "links": 2076,
+        "changedVertices": 10301,
+        "maxAbsDeltaM": 16.908,
+        "p95AbsDeltaM": 7.861
+      },
+      "tertiary": {
+        "links": 2217,
+        "changedVertices": 14448,
+        "maxAbsDeltaM": 29.302,
+        "p95AbsDeltaM": 10.553
+      },
+      "local": {
+        "links": 2531,
+        "changedVertices": 19904,
+        "maxAbsDeltaM": 47.381,
+        "p95AbsDeltaM": 13.313
+      },
+      "service": {
+        "links": 0,
+        "changedVertices": 0,
+        "maxAbsDeltaM": null,
+        "p95AbsDeltaM": null
+      },
+      "pedestrian": {
+        "links": 0,
+        "changedVertices": 0,
+        "maxAbsDeltaM": null,
+        "p95AbsDeltaM": null
+      }
+    },
+    "largeDeltas": [
+      {
+        "osmId": "way/187658564",
+        "name": "",
+        "class": "local",
+        "lengthM": 102.325,
+        "maxAbsDeltaM": 47.381,
+        "maxFabdemSpikeM": 0.707
+      },
+      {
+        "osmId": "way/41019601",
+        "name": "彩田路",
+        "class": "primary",
+        "lengthM": 190.502,
+        "maxAbsDeltaM": 46.545,
+        "maxFabdemSpikeM": 0.526
+      },
+      {
+        "osmId": "way/582246450",
+        "name": "滨河彩田立交",
+        "class": "primary",
+        "lengthM": 230.1,
+        "maxAbsDeltaM": 40.7,
+        "maxFabdemSpikeM": 3.568
+      },
+      {
+        "osmId": "way/41019601",
+        "name": "彩田路",
+        "class": "primary",
+        "lengthM": 175.622,
+        "maxAbsDeltaM": 40.604,
+        "maxFabdemSpikeM": 3.778
+      },
+      {
+        "osmId": "way/363776688",
+        "name": "",
+        "class": "local",
+        "lengthM": 202.291,
+        "maxAbsDeltaM": 34.631,
+        "maxFabdemSpikeM": 2.567
+      },
+      {
+        "osmId": "way/1305276433",
+        "name": "",
+        "class": "primary",
+        "lengthM": 116.924,
+        "maxAbsDeltaM": 31.941,
+        "maxFabdemSpikeM": 4.107
+      },
+      {
+        "osmId": "way/41018945",
+        "name": "彩田路",
+        "class": "primary",
+        "lengthM": 25.354,
+        "maxAbsDeltaM": 31.685,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/1305276431",
+        "name": "",
+        "class": "primary",
+        "lengthM": 169.007,
+        "maxAbsDeltaM": 31.535,
+        "maxFabdemSpikeM": 2.452
+      },
+      {
+        "osmId": "way/996755160",
+        "name": "彩田路",
+        "class": "primary",
+        "lengthM": 115.619,
+        "maxAbsDeltaM": 29.847,
+        "maxFabdemSpikeM": 1.924
+      },
+      {
+        "osmId": "way/1305276433",
+        "name": "",
+        "class": "primary",
+        "lengthM": 56.693,
+        "maxAbsDeltaM": 29.808,
+        "maxFabdemSpikeM": 0.629
+      },
+      {
+        "osmId": "way/26274669",
+        "name": "彩田路",
+        "class": "primary",
+        "lengthM": 122.096,
+        "maxAbsDeltaM": 29.798,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/996755160",
+        "name": "彩田路",
+        "class": "primary",
+        "lengthM": 15.513,
+        "maxAbsDeltaM": 29.782,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/26274669",
+        "name": "彩田路",
+        "class": "primary",
+        "lengthM": 38.449,
+        "maxAbsDeltaM": 29.377,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/617224846",
+        "name": "福华五路",
+        "class": "tertiary",
+        "lengthM": 113.843,
+        "maxAbsDeltaM": 29.302,
+        "maxFabdemSpikeM": 1.727
+      },
+      {
+        "osmId": "way/41018945",
+        "name": "彩田路",
+        "class": "primary",
+        "lengthM": 49.153,
+        "maxAbsDeltaM": 27.964,
+        "maxFabdemSpikeM": 0.734
+      },
+      {
+        "osmId": "way/743544184",
+        "name": "新洲路",
+        "class": "primary",
+        "lengthM": 202.287,
+        "maxAbsDeltaM": 25.63,
+        "maxFabdemSpikeM": 2.154
+      },
+      {
+        "osmId": "way/686891191",
+        "name": "",
+        "class": "local",
+        "lengthM": 143.883,
+        "maxAbsDeltaM": 25.009,
+        "maxFabdemSpikeM": 0.107
+      },
+      {
+        "osmId": "way/235113766",
+        "name": "文心四路",
+        "class": "local",
+        "lengthM": 126.212,
+        "maxAbsDeltaM": 24.869,
+        "maxFabdemSpikeM": 1.28
+      },
+      {
+        "osmId": "way/245930191",
+        "name": "",
+        "class": "local",
+        "lengthM": 58.995,
+        "maxAbsDeltaM": 23.487,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/1569744113",
+        "name": "",
+        "class": "tertiary",
+        "lengthM": 11.06,
+        "maxAbsDeltaM": 23.379,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/1568438181",
+        "name": "",
+        "class": "tertiary",
+        "lengthM": 17.635,
+        "maxAbsDeltaM": 23.365,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/1552015911",
+        "name": "百合三路",
+        "class": "tertiary",
+        "lengthM": 370.598,
+        "maxAbsDeltaM": 23.319,
+        "maxFabdemSpikeM": 0.426
+      },
+      {
+        "osmId": "way/1569744112",
+        "name": "百合三路",
+        "class": "tertiary",
+        "lengthM": 11.883,
+        "maxAbsDeltaM": 23.311,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/223456857",
+        "name": "上沙伙头岭路",
+        "class": "local",
+        "lengthM": 440.72,
+        "maxAbsDeltaM": 23.061,
+        "maxFabdemSpikeM": 2.423
+      },
+      {
+        "osmId": "way/1552015912",
+        "name": "百合三路",
+        "class": "tertiary",
+        "lengthM": 367.362,
+        "maxAbsDeltaM": 22.947,
+        "maxFabdemSpikeM": 0.805
+      },
+      {
+        "osmId": "way/1552015912",
+        "name": "百合三路",
+        "class": "tertiary",
+        "lengthM": 12.137,
+        "maxAbsDeltaM": 22.924,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/517912183",
+        "name": "莲塘尾一路",
+        "class": "local",
+        "lengthM": 392.473,
+        "maxAbsDeltaM": 22.775,
+        "maxFabdemSpikeM": 3.555
+      },
+      {
+        "osmId": "way/1553347018",
+        "name": "百合八路",
+        "class": "tertiary",
+        "lengthM": 486.135,
+        "maxAbsDeltaM": 22.742,
+        "maxFabdemSpikeM": 0.466
+      },
+      {
+        "osmId": "way/1569744111",
+        "name": "",
+        "class": "tertiary",
+        "lengthM": 11.084,
+        "maxAbsDeltaM": 22.648,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/245930172",
+        "name": "",
+        "class": "local",
+        "lengthM": 106.964,
+        "maxAbsDeltaM": 22.589,
+        "maxFabdemSpikeM": 0.771
+      },
+      {
+        "osmId": "way/817826961",
+        "name": "",
+        "class": "local",
+        "lengthM": 193.36,
+        "maxAbsDeltaM": 22.576,
+        "maxFabdemSpikeM": 1.425
+      },
+      {
+        "osmId": "way/1568438182",
+        "name": "",
+        "class": "tertiary",
+        "lengthM": 15.97,
+        "maxAbsDeltaM": 22.29,
+        "maxFabdemSpikeM": 0.047
+      },
+      {
+        "osmId": "way/245794172",
+        "name": "科技广场路",
+        "class": "local",
+        "lengthM": 288.674,
+        "maxAbsDeltaM": 21.944,
+        "maxFabdemSpikeM": 0.411
+      },
+      {
+        "osmId": "way/817826962",
+        "name": "",
+        "class": "local",
+        "lengthM": 258.731,
+        "maxAbsDeltaM": 21.882,
+        "maxFabdemSpikeM": 1.135
+      },
+      {
+        "osmId": "way/1018428241",
+        "name": "",
+        "class": "local",
+        "lengthM": 18.399,
+        "maxAbsDeltaM": 21.303,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/1553347019",
+        "name": "",
+        "class": "tertiary",
+        "lengthM": 42.678,
+        "maxAbsDeltaM": 21.282,
+        "maxFabdemSpikeM": 0.052
+      },
+      {
+        "osmId": "way/223456780",
+        "name": "上沙东村九巷",
+        "class": "local",
+        "lengthM": 479.848,
+        "maxAbsDeltaM": 21.046,
+        "maxFabdemSpikeM": 1.935
+      },
+      {
+        "osmId": "way/996755162",
+        "name": "彩田路",
+        "class": "primary",
+        "lengthM": 169.24,
+        "maxAbsDeltaM": 21.0,
+        "maxFabdemSpikeM": 2.067
+      },
+      {
+        "osmId": "way/232333399",
+        "name": "",
+        "class": "local",
+        "lengthM": 78.88,
+        "maxAbsDeltaM": 20.973,
+        "maxFabdemSpikeM": 0.063
+      },
+      {
+        "osmId": "way/1306285061",
+        "name": "",
+        "class": "local",
+        "lengthM": 120.561,
+        "maxAbsDeltaM": 20.854,
+        "maxFabdemSpikeM": 0.818
+      },
+      {
+        "osmId": "way/1553347017",
+        "name": "",
+        "class": "tertiary",
+        "lengthM": 43.938,
+        "maxAbsDeltaM": 20.177,
+        "maxFabdemSpikeM": 0.148
+      },
+      {
+        "osmId": "way/854903606",
+        "name": "科技广场路",
+        "class": "local",
+        "lengthM": 281.167,
+        "maxAbsDeltaM": 20.045,
+        "maxFabdemSpikeM": 0.685
+      },
+      {
+        "osmId": "way/1352282132",
+        "name": "",
+        "class": "local",
+        "lengthM": 61.949,
+        "maxAbsDeltaM": 19.747,
+        "maxFabdemSpikeM": 0.017
+      },
+      {
+        "osmId": "way/493389667",
+        "name": "紫竹七道",
+        "class": "local",
+        "lengthM": 183.309,
+        "maxAbsDeltaM": 19.739,
+        "maxFabdemSpikeM": 0.317
+      },
+      {
+        "osmId": "way/97522362",
+        "name": "皇岗四街",
+        "class": "local",
+        "lengthM": 109.52,
+        "maxAbsDeltaM": 19.356,
+        "maxFabdemSpikeM": 0.171
+      },
+      {
+        "osmId": "way/513275412",
+        "name": "星河路",
+        "class": "local",
+        "lengthM": 168.132,
+        "maxAbsDeltaM": 19.169,
+        "maxFabdemSpikeM": 0.346
+      },
+      {
+        "osmId": "way/1568230846",
+        "name": "",
+        "class": "primary",
+        "lengthM": 65.467,
+        "maxAbsDeltaM": 19.102,
+        "maxFabdemSpikeM": 0.063
+      },
+      {
+        "osmId": "way/1018428242",
+        "name": "",
+        "class": "local",
+        "lengthM": 76.308,
+        "maxAbsDeltaM": 19.098,
+        "maxFabdemSpikeM": 0.164
+      },
+      {
+        "osmId": "way/1018428241",
+        "name": "",
+        "class": "local",
+        "lengthM": 21.813,
+        "maxAbsDeltaM": 19.072,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/34900353",
+        "name": "滨河彩田立交",
+        "class": "primary",
+        "lengthM": 266.843,
+        "maxAbsDeltaM": 18.986,
+        "maxFabdemSpikeM": 0.219
+      },
+      {
+        "osmId": "way/26274669",
+        "name": "彩田路",
+        "class": "primary",
+        "lengthM": 145.55,
+        "maxAbsDeltaM": 18.922,
+        "maxFabdemSpikeM": 0.314
+      },
+      {
+        "osmId": "way/855206669",
+        "name": "新闻路",
+        "class": "tertiary",
+        "lengthM": 165.817,
+        "maxAbsDeltaM": 18.871,
+        "maxFabdemSpikeM": 0.684
+      },
+      {
+        "osmId": "way/166998768",
+        "name": "水围七街",
+        "class": "local",
+        "lengthM": 196.942,
+        "maxAbsDeltaM": 18.779,
+        "maxFabdemSpikeM": 0.638
+      },
+      {
+        "osmId": "way/1352282131",
+        "name": "",
+        "class": "local",
+        "lengthM": 64.807,
+        "maxAbsDeltaM": 18.52,
+        "maxFabdemSpikeM": 0.022
+      },
+      {
+        "osmId": "way/393889379",
+        "name": "泰然六路",
+        "class": "tertiary",
+        "lengthM": 226.41,
+        "maxAbsDeltaM": 18.117,
+        "maxFabdemSpikeM": 0.323
+      },
+      {
+        "osmId": "way/684241532",
+        "name": "石厦北一街",
+        "class": "local",
+        "lengthM": 135.891,
+        "maxAbsDeltaM": 18.096,
+        "maxFabdemSpikeM": 1.082
+      },
+      {
+        "osmId": "way/220653222",
+        "name": "科研路",
+        "class": "tertiary",
+        "lengthM": 189.262,
+        "maxAbsDeltaM": 18.084,
+        "maxFabdemSpikeM": 0.143
+      },
+      {
+        "osmId": "way/853206488",
+        "name": "兴融三路",
+        "class": "local",
+        "lengthM": 122.69,
+        "maxAbsDeltaM": 18.07,
+        "maxFabdemSpikeM": 0.003
+      },
+      {
+        "osmId": "way/892901033",
+        "name": "新闻路",
+        "class": "tertiary",
+        "lengthM": 167.613,
+        "maxAbsDeltaM": 18.058,
+        "maxFabdemSpikeM": 0.362
+      },
+      {
+        "osmId": "way/231534943",
+        "name": "",
+        "class": "local",
+        "lengthM": 137.478,
+        "maxAbsDeltaM": 17.651,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/861052681",
+        "name": "",
+        "class": "local",
+        "lengthM": 200.494,
+        "maxAbsDeltaM": 17.521,
+        "maxFabdemSpikeM": 0.775
+      },
+      {
+        "osmId": "way/228121863",
+        "name": "",
+        "class": "local",
+        "lengthM": 155.961,
+        "maxAbsDeltaM": 17.315,
+        "maxFabdemSpikeM": 0.171
+      },
+      {
+        "osmId": "way/914046803",
+        "name": "皇岗五街",
+        "class": "local",
+        "lengthM": 146.281,
+        "maxAbsDeltaM": 17.303,
+        "maxFabdemSpikeM": 0.438
+      },
+      {
+        "osmId": "way/1352282133",
+        "name": "",
+        "class": "local",
+        "lengthM": 42.252,
+        "maxAbsDeltaM": 17.283,
+        "maxFabdemSpikeM": 0.04
+      },
+      {
+        "osmId": "way/1422487068",
+        "name": "",
+        "class": "primary",
+        "lengthM": 75.446,
+        "maxAbsDeltaM": 17.054,
+        "maxFabdemSpikeM": 0.275
+      },
+      {
+        "osmId": "way/245755667",
+        "name": "竹子林五路",
+        "class": "local",
+        "lengthM": 86.627,
+        "maxAbsDeltaM": 17.047,
+        "maxFabdemSpikeM": 0.6
+      },
+      {
+        "osmId": "way/855693210",
+        "name": "景田东路",
+        "class": "tertiary",
+        "lengthM": 181.491,
+        "maxAbsDeltaM": 16.979,
+        "maxFabdemSpikeM": 0.45
+      },
+      {
+        "osmId": "way/193723772",
+        "name": "景田东路",
+        "class": "tertiary",
+        "lengthM": 94.41,
+        "maxAbsDeltaM": 16.931,
+        "maxFabdemSpikeM": 0.244
+      },
+      {
+        "osmId": "way/1050921367",
+        "name": "景田路",
+        "class": "secondary",
+        "lengthM": 332.481,
+        "maxAbsDeltaM": 16.908,
+        "maxFabdemSpikeM": 0.487
+      },
+      {
+        "osmId": "way/1352282133",
+        "name": "",
+        "class": "local",
+        "lengthM": 26.456,
+        "maxAbsDeltaM": 16.806,
+        "maxFabdemSpikeM": 0.022
+      },
+      {
+        "osmId": "way/1352282132",
+        "name": "",
+        "class": "local",
+        "lengthM": 14.144,
+        "maxAbsDeltaM": 16.804,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/856026022",
+        "name": "泰然四路",
+        "class": "tertiary",
+        "lengthM": 281.496,
+        "maxAbsDeltaM": 16.794,
+        "maxFabdemSpikeM": 0.796
+      },
+      {
+        "osmId": "way/1050921369",
+        "name": "景田路",
+        "class": "secondary",
+        "lengthM": 134.221,
+        "maxAbsDeltaM": 16.79,
+        "maxFabdemSpikeM": 0.092
+      },
+      {
+        "osmId": "way/223456774",
+        "name": "上沙龙秋路",
+        "class": "local",
+        "lengthM": 208.232,
+        "maxAbsDeltaM": 16.775,
+        "maxFabdemSpikeM": 0.345
+      },
+      {
+        "osmId": "way/97522387",
+        "name": "皇岗三街",
+        "class": "local",
+        "lengthM": 308.949,
+        "maxAbsDeltaM": 16.538,
+        "maxFabdemSpikeM": 0.644
+      },
+      {
+        "osmId": "way/235290415",
+        "name": "文心六路",
+        "class": "local",
+        "lengthM": 65.389,
+        "maxAbsDeltaM": 16.535,
+        "maxFabdemSpikeM": 1.912
+      },
+      {
+        "osmId": "way/96333000",
+        "name": "商报东一路",
+        "class": "tertiary",
+        "lengthM": 278.689,
+        "maxAbsDeltaM": 16.383,
+        "maxFabdemSpikeM": 0.727
+      },
+      {
+        "osmId": "way/135906440",
+        "name": "泰然六路",
+        "class": "tertiary",
+        "lengthM": 226.759,
+        "maxAbsDeltaM": 16.366,
+        "maxFabdemSpikeM": 0.281
+      },
+      {
+        "osmId": "way/273652986",
+        "name": "",
+        "class": "local",
+        "lengthM": 268.328,
+        "maxAbsDeltaM": 16.352,
+        "maxFabdemSpikeM": 0.659
+      },
+      {
+        "osmId": "way/40971897",
+        "name": "新洲路",
+        "class": "primary",
+        "lengthM": 218.623,
+        "maxAbsDeltaM": 16.342,
+        "maxFabdemSpikeM": 0.66
+      },
+      {
+        "osmId": "way/1429423855",
+        "name": "上沙椰树路",
+        "class": "local",
+        "lengthM": 146.87,
+        "maxAbsDeltaM": 16.305,
+        "maxFabdemSpikeM": 0.261
+      },
+      {
+        "osmId": "way/586589637",
+        "name": "高新南环路",
+        "class": "tertiary",
+        "lengthM": 164.777,
+        "maxAbsDeltaM": 16.262,
+        "maxFabdemSpikeM": 0.383
+      },
+      {
+        "osmId": "way/243387684",
+        "name": "",
+        "class": "local",
+        "lengthM": 411.286,
+        "maxAbsDeltaM": 16.233,
+        "maxFabdemSpikeM": 0.917
+      },
+      {
+        "osmId": "way/827602243",
+        "name": "皇岗六街",
+        "class": "local",
+        "lengthM": 337.354,
+        "maxAbsDeltaM": 16.182,
+        "maxFabdemSpikeM": 0.678
+      },
+      {
+        "osmId": "way/349913411",
+        "name": "",
+        "class": "local",
+        "lengthM": 72.495,
+        "maxAbsDeltaM": 16.17,
+        "maxFabdemSpikeM": 0.157
+      },
+      {
+        "osmId": "way/160131332",
+        "name": "彩云路",
+        "class": "tertiary",
+        "lengthM": 115.233,
+        "maxAbsDeltaM": 16.155,
+        "maxFabdemSpikeM": 0.057
+      },
+      {
+        "osmId": "way/610188504",
+        "name": "威尼斯东街",
+        "class": "local",
+        "lengthM": 214.285,
+        "maxAbsDeltaM": 16.147,
+        "maxFabdemSpikeM": 0.527
+      },
+      {
+        "osmId": "way/166998814",
+        "name": "水围五街",
+        "class": "local",
+        "lengthM": 147.689,
+        "maxAbsDeltaM": 16.119,
+        "maxFabdemSpikeM": 0.34
+      },
+      {
+        "osmId": "way/913432110",
+        "name": "皇岗三街",
+        "class": "local",
+        "lengthM": 308.446,
+        "maxAbsDeltaM": 16.118,
+        "maxFabdemSpikeM": 0.821
+      },
+      {
+        "osmId": "way/243384968",
+        "name": "",
+        "class": "local",
+        "lengthM": 391.073,
+        "maxAbsDeltaM": 16.114,
+        "maxFabdemSpikeM": 0.539
+      },
+      {
+        "osmId": "way/923999673",
+        "name": "上沙椰树路",
+        "class": "local",
+        "lengthM": 95.545,
+        "maxAbsDeltaM": 15.99,
+        "maxFabdemSpikeM": 0.191
+      },
+      {
+        "osmId": "way/166998861",
+        "name": "水围二街",
+        "class": "tertiary",
+        "lengthM": 78.977,
+        "maxAbsDeltaM": 15.954,
+        "maxFabdemSpikeM": 0.759
+      },
+      {
+        "osmId": "way/1429423852",
+        "name": "",
+        "class": "local",
+        "lengthM": 367.369,
+        "maxAbsDeltaM": 15.903,
+        "maxFabdemSpikeM": 1.329
+      },
+      {
+        "osmId": "way/923999673",
+        "name": "上沙椰树路",
+        "class": "local",
+        "lengthM": 341.518,
+        "maxAbsDeltaM": 15.892,
+        "maxFabdemSpikeM": 0.66
+      },
+      {
+        "osmId": "way/238026497",
+        "name": "",
+        "class": "local",
+        "lengthM": 123.701,
+        "maxAbsDeltaM": 15.868,
+        "maxFabdemSpikeM": 0.542
+      },
+      {
+        "osmId": "way/228278328",
+        "name": "花云街",
+        "class": "local",
+        "lengthM": 185.712,
+        "maxAbsDeltaM": 15.841,
+        "maxFabdemSpikeM": 0.236
+      },
+      {
+        "osmId": "way/231534958",
+        "name": "西村二路",
+        "class": "local",
+        "lengthM": 302.284,
+        "maxAbsDeltaM": 15.802,
+        "maxFabdemSpikeM": 0.194
+      },
+      {
+        "osmId": "way/248452027",
+        "name": "",
+        "class": "local",
+        "lengthM": 112.377,
+        "maxAbsDeltaM": 15.751,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/855206670",
+        "name": "新闻路",
+        "class": "tertiary",
+        "lengthM": 30.281,
+        "maxAbsDeltaM": 15.733,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/135906445",
+        "name": "泰然二路",
+        "class": "tertiary",
+        "lengthM": 277.209,
+        "maxAbsDeltaM": 15.716,
+        "maxFabdemSpikeM": 1.392
+      },
+      {
+        "osmId": "way/1044157158",
+        "name": "西村一路",
+        "class": "local",
+        "lengthM": 258.518,
+        "maxAbsDeltaM": 15.7,
+        "maxFabdemSpikeM": 0.444
+      },
+      {
+        "osmId": "way/303794323",
+        "name": "",
+        "class": "local",
+        "lengthM": 106.95,
+        "maxAbsDeltaM": 15.694,
+        "maxFabdemSpikeM": 0.119
+      },
+      {
+        "osmId": "way/46898363",
+        "name": "紫荆道",
+        "class": "tertiary",
+        "lengthM": 149.437,
+        "maxAbsDeltaM": 15.601,
+        "maxFabdemSpikeM": 0.291
+      },
+      {
+        "osmId": "way/245978171",
+        "name": "岗厦村东三坊",
+        "class": "local",
+        "lengthM": 171.645,
+        "maxAbsDeltaM": 15.519,
+        "maxFabdemSpikeM": 0.621
+      },
+      {
+        "osmId": "way/227854417",
+        "name": "",
+        "class": "local",
+        "lengthM": 166.431,
+        "maxAbsDeltaM": 15.483,
+        "maxFabdemSpikeM": 0.366
+      },
+      {
+        "osmId": "way/877893388",
+        "name": "",
+        "class": "local",
+        "lengthM": 47.998,
+        "maxAbsDeltaM": 15.396,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/231534943",
+        "name": "",
+        "class": "local",
+        "lengthM": 151.89,
+        "maxAbsDeltaM": 15.321,
+        "maxFabdemSpikeM": 0.104
+      },
+      {
+        "osmId": "way/855206670",
+        "name": "新闻路",
+        "class": "tertiary",
+        "lengthM": 22.633,
+        "maxAbsDeltaM": 15.302,
+        "maxFabdemSpikeM": 0.483
+      },
+      {
+        "osmId": "way/303794312",
+        "name": "",
+        "class": "local",
+        "lengthM": 29.493,
+        "maxAbsDeltaM": 15.266,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/477810546",
+        "name": "海虹道",
+        "class": "tertiary",
+        "lengthM": 102.457,
+        "maxAbsDeltaM": 15.243,
+        "maxFabdemSpikeM": 0.031
+      },
+      {
+        "osmId": "way/96329679",
+        "name": "石厦北三街",
+        "class": "local",
+        "lengthM": 105.661,
+        "maxAbsDeltaM": 15.206,
+        "maxFabdemSpikeM": 0.043
+      },
+      {
+        "osmId": "way/488734870",
+        "name": "科技南六路",
+        "class": "local",
+        "lengthM": 127.031,
+        "maxAbsDeltaM": 15.203,
+        "maxFabdemSpikeM": 0.2
+      },
+      {
+        "osmId": "way/1431881291",
+        "name": "安景道",
+        "class": "local",
+        "lengthM": 89.965,
+        "maxAbsDeltaM": 15.184,
+        "maxFabdemSpikeM": 0.005
+      },
+      {
+        "osmId": "way/245930191",
+        "name": "",
+        "class": "local",
+        "lengthM": 70.019,
+        "maxAbsDeltaM": 15.175,
+        "maxFabdemSpikeM": 0.001
+      },
+      {
+        "osmId": "way/235152799",
+        "name": "海德二道",
+        "class": "local",
+        "lengthM": 132.95,
+        "maxAbsDeltaM": 15.169,
+        "maxFabdemSpikeM": 0.625
+      },
+      {
+        "osmId": "way/231534931",
+        "name": "",
+        "class": "local",
+        "lengthM": 30.625,
+        "maxAbsDeltaM": 15.159,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/303794323",
+        "name": "",
+        "class": "local",
+        "lengthM": 8.723,
+        "maxAbsDeltaM": 15.12,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/101317833",
+        "name": "海月路",
+        "class": "tertiary",
+        "lengthM": 114.241,
+        "maxAbsDeltaM": 15.102,
+        "maxFabdemSpikeM": 0.063
+      },
+      {
+        "osmId": "way/303794312",
+        "name": "",
+        "class": "local",
+        "lengthM": 88.9,
+        "maxAbsDeltaM": 15.095,
+        "maxFabdemSpikeM": 0.439
+      },
+      {
+        "osmId": "way/246259925",
+        "name": "",
+        "class": "local",
+        "lengthM": 262.866,
+        "maxAbsDeltaM": 15.094,
+        "maxFabdemSpikeM": 0.433
+      },
+      {
+        "osmId": "way/231534939",
+        "name": "",
+        "class": "local",
+        "lengthM": 81.789,
+        "maxAbsDeltaM": 15.004,
+        "maxFabdemSpikeM": 0.366
+      },
+      {
+        "osmId": "way/1314576501",
+        "name": "",
+        "class": "local",
+        "lengthM": 153.723,
+        "maxAbsDeltaM": 14.998,
+        "maxFabdemSpikeM": 0.379
+      },
+      {
+        "osmId": "way/193702050",
+        "name": "",
+        "class": "local",
+        "lengthM": 128.538,
+        "maxAbsDeltaM": 14.977,
+        "maxFabdemSpikeM": 0.393
+      },
+      {
+        "osmId": "way/854919704",
+        "name": "泰然四路",
+        "class": "tertiary",
+        "lengthM": 437.358,
+        "maxAbsDeltaM": 14.957,
+        "maxFabdemSpikeM": 1.024
+      },
+      {
+        "osmId": "way/1216000742",
+        "name": "海德二道",
+        "class": "local",
+        "lengthM": 132.955,
+        "maxAbsDeltaM": 14.92,
+        "maxFabdemSpikeM": 0.582
+      },
+      {
+        "osmId": "way/193702053",
+        "name": "",
+        "class": "local",
+        "lengthM": 65.044,
+        "maxAbsDeltaM": 14.916,
+        "maxFabdemSpikeM": 0.26
+      },
+      {
+        "osmId": "way/193702053",
+        "name": "",
+        "class": "local",
+        "lengthM": 65.368,
+        "maxAbsDeltaM": 14.916,
+        "maxFabdemSpikeM": 0.302
+      },
+      {
+        "osmId": "way/245755661",
+        "name": "竹子林二路",
+        "class": "local",
+        "lengthM": 93.528,
+        "maxAbsDeltaM": 14.911,
+        "maxFabdemSpikeM": 0.407
+      },
+      {
+        "osmId": "way/245794171",
+        "name": "泰然五路",
+        "class": "local",
+        "lengthM": 317.658,
+        "maxAbsDeltaM": 14.892,
+        "maxFabdemSpikeM": 1.426
+      },
+      {
+        "osmId": "way/193702047",
+        "name": "",
+        "class": "local",
+        "lengthM": 97.829,
+        "maxAbsDeltaM": 14.889,
+        "maxFabdemSpikeM": 0.489
+      },
+      {
+        "osmId": "way/193719682",
+        "name": "新州四街",
+        "class": "local",
+        "lengthM": 211.085,
+        "maxAbsDeltaM": 14.8,
+        "maxFabdemSpikeM": 0.037
+      },
+      {
+        "osmId": "way/231532384",
+        "name": "福沙路",
+        "class": "local",
+        "lengthM": 97.903,
+        "maxAbsDeltaM": 14.748,
+        "maxFabdemSpikeM": 0.064
+      },
+      {
+        "osmId": "way/231534939",
+        "name": "",
+        "class": "local",
+        "lengthM": 82.589,
+        "maxAbsDeltaM": 14.72,
+        "maxFabdemSpikeM": 0.022
+      },
+      {
+        "osmId": "way/852241510",
+        "name": "华强南路",
+        "class": "secondary",
+        "lengthM": 145.866,
+        "maxAbsDeltaM": 14.678,
+        "maxFabdemSpikeM": 0.125
+      },
+      {
+        "osmId": "way/166998861",
+        "name": "水围二街",
+        "class": "tertiary",
+        "lengthM": 72.539,
+        "maxAbsDeltaM": 14.67,
+        "maxFabdemSpikeM": 0.859
+      },
+      {
+        "osmId": "way/284305906",
+        "name": "",
+        "class": "local",
+        "lengthM": 210.862,
+        "maxAbsDeltaM": 14.662,
+        "maxFabdemSpikeM": 0.65
+      },
+      {
+        "osmId": "way/1352282133",
+        "name": "",
+        "class": "local",
+        "lengthM": 43.217,
+        "maxAbsDeltaM": 14.649,
+        "maxFabdemSpikeM": 0.059
+      },
+      {
+        "osmId": "way/958581829",
+        "name": "新洲十一街",
+        "class": "local",
+        "lengthM": 211.284,
+        "maxAbsDeltaM": 14.619,
+        "maxFabdemSpikeM": 0.822
+      },
+      {
+        "osmId": "way/248452024",
+        "name": "",
+        "class": "local",
+        "lengthM": 174.704,
+        "maxAbsDeltaM": 14.614,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/40933455",
+        "name": "深南广深立交桥",
+        "class": "motorway",
+        "lengthM": 188.351,
+        "maxAbsDeltaM": 14.589,
+        "maxFabdemSpikeM": 0.259
+      },
+      {
+        "osmId": "way/40933138",
+        "name": "深南广深立交桥",
+        "class": "motorway",
+        "lengthM": 134.472,
+        "maxAbsDeltaM": 14.574,
+        "maxFabdemSpikeM": 0.636
+      },
+      {
+        "osmId": "way/659870814",
+        "name": "下沙南街",
+        "class": "local",
+        "lengthM": 154.699,
+        "maxAbsDeltaM": 14.567,
+        "maxFabdemSpikeM": 0.273
+      },
+      {
+        "osmId": "way/1044157157",
+        "name": "沙尾步行街",
+        "class": "local",
+        "lengthM": 223.825,
+        "maxAbsDeltaM": 14.56,
+        "maxFabdemSpikeM": 1.476
+      },
+      {
+        "osmId": "way/231534931",
+        "name": "",
+        "class": "local",
+        "lengthM": 58.954,
+        "maxAbsDeltaM": 14.541,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/493389667",
+        "name": "紫竹七道",
+        "class": "local",
+        "lengthM": 151.824,
+        "maxAbsDeltaM": 14.513,
+        "maxFabdemSpikeM": 0.374
+      },
+      {
+        "osmId": "way/816881865",
+        "name": "蓝花道",
+        "class": "tertiary",
+        "lengthM": 289.599,
+        "maxAbsDeltaM": 14.512,
+        "maxFabdemSpikeM": 0.368
+      },
+      {
+        "osmId": "way/1044157167",
+        "name": "东村一路",
+        "class": "local",
+        "lengthM": 124.631,
+        "maxAbsDeltaM": 14.481,
+        "maxFabdemSpikeM": 0.318
+      },
+      {
+        "osmId": "way/819859526",
+        "name": "",
+        "class": "local",
+        "lengthM": 120.168,
+        "maxAbsDeltaM": 14.47,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/217589453",
+        "name": "水围十街",
+        "class": "local",
+        "lengthM": 184.888,
+        "maxAbsDeltaM": 14.456,
+        "maxFabdemSpikeM": 0.498
+      },
+      {
+        "osmId": "way/916588752",
+        "name": "桃花路",
+        "class": "secondary",
+        "lengthM": 180.556,
+        "maxAbsDeltaM": 14.424,
+        "maxFabdemSpikeM": 0.217
+      },
+      {
+        "osmId": "way/684241525",
+        "name": "",
+        "class": "local",
+        "lengthM": 244.075,
+        "maxAbsDeltaM": 14.399,
+        "maxFabdemSpikeM": 0.655
+      },
+      {
+        "osmId": "way/217649924",
+        "name": "四号路",
+        "class": "local",
+        "lengthM": 218.18,
+        "maxAbsDeltaM": 14.325,
+        "maxFabdemSpikeM": 0.356
+      },
+      {
+        "osmId": "way/854903590",
+        "name": "泰然三路",
+        "class": "local",
+        "lengthM": 152.418,
+        "maxAbsDeltaM": 14.32,
+        "maxFabdemSpikeM": 0.132
+      },
+      {
+        "osmId": "way/1077356119",
+        "name": "石厦碉楼巷",
+        "class": "local",
+        "lengthM": 137.018,
+        "maxAbsDeltaM": 14.318,
+        "maxFabdemSpikeM": 0.443
+      },
+      {
+        "osmId": "way/854903596",
+        "name": "",
+        "class": "local",
+        "lengthM": 105.865,
+        "maxAbsDeltaM": 14.279,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/246557505",
+        "name": "",
+        "class": "local",
+        "lengthM": 445.633,
+        "maxAbsDeltaM": 14.248,
+        "maxFabdemSpikeM": 1.298
+      },
+      {
+        "osmId": "way/282885042",
+        "name": "石厦六街",
+        "class": "local",
+        "lengthM": 214.409,
+        "maxAbsDeltaM": 14.234,
+        "maxFabdemSpikeM": 0.97
+      },
+      {
+        "osmId": "way/243119787",
+        "name": "",
+        "class": "local",
+        "lengthM": 48.515,
+        "maxAbsDeltaM": 14.221,
+        "maxFabdemSpikeM": 0.169
+      },
+      {
+        "osmId": "way/193723772",
+        "name": "景田东路",
+        "class": "tertiary",
+        "lengthM": 20.48,
+        "maxAbsDeltaM": 14.14,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/1306285061",
+        "name": "",
+        "class": "local",
+        "lengthM": 15.708,
+        "maxAbsDeltaM": 14.139,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/865609643",
+        "name": "",
+        "class": "local",
+        "lengthM": 51.445,
+        "maxAbsDeltaM": 14.138,
+        "maxFabdemSpikeM": 0.005
+      },
+      {
+        "osmId": "way/284305907",
+        "name": "",
+        "class": "local",
+        "lengthM": 166.809,
+        "maxAbsDeltaM": 14.047,
+        "maxFabdemSpikeM": 0.557
+      },
+      {
+        "osmId": "way/1050511751",
+        "name": "民田路",
+        "class": "tertiary",
+        "lengthM": 85.653,
+        "maxAbsDeltaM": 13.98,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/861052672",
+        "name": "",
+        "class": "local",
+        "lengthM": 65.569,
+        "maxAbsDeltaM": 13.976,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/819859517",
+        "name": "益丹一街",
+        "class": "local",
+        "lengthM": 189.315,
+        "maxAbsDeltaM": 13.957,
+        "maxFabdemSpikeM": 0.742
+      },
+      {
+        "osmId": "way/232628467",
+        "name": "福海湾街",
+        "class": "local",
+        "lengthM": 215.671,
+        "maxAbsDeltaM": 13.954,
+        "maxFabdemSpikeM": 0.821
+      },
+      {
+        "osmId": "way/586589637",
+        "name": "高新南环路",
+        "class": "tertiary",
+        "lengthM": 120.7,
+        "maxAbsDeltaM": 13.95,
+        "maxFabdemSpikeM": 0.21
+      },
+      {
+        "osmId": "way/234738420",
+        "name": "",
+        "class": "local",
+        "lengthM": 257.686,
+        "maxAbsDeltaM": 13.948,
+        "maxFabdemSpikeM": 0.192
+      },
+      {
+        "osmId": "way/962310881",
+        "name": "梅林路",
+        "class": "secondary",
+        "lengthM": 53.196,
+        "maxAbsDeltaM": 13.928,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/97522107",
+        "name": "皇岗公园街",
+        "class": "tertiary",
+        "lengthM": 178.348,
+        "maxAbsDeltaM": 13.916,
+        "maxFabdemSpikeM": 0.199
+      },
+      {
+        "osmId": "way/824751284",
+        "name": "红棉道",
+        "class": "secondary",
+        "lengthM": 160.732,
+        "maxAbsDeltaM": 13.904,
+        "maxFabdemSpikeM": 0.04
+      },
+      {
+        "osmId": "way/854903590",
+        "name": "泰然三路",
+        "class": "local",
+        "lengthM": 70.103,
+        "maxAbsDeltaM": 13.884,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/854903596",
+        "name": "",
+        "class": "local",
+        "lengthM": 6.466,
+        "maxAbsDeltaM": 13.884,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/659870814",
+        "name": "下沙南街",
+        "class": "local",
+        "lengthM": 104.575,
+        "maxAbsDeltaM": 13.861,
+        "maxFabdemSpikeM": 0.31
+      },
+      {
+        "osmId": "way/865609643",
+        "name": "",
+        "class": "local",
+        "lengthM": 42.827,
+        "maxAbsDeltaM": 13.861,
+        "maxFabdemSpikeM": 0.144
+      },
+      {
+        "osmId": "way/166998795",
+        "name": "水围九街",
+        "class": "local",
+        "lengthM": 244.289,
+        "maxAbsDeltaM": 13.858,
+        "maxFabdemSpikeM": 0.308
+      },
+      {
+        "osmId": "way/856409071",
+        "name": "景田北三街",
+        "class": "local",
+        "lengthM": 187.597,
+        "maxAbsDeltaM": 13.85,
+        "maxFabdemSpikeM": 0.863
+      },
+      {
+        "osmId": "way/566000432",
+        "name": "高新南四道",
+        "class": "tertiary",
+        "lengthM": 111.039,
+        "maxAbsDeltaM": 13.843,
+        "maxFabdemSpikeM": 0.011
+      },
+      {
+        "osmId": "way/854903589",
+        "name": "泰然三路",
+        "class": "local",
+        "lengthM": 152.503,
+        "maxAbsDeltaM": 13.834,
+        "maxFabdemSpikeM": 0.153
+      },
+      {
+        "osmId": "way/160131332",
+        "name": "彩云路",
+        "class": "tertiary",
+        "lengthM": 86.102,
+        "maxAbsDeltaM": 13.806,
+        "maxFabdemSpikeM": 0.083
+      },
+      {
+        "osmId": "way/188661994",
+        "name": "",
+        "class": "local",
+        "lengthM": 173.317,
+        "maxAbsDeltaM": 13.8,
+        "maxFabdemSpikeM": 0.629
+      },
+      {
+        "osmId": "way/208124043",
+        "name": "汕头街",
+        "class": "tertiary",
+        "lengthM": 130.257,
+        "maxAbsDeltaM": 13.709,
+        "maxFabdemSpikeM": 0.801
+      },
+      {
+        "osmId": "way/996181416",
+        "name": "",
+        "class": "local",
+        "lengthM": 134.23,
+        "maxAbsDeltaM": 13.664,
+        "maxFabdemSpikeM": 0.06
+      },
+      {
+        "osmId": "way/1430531119",
+        "name": "岗厦村东二坊",
+        "class": "local",
+        "lengthM": 132.543,
+        "maxAbsDeltaM": 13.637,
+        "maxFabdemSpikeM": 1.196
+      },
+      {
+        "osmId": "way/488453361",
+        "name": "深大东路",
+        "class": "local",
+        "lengthM": 327.174,
+        "maxAbsDeltaM": 13.636,
+        "maxFabdemSpikeM": 1.855
+      },
+      {
+        "osmId": "way/854903589",
+        "name": "泰然三路",
+        "class": "local",
+        "lengthM": 70.068,
+        "maxAbsDeltaM": 13.629,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/217604716",
+        "name": "",
+        "class": "local",
+        "lengthM": 176.892,
+        "maxAbsDeltaM": 13.626,
+        "maxFabdemSpikeM": 0.538
+      },
+      {
+        "osmId": "way/245929516",
+        "name": "十一号路",
+        "class": "local",
+        "lengthM": 117.811,
+        "maxAbsDeltaM": 13.598,
+        "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/640465233",
+        "name": "滨河金田立交",
+        "class": "primary",
+        "lengthM": 207.053,
+        "maxAbsDeltaM": 13.598,
+        "maxFabdemSpikeM": 0.483
+      },
+      {
+        "osmId": "way/694755299",
+        "name": "高新南四道",
+        "class": "tertiary",
+        "lengthM": 111.052,
+        "maxAbsDeltaM": 13.597,
+        "maxFabdemSpikeM": 0.025
+      },
+      {
+        "osmId": "way/217649987",
+        "name": "金地一路",
+        "class": "tertiary",
+        "lengthM": 163.424,
+        "maxAbsDeltaM": 13.573,
+        "maxFabdemSpikeM": 0.62
+      },
+      {
+        "osmId": "way/243384977",
+        "name": "",
+        "class": "local",
+        "lengthM": 276.251,
+        "maxAbsDeltaM": 13.484,
+        "maxFabdemSpikeM": 0.836
+      },
+      {
+        "osmId": "way/996181402",
+        "name": "益田路",
+        "class": "primary",
+        "lengthM": 122.687,
+        "maxAbsDeltaM": 13.45,
+        "maxFabdemSpikeM": 0.355
+      },
+      {
+        "osmId": "way/529238672",
+        "name": "西丽北路",
+        "class": "tertiary",
+        "lengthM": 206.162,
+        "maxAbsDeltaM": 13.436,
+        "maxFabdemSpikeM": 0.494
+      },
+      {
+        "osmId": "way/245962635",
+        "name": "景田北二街",
+        "class": "local",
+        "lengthM": 285.414,
+        "maxAbsDeltaM": 13.409,
+        "maxFabdemSpikeM": 1.008
+      },
+      {
+        "osmId": "way/231534931",
+        "name": "",
+        "class": "local",
+        "lengthM": 83.697,
+        "maxAbsDeltaM": 13.404,
+        "maxFabdemSpikeM": 0.276
+      },
+      {
+        "osmId": "way/231534943",
+        "name": "",
+        "class": "local",
+        "lengthM": 81.955,
+        "maxAbsDeltaM": 13.396,
+        "maxFabdemSpikeM": 0.274
+      },
+      {
+        "osmId": "way/853286961",
+        "name": "中心五路",
+        "class": "tertiary",
+        "lengthM": 213.938,
+        "maxAbsDeltaM": 13.393,
+        "maxFabdemSpikeM": 0.629
+      },
+      {
+        "osmId": "way/1050921416",
+        "name": "铁二路",
+        "class": "local",
+        "lengthM": 178.033,
+        "maxAbsDeltaM": 13.375,
+        "maxFabdemSpikeM": 0.1
+      },
+      {
+        "osmId": "way/916581534",
+        "name": "下梅林一街",
+        "class": "tertiary",
+        "lengthM": 327.985,
+        "maxAbsDeltaM": 13.375,
+        "maxFabdemSpikeM": 0.492
+      }
+    ],
+    "unresolvedLinks": [],
+    "timing": {
+      "baselineSeconds": 0.113,
+      "stationSeconds": 0.302,
+      "profileSeconds": 1.857,
+      "vertexSeconds": 1.601,
+      "totalSeconds": 4.066
+    },
+    "limitations": [
+      "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
+      "The derived surface is a de-contamination (lowering) pass only: it never exceeds the original DSM by more than the raise cap, so the DSM absolute level and building bases stay consistent",
+      "Where the original DSM is contaminated upward over a whole link, min(FABDEM, DSM) cannot remove all of it; the residual is capped by the raise cap and reported as capped vertices",
+      "Bridge, tunnel and layer links keep the original terrain and are not smoothed",
+      "Links without a complete FABDEM station profile keep the original terrain; the list is capped",
+      "Links with any station inside a locked terrain exclusion polygon keep the original terrain",
+      "The flat cross-section ignores real superelevation, cross fall, kerb and sidewalk level changes",
+      "A link whose two node elevations exceed the class grade allowance keeps both nodes (network continuity wins) and is reported as grade-infeasible",
+      "The transition band is widened on purpose where the derived surface differs a lot from the DSM, so the modified footprint can exceed half width + 1.5 steps + 15 m in contaminated areas"
+    ]
+  },
   "roadFrontage": {
     "corridors": [
       {
@@ -1470,18 +8458,18 @@
       }
     ],
     "features": 10,
-    "planarTriangles": 6108,
+    "planarTriangles": 6105,
     "medianShrubsEstimated": 260,
     "signalApproaches": 4,
     "signalTimingSource": "user-defined-game-simulation"
   },
   "terrainSurface": {
     "chunks": 534,
-    "vertices": 245306,
+    "vertices": 245240,
     "triangles": 386824,
     "areaKm2": 105.747093,
     "areaErrorM2": -1.71e-06,
-    "seconds": 2.72,
+    "seconds": 4.63,
     "waterLevelsGenerated": false,
     "heightSource": "copernicus-glo30-dsm",
     "exclusions": [
@@ -2259,6 +9247,200 @@
     "trees": 17,
     "excludedPaths": []
   },
+  "trees": {
+    "status": "generated",
+    "requested": 159225,
+    "kept": 58935,
+    "cap": 60000,
+    "countsBySource": {
+      "osm-node": 391,
+      "osm-row": 663,
+      "simulated-street": 27587,
+      "simulated-park": 30294
+    },
+    "speciesCounts": {
+      "ficus": 17628,
+      "camphor": 13009,
+      "phoenix": 9421,
+      "bauhinia": 7001,
+      "royal-palm": 7148,
+      "kapok": 4728
+    },
+    "appearanceSources": {
+      "osm-tags": 25,
+      "species-estimate": 58910
+    },
+    "streetLengthM": 907692.2,
+    "parkAreaM2": 40753269.7,
+    "dropped": {
+      "park-building": 888,
+      "park-density": 25935,
+      "park-duplicate": 668,
+      "park-road": 2025,
+      "park-water": 4148,
+      "park-wetland": 5979,
+      "street-building": 1757,
+      "street-density": 16406,
+      "street-junction": 24154,
+      "street-outside-clip": 52,
+      "street-plaza": 39,
+      "street-road-corridor": 18238,
+      "street-water": 1,
+      "total-cap": 0
+    },
+    "skippedLinks": {
+      "short": 1186
+    },
+    "skippedAreas": {},
+    "parkKept": {
+      "destination": 3619,
+      "otherGreen": 26675
+    },
+    "rules": {
+      "streetClasses": [
+        "trunk",
+        "primary",
+        "secondary",
+        "tertiary"
+      ],
+      "streetSpacingM": {
+        "trunk": 22.0,
+        "primary": 20.0,
+        "secondary": 18.0,
+        "tertiary": 24.0
+      },
+      "streetOffsetM": "width/2 + 2.5",
+      "streetMinLinkLengthM": 20.0,
+      "junctionClearM": 18.0,
+      "streetDensityRange": [
+        0.55,
+        0.7
+      ],
+      "parkMinAreaM2": 1500.0,
+      "parkDensityRange": [
+        0.55,
+        0.75
+      ],
+      "parkEdgeM": 2.0,
+      "buildingClearM": 2.0,
+      "pathClearM": 1.5,
+      "cap": 60000,
+      "streetQuota": 36000
+    },
+    "species": [
+      {
+        "id": "ficus",
+        "name": "榕树",
+        "nameEn": "Banyan",
+        "heightM": [
+          9.0,
+          16.0
+        ],
+        "crownM": [
+          8.0,
+          14.0
+        ],
+        "trunkRatio": 0.34,
+        "weight": 30
+      },
+      {
+        "id": "camphor",
+        "name": "香樟",
+        "nameEn": "Camphor",
+        "heightM": [
+          8.0,
+          13.0
+        ],
+        "crownM": [
+          6.0,
+          11.0
+        ],
+        "trunkRatio": 0.44,
+        "weight": 22
+      },
+      {
+        "id": "phoenix",
+        "name": "凤凰木",
+        "nameEn": "Flame tree",
+        "heightM": [
+          8.0,
+          14.0
+        ],
+        "crownM": [
+          7.0,
+          13.0
+        ],
+        "trunkRatio": 0.4,
+        "weight": 16
+      },
+      {
+        "id": "bauhinia",
+        "name": "宫粉紫荆",
+        "nameEn": "Orchid tree",
+        "heightM": [
+          5.0,
+          9.0
+        ],
+        "crownM": [
+          4.0,
+          8.0
+        ],
+        "trunkRatio": 0.36,
+        "weight": 12
+      },
+      {
+        "id": "royal-palm",
+        "name": "大王椰",
+        "nameEn": "Royal palm",
+        "heightM": [
+          10.0,
+          17.0
+        ],
+        "crownM": [
+          3.0,
+          4.5
+        ],
+        "trunkRatio": 0.76,
+        "weight": 12
+      },
+      {
+        "id": "kapok",
+        "name": "木棉",
+        "nameEn": "Kapok",
+        "heightM": [
+          10.0,
+          16.0
+        ],
+        "crownM": [
+          6.0,
+          10.0
+        ],
+        "trunkRatio": 0.52,
+        "weight": 8
+      }
+    ],
+    "osmSource": {
+      "snapshot": "osm-guangdong",
+      "file": "data/raw/guangdong-latest.osm.pbf",
+      "treeNodes": 391,
+      "treeRowWays": 155,
+      "treeRowPositions": 663,
+      "kept": 1054,
+      "conflicts": {
+        "road": 133,
+        "building": 38
+      }
+    },
+    "limitations": [
+      "simulated-street / simulated-park 是按道路等级、绿地面积和固定种子布置的外观估计，不是单株实测，不能当作市政种植清单或实时植被数据。",
+      "只有 PBF 里 natural=tree / natural=tree_row 的点位有来源；没有 height / diameter_crown 标签的树，树高和冠幅按树种范围估计（appearance=species-estimate）。",
+      "树龄没有数据来源，未建模。",
+      "避让只按本地几何判定建筑退让 2 m、水体、湿地、车行道、pedestrian 广场走廊和已知步道；树池、地下管线、架空线、入口净空未核实。",
+      "OSM 的 highway 面（area=yes 广场）不在现有 osm.py 产出里，plaza 只覆盖 pedestrian 线状走廊。",
+      "绿地图层包含山体林地（面积远大于城市公园），受 60000 株总量上限约束，非地标绿地按面积配额等距抽样，密度低于满铺。",
+      "树种从固定权重表里按种子抽取，不对应深圳市政实际种植清单。"
+    ]
+  },
   "bridges": [
     {
       "id": "shenzhen-bay-bridge",
@@ -2289,6 +9471,6 @@
       ]
     }
   ],
-  "outputBytes": 6537062,
-  "seconds": 20.2
+  "outputBytes": 6945906,
+  "seconds": 53.5
 }
