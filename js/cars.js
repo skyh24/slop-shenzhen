@@ -187,8 +187,9 @@ const BODY_SPECS = {
     rearWiper: true
   }
 };
-// 深圳出租车（比亚迪 e6 类纯电两厢 MPV）：高车身、平直车顶、直立尾门与后窗、短前悬、短而略斜的机舱盖、5 门大侧窗。
-// 尾部不用轿车的斜背尾箱：tail 收圆很短且不加 tailRake，尾门面接近垂直；后窗从 deck 到 roofRear 只前倾约 16°。
+// 深圳出租车（比亚迪 e6 类纯电两厢 MPV）：高车身、平直车顶、短前后悬、5 门大侧窗。
+// 流线型处理：机舱盖明显下压前倾、风挡后掠更大、车头压低；尾部用较大的收圆半径 + tailRake 做出微斜圆角尾门，
+// 断面四个角（lowerRound/upperRound）比轿车更圆，整体仍保持两厢 MPV 的高顶轮廓。
 BODY_SPECS.taxi = {
   name: 'taxi',
   zFront: 2.3,
@@ -197,42 +198,47 @@ BODY_SPECS.taxi = {
   wheelZ: 1.4,
   wheelX: 0.77,
   archGap: 0.05,
-  archFlare: 0.022,
+  archFlare: 0.018,
   tuck: 0.065,
+  lowerRound: 3.4, // 截面上/下圆角比默认 (2.8 / 3.2) 更圆，侧面过渡更流线
+  upperRound: 3.8,
   halfWidth: [[2.3, 0.862], [1.4, 0.885], [0, 0.885], [-1.4, 0.885], [-2.4, 0.872]],
   sill: [[2.3, 0.3], [1.2, 0.28], [-1.2, 0.28], [-2.4, 0.32]],
-  shoulder: [[2.3, 0.72], [1.75, 0.8], [1.4, 0.82], [0, 0.86], [-1.4, 0.9], [-2.4, 0.9]],
-  edge: [[2.2, 0.94], [1.7, 1.0], [1.2, 1.03], [0.6, 1.05], [0, 1.06], [-1.0, 1.08], [-1.8, 1.1], [-2.3, 1.1], [-2.36, 1.08]],
-  crown: [[2.2, 0.04], [1.4, 0.035], [1.1, 0.004], [-2.4, 0.004]],
-  tumble: [[2.3, 0.12], [0.9, 0.1], [-1.6, 0.1], [-2.4, 0.11]],
-  nose: { halfWidth: [0.32, 0.66, 2.8], edge: [0.16, 0.9, 2.6], crown: [0.14, 0.012, 2], sill: [0.18, 0.34, 2], shoulder: [0.22, 0.62, 2.6] },
-  // 尾部收圆长度很短（≤0.1 m），尾门是接近垂直的平面，后保险杠与尾灯直接长在上面
-  tail: { halfWidth: [0.09, 0.85, 3.2], edge: [0.05, 1.06, 3], crown: [0.05, 0.006, 2], sill: [0.07, 0.36, 2], shoulder: [0.09, 0.86, 3] },
-  noseRake: { length: 0.52, y: [[0.3, 0.09], [0.42, 0], [0.62, 0], [0.78, 0.05], [0.95, 0.12]], plan: 0.09 },
+  shoulder: [[2.3, 0.7], [1.75, 0.78], [1.4, 0.8], [0, 0.84], [-1.4, 0.88], [-2.4, 0.88]],
+  // 机舱盖从 nozzle 前端 0.84 m 抬到风挡根部 ~1.02 m，前低后高的下压前脸
+  edge: [[2.24, 0.84], [1.7, 0.94], [1.2, 1.0], [0.6, 1.03], [0, 1.05], [-1.0, 1.08], [-1.8, 1.1], [-2.3, 1.09], [-2.36, 1.06]],
+  crown: [[2.2, 0.06], [1.4, 0.05], [1.1, 0.004], [-2.4, 0.004]],
+  tumble: [[2.3, 0.16], [0.9, 0.13], [-1.6, 0.13], [-2.4, 0.15]],
+  // 车头平面收圆更长（0.42 m），加上 rake 形成低矮圆润的前脸
+  nose: { halfWidth: [0.42, 0.64, 3.2], edge: [0.24, 0.82, 3], crown: [0.2, 0.02, 2], sill: [0.22, 0.34, 2.2], shoulder: [0.3, 0.6, 3] },
+  // 尾部平面收圆 0.24 m + tailRake 使尾门微斜圆角，不再是垂直平板
+  tail: { halfWidth: [0.24, 0.84, 3.4], edge: [0.2, 1.03, 3.2], crown: [0.16, 0.006, 2], sill: [0.16, 0.34, 2.2], shoulder: [0.22, 0.84, 3.2] },
+  noseRake: { length: 0.78, y: [[0.28, 0.16], [0.4, 0.06], [0.56, 0], [0.7, 0.02], [0.82, 0.1], [0.92, 0.2]], plan: 0.1 },
+  tailRake: { length: 0.42, y: [[0.3, 0.12], [0.5, 0.02], [0.7, 0], [0.86, 0.05], [1.03, 0.14]], plan: 0.08 },
   cabin: {
     cowl: 0.95,
-    roofFront: 0.52,
-    roofRear: -2.22,
-    deck: -2.38,
-    roofY: [[0.52, 1.63], [-0.4, 1.675], [-1.2, 1.68], [-2.22, 1.645]],
-    rail: [0.7, 0.72],
+    roofFront: 0.34,
+    roofRear: -2.16,
+    deck: -2.36,
+    roofY: [[0.34, 1.615], [-0.4, 1.675], [-1.2, 1.68], [-2.16, 1.65]],
+    rail: [0.69, 0.71],
     inset: 0.03,
-    bulge: 0.012,
-    roofEdge: 0.055,
-    roofCrown: 0.032,
-    roofRound: 4,
-    pillars: [-0.34, -1.85],
-    glassEnd: -2.28
+    bulge: 0.014,
+    roofEdge: 0.06,
+    roofCrown: 0.04,
+    roofRound: 4.5,
+    pillars: [-0.34, -1.82],
+    glassEnd: -2.24
   },
-  doors: [0.92, -0.34, -1.85], // 前门、后门、尾门侧缝
+  doors: [0.92, -0.34, -1.82], // 前门、后门、尾门侧缝
   handles: [0.42, -0.62],
-  headlight: [0.6, 0.86, 0.23, 0.05],
-  taillight: [0.72, 0.93, 0.12, 0.11], // 尾门两侧靠上的尾灯（尾门面高度约 0.36–1.07 m）
-  grille: [0.72, 0.34, 0.06],
-  intake: [0.46, 0.52, 0.1],
-  plates: [0.52, 0.64],
-  bumperLine: [0.8, 0.66],
-  bumpers: [[0.48, 0.04], [0.52, 0.06]],
+  headlight: [0.55, 0.76, 0.2, 0.045], // 压低到前脸上部，随圆润鼻锥收进两侧
+  taillight: [0.7, 0.9, 0.11, 0.1], // 尾门两侧靠上的尾灯，落在微斜尾门面上
+  grille: [0.6, 0.34, 0.06],
+  intake: [0.44, 0.52, 0.09],
+  plates: [0.5, 0.62],
+  bumperLine: [0.72, 0.64],
+  bumpers: [[0.46, 0.04], [0.5, 0.06]],
   chrome: true,
   cladding: 0,
   sign: true,
@@ -1683,6 +1689,14 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     .mul(band(p.x, 0.17, fwX))
     .mul(band(p.y.sub(signY), 0.042, fwY))
     .mul(fadeFine(fwX));
+  // 深圳顶灯一红一蓝两段，字形要横跨两段，字幅比纽约顶灯更宽
+  const szSignGlyphMask = () => smoothstep(0.25, 0.58, sin(p.x.mul(90.0)))
+    .mul(band(p.x, 0.245, fwX))
+    .mul(band(p.y.sub(signY), 0.04, fwY))
+    .mul(fadeFine(fwX));
+  // 深圳顶灯：-x 段蓝色、+x 段红色（对应照片「深圳」红字 + 蓝字部分），底部一条空车绿条
+  const szSignTone = () => mix(color(0x1f5fbf), color(0xc22a29), smoothstep(-0.02, 0.02, p.x));
+  const szSignAvailableStrip = () => smoothstep(signY - 0.032, signY - 0.044, p.y).mul(isSzAvailable);
   const chmslMask = (rearGlass) => spec.barnDoors
     ? rrect(vec2(p.x, p.y.sub(spec.barnDoors[1] + 0.055)), vec2(0.16, 0.015), 0.005, fwXY)
         .mul(smoothstep(-0.15, -0.45, n.z))
@@ -1954,9 +1968,9 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
       const signFace = smoothstep(0.55, 0.75, abs(n.z));
       const signGlyph = signGlyphMask();
       if (shenzhen) {
-        // 深圳顶灯：白底蓝字 TAXI，空车时整面透绿光
-        const face = mix(color(0xeef4f8), color(0x2fbf71), isSzAvailable.mul(0.7));
-        outCol.assign(mix(face, color(0x15509a), signGlyph.mul(one.sub(isSzAvailable.mul(0.55)))));
+        // 深圳顶灯：一红一蓝两段 + 白色字 + 空车绿条，顶面与外缘保持白壳
+        const letters = mix(szSignTone(), color(0xf7f9fb), szSignGlyphMask().mul(0.92));
+        outCol.assign(mix(color(0xf2f5f7), mix(letters, color(0x2fbf71), szSignAvailableStrip()), signFace));
       } else {
         outCol.assign(mix(color(0xf3efe2), mix(color(0xfff1b8), color(0x15181b), signGlyph), signFace));
       }
@@ -2033,9 +2047,10 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
       const signFace = smoothstep(0.55, 0.75, abs(n.z));
       const signGlyph = signGlyphMask();
       if (shenzhen) {
-        // 空车顶灯亮绿，载客时只剩暗白底
-        const glow = isSzAvailable.mul(2.1).add(0.16);
-        emit.assign(color(0x3ce081).mul(signFace.mul(one.sub(signGlyph.mul(0.85))).mul(glow)));
+        // 背光顶灯：红蓝两段各自透光、白字更亮，空车时底部绿条发光
+        const lit = mix(szSignTone(), color(0xf7f9fb), szSignGlyphMask().mul(0.85)).mul(signFace).mul(0.75);
+        const availGlow = color(0x3ce081).mul(szSignAvailableStrip().mul(signFace).mul(2.2));
+        emit.assign(lit.add(availGlow));
       } else {
         emit.assign(color(0xffe28a).mul(signFace.mul(one.sub(signGlyph.mul(0.9))).mul(1.65)));
       }

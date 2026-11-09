@@ -207,9 +207,11 @@ async function initApp() {
   const pedestrians = createSzPedestrians(scene, GEO.roadGraph, {
     heightAt: (x, z) => roadFrontage.contactHeight(x, z) ?? ground.groundHeight(x, z),
     colliders,
+    // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
+    greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 110 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
     spawnMinM: 8,
-    spawnMaxM: 110
+    spawnMaxM: 160
   });
   roadFrontage.update(0);
   traffic.update(0, controllerManager.getActiveEntity().position, players, 0);

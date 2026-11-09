@@ -96,7 +96,7 @@ export const STR = {
     helicopter: [[['W', 'S'], '俯仰'], [['A', 'D'], '转向'], [['空格', 'E'], '上升'], [['Q', 'C'], '下降']]
   },
   touchActions: { jump: '跳跃', ascend: '上升', descend: '下降' },
-  vehicleLabels: { taxi: '深圳出租', available: '空车' },
+  vehicleLabels: { taxi: '深圳出租', available: '空车', taxiMark: '深圳', taxiSign: 'TAXI' },
   teleport: {
     parkWalk: '前往有来源的园内步行区',
     parkPath: '步行抵达日出剧场步道',

@@ -354,7 +354,7 @@ test('renderCar writes per-car wheel styles to both front and rear wheel slots w
   assert.equal(ctx.dirtyWheelStyles, false);
 });
 
-test('Shenzhen locale paints the blue taxi over a white waistline, lights the green 空车 sign and keeps brake lamps', () => {
+test('Shenzhen locale paints the blue taxi over a white waistline, a red/blue two-tone roof sign with a green 空车 strip, and keeps brake lamps', () => {
   const {
     BODY_SPECS: specs, carStyleCode: styleCode, createLoftedCarMaterial: makeMaterial, taxiSignPlacement: signPlacement
   } = shenzhenCars;
@@ -375,24 +375,31 @@ test('Shenzhen locale paints the blue taxi over a white waistline, lights the gr
   assert.ok(waist[0] > 0.78 && Math.abs(waist[0] - waist[2]) < 0.08, `white waistline below the belt: ${waist}`);
   assert.ok(upper[2] - upper[0] > 0.4, `blue upper body: ${upper}`);
 
-  const signAttrs = (carState) => {
-    env.attrs = { position: [0, signY, signZ], normal: [0, 0, 1], partId: [CAR_PARTS.SIGN], paintColor: blue, carState };
+  // 深圳顶灯一红一蓝：+x 段红（深圳）、-x 段蓝（TAXI），空车时底部一条绿光/绿条
+  const signColor = (x, y, carState) => {
+    env.attrs = { position: [x, y, signZ], normal: [0, 0, 1], partId: [CAR_PARTS.SIGN], paintColor: blue, carState };
+    return material.colorNode.eval();
   };
-  signAttrs([0, 0, 0, available]);
-  const signAvailable = material.colorNode.eval();
-  signAttrs([0, 0, 0, hired]);
-  const signHired = material.colorNode.eval();
-  assert.ok(signAvailable[1] > signAvailable[0] + 0.2 && signAvailable[1] > signAvailable[2] + 0.15,
-    `空车 roof sign reads green: ${signAvailable}`);
-  assert.ok(Math.min(...signHired) > 0.9, `hired roof sign keeps the white face: ${signHired}`);
+  const signYFace = signY + 0.06; // 避开中间字形带，取纯底色
+  const redHalf = signColor(0.15, signYFace, [0, 0, 0, available]);
+  const blueHalf = signColor(-0.15, signYFace, [0, 0, 0, available]);
+  assert.ok(redHalf[0] > redHalf[2] + 0.4, `+x sign half is red: ${redHalf}`);
+  assert.ok(blueHalf[2] > blueHalf[0] + 0.4, `-x sign half is blue: ${blueHalf}`);
+  const availStrip = signColor(0, signY - 0.04, [0, 0, 0, available]);
+  const hiredStrip = signColor(0, signY - 0.04, [0, 0, 0, hired]);
+  assert.ok(availStrip[1] > availStrip[0] + 0.25, `空车 strip reads green: ${availStrip}`);
+  assert.ok(!(hiredStrip[1] > hiredStrip[0] + 0.25), `hired taxi has no green availability strip: ${hiredStrip}`);
 
   const emit = (attrs, carState) => {
     env.attrs = { ...attrs, carState };
     return material.emissiveNode.eval();
   };
-  const litSign = emit({ position: [0, signY, signZ], normal: [0, 0, 1], partId: [CAR_PARTS.SIGN], paintColor: blue }, [0, 0, 0, available]);
-  const darkSign = emit({ position: [0, signY, signZ], normal: [0, 0, 1], partId: [CAR_PARTS.SIGN], paintColor: blue }, [0, 0, 0, hired]);
-  assert.ok(litSign[1] > 1 && litSign[1] > darkSign[1] * 3, `空车 sign glows green: ${litSign} vs ${darkSign}`);
+  const signEmit = (x, y, carState) => emit({ position: [x, y, signZ], normal: [0, 0, 1], partId: [CAR_PARTS.SIGN], paintColor: blue }, carState);
+  const litSign = signEmit(0.15, signYFace, [0, 0, 0, available]);
+  assert.ok(litSign[0] > 0.4 && litSign[0] > litSign[2] + 0.2, `backlit red sign half glows: ${litSign}`);
+  const availGlow = signEmit(0, signY - 0.04, [0, 0, 0, available]);
+  const hiredGlow = signEmit(0, signY - 0.04, [0, 0, 0, hired]);
+  assert.ok(availGlow[1] > hiredGlow[1] + 1, `空车 strip glows green: ${availGlow} vs ${hiredGlow}`);
 
   // 尾灯在尾门两侧靠上，位置直接取 spec，避免改体型后测试硬编码失效
   const brakeAttrs = { position: [taxi.taillight[0], taxi.taillight[1], taxi.zRear + 0.06], normal: [0, 0, -1], partId: [CAR_PARTS.BODY], paintColor: blue };

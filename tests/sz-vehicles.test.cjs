@@ -148,22 +148,37 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
     globals: { document: { createElement: canvas } }
   });
 
-  // 深圳出租是独立 e6 类 MPV 体型：高车身、平直车顶、近垂直尾门，不是轿车的斜背尾箱。
+  // 深圳出租是独立 e6 类 MPV 体型：高顶两厢、流线前脸、微斜圆角尾门，不是轿车的斜背尾箱也不是方盒子。
   const taxiSpec = models.VEHICLE_SPECS.taxi;
   const taxiBody = cars.BODY_SPECS.taxi;
   assert.ok(Math.abs(taxiSpec.length - 4.7) < 0.01, `taxi length ${taxiSpec.length}`);
   assert.ok(taxiSpec.width > 1.8 && taxiSpec.width < 1.83, `taxi width ${taxiSpec.width}`);
   assert.ok(taxiSpec.height > 1.66 && taxiSpec.height < 1.71, `taxi height ${taxiSpec.height}`);
   assert.equal(taxiSpec.wheelbase, 2.8);
-  assert.equal(taxiBody.tailRake, undefined, 'flat tailgate: no sedan boot rake');
   assert.ok(taxiBody.zRear < -2.35, 'rear overhang stays short');
   const taxiLayout = cars.carLayout(taxiBody);
+  const angleFromVertical = (rise, run) => Math.atan2(Math.abs(run), rise) * 180 / Math.PI;
+  // 前脸：机舱盖低、鼻锥上沿明显后掠（滑流线），不是直立的方正车头
+  const noseFront = cars.carTipZ(taxiBody, 0.95, true);
+  const noseBumper = cars.carTipZ(taxiBody, 0.56, true);
+  const hoodHeight = taxiLayout.body(2.1).yE;
+  assert.ok(noseBumper - noseFront > 0.12, `raked nose: bumper ${noseBumper.toFixed(2)} vs hood line ${noseFront.toFixed(2)}`);
+  assert.ok(hoodHeight < 0.95, `low bonnet line ${hoodHeight.toFixed(2)}`);
+  assert.ok(angleFromVertical(1, (taxiBody.cabin.cowl - taxiBody.cabin.roofFront) / (taxiLayout.rail.front.y - taxiLayout.belt.cowl.y)) > 40,
+    'windscreen is more raked than 40° from vertical');
+  // 尾部：tailRake + 较大平面收圆，尾门微斜圆角而不是垂直平板；后窗仍接近直立
+  assert.ok(taxiBody.tailRake && taxiBody.tailRake.length >= 0.35, 'tail has a rake, so the tailgate is not a vertical slab');
+  assert.ok(taxiBody.tail.halfWidth[0] >= 0.2, 'tail plan corners are rounded, not a flat plank');
+  const tailTop = cars.carTipZ(taxiBody, 1.0, false);
+  const tailBumper = cars.carTipZ(taxiBody, 0.7, false);
+  const tailRake = angleFromVertical(1.0 - 0.7, tailTop - tailBumper);
+  assert.ok(tailRake > 5 && tailRake < 30, `tail rakes forward gently, got ${tailRake.toFixed(1)}°`);
   const backlightRise = taxiLayout.cabin(taxiBody.cabin.roofRear).railY - taxiLayout.cabin(taxiBody.cabin.deck).beltY;
   const backlightRun = Math.abs(taxiBody.cabin.deck - taxiBody.cabin.roofRear);
-  const backlightAngle = Math.atan2(backlightRun, backlightRise) * 180 / Math.PI;
-  assert.ok(backlightAngle < 25, `upright backlight within 25° of vertical, got ${backlightAngle.toFixed(1)}°`);
+  const backlightAngle = angleFromVertical(backlightRise, backlightRun);
+  assert.ok(backlightAngle > 10 && backlightAngle < 32, `backlight leans slightly, got ${backlightAngle.toFixed(1)}°`);
   const tailSection = taxiLayout.body(taxiBody.zRear);
-  assert.ok(tailSection.yT - tailSection.yB > 0.6, 'tailgate is a tall flat face');
+  assert.ok(tailSection.yT - tailSection.yB > 0.6, 'tailgate is a tall face');
   // 尾灯在尾门两侧靠上，位于车牌上方并落在尾门面高度范围内
   assert.ok(taxiBody.taillight[1] > taxiBody.plates[1]);
   assert.ok(taxiBody.taillight[1] + taxiBody.taillight[3] <= tailSection.yE + 0.01);

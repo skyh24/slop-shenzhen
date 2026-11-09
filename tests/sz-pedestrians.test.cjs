@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
+const zlib = require('node:zlib');
 const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
@@ -87,8 +88,9 @@ const pedestrians = loadModule(read('sz-pedestrians.js'), {
     './sz-pedestrian-tracks.js': tracks
   }
 });
-const { buildSidewalkTracks, buildWalkTracks, connectTracks, sampleTrack } = tracks;
-const { createSzPedestrians } = pedestrians;
+const { buildSidewalkTracks, buildWalkTracks, connectTracks, createCarriagewayBarrier,
+  createColliderGrid, sampleTrack } = tracks;
+const { createSzPedestrians, createSzDensityModel } = pedestrians;
 
 function roadGraph(nodes, widths) {
   const links = [];
@@ -111,6 +113,7 @@ function collider(minX, minZ, maxX, maxZ) {
   };
 }
 
+const groundSurface = loadModule(read('sz-ground-surface.js'));
 const flatHeight = () => 0;
 
 function sceneStub() {
@@ -122,6 +125,46 @@ function sceneStub() {
 
 function straightGraph(lengthM = 200, widthM = 7) {
   return roadGraph([0, 0, lengthM, 0], [widthM]);
+}
+
+// 一条东西向主路 + 一条南北向支路在 (150,0) 共点；支路可选架空（不作为车行道排斥面）。
+function tJunctionGraph({ crossBridge = false, crossWidth = 30 } = {}) {
+  const metadata = (width, bridge) => ({ osmId: `way/${width}/${bridge}`, heightSource: 'terrain',
+    bridge, tunnel: false, layer: 0, highway: 'residential' });
+  return {
+    nodes: [0, 0, 150, 0, 300, 0, 150, 120, 150, -120],
+    links: [[0, 1, 0, 8, 2, 1, []], [1, 2, 0, 8, 2, 1, []],
+      [1, 4, 0, crossWidth, 2, 1, []], [1, 3, 0, crossWidth, 2, 1, []]],
+    names: ['Main', 'Cross'],
+    nodeIds: ['node/1', 'node/2', 'node/3', 'node/4', 'node/5'],
+    metadata: [metadata(8, false), metadata(8, false), metadata(crossWidth, crossBridge),
+      metadata(crossWidth, crossBridge)]
+  };
+}
+
+function assertLegsOutsideBarrier(legs, barrier, { margin = 0.05, step = 0.5 } = {}) {
+  const scratch = {};
+  let samples = 0;
+  for (const leg of legs) {
+    for (let s = 0; s <= leg.length; s += step) {
+      sampleTrack(leg, s, scratch);
+      assert.equal(barrier.contains(scratch.x, scratch.z, margin), false,
+        `${leg.id} sample ${scratch.x.toFixed(2)},${scratch.z.toFixed(2)} is on the carriageway`);
+      samples++;
+    }
+  }
+  return samples;
+}
+
+function assertPavementOutsideBarrier(pavement, barrier, margin = 0) {
+  const positions = pavement.positions;
+  let vertices = 0;
+  for (let i = 0; i < positions.length; i += 3) {
+    assert.equal(barrier.contains(positions[i], positions[i + 2], margin), false,
+      `pavement vertex ${positions[i].toFixed(2)},${positions[i + 2].toFixed(2)} is on the carriageway`);
+    vertices++;
+  }
+  return vertices;
 }
 
 test('side tracks are offset outside the carriageway and follow heightAt', () => {
@@ -386,4 +429,155 @@ test('factory validates its injected dependencies', () => {
   assert.throws(() => createSzPedestrians(sceneStub(), straightGraph(), { colliders: [] }));
   assert.throws(() => createSzPedestrians(sceneStub(), null, { heightAt: flatHeight, colliders: [] }));
   assert.throws(() => buildWalkTracks(straightGraph(), { heightAt: undefined }));
+});
+
+test('carriageway barrier is the rendered road geometry plus a positive margin', () => {
+  const graph = straightGraph(300, 8);
+  const barrier = createCarriagewayBarrier(graph, { bounds: null });
+  assert.equal(barrier.polygons, 1);
+  assert.equal(barrier.contains(150, 0, 0), true);
+  assert.equal(barrier.contains(150, 4.1, 0), false);
+  assert.equal(barrier.contains(150, 4.1, 0.3), true);
+  const junction = createCarriagewayBarrier(tJunctionGraph(), { bounds: null });
+  // 共用 OSM 节点的路口补面与两条路的断面都来自和路面网格相同的几何。
+  assert.equal(junction.contains(150, 0, 0), true);
+  assert.equal(junction.contains(150.8, 0.8, 0), true);
+  assert.equal(junction.contains(150, 40, 0), true);
+  assert.equal(junction.contains(150, -40, 0), true);
+  assert.equal(junction.contains(115, 0, 0), true);
+  assert.equal(junction.contains(120, 12, 0), false);
+});
+
+test('walk tracks are split mid-line where a junction reaches the walking band', () => {
+  const graph = tJunctionGraph();
+  const ground = buildWalkTracks(graph, { heightAt: flatHeight, pavement: false });
+  const bridge = buildWalkTracks(tJunctionGraph({ crossBridge: true }), { heightAt: flatHeight, pavement: false });
+  const barrier = createCarriagewayBarrier(graph, { bounds: null });
+  assertLegsOutsideBarrier(ground.legs, barrier);
+  // 架空支路不算地面车行道：主路轨道完整，数量更少。
+  assert.ok(ground.tracks.length > bridge.tracks.length);
+  assert.equal(bridge.tracks.length, 4);
+  const mainTracks = ground.tracks.filter(track => track.widthM === 8 && track.side === 1);
+  assert.ok(mainTracks.length >= 2);
+  const intervals = mainTracks.map(track => [Math.min(track.points[0].x, track.points.at(-1).x),
+    Math.max(track.points[0].x, track.points.at(-1).x)]);
+  assert.ok(intervals.some(([, end]) => end < 140), 'main track stops before the cross carriageway');
+  assert.ok(intervals.some(([start]) => start > 160), 'main track resumes after the cross carriageway');
+});
+
+test('pavement ribbons stay outside the carriageway at a junction', () => {
+  const graph = tJunctionGraph();
+  const built = buildWalkTracks(graph, { heightAt: flatHeight, pavement: true });
+  const barrier = createCarriagewayBarrier(graph, { bounds: null });
+  assert.ok(built.pavement.statistics.triangles > 0);
+  assertPavementOutsideBarrier(built.pavement, barrier);
+});
+
+test('real city invariant: tracks and pavement never enter the rendered carriageway', () => {
+  const raw = JSON.parse(zlib.gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
+  const graph = raw.roadGraph;
+  const heightAt = groundSurface.createGroundSurfaceSampler(raw.terrainSurface);
+  const centers = [[1180, -560], [-700, 800], [0, 1400]];
+  let trackSamples = 0;
+  let pavementVertices = 0;
+  let asphaltSamples = 0;
+  let pavementSkipped = 0;
+  for (const [centerX, centerZ] of centers) {
+    const bounds = { minX: centerX - 260, minZ: centerZ - 260, maxX: centerX + 260, maxZ: centerZ + 260 };
+    const built = buildWalkTracks(graph, { heightAt, colliders: [], bounds, pavement: true });
+    assert.ok(built.tracks.length > 20, 'real region should keep enough walkable tracks');
+    const barrier = createCarriagewayBarrier(graph, { bounds });
+    // 1) 轨道（含转角连接）每个 0.5 m 采样点都在沥青外，且留 5 cm 正余量。
+    trackSamples += assertLegsOutsideBarrier(built.legs, barrier, { margin: 0.05, step: 0.5 });
+    // 2) 铺装顶点不得落在沥青上。
+    pavementVertices += assertPavementOutsideBarrier(built.pavement, barrier);
+    // 3) 反向检查：所有地面道路中心线和共用节点必须在排斥面内，证明排斥面没有漏洞。
+    for (let index = 0; index < graph.links.length; index++) {
+      const metadata = graph.metadata[index];
+      if (!(metadata.heightSource === 'terrain' && !metadata.bridge && !metadata.tunnel && !metadata.layer)) continue;
+      const link = graph.links[index];
+      const points = roads.roadLinkPoints(graph, link);
+      let near = false;
+      for (const point of points) {
+        if (point.x >= bounds.minX && point.x <= bounds.maxX && point.z >= bounds.minZ && point.z <= bounds.maxZ) near = true;
+      }
+      if (!near) continue;
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1];
+        const b = points[i];
+        const length = Math.hypot(b.x - a.x, b.z - a.z);
+        const steps = Math.max(1, Math.ceil(length / 5));
+        for (let k = 0; k < steps; k++) {
+          const t = (k + 0.5) / steps;
+          const x = a.x + (b.x - a.x) * t;
+          const z = a.z + (b.z - a.z) * t;
+          if (x < bounds.minX || x > bounds.maxX || z < bounds.minZ || z > bounds.maxZ) continue;
+          assert.equal(barrier.contains(x, z, 0), true, `asphalt sample ${x.toFixed(2)},${z.toFixed(2)} missing from barrier`);
+          asphaltSamples++;
+        }
+      }
+    }
+    const groundNodes = new Set();
+    for (let index = 0; index < graph.links.length; index++) {
+      const metadata = graph.metadata[index];
+      if (!(metadata.heightSource === 'terrain' && !metadata.bridge && !metadata.tunnel && !metadata.layer)) continue;
+      const link = graph.links[index];
+      groundNodes.add(link[0]);
+      groundNodes.add(link[1]);
+    }
+    for (const node of groundNodes) {
+      const x = graph.nodes[node * 2];
+      const z = graph.nodes[node * 2 + 1];
+      if (x < bounds.minX || x > bounds.maxX || z < bounds.minZ || z > bounds.maxZ) continue;
+      assert.equal(barrier.contains(x, z, 0.05), true, `shared ground node ${x},${z} missing from barrier`);
+      asphaltSamples++;
+    }
+    pavementSkipped += built.statistics.pavementCarriagewaySkipped;
+  }
+  assert.ok(trackSamples > 15000);
+  assert.ok(pavementVertices > 5000);
+  assert.ok(asphaltSamples > 2000);
+  assert.ok(pavementSkipped > 0, 'real junctions must skip some pavement quads that reach the asphalt');
+});
+
+test('density proxy rises with building coverage and drops inside green areas', () => {
+  const packed = [];
+  for (let x = 0; x < 100; x += 20) for (let z = 0; z < 100; z += 20) packed.push(collider(x, z, x + 18, z + 18));
+  const model = createSzDensityModel({ colliders: packed, greenAreas: [] });
+  const empty = createSzDensityModel({ colliders: [] });
+  assert.ok(model.coverageAt(50, 50) > 0.5);
+  assert.equal(empty.coverageAt(50, 50), 0);
+  assert.ok(model.densityAt(50, 50) > empty.densityAt(50, 50));
+  assert.ok(empty.densityAt(500, 500) > 0.1, 'valid sidewalk never has zero density');
+  assert.equal(model.greenAt(500, 500), 'none');
+  const green = createSzDensityModel({ colliders: packed,
+    greenAreas: [{ outer: [{ x: -50, z: -50 }, { x: 150, z: -50 }, { x: 150, z: 150 }, { x: -50, z: 150 }], holes: [] }] });
+  assert.equal(green.greenAt(50, 50), 'green');
+  assert.ok(green.densityAt(50, 50) < model.densityAt(50, 50));
+});
+
+test('factory target crowd size follows local density: dense blocks vs park green', () => {
+  const graph = straightGraph(2000);
+  const blocks = [];
+  for (let x = 760; x < 1240; x += 40) {
+    for (const z of [-45, -20, 20, 45]) blocks.push(collider(x, z, x + 34, z + 20));
+  }
+  const greenAreas = [{ outer: [{ x: 1440, z: -160 }, { x: 1760, z: -160 }, { x: 1760, z: 160 }, { x: 1440, z: 160 }],
+    holes: [] }];
+  const peds = createSzPedestrians(sceneStub(), graph, {
+    heightAt: flatHeight, colliders: blocks, greenAreas, maxPeds: 140, seed: 3
+  });
+  const denseFocus = { x: 1000, y: 0, z: 0 };
+  for (let frame = 0; frame < 80; frame++) peds.update(0.05, denseFocus, frame * 0.05);
+  const denseTarget = peds.statistics.targetPeds;
+  const densePlaced = peds.statistics.placed;
+  assert.ok(denseTarget > 80, `dense target ${denseTarget} should be high`);
+  assert.ok(densePlaced > 60, `dense region should fill a crowd (${densePlaced})`);
+  const parkFocus = { x: 1600, y: 0, z: 0 };
+  for (let frame = 0; frame < 80; frame++) peds.update(0.05, parkFocus, (80 + frame) * 0.05);
+  const parkTarget = peds.statistics.targetPeds;
+  assert.ok(parkTarget >= 40, 'valid sidewalk in a park still keeps the minimum crowd');
+  assert.ok(parkTarget < denseTarget - 20, `park target ${parkTarget} should be clearly sparser than ${denseTarget}`);
+  assert.ok(peds.statistics.placed <= parkTarget + 10);
+  assert.ok(peds.statistics.placed > 0);
 });

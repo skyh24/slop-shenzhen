@@ -345,17 +345,24 @@ function addPlateDecals(chassis, body, localMaterials) {
   }
 }
 
-// 顶灯正面「空车 TAXI」：可读的两面贴字，底面顶灯本身由 loft 材质画蓝字并用发光表达空车。
+// 顶灯正面一红一蓝：「深圳」红底白字 + TAXI 蓝底白字，底部一条空车绿条。
 function addRoofSignDecals(chassis, body, localMaterials) {
   const texture = createCanvasTexture((ctx, width, height) => {
+    const strip = 10;
+    ctx.fillStyle = '#c22a29';
+    ctx.fillRect(0, 0, width / 2, height - strip);
+    ctx.fillStyle = '#1f5fbf';
+    ctx.fillRect(width / 2, 0, width / 2, height - strip);
     ctx.fillStyle = '#1f9d55';
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = '#f4fff8';
-    ctx.font = 'bold 42px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillRect(0, height - strip, width, strip);
+    ctx.fillStyle = '#f7f9fb';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('空车 TAXI', width / 2, height / 2 + 2);
-  }, 256, 64);
+    ctx.font = 'bold 44px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText(STR.vehicleLabels?.taxiMark ?? '深圳', width * 0.25, (height - strip) / 2 + 2);
+    ctx.font = 'bold 38px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText(STR.vehicleLabels?.taxiSign ?? 'TAXI', width * 0.75, (height - strip) / 2 + 2);
+  }, 320, 80);
   if (!texture) return;
   const { z, y } = taxiSignPlacement(body);
   const material = decalMaterial(texture, true);
