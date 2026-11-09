@@ -94,19 +94,20 @@ function toVec2(ring, wantPositive) {
   return pts;
 }
 
-// 水平面（屋顶、陆地、绿地、水面），法线朝上；坐标平面里 Vector2.y 就是世界 z
-export function addFlatPolygon(b, rings, y, meta, uvScale = 1) {
+// 水平面保留内院；架空实体底盖朝下，不能靠双面材质掩盖缺失的实体边界。
+export function addFlatPolygon(b, rings, y, meta, uvScale = 1, facing = 1) {
+  if (facing !== 1 && facing !== -1) throw new Error(`Invalid polygon facing: ${facing}`);
   const outer = toVec2(rings[0], true);
   if (outer.length < 3) return;
   const holes = rings.slice(1).map((r) => toVec2(r, false)).filter((h) => h.length >= 3);
   const faces = THREE.ShapeUtils.triangulateShape(outer, holes);
   const all = outer.concat(...holes);
   const base = b.count;
-  for (const p of all) b.vertex(p.x, y, p.y, 0, 1, 0, p.x * uvScale, p.y * uvScale, meta);
+  for (const p of all) b.vertex(p.x, y, p.y, 0, facing, 0, p.x * uvScale, p.y * uvScale, meta);
   for (const [ia, ib, ic] of faces) {
     const a = all[ia], q = all[ib], r = all[ic];
-    // 法线 y 分量 = dz1·dx2 − dx1·dz2，为负就换顶点顺序
-    if ((q.y - a.y) * (r.x - a.x) - (q.x - a.x) * (r.y - a.y) < 0) b.tri(base + ia, base + ic, base + ib);
+    // 绕序与指定法线一致；从通道下方观察应命中实体底面。
+    if (((q.y - a.y) * (r.x - a.x) - (q.x - a.x) * (r.y - a.y)) * facing < 0) b.tri(base + ia, base + ic, base + ib);
     else b.tri(base + ia, base + ib, base + ic);
   }
 }

@@ -31,6 +31,7 @@ export function buildCityBlocks(scene, options = {}) {
       const rings = [polygon.outer, ...polygon.holes].map(flatRing);
       addWalls(batch, rings, placement.minY, placement.maxY, meta, placement.baseY);
       addFlatPolygon(batch, rings, placement.maxY, meta);
+      if (building.minHeight > 0) addFlatPolygon(batch, rings, placement.minY, meta, 1, -1);
     }
     colliders.push(...placement.colliders);
     allBlocks.push({ ...building, baseY: placement.baseY, minY: placement.minY, maxY: placement.maxY });

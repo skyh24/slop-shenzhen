@@ -3,6 +3,7 @@ const test = require('node:test');
 const { execFileSync } = require('node:child_process');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { loadModule } = require('./helpers/module.cjs');
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const terrain = loadModule(read('sz-terrain.js'));
@@ -41,6 +42,32 @@ test('building placement fails when terrain is unknown and facade seed uses iden
   assert.equal(buildingSeed('way/123'),buildingSeed('way/123'));
   assert.notEqual(buildingSeed('way/123'),buildingSeed('way/124'));
 });
+
+test('raised building soffits face the passage and preserve courtyard holes and side collisions',
+  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+    const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
+    const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+      'three/webgpu': THREE,
+      './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
+      './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
+      './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
+      './sz-building-layout.js': { buildingPlacement, buildingSeed }
+    } });
+    const scene = new THREE.Scene();
+    const blocks = buildCityBlocks(scene, { buildings: [{ ...building, facade: 'office' }], terrain: grid });
+    scene.updateMatrixWorld(true);
+    const ray = (x, y, z, dx, dy, dz) => new THREE.Raycaster(new THREE.Vector3(x, y, z),
+      new THREE.Vector3(dx, dy, dz)).intersectObjects(blocks.group.children);
+    const bottom = ray(10, 20, 0, 0, 1, 0)[0];
+    assert.equal(bottom.point.y, blocks.colliders[0].minY);
+    assert.equal(bottom.face.normal.y, -1);
+    assert.equal(ray(0, 20, 0, 0, 1, 0).length, 0);
+    assert.equal(ray(30, 20, 0, -1, 0, 0).length, 0);
+    assert.equal(ray(30, 60, 0, -1, 0, 0)[0].point.x, building.maxX);
+    assert.equal(ray(10, 120, 0, 0, -1, 0)[0].point.y, blocks.colliders[0].maxY);
+    assert.equal(collision.polygonContains(blocks.colliders[0].polygon, 0, 0), false);
+    blocks.dispose();
+  });
 
 test('one-kilometre building batches preserve every triangle attribute and collider', () => {
   const THREE = {
