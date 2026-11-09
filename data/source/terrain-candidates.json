@@ -1,6 +1,40 @@
 {
   "status": "audit-only",
   "checkedAt": "2026-11-09",
+  "localEvidence": [
+    {
+      "id": "fuzhong-haitian-approved-roof-plan",
+      "path": "data/raw/terrain/audit/fuzhong-road-plan.pdf",
+      "asset": "https://www.sz.gov.cn/attachment/1/1709/1709349/12763457.pdf",
+      "bytes": 2006967,
+      "sha256": "cddcdec049aed55359179667e8d210b2f7d748c9286037ecfd8a1a6a408f5f9a",
+      "horizontalDatum": "CGCS2000",
+      "verticalDatum": "1985 National Height Datum",
+      "role": "approved roof plan and intersection context; road longitudinal profile unavailable"
+    },
+    {
+      "id": "wanjing-preliminary-roof-plan",
+      "path": "data/raw/terrain/audit/wanjing-plan.pdf",
+      "asset": "https://www.sz.gov.cn/attachment/1/1764/1764162/13048157.pdf",
+      "bytes": 1972525,
+      "sha256": "cd86615b73692f2d28ce3f63b25fea24750e519f1d89f6391374b4564e6c5fa7",
+      "horizontalDatum": "CGCS2000",
+      "verticalDatum": "1985 National Height Datum",
+      "role": "preliminary roof plan and municipal level legend"
+    },
+    {
+      "id": "shenzhen-public-survey-catalog-2026",
+      "file": "data/raw/terrain-candidates/shenzhen-public-survey-catalog-2026.xlsx",
+      "url": "https://www.sz.gov.cn/attachment/1/1708/1708809/12759230.xlsx",
+      "reference": "https://www.sz.gov.cn/szzt2010/wgkzl/glgk/jgxxgk/gtzy/content/post_12759230.html",
+      "checkedAt": "2026-11-09",
+      "bytes": 11409,
+      "sha256": "c300e89b6dbcc924e17a441d4ac275b918b3ae1a3f42b207dd8169e7af059ebd",
+      "role": "Public survey catalogue only; terrain maps and LiDAR are supplied by application, not downloaded elevation data",
+      "horizontalDatum": "unspecified in catalogue",
+      "verticalDatum": "unspecified in catalogue"
+    }
+  ],
   "sources": [
     {
       "id": "gedtm30-opentopography-v1.2",
@@ -13,7 +47,12 @@
       "versionReference": "https://zenodo.org/records/18887460",
       "asset": "https://opentopography.s3.sdsc.edu/raster/GEDTM30/GEDTM30_be/gedtm_rf_m_30m_s_20060101_20151231_go_epsg.4326.3855_v1.2.tif",
       "format": "cog-window-npz",
-      "windowRequestBbox": [113.918, 22.492, 114.088, 22.590],
+      "windowRequestBbox": [
+        113.918,
+        22.492,
+        114.088,
+        22.59
+      ],
       "files": [
         {
           "path": "data/raw/terrain/audit/gedtm30-v1.2.npz",
