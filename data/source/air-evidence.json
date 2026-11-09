@@ -41,5 +41,34 @@
         "没有提供队形、飞行坐标或实时排期"
       ]
     }
+  ],
+  "stations": [
+    {
+      "id": "osm-node-13291073787",
+      "name": "美团无人机外卖点",
+      "position": [
+        113.9415974,
+        22.5141326
+      ],
+      "coordinateSystem": "WGS84",
+      "source": "https://www.openstreetmap.org/node/13291073787",
+      "sourceSnapshot": "2026-11-08T23:59:19Z",
+      "sourceSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+      "verifiedAt": "2026-11-09",
+      "positionSource": "osm-node",
+      "tags": {
+        "amenity": "vending_machine",
+        "name": "美团无人机外卖点",
+        "operator": "美团",
+        "vending": "food"
+      },
+      "routeId": null,
+      "status": "source-node-confirmed-route-association-unresolved",
+      "limitations": [
+        "PBF中明确命名的无人机外卖点，尚未现场影像复核",
+        "不能仅凭距离将其认定为潮汐广场站或任意航线端点",
+        "未核实当前运营状态及位置误差"
+      ]
+    }
   ]
 }

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "checkedAt": "2026-11-09",
+  "status": "retrieval-pending-not-model-input",
+  "candidates": [
+    {
+      "id": "iec-conference-roof-20250610",
+      "landmarkId": "iec-xiangmihu",
+      "url": "https://www.sz.gov.cn/attachment/1/1620/1620733/12356166.pdf",
+      "drawingTitle": "屋顶总平面图",
+      "drawingDate": "2025-06-10",
+      "drawingNumber": "建方00-ZT01",
+      "parcel": "B303-0064",
+      "searchIndexedClaims": {
+        "buildingHeightM": 44.76,
+        "groundDatumM": 12,
+        "horizontalDatum": "CGCS2000",
+        "verticalDatum": "1985 national height datum"
+      },
+      "retrievalStatus": "web-404-local-TLS-failure",
+      "limitations": [
+        "只能看到搜索引擎索引文字，尚未读取原PDF或查看图面",
+        "不得据搜索表格将部件位置或轮廓写入模型",
+        "设计图不等于竣工实测；标高不能直接混用EGM2008"
+      ]
+    },
+    {
+      "id": "iec-roof-20260125",
+      "landmarkId": "iec-xiangmihu",
+      "url": "https://pnr.sz.gov.cn/attachment/1/1696/1696710/12699294.pdf",
+      "drawingNumber": "00-ZT01G",
+      "drawingDate": "2026-01-25",
+      "parcel": "B303-0063",
+      "retrievalStatus": "web-and-local-403",
+      "limitations": [
+        "搜索索引似为配套酒店地块，不能与会议中心B303-0064混用",
+        "需原图确认，当前未核准高度或平面"
+      ]
+    }
+  ]
+}
