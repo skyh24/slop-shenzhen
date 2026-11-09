@@ -1,4 +1,4 @@
-import { signalPhase, walkSignal } from './city-config.js';
+import { signalPhase, walkSignal } from './sz-city-config.js';
 
 const MOTOR_RANGE = 180;
 const SIREN_RANGE = 220;
@@ -86,11 +86,11 @@ class CityAudioSources {
   constructor({ controllerManager, trafficSystem, highwayTraffic, streetDetails }) {
     this.controllers = controllerManager;
     this.players = Object.values(controllerManager.entities);
-    this.cars = trafficSystem.cars;
-    this.buses = trafficSystem.buses;
-    this.peds = trafficSystem.peds;
-    this.highwayCars = highwayTraffic.cars;
-    this.signalSites = streetDetails.audioSignals;
+    this.cars = trafficSystem?.cars ?? [];
+    this.buses = trafficSystem?.buses ?? [];
+    this.peds = trafficSystem?.peds ?? [];
+    this.highwayCars = highwayTraffic?.cars ?? [];
+    this.signalSites = streetDetails?.audioSignals ?? [];
     this.motors = new NearestSources(10);
     this.sirens = new NearestSources(2);
     this.people = new NearestSources(6);
@@ -170,12 +170,12 @@ class CityAudioSources {
 
     for (let i = 0; i < this.players.length; i++) {
       const entity = this.players[i];
-      if (entity.mesh.visible === false || entity.position.y < -0.05) continue;
+      if (entity.mesh.visible === false) continue;
       const { x, y, z } = entity.position;
       const player = entity === active;
       if (entity.type === 'person') {
         const ground = this.controllers.getGroundHeight(x, z, 'person');
-        const grounded = y <= ground + 0.03 && Math.abs(entity.verticalVel) < 0.1;
+        const grounded = Number.isFinite(ground) && y <= ground + 0.03 && Math.abs(entity.verticalVel) < 0.1;
         this.person(entity, x, y, z, entity.rig.speed, grounded, entity.rig, true, player);
       } else {
         // Inactive bicycles stop updating and are silent, even if their stored speed is left over from riding.

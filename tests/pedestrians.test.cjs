@@ -647,10 +647,11 @@ test('poseCharacters skips stationary inactive cyclist IK/uploads and culls park
     globals: { window: noopTarget, document: { ...noopTarget, hidden: false } },
     imports: {
       'three/webgpu': {},
-      './city-config.js': { streetZ: () => 0, isTypingInField: () => false },
-      './tsl-materials.js': {},
-      './cars.js': {},
-      './helicopter.js': {},
+      './sz-city-config.js': { isTypingInField: () => false },
+      './sz-controller-surfaces.js': {},
+      './sz-strings.js': { STR: {} },
+      './city-lighting-materials.js': {},
+      './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8 } } },
       './pedestrians.js': {},
       './vehicle-lights.js': {},
       './landmarks.js': {},
@@ -698,7 +699,7 @@ test('poseCharacters skips stationary inactive cyclist IK/uploads and culls park
     riderRig: { headQuaternion: {}, headPosition: {}, ride() { bikeRides++; } },
     riderCrowd: makeMockCrowd()
   };
-  const car = { type: 'car', position: { x: 3.6, y: 0, z: 0 }, carState: { value: { x: 0, w: 0 } } };
+  const car = { type: 'car', position: { x: 3.6, y: 0, z: 0 } };
   controller.entities = { person, cyclist, car };
 
   // Within 320m: person updates every frame, stationary inactive cyclist poses once then skips IK & uploads

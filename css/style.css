@@ -591,6 +591,31 @@ body.hud-minimized .icon-show {
   background: var(--hover);
 }
 
+.tp-btn[hidden] {
+  display: none;
+}
+
+.metro-actions {
+  display: flex;
+}
+
+.metro-line {
+  justify-content: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.metro-line input {
+  margin-inline-start: auto;
+}
+
+.metro-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
 .pop-item.active,
 .pop-item.active:hover {
   background: var(--text);
@@ -1412,8 +1437,9 @@ body.touch-enabled .fullmap-header { top: max(var(--edge), env(safe-area-inset-t
 body.touch-enabled .map-controls .icon-btn { width: 44px; height: 44px; }
 body.touch-enabled .pop-item { min-height: 44px; }
 
-@media (max-width: 360px) {
-  body.touch-enabled .toolbar { width: 194px; height: auto; flex-wrap: wrap; justify-content: center; }
+@media (max-width: 440px) {
+  body.touch-enabled .toolbar { width: 238px; height: auto; flex-wrap: wrap; justify-content: center; }
+  body.touch-enabled .hud-top-left,
   body.touch-enabled .hud-bottom-right { top: calc(max(var(--edge), env(safe-area-inset-top)) + 114px); }
   .touch-look-hint { top: calc(max(var(--edge), env(safe-area-inset-top)) + 172px); }
 }

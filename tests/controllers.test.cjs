@@ -24,7 +24,17 @@ function keyboardHarness(nyc = {}) {
   const window = eventTarget();
   const document = { ...eventTarget(), hidden: false };
   const config = {
-    streetZ: () => 0,
+    findGroundArrival: (target, mode, options) => {
+      if (options.isClear({ ...target })) return { ...target };
+      for (let distance = 4; distance <= 256; distance += 4) {
+        for (let i = 0; i < 32; i++) {
+          const candidate = { x: target.x + Math.cos(i * Math.PI / 16) * distance,
+            z: target.z + Math.sin(i * Math.PI / 16) * distance };
+          if (options.isClear(candidate)) return candidate;
+        }
+      }
+      return null;
+    },
     isTypingInField: (event) => ['INPUT', 'SELECT'].includes(event.target?.tagName),
     ...nyc
   };
@@ -32,10 +42,11 @@ function keyboardHarness(nyc = {}) {
     globals: { window, document },
     imports: {
       'three/webgpu': {},
-      './city-config.js': config,
-      './tsl-materials.js': {},
-      './cars.js': {},
-      './helicopter.js': {},
+      './sz-city-config.js': config,
+      './sz-controller-surfaces.js': {},
+      './sz-strings.js': { STR: {} },
+      './city-lighting-materials.js': {},
+      './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } },
       './pedestrians.js': {},
       './vehicle-lights.js': {},
       './landmarks.js': {},
@@ -45,6 +56,16 @@ function keyboardHarness(nyc = {}) {
   // Exercise the production event handlers without constructing the scene's 3D models.
   const controller = Object.create(ThirdPersonControllerManager.prototype);
   controller.keys = Object.fromEntries(['forward', 'backward', 'left', 'right', 'up', 'down'].map((action) => [action, false]));
+  controller.getGroundHeight = (x, z) => nyc.blockAt?.(x, z) ? 0.22 : 0;
+  controller.groundHeight = (x, z) => controller.getGroundHeight(x, z, controller.activeMode);
+  controller.maxFlightAltitude = 900;
+  controller.surfaceResolver = {
+    resolve(x, z) {
+      const y = controller.getGroundHeight(x, z, controller.activeMode);
+      return Number.isFinite(y) ? { height: y, surfaceId: 'terrain' } : null;
+    },
+    below(x, z, y) { const p = this.resolve(x, z); return p && p.height <= y ? p : null; }
+  };
   controller.bindKeyboard();
   return {
     controller,
@@ -208,7 +229,8 @@ function carDynamicsHarness(motion = {}) {
     type: 'car', position: { x: 0, y: 0, z: 0 }, heading: 0, speed: 0,
     vx: 0, vz: 0, angularVel: 0, steerAngle: 0, pitchVel: 0, rollVel: 0, heaveVel: 0, heaveY: 0, wheelSpin: 0,
     chassisPivot: { rotation: { x: 0, z: 0 }, position: { y: 0 } }, wheels: [],
-    carState: { value: { x: 0, w: 0 } },
+    lights: [false, false],
+    setLights(braking, reversing) { this.lights = [braking, reversing]; },
     ...motion
   };
   controller.entities = { car };
@@ -285,12 +307,11 @@ test('player brake and reverse lamps follow braking and backward travel', () => 
     const sim = carDynamicsHarness({ speed });
     if (input) sim.controller.keys[input] = true;
     sim.advance(1 / 60);
-    assert.equal(sim.car.carState.value.x, brake, `brake at speed ${speed}, input ${input}`);
-    assert.equal(sim.car.carState.value.w, reverse, `reverse at speed ${speed}, input ${input}`);
+    assert.equal(sim.car.lights[0], Boolean(brake), `brake at speed ${speed}, input ${input}`);
+    assert.equal(sim.car.lights[1], Boolean(reverse), `reverse at speed ${speed}, input ${input}`);
     sim.controller.entities.person = {};
     sim.controller.setMode('person');
-    assert.equal(sim.car.carState.value.x, 0, 'leaving the car releases its brake lights');
-    assert.equal(sim.car.carState.value.w, 0, 'the parked car no longer shows reverse lights');
+    assert.deepEqual(sim.car.lights, [false, false], 'leaving the car resets both lamps');
   }
 });
 
@@ -419,7 +440,8 @@ function teleportHarness(mode, colliders = [], shore = () => ({ westX: -500, eas
     mesh: pivot(),
     verticalVel: 5, vx: 3, vz: -4, angularVel: 2, steerAngle: 0.4,
     pitchVel: 3, rollVel: 4, heaveY: 0.1, heaveVel: 2, chassisPivot: pivot(),
-    lastCollisionSpark: { speed: 5 }, carState: { value: { x: 1, w: 1 } }, wheelSpin: 1,
+    lastCollisionSpark: { speed: 5 }, lights: [true, true], wheelSpin: 1,
+    setLights(braking, reversing) { this.lights = [braking, reversing]; },
     wheels: [{ isFront: true, steerPivot: { rotation: { y: 0.4 } }, tire: { rotation: { x: 0 } } }],
     leanAngle: 0.3, leanPivot: pivot(), pedalPhase: 0.7,
     frontWheel: { rotation: { x: 0 } }, rearWheel: { rotation: { x: 0 } },
@@ -462,8 +484,7 @@ for (const mode of ['person', 'car', 'cyclist', 'helicopter']) {
       assert.equal(ent.chassisPivot.position.y, 0);
       assert.equal(ent.wheels[0].steerPivot.rotation.y, 0);
       assert.equal(ent.lastCollisionSpark, null);
-      assert.equal(ent.carState.value.x, 0);
-      assert.equal(ent.carState.value.w, 0);
+      assert.deepEqual(ent.lights, [false, false]);
     } else if (mode === 'cyclist') {
       assert.equal(ent.leanAngle, 0);
       assert.equal(ent.leanPivot.rotation.z, 0);
@@ -635,11 +656,12 @@ test('helicopter skids cannot pass through a roof below the body origin', () => 
   assert.notDeepEqual({ ...controller.teleportActiveTo(5, 5, 0, 10.2) }, { x: 5, z: 5 });
 });
 
-test('ground arrivals share movement shoreline limits while helicopters may remain above lower buildings', () => {
+test('unknown ground rejects arrivals while helicopters may remain above lower buildings', () => {
   const shore = z => ({ westX: -40 + z * 0.05, eastX: 40 + z * 0.05 });
   const { controller, ent } = teleportHarness('person', [], shore);
+  controller.getGroundHeight = (x, z) => Math.abs(x) > 500 || Math.abs(z) > 500 ? null : 0;
   const result = controller.teleportActiveTo(1000, -1000);
-  assert.deepEqual({ ...result }, { x: 8.5, z: -470 });
+  assert.deepEqual({ ...result }, { x: 400, z: 400 });
   controller.resolveHorizontalCollision(ent.position, 0.48);
   assert.deepEqual([ent.position.x, ent.position.z], [result.x, result.z]);
 
@@ -647,6 +669,19 @@ test('ground arrivals share movement shoreline limits while helicopters may rema
   heli.ent.position.y = 10;
   assert.deepEqual({ ...heli.controller.teleportActiveTo(0, 0) }, { x: 0, z: 0 });
   assert.equal(heli.ent.position.y, 92);
+});
+
+test('interactive flight arrivals clear the highest sampled terrain across the model footprint', () => {
+  const { controller, ent } = teleportHarness('helicopter');
+  controller.maxFlightAltitude = 400;
+  ent.collisionBounds = { min: { x: -3, y: -0.25, z: -3 }, max: { x: 3, y: 2, z: 3 } };
+  controller.groundHeight = x => x > 5 ? 220 : 140;
+  const arrival = controller.teleportActiveTo(5, 5, 0, 100, { requireArrival: true });
+  assert.deepEqual({ ...arrival }, { x: 5, z: 5 });
+  assert.equal(ent.position.y, 221.25);
+  controller.groundHeight = () => 450;
+  assert.equal(controller.teleportActiveTo(50, 50, 0, 100, { requireArrival: true }), null);
+  assert.deepEqual([ent.position.x, ent.position.y, ent.position.z], [5, 221.25, 5]);
 });
 
 test('a displaced pedestrian samples ground and resets its feet at the resolved destination', () => {
@@ -851,4 +886,70 @@ test('cyclist braking stops briskly, pauses at zero before reversing, and suppor
   blocked.controller.keys.forward = true;
   for (let i = 0; i < 120; i++) blocked.controller.updateCyclist(1 / 60);
   assert.ok(blocked.cyclist.speed < 0.05, `wall-blocked cyclist clamps phantom speed (got ${blocked.cyclist.speed})`);
+});
+
+test('unknown terrain movement restores the last supported position without assigning zero', () => {
+  const { controller, ent } = teleportHarness('car');
+  ent._safePosition = { x: 400, y: 18, z: 400 };
+  ent._support = { height: 18, surfaceId: 'terrain' };
+  ent.position.x = 410;
+  ent.position.y = 18;
+  controller.getGroundHeight = x => x > 405 ? null : 18;
+  controller.resolveHorizontalCollision(ent.position, 1.35, ent);
+  assert.deepEqual([ent.position.x, ent.position.y, ent.position.z], [400, 18, 400]);
+  assert.equal(ent.speed, 0);
+});
+
+test('movement cannot skip a narrow unknown strip between two supported endpoints', () => {
+  const { controller, ent } = teleportHarness('person');
+  ent._safePosition = { x: 0, y: 12, z: 0 };
+  ent.position.x = 10; ent.position.z = 0; ent.position.y = 12;
+  controller.getGroundHeight = x => x > 4 && x < 6 ? null : 12;
+  controller.resolveHorizontalCollision(ent.position, 0.48, null, ent);
+  assert.deepEqual([ent.position.x, ent.position.y, ent.position.z], [0, 12, 0]);
+});
+
+test('controller surface queries retain resolved elevated support and unknown remains null', () => {
+  const { controller } = keyboardHarness();
+  const resolver = loadModule(readFileSync(join(__dirname, '../js/sz-controller-surfaces.js'), 'utf8'));
+  controller.surfaceResolver = resolver.createSurfaceResolver({ groundHeight: x => x < 10 ? 7 : null });
+  delete controller.getGroundHeight;
+  controller.entities = { person: { _support: { height: 7, surfaceId: 'terrain' } } };
+  assert.equal(controller.getGroundHeight(0, 0), 7);
+  assert.equal(controller.getGroundHeight(20, 0), null);
+});
+
+test('vehicle collision uses the outside edge of its rendered geometry envelope', () => {
+  const { controller, ent } = teleportHarness('car', [{ minX: 1, maxX: 4, minZ: -10, maxZ: 10, maxY: 2 }]);
+  ent.heading = 0;
+  Object.assign(ent.position, { x: 0, y: 0, z: 0 });
+  ent.collisionBounds = { min: { x: -1.115, y: 0, z: -2.369 }, max: { x: 1.115, y: 1.81, z: 2.38 } };
+  controller.resolveHorizontalCollision(ent.position, 1.35, ent);
+  assert.ok(Math.abs(ent.position.x + 0.115) < 1e-9);
+});
+
+test('passenger aircraft caps speed and altitude and brings level skids onto terrain', () => {
+  const { controller, ent } = teleportHarness('helicopter');
+  ent.collisionBounds = { min: { x: -3, y: 0, z: -2.8 }, max: { x: 3, y: 2.2, z: 2.8 } };
+  Object.assign(ent.position, { x: 0, y: 10, z: 0 });
+  ent.speed = ent.verticalSpeed = 0;
+  controller.maxFlightAltitude = 400;
+  controller.keys.forward = controller.keys.up = true;
+  for (let i = 0; i < 120; i++) controller.updateHelicopter(1 / 60);
+  assert.equal(ent.speed, 36);
+  assert.equal(ent.verticalSpeed, 6);
+
+  ent.position.y = 399.97;
+  controller.updateHelicopter(1 / 60);
+  assert.equal(ent.position.y, 400);
+  assert.equal(ent.verticalSpeed, 0);
+
+  ent.position.y = 0.06;
+  ent.verticalSpeed = -5;
+  controller.keys.up = false;
+  controller.keys.down = true;
+  controller.updateHelicopter(1 / 60);
+  assert.equal(ent.position.y + ent.collisionBounds.min.y, 0);
+  assert.equal(ent.verticalSpeed, 0);
+  assert.ok(ent.tiltPivot.rotation.x === 0 && ent.tiltPivot.rotation.z === 0);
 });

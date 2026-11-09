@@ -757,7 +757,7 @@ function loadLighting() {
       'three/addons/objects/SkyMesh.js': { SkyMesh },
       'three/addons/lights/SunLight.js': { SunLight },
       'three/addons/lights/SunLightNode.js': { SunLightNode: class SunLightNode {} },
-      './tsl-materials.js': { cityUniforms }
+      './city-lighting-materials.js': { cityUniforms }
     }
   });
 

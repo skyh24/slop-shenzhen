@@ -76,7 +76,7 @@ class SpatialEmitter {
 }
 
 class CityAudioSystem {
-  constructor(simulation, { onStateChange = () => {} } = {}) {
+  constructor(simulation, { onStateChange = () => {}, storageKey = 'nyc-sound' } = {}) {
     this.sources = new CityAudioSources(simulation);
     this.acoustics = new CityAcoustics(simulation.controllerManager);
     this.onStateChange = onStateChange;
@@ -85,7 +85,8 @@ class CityAudioSystem {
     this.disposed = false;
     this.supported = !!(globalThis.AudioContext || globalThis.webkitAudioContext);
     this.enabled = true;
-    try { this.enabled = localStorage.getItem('nyc-sound') !== 'off'; } catch { /* Private browsing. */ }
+    this.storageKey = storageKey;
+    try { this.enabled = localStorage.getItem(this.storageKey) !== 'off'; } catch { /* 存储可选。 */ }
     const smallDevice = navigator.hardwareConcurrency <= 4 || matchMedia('(pointer: coarse)').matches;
     this.limits = smallDevice ? { motors: 6, sirens: 1, events: 5 } : { motors: 8, sirens: 2, events: 8 };
     this.motors = new Map();
@@ -99,7 +100,7 @@ class CityAudioSystem {
     this.lastHorn = -Infinity;
     this.collisionPairs = new WeakMap();
     this.collisionSequence = 0;
-    this.collisionSystems = [simulation.controllerManager, simulation.trafficSystem];
+    this.collisionSystems = [simulation.controllerManager, simulation.trafficSystem].filter(Boolean);
     this.onCollision = (impact) => this.crash(impact);
     for (const system of this.collisionSystems) system.setCollisionListener?.(this.onCollision);
     this.motorParams = { speed: 0, load: 0, verticalSpeed: 0, doppler: 1, seed: 0 };
@@ -175,7 +176,7 @@ class CityAudioSystem {
 
   setEnabled(enabled) {
     this.enabled = !!enabled;
-    try { localStorage.setItem('nyc-sound', this.enabled ? 'on' : 'off'); } catch { /* Storage is optional. */ }
+    try { localStorage.setItem(this.storageKey, this.enabled ? 'on' : 'off'); } catch { /* 存储可选。 */ }
     if (this.enabled) this.unlock();
     else {
       this.reset();
@@ -364,8 +365,8 @@ class CityAudioSystem {
     const vehicle = impact.kind === 'vehicle' ? a === player ? b : b === player ? a : null : null;
     let honked = false;
     if (vehicle && separated && now - contact.horn > 1.5) {
-      honked = this.emit('horn', { id: vehicle, x: vehicle.x, y: 0.7, z: vehicle.z,
-        heading: vehicle.yaw + vehicle.yawOffset, seed: ++this.collisionSequence },
+      honked = this.emit('horn', { id: vehicle, x: vehicle.x, y: vehicle.y ?? 0.7, z: vehicle.z,
+        heading: vehicle.heading ?? (vehicle.yaw + vehicle.yawOffset), seed: ++this.collisionSequence },
       { intensity: 0.8, when: now + 0.12, priority: true });
       if (honked) contact.horn = this.lastHorn = now;
     }

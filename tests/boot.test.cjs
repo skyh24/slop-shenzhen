@@ -30,8 +30,9 @@ test('native module entry and imports share canonical preloaded URLs on GitHub P
   assert.equal(entries.length, 1);
   assert.equal(entries[0][1], './js/main.js');
   assert.ok(links.includes(entries[0][1]));
+  assert.ok(!links.includes('./js/nyc-geodata.js'), 'the Shenzhen entry does not load New York geography');
   assert.equal([...html.matchAll(/<script\b/g)].length, 2, 'only the import map and native entry are needed');
-  const base = 'https://example.test/slop-newyork/';
+  const base = 'https://example.test/slop-shenzhen/';
   const urls = new Set(links.map((src) => new URL(src, base).href));
   for (const src of links) {
     assert.match(src, /^\.\/js\/[\w-]+\.js$/, 'preloads use the same unversioned paths as native imports');

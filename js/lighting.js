@@ -20,7 +20,7 @@ import {
 import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
 import { SunLight } from 'three/addons/lights/SunLight.js';
 import { SunLightNode } from 'three/addons/lights/SunLightNode.js';
-import { cityUniforms } from './tsl-materials.js';
+import { cityUniforms } from './city-lighting-materials.js';
 
 // Atmospheric sky, environment lighting, sunlight and time-of-day presets.
 

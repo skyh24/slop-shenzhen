@@ -3,8 +3,9 @@ const DEAD_ZONE = 0.15;
 const MAX_RADIUS = 44;
 
 class TouchControls {
-  constructor(controllerManager) {
+  constructor(controllerManager, actionLabels = { jump: 'Jump', ascend: 'Ascend', descend: 'Descend' }) {
     this.controller = controllerManager;
+    this.actionLabels = actionLabels;
     this.root = document.getElementById('touch-controls');
     this.stick = document.getElementById('touch-stick');
     this.knob = document.getElementById('touch-stick-knob');
@@ -97,7 +98,7 @@ class TouchControls {
     if (!['person', 'car', 'cyclist', 'helicopter'].includes(mode)) return;
     this.reset();
     if (!this.root) return;
-    const labels = { up: mode === 'helicopter' ? 'Ascend' : 'Jump', down: 'Descend' };
+    const labels = { up: mode === 'helicopter' ? this.actionLabels.ascend : this.actionLabels.jump, down: this.actionLabels.descend };
     for (const button of this.buttons) {
       const action = button.getAttribute('data-touch-action');
       button.hidden = (action === 'up' && mode !== 'person' && mode !== 'helicopter') || (action === 'down' && mode !== 'helicopter');
