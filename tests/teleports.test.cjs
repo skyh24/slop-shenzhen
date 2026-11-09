@@ -45,8 +45,8 @@ test('teleport destinations bind the retained buttons to Shenzhen roads on the r
 test('every scenic camera exposed by the entry resolves against the Shenzhen snapshot', () => {
   const cameras = [...read('index.html').matchAll(/data-camera="([^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(cameras.slice(0, 3), ['chase', 'action', 'pov']);
-  assert.equal(cameras.length, 15);
-  assert.deepEqual(cameras.slice(-4), ['djiSkyCity', 'pingAnTower', 'chunsunTower', 'bayBridge']);
+  assert.equal(cameras.length, 19);
+  assert.deepEqual(cameras.slice(-8), ['djiSkyCity', 'pingAnTower', 'chunsunTower', 'civicRoof', 'chunjianShell', 'cultureSquare', 'conventionCenter', 'bayBridge']);
   for (const id of cameras.slice(3)) {
     for (const elapsed of [0, 40, 120]) {
       const { position, target } = getScenicCamera(id, elapsed);
@@ -98,6 +98,7 @@ test('preset and map teleports share arrival resets and mark only a resolved lan
     gamepadControls: { reset: () => calls.push(['gamepad']) },
     cameraSystem: { resetForTeleport: () => calls.push(['camera']) },
     selectCamera: (...args) => calls.push(['selectCamera', ...args]),
+    autoDrive: { stop: () => {} },
     getLocationLabel: (x, z) => `${x}, ${z}`,
     inBounds: x => x < 9000,
     SZMapSystem: class {

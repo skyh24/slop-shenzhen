@@ -43,3 +43,12 @@ test('native module entry and imports share canonical preloaded URLs on GitHub P
     }
   }
 });
+
+test('metro layers are controlled only inside the full map', () => {
+  const map = html.slice(html.indexOf('id="fullmap-modal"'));
+  assert.doesNotMatch(html, /id="btn-metro"/);
+  assert.equal([...html.matchAll(/popovertarget="metro-popover"/g)].length, 1);
+  assert.match(map, /id="map-metro"[^>]*popovertarget="metro-popover"/);
+  assert.match(map, /id="metro-popover"/);
+  assert.match(map, /id="metro-lines"/);
+});

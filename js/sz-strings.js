@@ -99,6 +99,7 @@ export const STR = {
   vehicleLabels: { taxi: '深圳出租', available: '空车' },
   teleport: {
     parkWalk: '前往有来源的园内步行区',
+    parkPath: '步行抵达日出剧场步道',
     parkFlight: '飞至公园上空',
     parkUnavailable: {
       person: '园内步行落点待核实', car: '附近暂无安全行车落点', cyclist: '园内骑行落点待核实'
@@ -112,6 +113,32 @@ export const STR = {
     none: '全部隐藏',
     line: ref => `${ref} 号线`
   },
+  drive: {
+    plan: '规划驾车',
+    chooseStart: '在地图上选择行车起点。',
+    chooseEnd: '已标记起点。在地图上选择终点。',
+    mapHint: '点击选择起点和终点 · 拖动平移 · 滚轮缩放',
+    touchHint: '点按选择起点和终点 · 拖动平移 · 用 ＋ / － 缩放',
+    noPoint: '附近暂无可通行车道，请在道路上重新选点。',
+    noRoute: '两点之间暂无可用驾车路线，请重选终点。',
+    needsStart: '请先把车停在起点，或选择「前往起点」。',
+    startUnavailable: '起点当前被占用，请稍后重试。',
+    ready: '车辆已在起点，可以开始自动驾驶。',
+    distance: length => `路线 ${length >= 1000 ? `${(length / 1000).toFixed(2)} 公里` : `${Math.round(length)} 米`}`,
+    clear: '重选路线',
+    toStart: '前往起点',
+    start: '开始自动驾驶',
+    stop: '停止自动驾驶',
+    from: '起点',
+    to: '终点',
+    driving: '自动驾驶中',
+    signal: '等待路口信号',
+    intersection: '等待路口车辆通过',
+    traffic: '等待前车通行',
+    arrived: '已到达终点',
+    manual: '已切回手动驾驶',
+    blocked: '前方暂无法安全通行，已停止自动驾驶。'
+  },
   modeNames: { person: '步行', car: '深圳蓝色出租车', cyclist: '共享单车', helicopter: '载人飞行器' },
   locationOutside: '数据覆盖范围外',
   locationWater: '水域',
@@ -123,7 +150,8 @@ export const STR = {
     fifthAve: '深圳湾公园看后海', timesSquare: '市民中心看中轴线', chryslerGCT: '人才公园看春笋',
     observatory: '平安上空', bryantPark: '腾讯滨海双塔', waterfront: '深圳湾天际线', drone: '城市航拍',
     djiSkyCity: '大疆天空之城', pingAnTower: '远看平安金融中心', chunsunTower: '后海上空看春笋',
-    bayBridge: '深圳湾公园远眺大桥'
+    civicRoof: '北侧上空看市民中心', chunjianShell: '深圳湾上空看春茧', cultureSquare: '后海看文化广场',
+    conventionCenter: '西北侧上空看会展中心', bayBridge: '深圳湾公园远眺大桥'
   },
   subtitle: 'MVP 预览 · 南山 + 福田 · APEC 2026 深圳',
   loading: '正在载入深圳……',

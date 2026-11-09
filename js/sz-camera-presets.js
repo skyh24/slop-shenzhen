@@ -40,6 +40,15 @@ export function getScenicCamera(id, elapsed = 0) {
     case 'djiSkyCity': return { position: anchor('dji-sky-city', 0, 115, -310), target: anchor('dji-sky-city', -6, 110, -1) };
     case 'pingAnTower': return { position: anchor('ping-an', -634, 274, 330), target: anchor('ping-an', 0, 299, 0) };
     case 'chunsunTower': return { position: anchor('talent-park', 32, 144, 83), target: anchor('chunsun', 0, 183, 0) };
+    case 'civicRoof': return { position: anchor('civic-center', 1, 152, -480), target: anchor('civic-center', 1, 33, 0) };
+    case 'chunjianShell': return { position: anchor('chunjian', 97, 113.2, 563.8), target: anchor('chunjian', 11, -8.8, 63.8) };
+    case 'cultureSquare': {
+      const id = 'shenzhen-bay-culture-square';
+      return landmarks.has(id)
+        ? { position: anchor(id, 290.7, 50, 54), target: anchor(id, 1.7, 17, -1) }
+        : { position: anchor('talent-park', -56.5, 55, -95.3), target: anchor('talent-park', -345.5, 22, -150.3) };
+    }
+    case 'conventionCenter': return { position: anchor('convention-center', -140, 224.1, -522), target: anchor('convention-center', 0, -0.9, 0) };
     case 'bayBridge': return bayBridgeShot();
     default: throw new Error(`Unhandled scenic camera: ${id}`);
   }

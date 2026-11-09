@@ -27,6 +27,13 @@
       "status": "osm"
     },
     {
+      "id": "shenzhen-bay-culture-square", "name": "深圳湾文化广场", "phase": 1,
+      "center": [22.51502806, 113.94018442],
+      "osm": { "building": "way/1441599159", "parts": ["way/1441599154", "way/1441599155", "way/1441599156", "way/1441599157", "way/1441599158"] },
+      "heightSource": "estimate", "status": "osm",
+      "note": "Site center is the 2026-11-08 OSM footprint centroid. Individual volume heights are derived from scaled MAD reference drawings, not surveyed or supplied by OSM."
+    },
+    {
       "id": "shenzhen-bay-park", "name": "深圳湾公园", "phase": 1,
       "center": [22.50073, 113.95380],
       "osm": { "park": "relation/8133384", "greenway": "relation/18220656" },

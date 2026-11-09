@@ -19,6 +19,10 @@ const CAMERA_PRESETS = [
   { id: 'djiSkyCity',  name: STR.cameraNames.djiSkyCity, category: 'scenic', fov: 52 },
   { id: 'pingAnTower', name: STR.cameraNames.pingAnTower, category: 'scenic', fov: 52 },
   { id: 'chunsunTower', name: STR.cameraNames.chunsunTower, category: 'scenic', fov: 52 },
+  { id: 'civicRoof', name: STR.cameraNames.civicRoof, category: 'scenic', fov: 52 },
+  { id: 'chunjianShell', name: STR.cameraNames.chunjianShell, category: 'scenic', fov: 55 },
+  { id: 'cultureSquare', name: STR.cameraNames.cultureSquare, category: 'scenic', fov: 52 },
+  { id: 'conventionCenter', name: STR.cameraNames.conventionCenter, category: 'scenic', fov: 52 },
   { id: 'bayBridge',   name: STR.cameraNames.bayBridge, category: 'scenic', fov: 44 }
 ];
 
@@ -267,6 +271,10 @@ class CameraSystem {
       case 'waterfront':
       case 'drone':
       case 'bayBridge':
+      case 'conventionCenter':
+      case 'cultureSquare':
+      case 'chunjianShell':
+      case 'civicRoof':
       case 'chunsunTower':
       case 'pingAnTower':
       case 'djiSkyCity': {

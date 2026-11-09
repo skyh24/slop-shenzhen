@@ -8,6 +8,7 @@ from geo import KX, KY, ORIGIN_LON, ORIGIN_LAT
 from roadgraph import build_roadgraph, graph_components
 from roads import road_direction, build_roads
 from build import enc_ring
+from turn_restrictions import collect_turn_restrictions
 
 
 def road(identity, refs, points, **tags):
@@ -94,3 +95,27 @@ class RoadGraphTests(unittest.TestCase):
         self.assertEqual(graph_components(3, links)['largestNodes'], 1)
         links.append([2, 0, 0, 7, 1, 1, []])
         self.assertEqual(graph_components(3, links)['largestNodes'], 3)
+
+    def test_turn_relations_preserve_osm_identity_and_conservative_via_approach(self):
+        graph, _ = self.build([road('way/1', [1, 2], [(-50, 0), (0, 0)], oneway='yes'),
+                               road('way/2', [2, 3], [(0, 0), (50, 0)], oneway='yes'),
+                               road('way/3', [2, 4], [(0, 0), (0, 40)], oneway='yes'),
+                               road('way/4', [4, 5], [(0, 40), (50, 40)], oneway='yes')])
+        members = [('from', 'w', 1), ('via', 'n', 2), ('to', 'w', 2)]
+        generic = {'type': 'restriction', 'restriction': 'only_straight_on'}
+        report = {}
+        extracted = collect_turn_restrictions([
+            ('relation/11', generic, members),
+            ('relation/12', {**generic, 'except': 'bicycle; motorcar'}, members),
+            ('relation/13', {'type': 'restriction', 'restriction': 'no_right_turn'},
+             [('from', 'w', 1), ('via', 'w', 3), ('to', 'w', 4)]),
+            ('relation/14', generic, members[:-1]),
+            ('relation/15', {**generic, 'restriction:motorcar': 'no_straight_on'}, members),
+        ], graph, report)
+        self.assertEqual(extracted['source'], 'osm-guangdong')
+        self.assertEqual([(r['osmId'], r['viaNodeId'], r['viaWayIds'], r['restriction']) for r in extracted['rules']],
+                         [('relation/11', 'node/2', [], 'only_straight_on'),
+                          ('relation/13', 'node/2', ['way/3'], 'no_right_turn'),
+                          ('relation/15', 'node/2', [], 'no_straight_on')])
+        self.assertEqual(report['turnRestrictions']['incompleteOsmIds'], ['relation/14'])
+        self.assertEqual(report['turnRestrictions']['relations']['notApplicableToCar'], 1)

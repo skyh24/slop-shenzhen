@@ -132,7 +132,7 @@ def build_roadgraph(osm, clip, report):
                           'tunnelLinks': sum(m['tunnel'] for m in metadata),
                           'widthSources': dict(Counter(m['widthSource'] for m in metadata)),
                           'skipped': dict(skipped), 'connectivity': graph_components(len(node_ids), links),
-                          'limitations': ['Turn restrictions and conditional access are not yet imported',
+                          'limitations': ['Conditional access is not yet imported',
                                           'Bridge and tunnel vertical profiles require source verification; layer is not height',
-                                          'Not yet connected to runtime traffic or controllers']}
+                                          'Unresolved vertical links are excluded from traffic and automatic driving']}
     return graph

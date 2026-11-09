@@ -14,7 +14,7 @@ export function roadLinkPoints(graph, [start, end, , , , , inner]) {
   return points.filter((p, i) => !i || p.x !== points[i - 1].x || p.z !== points[i - 1].z);
 }
 
-function convexHull(points) {
+export function convexHull(points) {
   const sorted = [...points].sort((a, b) => a.x - b.x || a.z - b.z);
   function half(vertices) {
     const result = [];
@@ -43,12 +43,10 @@ function overlaps(a, b) {
   return a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
 }
 
-function indexRoadFootprints(graph, grid) {
+function footprintIndex(grid) {
   const columns = grid.nx - 1;
   const rows = grid.nz - 1;
   const cells = new Array(columns * rows);
-  const junctions = new Map();
-  let groundLinks = 0;
 
   function addFootprint(points, sources) {
     if (points.length < 3) return;
@@ -70,6 +68,13 @@ function indexRoadFootprints(graph, grid) {
       }
     }
   }
+  return { cells, addFootprint };
+}
+
+function indexRoadFootprints(graph, grid) {
+  const { cells, addFootprint } = footprintIndex(grid);
+  const junctions = new Map();
+  let groundLinks = 0;
 
   function addArm(node, crossSection, source) {
     if (!junctions.has(node)) junctions.set(node, { points: [], sources: [] });
@@ -199,7 +204,7 @@ function appendTriangles(vertices, polygon, [originX, originZ], plane) {
   return area;
 }
 
-function appendRoadTriangle(vertices, sources, triangle, footprints, origin) {
+function appendRoadTriangle(vertices, sources, triangle, footprints, origin, union) {
   const [a, b, c] = triangle;
   const determinant = turn(a, b, c);
   if (determinant >= -EPSILON) return 0;
@@ -216,6 +221,10 @@ function appendRoadTriangle(vertices, sources, triangle, footprints, origin) {
     const polygon = intersectFootprint(triangle, footprint);
     if (!hasArea(polygon)) continue;
     for (const source of footprint.sources) sources.set(source.linkIndex, source);
+    if (!union) {
+      area += appendTriangles(vertices, polygon, origin, plane);
+      continue;
+    }
     // 在每个地形三角面内做并集，交叉口和相邻弯道只有一层路面。
     let visible = [polygon];
     for (const prior of covered) {
@@ -231,28 +240,21 @@ function appendRoadTriangle(vertices, sources, triangle, footprints, origin) {
   return area;
 }
 
-export function createRoadSurfaceLayout(graph, terrainSurface) {
-  if (!Array.isArray(graph?.links) || graph.links.length !== graph.metadata?.length
-    || terrainSurface?.version !== 1 || !terrainSurface.grid) {
-    throw new Error('Source road graph and rendered terrain surface are required');
-  }
-  const { cells, groundLinks } = indexRoadFootprints(graph, terrainSurface.grid);
+function clippedSurface(cells, terrainSurface, id, statistics, union = true) {
   const chunks = [];
-  const rendered = new Set();
-  const statistics = { sourceLinks: graph.links.length, groundLinks, unresolvedLinks: graph.links.length - groundLinks,
-    renderedLinks: 0, linksWithoutSurface: 0, triangles: 0, areaM2: 0 };
 
   for (const chunk of terrainSurface.chunks) {
     const [originX, originZ] = chunk.origin;
     const { indices, cellRanges } = chunk;
     // 用和实际地形网格相同的 Float32 输入；保留分块局部坐标以避免世界坐标量化。
-    const positions = new Float32Array(chunk.positions);
+    let positions;
     const vertices = [];
     const roadRanges = [];
     const sources = new Map();
     for (let i = 0; i < cellRanges.length; i += 3) {
       const footprints = cells[cellRanges[i]];
       if (!footprints) continue;
+      positions ??= new Float32Array(chunk.positions);
       const start = cellRanges[i + 1];
       const end = start + cellRanges[i + 2];
       const firstVertex = vertices.length;
@@ -262,20 +264,51 @@ export function createRoadSurfaceLayout(graph, terrainSurface) {
           const offset = indices[index + j] * 3;
           triangle.push({ x: positions[offset] + originX, y: positions[offset + 1], z: positions[offset + 2] + originZ });
         }
-        statistics.areaM2 += appendRoadTriangle(vertices, sources, triangle, footprints, chunk.origin);
+        statistics.areaM2 += appendRoadTriangle(vertices, sources, triangle, footprints, chunk.origin, union);
       }
       if (vertices.length > firstVertex) roadRanges.push(cellRanges[i], firstVertex, vertices.length);
     }
     if (vertices.length === 0) continue;
-    chunks.push({ id: `road-ground:${chunk.id}`, origin: chunk.origin, positions: new Float32Array(vertices),
+    chunks.push({ id: `${id}:${chunk.id}`, origin: chunk.origin, positions: new Float32Array(vertices),
       cellRanges: new Uint32Array(roadRanges),
       sources: [...sources.values()], heightSource: 'terrain' });
     statistics.triangles += vertices.length / 9;
-    for (const index of sources.keys()) rendered.add(index);
   }
+  return chunks;
+}
+
+export function createRoadSurfaceLayout(graph, terrainSurface) {
+  if (!Array.isArray(graph?.links) || graph.links.length !== graph.metadata?.length
+    || terrainSurface?.version !== 1 || !terrainSurface.grid) {
+    throw new Error('Source road graph and rendered terrain surface are required');
+  }
+  const { cells, groundLinks } = indexRoadFootprints(graph, terrainSurface.grid);
+  const statistics = { sourceLinks: graph.links.length, groundLinks, unresolvedLinks: graph.links.length - groundLinks,
+    renderedLinks: 0, linksWithoutSurface: 0, triangles: 0, areaM2: 0 };
+  const chunks = clippedSurface(cells, terrainSurface, 'road-ground', statistics);
+  const rendered = new Set();
+  for (const chunk of chunks) for (const source of chunk.sources) rendered.add(source.linkIndex);
   statistics.renderedLinks = rendered.size;
   statistics.linksWithoutSurface = groundLinks - rendered.size;
   return { chunks, statistics };
+}
+
+export function createRoadPolygonLayout(feature, terrainSurface) {
+  const { id, trianglesXZ } = feature;
+  if (terrainSurface?.version !== 1 || !terrainSurface.grid || trianglesXZ.length % 6 !== 0) {
+    throw new Error('Attributed road polygons and rendered terrain surface are required');
+  }
+  const { cells, addFootprint } = footprintIndex(terrainSurface.grid);
+  const source = [{ linkIndex: 0, osmIds: feature.sourceIds }];
+  for (let i = 0; i < trianglesXZ.length; i += 6) {
+    const a = { x: trianglesXZ[i], z: trianglesXZ[i + 1] };
+    const b = { x: trianglesXZ[i + 2], z: trianglesXZ[i + 3] };
+    const c = { x: trianglesXZ[i + 4], z: trianglesXZ[i + 5] };
+    const winding = turn(a, b, c);
+    if (Math.abs(winding) > EPSILON) addFootprint(winding > 0 ? [a, b, c] : [a, c, b], source);
+  }
+  const statistics = { triangles: 0, areaM2: 0 };
+  return { chunks: clippedSurface(cells, terrainSurface, id, statistics, false), statistics };
 }
 
 function sampleRoadCell({ positions, origin }, start, end, worldX, worldZ) {

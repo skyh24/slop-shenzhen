@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "checkedAt": "2026-11-09",
+  "osmSnapshotId": "osm-guangdong",
+  "evidence": {
+    "shennanDesign": "https://www.szmedi.com.cn/xmzs/info_26.aspx?itemid=11&lcid=12",
+    "chegongmiaoPlan": "https://pnr.sz.gov.cn/ywzy/fdtz/cggbcx/ftq/content/post_5835728.html",
+    "centralPlanting": "https://zyeen.com/news/373.html",
+    "d1Landscaping": "https://cgj.sz.gov.cn/xsmh/szlh/gggs/content/post_9539774.html",
+    "hongshulinIntersection": "https://www.szft.gov.cn/attachment/1/1393/1393860/11025408.pdf",
+    "roadDesignGuide": "https://jtys.sz.gov.cn/attachment/0/293/293220/5584680.pdf",
+    "signalMountingStandard": "https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=5C614CCCC449A4D8A0372E44B659E971",
+    "xiangmiInterchange": "https://gzw.sz.gov.cn/ztzl/gzgqztzl/szgqfwzt/qyhd/content/post_11814512.html",
+    "beihuanDesign": "https://pnr.sz.gov.cn/attachment/1/1442/1442495/10537363.pdf",
+    "caimeiInterchange": "https://www.sz.gov.cn/cn/xxgk/bmtx/content/post_12748328.html"
+  },
+  "corridors": [
+    {
+      "id": "shennan-chegongmiao",
+      "bounds": [114.018, 22.5379, 114.024, 22.5401],
+      "roadNames": ["深南大道", "深南大道辅路"],
+      "sidewalks": ["way/958548497", "way/1221006219", "way/1416551430", "way/1348679787"],
+      "crossings": ["way/1416551427", "way/1416551428", "way/1348679788"],
+      "median": {
+        "opposingWayIds": ["way/40978183", "way/892901021"],
+        "bounds": [114.0184, 22.538, 114.0238, 22.5397],
+        "edgeInsetEstimateM": 0.6,
+        "evidence": "centralPlanting"
+      },
+      "entranceNodeIds": [1491790883]
+    },
+    {
+      "id": "shennan-hongshulin",
+      "bounds": [114.0019, 22.5354, 114.0044, 22.53665],
+      "roadNames": ["深南大道", "深南大道辅路", "竹子林四路", "红树林路"],
+      "sidewalks": ["way/1241802792", "way/1241802793", "way/1241802835"],
+      "crossings": ["way/1241802790", "way/1241802791", "way/1241802794"]
+    }
+  ],
+  "intersections": [
+    {
+      "id": "shennan-hongshulin",
+      "approaches": [
+        {"osmNodeId": 8894987731, "osmWayId": "way/996657789", "group": 0},
+        {"osmNodeId": 8894945794, "osmWayId": "way/996247118", "group": 0},
+        {"osmNodeId": 8894945796, "osmWayId": "way/603067550", "group": 1},
+        {"osmNodeId": 2460132754, "osmWayId": "way/996657788", "group": 1}
+      ]
+    }
+  ],
+  "styleEstimates": {
+    "sidewalkWidthM": 3,
+    "crossingWidthM": 3,
+    "sidewalkRiseM": 0.12,
+    "medianRiseM": 0.25,
+    "markingWidthM": 0.15,
+    "stopLineWidthM": 0.35
+  }
+}

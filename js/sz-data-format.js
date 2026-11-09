@@ -15,6 +15,34 @@ function validateSeaSurface(surface) {
     && Array.isArray(surface.polygons) && surface.polygons.length > 0, 'sea surface and source');
 }
 
+function validateStreetscape(streetscape, parks) {
+  if (streetscape === undefined) return;
+  const source = streetscape?.source;
+  const wayId = /^way\/\d+$/;
+  const nodeId = /^node\/\d+$/;
+  const park = parks.find(park => park.id === source?.parkId && park.osmId === source?.parkOsmId);
+  const members = new Set(park?.areas.map(area => area.osmId));
+  requireData(streetscape?.version === 1 && source?.osmSnapshotId === 'osm-guangdong'
+    && members.has(source?.areaOsmId) && wayId.test(streetscape.arrivalWayId)
+    && Array.isArray(streetscape.paths) && Array.isArray(streetscape.trees), 'streetscape source');
+  for (const path of streetscape.paths) {
+    requireData(wayId.test(path.osmId) && ['footway', 'cycleway'].includes(path.kind)
+      && path.tags?.highway === path.kind && path.heightSource === 'terrain'
+      && ['osm-width', 'visual-estimate'].includes(path.widthSource) && path.widthM > 0 && Number.isFinite(path.widthM)
+      && Array.isArray(path.segments) && path.segments.length > 0, 'streetscape path');
+    for (const { points, nodeIds } of path.segments) {
+      requireData(Array.isArray(points) && points.length >= 2 && points.every(point => Array.isArray(point)
+        && point.length === 2 && point.every(Number.isFinite)) && Array.isArray(nodeIds)
+        && nodeIds.length === points.length && nodeIds.every(id => id === null || nodeId.test(id)), 'streetscape path coordinates');
+    }
+  }
+  for (const tree of streetscape.trees) {
+    requireData(nodeId.test(tree.osmId) && members.has(tree.areaOsmId) && tree.positionSource === 'osm-node'
+      && tree.tags?.natural === 'tree' && tree.appearanceSource === 'visual-estimate'
+      && Number.isFinite(tree.x) && Number.isFinite(tree.z), 'streetscape tree source');
+  }
+}
+
 export function decodeRing(flat) {
   requireData(Array.isArray(flat) && flat.length >= 4 && flat.length % 2 === 0, 'coordinate sequence');
   const out = new Float64Array(flat.length);
@@ -125,6 +153,7 @@ export function validateCityPayload(raw) {
           && point.length === 2 && point.every(Number.isFinite)), 'park area and arrival samples');
     }
   }
+  validateStreetscape(raw.streetscape, raw.parks ?? []);
   for (let i = 0; i < buildings.h.length; i++) {
     requireData(typeof buildings.id[i] === 'string' && buildings.id[i].length > 0, 'building identity');
     requireData(Number.isFinite(buildings.h[i]) && Number.isFinite(buildings.minH[i])
@@ -152,6 +181,21 @@ export function validateCityPayload(raw) {
       && [-1, 0, 1].includes(direction) && Array.isArray(inner) && inner.length % 2 === 0
       && inner.every(Number.isFinite), 'road graph link');
   }
+  if (graph.turnRestrictions !== undefined) {
+    const { version, source, rules } = graph.turnRestrictions ?? {};
+    const wayId = id => /^way\/\d+$/.test(id);
+    const nodeIds = new Set(graph.nodeIds);
+    requireData(version === 1 && source === 'osm-guangdong' && Array.isArray(rules) && rules.every(rule =>
+      /^relation\/\d+$/.test(rule?.osmId) && /^(no|only)_\w+$/.test(rule.restriction)
+      && /^node\/\d+$/.test(rule.viaNodeId) && nodeIds.has(rule.viaNodeId) && wayId(rule.fromWayId)
+      && Array.isArray(rule.toWayIds) && rule.toWayIds.length > 0 && rule.toWayIds.every(wayId)
+      && Array.isArray(rule.viaWayIds) && rule.viaWayIds.every(wayId)), 'road graph turn restrictions');
+  }
+  if (raw.roadFrontage !== undefined) {
+    const frontage = raw.roadFrontage;
+    requireData(frontage?.version === 1 && frontage.source?.osmSnapshotId === 'osm-guangdong'
+      && Array.isArray(frontage.corridors) && Array.isArray(frontage.features) && Array.isArray(frontage.intersections), 'road frontage source');
+  }
   return raw;
 }
 
@@ -177,9 +221,11 @@ export function decodeCityPayload(raw) {
     coverage: raw.coverage.map(polygon), land: raw.land.map(polygon), water: raw.water.map(polygon),
     wetland: raw.wetland.map(polygon), green: raw.green.map(polygon),
     roadGraph: raw.roadGraph, terrain: raw.terrain, terrainSurface: raw.terrainSurface,
+    roadFrontage: raw.roadFrontage ?? null,
     metro: raw.metro, landmarks: raw.landmarks,
     bridges: raw.bridges ?? [],
     seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },
+    streetscape: raw.streetscape ?? null,
     parks: (raw.parks ?? []).map(park => ({ ...park, areas: park.areas.map(area => ({ ...area, polygon: polygon(area.polygon) })) }))
   } };
 }

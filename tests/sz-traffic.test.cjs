@@ -26,6 +26,7 @@ class Object3D {
 const three = { Group, InstancedMesh, Object3D, MeshStandardNodeMaterial: class {} };
 const load = (name, imports) => loadModule(readFileSync(join(__dirname, '../js', name), 'utf8'), { imports });
 const roads = load('sz-roads.js', { 'three/webgpu': three });
+const signalModule = load('sz-intersection-control.js');
 const vehiclePhysics = load('vehicle-physics.js');
 const vehicleSpecs = {
   taxi: { track: 1.54, wheelbase: 2.8 }, sedan: { track: 1.62, wheelbase: 2.92 },
@@ -33,6 +34,7 @@ const vehicleSpecs = {
 };
 const { createTrafficGraph, createSzTraffic, trafficModelBounds, writeTrafficCollider } = load('sz-traffic.js', {
   'three/webgpu': three,
+  './sz-intersection-control.js': signalModule,
   './sz-roads.js': roads,
   './sz-vehicles.js': {
     VEHICLE_SPECS: vehicleSpecs,
@@ -92,4 +94,57 @@ test('traffic stops before a player and uses its drawn position for collision qu
   const position = [actor.pose.x, actor.pose.y, actor.pose.z];
   assert.ok(traffic.group.children[0].transforms.some(values => position.every((value, index) => value === values[index])));
   assert.ok(traffic.nearColliders(actor.pose.x, actor.pose.z, 0).includes(actor.collider));
+});
+
+function signalRoad() {
+  const graph = { nodes: [0, 0, 900, 0], nodeIds: ['node/1', 'node/2'], names: ['Road'],
+    links: [[0, 1, 0, 10, 3, 1, []]], metadata: [groundRoad(1)] };
+  const source = { intersections: [{ id: 'fixture', bounds: [244, -7, 270, 7], approaches: [{
+    osmNodeId: 3, osmWayId: 'way/1', fromNodeId: 'node/1', toNodeId: 'node/2', group: 0,
+    stopX: 250, stopZ: 0, dx: 1, dz: 0, widthM: 10
+  }] }] };
+  const control = signalModule.createIntersectionControl(source, graph);
+  return { graph, control };
+}
+
+test('traffic stops for a held approach and clears the conflict area after green ends', () => {
+  const { graph, control } = signalRoad();
+  const traffic = createSzTraffic(new Group(), graph, { signals: control,
+    roadHeight: (x, z) => x >= 0 && x <= 900 && Math.abs(z) <= 5 ? 2 : null });
+  const focus = { x: 196, z: 0 };
+  for (let i = 0; i < 550; i++) traffic.update(0.05, focus, [], 5);
+  const waiter = traffic.vehicles.find(actor => actor.waitingForSignal);
+  assert.ok(waiter && waiter.collider.maxX < 250);
+  assert.equal(traffic.statistics.signalEntries, 0);
+  for (let i = 0; i < 45 && !waiter.reservation; i++) traffic.update(0.05, focus, [], 0.4);
+  assert.ok(waiter.reservation);
+  const afterGreen = waiter.pose.x;
+  for (let i = 0; i < 160; i++) traffic.update(0.05, focus, [], 5);
+  assert.ok(waiter.pose.x > afterGreen + 24);
+  assert.equal(waiter.reservation, null);
+  assert.equal(traffic.statistics.signalEntries, 1);
+});
+
+test('traffic refuses to reserve an intersection over a narrow unsupported gap in the exit', () => {
+  const { graph, control } = signalRoad();
+  const traffic = createSzTraffic(new Group(), graph, { signals: control,
+    roadHeight: (x, z) => x >= 0 && x <= 900 && Math.abs(z) <= 5 && (x <= 265.17 || x >= 265.51) ? 2 : null });
+  for (let i = 0; i < 380; i++) traffic.update(0.05, { x: 196, z: 0 }, [], 0.7);
+  assert.ok(traffic.statistics.signalExitRejects > 0);
+  assert.equal(traffic.statistics.signalEntries, 0);
+  assert.equal(control.snapshot(0.7)[0].owner, null);
+});
+
+test('traffic holds at a green stop line while a physical vehicle occupies the exit', () => {
+  const { graph, control } = signalRoad();
+  const traffic = createSzTraffic(new Group(), graph, { signals: control,
+    roadHeight: (x, z) => x >= 0 && x <= 900 && Math.abs(z) <= 5 ? 2 : null });
+  const focus = { x: 196, z: 0 };
+  const parked = { type: 'car', position: { x: 278, y: 2, z: 0 }, heading: Math.PI / 2,
+    collisionBounds: { min: { x: -1.1, y: 0, z: -2.5 }, max: { x: 1.1, y: 1.8, z: 2.5 } } };
+  for (let i = 0; i < 550; i++) traffic.update(0.05, focus, [parked], 0.7);
+  assert.equal(traffic.statistics.signalEntries, 0);
+  assert.ok(traffic.vehicles.some(actor => actor.waitingForSignal && actor.blocker?.atExit));
+  for (let i = 0; i < 80; i++) traffic.update(0.05, focus, [], 0.7);
+  assert.ok(traffic.statistics.signalEntries > 0);
 });

@@ -1191,6 +1191,53 @@ body[data-mode='helicopter'] .gauge-alt {
   border-radius: 14px;
 }
 
+.map-drive-panel {
+  position: absolute;
+  left: var(--edge);
+  top: calc(var(--edge) + 62px);
+  width: min(320px, calc(100% - 2 * var(--edge) - 54px));
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.map-drive-panel p {
+  margin: 6px 0 10px;
+  color: var(--text-2);
+}
+
+.map-drive-actions,
+.drive-hud {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.drive-hud {
+  align-self: start;
+  padding: 4px 8px;
+  font-size: 12.5px;
+}
+
+.map-drive-actions .tool-btn,
+.drive-hud .tool-btn {
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.map-drive-actions .tool-btn:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.map-drive-panel[hidden],
+.map-drive-actions [hidden],
+.drive-hud[hidden],
+.drive-hud [hidden] {
+  display: none;
+}
+
 .fullmap-footer {
   position: absolute;
   left: 50%;

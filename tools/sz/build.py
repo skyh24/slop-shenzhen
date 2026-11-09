@@ -14,12 +14,15 @@ from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project
 from land import build_land
 from osm import PBF, read_osm
 from parks import build_parks
+from road_frontage import build_road_frontage
 from roads import CLASSES, build_roads
 from roadgraph import build_roadgraph
 from sea_surface import build_sea_surface
+from streetscape import build_streetscape
 from terrain import build_terrain
 from terrain_surface import build_terrain_surface
 from metro import build_metro
+from turn_restrictions import build_turn_restrictions
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'js/sz-city.json.gz'
@@ -81,12 +84,15 @@ def main():
     terrain = build_terrain(clip, report, source=args.terrain_source)
     sea_surface = build_sea_surface(osm, clip, land, terrain, report)
     road_graph = build_roadgraph(osm, clip, report)
+    road_graph['turnRestrictions'] = build_turn_restrictions(PBF, road_graph, report)
+    road_frontage = build_road_frontage(PBF, osm, road_graph, buildings, report)
     terrain_surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland)
     metro = build_metro(clip, report, use_cache=not args.no_cache)
 
     landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
     landmarks = landmark_entries(landmark_manifest)
     parks = build_parks(landmark_manifest, green, land, water, report)
+    streetscape = build_streetscape(PBF, osm, parks, report)
     bridges = build_bridges(PBF, landmark_manifest, report)
     lm_index = {lm['id']: i for i, lm in enumerate(landmarks)}
 
@@ -99,6 +105,7 @@ def main():
         'terrainSurface': terrain_surface,
         'metro': metro,
         'roadGraph': road_graph,
+        'roadFrontage': road_frontage,
         'origin': [ORIGIN_LON, ORIGIN_LAT],
         'bounds': [round(minx), round(minz), round(maxx), round(maxz)],
         'coverage': [enc_poly(p) for p in getattr(clip, 'geoms', [clip])],
@@ -134,6 +141,8 @@ def main():
     }
     if sea_surface:
         payload['seaSurface'] = {**sea_surface, 'polygons': [enc_poly(p) for p in sea_surface['polygons']]}
+    if streetscape:
+        payload['streetscape'] = streetscape
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode()

@@ -15,12 +15,14 @@ function roadMatches(label, query) {
 }
 
 class NYCMapSystem {
-  constructor({ controllerManager, cameraSystem, allBlocks = [], onTeleport, onToggle }) {
+  constructor({ controllerManager, cameraSystem, allBlocks = [], onTeleport, onToggle, drive = null, touchHints = false }) {
     this.controllerManager = controllerManager;
     this.cameraSystem = cameraSystem;
     this.allBlocks = allBlocks;
     this.onTeleport = onTeleport;
     this.onToggle = onToggle;
+    this.drive = drive;
+    this.touchHints = touchHints;
 
     this.miniCanvas = document.getElementById('minimap-canvas');
     this.miniCtx = this.miniCanvas ? this.miniCanvas.getContext('2d') : null;
@@ -62,6 +64,12 @@ class NYCMapSystem {
 
     this.waypoint = null;
     this.metroLines = new Set();
+    this.isPlanningDrive = false;
+    this.driveStart = null;
+    this.driveEnd = null;
+    this.driveRoute = null;
+    this.drivePath = null;
+    this.driveFeedback = '';
 
     if (document.fonts) {
       document.fonts.ready.then(() => {
@@ -81,6 +89,7 @@ class NYCMapSystem {
     const zoomOutBtn = document.getElementById('map-zoom-out');
     const centerPlayerBtn = document.getElementById('map-center-player');
     const fullIslandBtn = document.getElementById('map-view-all');
+    if (this.drive) this.initDriveEvents();
 
     if (miniCard) {
       miniCard.addEventListener('click', () => this.toggleFullMap(true));
@@ -128,7 +137,8 @@ class NYCMapSystem {
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape' && this.isFullMapOpen) {
-        this.toggleFullMap(false);
+        const metro = document.getElementById('metro-popover');
+        if (typeof metro?.hidePopover !== 'function' || !metro.matches(':popover-open')) this.toggleFullMap(false);
       } else if (e.code === 'KeyM' && !isTypingInField(e)) {
         this.toggleFullMap(!this.isFullMapOpen);
       }
@@ -170,7 +180,7 @@ class NYCMapSystem {
 
         if (mx >= 0 && mx <= rect.width && my >= 0 && my <= rect.height) {
           const wPos = this.screenToWorld(mx, my, rect.width, rect.height);
-          if (this.elHoverInfo) {
+          if (this.elHoverInfo && !this.isPlanningDrive) {
             this.elHoverInfo.textContent = STR.map.teleportHint(getLocationLabel(wPos.x, wPos.z));
           }
         }
@@ -186,8 +196,12 @@ class NYCMapSystem {
           const my = e.clientY - rect.top;
           if (mx >= 0 && mx <= rect.width && my >= 0 && my <= rect.height) {
             const wPos = this.screenToWorld(mx, my, rect.width, rect.height);
-            const destination = this.onTeleport?.(wPos.x, wPos.z);
-            if (!destination && this.elHoverInfo) this.elHoverInfo.textContent = STR.map.noArrival;
+            if (this.isPlanningDrive) {
+              if (!this.drive.active) this.pickDrivePoint(wPos.x, wPos.z);
+            } else {
+              const destination = this.onTeleport?.(wPos.x, wPos.z);
+              if (!destination && this.elHoverInfo) this.elHoverInfo.textContent = STR.map.noArrival;
+            }
             this.renderFullMap();
           }
         }
@@ -214,6 +228,122 @@ class NYCMapSystem {
         this.viewCenterZ = before.z - (my - rect.height * 0.5) / this.viewZoom;
         this.renderFullMap();
       }, { passive: false });
+    }
+  }
+
+  initDriveEvents() {
+    const get = id => document.getElementById(id);
+    this.driveUi = { toggle: get('map-plan-drive'), panel: get('map-drive-panel'), status: get('map-drive-status'),
+      clear: get('map-drive-clear'), arrive: get('map-drive-to-start'), start: get('map-drive-start'),
+      stop: get('map-drive-stop'), hud: get('drive-hud'), hudStatus: get('drive-hud-status'), hudStop: get('drive-hud-stop') };
+    const { toggle, clear, arrive, start, stop, hudStop } = this.driveUi;
+    toggle?.addEventListener('click', () => {
+      if (this.drive.active) return;
+      this.isPlanningDrive = !this.isPlanningDrive;
+      this.resetDrivePlan();
+      this.renderPointerHint();
+    });
+    clear?.addEventListener('click', () => this.resetDrivePlan());
+    arrive?.addEventListener('click', () => {
+      this.driveFeedback = this.drive.goToStart(this.driveRoute) ? '' : STR.drive.startUnavailable;
+      this.renderDriveUi();
+    });
+    start?.addEventListener('click', () => {
+      if (this.drive.start(this.driveRoute)) this.toggleFullMap(false);
+      this.renderDriveUi();
+    });
+    for (const button of [stop, hudStop]) button?.addEventListener('click', () => this.drive.stop('manual'));
+  }
+
+  resetDrivePlan() {
+    this.drive.stop();
+    this.driveStart = this.driveEnd = this.driveRoute = this.drivePath = null;
+    this.driveFeedback = '';
+    this.miniCache = null;
+    this.fullStaticKey = '';
+    this.renderDriveUi();
+  }
+
+  renderPointerHint() {
+    if (!this.elHoverInfo) return;
+    this.elHoverInfo.textContent = this.isPlanningDrive
+      ? (this.touchHints ? STR.drive.touchHint : STR.drive.mapHint)
+      : (this.touchHints ? STR.map.touchHint : STR.map.clickHint);
+  }
+
+  pickDrivePoint(x, z) {
+    if (this.driveRoute) this.resetDrivePlan();
+    const point = this.drive.snap(x, z);
+    this.driveFeedback = '';
+    if (!point) {
+      this.driveFeedback = STR.drive.noPoint;
+    } else if (!this.driveStart) {
+      this.driveStart = point;
+    } else {
+      this.driveEnd = point;
+      this.driveRoute = this.drive.route(this.driveStart, point);
+      if (this.driveRoute) {
+        this.drivePath = new Path2D();
+        addLine(this.drivePath, this.driveRoute.samples);
+        this.miniCache = null;
+        this.fullStaticKey = '';
+      } else {
+        this.driveFeedback = STR.drive.noRoute;
+      }
+    }
+    this.renderDriveUi();
+  }
+
+  renderDriveUi() {
+    const ui = this.driveUi;
+    if (!ui?.panel) return;
+    const state = this.drive.status;
+    const active = this.drive.active;
+    const hasRoute = Boolean(this.driveRoute);
+    const canStart = hasRoute && !active && this.isFullMapOpen && this.drive.canStart(this.driveRoute);
+    const stateText = STR.drive[state] ?? '';
+    const routeStatus = hasRoute ? STR.drive.distance(this.driveRoute.length) : '';
+    const hint = this.driveFeedback || (hasRoute ? (canStart ? STR.drive.ready : STR.drive.needsStart)
+      : this.driveStart ? STR.drive.chooseEnd : STR.drive.chooseStart);
+    const text = [routeStatus, active ? stateText : hint].filter(Boolean).join(' · ');
+    if (ui.status.textContent !== text) ui.status.textContent = text;
+    const pressed = String(this.isPlanningDrive);
+    if (ui.toggle.getAttribute('aria-pressed') !== pressed) ui.toggle.setAttribute('aria-pressed', pressed);
+    ui.toggle.disabled = active;
+    ui.panel.hidden = !this.isPlanningDrive;
+    ui.clear.hidden = !this.driveStart || active;
+    ui.arrive.hidden = !hasRoute || active || canStart;
+    ui.start.hidden = !hasRoute || active;
+    ui.start.disabled = !canStart;
+    ui.stop.hidden = !active;
+    ui.hud.hidden = !stateText;
+    ui.hudStop.hidden = !active;
+    if (ui.hudStatus.textContent !== stateText) ui.hudStatus.textContent = stateText;
+  }
+
+  drawDrivePins(ctx, view, mini = false) {
+    if (!this.isPlanningDrive) return;
+    const start = this.driveRoute?.from ?? this.driveStart;
+    const end = this.driveRoute?.to ?? this.driveEnd;
+    for (const [point, colour, label] of [[start, '#8ce2a9', STR.drive.from], [end, MAP.route, STR.drive.to]]) {
+      if (!point || !view.sees({ minX: point.x, maxX: point.x, minZ: point.z, maxZ: point.z })) continue;
+      const x = view.toX(point.x), y = view.toY(point.z);
+      ctx.fillStyle = MAP.halo;
+      ctx.beginPath();
+      ctx.arc(x, y, mini ? 5 : 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = colour;
+      ctx.beginPath();
+      ctx.arc(x, y, mini ? 3 : 5, 0, Math.PI * 2);
+      ctx.fill();
+      if (!mini) {
+        ctx.font = `700 11px ${FONT}`;
+        ctx.textAlign = 'left';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = MAP.halo;
+        ctx.strokeText(label, x + 10, y - 6);
+        ctx.fillText(label, x + 10, y - 6);
+      }
     }
   }
 
@@ -269,7 +399,7 @@ class NYCMapSystem {
     if (!this.modal) return;
     this.modal.classList.toggle('hidden', !this.isFullMapOpen);
     if (this.isFullMapOpen) {
-
+      this.renderPointerHint();
       for (const pop of document.querySelectorAll('.popover[popover]')) {
         if (typeof pop.hidePopover === 'function' && pop.matches(':popover-open')) pop.hidePopover();
       }
@@ -374,6 +504,14 @@ class NYCMapSystem {
       ctx.lineWidth = Math.max(3 / v.s, 9);
       ctx.stroke(this.searchPath);
     }
+    if (this.drivePath) {
+      ctx.strokeStyle = MAP.halo;
+      ctx.lineWidth = 7 / v.s;
+      ctx.stroke(this.drivePath);
+      ctx.strokeStyle = MAP.route;
+      ctx.lineWidth = 4 / v.s;
+      ctx.stroke(this.drivePath);
+    }
     ctx.restore();
   }
 
@@ -438,7 +576,10 @@ class NYCMapSystem {
   }
 
   update() {
-
+    if (this.isFullMapOpen && this.isPlanningDrive || this.drive?.status !== this.previousDriveStatus) {
+      this.renderDriveUi();
+      this.previousDriveStatus = this.drive?.status;
+    }
     if (this.isFullMapOpen) {
       this.renderFullMap();
     } else {
@@ -514,6 +655,7 @@ class NYCMapSystem {
       dpr * w * 2 * k, dpr * h * 2 * k);
 
     v.screen(ctx);
+    this.drawDrivePins(ctx, v, true);
     const toX = (wx) => v.toX(wx);
     const toY = (wz) => v.toY(wz);
 
@@ -595,6 +737,7 @@ class NYCMapSystem {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(this.fullStatic, 0, 0);
     v.screen(ctx);
+    this.drawDrivePins(ctx, v);
     const toX = (wx) => v.toX(wx);
     const toY = (wz) => v.toY(wz);
 

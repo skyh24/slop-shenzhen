@@ -993,6 +993,7 @@
     "dji-sky-city",
     "huaqiangbei",
     "ping-an",
+    "shenzhen-bay-culture-square",
     "super-hq",
     "tencent-binhai",
     "upperhills",
@@ -1226,10 +1227,134 @@
       "largestLinkFraction": 0.9149
     },
     "limitations": [
-      "Turn restrictions and conditional access are not yet imported",
+      "Conditional access is not yet imported",
       "Bridge and tunnel vertical profiles require source verification; layer is not height",
-      "Not yet connected to runtime traffic or controllers"
+      "Unresolved vertical links are excluded from traffic and automatic driving"
     ]
+  },
+  "turnRestrictions": {
+    "source": "osm-guangdong",
+    "rules": 85,
+    "relations": {
+      "viaNode": 75,
+      "viaWayConservative": 10,
+      "invalidMembers": 19,
+      "notApplicableToCar": 1,
+      "withoutGraphApproach": 2
+    },
+    "incompleteOsmIds": [
+      "relation/10716437",
+      "relation/10716442",
+      "relation/10716443",
+      "relation/10716444",
+      "relation/10716445",
+      "relation/10767487",
+      "relation/10767488",
+      "relation/11353947",
+      "relation/11681250",
+      "relation/11681252",
+      "relation/12122276",
+      "relation/12122279",
+      "relation/12122284",
+      "relation/12241683",
+      "relation/12358198",
+      "relation/12358199",
+      "relation/17902462",
+      "relation/5652904",
+      "relation/5652906"
+    ],
+    "limitations": [
+      "Via-way relations use conservative entry filtering",
+      "Conditional access is not modeled"
+    ]
+  },
+  "roadFrontage": {
+    "corridors": [
+      {
+        "id": "shennan-chegongmiao",
+        "bounds": [
+          -3754.46196420826,
+          686.5738470948572,
+          -3137.290134475435,
+          930.1968250960931
+        ],
+        "roadIds": [
+          "way/1050921375",
+          "way/1051282761",
+          "way/1080860979",
+          "way/1155178377",
+          "way/40978183",
+          "way/837565287",
+          "way/892901021",
+          "way/996188220",
+          "way/996247114"
+        ],
+        "unresolvedVerticalWays": [],
+        "sidewalkIds": [
+          "way/958548497",
+          "way/1221006219",
+          "way/1416551430",
+          "way/1348679787"
+        ],
+        "crossingIds": [
+          "way/1416551427",
+          "way/1416551428",
+          "way/1348679788"
+        ],
+        "medianSource": {
+          "source": "https://zyeen.com/news/373.html",
+          "positionSource": "documented-median-between-osm-carriageways",
+          "boundarySource": "derived-estimate",
+          "areaM2": 9724.05
+        }
+      },
+      {
+        "id": "shennan-hongshulin",
+        "bounds": [
+          -5410.539707324038,
+          1068.6189716876777,
+          -5153.384778268939,
+          1207.0411182796556
+        ],
+        "roadIds": [
+          "way/1051261207",
+          "way/1051261208",
+          "way/1051261209",
+          "way/633620707",
+          "way/633620757",
+          "way/985389861",
+          "way/996247118",
+          "way/996657789"
+        ],
+        "unresolvedVerticalWays": [],
+        "sidewalkIds": [
+          "way/1241802792",
+          "way/1241802793",
+          "way/1241802835"
+        ],
+        "crossingIds": [
+          "way/1241802790",
+          "way/1241802791",
+          "way/1241802794"
+        ]
+      }
+    ],
+    "unresolvedPedestrianWays": [],
+    "entrances": [
+      {
+        "osmNodeId": 1491790883,
+        "ref": "D1",
+        "x": -3362.815,
+        "z": 851.174,
+        "status": "source-entrance-ground-connection-unresolved",
+        "nearestPavingM": 13.93
+      }
+    ],
+    "features": 8,
+    "planarTriangles": 2679,
+    "medianShrubsEstimated": 260,
+    "signalApproaches": 4,
+    "signalTimingSource": "user-defined-game-simulation"
   },
   "terrainSurface": {
     "chunks": 534,
@@ -1237,7 +1362,7 @@
     "triangles": 386740,
     "areaKm2": 105.759659,
     "areaErrorM2": -1.7e-06,
-    "seconds": 2.8,
+    "seconds": 2.69,
     "waterLevelsGenerated": false,
     "heightSource": "copernicus-glo30-dsm"
   },
@@ -1622,6 +1747,43 @@
     ],
     "unresolvedSourceIds": []
   },
+  "streetscape": {
+    "status": "pilot-generated",
+    "parkOsmId": "relation/8133384",
+    "areaOsmId": "way/571629065",
+    "paths": [
+      {
+        "osmId": "way/1436698491",
+        "kind": "footway",
+        "widthM": 2.5,
+        "widthSource": "visual-estimate",
+        "heightSource": "terrain"
+      },
+      {
+        "osmId": "way/1436698493",
+        "kind": "footway",
+        "widthM": 2.5,
+        "widthSource": "visual-estimate",
+        "heightSource": "terrain"
+      },
+      {
+        "osmId": "way/1436698490",
+        "kind": "cycleway",
+        "widthM": 3.0,
+        "widthSource": "visual-estimate",
+        "heightSource": "terrain"
+      },
+      {
+        "osmId": "way/534815196",
+        "kind": "cycleway",
+        "widthM": 3.0,
+        "widthSource": "visual-estimate",
+        "heightSource": "terrain"
+      }
+    ],
+    "trees": 17,
+    "excludedPaths": []
+  },
   "bridges": [
     {
       "id": "shenzhen-bay-bridge",
@@ -1652,6 +1814,6 @@
       ]
     }
   ],
-  "outputBytes": 6439556,
-  "seconds": 46.9
+  "outputBytes": 6483532,
+  "seconds": 19.6
 }

@@ -1,0 +1,16 @@
+{
+  "status": "reviewed-osm-pilot",
+  "checkedAt": "2026-11-09",
+  "osmSnapshotId": "osm-guangdong",
+  "parkId": "shenzhen-bay-park",
+  "parkOsmId": "relation/8133384",
+  "areaOsmId": "way/571629065",
+  "source": "https://cgj.sz.gov.cn/xsmh/szlh/jpld/content/post_2053209.html",
+  "arrivalWayId": "way/1436698491",
+  "paths": [
+    { "osmId": "way/1436698491", "kind": "footway", "widthEstimateM": 2.5 },
+    { "osmId": "way/1436698493", "kind": "footway", "widthEstimateM": 2.5 },
+    { "osmId": "way/1436698490", "kind": "cycleway", "widthEstimateM": 3.0 },
+    { "osmId": "way/534815196", "kind": "cycleway", "widthEstimateM": 3.0 }
+  ]
+}

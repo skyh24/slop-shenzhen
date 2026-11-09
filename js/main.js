@@ -10,10 +10,15 @@ import { getLocationLabel, getLocationInfo, inBounds, isTypingInField, findGroun
 import { buildSzGround } from './sz-ground.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads } from './sz-roads.js';
+import { buildSzRoadFrontage } from './sz-road-frontage.js';
+import { buildSzStreetscape } from './sz-streetscape.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
 import { buildShenzhenBayBridge } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
-import { createSzTraffic } from './sz-traffic.js';
+import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
+import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
+import { createAutoDrive } from './sz-auto-drive.js';
+import { VEHICLE_SPECS } from './sz-vehicles.js';
 import { sceneUniforms } from './sz-materials.js';
 import { ThirdPersonControllerManager } from './controllers.js';
 import { TouchControls } from './touch-controls.js';
@@ -43,6 +48,7 @@ async function initApp() {
   const loadingFill = document.getElementById('loading-progress');
   let graphicsLoss = null;
   let renderedFrames = 0;
+  let elapsed = 0;
   const query = new URLSearchParams(location.search);
   const qa = ['127.0.0.1', 'localhost'].includes(location.hostname) && query.get('qa') === '1' ? {
     chunkSize: query.get('chunks') === '500' ? 500 : BUILDING_RENDER_CHUNK_SIZE,
@@ -147,6 +153,9 @@ async function initApp() {
   markInit('ground');
   await showLoadingStage(STR.startup.roads, 'roads');
   const roads = buildSzRoads(scene, GEO.roadGraph, GEO.terrainSurface);
+  const roadFrontage = buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, {
+    groundHeight: ground.groundHeight, roadHeight: roads.roadHeight
+  });
   markInit('roads');
   await showLoadingStage(STR.startup.landmarks, 'landmarks');
   const landmarks = buildSzLandmarks(scene, { buildings: REAL_BUILDINGS, terrain: GEO.terrain });
@@ -155,18 +164,23 @@ async function initApp() {
   await showLoadingStage(STR.startup.blocks, 'blocks');
   const cityBlocks = buildCityBlocks(scene, { skipIds: landmarks.skipIds, renderChunkSize: qa?.chunkSize });
   markInit('blocks');
-  const colliders = [...landmarks.colliders, ...cityBlocks.colliders];
+  const buildings = [...landmarks.colliders, ...cityBlocks.colliders];
+  const streetscape = buildSzStreetscape(scene, GEO.streetscape, GEO.terrainSurface, {
+    groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, colliders: buildings
+  });
+  const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders];
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = createSzTraffic(scene, GEO.roadGraph, {
     roadHeight: roads.roadHeight,
-    colliders
+    colliders, signals: roadFrontage.control, detailedRoadIds: roadFrontage.detailedRoadIds,
+    canTurn: createTurnFilter(GEO.roadGraph)
   });
   markInit('traffic');
 
-  // 贴地道路与地形共面，控制器只需要一份接触三角面。
+  // 路缘接触和绘制共用同一份三角面，未覆盖的位置沿用源地形。
   await showLoadingStage(STR.startup.controllers, 'controllers');
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
-    groundHeight: ground.groundHeight,
+    groundHeight: (x, z) => roadFrontage.contactHeight(x, z) ?? ground.groundHeight(x, z),
     surfaces: landmarks.surfaces,
     nearTraffic: traffic.nearColliders
   });
@@ -188,7 +202,15 @@ async function initApp() {
     }
   } catch { /* Missing or unavailable storage does not prevent playing. */ }
   const players = Object.values(controllerManager.entities);
-  traffic.update(0, controllerManager.getActiveEntity().position, players);
+  roadFrontage.update(0);
+  traffic.update(0, controllerManager.getActiveEntity().position, players, 0);
+  const driveCar = controllerManager.entities.car;
+  const driveModel = trafficModelBounds(driveCar.collisionBounds, VEHICLE_SPECS.taxi);
+  const driveOptions = { model: driveModel, roadHeight: roads.roadHeight, control: roadFrontage.control };
+  const autoDrive = createAutoDrive({ ...driveOptions, nearTraffic: traffic.nearColliders });
+  let planner = null;
+  const drivePlanner = () => planner ??= createDrivePlanner(traffic.network, GEO.roadGraph, { ...driveOptions,
+    isClear: pose => controllerManager.isClearCarPose(pose), detailedRoadIds: roadFrontage.detailedRoadIds });
 
   function savePlayerState() {
     try {
@@ -235,7 +257,7 @@ async function initApp() {
     // 每类静态分块共用材质和顶点布局，预编译其中一块即可。
     for (const chunk of chunks) chunk.userData.sharesPipelineWith = first;
   }
-  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group].filter(Boolean), lightingSystem.sunLight.shadow);
+  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, streetscape.group, roadFrontage.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [
     traffic.group,
@@ -301,7 +323,8 @@ async function initApp() {
   const bayParkSource = GEO.parks.find(park => park.id === bayPark?.id);
   const bayParkRoad = bayPark && findGroundArrival(bayPark, 'car', { radius: 800 });
   const parkArrivals = {
-    person: bayParkSource?.areas.some(area => area.arrivals.length) && { ...bayPark, park: bayParkSource, detail: STR.teleport.parkWalk },
+    person: bayParkSource?.areas.some(area => area.arrivals.length) && { ...bayPark, ...streetscape.arrival, park: bayParkSource,
+      detail: streetscape.arrival ? STR.teleport.parkPath : STR.teleport.parkWalk },
     car: bayParkRoad && { ...bayParkRoad, detail: STR.teleport.nearParkRoad(getLocationLabel(bayParkRoad.x, bayParkRoad.z), bayParkRoad.distance) },
     helicopter: bayPark && { ...bayPark, detail: STR.teleport.parkFlight }
   };
@@ -361,6 +384,7 @@ async function initApp() {
   }
 
   function selectMode(mode) {
+    if (mode !== controllerManager.activeMode) autoDrive.stop('manual');
     controllerManager.setMode(mode);
     touchControls.setMode(controllerManager.activeMode);
     gamepadControls.reset();
@@ -430,14 +454,13 @@ async function initApp() {
         : invokers.find(button => button === document.activeElement) ?? invokers[0];
       for (const button of invokers) button.classList.toggle('is-open', open && button === invoker);
       if (!open) return;
-      const inMap = invoker?.id === 'map-metro';
-      const anchor = inMap ? invoker : document.getElementById(pop.dataset.anchor) || invoker;
+      const anchor = document.getElementById(pop.dataset.anchor) || invoker;
       const align = document.getElementById(pop.dataset.align) || invoker;
       if (!anchor || !align) return;
       const r = anchor.getBoundingClientRect();
       const spaceAbove = Math.max(0, r.top - 20);
       const spaceBelow = Math.max(0, window.innerHeight - r.bottom - 20);
-      let above = inMap || pop.dataset.side === 'above';
+      let above = pop.dataset.side === 'above';
       // The camera control moves to the top on touch screens; open toward the available space.
       if ((above ? spaceAbove : spaceBelow) < 160) above = spaceAbove > spaceBelow;
       pop.style.right = `${Math.max(8, window.innerWidth - align.getBoundingClientRect().right)}px`;
@@ -509,6 +532,7 @@ async function initApp() {
     const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(GEO.parks, x, z) : null);
     const destination = controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park });
     if (!destination) return null;
+    autoDrive.stop('manual');
     touchControls.reset();
     gamepadControls.reset();
     cameraSystem.resetForTeleport();
@@ -523,18 +547,42 @@ async function initApp() {
     return destination;
   }
 
+  function goToDriveStart(route) {
+    if (!route || autoDrive.active) return false;
+    const { x, z, dx, dz } = route.from;
+    const heading = Math.atan2(dx, dz);
+    if (!controllerManager.findTeleportPosition(x, z, heading, 0, true, null, { exact: true, mode: 'car' })) return false;
+    selectMode('car');
+    const destination = controllerManager.teleportActiveTo(x, z, heading, null, { exact: true });
+    if (!destination) return false;
+    touchControls.reset();
+    gamepadControls.reset();
+    cameraSystem.resetForTeleport();
+    selectCamera('chase', true);
+    return true;
+  }
+
   const mapSystem = new SZMapSystem({
     controllerManager,
     cameraSystem,
+    touchHints: touchControls.available,
     onToggle: (open) => {
       closePopovers();
       controllerManager.resetInput();
       touchControls.setEnabled(!open);
       gamepadControls.setEnabled(!open);
-      const mapHint = document.getElementById('fullmap-hover-info');
-      if (open && mapHint) mapHint.textContent = touchControls.available ? STR.map.touchHint : STR.map.clickHint;
     },
-    onTeleport: teleportTo
+    onTeleport: teleportTo,
+    drive: {
+      snap: (x, z) => drivePlanner().snap(x, z),
+      route: (start, end) => drivePlanner().route(start, end),
+      goToStart: goToDriveStart,
+      canStart: route => autoDrive.canStart(route, driveCar, controllerManager.activeMode),
+      start: route => autoDrive.start(route, driveCar, controllerManager.activeMode),
+      stop: autoDrive.stop,
+      get active() { return autoDrive.active; },
+      get status() { return autoDrive.status; }
+    }
   });
   wireMetroMenu(mapSystem, GEO.metro?.lines ?? []);
 
@@ -663,9 +711,26 @@ async function initApp() {
       camera: { id: cameraSystem.activePresetId, position: cameraSystem.camera.position.toArray() },
       time: lightingSystem.activePresetId,
       map: { open: mapSystem.isFullMapOpen, search: mapSystem.searchHighlight,
-        waypoint: mapSystem.waypoint && { ...mapSystem.waypoint }, metro: [...mapSystem.metroLines] },
-      traffic: { ...traffic.statistics },
+        waypoint: mapSystem.waypoint && { ...mapSystem.waypoint }, metro: [...mapSystem.metroLines],
+        view: { x: mapSystem.viewCenterX, z: mapSystem.viewCenterZ, zoom: mapSystem.viewZoom } },
+      traffic: { ...traffic.statistics, actors: traffic.vehicles.filter(actor => actor.route).map(actor => {
+        const stop = actor.stops[actor.stopIndex];
+        return { id: actor.id, x: actor.pose.x, y: actor.pose.y, z: actor.pose.z, heading: actor.pose.heading,
+          wayId: actor.pose.edge?.osmId, speed: actor.speed, s: actor.s, end: actor.end, stalled: actor.stalled,
+          wait: actor.waitingForSignal, blocker: actor.blocker ?? null, reservation: actor.reservation?.id ?? null,
+          stop: stop ? { s: stop.s, clearS: stop.clearS, osmNodeId: stop.approach.osmNodeId, group: stop.approach.group } : null };
+      }) },
+      roadFrontage: { ...roadFrontage.statistics, intersections: roadFrontage.control.intersections.map(intersection => ({
+        id: intersection.id, approaches: intersection.approaches.map(({ osmNodeId, group, stopX, stopZ }) => ({ osmNodeId, group, stopX, stopZ }))
+      })), clock: elapsed, control: roadFrontage.control.snapshot?.(elapsed) ?? [] },
+      autoDrive: { status: autoDrive.status, ...autoDrive.statistics,
+        route: mapSystem.driveRoute && { from: [mapSystem.driveRoute.from.x, mapSystem.driveRoute.from.z],
+          to: [mapSystem.driveRoute.to.x, mapSystem.driveRoute.to.z], length: mapSystem.driveRoute.length,
+          wayIds: [...new Set(mapSystem.driveRoute.edges.map(edge => edge.osmId))],
+          stops: mapSystem.driveRoute.stops.map(stop => stop.approach.osmNodeId) } },
       sea: sea && { heightM: sea.heightM, triangles: sea.triangles, verticalDatum: sea.mesh.userData.source.verticalDatum },
+      streetscape: streetscape.statistics && { ...streetscape.statistics, arrival: streetscape.arrival,
+        activePaths: streetscape.pathAt(controllerManager.getActiveEntity().position.x, controllerManager.getActiveEntity().position.z) },
       landmarks: {
         models: landmarks.group.children.map(group => group.name),
         replaced: landmarks.skipIds.size,
@@ -764,7 +829,6 @@ async function initApp() {
 
   // 6. Animation Loop
   let lastTime = performance.now();
-  let elapsed = 0;
   let frameCount = 0;
   let fpsTimer = 0;
   let nextPlayerSave = 0;
@@ -782,9 +846,14 @@ async function initApp() {
     elapsed += dt;
 
     gamepadControls.update(dt);
-    traffic.update(dt, controllerManager.getActiveEntity().position, players);
-    controllerManager.update(dt, elapsed, cameraSystem.initialized ? cameraSystem.currentPos : null);
+    roadFrontage.update(elapsed);
+    traffic.update(dt, controllerManager.getActiveEntity().position, players, elapsed);
+    const { forward, backward, left, right } = controllerManager.keys;
+    const driveInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode,
+      manual: !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right) });
+    controllerManager.update(dt, elapsed, cameraSystem.initialized ? cameraSystem.currentPos : null, driveInput);
     cameraSystem.update(dt, elapsed);
+    streetscape.update(cameraSystem.camera.position);
     const simulationEnd = measureFrame ? performance.now() : 0;
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();

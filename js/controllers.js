@@ -27,17 +27,18 @@ const BICYCLE_DRIVE = {
 };
 const EVTOL_DRIVE = { speed: 36, verticalSpeed: 6, altitude: 400 };
 
-function driveSpeed(speed, throttle, dt, drive) {
+function driveSpeed(speed, throttle, dt, drive, serviceBrake = 0) {
   // Turning can project tiny sideways motion back into speed after braking to zero.
   // Treat a crawl as stopped when changing direction, so this cannot hold the brakes forever.
   if (speed * throttle < 0 && Math.abs(speed) < 0.05) speed = 0;
   const braking = speed * throttle < 0;
+  const brakeStrength = serviceBrake || (braking ? Math.abs(throttle) : 0);
   const magnitude = Math.abs(speed);
   // Extra resistance on release gives a stronger slowdown while coasting.
-  const deceleration = drive.rolling + (!throttle ? drive.coast : braking ? Math.abs(throttle) * drive.brake : 0);
+  const deceleration = drive.rolling + (brakeStrength ? brakeStrength * drive.brake : !throttle ? drive.coast : 0);
   // Constant rolling resistance and quadratic air drag, without crossing zero or large-dt instability.
   const coasting = Math.max(0, magnitude - deceleration * dt) / (1 + drive.drag * magnitude * dt);
-  if (!throttle || braking) return Math.sign(speed) * coasting;
+  if (!throttle || brakeStrength) return Math.sign(speed) * coasting;
 
   const limit = throttle < 0 ? drive.reverseSpeed : drive.speed;
   let acceleration = drive.acceleration;
@@ -286,18 +287,18 @@ class ThirdPersonControllerManager {
     return this.entities[this.activeMode];
   }
 
-  teleportActiveTo(x, z, heading = Math.PI, savedAltitude = null, { requireArrival = false, park = null } = {}) {
+  teleportActiveTo(x, z, heading = Math.PI, savedAltitude = null, { requireArrival = false, park = null, exact = false } = {}) {
     const ent = this.getActiveEntity();
     if (!Number.isFinite(heading)) heading = ent.heading;
     const heli = this.activeMode === 'helicopter';
     const altitude = heli ? Math.max(0.25, Math.min(this.maxFlightAltitude, savedAltitude ?? Math.max(92, ent.position.y))) : 0;
-    const destination = this.findTeleportPosition(x, z, heading, altitude, requireArrival, park);
-    if (requireArrival && !destination) return null;
+    const destination = this.findTeleportPosition(x, z, heading, altitude, requireArrival || exact, park, { exact });
+    if ((requireArrival || exact) && !destination) return null;
     this.resetInput();
     if (destination) {
       ent.position.x = destination.x;
       ent.position.z = destination.z;
-      ent.heading = requireArrival && Number.isFinite(destination.heading) ? destination.heading : heading;
+      ent.heading = (requireArrival || exact) && Number.isFinite(destination.heading) ? destination.heading : heading;
       ent.position.y = destination.y;
       ent._support = heli ? null : { height: destination.y, surfaceId: 'terrain' };
       ent._safePosition = { x: ent.position.x, y: ent.position.y, z: ent.position.z };
@@ -349,13 +350,13 @@ class ThirdPersonControllerManager {
 
   // Find a fully clear arrival before moving the player. Sequential collision pushes can leave a player trapped
   // between overlapping buildings, so test whole candidate footprints instead; retain the old position if none fits.
-  findTeleportPosition(x, z, heading, altitude, requireArrival = false, park = null) {
+  findTeleportPosition(x, z, heading, altitude, requireArrival = false, park = null, { exact = false, mode = this.activeMode } = {}) {
     if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
-    const heli = this.activeMode === 'helicopter';
-    const radius = heli ? 4.5 : this.activeMode === 'person' ? 0.48 : 0.65;
+    const heli = mode === 'helicopter';
+    const radius = heli ? 4.5 : mode === 'person' ? 0.48 : 0.65;
     const margin = heli && !requireArrival ? 6000 : 0;
-    const entity = this.getActiveEntity();
-    const requestedShape = collisionBody(this.activeMode, radius, heading, 0.1, entity.collisionBounds);
+    const entity = this.entities[mode];
+    const requestedShape = collisionBody(mode, radius, heading, 0.1, entity.collisionBounds);
     // 追尾视野避让用覆盖实体边界的圆柱，地面/建筑接触仍使用定向脚印。
     const previewBody = e => {
       const shape = collisionBody(e.type, e.type === 'helicopter' ? 4.5 : e.type === 'cyclist' ? 1 : 0.48,
@@ -376,7 +377,7 @@ class ThirdPersonControllerManager {
     const clear = (p) => {
       if (!p) return false;
       const shape = requireArrival && !heli && Number.isFinite(p.heading)
-        ? collisionBody(this.activeMode, radius, p.heading, 0.1, entity.collisionBounds)
+        ? collisionBody(mode, radius, p.heading, 0.1, entity.collisionBounds)
         : requestedShape;
       const reach = Math.max(shape.extX, shape.extZ);
       const support = heli ? null : this.supportedFootprint(p.x, p.z, shape, null);
@@ -408,11 +409,16 @@ class ThirdPersonControllerManager {
       }
       return true;
     };
+    if (exact) {
+      const point = { x, z, heading };
+      const clamped = clampPoint(x, z);
+      return x === clamped.x && z === clamped.z && clear(point) ? point : null;
+    }
     if (park) {
-      return this.activeMode === 'person' ? findParkArrival({ x, z }, park, requestedShape.radius, clear) : null;
+      return mode === 'person' ? findParkArrival({ x, z }, park, requestedShape.radius, clear) : null;
     }
     if (!heli) {
-      const arrival = findGroundArrival({ x, z }, this.activeMode, { isClear: clear });
+      const arrival = findGroundArrival({ x, z }, mode, { isClear: clear });
       if (!arrival) return null;
       const result = { ...arrival };
       return clear(result) ? result : null;
@@ -670,7 +676,7 @@ class ThirdPersonControllerManager {
   }
 
   // Static colliders within `r` of (x, z), kept in their original order and indexed once into 48 m cells.
-  nearColliders(x, z, r) {
+  nearColliders(x, z, r, includeTraffic = true) {
     const CELL = 48;
     const key = (ix, iz) => (ix + 4096) * 8192 + (iz + 4096);
     if (!this._colliderCells) {
@@ -704,8 +710,16 @@ class ThirdPersonControllerManager {
       }
     }
     if (out.length > 1) out.sort((a, b) => a._order - b._order);
-    if (this.nearTraffic) out.push(...this.nearTraffic(x, z, r));
+    if (includeTraffic && this.nearTraffic) out.push(...this.nearTraffic(x, z, r));
     return out;
+  }
+
+  isClearCarPose({ x, y, z, heading }) {
+    const body = collisionBody('car', 1.35, heading, 0.05, this.entities.car.collisionBounds);
+    const support = this.supportedFootprint(x, z, body, null);
+    return Boolean(support && Math.abs(support.height - y) <= 0.26
+      && !this.nearColliders(x, z, Math.max(body.extX, body.extZ), false)
+        .some(c => buildingContact(c, x, support.height, z, body)));
   }
 
   resolveHorizontalCollision(pos, radius, carEntity = null, entity = carEntity) {
@@ -886,7 +900,7 @@ class ThirdPersonControllerManager {
     }
   }
 
-  update(dt, elapsed, focusPos = null) {
+  update(dt, elapsed, focusPos = null, driveInput = null) {
     const heli = this.entities.helicopter;
 
     if (this.activeMode === 'person') {
@@ -910,7 +924,7 @@ class ThirdPersonControllerManager {
     }
 
     if (this.activeMode === 'car') {
-      this.updateCar(dt, elapsed);
+      this.updateCar(dt, driveInput);
     } else if (this.activeMode === 'cyclist') {
       this.updateCyclist(dt, elapsed);
     } else if (this.activeMode === 'helicopter') {
@@ -1017,7 +1031,7 @@ class ThirdPersonControllerManager {
     }
   }
 
-  updateCar(dt) {
+  updateCar(dt, driveInput = null) {
     if (dt <= 0) return;
     const c = this.entities.car;
 
@@ -1025,7 +1039,9 @@ class ThirdPersonControllerManager {
     if (this.keys.forward) throttle = this.keys.forward;
     else if (this.keys.backward) throttle = -this.keys.backward;
 
-    const braking = c.speed * throttle < 0;
+    if (driveInput) throttle = driveInput.throttle;
+    const serviceBrake = driveInput?.brake ?? 0;
+    const braking = serviceBrake > 0 || c.speed * throttle < 0;
 
     let steerInput = 0;
     if (this.keys.left) steerInput = this.keys.left;
@@ -1042,11 +1058,12 @@ class ThirdPersonControllerManager {
     const yawResponse = 1 - Math.exp(-5 * step);
     const tireResponse = 1 - Math.exp(-4 * step);
     for (let i = 0; i < steps; i++) {
+      const previousHeading = c.heading;
       const sin = Math.sin(c.heading), cos = Math.cos(c.heading);
       const vx = sin * c.speed + c.vx, vz = cos * c.speed + c.vz;
       const forward = vx * sin + vz * cos;
       const sideways = vx * cos - vz * sin;
-      const speed = driveSpeed(forward, throttle, step, CAR_DRIVE);
+      const speed = driveSpeed(forward, throttle, step, CAR_DRIVE, serviceBrake);
       const acceleration = (speed - forward) / step;
       // Braking and cornering share tire grip; air resistance does not use it.
       const tireAcceleration = acceleration + CAR_DRIVE.drag * forward * Math.abs(forward);
@@ -1059,7 +1076,8 @@ class ThirdPersonControllerManager {
       // Full lock at parking speeds, progressively less steering at road speeds.
       const turn = CAR_DRIVE.wheelbase * CAR_DRIVE.cornering;
       const maxSteer = Math.atan(turn / Math.max(speed * speed, turn / Math.tan(0.60)));
-      c.steerAngle += (steerInput * maxSteer - c.steerAngle) * steerResponse;
+      const steering = driveInput ? Math.max(-maxSteer, Math.min(maxSteer, driveInput.steerAngle)) : steerInput * maxSteer;
+      c.steerAngle += (steering - c.steerAngle) * steerResponse;
       const yawLimit = steeringGrip / Math.max(2, Math.abs(speed));
       const targetYaw = Math.max(-yawLimit, Math.min(yawLimit, speed * Math.tan(c.steerAngle) / CAR_DRIVE.wheelbase));
       // Collision spin remains part of the yaw velocity; the tires gradually regain control.
@@ -1077,9 +1095,29 @@ class ThirdPersonControllerManager {
       const correction = Math.max(-lateralGrip * step, Math.min(lateralGrip * step, -slip * tireResponse));
       c.vx = nextCos * (slip + correction);
       c.vz = -nextSin * (slip + correction);
-      c.position.x += (nextSin * c.speed + c.vx) * step;
-      c.position.z += (nextCos * c.speed + c.vz) * step;
+      const beforeX = c.position.x, beforeZ = c.position.z;
+      const nextX = beforeX + (nextSin * c.speed + c.vx) * step;
+      const nextZ = beforeZ + (nextCos * c.speed + c.vz) * step;
+      if (driveInput && !driveInput.permitMove(nextX, nextZ, c.heading)) {
+        c.heading = previousHeading;
+        c.speed = c.vx = c.vz = c.angularVel = 0;
+        break;
+      }
+      const previousSafe = c._safePosition;
+      const previousSupport = c._support;
+      c.position.x = nextX;
+      c.position.z = nextZ;
       this.resolveHorizontalCollision(c.position, 1.35, c);
+      if (driveInput && (c.position.x !== nextX || c.position.z !== nextZ)
+        && !driveInput.permitMove(c.position.x, c.position.z, c.heading)) {
+        c.position.x = beforeX;
+        c.position.z = beforeZ;
+        c._safePosition = previousSafe;
+        c._support = previousSupport;
+        c.heading = previousHeading;
+        c.speed = c.vx = c.vz = c.angularVel = 0;
+        break;
+      }
 
       const targetPitch = -Math.max(-1, Math.min(1, acceleration / CAR_DRIVE.acceleration)) * 0.026;
       const targetRoll = Math.max(-0.09, Math.min(0.09, correction / step * 0.012));
@@ -1227,12 +1265,21 @@ class ThirdPersonControllerManager {
 
     const skidBase = h.collisionBounds?.min.y ?? -0.25;
     const previousSkidY = h.position.y + skidBase;
+    const previousX = h.position.x, previousZ = h.position.z;
     h.position.x += Math.sin(h.heading) * h.speed * dt;
     h.position.z += Math.cos(h.heading) * h.speed * dt;
     h.position.y += h.verticalSpeed * dt;
 
-    const landing = this.getFlightSupport(h, previousSkidY);
-    const floor = Number.isFinite(landing) ? landing - skidBase : null;
+    let landing = this.getFlightSupport(h, previousSkidY);
+    let floor = Number.isFinite(landing) ? landing - skidBase : null;
+    // 地面高于飞行上限时阻止水平进入，不把贴地后的飞机重新压进山体。
+    if (floor !== null && floor > this.maxFlightAltitude) {
+      h.position.x = previousX;
+      h.position.z = previousZ;
+      h.speed = 0;
+      landing = this.getFlightSupport(h, previousSkidY);
+      floor = Number.isFinite(landing) ? landing - skidBase : null;
+    }
     if (floor !== null && h.position.y < floor) {
       this.reportCollision(h, groundCollider, 'ground', h.position.x, landing, h.position.z, 0, 1, 0, -h.verticalSpeed);
       h.position.y = floor;
@@ -1242,8 +1289,10 @@ class ThirdPersonControllerManager {
       h.position.y = h._safePosition.y;
       h.verticalSpeed = 0;
     }
-    if (h.position.y >= this.maxFlightAltitude) {
-      h.position.y = this.maxFlightAltitude;
+    // 已存位置若就在超限地面上，接触安全优先；不改源地形或允许继续爬升。
+    const ceiling = Math.max(this.maxFlightAltitude, floor ?? this.maxFlightAltitude);
+    if (h.position.y >= ceiling) {
+      h.position.y = ceiling;
       h.verticalSpeed = Math.min(0, h.verticalSpeed);
     }
     this.resolveHorizontalCollision(h.position, 4.5, null, h);

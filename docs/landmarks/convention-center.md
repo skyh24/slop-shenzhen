@@ -24,3 +24,7 @@
 ### root 浏览器复核（2026-11-09）
 
 首轮从正式入口相机菜单选取会展中心机位，正午和午夜可见展厅屋面及会议体一端，邻楼挡住部分展馆。[首轮正午](../qa/m2-ground/convention-center-model-day.png) · [首轮午夜](../qa/m2-ground/convention-center-model-night.png)
+
+北侧新机位实际截图 `../qa/m2-ground/convention-center-north-day.png` 已可见连续采光带、架空会议体和北侧展厅，左右两翼有裁边。现据同模型投影将机位移向北偏西并拉远，待下一次浏览器重载复核；没有通过隐藏邻楼解决遮挡。
+
+西北侧最终机位已在正式相机菜单实际打开并复拍[正午](../qa/m2-ground/convention-center-refined-day.png)和[午夜](../qa/m2-ground/convention-center-refined-night.png)。两侧弧形屋盖、连续采光带与中央架空会议体可见；北入口通行和源DSM遮挡仍未通过。

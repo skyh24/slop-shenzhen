@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { routeSignalStops } from './sz-intersection-control.js';
 import { isGroundRoad, roadLinkPoints } from './sz-roads.js';
 import { createTrafficVehicleGeometry, VEHICLE_SPECS } from './sz-vehicles.js';
 import { polygonBoxOverlaps } from './building-collision.js';
@@ -8,6 +9,7 @@ const SPAWN_CELL = 100;
 const SEARCH_RADIUS = 360;
 const DESPAWN_RADIUS = 430;
 const BODY_CELL = 32;
+const SIGNAL_EXIT_BUFFER = 12;
 const FLEET = [
   { type: 'taxi', count: 6, speed: 10 },
   { type: 'sedan', color: 0xc7ced2, count: 12, speed: 11 },
@@ -28,7 +30,7 @@ function seededRandom(id) {
   };
 }
 
-export function createTrafficGraph(graph) {
+export function createTrafficGraph(graph, { canTurn = () => true } = {}) {
   const edges = [];
   const outgoing = new Map();
   const cells = new Map();
@@ -74,17 +76,23 @@ export function createTrafficGraph(graph) {
     edge.next = (outgoing.get(edge.to) ?? []).filter(next => {
       const first = next.segments[0];
       return next.sourceIndex !== edge.sourceIndex && next.to !== edge.from
-        && last.dx * first.dx + last.dz * first.dz > -0.45;
+        && last.dx * first.dx + last.dz * first.dz > -0.45 && canTurn(edge, next);
     });
   }
   return { edges, cells };
 }
 
-function usableWidth(edge, halfWidth) {
+export function usableWidth(edge, halfWidth) {
   return edge.width >= (edge.direction === 0 ? 4 : 2) * halfWidth + 0.16;
 }
 
-function routeSegments(marker, model, random) {
+export function laneOffsets(edge) {
+  if (!edge.direction) return [Math.min(edge.width / 4, 2.3)];
+  const count = Number.isInteger(edge.lanes) && edge.lanes > 0 ? edge.lanes : 1;
+  return Array.from({ length: count }, (_, i) => edge.width * ((i + 0.5) / count - 0.5));
+}
+
+function routeSegments(marker, model, random, detailedRoads, laneChoice) {
   const segments = [];
   const used = new Set();
   let edge = marker.edge;
@@ -93,7 +101,9 @@ function routeSegments(marker, model, random) {
   let remaining = 560;
   while (edge && remaining > 0 && segments.length < 80) {
     used.add(edge.sourceIndex);
-    const offset = edge.direction === 0 ? Math.min(edge.width / 4, 2.3) : 0;
+    const offsets = detailedRoads.has(edge.osmId) ? laneOffsets(edge) : [edge.direction === 0 ? Math.min(edge.width / 4, 2.3) : 0];
+    const lanes = offsets.filter(offset => Math.abs(offset) + model.hx + 0.08 <= edge.width / 2);
+    const offset = lanes[Math.min(lanes.length - 1, Math.floor(laneChoice * lanes.length))] ?? 0;
     for (; index < edge.segments.length && remaining > 0; index++) {
       const segment = edge.segments[index];
       const length = Math.min(segment.length - start, remaining);
@@ -110,9 +120,9 @@ function routeSegments(marker, model, random) {
   return segments;
 }
 
-function laneRoute(segments) {
+export function laneRoute(segments, maxBend = 3.2) {
   const samples = [];
-  const bend = (a, b) => a && b ? Math.min(3.2, a.length * 0.36, b.length * 0.36) : 0;
+  const bend = (a, b) => a && b ? Math.min(maxBend, a.length * 0.36, b.length * 0.36) : 0;
   function add(x, z, dx, dz, edge) {
     const previous = samples.at(-1);
     const step = previous ? Math.hypot(x - previous.x, z - previous.z) : 0;
@@ -151,7 +161,7 @@ function laneRoute(segments) {
   return samples;
 }
 
-function poseOnRoute(samples, s, model, roadHeight, pose) {
+export function poseOnRoute(samples, s, model, roadHeight, pose) {
   let lo = 0;
   let hi = samples.length - 1;
   while (hi - lo > 1) {
@@ -244,11 +254,11 @@ function makeObstacleIndex(colliders) {
         for (const candidate of cells.get(cellKey(x, z)) ?? []) {
           if (!intersects(body, candidate)) continue;
           if (!candidate.polygon || polygonBoxOverlaps(candidate.polygon, body.x, body.z,
-            body.halfW, body.halfL, body.cos, body.sin)) return true;
+            body.halfW, body.halfL, body.cos, body.sin)) return candidate;
         }
       }
     }
-    return false;
+    return null;
   };
 }
 
@@ -258,14 +268,15 @@ function playerBodies(entities) {
     const sin = Math.sin(entity.heading);
     const cos = Math.cos(entity.heading);
     const model = entity.collisionBounds ? boxDimensions(entity.collisionBounds) : { x: 0, y: 0.9, z: 0, hx: 0.48, hy: 0.9, hz: 0.48 };
-    return writeTrafficCollider({}, model, { x, y: y + (entity.chassisPivot?.position.y ?? 0), z, sin, cos,
+    return writeTrafficCollider({ type: 'player', id: entity.type }, model, { x, y: y + (entity.chassisPivot?.position.y ?? 0), z, sin, cos,
       pitch: entity.chassisPivot?.rotation.x ?? 0, roll: entity.chassisPivot?.rotation.z ?? 0 });
   });
 }
 
-export function createSzTraffic(scene, graph, { roadHeight, colliders = [] } = {}) {
+export function createSzTraffic(scene, graph, { roadHeight, colliders = [], signals = null, detailedRoadIds = [], canTurn } = {}) {
   if (typeof roadHeight !== 'function') throw new Error('Traffic requires rendered road height');
-  const network = createTrafficGraph(graph);
+  const network = createTrafficGraph(graph, { canTurn });
+  const detailedRoads = new Set(detailedRoadIds);
   const blockedByBuilding = makeObstacleIndex(colliders);
   const group = new THREE.Group();
   group.name = 'shenzhen-ground-traffic';
@@ -299,21 +310,46 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [] } = {
   const probe = {};
   const contact = {};
   const transform = new THREE.Object3D();
-  const statistics = { directedEdges: network.edges.length, active: 0, spawned: 0 };
+  const statistics = { directedEdges: network.edges.length, active: 0, spawned: 0, signalEntries: 0, signalWaits: 0,
+    signalExitRejects: 0 };
   let refill = 0;
   let spawnKey = null;
   let candidates = [];
   let players = [];
+  let clock = 0;
+  let simulationTime = 0;
 
   function collides(body, actor) {
     for (const candidate of players) {
-      if (intersects(body, candidate) && vehicleContact(body, candidate, contact)) return true;
+      if (intersects(body, candidate) && vehicleContact(body, candidate, contact)) return candidate;
     }
     for (const other of vehicles) {
       if (other !== actor && other.route && intersects(body, other.collider)
-        && vehicleContact(body, other.collider, contact)) return true;
+        && vehicleContact(body, other.collider, contact)) return other.collider;
     }
-    return false;
+    return null;
+  }
+
+  function blockerOnRoute(actor, route, s, includeTraffic) {
+    if (!poseOnRoute(route, s, actor.model, roadHeight, scratch)) return { kind: 'road-contact', atS: s };
+    const body = writeTrafficCollider(probe, actor.model, scratch);
+    const blocker = blockedByBuilding(body) || (includeTraffic ? collides(body, actor) : null);
+    return blocker ? { kind: blocker.type ?? 'static', id: blocker.id ?? blocker.sourceId ?? blocker.name ?? null,
+      part: blocker.part ?? null, atS: s } : null;
+  }
+
+  function junctionExitBlocker(actor, stop, fresh = false) {
+    if (!fresh && actor.exitProbe?.stop === stop && actor.exitProbe.until > simulationTime) return actor.exitProbe.blocker;
+    const last = Math.min(actor.end, stop.clearS + SIGNAL_EXIT_BUFFER);
+    let blocker = null;
+    // 当前路线先通过精细静态检查，绿灯放行前再确认整个出口没有排队车辆。
+    for (let s = Math.max(actor.s, stop.s); s <= last; s += 1.75) {
+      blocker = blockerOnRoute(actor, actor.route, s, true);
+      if (blocker) break;
+    }
+    blocker ??= blockerOnRoute(actor, actor.route, last, true);
+    actor.exitProbe = { stop, until: simulationTime + 0.18, blocker };
+    return blocker;
   }
 
   function startRoute(actor, focus) {
@@ -322,20 +358,38 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [] } = {
       const marker = candidates[Math.floor(random() * candidates.length)];
       const distance = squareDistance(marker.x, marker.z, focus);
       if (distance < 44 ** 2 || distance > SEARCH_RADIUS ** 2 || !usableWidth(marker.edge, model.hx)) continue;
-      const samples = laneRoute(routeSegments(marker, model, random));
+      const laneChoice = detailedRoads.size ? random() : 0.5;
+      const samples = laneRoute(routeSegments(marker, model, random, detailedRoads, laneChoice));
       const first = Math.max(6, model.hz + 1);
       const limit = (samples.at(-1)?.s ?? 0) - model.hz - 1;
       if (limit < first + 42 || !poseOnRoute(samples, first, model, roadHeight, actor.pose)) continue;
+      if (signals?.contains(actor.pose.x, actor.pose.z, model.hz + 0.5)) continue;
       writeTrafficCollider(actor.collider, model, actor.pose);
       if (blockedByBuilding(actor.collider) || collides(actor.collider, actor)) continue;
+      const rearMargin = Math.hypot(model.hx, model.hz) + Math.abs(model.z) + 0.5;
+      const routeStops = routeSignalStops(samples, signals, rearMargin).filter(stop => stop.s >= first);
       let last = first;
-      for (let s = first + 1; s <= limit; s++) {
-        if (!poseOnRoute(samples, s, model, roadHeight, scratch)) break;
-        if (blockedByBuilding(writeTrafficCollider(probe, model, scratch))) break;
-        last = s;
+      while (last < limit) {
+        const inJunction = routeStops.some(stop => last + 1 >= stop.s - rearMargin && last <= stop.clearS + SIGNAL_EXIT_BUFFER);
+        const next = Math.min(limit, last + (inJunction ? 0.125 : 1));
+        if (blockerOnRoute(actor, samples, next, false)) break;
+        last = next;
       }
       if (last - first < 42) continue;
+      const stops = routeStops.filter(stop => stop.s <= last + model.z + model.hz);
+      const exitsBlocked = stops.some(stop => stop.clearS + SIGNAL_EXIT_BUFFER > last);
+      const terminal = poseOnRoute(samples, last, model, roadHeight, scratch);
+      if (exitsBlocked || signals && terminal && signals.contains(scratch.x, scratch.z, rearMargin + SIGNAL_EXIT_BUFFER)) {
+        statistics.signalExitRejects++;
+        continue;
+      }
       actor.route = samples;
+      actor.stops = stops;
+      actor.stopIndex = 0;
+      actor.reservation = null;
+      actor.exitProbe = null;
+      actor.blocker = null;
+      actor.waitingForSignal = false;
       actor.s = first;
       actor.end = last;
       actor.speed = Math.min(4, actor.desiredSpeed);
@@ -345,34 +399,80 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [] } = {
     }
   }
 
-  function advance(actor, dt) {
+  function dropRoute(actor) {
+    if (actor.reservation) signals.release(actor.reservation, actor.id);
+    signals?.cancelRequest(actor.stops?.[actor.stopIndex]?.approach, actor.id);
+    actor.reservation = null;
+    actor.route = null;
+  }
+
+  function advance(actor, dt, elapsedSeconds) {
     const { model, route } = actor;
-    const speed = Math.min(actor.desiredSpeed, actor.speed + 2.2 * dt);
-    const next = Math.min(actor.end, actor.s + speed * dt);
+    const stop = actor.stops[actor.stopIndex];
+    const stoppingAt = stop ? stop.s - (model.hz + model.z) - 0.16 : Infinity;
+    const remaining = Math.max(0, stoppingAt - actor.s);
+    const awaiting = stop && !actor.reservation;
+    const atQueue = awaiting && remaining <= 4;
+    const queueBlocker = atQueue ? junctionExitBlocker(actor, stop) : null;
+    if (atQueue) signals.request(stop.approach, actor.id, elapsedSeconds, !queueBlocker);
+    const phaseHeld = awaiting && !signals.canEnter(stop.approach, elapsedSeconds, actor.id);
+    const checkingExit = awaiting && !phaseHeld && remaining <= Math.max(12, actor.speed ** 2 / 7.2 + 2);
+    const exitBlocker = queueBlocker ?? (checkingExit ? junctionExitBlocker(actor, stop) : null);
+    const held = phaseHeld || exitBlocker;
+    actor.blocker = exitBlocker ? { ...exitBlocker, atExit: true }
+      : phaseHeld ? { kind: 'signal-or-owner', id: stop.approach.id } : null;
+    const brakingSpeed = held ? Math.sqrt(2 * 3.6 * remaining) : Infinity;
+    const speed = Math.min(actor.desiredSpeed, actor.speed + 2.2 * dt, brakingSpeed);
+    const next = Math.min(actor.end, actor.s + speed * dt, held ? Math.max(actor.s, stoppingAt) : Infinity);
     const steps = Math.ceil((next - actor.s) / 0.25);
     let s = actor.s;
     for (let step = 1; step <= steps; step++) {
       const target = interpolate(actor.s, next, step / steps);
-      if (!poseOnRoute(route, target, model, roadHeight, scratch)
-        || blockedByBuilding(writeTrafficCollider(probe, model, scratch)) || collides(probe, actor)) break;
+      const entering = stop && !actor.reservation && target > stoppingAt;
+      if (entering) {
+        const blocker = junctionExitBlocker(actor, stop, true);
+        if (blocker) {
+          signals.request(stop.approach, actor.id, elapsedSeconds, false);
+          actor.blocker = { ...blocker, atExit: true };
+          break;
+        }
+      }
+      const movementBlocker = blockerOnRoute(actor, route, target, true);
+      if (movementBlocker) { actor.blocker = movementBlocker; break; }
+      if (entering) {
+        if (!signals.enter(stop.approach, elapsedSeconds, actor.id)) break;
+        actor.reservation = stop.approach;
+        statistics.signalEntries++;
+      }
       s = target;
       Object.assign(actor.pose, scratch);
       writeTrafficCollider(actor.collider, model, actor.pose);
     }
-    actor.stalled = s === actor.s ? actor.stalled + dt : 0;
+    if (actor.reservation && s >= stop.clearS) {
+      signals.release(actor.reservation, actor.id);
+      actor.reservation = null;
+      actor.stopIndex++;
+    }
+    const waiting = Boolean(held && remaining < 1.1);
+    if (waiting && !actor.waitingForSignal) statistics.signalWaits++;
+    actor.waitingForSignal = waiting;
+    if (s >= actor.end - 1e-6 && !actor.blocker) actor.blocker = { kind: 'route-end', atS: s };
+    actor.stalled = s === actor.s && !waiting ? actor.stalled + dt : 0;
     actor.speed = steps > 0 && s === next ? speed : 0;
     actor.s = s;
   }
 
-  function update(dt, focus, entities = []) {
+  function update(dt, focus, entities = [], elapsedSeconds = null) {
     if (!Number.isFinite(focus?.x) || !Number.isFinite(focus?.z)) return;
     dt = Math.max(0, Math.min(dt, 0.05));
+    simulationTime += dt;
+    clock = Number.isFinite(elapsedSeconds) ? elapsedSeconds : clock + dt;
     players = playerBodies(entities);
     for (const actor of vehicles) {
       if (!actor.route) continue;
       const distance = squareDistance(actor.pose.x, actor.pose.z, focus);
-      if (distance > DESPAWN_RADIUS ** 2 || (actor.stalled > 5 && distance > 130 ** 2)) actor.route = null;
-      else if (dt) advance(actor, dt);
+      if (distance > DESPAWN_RADIUS ** 2 || (actor.stalled > 5 && distance > 130 ** 2)) dropRoute(actor);
+      else if (dt) advance(actor, dt, clock);
     }
     refill -= dt;
     if (refill <= 0 && vehicles.some(actor => !actor.route)) {
@@ -422,8 +522,9 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [] } = {
     return result;
   }
 
-  return { group, update, nearColliders, vehicles, statistics,
+  return { group, update, nearColliders, vehicles, statistics, network,
     dispose() {
+      for (const actor of vehicles) dropRoute(actor);
       scene.remove(group);
       for (const { mesh } of batches) {
         mesh.geometry.dispose();

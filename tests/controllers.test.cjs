@@ -522,6 +522,16 @@ test('teleport checks all overlapping buildings instead of leaving a sequential 
   }
 });
 
+test('explicit drive start placement requires the exact open point and never chooses another road', () => {
+  const { controller, ent } = teleportHarness('car', [{ minX: 0, maxX: 10, minZ: 0, maxZ: 10, maxY: 20 }]);
+  assert.equal(controller.teleportActiveTo(5, 5, 0, null, { exact: true }), null);
+  assert.deepEqual([ent.position.x, ent.position.z, ent.speed], [400, 400, 20]);
+  assert.equal(controller.teleportActiveTo(510, 5, 0, null, { exact: true }), null);
+  assert.deepEqual({ ...controller.teleportActiveTo(25, 8, 0.8, null, { exact: true }) }, { x: 25, z: 8 });
+  assert.equal(ent.heading, 0.8);
+  assert.equal(ent.speed, 0);
+});
+
 test('teleports use oriented building footprints without rejecting clear corners of their bounds', () => {
   const cs = Math.SQRT1_2;
   const box = { minX: -8, maxX: 8, minZ: -8, maxZ: 8, maxY: 200, obb: { cx: 0, cz: 0, hx: 8, hz: 2, cs, sn: cs } };
@@ -993,5 +1003,28 @@ test('a passenger aircraft descends onto the roof only from above and with its e
   controller.keys.down = true;
   controller.updateHelicopter(1 / 60);
   assert.equal(ent.position.y, 10);
+  assert.equal(ent.verticalSpeed, 0);
+});
+
+test('aircraft stops before terrain above its ceiling without compressing skids into terrain', () => {
+  const { controller, ent } = teleportHarness('helicopter');
+  controller.maxFlightAltitude = 400;
+  controller.groundHeight = (x, z) => z > 0.1 ? 429 : 390;
+  ent.collisionBounds = { min: { x: -3, y: -0.25, z: -3 }, max: { x: 3, y: 2, z: 3 } };
+  Object.assign(ent.position, { x: 0, y: 400, z: 0 });
+  ent.heading = 0;
+  ent.speed = 36;
+  ent.verticalSpeed = 0;
+  controller.keys.forward = true;
+  controller.updateHelicopter(1 / 60);
+  assert.equal(ent.position.z, 0);
+  assert.equal(ent.position.y, 400);
+  assert.equal(ent.speed, 0);
+
+  controller.groundHeight = () => 429;
+  controller.keys.forward = false;
+  controller.keys.down = true;
+  for (let i = 0; i < 120; i++) controller.updateHelicopter(1 / 60);
+  assert.equal(ent.position.y + ent.collisionBounds.min.y, 429);
   assert.equal(ent.verticalSpeed, 0);
 });

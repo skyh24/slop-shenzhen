@@ -18,7 +18,8 @@ function fixture(roads = []) {
     NYC_LANDMARKS: [{ name:'Landmark',short:'Landmark',x:10,z:15 }], ISLAND_BOUNDS: {minX:0,minZ:0,maxX:100,maxZ:100},
     getLocationLabel: () => 'location', isTypingInField: () => false,
     STR: { map: { counts:()=>'', searchPlaceholder:'',teleportHint:x=>x,playerLocation:x=>x,
-      roadInitials: { 深南大道: 'sndd' }, landmarkInitials: {} } },
+      clickHint: 'Click to teleport', touchHint: 'Tap to teleport', roadInitials: { 深南大道: 'sndd' }, landmarkInitials: {} },
+      drive: { mapHint: 'Click to pick route endpoints', touchHint: 'Tap to pick route endpoints' } },
     document: { getElementById:()=>null,addEventListener(){} }, window:{ addEventListener(){} } });
   for (const name of ['sz-map-layers.js','sz-map.js']) {
     const code = fs.readFileSync(require.resolve(`../js/${name}`),'utf8').replace(/^import .*;\n/gm,'').replace(/^export \{.*\};/gm,'');
@@ -80,4 +81,17 @@ test('world drawing clips source geometry without synthetic routes', () => {
   assert.ok(calls.some(c=>c[0]==='restore'));
   const code=fs.readFileSync(require.resolve('../js/sz-map.js'),'utf8');
   assert.equal(code.includes('drawRoute('),false);
+});
+
+test('map pointer guidance switches from teleport to route selection on mouse and touch', () => {
+  const { map } = fixture();
+  map.elHoverInfo = {};
+  map.renderPointerHint();
+  assert.equal(map.elHoverInfo.textContent, 'Click to teleport');
+  map.isPlanningDrive = true;
+  map.renderPointerHint();
+  assert.equal(map.elHoverInfo.textContent, 'Click to pick route endpoints');
+  map.touchHints = true;
+  map.renderPointerHint();
+  assert.equal(map.elHoverInfo.textContent, 'Tap to pick route endpoints');
 });
