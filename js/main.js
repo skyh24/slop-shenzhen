@@ -17,6 +17,7 @@ import { buildSzTrees } from './sz-trees.js';
 import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzDroneRoutes } from './sz-drone-routes.js';
+import { buildSzLightShow } from './sz-light-show.js';
 import { gatePoint, gateYaw, gateDeckY, flowerSeaAnchor, flowerSeaDeckY } from './sz-landmarks/iec-xiangmihu.js';
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
@@ -184,6 +185,8 @@ async function initApp() {
     }
   }
   const cityBlocks = buildCityBlocks(scene, { skipIds, renderChunkSize: qa?.chunkSize });
+  // 福田中心区夜景灯光秀：只给已建成普通高层加灯带，颜色/节奏为展示估计；白天隐藏。
+  const lightShow = buildSzLightShow(scene, { buildings: REAL_BUILDINGS, terrain: GEO.terrain });
   markInit('blocks');
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders];
   const streetscape = buildSzStreetscape(scene, GEO.streetscape, GEO.terrainSurface, {
@@ -233,7 +236,7 @@ async function initApp() {
   const drones = buildSzDroneRoutes(scene, { air: GEO.air, terrain: GEO.terrain });
   if (qa) {
     window.__szLamps = streetLamps; window.__szTrees = trees; window.__szApec = apecTheme;
-    window.__szApecCity = apecCity; window.__szDrones = drones;
+    window.__szApecCity = apecCity; window.__szDrones = drones; window.__szLightShow = lightShow;
     window.__szMetroEntrances = metroEntrances; window.__szFutian = futianStation; window.__szXili = xiliConstruction;
   }
   const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...trees.colliders,
@@ -971,6 +974,7 @@ async function initApp() {
     apecTheme.update(dt, lightingSystem.uNightFactor.value);
     apecCity.update(dt, lightingSystem.uNightFactor.value);
     drones.update(dt);
+    lightShow.group.visible = lightingSystem.uNightFactor.value > 0.25;
     metroEntrances.update(cameraSystem.currentPos);
     futianStation?.update(cameraSystem.currentPos);
     xiliConstruction?.update();

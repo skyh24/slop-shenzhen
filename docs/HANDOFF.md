@@ -1,13 +1,13 @@
 # 当前交接：Slop Shenzhen
 
-更新：2026-11-10 凌晨（round 4）。正式入口可运行深圳。九条硬性要求仍无一条整体验收通过，M9 未通过，因此没有 baseline 标签。历史交接见[HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md)，本轮证据见 `docs/qa/round2/README.md`（本地）。
+更新：2026-11-10 凌晨（round 5）。正式入口可运行深圳。九条硬性要求仍无一条整体验收通过，M9 未通过，因此没有 baseline 标签。历史交接见[HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md)，本轮证据见 `docs/qa/round2/README.md`（本地）。
 
 ## 1. 当前状态
 
 - 分支 `dsh-42a55797-ff5c`（工作树 `.agents/worktrees/`）；main 已含 round 1（`3117db1`）。
 - 共享包 `js/sz-city.json.gz`：6,957,206 B；SHA-256 `bd70c3553c99e3ac6d6aacd0856677742f7e0573d56451085cc45b1af6a4d8bf`（新增 `air` 无人机航线数据）。
 - 38,057 建筑、58,773 树、534 地面块 / 386,824 三角；新增 `sites` 段：21 个地标 / 43 个 OSM 场地对象。
-- 测试：Node **423 pass / 0 fail / 0 skip**（Three 0.187.0）；Python **97 OK**。
+- 测试：Node **426 pass / 0 fail / 0 skip**（Three 0.187.0）；Python **97 OK**。
 - 构建：`.venv/bin/python tools/sz/build.py` 缓存命中约 54 s；`--no-cache` 重读 PBF。
 
 ## 2. round 2 已交付（保留）
@@ -46,9 +46,18 @@
 
 **数据变更**：本轮重建共享包（air 段），无 PBF 变化；`data/source/air-routes.json`、`js/sz-city.json.gz`、`data/source/build-report.json` 一起更新。
 
+## 2d. 本轮新增（round 5）
+
+| 项 | 结果 | 等级 |
+| --- | --- | --- |
+| 福田夜景灯光秀 | `js/sz-light-show.js`：137 座 ≥150 m 已建成普通高层，628 竖向灯带 + 548 塔顶轮廓，6 个材质桶 → 6 个 InstancedMesh；TSL `time` 驱动青/品红/暖金循环，白天隐藏；模型卡 `docs/landmarks/futian-light-show.md` | L4（午夜画面可见） |
+| 性能诊断 | 夜间开灯带：drawCalls 413→416、三角 0.745→0.749 M，无额外帧率损失；自动化浏览器仍是 30 Hz 基准，不能当 M9 证据 | L3 |
+
+**结论**：`docs/10-PERF-QA.md` Q7 的“灯光秀未实现”已补，但完整 Q7（地铁逐线、四时段、观赏路线）仍未回归。
+
 ## 3. 下一步（按优先级）
 
-1. **L5 实走**：用真实 Chrome/Edge 打开 <http://127.0.0.1:8080/>，复核无人机站点/航线（管控期停运）、APEC 大屏、地铁出入口、西丽围挡近景，走一遍碰撞/通行并记录断点。
+1. **L5 实走**：用真实 Chrome/Edge 打开 <http://127.0.0.1:8080/>，复核无人机站点/航线（管控期停运）、APEC 大屏、地铁出入口、西丽围挡近景、夜景灯光秀，走一遍碰撞/通行并记录断点。
 2. **无人机细节（可选）**：人才公园潮汐广场取餐柜/降落场景、空中视角看 100 m 航线；仍需标注航迹/高度为示意。
 3. **真实地面依据**：2025 地形图 / 2024 LiDAR 申请；派生路面仍是估计（接缝最大新增高差 4.1 m）。
 4. **APEC 剩余**：会展 2 号馆媒体中心细部、公交涂装、候车亭海报、夜景灯光秀联动；会期 11-11 起默认开关自动打开，需复测。
