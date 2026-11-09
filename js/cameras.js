@@ -15,7 +15,11 @@ const CAMERA_PRESETS = [
   { id: 'observatory', name: STR.cameraNames.observatory,   category: 'scenic', fov: 52 },
   { id: 'bryantPark',  name: STR.cameraNames.bryantPark,       category: 'scenic', fov: 52 },
   { id: 'waterfront',  name: STR.cameraNames.waterfront,     category: 'scenic', fov: 46 },
-  { id: 'drone',       name: STR.cameraNames.drone,     category: 'scenic', fov: 50 }
+  { id: 'drone',       name: STR.cameraNames.drone,     category: 'scenic', fov: 50 },
+  { id: 'djiSkyCity',  name: STR.cameraNames.djiSkyCity, category: 'scenic', fov: 52 },
+  { id: 'pingAnTower', name: STR.cameraNames.pingAnTower, category: 'scenic', fov: 52 },
+  { id: 'chunsunTower', name: STR.cameraNames.chunsunTower, category: 'scenic', fov: 52 },
+  { id: 'bayBridge',   name: STR.cameraNames.bayBridge, category: 'scenic', fov: 44 }
 ];
 
 class CameraSystem {
@@ -261,7 +265,11 @@ class CameraSystem {
       case 'observatory':
       case 'bryantPark':
       case 'waterfront':
-      case 'drone': {
+      case 'drone':
+      case 'bayBridge':
+      case 'chunsunTower':
+      case 'pingAnTower':
+      case 'djiSkyCity': {
         const shot = getScenicCamera(this.activePresetId, elapsed);
         desiredPos.set(...shot.position);
         desiredLook.set(...shot.target);

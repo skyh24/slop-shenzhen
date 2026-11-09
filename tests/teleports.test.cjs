@@ -6,14 +6,16 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const read = (path) => readFileSync(join(__dirname, '..', path), 'utf8');
-let GEO, TELEPORT_LOCATIONS, LANDMARK_SITES, getScenicCamera, createGroundSurfaceSampler;
+let GEO, CITY_PAYLOAD, TELEPORT_LOCATIONS, LANDMARK_SITES, getScenicCamera, createGroundSurfaceSampler, findParkArrival, parkAt, decodeCityPayload;
 test.before(async () => {
   const fetch = globalThis.fetch;
   globalThis.fetch = async url => new Response(await readFile(url));
   try {
-    ({ GEO } = await import('../js/sz-geodata.js'));
+    ({ GEO, CITY_PAYLOAD } = await import('../js/sz-geodata.js'));
     ({ TELEPORT_LOCATIONS, LANDMARK_SITES } = await import('../js/sz-city-config.js'));
     ({ getScenicCamera } = await import('../js/sz-camera-presets.js'));
+    ({ findParkArrival, parkAt } = await import('../js/sz-park-arrivals.js'));
+    ({ decodeCityPayload } = await import('../js/sz-data-format.js'));
     const { loadModule } = require('./helpers/module.cjs');
     ({ createGroundSurfaceSampler } = loadModule(read('js/sz-ground.js'), { imports: { 'three/webgpu': {} } }));
   } finally {
@@ -43,7 +45,8 @@ test('teleport destinations bind the retained buttons to Shenzhen roads on the r
 test('every scenic camera exposed by the entry resolves against the Shenzhen snapshot', () => {
   const cameras = [...read('index.html').matchAll(/data-camera="([^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(cameras.slice(0, 3), ['chase', 'action', 'pov']);
-  assert.equal(cameras.length, 11);
+  assert.equal(cameras.length, 15);
+  assert.deepEqual(cameras.slice(-4), ['djiSkyCity', 'pingAnTower', 'chunsunTower', 'bayBridge']);
   for (const id of cameras.slice(3)) {
     for (const elapsed of [0, 40, 120]) {
       const { position, target } = getScenicCamera(id, elapsed);
@@ -51,6 +54,25 @@ test('every scenic camera exposed by the entry resolves against the Shenzhen sna
       assert.ok(Math.hypot(...position.map((coordinate, i) => coordinate - target[i])) > 1, id);
     }
   }
+});
+
+test('park arrivals retain a verified site member and require rendered ground support', () => {
+  const groundHeight = createGroundSurfaceSampler(GEO.terrainSurface);
+  const park = GEO.parks.find(item => item.id === 'shenzhen-bay-park');
+  assert.equal(park.osmId, 'relation/8133384');
+  assert.equal(park.areas.length, 12);
+  const anchor = LANDMARK_SITES[park.id];
+  const supported = ({ x, z }) => Number.isFinite(groundHeight(x, z));
+  const point = findParkArrival(anchor, park, 0.58, supported);
+  assert.ok(point);
+  const area = park.areas.find(item => item.osmId === point.parkAreaId);
+  assert.equal(area.name, '日出剧场');
+  const clicked = parkAt(GEO.parks, point.x, point.z);
+  assert.equal(clicked.id, park.id);
+  assert.ok(clicked.areas.length < park.areas.length);
+  assert.ok(clicked.areas.some(item => item.osmId === area.osmId));
+  assert.equal(findParkArrival(anchor, park, 0.58, () => false), null);
+  assert.throws(() => decodeCityPayload({ ...CITY_PAYLOAD, parks: [{ ...CITY_PAYLOAD.parks[0], source: '' }] }), /park source/);
 });
 
 test('preset and map teleports share arrival resets and mark only a resolved landing point', () => {
@@ -65,6 +87,7 @@ test('preset and map teleports share arrival resets and mark only a resolved lan
   const feedback = {};
   const environment = {
     TELEPORT_LOCATIONS,
+    bayPark: null,
     controllerManager: {
       teleportActiveTo: (x, z, heading, altitude, options) => {
         calls.push(['teleport', x, z, heading, altitude, options.requireArrival]);

@@ -39,7 +39,7 @@ export function buildBuildings(data, skip = () => false) {
     }
   }
 
-  const material = createBuildingMaterial();
+  const material = createBuildingMaterial({ showLandmarkLights: true });
   const group = new THREE.Group();
   group.name = 'buildings';
   for (const [key, b] of chunks) {

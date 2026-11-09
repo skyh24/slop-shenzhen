@@ -591,8 +591,14 @@ body.hud-minimized .icon-show {
   background: var(--hover);
 }
 
-.tp-btn[hidden] {
+.tp-btn[hidden],
+.cam-btn[hidden] {
   display: none;
+}
+
+.tp-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .metro-actions {

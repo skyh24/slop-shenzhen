@@ -10,6 +10,75 @@ function polygonContains(polygon, x, z) {
   return inside;
 }
 
+// 斜梁和桥面沿四边形两条侧边升降。只对实际高度落在实体内的范围做平面碰撞。
+function spanContactPolygon(polygon, verticalSpan, minY, maxY) {
+  const [bottomA, bottomB, topA, topB] = verticalSpan;
+  if (minY >= Math.max(topA, topB) || maxY <= Math.min(bottomA, bottomB)) return null;
+  let from = 0, to = 1;
+  const riseTop = topB - topA;
+  const riseBottom = bottomB - bottomA;
+  if (riseTop > 0) from = Math.max(from, (minY - topA) / riseTop);
+  if (riseTop < 0) to = Math.min(to, (minY - topA) / riseTop);
+  if (riseBottom > 0) to = Math.min(to, (maxY - bottomA) / riseBottom);
+  if (riseBottom < 0) from = Math.max(from, (maxY - bottomA) / riseBottom);
+  if (from >= to) return null;
+  if (from === 0 && to === 1) return polygon;
+  const [a, b, c, d] = polygon.outer;
+  const lerp = (p, q, t) => ({ x: p.x + (q.x - p.x) * t, z: p.z + (q.z - p.z) * t });
+  return { outer: [lerp(a, b, from), lerp(a, b, to), lerp(d, c, to), lerp(d, c, from)], holes: [] };
+}
+
+function convexHull(points) {
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.z - b.z);
+  const half = vertices => {
+    const edge = [];
+    for (const p of vertices) {
+      while (edge.length > 1) {
+        const a = edge[edge.length - 2], b = edge[edge.length - 1];
+        if ((b.x - a.x) * (p.z - a.z) - (b.z - a.z) * (p.x - a.x) > 0) break;
+        edge.pop();
+      }
+      edge.push(p);
+    }
+    edge.pop();
+    return edge;
+  };
+  return half(sorted).concat(half(sorted.reverse()));
+}
+
+// 凸体侧面为平面。两端高度的截面取凸包，就是人物或车辆所在高度区间内的平面投影。
+function loftContactPolygon({ lower, upper, minY, maxY }, bottom, top) {
+  const height = maxY - minY;
+  const from = Math.max(0, (bottom - minY) / height);
+  const to = Math.min(1, (top - minY) / height);
+  if (from >= to) return null;
+  const section = t => lower.map((a, i) => ({
+    x: a.x + (upper[i].x - a.x) * t,
+    z: a.z + (upper[i].z - a.z) * t
+  }));
+  return { outer: convexHull([...section(from), ...section(to)]), holes: [] };
+}
+
+// 薄屋面采用三角棱柱，按人物上下界切裁顶面和底面；斜屋面下方仍可通行。
+function roofPanelContactPolygon({ outer, bottom, top }, minY, maxY) {
+  function clip(ring, distance) {
+    const result = [];
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length];
+      const da = distance(a), db = distance(b);
+      if (da > 0) result.push(a);
+      if ((da > 0) === (db > 0)) continue;
+      const t = da / (da - db);
+      result.push({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t,
+        top: a.top + (b.top - a.top) * t, bottom: a.bottom + (b.bottom - a.bottom) * t });
+    }
+    return result;
+  }
+  const ring = outer.map((p, i) => ({ ...p, bottom: bottom[i], top: top[i] }));
+  const overlap = convexHull(clip(clip(ring, p => p.top - minY), p => maxY - p.bottom));
+  return overlap.length >= 3 ? { outer: overlap, holes: [] } : null;
+}
+
 // Test the actual outline, including courtyards, after the caller's cheap bounds check.
 function polygonBoxOverlaps(polygon, x, z, hx, hz, cs = 1, sn = 0) {
   if (polygonContains(polygon, x, z)) return true;
@@ -211,4 +280,5 @@ function polygonSegmentFraction(polygon, ax, az, dx, dz, enter, exit) {
   return fraction;
 }
 
-export { polygonContains, polygonBoxOverlaps, polygonContact, polygonSegmentFraction };
+export { convexHull, loftContactPolygon, polygonContains, polygonBoxOverlaps, polygonContact, polygonSegmentFraction,
+  roofPanelContactPolygon, spanContactPolygon };

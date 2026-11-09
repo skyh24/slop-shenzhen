@@ -649,6 +649,7 @@ test('poseCharacters skips stationary inactive cyclist IK/uploads and culls park
       'three/webgpu': {},
       './sz-city-config.js': { isTypingInField: () => false },
       './sz-controller-surfaces.js': {},
+      './sz-park-arrivals.js': {},
       './sz-strings.js': { STR: {} },
       './city-lighting-materials.js': {},
       './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8 } } },

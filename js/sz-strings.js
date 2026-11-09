@@ -74,6 +74,7 @@ export const STR = {
     lighting: '正在生成天空和光照……',
     ground: '正在生成地形、海岸和公园……',
     roads: '正在铺设道路……',
+    landmarks: '正在生成地标建筑……',
     blocks: '正在生成建筑……',
     traffic: '正在生成路面车流……',
     controllers: '正在准备角色、车辆和操作……',
@@ -96,6 +97,15 @@ export const STR = {
   },
   touchActions: { jump: '跳跃', ascend: '上升', descend: '下降' },
   vehicleLabels: { taxi: '深圳出租', available: '空车' },
+  teleport: {
+    parkWalk: '前往有来源的园内步行区',
+    parkFlight: '飞至公园上空',
+    parkUnavailable: {
+      person: '园内步行落点待核实', car: '附近暂无安全行车落点', cyclist: '园内骑行落点待核实'
+    },
+    nearParkRoad: (road, distance) => `${road} · 距公园标注约 ${Math.round(distance)} 米`,
+    entryLabel: (name, detail) => `${name} · ${detail}`
+  },
   metro: {
     title: '地铁',
     all: '全部显示',
@@ -111,7 +121,9 @@ export const STR = {
   cameraNames: {
     chase: '追尾视角', action: '动作视角', pov: '第一人称', centralPark: '莲花山看中轴线',
     fifthAve: '深圳湾公园看后海', timesSquare: '市民中心看中轴线', chryslerGCT: '人才公园看春笋',
-    observatory: '平安上空', bryantPark: '腾讯滨海双塔', waterfront: '深圳湾天际线', drone: '城市航拍'
+    observatory: '平安上空', bryantPark: '腾讯滨海双塔', waterfront: '深圳湾天际线', drone: '城市航拍',
+    djiSkyCity: '大疆天空之城', pingAnTower: '远看平安金融中心', chunsunTower: '后海上空看春笋',
+    bayBridge: '深圳湾公园远眺大桥'
   },
   subtitle: 'MVP 预览 · 南山 + 福田 · APEC 2026 深圳',
   loading: '正在载入深圳……',

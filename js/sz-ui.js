@@ -88,6 +88,7 @@ export function wireMetroMenu(mapSystem, sourceLines) {
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.dataset.metroLine = line.ref;
+    input.setAttribute('aria-label', name.textContent);
     input.addEventListener('change', () => {
       if (input.checked) selected.add(line.ref);
       else selected.delete(line.ref);

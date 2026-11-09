@@ -1,12 +1,13 @@
 import * as THREE from 'three/webgpu';
 import { ISLAND_BOUNDS, isTypingInField, SPAWN_POINT, terrainHeight, findGroundArrival } from './sz-city-config.js';
 import { createSurfaceResolver } from './sz-controller-surfaces.js';
+import { findParkArrival } from './sz-park-arrivals.js';
 import { STR } from './sz-strings.js';
 import { cityUniforms, createContactShadowMaterial } from './city-lighting-materials.js';
 import { VEHICLE_SPECS, createShenzhenCarMesh, createSharedCycleMesh, createEvtolMesh } from './sz-vehicles.js';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
-import { polygonContact } from './building-collision.js';
+import { loftContactPolygon, polygonContact, roofPanelContactPolygon, spanContactPolygon } from './building-collision.js';
 
 // Player models, animation and movement for walking, driving, cycling and flying.
 
@@ -69,7 +70,15 @@ function collisionBody(mode, radius, heading, margin = 0, bounds = null) {
 function buildingContact(c, x, y, z, body, contact) {
   if (y + body.bottom >= c.maxY || y + body.top <= (c.minY ?? 0)) return false;
   if (x + body.extX <= c.minX || x - body.extX >= c.maxX || z + body.extZ <= c.minZ || z - body.extZ >= c.maxZ) return false;
-  if (c.polygon) return polygonContact(c.polygon, x, z, body, contact);
+  if (c.polygon) {
+    const bottom = y + body.bottom;
+    const top = y + body.top;
+    let polygon = c.polygon;
+    if (c.loft) polygon = loftContactPolygon(c.loft, bottom, top);
+    else if (c.roofPanel) polygon = roofPanelContactPolygon(c.roofPanel, bottom, top);
+    else if (c.verticalSpan) polygon = spanContactPolygon(polygon, c.verticalSpan, bottom, top);
+    return polygon !== null && polygonContact(polygon, x, z, body, contact);
+  }
   const o = c.obb;
   const cs = o ? o.cs : 1, sn = o ? o.sn : 0;
   const hx = o ? o.hx : (c.maxX - c.minX) * 0.5;
@@ -277,12 +286,12 @@ class ThirdPersonControllerManager {
     return this.entities[this.activeMode];
   }
 
-  teleportActiveTo(x, z, heading = Math.PI, savedAltitude = null, { requireArrival = false } = {}) {
+  teleportActiveTo(x, z, heading = Math.PI, savedAltitude = null, { requireArrival = false, park = null } = {}) {
     const ent = this.getActiveEntity();
     if (!Number.isFinite(heading)) heading = ent.heading;
     const heli = this.activeMode === 'helicopter';
     const altitude = heli ? Math.max(0.25, Math.min(this.maxFlightAltitude, savedAltitude ?? Math.max(92, ent.position.y))) : 0;
-    const destination = this.findTeleportPosition(x, z, heading, altitude, requireArrival);
+    const destination = this.findTeleportPosition(x, z, heading, altitude, requireArrival, park);
     if (requireArrival && !destination) return null;
     this.resetInput();
     if (destination) {
@@ -333,12 +342,14 @@ class ThirdPersonControllerManager {
     }
     ent.mesh.position.copy(ent.position);
     ent.mesh.rotation.y = ent.heading;
-    return { x: ent.position.x, z: ent.position.z };
+    const point = { x: ent.position.x, z: ent.position.z };
+    if (destination?.parkAreaId) point.parkAreaId = destination.parkAreaId;
+    return point;
   }
 
   // Find a fully clear arrival before moving the player. Sequential collision pushes can leave a player trapped
   // between overlapping buildings, so test whole candidate footprints instead; retain the old position if none fits.
-  findTeleportPosition(x, z, heading, altitude, requireArrival = false) {
+  findTeleportPosition(x, z, heading, altitude, requireArrival = false, park = null) {
     if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
     const heli = this.activeMode === 'helicopter';
     const radius = heli ? 4.5 : this.activeMode === 'person' ? 0.48 : 0.65;
@@ -397,6 +408,9 @@ class ThirdPersonControllerManager {
       }
       return true;
     };
+    if (park) {
+      return this.activeMode === 'person' ? findParkArrival({ x, z }, park, requestedShape.radius, clear) : null;
+    }
     if (!heli) {
       const arrival = findGroundArrival({ x, z }, this.activeMode, { isClear: clear });
       if (!arrival) return null;
@@ -1162,6 +1176,22 @@ class ThirdPersonControllerManager {
     for (const pedal of b.pedals) pedal.rotation.x = -b.pedalPhase;
   }
 
+  getFlightSupport(entity, previousSkidY) {
+    const { x, z } = entity.position;
+    const terrain = this.groundHeight(x, z);
+    const support = this.surfaceResolver.below(x, z, previousSkidY + 0.025);
+    if (!support || support.surfaceId === 'terrain') return terrain;
+    // 从上方接触屋面，且旋翼包络四角都有同一平面支撑，避免机身停在屋沿外。
+    const shape = collisionBody(entity.type, 4.5, entity.heading, 0, entity.collisionBounds);
+    const halfX = shape.car ? shape.hx : shape.extX, halfZ = shape.car ? shape.hz : shape.extZ;
+    for (const dx of [-halfX, halfX]) for (const dz of [-halfZ, halfZ]) {
+      const corner = this.surfaceResolver.below(x + dx * shape.cos + dz * shape.sin,
+        z - dx * shape.sin + dz * shape.cos, support.height + 0.025);
+      if (corner?.surfaceId !== support.surfaceId) return terrain;
+    }
+    return support.height;
+  }
+
   updateHelicopter(dt) {
     if (dt <= 0) return;
     const h = this.entities.helicopter;
@@ -1195,21 +1225,20 @@ class ThirdPersonControllerManager {
 
     h.heading += yawInput * 1.45 * dt;
 
+    const skidBase = h.collisionBounds?.min.y ?? -0.25;
+    const previousSkidY = h.position.y + skidBase;
     h.position.x += Math.sin(h.heading) * h.speed * dt;
     h.position.z += Math.cos(h.heading) * h.speed * dt;
     h.position.y += h.verticalSpeed * dt;
 
-    const terrain = this.groundHeight(h.position.x, h.position.z);
-    const landing = this.surfaceResolver.below(h.position.x, h.position.z,
-      Number.isFinite(terrain) ? Math.max(h.position.y + 4, terrain + 1) : h.position.y + 4);
-    const skidBase = h.collisionBounds?.min.y ?? -0.25;
-    const floor = landing ? landing.height - skidBase : null;
+    const landing = this.getFlightSupport(h, previousSkidY);
+    const floor = Number.isFinite(landing) ? landing - skidBase : null;
     if (floor !== null && h.position.y < floor) {
-      this.reportCollision(h, groundCollider, 'ground', h.position.x, landing.height, h.position.z, 0, 1, 0, -h.verticalSpeed);
+      this.reportCollision(h, groundCollider, 'ground', h.position.x, landing, h.position.z, 0, 1, 0, -h.verticalSpeed);
       h.position.y = floor;
       h.verticalSpeed = Math.max(0, h.verticalSpeed);
     }
-    if (!landing && h.position.y < (h._safePosition?.y ?? h.position.y)) {
+    if (floor === null && h.position.y < (h._safePosition?.y ?? h.position.y)) {
       h.position.y = h._safePosition.y;
       h.verticalSpeed = 0;
     }

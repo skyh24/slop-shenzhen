@@ -1,14 +1,50 @@
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { execFileSync } = require('node:child_process');
+const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
+const { loadModule } = require('./helpers/module.cjs');
 const root = join(__dirname, '..');
 const source = readFileSync(join(root, 'js/sz-ground.js'), 'utf8').replace("import * as THREE from 'three/webgpu';", 'const THREE = {};');
 const modulePromise = import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 test('terrain surface geometry preserves coastline holes, original planes and chunk seams', () => {
   execFileSync(join(root, '.venv/bin/python'), ['-m', 'unittest', 'discover', '-s', 'tools/sz/tests', '-p', 'test_terrain_surface.py'], { cwd: root, stdio: 'pipe' });
+});
+
+test('seaward polygons preserve island and wetland holes and require the ocean editing datum', () => {
+  execFileSync(join(root, '.venv/bin/python'), ['-m', 'unittest', 'discover', '-s', 'tools/sz/tests', '-p', 'test_sea_surface.py'], { cwd: root, stdio: 'pipe' });
+});
+
+const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
+test('rendered Shenzhen Bay water keeps the Hong Kong pylon island and the park dry', { skip: !threeDir }, async () => {
+  const read = name => readFileSync(join(root, 'js', name), 'utf8');
+  const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));
+  const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
+  const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
+  const { buildSzSea } = loadModule(read('sz-sea.js'), { imports: {
+    ...imports, './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports }),
+    './sz-materials.js': loadModule(read('sz-materials.js'), { imports })
+  } });
+  const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
+  const raw = JSON.parse(gunzipSync(readFileSync(join(root, 'js/sz-city.json.gz'))));
+  const { geo } = decodeCityPayload(raw);
+  const scene = new THREE.Scene();
+  const sea = buildSzSea(scene, geo.seaSurface);
+  scene.updateMatrixWorld(true);
+  const level = (x, z) => new THREE.Raycaster(new THREE.Vector3(x, 200, z), new THREE.Vector3(0, -1, 0))
+    .intersectObject(sea.mesh)[0]?.point.y ?? null;
+  const [north, south] = geo.bridges.find(bridge => bridge.id === 'shenzhen-bay-bridge').spans.map(span => span.tower);
+  assert.equal(level(north.x, north.z), 0);
+  assert.equal(level(south.x, south.z), null);
+  assert.equal(level(-9000, 9000), 0);
+  assert.equal(level(-10804.1, 4963.3), null);
+  assert.equal(level(-9000, 11000), null);
+  assert.equal(sea.mesh.userData.source.verticalDatum, 'EGM2008');
+  sea.dispose();
+  assert.equal(scene.children.length, 0);
 });
 
 test('contact query reads rendered Float32 triangle positions and excludes missing surfaces', async () => {

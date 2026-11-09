@@ -5,11 +5,14 @@ import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
-import { GEO } from './sz-geodata.js';
-import { getLocationLabel, getLocationInfo, inBounds, isTypingInField, TELEPORT_LOCATIONS } from './sz-city-config.js';
+import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
+import { getLocationLabel, getLocationInfo, inBounds, isTypingInField, findGroundArrival, LANDMARK_SITES, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { buildSzGround } from './sz-ground.js';
+import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads } from './sz-roads.js';
-import { buildCityBlocks } from './sz-buildings.js';
+import { buildSzLandmarks } from './sz-landmarks/index.js';
+import { buildShenzhenBayBridge } from './sz-landmarks/shenzhen-bay-bridge.js';
+import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
 import { createSzTraffic } from './sz-traffic.js';
 import { sceneUniforms } from './sz-materials.js';
 import { ThirdPersonControllerManager } from './controllers.js';
@@ -18,10 +21,20 @@ import { GamepadControls } from './gamepad-controls.js';
 import { CameraSystem, CAMERA_PRESETS } from './cameras.js';
 import { LightingSystem } from './lighting.js';
 import { SZMapSystem } from './sz-map.js';
+import { parkAt } from './sz-park-arrivals.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 
 const PLAYER_STATE_KEY = 'sz-player-state';
+
+function summarizeSamples(values) {
+  if (values.length === 0) return null;
+  const sorted = values.slice().sort((a, b) => a - b);
+  return {
+    mean: values.reduce((sum, value) => sum + value, 0) / values.length,
+    p95: sorted[Math.ceil(sorted.length * 0.95) - 1]
+  };
+}
 
 async function initApp() {
   const container = document.getElementById('canvas-container');
@@ -30,13 +43,18 @@ async function initApp() {
   const loadingFill = document.getElementById('loading-progress');
   let graphicsLoss = null;
   let renderedFrames = 0;
+  const query = new URLSearchParams(location.search);
+  const qa = ['127.0.0.1', 'localhost'].includes(location.hostname) && query.get('qa') === '1' ? {
+    chunkSize: query.get('chunks') === '500' ? 500 : BUILDING_RENDER_CHUNK_SIZE,
+    startup: {}, frames: [], gpu: [], queue: [], previousFrameAt: null, queryPending: false, queuePending: false
+  } : null;
 
   // One progress bar for the whole start-up. Each stage fills a share of it sized after its typical duration (the
   // "[init]" timings logged below, on an M1 MacBook Air; `data` is fetching the code and data before this runs, which
   // the stylesheet animates). The fill glides through a stage as a compositor transition, so it keeps moving while the
   // stage's synchronous work blocks the main thread, at the pace the earlier stages ran at on this machine.
   const STAGE_MS = {
-    data: 1800, renderer: 50, lighting: 60, ground: 900, roads: 1500, blocks: 2100,
+    data: 1800, renderer: 50, lighting: 60, ground: 900, roads: 1500, landmarks: 300, blocks: 2100,
     traffic: 300, controllers: 50, culling: 730, ui: 50, postFX: 60,
     compile: 3900, warmup: 1950, gpu: 300
   };
@@ -87,7 +105,8 @@ async function initApp() {
   const renderer = new THREE.WebGPURenderer({
     antialias: !isFirefox,
     powerPreference: 'high-performance',
-    reversedDepthBuffer: true
+    reversedDepthBuffer: true,
+    trackTimestamp: Boolean(qa)
   });
   const onDeviceLost = renderer.onDeviceLost.bind(renderer);
   renderer.onDeviceLost = ({ api, reason, message, ...details }) => {
@@ -107,7 +126,9 @@ async function initApp() {
   let initMark = performance.now();
   const markInit = (label) => {
     const now = performance.now();
-    initTimings.push(`${label} ${Math.round(now - initMark)}ms`);
+    const ms = Math.round(now - initMark);
+    initTimings.push(`${label} ${ms}ms`);
+    if (qa) qa.startup[label] = ms;
     initMark = now;
   };
 
@@ -122,24 +143,31 @@ async function initApp() {
 
   await showLoadingStage(STR.startup.ground, 'ground');
   const ground = buildSzGround(scene, GEO.terrainSurface);
+  const sea = buildSzSea(scene, GEO.seaSurface);
   markInit('ground');
   await showLoadingStage(STR.startup.roads, 'roads');
   const roads = buildSzRoads(scene, GEO.roadGraph, GEO.terrainSurface);
   markInit('roads');
+  await showLoadingStage(STR.startup.landmarks, 'landmarks');
+  const landmarks = buildSzLandmarks(scene, { buildings: REAL_BUILDINGS, terrain: GEO.terrain });
+  const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
+  markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
-  const cityBlocks = buildCityBlocks(scene);
+  const cityBlocks = buildCityBlocks(scene, { skipIds: landmarks.skipIds, renderChunkSize: qa?.chunkSize });
   markInit('blocks');
+  const colliders = [...landmarks.colliders, ...cityBlocks.colliders];
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = createSzTraffic(scene, GEO.roadGraph, {
     roadHeight: roads.roadHeight,
-    colliders: cityBlocks.colliders
+    colliders
   });
   markInit('traffic');
 
   // 贴地道路与地形共面，控制器只需要一份接触三角面。
   await showLoadingStage(STR.startup.controllers, 'controllers');
-  const controllerManager = new ThirdPersonControllerManager(scene, cityBlocks.colliders, {
+  const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
     groundHeight: ground.groundHeight,
+    surfaces: landmarks.surfaces,
     nearTraffic: traffic.nearColliders
   });
   const initialMode = controllerManager.activeMode;
@@ -153,7 +181,8 @@ async function initApp() {
         const p = saved.entities?.[mode];
         if (!p || ![p.x, p.y, p.z, p.heading].every(Number.isFinite)) continue;
         controllerManager.setMode(mode);
-        controllerManager.teleportActiveTo(p.x, p.z, p.heading, p.y);
+        const park = mode === 'person' ? parkAt(GEO.parks, p.x, p.z) : null;
+        controllerManager.teleportActiveTo(p.x, p.z, p.heading, p.y, { park, requireArrival: Boolean(park) });
       }
       controllerManager.setMode(Object.hasOwn(controllerManager.entities, saved.activeMode) ? saved.activeMode : initialMode);
     }
@@ -206,7 +235,7 @@ async function initApp() {
     // 每类静态分块共用材质和顶点布局，预编译其中一块即可。
     for (const chunk of chunks) chunk.userData.sharesPipelineWith = first;
   }
-  setupSceneCulling(scene, cullingRoots, lightingSystem.sunLight.shadow);
+  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [
     traffic.group,
@@ -265,8 +294,20 @@ async function initApp() {
   // 6. Wire UI Controls (Strictly using safe DOM APIs: textContent, classList, addEventListener)
   const modeButtons = document.querySelectorAll('[data-mode]');
   const cameraButtons = document.querySelectorAll('[data-camera]');
+  const cameraPresets = CAMERA_PRESETS.filter(preset => preset.id !== 'bayBridge' || bridge.group);
+  document.getElementById('cam-bayBridge')?.toggleAttribute('hidden', !bridge.group);
   const timeButtons = document.querySelectorAll('[data-time]');
-  const teleportButtons = populateTeleportMenu(TELEPORT_LOCATIONS, getLocationLabel);
+  const bayPark = LANDMARK_SITES['shenzhen-bay-park'];
+  const bayParkSource = GEO.parks.find(park => park.id === bayPark?.id);
+  const bayParkRoad = bayPark && findGroundArrival(bayPark, 'car', { radius: 800 });
+  const parkArrivals = {
+    person: bayParkSource?.areas.some(area => area.arrivals.length) && { ...bayPark, park: bayParkSource, detail: STR.teleport.parkWalk },
+    car: bayParkRoad && { ...bayParkRoad, detail: STR.teleport.nearParkRoad(getLocationLabel(bayParkRoad.x, bayParkRoad.z), bayParkRoad.distance) },
+    helicopter: bayPark && { ...bayPark, detail: STR.teleport.parkFlight }
+  };
+  const teleportEntries = bayPark ? { ...TELEPORT_LOCATIONS, [bayPark.id]: bayPark } : TELEPORT_LOCATIONS;
+  const teleportButtons = populateTeleportMenu(teleportEntries, getLocationLabel);
+  const parkButton = teleportButtons.find(button => button.dataset.teleport === bayPark?.id);
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
   const modeSwitch = document.getElementById('mode-switch');
   touchControls.onAvailabilityChange = placeModeIndicator;
@@ -331,6 +372,13 @@ async function initApp() {
     const ent = controllerManager.getActiveEntity();
     if (elMode) elMode.textContent = ent.label;
     renderControlHints(mode);
+    if (parkButton) {
+      const entry = parkArrivals[mode];
+      const detail = entry?.detail ?? STR.teleport.parkUnavailable[mode];
+      parkButton.disabled = !entry;
+      parkButton.querySelector('.pop-sub').textContent = detail;
+      parkButton.setAttribute('aria-label', STR.teleport.entryLabel(bayPark.name, detail));
+    }
 
     // If currently on a static scenic camera, switch to 3rd-Person Chase so user sees their selected character/vehicle
     const currentCam = cameraSystem.getActivePreset();
@@ -350,9 +398,9 @@ async function initApp() {
 
   // Steps through CAMERA_PRESETS (V / Shift+V, and the arrows either side of the camera name)
   function cycleCamera(step) {
-    const n = CAMERA_PRESETS.length;
-    const idx = CAMERA_PRESETS.findIndex((p) => p.id === cameraSystem.activePresetId);
-    selectCamera(CAMERA_PRESETS[(idx + step + n) % n].id, true);
+    const n = cameraPresets.length;
+    const idx = cameraPresets.findIndex((p) => p.id === cameraSystem.activePresetId);
+    selectCamera(cameraPresets[(idx + step + n) % n].id, true);
   }
 
   function selectTime(timeId) {
@@ -456,18 +504,21 @@ async function initApp() {
     elLocation.replaceChildren(place);
   }
 
-  function teleportTo(x, z, heading) {
+  function teleportTo(x, z, heading, options = {}) {
     if (!inBounds(x, z)) return null;
-    const destination = controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true });
+    const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(GEO.parks, x, z) : null);
+    const destination = controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park });
     if (!destination) return null;
     touchControls.reset();
     gamepadControls.reset();
     cameraSystem.resetForTeleport();
     selectCamera('chase', true);
+    const name = getLocationLabel(destination.x, destination.z);
+    const area = park?.areas.find(item => item.osmId === destination.parkAreaId);
     mapSystem.waypoint = {
       x: destination.x,
       z: destination.z,
-      name: getLocationLabel(destination.x, destination.z)
+      name: area?.name ?? name
     };
     return destination;
   }
@@ -490,8 +541,9 @@ async function initApp() {
   const teleportFeedback = document.getElementById('teleport-feedback');
   teleportButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
-      const loc = TELEPORT_LOCATIONS[btn.dataset.teleport];
-      const arrived = loc && teleportTo(loc.x, loc.z, loc.heading);
+      const key = btn.dataset.teleport;
+      const loc = key === bayPark?.id ? parkArrivals[controllerManager.activeMode] : TELEPORT_LOCATIONS[key];
+      const arrived = loc && teleportTo(loc.x, loc.z, loc.heading, loc);
       if (teleportFeedback) {
         teleportFeedback.textContent = arrived ? '' : STR.map.noArrival;
         teleportFeedback.hidden = Boolean(arrived);
@@ -577,8 +629,31 @@ async function initApp() {
   selectMode(controllerManager.activeMode);
   selectCamera('chase', true);
   selectTime(initialTime);
-  if (['127.0.0.1', 'localhost'].includes(location.hostname) && new URLSearchParams(location.search).get('qa') === '1') {
+  if (qa) {
     // 只返回快照，验收通过同一套玩家输入完成。
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) return;
+      qa.frames.length = 0;
+      qa.gpu.length = 0;
+      qa.queue.length = 0;
+      qa.previousFrameAt = null;
+    });
+    function profileSnapshot() {
+      const durationMs = Math.min(10000, qa.frames.reduce((sum, frame) => sum + frame.intervalMs, 0));
+      const fields = ['intervalMs', 'simulationMs', 'sceneUiMs', 'renderCpuMs', 'drawCalls', 'triangles', 'gpuBytes'];
+      return {
+        chunkSize: qa.chunkSize,
+        startupMs: { ...qa.startup },
+        frames: qa.frames.length,
+        durationMs,
+        fps: durationMs ? qa.frames.length * 1000 / durationMs : null,
+        ...Object.fromEntries(fields.map(key => [key, summarizeSamples(qa.frames.map(frame => frame[key]))])),
+        gpuRenderMs: summarizeSamples(qa.gpu.map(sample => sample.ms)),
+        gpuSamples: qa.gpu.length,
+        gpuQueueWaitMs: summarizeSamples(qa.queue.map(sample => sample.ms)),
+        gpuQueueSamples: qa.queue.length
+      };
+    }
     Object.defineProperty(window, '__szQA', { value: () => ({
       ready: audioSystem.ready,
       mode: controllerManager.activeMode,
@@ -590,6 +665,15 @@ async function initApp() {
       map: { open: mapSystem.isFullMapOpen, search: mapSystem.searchHighlight,
         waypoint: mapSystem.waypoint && { ...mapSystem.waypoint }, metro: [...mapSystem.metroLines] },
       traffic: { ...traffic.statistics },
+      sea: sea && { heightM: sea.heightM, triangles: sea.triangles, verticalDatum: sea.mesh.userData.source.verticalDatum },
+      landmarks: {
+        models: landmarks.group.children.map(group => group.name),
+        replaced: landmarks.skipIds.size,
+        collisionParts: landmarks.colliders.length,
+        roofSurfaces: landmarks.surfaces.map(surface => surface.id),
+        distant: bridge.group ? [{ id: bridge.group.name, ...bridge.statistics, playable: false }] : []
+      },
+      profile: profileSnapshot(),
       renderer: { backend: renderer.backend.constructor.name, initialized: renderer.initialized,
         animationRegistered: Boolean(renderer.getAnimationLoop()), frame: renderer.info.frame, renderedFrames,
         deviceLost: graphicsLoss && { ...graphicsLoss }, render: { ...renderer.info.render }, memory: { ...renderer.info.memory } }
@@ -690,6 +774,8 @@ async function initApp() {
 
   function renderFrame(now) {
     if (graphicsLoss) return;
+    const measureFrame = qa && audioSystem.ready && !document.hidden;
+    const profileStart = measureFrame ? performance.now() : 0;
     const rawDt = (now - lastTime) * 0.001;
     lastTime = now;
     const dt = Math.min(Math.max(rawDt, 0.001), 0.05);
@@ -699,6 +785,7 @@ async function initApp() {
     traffic.update(dt, controllerManager.getActiveEntity().position, players);
     controllerManager.update(dt, elapsed, cameraSystem.initialized ? cameraSystem.currentPos : null);
     cameraSystem.update(dt, elapsed);
+    const simulationEnd = measureFrame ? performance.now() : 0;
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();
       nextPlayerSave = now + 5000;
@@ -708,6 +795,7 @@ async function initApp() {
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
     for (const root of dynamicRoots) root.updateMatrixWorld();
+    const renderStart = measureFrame ? performance.now() : 0;
 
     // Render frame via TSL RenderPipeline (SSR + Bloom)
     if (!warmedUp) {
@@ -731,6 +819,35 @@ async function initApp() {
     }
     renderPipeline.render();
     renderedFrames++;
+    if (measureFrame) {
+      const cutoff = now - 10000;
+      if (qa.previousFrameAt !== null) qa.frames.push({
+        at: now, intervalMs: now - qa.previousFrameAt, simulationMs: simulationEnd - profileStart,
+        sceneUiMs: renderStart - simulationEnd, renderCpuMs: performance.now() - renderStart,
+        drawCalls: renderer.info.render.drawCalls, triangles: renderer.info.render.triangles,
+        gpuBytes: renderer.info.memory.total
+      });
+      qa.previousFrameAt = now;
+      while (qa.frames[0]?.at < cutoff) qa.frames.shift();
+      while (qa.gpu[0]?.at < cutoff) qa.gpu.shift();
+      while (qa.queue[0]?.at < cutoff) qa.queue.shift();
+      if (renderedFrames % 30 === 0) {
+        const device = renderer.backend.device;
+        if (device && !qa.queuePending) {
+          const started = performance.now();
+          qa.queuePending = true;
+          device.queue.onSubmittedWorkDone().then(() => {
+            if (!document.hidden) qa.queue.push({ at: now, ms: performance.now() - started });
+          }).catch(error => console.warn('[profile queue]', error)).finally(() => { qa.queuePending = false; });
+        }
+        if (renderer.backend.trackTimestamp && !qa.queryPending) {
+          qa.queryPending = true;
+          renderer.resolveTimestampsAsync(THREE.TimestampQuery.RENDER).then(ms => {
+            if (Number.isFinite(ms) && !document.hidden) qa.gpu.push({ at: now, ms });
+          }).catch(error => console.warn('[profile timestamp]', error)).finally(() => { qa.queryPending = false; });
+        }
+      }
+    }
     if (!warmedUp) {
       warmedUp = true;
       markInit('firstFrame');

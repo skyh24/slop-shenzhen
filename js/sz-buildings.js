@@ -4,13 +4,14 @@ import { GeoBuilder, addWalls, addFlatPolygon } from './sz-geometry.js';
 import { createBuildingMaterial } from './sz-materials.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
 
-const CHUNK = 500;
+export const BUILDING_RENDER_CHUNK_SIZE = 1000;
 const flatRing = ring => ring.flatMap(p => [p.x, p.z]);
 
 export function buildCityBlocks(scene, options = {}) {
   const buildings = options.buildings ?? REAL_BUILDINGS;
   const terrain = options.terrain ?? GEO.terrain;
   const skipIds = options.skipIds ?? new Set();
+  const renderChunkSize = options.renderChunkSize ?? BUILDING_RENDER_CHUNK_SIZE;
   const group = new THREE.Group();
   group.name = 'ShenzhenCityBlocks';
   const batches = new Map();
@@ -19,7 +20,7 @@ export function buildCityBlocks(scene, options = {}) {
   for (const building of buildings) {
     if (skipIds.has(building.id)) continue;
     const placement = buildingPlacement(building, terrain);
-    const key = `${Math.floor(building.cx / CHUNK)},${Math.floor(building.cz / CHUNK)}`;
+    const key = `${Math.floor(building.cx / renderChunkSize)},${Math.floor(building.cz / renderChunkSize)}`;
     if (!batches.has(key)) batches.set(key, new GeoBuilder(true));
     const batch = batches.get(key);
     const facade = CITY_PAYLOAD.enums.facade.indexOf(building.facade);

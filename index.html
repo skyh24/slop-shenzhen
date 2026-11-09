@@ -29,16 +29,28 @@
   <link rel="modulepreload" href="./js/building-collision.js" />
   <link rel="modulepreload" href="./js/sz-city-config.js" />
   <link rel="modulepreload" href="./js/sz-ground.js" />
+  <link rel="modulepreload" href="./js/sz-sea.js" />
   <link rel="modulepreload" href="./js/sz-roads.js" />
-  <link rel="modulepreload" href="./js/sz-geometry.js" />
-  <link rel="modulepreload" href="./js/sz-materials.js" />
   <link rel="modulepreload" href="./js/sz-building-layout.js" />
+  <link rel="modulepreload" href="./js/sz-landmarks/parts.js" />
+  <link rel="modulepreload" href="./js/sz-landmarks/tencent-binhai.js" />
+  <link rel="modulepreload" href="./js/sz-landmarks/dji-sky-city.js" />
+  <link rel="modulepreload" href="./js/sz-landmarks/ping-an.js" />
+  <link rel="modulepreload" href="./js/sz-landmarks/chunsun.js" />
+  <link rel="modulepreload" href="./js/sz-landmarks/shenzhen-bay-bridge.js" />
+  <link rel="modulepreload" href="./js/sz-landmarks/layout.js" />
+  <link rel="modulepreload" href="./js/sz-materials.js" />
+  <link rel="modulepreload" href="./js/sz-landmarks/materials.js" />
+  <link rel="modulepreload" href="./js/sz-geometry.js" />
+  <link rel="modulepreload" href="./js/sz-landmarks/render.js" />
+  <link rel="modulepreload" href="./js/sz-landmarks/index.js" />
   <link rel="modulepreload" href="./js/sz-buildings.js" />
   <link rel="modulepreload" href="./js/vehicles.js" />
   <link rel="modulepreload" href="./js/sz-vehicles.js" />
   <link rel="modulepreload" href="./js/vehicle-physics.js" />
   <link rel="modulepreload" href="./js/sz-traffic.js" />
   <link rel="modulepreload" href="./js/sz-controller-surfaces.js" />
+  <link rel="modulepreload" href="./js/sz-park-arrivals.js" />
   <link rel="modulepreload" href="./js/city-lighting-materials.js" />
   <link rel="modulepreload" href="./js/pedestrians.js" />
   <link rel="modulepreload" href="./js/vehicle-lights.js" />
@@ -178,8 +190,8 @@
   <div id="metro-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" data-label="metro.title">
     <div class="pop-title" data-text="metro.title"></div>
     <div class="metro-actions">
-      <button id="metro-show-all" class="pop-item" type="button" data-text="metro.all"></button>
-      <button id="metro-hide-all" class="pop-item" type="button" data-text="metro.none"></button>
+      <button id="metro-show-all" class="pop-item" type="button" data-text="metro.all" data-label="metro.all"></button>
+      <button id="metro-hide-all" class="pop-item" type="button" data-text="metro.none" data-label="metro.none"></button>
     </div>
     <div id="metro-lines"></div>
   </div>
@@ -274,6 +286,10 @@
     <button id="cam-bryantPark" class="pop-item cam-btn" data-camera="bryantPark" type="button"><span class="pop-name"></span></button>
     <button id="cam-waterfront" class="pop-item cam-btn" data-camera="waterfront" type="button"><span class="pop-name"></span></button>
     <button id="cam-drone" class="pop-item cam-btn" data-camera="drone" type="button"><span class="pop-name"></span></button>
+    <button id="cam-djiSkyCity" class="pop-item cam-btn" data-camera="djiSkyCity" type="button"><span class="pop-name"></span></button>
+    <button id="cam-pingAnTower" class="pop-item cam-btn" data-camera="pingAnTower" type="button"><span class="pop-name"></span></button>
+    <button id="cam-chunsunTower" class="pop-item cam-btn" data-camera="chunsunTower" type="button"><span class="pop-name"></span></button>
+    <button id="cam-bayBridge" class="pop-item cam-btn" data-camera="bayBridge" type="button" hidden><span class="pop-name"></span></button>
   </div>
 
   <!-- 全屏地图（M） -->

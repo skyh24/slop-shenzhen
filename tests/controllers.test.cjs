@@ -44,6 +44,7 @@ function keyboardHarness(nyc = {}) {
       'three/webgpu': {},
       './sz-city-config.js': config,
       './sz-controller-surfaces.js': {},
+      './sz-park-arrivals.js': {},
       './sz-strings.js': { STR: {} },
       './city-lighting-materials.js': {},
       './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } },
@@ -622,6 +623,23 @@ test('movement and teleports pass underneath elevated building sections', () => 
   }
 });
 
+test('movement contacts the visible altitude slice of a rotated narrowing tower', () => {
+  const ring = half => [{ x: 0, z: -half }, { x: half, z: 0 }, { x: 0, z: half }, { x: -half, z: 0 }];
+  const lower = ring(10), upper = ring(2);
+  const minY = 10, maxY = 30;
+  const collider = { minX: -10, maxX: 10, minZ: -10, maxZ: 10, minY, maxY,
+    polygon: { outer: lower, holes: [] }, loft: { lower, upper, minY, maxY } };
+  const { controller, ent } = teleportHarness('person', [collider]);
+  for (const y of [4, 25, 30]) {
+    Object.assign(ent.position, { x: 5, y, z: 0 });
+    controller.resolveHorizontalCollision(ent.position, 0.48);
+    assert.deepEqual([ent.position.x, ent.position.z], [5, 0]);
+  }
+  Object.assign(ent.position, { x: 5, y: 15, z: 0 });
+  controller.resolveHorizontalCollision(ent.position, 0.48);
+  assert.notDeepEqual([ent.position.x, ent.position.z], [5, 0]);
+});
+
 test('building clearance uses the full player height beneath an overhang', () => {
   for (const [mode, height] of [['person', 1.9], ['car', 1.8], ['cyclist', 1.9], ['helicopter', 3.2]]) {
     const y = mode === 'helicopter' ? 0.25 : 0;
@@ -952,4 +970,28 @@ test('passenger aircraft caps speed and altitude and brings level skids onto ter
   assert.equal(ent.position.y + ent.collisionBounds.min.y, 0);
   assert.equal(ent.verticalSpeed, 0);
   assert.ok(ent.tiltPivot.rotation.x === 0 && ent.tiltPivot.rotation.z === 0);
+});
+
+test('a passenger aircraft descends onto the roof only from above and with its envelope supported', () => {
+  const { controller, ent } = teleportHarness('helicopter');
+  const { createSurfaceResolver } = loadModule(readFileSync(join(__dirname, '../js/sz-controller-surfaces.js'), 'utf8'));
+  const a = { x: -10, y: 10, z: -10 }, b = { x: 10, y: 10, z: -10 };
+  const c = { x: 10, y: 10, z: 10 }, d = { x: -10, y: 10, z: 10 };
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => 0, surfaces: [
+    { id: 'sourced-roof', heightSource: 'landmark', triangles: [[a, b, c], [a, c, d]] }
+  ] });
+  controller.groundHeight = () => 0;
+  ent.collisionBounds = { min: { x: -3, y: 0, z: -2.8 }, max: { x: 3, y: 2.2, z: 2.8 } };
+  ent.heading = ent.speed = 0;
+  Object.assign(ent.position, { x: 0, y: 10.04, z: 0 });
+  assert.equal(controller.getFlightSupport(ent, 9), 0);
+  ent.position.x = 8;
+  assert.equal(controller.getFlightSupport(ent, 11), 0);
+
+  ent.position.x = 0;
+  ent.verticalSpeed = -5;
+  controller.keys.down = true;
+  controller.updateHelicopter(1 / 60);
+  assert.equal(ent.position.y, 10);
+  assert.equal(ent.verticalSpeed, 0);
 });
