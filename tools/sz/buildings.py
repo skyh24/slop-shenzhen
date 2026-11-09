@@ -313,6 +313,11 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True):
                     for i in idx:
                         if part_geoms[i].representative_point().within(r['geom']):
                             part_records[i].setdefault('parentId', r['id'])
+                # 部件通常不带名称；名称标牌需要父楼名字，只做显示用的继承。
+                if (r.get('name') or '').strip():
+                    for i in idx:
+                        if part_geoms[i].representative_point().within(r['geom']):
+                            part_records[i].setdefault('name', r['name'])
                 continue
         kept.append(r)
     records = kept
@@ -439,11 +444,15 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True):
                                                'previousMinHeightM': previous_min})
         counts[source] += 1
         landmark = binding['landmark'] if binding else None
+        # 层数只作立面节奏与标牌位置的参考；缺失时写 -1，不反推楼高。
+        levels = r.get('levels') or r.get('oFloors') or -1
         out.append({
             'id': r['id'], 'poly': poly, 'height': round(height, 1),
             'minHeight': rounded_min,
             'category': category, 'facade': _facade(category, height, area, landmark),
-            'heightSource': source, 'landmark': landmark, 'name': r.get('name'),
+            'heightSource': source, 'landmark': landmark,
+            'name': (r.get('name') or '').strip() or None,
+            'levels': int(round(levels)) if levels and levels > 0 else -1,
         })
     report['buildings'] = len(out)
     report['heightSources'] = counts

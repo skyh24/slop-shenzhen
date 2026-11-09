@@ -1481,7 +1481,7 @@
     "triangles": 386824,
     "areaKm2": 105.747093,
     "areaErrorM2": -1.71e-06,
-    "seconds": 2.72,
+    "seconds": 3.22,
     "waterLevelsGenerated": false,
     "heightSource": "copernicus-glo30-dsm",
     "exclusions": [
@@ -2289,6 +2289,11 @@
       ]
     }
   ],
-  "outputBytes": 6537062,
-  "seconds": 20.2
+  "buildingNames": {
+    "uniqueNames": 2083,
+    "namedBuildings": 5989,
+    "buildingsWithLevels": 4985
+  },
+  "outputBytes": 6565964,
+  "seconds": 65.3
 }

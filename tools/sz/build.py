@@ -105,6 +105,18 @@ def main():
     minx, minz, maxx, maxz = clip.bounds
     # 范围外的远景地面：北、东、西三面是陆地，南面（深圳湾）保持海面
     far_land = box(minx - FAR_PAD, minz - FAR_PAD, maxx + FAR_PAD, maxz).difference(clip)
+    # 楼名去重成字符串表，运行时按索引取，避免每条记录重复存中文串。
+    name_ids = {}
+    names = []
+
+    def name_index(value):
+        if not value:
+            return -1
+        if value not in name_ids:
+            name_ids[value] = len(names)
+            names.append(value)
+        return name_ids[value]
+
     payload = {
         'version': FORMAT_VERSION,
         'terrain': terrain,
@@ -138,7 +150,10 @@ def main():
             'facade': [FACADES.index(b['facade']) for b in buildings],
             'src': [HEIGHT_SOURCES.index(b['heightSource']) for b in buildings],
             'lm': [lm_index.get(b['landmark'], -1) for b in buildings],
+            'name': [name_index(b.get('name')) for b in buildings],
+            'lv': [b.get('levels', -1) for b in buildings],
         },
+        'names': names,
         'landmarks': landmarks,
         'parks': [{**park, 'areas': [{**area, 'polygon': enc_poly(area['polygon'])}
                                     for area in park['areas']]} for park in parks],
@@ -149,6 +164,11 @@ def main():
         payload['seaSurface'] = {**sea_surface, 'polygons': [enc_poly(p) for p in sea_surface['polygons']]}
     if streetscape:
         payload['streetscape'] = streetscape
+    report['buildingNames'] = {
+        'uniqueNames': len(names),
+        'namedBuildings': sum(1 for b in buildings if b.get('name')),
+        'buildingsWithLevels': sum(1 for b in buildings if b.get('levels', -1) > 0),
+    }
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode()

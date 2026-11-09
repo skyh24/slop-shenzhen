@@ -59,3 +59,25 @@ test('coordinate decoder rejects truncated or fractional delta streams', async (
   assert.throws(() => decodeRing([1, 2, 3]), /coordinate sequence/);
   assert.throws(() => decodeRing([0, 0, 0.5, 3]), /coordinate delta/);
 });
+
+test('building names and levels survive decoding and invalid indices are rejected', async () => {
+  const { decodeCityPayload, validateCityPayload } = await modulePromise;
+  const { buildings } = decodeCityPayload(raw);
+  assert.ok(Array.isArray(raw.names) && raw.names.length > 0, 'shared payload carries a name table');
+  assert.equal(raw.buildings.name.length, raw.buildings.h.length);
+  assert.equal(raw.buildings.lv.length, raw.buildings.h.length);
+  let named = 0;
+  buildings.forEach((building, i) => {
+    assert.equal(building.name, raw.buildings.name[i] >= 0 ? raw.names[raw.buildings.name[i]] : null);
+    assert.equal(building.levels, raw.buildings.lv[i]);
+    assert.ok(Number.isInteger(building.levels) && building.levels >= -1);
+    if (building.name) named++;
+  });
+  assert.ok(named > 1000, 'ordinary buildings keep their source names');
+  const brokenName = { ...raw, buildings: { ...raw.buildings, name: raw.buildings.name.slice() } };
+  brokenName.buildings.name[0] = raw.names.length;
+  assert.throws(() => validateCityPayload(brokenName), /building name index/);
+  const missingTable = { ...raw, names: undefined, buildings: { ...raw.buildings, name: raw.buildings.name.slice() } };
+  missingTable.buildings.name[0] = 0;
+  assert.throws(() => validateCityPayload(missingTable), /building name index/);
+});
