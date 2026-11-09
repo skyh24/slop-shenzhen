@@ -68,7 +68,7 @@ WebGPU 需要安全上下文，只用 `127.0.0.1` 或 `localhost` 打开。本�
 
 - 测试全部通过
 - 浏览器冷启动，控制台没有报错
-- 按 `docs/10-PERF-QA.md` 的路线走一遍，截图存到 `docs/qa/<里程碑>/`
+- 按 `docs/10-PERF-QA.md` 的路线走一遍，截图存到 `docs/qa/<里程碑>/`（该目录只留本地，已在 `.gitignore` 里，不进 Git）
 - 把页面恢复成普通游玩状态（不留固定机位、隐藏界面、调试参数）
 - 勾选 `docs/TASKS.md`，更新 `docs/HANDOFF.md`
 - 提交并推送，打标签 `baseline/m<N>`
