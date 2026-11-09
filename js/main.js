@@ -15,6 +15,8 @@ import { buildSzStreetscape } from './sz-streetscape.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
 import { buildShenzhenBayBridge } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
+import { buildBuildingSigns } from './sz-building-signs.js';
+import { buildBuildingDetails } from './sz-building-details.js';
 import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
 import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
 import { createAutoDrive } from './sz-auto-drive.js';
@@ -163,6 +165,12 @@ async function initApp() {
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
   const cityBlocks = buildCityBlocks(scene, { skipIds: landmarks.skipIds, renderChunkSize: qa?.chunkSize });
+  // 名称标牌按距离流式生成；用带 baseY 的 allBlocks，山区不会按 y=0 埋牌。
+  const buildingSigns = buildBuildingSigns(scene, { buildings: cityBlocks.allBlocks, roadGraph: GEO.roadGraph });
+  // 屋顶/阳台/空调/雨棚只在近景流式生成，不参与碰撞，也不改楼高和足迹。
+  const buildingDetails = buildBuildingDetails(scene, {
+    buildings: REAL_BUILDINGS, terrain: GEO.terrain, skipIds: landmarks.skipIds
+  });
   markInit('blocks');
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders];
   const streetscape = buildSzStreetscape(scene, GEO.streetscape, GEO.terrainSurface, {
@@ -185,6 +193,12 @@ async function initApp() {
     nearTraffic: traffic.nearColliders
   });
   const initialMode = controllerManager.activeMode;
+  // 首帧在加载阶段预热：把道路空间索引、出生点附近的牌子与近景细节建好，避免进场后长帧。
+  const loadingFocus = controllerManager.getActiveEntity().position;
+  buildingSigns.update(loadingFocus);
+  for (let i = 0; i < 24; i++) buildingSigns.update(loadingFocus);
+  buildingDetails.update(loadingFocus);
+  for (let i = 0; i < 40 && buildingDetails.statistics.pending > 0; i++) buildingDetails.update(loadingFocus);
   let initialTime = 'golden';
   // Reuse teleport placement so saved players return at rest, close to their last positions.
   try {
@@ -516,11 +530,15 @@ async function initApp() {
   });
 
   let locationText = '';
+  let locationBuilding = '';
   function renderLocation(x, z) {
     if (!elLocation) return;
     const label = getLocationLabel(x, z);
-    if (label === locationText) return;
+    // 就近建筑名只作定位提示；没有具名建筑时保持原样。
+    const buildingName = buildingSigns.nearestName(x, z) ?? '';
+    if (label === locationText && buildingName === locationBuilding) return;
     locationText = label;
+    locationBuilding = buildingName;
     const info = getLocationInfo(x, z);
     const place = document.createElement('div');
     if (info.road && info.kind === 'land') {
@@ -532,6 +550,12 @@ async function initApp() {
     } else {
       place.className = 'location-place';
       place.textContent = label;
+    }
+    if (buildingName) {
+      const near = document.createElement('span');
+      near.className = 'location-near';
+      near.textContent = buildingName;
+      place.appendChild(near);
     }
     elLocation.replaceChildren(place);
   }
@@ -688,6 +712,8 @@ async function initApp() {
   selectTime(initialTime);
   if (qa) {
     // 只返回快照，验收通过同一套玩家输入完成。
+    window.__szDebug = { scene, camera: cameraSystem.camera, signs: buildingSigns, details: buildingDetails,
+      controllerManager, teleport: teleportTo };
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) return;
       qa.frames.length = 0;
@@ -750,6 +776,17 @@ async function initApp() {
         distant: bridge.group ? [{ id: bridge.group.name, ...bridge.statistics, playable: false }] : []
       },
       profile: profileSnapshot(),
+      details: {
+        chunks: buildingDetails.statistics.chunks, meshes: buildingDetails.statistics.meshes,
+        triangles: buildingDetails.statistics.triangles, buildings: buildingDetails.statistics.buildings,
+        balconies: buildingDetails.statistics.balconies, acUnits: buildingDetails.statistics.acUnits,
+        roofParts: buildingDetails.statistics.roofParts, pending: buildingDetails.statistics.pending,
+        updateMs: buildingDetails.statistics.updateMs
+      },
+      signs: {
+        signs: buildingSigns.statistics.signs, textures: buildingSigns.statistics.textures,
+        chunks: buildingSigns.statistics.chunks, updateMs: buildingSigns.statistics.updateMs
+      },
       renderer: { backend: renderer.backend.constructor.name, initialized: renderer.initialized,
         animationRegistered: Boolean(renderer.getAnimationLoop()), frame: renderer.info.frame, renderedFrames,
         deviceLost: graphicsLoss && { ...graphicsLoss }, render: { ...renderer.info.render }, memory: { ...renderer.info.memory } }
@@ -872,6 +909,10 @@ async function initApp() {
     controllerManager.update(dt, elapsed, cameraSystem.initialized ? cameraSystem.currentPos : null, driveInput);
     cameraSystem.update(dt, elapsed);
     streetscape.update(cameraSystem.camera.position);
+    buildingSigns.update(cameraSystem.camera.position);
+    buildingSigns.group.updateMatrixWorld(true);
+    buildingDetails.update(cameraSystem.camera.position);
+    buildingDetails.group.updateMatrixWorld(true);
     const simulationEnd = measureFrame ? performance.now() : 0;
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();
