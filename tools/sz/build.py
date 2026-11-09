@@ -13,6 +13,7 @@ from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project
 from land import build_land
 from osm import read_osm
 from roads import CLASSES, build_roads
+from terrain import build_terrain
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'js/sz-mvp/data/sz-mvp.json.gz'
@@ -70,6 +71,7 @@ def main():
     print(f'buildings: {len(buildings)} in {time.time() - t0:.1f}s', flush=True)
     land, water, wetland, green = build_land(osm, clip, buildings, report)
     roads = build_roads(osm, clip, report)
+    terrain = build_terrain(osm, clip, land, water, report)
 
     landmarks = landmark_entries()
     lm_index = {lm['id']: i for i, lm in enumerate(landmarks)}
@@ -79,6 +81,7 @@ def main():
     far_land = box(minx - FAR_PAD, minz - FAR_PAD, maxx + FAR_PAD, maxz).difference(clip)
     payload = {
         'version': FORMAT_VERSION,
+        'terrain': terrain,
         'origin': [ORIGIN_LON, ORIGIN_LAT],
         'bounds': [round(minx), round(minz), round(maxx), round(maxz)],
         'enums': {'facade': FACADES, 'category': CATEGORIES, 'heightSource': HEIGHT_SOURCES, 'roadClass': CLASSES},
