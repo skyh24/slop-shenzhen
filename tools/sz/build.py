@@ -13,6 +13,7 @@ from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project
 from land import build_land
 from osm import read_osm
 from roads import CLASSES, build_roads
+from roadgraph import build_roadgraph
 from terrain import build_terrain
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -25,11 +26,11 @@ FORMAT_VERSION = 1
 FAR_PAD = 30000
 
 
-def enc_ring(coords):
+def enc_ring(coords, strip_closure=True):
     """坐标转成分米整数，再做差分，压缩后体积小很多。"""
     flat, px, pz = [], 0, 0
     pts = list(coords)
-    if len(pts) > 1 and pts[0] == pts[-1]:
+    if strip_closure and len(pts) > 1 and pts[0] == pts[-1]:
         pts = pts[:-1]
     for x, z in pts:
         ix, iz = round(x * 10), round(z * 10)
@@ -72,6 +73,7 @@ def main():
     land, water, wetland, green = build_land(osm, clip, buildings, report)
     roads = build_roads(osm, clip, report)
     terrain = build_terrain(clip, report)
+    road_graph = build_roadgraph(osm, clip, report)
 
     landmarks = landmark_entries()
     lm_index = {lm['id']: i for i, lm in enumerate(landmarks)}
@@ -82,6 +84,7 @@ def main():
     payload = {
         'version': FORMAT_VERSION,
         'terrain': terrain,
+        'roadGraph': road_graph,
         'origin': [ORIGIN_LON, ORIGIN_LAT],
         'bounds': [round(minx), round(minz), round(maxx), round(maxz)],
         'enums': {'facade': FACADES, 'category': CATEGORIES, 'heightSource': HEIGHT_SOURCES, 'roadClass': CLASSES},
@@ -96,7 +99,7 @@ def main():
             'oneway': [1 if r['oneway'] else 0 for r in roads],
             'elevated': [1 if r['elevated'] else 0 for r in roads],
             'name': [r['name'] or '' for r in roads],
-            'pts': [enc_ring(r['line'].coords) for r in roads],
+            'pts': [enc_ring(r['line'].coords, strip_closure=False) for r in roads],
         },
         'buildings': {
             'rings': [enc_poly(b['poly']) for b in buildings],

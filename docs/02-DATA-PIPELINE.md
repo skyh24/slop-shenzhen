@@ -66,8 +66,10 @@ z = −(lat − lat0) · KY
 
 ### 2. 道路
 
-- 可驾驶道路：`motorway`（地面段）、`trunk`、`primary`、`secondary`、`tertiary`、`unclassified`、`residential`、`living_street` 和各级 `_link`
-- 不进可驾驶路网：`service`、`footway`、`cycleway`、`path`、`steps`，以及 `bridge=yes`、`tunnel=yes`、`layer≠0` 的段（一期高架和隧道只做外观）
+- 路网道路：`motorway`、`trunk`、`primary`、`secondary`、`tertiary`、`unclassified`、`residential`、`living_street` 和各级 `_link`
+- 不进可驾驶路网：`service`、`footway`、`cycleway`、`path`、`steps`，以及明确禁止车辆通行的道路。桥梁、隧道和非零层路段保留拓扑与来源标签；标高未核实前为 `unresolved`，不能当成已建好的可通行结构。
+- 按 OSM 共享节点连接，不把平面交叉或相近的跨层道路拼接。`oneway=-1`、显式双向和环岛保留方向；按机动车访问标签优先级过滤。转向限制与条件通行仍待导入。
+- 实现入口：`tools/sz/roadgraph.py`，输出 nodes/links/names 以及 nodeIds/metadata；构建报告列强连通统计和宽度来源。
 - 宽度：OSM `width`；没有就按 `lanes × 3.25 m`；再没有就按等级估算（trunk 22、primary 16、secondary 12、tertiary 9、residential 7、link 6 米）
 - 输出纽约 `roadGraph` 格式：`nodes [x, z, ...]`、`links [a, b, 名称序号, 宽度, 车道数, 方向, 内部形状点]`、`names`
 - 路口：度数大于等于 3、且至少两条主次干道相交的节点设信号灯

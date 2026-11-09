@@ -35,6 +35,30 @@ def _num(v):
     return float(m.group(1)) if m else None
 
 
+def road_direction(tags):
+    value = tags.get('oneway')
+    if value in ('no', '0', 'false'):
+        return 0
+    if value == '-1':
+        return -1
+    if value in ('yes', '1', 'true'):
+        return 1
+    if value in ('reversible', 'alternating'):
+        return None
+    return 1 if tags.get('junction') == 'roundabout' or tags.get('highway') in ('motorway', 'motorway_link') else 0
+
+
+def road_dimensions(tags):
+    hw = tags['highway']
+    width, lanes = _num(tags.get('width')), _num(tags.get('lanes'))
+    lanes = int(lanes) if lanes and lanes >= 1 else 0
+    if width and width > 0:
+        return round(width, 1), lanes, 'osm-width'
+    if lanes:
+        return round(lanes * LANE_WIDTH, 1), lanes, 'estimate-from-lanes'
+    return LINK_WIDTH if hw.endswith('_link') else DEFAULT_WIDTH[CLASS_OF[hw]], 0, 'estimate-from-class'
+
+
 def build_roads(osm, clip_local, report):
     out = []
     for r in osm['roads']:
@@ -47,22 +71,16 @@ def build_roads(osm, clip_local, report):
         if line.is_empty:
             continue
         parts = list(getattr(line, 'geoms', [line]))
-        width = _num(t.get('width'))
-        lanes = _num(t.get('lanes'))
-        if not width:
-            if lanes:
-                width = lanes * LANE_WIDTH
-            elif hw.endswith('_link'):
-                width = LINK_WIDTH
-            else:
-                width = DEFAULT_WIDTH[cls]
-        oneway = t.get('oneway') == 'yes' or hw in ('motorway', 'motorway_link')
+        width, lanes, width_source = road_dimensions(t)
+        direction = road_direction(t)
+        oneway = direction in (-1, 1)
         elevated = t.get('bridge') == 'yes' or _num(t.get('layer')) not in (None, 0.0)
         for p in parts:
             if p.geom_type != 'LineString' or p.length < 4:
                 continue
             out.append({
-                'id': r['id'], 'line': p.simplify(0.5), 'cls': cls, 'width': round(width, 1),
+                'id': r['id'], 'line': p.reverse().simplify(0.5) if direction == -1 else p.simplify(0.5), 'cls': cls, 'width': round(width, 1),
+                'widthSource': width_source,
                 'lanes': int(lanes) if lanes else None, 'oneway': oneway, 'elevated': elevated,
                 'name': t.get('name'),
             })

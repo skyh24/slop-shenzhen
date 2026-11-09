@@ -10,6 +10,7 @@ from shapely.geometry import LineString, box
 ROOT = Path(__file__).resolve().parents[2]
 PBF = ROOT / 'data/raw/guangdong-latest.osm.pbf'
 CACHE = ROOT / 'data/raw/cache/osm-phase1.pkl'
+CACHE_VERSION = 2
 
 GREEN_LANDUSE = {'grass', 'forest', 'recreation_ground', 'village_green', 'meadow', 'park'}
 GREEN_LEISURE = {'park', 'garden', 'nature_reserve', 'golf_course', 'pitch'}
@@ -20,6 +21,7 @@ KEEP_TAGS = (
     'name', 'name:en', 'height', 'building:levels', 'building', 'building:part', 'min_height',
     'highway', 'lanes', 'width', 'oneway', 'bridge', 'tunnel', 'layer', 'leisure', 'landuse',
     'natural', 'water', 'wetland', 'amenity', 'man_made',
+    'junction', 'access', 'vehicle', 'motor_vehicle', 'motorcar',
 )
 
 
@@ -43,13 +45,13 @@ def read_osm(bbox, use_cache=True):
     if use_cache and CACHE.exists():
         with CACHE.open('rb') as f:
             cached = pickle.load(f)
-        if cached.get('bbox') == bbox:
+        if cached.get('bbox') == bbox and cached.get('cacheVersion') == CACHE_VERSION:
             return cached
 
     w, s, e, n = bbox
     clip = box(w, s, e, n)
     wkbf = osmium.geom.WKBFactory()
-    out = {'bbox': bbox, 'roads': [], 'coastline': [], 'buildings': [], 'water': [], 'wetland': [], 'green': []}
+    out = {'cacheVersion': CACHE_VERSION, 'bbox': bbox, 'roads': [], 'coastline': [], 'buildings': [], 'water': [], 'wetland': [], 'green': []}
 
     keys = ('building', 'building:part', 'highway', 'natural', 'water', 'leisure', 'landuse', 'waterway')
     fp = (osmium.FileProcessor(str(PBF))
@@ -92,7 +94,8 @@ def read_osm(bbox, use_cache=True):
             if coast:
                 out['coastline'].append({'id': f'way/{obj.id}', 'geom': line})
             else:
-                out['roads'].append({'id': f'way/{obj.id}', 'tags': _tags(obj), 'geom': line})
+                out['roads'].append({'id': f'way/{obj.id}', 'tags': _tags(obj), 'geom': line,
+                                     'nodeRefs': [nd.ref for nd in obj.nodes]})
 
     CACHE.parent.mkdir(parents=True, exist_ok=True)
     with CACHE.open('wb') as f:
