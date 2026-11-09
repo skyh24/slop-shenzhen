@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Slop Shenzhen · MVP</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.webgpu.js",
+        "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.webgpu.js",
+        "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.tsl.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="css/sz-mvp.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <div id="loading"><div class="spinner"></div><div id="loading-text"></div></div>
+  <header id="hud">
+    <h1 id="title"></h1>
+    <p id="subtitle"></p>
+    <p id="apec-banner"></p>
+  </header>
+  <aside id="panel">
+    <section>
+      <h2 id="lm-title"></h2>
+      <div id="landmarks"></div>
+    </section>
+    <section>
+      <h2 id="tod-title"></h2>
+      <div class="row" id="tod"></div>
+    </section>
+    <section class="row" id="toggles"></section>
+  </aside>
+  <footer id="status"><span id="stats"></span><span id="help"></span></footer>
+  <div id="labels"></div>
+  <script type="module" src="js/sz-mvp/main.js"></script>
+</body>
+</html>

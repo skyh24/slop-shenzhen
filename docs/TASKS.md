@@ -9,16 +9,34 @@
 - [x] 保留纽约原版 `LICENSE` 和作者署名，README 写明派生关系
 - [x] 本地 `python3 -m http.server 8080` 跑起纽约原版，确认能进入
 
+## MVP 预览
+
+- [x] `mvp.html` 加 `js/sz-mvp/`：真实建筑、道路、海岸、水体、车流、无人机、飞行器、昼夜、APEC 主题
+- [x] 截图存到 `docs/qa/mvp/`
+- [x] 写 [11-MVP.md](11-MVP.md)：粗糙之处和正式版六条硬性要求
+- [ ] 正式版接管后删除 `mvp.html`、`css/sz-mvp.css`、`js/sz-mvp/`
+
+## 正式版硬性要求（详见 11-MVP.md 第 3 节）
+
+- [ ] 3.1 建筑还原：每个地标单独建模，标志性特征齐全；普通建筑分塔楼和裙房，有屋顶形状，立面按片区
+- [ ] 3.2 城市地貌：地形、红树林和滩涂、河道、高架和立交、远景
+- [ ] 3.3 无人机航线全部换成有来源的真实站点和航线，APEC 期间停运
+- [ ] 3.4 地铁：线路、车站、出入口，地图图层用官方颜色
+- [ ] 3.5 交互和界面和纽约原版一一对应
+- [ ] 3.6 观感：夜景窗灯、天空和阴影、树木、帧率
+
 ## M1 数据
 
 - [ ] `tools/sz/fetch.py`：下载并记录哈希到 `data/source/sources.json`
-- [ ] `tools/sz/geo.py`：投影、多边形工具
-- [ ] `tools/sz/roads.py`：可驾驶路网图、路面多边形、信号路口
-- [ ] `tools/sz/land.py`：海岸、水系、公园、街区
-- [ ] `tools/sz/buildings.py`：OSM 加 Overture 合并、GloBFP 匹配、楼高、用途、立面类型
-- [ ] `tools/sz/terrain.py`：山体掩膜地形
-- [ ] `tools/sz/landmarks.py`：地标轮廓对位
-- [ ] `tools/sz/build.py`：一键生成，输出 `build-report.json`
+- [x] `tools/sz/geo.py`：投影、一期范围框（单元测试还没写）
+- [~] `tools/sz/roads.py`：道路等级和路宽已有；可驾驶路网图、路面多边形、信号路口未做
+- [~] `tools/sz/land.py`：海岸、水体、湿地、绿地已有；街区未做
+- [x] `tools/sz/buildings.py`：OSM 加 Overture 合并、GloBFP 匹配、楼高、立面类型
+- [ ] `tools/sz/terrain.py`：用 HGT 生成高程网格
+- [ ] `tools/sz/metro.py`：`network=深圳地铁` 的线路、车站、出入口
+- [ ] `tools/sz/air.py`：真实无人机站点和航线
+- [ ] `tools/sz/landmarks.py`：地标轮廓对位，补上 7 个没绑定建筑的地标
+- [x] `tools/sz/build.py`：一键生成，输出 `build-report.json`
 - [~] `data/source/landmarks.json`：地标 OSM 绑定已核实，剩余楼高冲突和缺口见文件里的 `status`
 - [x] 核实 APEC 2026 深圳的日期和会场（11 月 18 至 19 日，福田香蜜湖深圳国际交流中心）
 - [x] `data/source/sources.json`：会前快照的地址、日期、SHA-256
@@ -75,14 +93,14 @@
 
 - [ ] `evtol.js` 模型
 - [ ] 控制器调参、起降点
-- [ ] `drones.js` 和航线数据
+- [ ] `drones.js` 和真实航线数据（每条带 `source`、`verifiedAt`）
 - [ ] 地图上显示航线
 
 ## M7 街景
 
 - [ ] 深圳树种
 - [ ] 路灯、信号灯
-- [ ] 地铁出入口
+- [ ] 地铁出入口（站名、口号、线路色）
 - [ ] 人行天桥
 - [ ] 红树林和滩涂
 - [ ] 远景天际线
@@ -91,8 +109,8 @@
 
 ## M8 界面与玩法
 
-- [ ] 中文界面和地名
-- [ ] `sz-map.js` 地图、搜索、传送
+- [ ] 中文界面和地名，结构、元素 ID、快捷键和纽约原版一致
+- [ ] `sz-map.js` 地图、搜索、传送，加地铁和无人机图层
 - [ ] 景点相机
 - [ ] 出租车接单
 

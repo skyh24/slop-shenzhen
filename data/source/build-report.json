@@ -1,0 +1,61 @@
+{
+  "formatVersion": 1,
+  "origin": [
+    114.0545,
+    22.5463
+  ],
+  "bbox": [
+    113.92,
+    22.495,
+    114.085,
+    22.588
+  ],
+  "osmBuildings": 12934,
+  "overtureAdded": 18931,
+  "overtureDuplicates": 12131,
+  "globfpCandidates": 51434,
+  "globfpAdded": 8027,
+  "buildings": 39730,
+  "heightSources": {
+    "landmark": 6,
+    "osm-height": 955,
+    "osm-levels": 4219,
+    "overture-height": 2,
+    "overture-floors": 22,
+    "globfp": 17678,
+    "globfp-overlap": 8550,
+    "estimate": 8298
+  },
+  "landmarkBuildingsBound": [
+    "chegongmiao",
+    "chunsun",
+    "civic-center",
+    "convention-center",
+    "dji-sky-city",
+    "huaqiangbei",
+    "ping-an",
+    "talent-park",
+    "tencent-binhai",
+    "upperhills",
+    "window-of-world"
+  ],
+  "landmarksWithoutBuilding": [
+    "chunjian",
+    "diwang",
+    "iec-xiangmihu",
+    "kk100",
+    "lianhuashan",
+    "sea-world",
+    "shenzhen-bay-park"
+  ],
+  "landPieces": 1,
+  "landAreaKm2": 113.4,
+  "seaAreaKm2": 24.66,
+  "water": 622,
+  "wetland": 120,
+  "green": 2140,
+  "roads": 16493,
+  "roadKm": 2673.6,
+  "outputBytes": 1437418,
+  "seconds": 11.9
+}

@@ -5,9 +5,19 @@ Slop Shenzhen：浏览器里的 1:1 深圳关内城市漫游（南山、福田�
 ## 开工前必读
 
 1. [docs/HANDOFF.md](docs/HANDOFF.md)：现状、下一步、已知的坑
-2. [docs/CONVENTIONS.md](docs/CONVENTIONS.md)：完整规范，本文件只是摘要
-3. [docs/TASKS.md](docs/TASKS.md)：按里程碑的任务清单
-4. 做哪个模块，再读 `docs/` 里对应的 00 到 10 号文档
+2. [docs/11-MVP.md](docs/11-MVP.md)：MVP 的粗糙之处和**正式版六条硬性要求**
+3. [docs/CONVENTIONS.md](docs/CONVENTIONS.md)：完整规范，本文件只是摘要
+4. [docs/TASKS.md](docs/TASKS.md)：按里程碑的任务清单
+5. 做哪个模块，再读 `docs/` 里对应的 00 到 10 号文档
+
+## 正式版硬性要求（摘要）
+
+1. 建筑还原：地标单独程序化建模，标志性特征齐全；普通建筑分塔楼和裙房
+2. 城市地貌：真实地形（莲花山、塘朗山等），红树林、河道、高架立交
+3. 无人机航线只用有公开来源的真实站点，每条带来源和核实日期
+4. 地铁线路、车站、出入口，按 `network=深圳地铁` 过滤
+5. 交互和界面和纽约原版一一对应（`index.html` 结构、元素 ID、快捷键）
+6. 观感和帧率达到 `docs/10-PERF-QA.md` 的预算
 
 ## 硬性规则
 
@@ -26,8 +36,10 @@ Slop Shenzhen：浏览器里的 1:1 深圳关内城市漫游（南山、福田�
 python3 -m http.server 8080 --bind 127.0.0.1    # 打开 http://127.0.0.1:8080/，需常驻后台
 node --test tests/*.test.cjs                     # 单元测试
 .venv/bin/pip install -r tools/sz/requirements.txt
-.venv/bin/python tools/sz/build.py               # M1 完成后可用
+.venv/bin/python tools/sz/build.py               # 生成 MVP 数据，约 12 秒；--no-cache 重新解析 PBF
 ```
+
+MVP 预览：<http://127.0.0.1:8080/mvp.html>（`?time=night`）；`index.html` 目前还是纽约原版。
 
 WebGPU 需要安全上下文，只用 `127.0.0.1` 或 `localhost` 打开。本机没有 GDAL：读 PBF 用 `osmium`，读 Shapefile 用 `pyshp`。
 
@@ -36,6 +48,7 @@ WebGPU 需要安全上下文，只用 `127.0.0.1` 或 `localhost` 打开。本�
 | 路径 | 内容 |
 | --- | --- |
 | `js/` | 运行时代码；目前还是纽约原版，按 `docs/01-ARCHITECTURE.md` 的矩阵逐个替换 |
+| `js/sz-mvp/`、`mvp.html` | 临时 MVP 渲染器，正式版接管后删除 |
 | `tools/sz/` | 深圳数据管线（Python） |
 | `tools/ny/` | 纽约原版的数据工具，只作参考 |
 | `data/source/` | 人工核对过的数据和快照清单，进 Git |

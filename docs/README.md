@@ -7,6 +7,7 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | 文件 | 内容 |
 | --- | --- |
 | [HANDOFF.md](HANDOFF.md) | **从这里开始**：现状、下一步、已知的坑、启动提示 |
+| [11-MVP.md](11-MVP.md) | MVP 现状、粗糙之处、**正式版六条硬性要求和验收标准** |
 | [CONVENTIONS.md](CONVENTIONS.md) | 开发规范：语言、代码风格、坐标、数据、建模、验收、Git |
 | [RESEARCH.md](RESEARCH.md) | 前期调研：参考仓库、武汉教训、数据源、APEC、地标核实、检索服务状况 |
 | [00-SCOPE.md](00-SCOPE.md) | 场景简报：分期范围、坐标约定、地标清单、暂缓与待确认事项 |
@@ -47,18 +48,19 @@ M2 是第一个能开车的空城。M2 完成后，M3 到 M7 可以并行推进�
 ## 运行
 
 ```sh
-python3 -m http.server 8080
+python3 -m http.server 8080 --bind 127.0.0.1
 ```
 
-打开 <http://127.0.0.1:8080/>。需要支持 WebGPU 的桌面浏览器（新版 Chrome 或 Edge）。
+打开 <http://127.0.0.1:8080/mvp.html> 看深圳 MVP 预览；<http://127.0.0.1:8080/> 目前还是纽约原版。需要支持 WebGPU 的桌面浏览器（新版 Chrome 或 Edge）。
 
 ## 重建数据
 
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -r tools/sz/requirements.txt
-.venv/bin/python tools/sz/fetch.py          # 下载并锁定原始快照，写入 data/raw/
-.venv/bin/python tools/sz/build.py          # 生成 data/source/build-report.json、js/sz-geodata.json.gz、js/sz-buildings.bin.gz
+.venv/bin/python tools/sz/build.py          # 生成 js/sz-mvp/data/sz-mvp.json.gz 和 data/source/build-report.json
 ```
+
+`tools/sz/fetch.py`（下载并校验原始快照）还没写，现在要按 `data/source/sources.json` 手动下载到 `data/raw/`。
 
 原始大文件放在 `data/raw/`，不进 Git；每份快照的地址、日期和 SHA-256 记在 `data/source/sources.json`。

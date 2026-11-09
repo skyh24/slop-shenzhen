@@ -1,0 +1,29 @@
+{
+  "note": "Delivery drone stations and eVTOL loop for the MVP. Stations reference landmark ids in landmarks.json or explicit lon/lat. Altitudes are metres above ground.",
+  "status": "placeholder: drone stations and routes are invented for the MVP and must be replaced with sourced real Meituan sites, see docs/11-MVP.md section 3.3",
+  "droneCruiseAltitude": [80, 120],
+  "droneStations": [
+    { "id": "talent-park", "landmark": "talent-park" },
+    { "id": "tencent", "landmark": "tencent-binhai" },
+    { "id": "window-of-world", "landmark": "window-of-world" },
+    { "id": "chegongmiao", "landmark": "chegongmiao" },
+    { "id": "civic-center", "landmark": "civic-center" },
+    { "id": "upperhills", "landmark": "upperhills" },
+    { "id": "huaqiangbei", "landmark": "huaqiangbei" },
+    { "id": "dji", "landmark": "dji-sky-city" }
+  ],
+  "droneRoutes": [
+    ["talent-park", "tencent"],
+    ["talent-park", "window-of-world"],
+    ["window-of-world", "chegongmiao"],
+    ["chegongmiao", "civic-center"],
+    ["civic-center", "upperhills"],
+    ["civic-center", "huaqiangbei"],
+    ["tencent", "dji"],
+    ["upperhills", "huaqiangbei"]
+  ],
+  "evtolLoop": {
+    "altitude": 260,
+    "via": ["chunsun", "shenzhen-bay-park", "window-of-world", "iec-xiangmihu", "ping-an", "civic-center", "upperhills", "huaqiangbei", "convention-center", "chegongmiao", "talent-park"]
+  }
+}
