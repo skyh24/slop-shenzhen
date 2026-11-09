@@ -1,0 +1,88 @@
+{
+  "status": "audit-only",
+  "checkedAt": "2026-11-09",
+  "sources": [
+    {
+      "id": "gedtm30-opentopography-v1.2",
+      "productType": "modelled DTM",
+      "verticalDatum": "EGM2008",
+      "spacingArcsec": 1,
+      "acquisition": "2006–2015 source DEM period, refined with spaceborne LiDAR training data",
+      "license": "CC BY 4.0 as listed by OpenTopography; the v1.2 author release also says use for testing purposes only",
+      "reference": "https://portal.opentopography.org/raster?opentopoID=OTSDEM.082025.4326.1",
+      "versionReference": "https://zenodo.org/records/18887460",
+      "asset": "https://opentopography.s3.sdsc.edu/raster/GEDTM30/GEDTM30_be/gedtm_rf_m_30m_s_20060101_20151231_go_epsg.4326.3855_v1.2.tif",
+      "format": "cog-window-npz",
+      "windowRequestBbox": [113.918, 22.492, 114.088, 22.590],
+      "files": [
+        {
+          "path": "data/raw/terrain/audit/gedtm30-v1.2.npz",
+          "bytes": 869070,
+          "sha256": "20b971b8b6f1a5ed685a2c3011b2eec9ba2d8ea6a1b347031a5fef16e785324f"
+        }
+      ]
+    },
+    {
+      "id": "fabdem-bristol-v1.2",
+      "productType": "modelled DTM from Copernicus GLO-30",
+      "verticalDatum": "EGM2008",
+      "spacingArcsec": 1,
+      "acquisition": "source GLO-30 mainly 2011–2015; FABDEM release 2023-01",
+      "license": "CC BY-NC-SA 4.0 plus Copernicus attribution terms; commercial licensing is separate",
+      "reference": "https://research-information.bris.ac.uk/en/datasets/fabdem-v1-2/",
+      "licenseReference": "https://data.bris.ac.uk/datasets/s5hqmjcdj8yo2ibzi9b4ew3sn/readme.txt",
+      "asset": "https://data.bris.ac.uk/datasets/s5hqmjcdj8yo2ibzi9b4ew3sn/N20E110-N30E120_FABDEM_V1-2.zip",
+      "format": "geotiff",
+      "files": [
+        {
+          "path": "data/raw/terrain/audit/N22E113_FABDEM_V1-2.tif",
+          "bytes": 15527400,
+          "sha256": "1d37c8c7f4f23b72b5cca337994113100db7758973ae51bfbf4a97d3307960dc"
+        },
+        {
+          "path": "data/raw/terrain/audit/N22E114_FABDEM_V1-2.tif",
+          "bytes": 13929353,
+          "sha256": "328281e83e64814004dc602bac865caf8d5a5bc143aca49bb96cc26226a4b94d"
+        }
+      ]
+    },
+    {
+      "id": "alos-jaxa-aw3d30-v3.2",
+      "productType": "optical stereo DSM with published complement mask",
+      "verticalDatum": "EGM96",
+      "spacingArcsec": 1,
+      "acquisition": "2006–2011 ALOS PRISM acquisitions; JAXA Earth API v3.2 COG dated 2021-02",
+      "license": "JAXA AW3D30 terms of use; attribution required",
+      "reference": "https://www.eorc.jaxa.jp/ALOS/en/dataset/aw3d30/",
+      "format": "geotiff",
+      "files": [
+        {
+          "path": "data/raw/terrain/audit/N22E113_JAXA_AW3D30_v3_2.tif",
+          "asset": "https://s3.ap-northeast-1.wasabisys.com/je-pds/cog/v1/JAXA.EORC_ALOS.PRISM_AW3D30.v3.2_global/2021-02/3/E113.00-E114.00/E113.00-N22.00-E114.00-N23.00-DSM.tiff",
+          "bytes": 8695412,
+          "sha256": "074e0f84bea465a49bd23ed5a9681fe7c3264e3ebe7a92208e05234d6fbd77fb"
+        },
+        {
+          "path": "data/raw/terrain/audit/N22E114_JAXA_AW3D30_v3_2.tif",
+          "asset": "https://s3.ap-northeast-1.wasabisys.com/je-pds/cog/v1/JAXA.EORC_ALOS.PRISM_AW3D30.v3.2_global/2021-02/3/E114.00-E115.00/E114.00-N22.00-E115.00-N23.00-DSM.tiff",
+          "bytes": 8049538,
+          "sha256": "028fd19d0490a723cb3697f9879766efff479daec5806c495a7308e12b532c33"
+        }
+      ],
+      "maskFiles": [
+        {
+          "path": "data/raw/terrain/audit/N22E113_JAXA_AW3D30_v3_2_MSK.tif",
+          "asset": "https://s3.ap-northeast-1.wasabisys.com/je-pds/cog/v1/JAXA.EORC_ALOS.PRISM_AW3D30.v3.2_global/2021-02/3/E113.00-E114.00/E113.00-N22.00-E114.00-N23.00-MSK.tiff",
+          "bytes": 244658,
+          "sha256": "b635fbdfc0bf786f9df63481856f09646a3a3b492e463770080174547f15e243"
+        },
+        {
+          "path": "data/raw/terrain/audit/N22E114_JAXA_AW3D30_v3_2_MSK.tif",
+          "asset": "https://s3.ap-northeast-1.wasabisys.com/je-pds/cog/v1/JAXA.EORC_ALOS.PRISM_AW3D30.v3.2_global/2021-02/3/E114.00-E115.00/E114.00-N22.00-E115.00-N23.00-MSK.tiff",
+          "bytes": 178849,
+          "sha256": "049d792f26fbeecb78293a5a61f8a0d938421795ffddb7955883774aedf6b012"
+        }
+      ]
+    }
+  ]
+}
