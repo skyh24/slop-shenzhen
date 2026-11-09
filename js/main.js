@@ -762,6 +762,16 @@ async function initApp() {
 
   // QA 专用传送：只在本机回环地址的 ?qa=1 下暴露，便于固定机位复测。
   if (qa) window.__szTeleport = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null, { exact: true });
+  // QA 诊断：列出某点附近的碰撞体，用于定位“走不过去”的地面入口。
+  if (qa) window.__szNearColliders = (x, z, radius = 40) => colliders.filter(collider =>
+    Number.isFinite(collider?.minX) && collider.maxX > x - radius && collider.minX < x + radius
+    && collider.maxZ > z - radius && collider.minZ < z + radius)
+    .sort((a, b) => Math.hypot((a.minX + a.maxX) / 2 - x, (a.minZ + a.maxZ) / 2 - z)
+      - Math.hypot((b.minX + b.maxX) / 2 - x, (b.minZ + b.maxZ) / 2 - z))
+    .slice(0, 12).map(collider => ({ type: collider.type, name: collider.name, sourceId: collider.sourceId,
+      minY: collider.minY, maxY: collider.maxY,
+      minX: Math.round(collider.minX), maxX: Math.round(collider.maxX),
+      minZ: Math.round(collider.minZ), maxZ: Math.round(collider.maxZ) }));
 
   if (hudToggleBtn) {
     hudToggleBtn.addEventListener('click', () => {
