@@ -17,7 +17,7 @@ test.before(async () => {
     ({ findParkArrival, parkAt } = await import('../js/sz-park-arrivals.js'));
     ({ decodeCityPayload } = await import('../js/sz-data-format.js'));
     const { loadModule } = require('./helpers/module.cjs');
-    ({ createGroundSurfaceSampler } = loadModule(read('js/sz-ground.js'), { imports: { 'three/webgpu': {} } }));
+    ({ createGroundSurfaceSampler } = loadModule(read('js/sz-ground-surface.js')));
   } finally {
     globalThis.fetch = fetch;
   }

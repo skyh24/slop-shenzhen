@@ -6,6 +6,7 @@ const { gunzipSync } = require('node:zlib');
 const root = join(__dirname, '..');
 const uri = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 const source = path => readFileSync(join(root, path), 'utf8');
+const { fixtureTerrainSurface } = require('./helpers/terrain-surface.cjs');
 const ring = (x0, z0, x1, z1) => [{ x: x0, z: z0 }, { x: x1, z: z0 }, { x: x1, z: z1 }, { x: x0, z: z1 }];
 const fixture = {
   bounds: [-100, -100, 100, 100],
@@ -26,10 +27,11 @@ const fixture = {
       { osmId: 'way/3', highway: 'primary', heightSource: 'terrain', widthSource: 'osm-width', layer: 0, bridge: false, tunnel: false }
     ] }
 };
+fixture.terrainSurface = fixtureTerrainSurface(fixture.terrain);
 const building = { minX: -5, maxX: 5, minZ: -5, maxZ: 5, polygons: [{ outer: ring(-5, -5, 5, 5), holes: [] }] };
 globalThis.__cityConfigFixture = { GEO: fixture, REAL_BUILDINGS: [building] };
-const terrain = uri(source('js/sz-terrain.js'));
-const spatial = uri(source('js/sz-spatial.js').replace('./sz-terrain.js', terrain));
+const terrain = uri(source('js/sz-ground-surface.js'));
+const spatial = uri(source('js/sz-spatial.js').replace('./sz-ground-surface.js', terrain));
 const configSource = source('js/sz-city-config.js')
   .replace('./sz-geodata.js', uri('export const {GEO,REAL_BUILDINGS}=globalThis.__cityConfigFixture;'))
   .replace('./sz-spatial.js', spatial)
@@ -56,7 +58,7 @@ test('derived arrivals exclude unresolved bridges, water and building footprints
   const arrival = city.findGroundArrival({ x: 0, z: 5 });
   assert.ok(arrival);
   assert.equal(arrival.sourceRoadId, 'way/1');
-  assert.equal(arrival.y, 10);
+  assert.ok(Math.abs(arrival.y - 10) < 1e-12);
   assert.equal(arrival.heightSource, 'test-dem');
   assert.ok(Math.abs(arrival.x) > 5);
   assert.equal(arrival.placement, 'derived-road-arrival');
@@ -73,6 +75,15 @@ test('bearing conversion preserves north and east while retaining New York contr
   assert.equal(headingFromBearing(Math.PI), 0);
   assert.equal(headingFromBearing(Math.PI / 2), Math.PI / 2);
   for (const bearing of [0, 0.7, 2.1, 4.5, 6.2]) assert.ok(Math.abs(bearingFromHeading(headingFromBearing(bearing)) - bearing) < 1e-12);
+});
+
+test('arrival search cannot restore ground removed from the rendered surface', async () => {
+  const { createCityConfig } = await modulePromise;
+  const city = createCityConfig({ ...fixture, terrainSurface: { ...fixture.terrainSurface, chunks: [] } }, [building]);
+  assert.equal(city.isOnLand(-50, 0), true);
+  assert.equal(city.terrainHeight(-50, 0), null);
+  assert.equal(city.findGroundArrival({ x: -50, z: 0 }), null);
+  assert.equal(city.SPAWN_POINT, null);
 });
 
 test('signals keep the original cycle and shortcuts ignore text editors', async () => {

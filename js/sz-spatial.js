@@ -1,4 +1,4 @@
-import { terrainHeight } from './sz-terrain.js';
+import { createGroundSurfaceSampler } from './sz-ground-surface.js';
 
 const CELL = 250;
 const key = (x, z) => `${x},${z}`;
@@ -48,6 +48,7 @@ function spatialIndex(items, pointsOf) {
 }
 
 export function createCitySpatial(geo) {
+  const surfaceHeight = createGroundSurfaceSampler(geo.terrainSurface);
   const coverage = spatialIndex(geo.coverage, p => p.outer);
   const land = spatialIndex(geo.land, p => p.outer);
   const water = spatialIndex(geo.water, p => p.outer);
@@ -88,6 +89,6 @@ export function createCitySpatial(geo) {
   return { roads, inBounds, isOnLand,
     // 范围外没有海岸数据，返回未知；桥面高度也不能从 layer 或地面高程猜测。
     isWater: (x, z) => inBounds(x, z) ? !isOnLand(x, z) : null,
-    groundHeight: (x, z) => isOnLand(x, z) ? terrainHeight(geo.terrain, x, z) : null,
+    groundHeight: (x, z) => isOnLand(x, z) ? surfaceHeight(x, z) : null,
     nearestRoads };
 }

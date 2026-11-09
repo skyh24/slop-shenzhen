@@ -4,8 +4,9 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const root = join(__dirname, '..');
 const uri = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
-const terrainURL = uri(readFileSync(join(root, 'js/sz-terrain.js')));
-const modulePromise = import(uri(readFileSync(join(root, 'js/sz-spatial.js'), 'utf8').replace('./sz-terrain.js', terrainURL)));
+const terrainURL = uri(readFileSync(join(root, 'js/sz-ground-surface.js')));
+const modulePromise = import(uri(readFileSync(join(root, 'js/sz-spatial.js'), 'utf8').replace('./sz-ground-surface.js', terrainURL)));
+const { fixtureTerrainSurface } = require('./helpers/terrain-surface.cjs');
 const ring = (a, b, c, d) => [{x:a,z:b},{x:c,z:b},{x:c,z:d},{x:a,z:d}];
 const geo = {
   bounds: [-100, -100, 100, 100],
@@ -16,6 +17,8 @@ const geo = {
   roadGraph: {nodes:[-80,20,80,20,-80,30,80,30], names:['地面道路','高架道路'],
     links:[[0,1,0,7,2,0,[]],[2,3,1,7,1,1,[]]], metadata:[{heightSource:'terrain'},{heightSource:'unresolved',bridge:true,layer:1}]}
 };
+
+geo.terrainSurface = fixtureTerrainSurface(geo.terrain);
 
 test('spatial queries preserve holes, inland water and unknown out-of-coverage heights', async () => {
   const {createCitySpatial}=await modulePromise;
@@ -40,4 +43,16 @@ test('nearest road queries use polyline distance and retain unresolved elevated 
   assert.equal(near[0].road.heightSource,'unresolved');
   assert.equal(near[1].road.name,'地面道路');
   assert.equal(city.nearestRoads(0,29,0).length,0);
+});
+
+test('removed ground remains unknown even when the original DSM still has a height', async () => {
+  const { createCitySpatial } = await modulePromise;
+  const terrainSurface = structuredClone(geo.terrainSurface);
+  terrainSurface.chunks = terrainSurface.chunks.filter(chunk => chunk.id !== '-1,-1');
+  const city = createCitySpatial({ ...geo, terrainSurface });
+  assert.equal(city.isOnLand(-50, -50), true);
+  assert.equal(city.isWater(-50, -50), false, 'a removed indoor surface is not a new lake');
+  assert.equal(city.groundHeight(-50, -50), null, 'raw DSM must not restore removed geometry');
+  assert.equal(city.groundHeight(30, 30), 6.2);
+  assert.throws(() => createCitySpatial({ ...geo, terrainSurface: undefined }), /Invalid terrain surface/);
 });

@@ -109,7 +109,7 @@ test('the player car uses existing physics on the sourced eastbound Shennan sign
   assert.equal(geo.roadGraph.turnRestrictions.source, 'osm-guangdong');
   const { chunks } = roads.createRoadSurfaceLayout(geo.roadGraph, geo.terrainSurface);
   const roadHeight = roads.createRoadHeightSampler(chunks, geo.terrainSurface.grid);
-  const groundHeight = load('sz-ground.js', { 'three/webgpu': {}, 'three/tsl': {} }).createGroundSurfaceSampler(geo.terrainSurface);
+  const groundHeight = load('sz-ground-surface.js', {}).createGroundSurfaceSampler(geo.terrainSurface);
   const { ThirdPersonControllerManager } = load('controllers.js', { 'three/webgpu': {}, './sz-city-config.js': {
     ISLAND_BOUNDS: { minX: geo.bounds[0], minZ: geo.bounds[1], maxX: geo.bounds[2], maxZ: geo.bounds[3] }
   }, './sz-controller-surfaces.js': surface, './sz-park-arrivals.js': {}, './sz-strings.js': {}, './city-lighting-materials.js': {},

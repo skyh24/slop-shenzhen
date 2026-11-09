@@ -7,7 +7,7 @@ const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
 const root = join(__dirname, '..');
-const source = readFileSync(join(root, 'js/sz-ground.js'), 'utf8').replace("import * as THREE from 'three/webgpu';", 'const THREE = {};');
+const source = readFileSync(join(root, 'js/sz-ground-surface.js'), 'utf8').replace("import * as THREE from 'three/webgpu';", 'const THREE = {};');
 const modulePromise = import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 test('terrain surface geometry preserves coastline holes, original planes and chunk seams', () => {

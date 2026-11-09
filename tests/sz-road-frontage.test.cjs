@@ -31,7 +31,7 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
   const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
   const roads = loadModule(read('sz-roads.js'), { imports });
-  const ground = loadModule(read('sz-ground.js'), { imports });
+  const ground = loadModule(read('sz-ground-surface.js'));
   const { buildSzRoadFrontage } = loadModule(read('sz-road-frontage.js'), {
     imports: { ...imports, './sz-roads.js': roads, './sz-intersection-control.js': intersectionControl }
   });

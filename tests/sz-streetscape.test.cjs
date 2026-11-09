@@ -40,7 +40,7 @@ test('the selected promenade is coplanar and walkable and the modeled tree trunk
   const roads = loadModule(read('sz-roads.js'), { imports });
   const { buildSzStreetscape } = loadModule(read('sz-streetscape.js'), { imports: { ...imports,
     './building-collision.js': collision, './sz-building-layout.js': layout, './sz-roads.js': roads } });
-  const ground = loadModule(read('sz-ground.js'), { imports });
+  const ground = loadModule(read('sz-ground-surface.js'));
   const groundHeight = ground.createGroundSurfaceSampler(geo.terrainSurface);
   const scene = new THREE.Scene();
   const pavedRoads = roads.buildSzRoads(scene, geo.roadGraph, geo.terrainSurface);
