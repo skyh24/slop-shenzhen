@@ -1,0 +1,8 @@
+.DS_Store
+.venv/
+node_modules/
+data/raw/
+__pycache__/
+*.pyc
+ref/
+.cursor/
