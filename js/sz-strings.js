@@ -113,6 +113,11 @@ export const STR = {
     none: '全部隐藏',
     line: ref => `${ref} 号线`
   },
+  hsr: {
+    title: '高铁图层',
+    futian: '福田站（地下高铁）',
+    xili: '西丽站（在建）'
+  },
   drive: {
     plan: '规划驾车',
     chooseStart: '在地图上选择行车起点。',

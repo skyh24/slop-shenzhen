@@ -21,6 +21,7 @@ const STONE_COLOR = 0xb9b3a6;
 const CURB_COLOR = 0x8d8880;
 const FRAME_COLOR = 0x3b4247;
 const STAIR_COLOR = 0x161a1d;
+const ROOF_COLOR = 0x565f63;
 const GLASS_COLOR = 0xb9d4e2;
 const SIGN_BACKGROUND = '#12352c';
 const SIGN_TEXT = '#f2f5f1';
@@ -111,7 +112,7 @@ export function planMetroEntrances(metro, options = {}) {
   if (!Array.isArray(metro?.entrances) || !Array.isArray(metro?.stations)) {
     throw new Error('Metro entrances require entrance and station arrays');
   }
-  const maxStationDistanceM = options.maxStationDistanceM ?? 500;
+  const maxStationDistanceM = options.maxStationDistanceM ?? 300;
   if (!(maxStationDistanceM > 0)) throw new Error('Metro entrance station distance must be positive');
   const stations = metro.stations.filter(station => station && String(station.id ?? '') !== '');
   const lineLookup = lineTable(metro);
@@ -342,14 +343,21 @@ function structureGeometry() {
   parts.push(boxPart(4.78, 0.14, 0.14, 0, 2.58, -1.46, FRAME_COLOR));
   parts.push(boxPart(0.14, 0.14, 3.0, 2.36, 2.58, 0, FRAME_COLOR));
   parts.push(boxPart(0.14, 0.14, 3.0, -2.36, 2.58, 0, FRAME_COLOR));
+  // 实心雨棚顶板：从远处也能读成“出入口”，不是空框。
+  parts.push(boxPart(5.24, 0.2, 3.44, 0, 2.74, 0, ROOF_COLOR));
+  parts.push(boxPart(5.3, 0.12, 3.5, 0, 2.88, 0, FRAME_COLOR));
   // 站名牌立柱：牌面挂在雨棚前沿上方。
-  parts.push(boxPart(0.1, 0.62, 0.1, -1.22, 2.97, 1.5, FRAME_COLOR));
-  parts.push(boxPart(0.1, 0.62, 0.1, 1.22, 2.97, 1.5, FRAME_COLOR));
+  parts.push(boxPart(0.1, 0.74, 0.1, -1.26, 3.32, 1.5, FRAME_COLOR));
+  parts.push(boxPart(0.1, 0.74, 0.1, 1.26, 3.32, 1.5, FRAME_COLOR));
   return mergeParts(parts);
 }
 
 function glassGeometry() {
-  return new THREE.BoxGeometry(4.9, 0.08, 3.08).translate(0, 2.6, 0);
+  return mergeParts([
+    boxPart(4.9, 0.06, 3.08, 0, 2.6, 0, 0xffffff),
+    boxPart(0.06, 2.1, 2.9, 2.4, 1.45, 0, 0xffffff),
+    boxPart(0.06, 2.1, 2.9, -2.4, 1.45, 0, 0xffffff)
+  ]);
 }
 
 function rotationOf(yaw) {
@@ -378,8 +386,9 @@ function addQuad(target, corners, normal, uvs, colour) {
 function signGeometry(entrances, atlas) {
   const near = { positions: [], normals: [], uvs: [], colours: [], indices: [] };
   const far = { positions: [], normals: [], uvs: [], colours: [], indices: [] };
-  const signBottom = 2.72;
-  const signTop = 3.34;
+  // 站名牌整体抬到雨棚顶以上，从街对面也能读到站名。
+  const signBottom = 2.95;
+  const signTop = 3.58;
   const signZ = 1.63;
   const badgeColour = new THREE.Color();
   const stationColour = new THREE.Color(SIGN_BACKGROUND).convertSRGBToLinear();

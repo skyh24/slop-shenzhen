@@ -64,6 +64,7 @@ class NYCMapSystem {
 
     this.waypoint = null;
     this.metroLines = new Set();
+    this.hsrVisible = false;
     this.isPlanningDrive = false;
     this.driveStart = null;
     this.driveEnd = null;
@@ -143,6 +144,18 @@ class NYCMapSystem {
         this.toggleFullMap(!this.isFullMapOpen);
       }
     });
+
+    const hsrButton = document.getElementById('map-hsr');
+    if (hsrButton) {
+      hsrButton.addEventListener('click', () => {
+        this.hsrVisible = !this.hsrVisible;
+        hsrButton.setAttribute('aria-pressed', String(this.hsrVisible));
+        hsrButton.classList.toggle('active', this.hsrVisible);
+        this.miniCache = null;
+        this.fullStaticKey = '';
+        this.renderFullMap();
+      });
+    }
 
     if (this.fullCanvas) {
       this.fullCanvas.style.touchAction = 'none';
@@ -497,6 +510,31 @@ class NYCMapSystem {
         ctx.beginPath();
         ctx.arc(station.x, station.z, 3 / v.s, 0, Math.PI * 2);
         ctx.fill();
+      }
+    }
+    if (this.hsrVisible) {
+      for (const station of layers.hsr) {
+        if (!v.sees(station.bounds)) continue;
+        ctx.fillStyle = MAP.railFill;
+        ctx.fill(station.path);
+        ctx.strokeStyle = MAP.rail;
+        ctx.lineWidth = 2.2 / v.s;
+        ctx.setLineDash(station.underConstruction ? [8 / v.s, 5 / v.s] : []);
+        ctx.stroke(station.path);
+        ctx.setLineDash([]);
+        if (!isMinimap) {
+          const label = `${station.name}（${station.note}）`;
+          ctx.font = '600 ' + (11 / v.s) + 'px ' + FONT;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.lineWidth = 3 / v.s;
+          ctx.strokeStyle = MAP.halo;
+          const X = v.toX((station.bounds.minX + station.bounds.maxX) / 2);
+          const Y = v.toY((station.bounds.minZ + station.bounds.maxZ) / 2);
+          ctx.strokeText(label, X, Y);
+          ctx.fillStyle = '#cfe0ff';
+          ctx.fillText(label, X, Y);
+        }
       }
     }
     if (this.searchPath && !isMinimap) {

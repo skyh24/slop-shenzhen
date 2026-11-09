@@ -28,6 +28,8 @@ const MAP = {
   highway: '#b27a35',
   bridge: '#c08a3e',
   route: '#ffc21a',
+  rail: '#6f93c9',
+  railFill: 'rgba(111, 147, 201, 0.20)',
   search: '#5fd0ff',
   halo: 'rgba(8, 11, 15, 0.9)'
 };
@@ -247,6 +249,20 @@ function mapLayers() {
     addLine(path, road.pts);
     return { ...road, path, bounds: boundsOf(road.pts) };
   });
+  // 全图高铁图层：只用 sites 段里已核实的站体/场地轮廓，不画没有来源的线路。
+  layers.hsr = [];
+  for (const station of [{ id: 'futian-station', role: 'station', name: '福田站', note: '地下高铁', underConstruction: false },
+    { id: 'xili-station', role: 'site', name: '西丽站', note: '在建', underConstruction: true }]) {
+    const polygons = GEO.sites?.[station.id]?.[station.role]?.polygons;
+    if (!Array.isArray(polygons) || polygons.length === 0) continue;
+    const path = new Path2D();
+    for (const polygon of polygons) {
+      addLine(path, [...polygon.outer, polygon.outer[0]]);
+      for (const hole of polygon.holes ?? []) addLine(path, [...hole, hole[0]]);
+    }
+    const points = polygons.flatMap(polygon => polygon.outer);
+    layers.hsr.push({ ...station, path, bounds: boundsOf(points) });
+  }
   const metroColours = new Map((GEO.metro?.lines || []).map(line => [line.ref, line.colour]));
   layers.metro = (GEO.metro?.segments || []).map(segment => {
     const path = new Path2D();

@@ -12,6 +12,10 @@ function fixture(roads = []) {
       lines: [{ ref: '1', colour: '#00AB39' }, { ref: '4', colour: '#DC241F' }],
       segments: [{ lineRefs: ['1'], points: [1, 1, 50, 50] }, { lineRefs: ['4'], points: [30, 10, 70, 30] }],
       stations: [{ name: 'Station', x: 20, z: 30, lineRefs: ['1'] }]
+    },
+    sites: {
+      'futian-station': { station: { polygons: [{ outer: [{ x: 10, z: 10 }, { x: 40, z: 10 }, { x: 40, z: 40 }, { x: 10, z: 40 }], holes: [] }] } },
+      'xili-station': { site: { polygons: [{ outer: [{ x: 55, z: 55 }, { x: 90, z: 55 }, { x: 90, z: 90 }, { x: 55, z: 90 }], holes: [] }] } }
     }
   };
   const context = vm.createContext({ Path2D, GEO, REAL_BUILDINGS: [], ROADS: roads, console, performance: { now: () => 0 },
@@ -94,4 +98,28 @@ test('map pointer guidance switches from teleport to route selection on mouse an
   map.touchHints = true;
   map.renderPointerHint();
   assert.equal(map.elHoverInfo.textContent, 'Tap to pick route endpoints');
+});
+
+test('HSR layer draws only verified station footprints and stays off by default', () => {
+  const { context, map } = fixture();
+  const strokes = [];
+  const dashes = [];
+  const ctx = new Proxy({}, {
+    get: (_, key) => (key === 'fillText' || key === 'strokeText') ? () => {} : () => {},
+    set: (_, key, value) => {
+      if (key === 'strokeStyle') strokes.push(value);
+      if (key === 'lineDash') dashes.push(value);
+      return true;
+    }
+  });
+  const view = vm.runInContext('new MapView(50,50,1,100,100)', context);
+  map.drawWorld(ctx, view, false);
+  assert.deepEqual(strokes, []);
+  map.hsrVisible = true;
+  map.drawWorld(ctx, view, false);
+  assert.ok(strokes.includes('#6f93c9'), 'rail station outlines use the rail colour');
+  const layers = vm.runInContext('mapLayers()', context);
+  assert.equal(layers.hsr.length, 2);
+  assert.equal(layers.hsr.find(station => station.id === 'xili-station').underConstruction, true);
+  assert.equal(layers.hsr.find(station => station.id === 'futian-station').underConstruction, false);
 });
