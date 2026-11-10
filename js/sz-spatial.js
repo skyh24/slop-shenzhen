@@ -1,23 +1,8 @@
 import { createGroundSurfaceSampler } from './sz-ground-surface.js';
+import { polygonContainsInclusive } from './sz-polygon.js';
 
 const CELL = 250;
 const key = (x, z) => `${x},${z}`;
-
-export function ringContains(ring, x, z) {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const a = ring[j], b = ring[i];
-    const cross = (x - a.x) * (b.z - a.z) - (z - a.z) * (b.x - a.x);
-    if (Math.abs(cross) < 1e-7 && x >= Math.min(a.x, b.x) && x <= Math.max(a.x, b.x)
-      && z >= Math.min(a.z, b.z) && z <= Math.max(a.z, b.z)) return true;
-    if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) inside = !inside;
-  }
-  return inside;
-}
-
-export function polygonContains(shape, x, z) {
-  return ringContains(shape.outer, x, z) && !shape.holes.some(ring => ringContains(ring, x, z));
-}
 
 function spatialIndex(items, pointsOf) {
   const cells = new Map();
@@ -52,7 +37,7 @@ export function createCitySpatial(geo) {
   const coverage = spatialIndex(geo.coverage, p => p.outer);
   const land = spatialIndex(geo.land, p => p.outer);
   const water = spatialIndex(geo.water, p => p.outer);
-  const contains = (index, x, z) => [...index(x, z)].some(p => polygonContains(p, x, z));
+  const contains = (index, x, z) => [...index(x, z)].some(p => polygonContainsInclusive(p, x, z));
   const inBounds = (x, z) => Number.isFinite(x) && Number.isFinite(z)
     && x >= geo.bounds[0] && x <= geo.bounds[2] && z >= geo.bounds[1] && z <= geo.bounds[3]
     && contains(coverage, x, z);

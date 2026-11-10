@@ -7,6 +7,8 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
+const meshUtils = require('./helpers/mesh-utils.cjs');
 
 const read = (file) => readFileSync(join(__dirname, '../js', file), 'utf8');
 // loadModule 在 vm 沙箱里求值，跨 realm 的数组原型深比较前先过一遍 JSON
@@ -14,13 +16,14 @@ const plain = (value) => JSON.parse(JSON.stringify(value));
 const terrain = loadModule(read('sz-terrain.js'));
 // 纯函数测试不需要 THREE：空对象证明模块顶层没有解引用 three。
 const pure = loadModule(read('sz-apec-city.js'), {
-  imports: { 'three/webgpu': {}, './sz-terrain.js': terrain }
+  imports: { 'three/webgpu': {}, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
+    './sz-mesh-utils.js': meshUtils({}) }
 });
 
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
 const format = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
 const { buildings, geo } = format.decodeCityPayload(raw);
-const collision = loadModule(read('building-collision.js'));
+const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 
 // main.js 从 iec 模型传入的真实门廊/花海锚点（见 js/sz-landmarks/iec-xiangmihu.js 的导出）。
 const ANCHORS = {
@@ -259,7 +262,8 @@ test('runtime builds screens robots and hoarding panels on the real data, then d
   const [THREE] = await Promise.all([loadThree('three.webgpu.js')]);
   const { document, drawCalls } = fakeCanvasGlobals();
   const module = loadModule(read('sz-apec-city.js'), {
-    imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain },
+    imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
+      './sz-mesh-utils.js': meshUtils(THREE, { document }) },
     globals: { document }
   });
   const scene = new THREE.Scene();
@@ -347,7 +351,8 @@ test('runtime builds with a 1x1 fallback texture when canvas is unavailable', { 
   const [THREE] = await Promise.all([loadThree('three.webgpu.js')]);
   // 不注入 document：模块必须走 DataTexture 降级路径，构建/销毁都不抛错。
   const module = loadModule(read('sz-apec-city.js'), {
-    imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain }
+    imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
+      './sz-mesh-utils.js': meshUtils(THREE) }
   });
   const scene = new THREE.Scene();
   const model = module.buildApecCityElements(scene, {
@@ -368,7 +373,8 @@ test('runtime with no data builds an empty group instead of throwing', { skip: !
   const loadThree = (file) => import(pathToFileURL(join(threeDir, 'build', file)));
   const [THREE] = await Promise.all([loadThree('three.webgpu.js')]);
   const module = loadModule(read('sz-apec-city.js'), {
-    imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain }
+    imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
+      './sz-mesh-utils.js': meshUtils(THREE) }
   });
   const scene = new THREE.Scene();
   const model = module.buildApecCityElements(scene, {});

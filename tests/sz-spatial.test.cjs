@@ -5,7 +5,10 @@ const { join } = require('node:path');
 const root = join(__dirname, '..');
 const uri = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 const terrainURL = uri(readFileSync(join(root, 'js/sz-ground-surface.js')));
-const modulePromise = import(uri(readFileSync(join(root, 'js/sz-spatial.js'), 'utf8').replace('./sz-ground-surface.js', terrainURL)));
+const polygonURL = uri(readFileSync(join(root, 'js/sz-polygon.js')));
+const modulePromise = import(uri(readFileSync(join(root, 'js/sz-spatial.js'), 'utf8')
+  .replace('./sz-ground-surface.js', terrainURL)
+  .replace('./sz-polygon.js', polygonURL)));
 const { fixtureTerrainSurface } = require('./helpers/terrain-surface.cjs');
 const ring = (a, b, c, d) => [{x:a,z:b},{x:c,z:b},{x:c,z:d},{x:a,z:d}];
 const geo = {

@@ -4,10 +4,11 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const THREE_STUB = {};
-const trees = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE_STUB } });
+const trees = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE_STUB, './sz-polygon.js': polygonModule } });
 
 const SPECIES = ['ficus', 'camphor', 'phoenix', 'bauhinia', 'royal-palm', 'kapok'];
 const SOURCES = ['osm-node', 'osm-row', 'simulated-street', 'simulated-park'];
@@ -116,7 +117,7 @@ const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 
 test('instanced tree chunks place trunks on the lowest probe height and switch LOD by camera', { skip: !threeDir }, async () => {
   const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
-  const model = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE } });
+  const model = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule } });
   const payload = makePayload([
     { x: 0, z: 0, height: 120, crown: 100, osm: 'node/1', source: 'osm-node', appearance: 'osm-tags' },
     { x: 15000, z: 0, height: 120, crown: 100, source: 'simulated-park' },
@@ -185,7 +186,7 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
 
 test('missing or empty tree payload leaves scene untouched apart from an empty group', { skip: !threeDir }, async () => {
   const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
-  const model = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE } });
+  const model = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule } });
   const scene = new THREE.Scene();
   const built = model.buildSzTrees(scene, undefined, {});
   assert.equal(built.group.children.length, 0);

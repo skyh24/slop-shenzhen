@@ -5,14 +5,17 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
+const meshUtils = require('./helpers/mesh-utils.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
 const format = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
 const { geo } = format.decodeCityPayload(raw);
-const collision = loadModule(read('building-collision.js'));
+const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 const stationSource = read('sz-station-sites.js');
-const stubs = { 'three/webgpu': {}, './building-collision.js': collision };
+const stubs = { 'three/webgpu': {}, './building-collision.js': collision,
+  './sz-polygon.js': polygonModule, './sz-mesh-utils.js': meshUtils({}) };
 const emptyModule = loadModule(stationSource, { imports: stubs });
 
 test('station builders return empty results without throwing when the shared site is missing', () => {
@@ -35,7 +38,8 @@ test('Futian station ground pavilions and skylights stay inside the real OSM sta
   { skip: !threeDir }, async () => {
     const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));
     const [THREE] = await Promise.all([loadThree('three.webgpu.js')]);
-    const imports = { 'three/webgpu': THREE, './building-collision.js': collision };
+    const imports = { 'three/webgpu': THREE, './building-collision.js': collision,
+      './sz-polygon.js': polygonModule, './sz-mesh-utils.js': meshUtils(THREE) };
     const ground = loadModule(read('sz-ground-surface.js'));
     const { buildFutianStation } = loadModule(stationSource, { imports });
     const stationSite = geo.sites['futian-station'].station;
@@ -80,7 +84,8 @@ test('Xili station site is an honest construction site: hoarding, two cranes and
   { skip: !threeDir }, async () => {
     const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));
     const [THREE] = await Promise.all([loadThree('three.webgpu.js')]);
-    const imports = { 'three/webgpu': THREE, './building-collision.js': collision };
+    const imports = { 'three/webgpu': THREE, './building-collision.js': collision,
+      './sz-polygon.js': polygonModule, './sz-mesh-utils.js': meshUtils(THREE) };
     const ground = loadModule(read('sz-ground-surface.js'));
     const { buildXiliConstruction } = loadModule(stationSource, { imports });
     const xiliSite = geo.sites['xili-station'].site;

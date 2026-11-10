@@ -4,6 +4,7 @@ const zlib = require('node:zlib');
 const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 // 轻量 THREE / PersonCrowd / PersonRig 替身：不访问 DOM 或 WebGPU，只验证轨迹、出生、回收和接地逻辑。
 const three = (() => {
@@ -78,7 +79,7 @@ const read = (name) => readFileSync(join(__dirname, '..', 'js', name), 'utf8');
 const roads = loadModule(read('sz-roads.js'), { imports: {
   'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
 } });
-const collision = loadModule(read('building-collision.js'));
+const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 const tracks = loadModule(read('sz-pedestrian-tracks.js'), {
   imports: { './sz-roads.js': roads, './building-collision.js': collision }
 });
@@ -87,7 +88,8 @@ const pedestrians = loadModule(read('sz-pedestrians.js'), {
   imports: {
     'three/webgpu': three,
     './pedestrians.js': pedestrianStub.module,
-    './sz-pedestrian-tracks.js': tracks
+    './sz-pedestrian-tracks.js': tracks,
+    './sz-polygon.js': polygonModule
   }
 });
 const { buildSidewalkTracks, buildWalkTracks, connectTracks, createCarriagewayBarrier,

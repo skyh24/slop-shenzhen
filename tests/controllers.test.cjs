@@ -3,9 +3,11 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const source = readFileSync(join(__dirname, '../js/controllers.js'), 'utf8');
-const polygonCollision = loadModule(readFileSync(join(__dirname, '../js/building-collision.js'), 'utf8'));
+const polygonCollision = loadModule(readFileSync(join(__dirname, '../js/building-collision.js'), 'utf8'),
+  { imports: { './sz-polygon.js': polygonModule } });
 const { createSurfaceResolver } = loadModule(readFileSync(join(__dirname, '../js/sz-controller-surfaces.js'), 'utf8'));
 
 function eventTarget() {

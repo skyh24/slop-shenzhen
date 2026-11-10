@@ -5,11 +5,12 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const load = (name, imports = {}) => loadModule(read(name), { imports });
 const terrain = load('sz-terrain.js');
-const collision = load('building-collision.js');
+const collision = load('building-collision.js', { './sz-polygon.js': polygonModule });
 const placement = load('sz-building-layout.js', { './sz-terrain.js': terrain });
 const partsApi = load('sz-landmarks/parts.js', { '../building-collision.js': collision, '../sz-building-layout.js': placement });
 const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));

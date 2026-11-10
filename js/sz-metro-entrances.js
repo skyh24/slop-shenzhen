@@ -3,6 +3,8 @@
 import * as THREE from 'three/webgpu';
 import { cameraPosition, distance, float, positionWorld, smoothstep } from 'three/tsl';
 import { polygonBoxOverlaps } from './building-collision.js';
+import { finitePoint } from './sz-polygon.js';
+import { canvasTexture, mergeParts } from './sz-mesh-utils.js';
 
 // 雨棚净尺寸按深圳地铁常见出入口量级取值；站名牌挂在雨棚前沿上方。
 export const ENTRANCE_SIZE_M = Object.freeze({ width: 4.5, depth: 2.8, height: 2.6 });
@@ -38,10 +40,6 @@ function hashSeed(text) {
 
 function hashAngle(text) {
   return (hashSeed(text) % 360) * Math.PI / 180;
-}
-
-function finitePoint(entrance) {
-  return Number.isFinite(entrance?.x) && Number.isFinite(entrance?.z);
 }
 
 function exitRef(entrance) {
@@ -160,26 +158,6 @@ export function planMetroEntrances(metro, options = {}) {
   return { entrances, unresolved };
 }
 
-function canvasTexture(width, height, draw) {
-  // node 测试没有 DOM：用 1x1 占位贴图，浏览器里才画文字，避免测试为贴图引入 canvas 模拟。
-  if (typeof document === 'undefined') {
-    const data = new Uint8Array([255, 255, 255, 255]);
-    const texture = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.needsUpdate = true;
-    return texture;
-  }
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext('2d');
-  draw(context, width, height);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
-  return texture;
-}
-
 function fitFont(context, text, maxWidth, startSize, family) {
   let size = startSize;
   while (size > 12) {
@@ -275,57 +253,6 @@ function signAtlas(entrances) {
     }
   });
   return { texture, stationKeys, letterKeys, columns, stationRegionHeight, width, height };
-}
-
-function mergeParts(parts) {
-  let vertexCount = 0;
-  let indexCount = 0;
-  for (const part of parts) {
-    const position = part.geometry.getAttribute('position');
-    vertexCount += position.count;
-    indexCount += part.geometry.index ? part.geometry.index.count : position.count;
-  }
-  const positions = new Float32Array(vertexCount * 3);
-  const normals = new Float32Array(vertexCount * 3);
-  const uvs = new Float32Array(vertexCount * 2);
-  const colours = new Float32Array(vertexCount * 3);
-  const indices = vertexCount > 65535 ? new Uint32Array(indexCount) : new Uint16Array(indexCount);
-  const colour = new THREE.Color();
-  let vertexOffset = 0;
-  let indexOffset = 0;
-  for (const part of parts) {
-    const geometry = part.geometry;
-    const position = geometry.getAttribute('position');
-    const normal = geometry.getAttribute('normal');
-    const uv = geometry.getAttribute('uv');
-    const index = geometry.index;
-    positions.set(position.array, vertexOffset * 3);
-    if (normal) normals.set(normal.array, vertexOffset * 3);
-    if (uv) uvs.set(uv.array, vertexOffset * 2);
-    colour.setHex(part.colour ?? 0xffffff).convertSRGBToLinear();
-    for (let i = 0; i < position.count; i++) {
-      colours[(vertexOffset + i) * 3] = colour.r;
-      colours[(vertexOffset + i) * 3 + 1] = colour.g;
-      colours[(vertexOffset + i) * 3 + 2] = colour.b;
-    }
-    if (index) {
-      for (let i = 0; i < index.count; i++) indices[indexOffset + i] = index.array[i] + vertexOffset;
-      indexOffset += index.count;
-    } else {
-      for (let i = 0; i < position.count; i++) indices[indexOffset + i] = i + vertexOffset;
-      indexOffset += position.count;
-    }
-    vertexOffset += position.count;
-    geometry.dispose();
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-  geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-  geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
-  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-  geometry.computeBoundingSphere();
-  return geometry;
 }
 
 function boxPart(width, height, depth, x, y, z, colour) {

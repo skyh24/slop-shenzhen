@@ -3,6 +3,7 @@ import { GEO, REAL_BUILDINGS, CITY_PAYLOAD } from './sz-geodata.js';
 import { GeoBuilder, addWalls, addFlatPolygon } from './sz-geometry.js';
 import { createBuildingMaterial } from './sz-materials.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
+import { ringArea, ringContains, polygonContains } from './sz-polygon.js';
 
 export const BUILDING_RENDER_CHUNK_SIZE = 1000;
 // 普通高层按“塔楼 + 裙房”两级表达：裙房由塔楼足迹向外放大生成，是显示估计，不是测绘裙房。
@@ -37,14 +38,6 @@ const ROOF_EQUIPMENT_SHRINK_STEPS = [1, 0.75, 0.55, 0.35];
 const ROOF_EQUIPMENT_GRID_MAX = 12;
 const flatRing = ring => ring.flatMap(p => [p.x, p.z]);
 
-function ringArea(ring) {
-  let area = 0;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    area += (ring[j].x + ring[i].x) * (ring[j].z - ring[i].z);
-  }
-  return Math.abs(area) / 2;
-}
-
 function ringBounds(ring) {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const point of ring) {
@@ -56,22 +49,6 @@ function ringBounds(ring) {
 
 function boundsOverlap(a, b) {
   return a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
-}
-
-// 射线法：点是否在单个环内。裙房净空和屋顶包含判断都只用这一份实现。
-function ringContains(ring, x, z) {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const a = ring[i], b = ring[j];
-    if ((a.z > z) !== (b.z > z) && x < a.x + (b.x - a.x) * (z - a.z) / (b.z - a.z)) inside = !inside;
-  }
-  return inside;
-}
-
-function polygonContainsPoint(polygon, x, z) {
-  if (!ringContains(polygon.outer, x, z)) return false;
-  for (const hole of polygon.holes ?? []) if (ringContains(hole, x, z)) return false;
-  return true;
 }
 
 function segmentsCross(a, b, c, d) {
@@ -92,9 +69,9 @@ function ringsCross(a, b) {
 // 两个实心区域的平面重叠检查：包含内院（洞）的轮廓按“洞是空的”处理。
 // 只判断中心和四角不够，所以同时查顶点包含和边相交。
 function polygonsOverlap(a, b) {
-  for (const point of a.outer) if (polygonContainsPoint(b, point.x, point.z)) return true;
+  for (const point of a.outer) if (polygonContains(b, point.x, point.z)) return true;
   for (const ring of [b.outer, ...(b.holes ?? [])]) {
-    for (const point of ring) if (polygonContainsPoint(a, point.x, point.z)) return true;
+    for (const point of ring) if (polygonContains(a, point.x, point.z)) return true;
   }
   for (const ringA of [a.outer, ...(a.holes ?? [])]) {
     for (const ringB of [b.outer, ...(b.holes ?? [])]) if (ringsCross(ringA, ringB)) return true;
@@ -347,7 +324,7 @@ function podiumBlocked(context, building, outer, holes, baseY, top) {
   }
   for (const entrance of context.entrances) {
     if (!boundsOverlap(bounds, entrance.bounds)) continue;
-    if (polygonContainsPoint(polygon, entrance.x, entrance.z)) return true;
+    if (polygonContains(polygon, entrance.x, entrance.z)) return true;
     if (ringDistanceToPoint(outer, entrance.x, entrance.z) < PODIUM_ENTRANCE_CLEARANCE_M) return true;
   }
   return false;
@@ -383,7 +360,7 @@ function roofUnitFits(rings, polygon, outerBounds, unit, margin) {
   const rectBounds = ringBounds(rect);
   if (rectBounds.minX < outerBounds.minX + margin || rectBounds.maxX > outerBounds.maxX - margin
     || rectBounds.minZ < outerBounds.minZ + margin || rectBounds.maxZ > outerBounds.maxZ - margin) return false;
-  for (const point of rect) if (!polygonContainsPoint(polygon, point.x, point.z)) return false;
+  for (const point of rect) if (!polygonContains(polygon, point.x, point.z)) return false;
   for (const ring of rings) {
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
       const a = ring[j], b = ring[i];

@@ -1,5 +1,6 @@
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
-import { createCitySpatial, polygonContains } from './sz-spatial.js';
+import { createCitySpatial } from './sz-spatial.js';
+import { polygonContainsInclusive } from './sz-polygon.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { STR } from './sz-strings.js';
 
@@ -112,7 +113,7 @@ export function createCityConfig(geo, buildings = [], labels = STR) {
   function districtAt(x, z) {
     if (!spatial.inBounds(x, z)) return null;
     // 当前包没有行政区界；只接受今后导入的有来源面，不按经度猜区名。
-    return (geo.districts || []).find(d => d.source && polygonContains(d.polygon, x, z))?.id ?? null;
+    return (geo.districts || []).find(d => d.source && polygonContainsInclusive(d.polygon, x, z))?.id ?? null;
   }
 
   function getLocationInfo(x, z) {

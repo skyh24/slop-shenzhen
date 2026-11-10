@@ -5,6 +5,7 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 
@@ -15,7 +16,7 @@ const SAMPLE_ROAD_OSM_ID = 'way/270044912';
 
 const terrain = loadModule(read('sz-terrain.js'));
 const layout = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
-const collision = loadModule(read('building-collision.js'));
+const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 const { polygonContains } = collision;
 
 // 离线 stub：sz-geometry 只用到这些能力，注意三角化按扇形生成，足以覆盖任意外环顶点数。
@@ -71,7 +72,7 @@ function loadCityBlocks(THREE, facades) {
     './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: facades } } },
     './sz-geometry.js': geometry,
     './sz-materials.js': { createBuildingMaterial: () => ({ dispose() {} }) },
-    './sz-building-layout.js': layout,
+    './sz-building-layout.js': layout, './sz-polygon.js': polygonModule,
     './building-collision.js': collision,
     './sz-terrain.js': terrain
   } });

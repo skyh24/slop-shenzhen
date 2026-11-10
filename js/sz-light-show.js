@@ -4,6 +4,7 @@ import * as THREE from 'three/webgpu';
 import { color, mix, sin, smoothstep, time } from 'three/tsl';
 import { sceneUniforms } from './sz-materials.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
+import { ringArea } from './sz-polygon.js';
 
 export const SHOW_MIN_HEIGHT_M = 150;
 export const SHOW_STRIPS_PER_TOWER = 6;
@@ -11,14 +12,6 @@ export const SHOW_STRIP_WIDTH_M = 0.42;
 export const SHOW_BUCKETS = 6;
 // 福田中心区范围：市民中心、深南、益田路、滨河一带；超总/后海按各自模型处理。
 export const SHOW_AREA = Object.freeze({ minX: -3000, maxX: 3000, minZ: -1500, maxZ: 2500 });
-
-function ringArea(ring) {
-  let area = 0;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    area += (ring[j].x + ring[i].x) * (ring[j].z - ring[i].z);
-  }
-  return Math.abs(area) / 2;
-}
 
 function centroid(ring) {
   let cx = 0, cz = 0;

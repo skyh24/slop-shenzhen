@@ -5,14 +5,17 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
+const meshUtils = require('./helpers/mesh-utils.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
 const format = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
 const { geo } = format.decodeCityPayload(raw);
-const collision = loadModule(read('building-collision.js'));
+const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 const metroSource = read('sz-metro-entrances.js');
-const stubs = { 'three/webgpu': {}, 'three/tsl': {}, './building-collision.js': collision };
+const stubs = { 'three/webgpu': {}, 'three/tsl': {}, './building-collision.js': collision,
+  './sz-polygon.js': polygonModule, './sz-mesh-utils.js': meshUtils({}) };
 const planning = loadModule(metroSource, { imports: stubs });
 const HEX_COLOUR = /^#[0-9A-F]{6}$/i;
 
@@ -47,7 +50,8 @@ test('buildSzMetroEntrances snaps canopies to the rendered ground and maintains 
   { skip: !threeDir }, async () => {
     const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));
     const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
-    const imports = { 'three/webgpu': THREE, 'three/tsl': TSL, './building-collision.js': collision };
+    const imports = { 'three/webgpu': THREE, 'three/tsl': TSL, './building-collision.js': collision,
+      './sz-polygon.js': polygonModule, './sz-mesh-utils.js': meshUtils(THREE) };
     const ground = loadModule(read('sz-ground-surface.js'));
     const groundHeight = ground.createGroundSurfaceSampler(geo.terrainSurface);
     const { buildSzMetroEntrances } = loadModule(metroSource, { imports });
@@ -98,7 +102,8 @@ test('buildSzMetroEntrances reports skip reasons instead of placing on roads, bu
   { skip: !threeDir }, async () => {
     const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));
     const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
-    const imports = { 'three/webgpu': THREE, 'three/tsl': TSL, './building-collision.js': collision };
+    const imports = { 'three/webgpu': THREE, 'three/tsl': TSL, './building-collision.js': collision,
+      './sz-polygon.js': polygonModule, './sz-mesh-utils.js': meshUtils(THREE) };
     const { buildSzMetroEntrances } = loadModule(metroSource, { imports });
     const subset = {
       stations: geo.metro.stations,

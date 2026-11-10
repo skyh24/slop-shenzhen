@@ -5,6 +5,7 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 // loadModule 在 vm 沙箱里求值，数组原型和宿主 realm 不同，深比较前先过一遍 JSON
@@ -13,7 +14,7 @@ const strings = loadModule(read('sz-strings.js'));
 const terrain = loadModule(read('sz-terrain.js'));
 // 纯函数测试不需要 THREE；空对象证明模块顶层没有解引用 three
 const apec = loadModule(read('sz-apec.js'), {
-  imports: { 'three/webgpu': {}, './sz-strings.js': strings, './sz-terrain.js': terrain }
+  imports: { 'three/webgpu': {}, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule }
 });
 
 // 用真实路网 link 结构造合成路网：nodes 是扁平坐标，links 是 [起点, 终点, 路名索引, 路宽, 车道, 方向, 中间点...]
@@ -232,7 +233,7 @@ test('the runtime builds instanced banners signs and flower beds under the theme
   });
   const fakeDocument = { createElement: () => ({ width: 0, height: 0, getContext: () => context }) };
   const module = loadModule(read('sz-apec.js'), {
-    imports: { 'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain },
+    imports: { 'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule },
     globals: { document: fakeDocument }
   });
   const scene = new THREE.Scene();
@@ -295,7 +296,7 @@ test('a non-APEC date starts with the theme hidden', { skip: !threeDir }, async 
   const { pathToFileURL: toUrl } = require('node:url');
   const THREE = await import(toUrl(join(threeDir, 'build', 'three.webgpu.js')));
   const module = loadModule(read('sz-apec.js'), {
-    imports: { 'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain }
+    imports: { 'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule }
   });
   const scene = new THREE.Scene();
   const model = module.buildApecTheme(scene, { now: new Date(2026, 10, 9) });

@@ -4,6 +4,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 
@@ -42,7 +43,7 @@ function stubThree() {
 
 const terrain = loadModule(read('sz-terrain.js'));
 const layout = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
-const collision = loadModule(read('building-collision.js'));
+const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 
 function loadDetails(THREE, materials = {}) {
   const geometry = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } });

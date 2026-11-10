@@ -2,7 +2,9 @@
 // 福田站是地下高铁站，本模块只做地面出入口、采光天窗和站名标识；西丽站按在建工地表达，
 // 围挡、塔吊、基坑和临时道路的尺寸都是展示估计（heightSource = estimate），不建假站房。
 import * as THREE from 'three/webgpu';
-import { polygonBoxOverlaps, polygonContains } from './building-collision.js';
+import { polygonBoxOverlaps } from './building-collision.js';
+import { ringArea, ringPerimeter, ringCentroid, sampleRing, distanceToRing, largestRing, outerRings, ringContains } from './sz-polygon.js';
+import { canvasTexture, mergeParts } from './sz-mesh-utils.js';
 
 export const FUTIAN_PAVILION_COUNT = 6;
 export const FUTIAN_SKYLIGHT_COUNT = 2;
@@ -24,84 +26,6 @@ function emptyResult(reason) {
 }
 // ---------- 几何与多边形通用工具 ----------
 
-function outerRings(site) {
-  const rings = [];
-  for (const polygon of site?.polygons ?? []) {
-    if (Array.isArray(polygon?.outer) && polygon.outer.length >= 3
-      && polygon.outer.every(point => Number.isFinite(point?.x) && Number.isFinite(point?.z))) {
-      rings.push(polygon.outer);
-    }
-  }
-  return rings;
-}
-
-function ringArea(ring) {
-  let sum = 0;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length];
-    sum += a.x * b.z - b.x * a.z;
-  }
-  return Math.abs(sum) / 2;
-}
-
-function ringPerimeter(ring) {
-  let length = 0;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length];
-    length += Math.hypot(b.x - a.x, b.z - a.z);
-  }
-  return length;
-}
-
-function ringCentroid(ring) {
-  let x = 0, z = 0, weight = 0;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length];
-    const cross = a.x * b.z - b.x * a.z;
-    weight += cross;
-    x += (a.x + b.x) * cross;
-    z += (a.z + b.z) * cross;
-  }
-  if (Math.abs(weight) < 1e-9) {
-    return { x: ring.reduce((sum, p) => sum + p.x, 0) / ring.length,
-      z: ring.reduce((sum, p) => sum + p.z, 0) / ring.length };
-  }
-  return { x: x / (3 * weight), z: z / (3 * weight) };
-}
-
-function pointInRing(ring, x, z) {
-  return polygonContains({ outer: ring, holes: [] }, x, z);
-}
-
-function distanceToRing(ring, x, z) {
-  let best = Infinity;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length];
-    const dx = b.x - a.x, dz = b.z - a.z;
-    const lengthSq = dx * dx + dz * dz;
-    const t = lengthSq > 1e-12 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / lengthSq)) : 0;
-    best = Math.min(best, Math.hypot(x - (a.x + dx * t), z - (a.z + dz * t)));
-  }
-  return best;
-}
-
-function sampleRing(ring, t) {
-  const perimeter = ringPerimeter(ring);
-  let target = (((t % 1) + 1) % 1) * perimeter;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length];
-    const length = Math.hypot(b.x - a.x, b.z - a.z);
-    if (target <= length || i === ring.length - 1) {
-      const u = length > 1e-9 ? Math.min(1, target / length) : 0;
-      return { x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u,
-        dx: length > 1e-9 ? (b.x - a.x) / length : 0, dz: length > 1e-9 ? (b.z - a.z) / length : 0 };
-    }
-    target -= length;
-  }
-  const a = ring[0], b = ring[1];
-  return { x: a.x, z: a.z, dx: b.x - a.x, dz: b.z - a.z };
-}
-
 function rotateLocal(x, z, yaw, lx, lz) {
   const sin = Math.sin(yaw), cos = Math.cos(yaw);
   return { x: x + lx * cos + lz * sin, z: z - lx * sin + lz * cos };
@@ -114,74 +38,6 @@ function hashSeed(text) {
     hash = Math.imul(hash, 16777619) >>> 0;
   }
   return hash;
-}
-
-function canvasTexture(width, height, draw, repeatX = false) {
-  if (typeof document === 'undefined') {
-    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.needsUpdate = true;
-    return texture;
-  }
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  draw(canvas.getContext('2d'), width, height);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
-  if (repeatX) texture.wrapS = THREE.RepeatWrapping;
-  return texture;
-}
-
-function mergeParts(parts) {
-  let vertexCount = 0;
-  let indexCount = 0;
-  for (const part of parts) {
-    const position = part.geometry.getAttribute('position');
-    vertexCount += position.count;
-    indexCount += part.geometry.index ? part.geometry.index.count : position.count;
-  }
-  const positions = new Float32Array(vertexCount * 3);
-  const normals = new Float32Array(vertexCount * 3);
-  const uvs = new Float32Array(vertexCount * 2);
-  const colours = new Float32Array(vertexCount * 3);
-  const indices = vertexCount > 65535 ? new Uint32Array(indexCount) : new Uint16Array(indexCount);
-  const colour = new THREE.Color();
-  let vertexOffset = 0;
-  let indexOffset = 0;
-  for (const part of parts) {
-    const geometry = part.geometry;
-    const position = geometry.getAttribute('position');
-    const normal = geometry.getAttribute('normal');
-    const uv = geometry.getAttribute('uv');
-    const index = geometry.index;
-    positions.set(position.array, vertexOffset * 3);
-    if (normal) normals.set(normal.array, vertexOffset * 3);
-    if (uv) uvs.set(uv.array, vertexOffset * 2);
-    colour.setHex(part.colour ?? 0xffffff).convertSRGBToLinear();
-    for (let i = 0; i < position.count; i++) {
-      colours[(vertexOffset + i) * 3] = colour.r;
-      colours[(vertexOffset + i) * 3 + 1] = colour.g;
-      colours[(vertexOffset + i) * 3 + 2] = colour.b;
-    }
-    if (index) {
-      for (let i = 0; i < index.count; i++) indices[indexOffset + i] = index.array[i] + vertexOffset;
-      indexOffset += index.count;
-    } else {
-      for (let i = 0; i < position.count; i++) indices[indexOffset + i] = i + vertexOffset;
-      indexOffset += position.count;
-    }
-    vertexOffset += position.count;
-    geometry.dispose();
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-  geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2)); geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
-  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-  geometry.computeBoundingSphere();
-  return geometry;
 }
 
 function boxPart(width, height, depth, x, y, z, colour, yaw = 0) {
@@ -259,12 +115,6 @@ function ringBounds(ring) {
     maxZ = Math.max(maxZ, point.z);
   }
   return { minX, minZ, maxX, maxZ };
-}
-
-function largestRing(rings) {
-  let best = rings[0];
-  for (const ring of rings) if (ringArea(ring) > ringArea(best)) best = ring;
-  return best;
 }
 
 function rotatedRectCollider(type, name, x, z, yaw, halfX, halfZ, minY, maxY, sourceId) {
@@ -375,11 +225,11 @@ function placeFutianPavilions(ring, groundHeight, colliders) {
     const left = { x: -at.dz, z: at.dx };
     const inward = (centroid.x - at.x) * left.x + (centroid.z - at.z) * left.z >= 0 ? left : { x: -left.x, z: -left.z };
     const x = at.x + inward.x * inset, z = at.z + inward.z * inset;
-    if (!pointInRing(ring, x, z) || distanceToRing(ring, x, z) < 4.2) return false;
+    if (!ringContains(ring, x, z) || distanceToRing(ring, x, z) < 4.2) return false;
     const yaw = Math.atan2(-inward.x, -inward.z);
     const corners = [[-3.5, -2.5], [3.5, -2.5], [3.5, 2.5], [-3.5, 2.5]]
       .map(([lx, lz]) => rotateLocal(x, z, yaw, lx, lz));
-    if (!corners.every(corner => pointInRing(ring, corner.x, corner.z))) return false;
+    if (!corners.every(corner => ringContains(ring, corner.x, corner.z))) return false;
     const heights = groundProbes(groundHeight, x, z, yaw, 3.8, 2.8);
     if (!heights) return false;
     const y = Math.min(...heights);
@@ -405,7 +255,7 @@ function placeFutianPavilions(ring, groundHeight, colliders) {
         const yaw = Math.atan2(centroid.x - x, centroid.z - z);
         const corners = [[-3.5, -2.5], [3.5, -2.5], [3.5, 2.5], [-3.5, 2.5]]
           .map(([lx, lz]) => rotateLocal(x, z, yaw, lx, lz));
-        if (!corners.every(corner => pointInRing(ring, corner.x, corner.z))) continue;
+        if (!corners.every(corner => ringContains(ring, corner.x, corner.z))) continue;
         const heights = groundProbes(groundHeight, x, z, yaw, 3.8, 2.8);
         if (!heights) continue;
         const y = Math.min(...heights);
@@ -438,11 +288,11 @@ function placeFutianSkylights(ring, pavilions, groundHeight, colliders) {
   for (const candidate of candidates) {
     if (found.length >= FUTIAN_SKYLIGHT_COUNT) break;
     const { x, z, yaw } = candidate;
-    if (!pointInRing(ring, x, z) || distanceToRing(ring, x, z) < 7) continue;
+    if (!ringContains(ring, x, z) || distanceToRing(ring, x, z) < 7) continue;
     const halfX = 6.3, halfZ = 4.3;
     const corners = [[-halfX, -halfZ], [halfX, -halfZ], [halfX, halfZ], [-halfX, halfZ]]
       .map(([lx, lz]) => rotateLocal(x, z, yaw, lx, lz));
-    if (!corners.every(corner => pointInRing(ring, corner.x, corner.z))) continue;
+    if (!corners.every(corner => ringContains(ring, corner.x, corner.z))) continue;
     if (pavilions.some(pavilion => Math.hypot(pavilion.x - x, pavilion.z - z) < 34)) continue;
     if (found.some(skylight => Math.hypot(skylight.x - x, skylight.z - z) < 30)) continue;
     const heights = groundProbes(groundHeight, x, z, yaw, halfX, halfZ);
@@ -576,7 +426,7 @@ function xiliHoardingTexture() {
     context.fillStyle = '#47525a';
     context.font = `bold 21px ${SIGN_FONT}`;
     context.fillText('施工重地  谢绝入内', width / 2, height * 0.74);
-  }, true);
+  }, { repeatX: true });
 }
 
 function offsetRing(ring, distance) {
@@ -602,7 +452,7 @@ function offsetRing(ring, distance) {
     result.push({ x: first.px + first.dx * t, z: first.pz + first.dz * t });
   }
   if (result.length < 3 || ringArea(result) < ringArea(ring) * 0.12) return null;
-  if (!result.every(point => pointInRing(ring, point.x, point.z))) return null;
+  if (!result.every(point => ringContains(ring, point.x, point.z))) return null;
   return result;
 }
 
@@ -648,10 +498,10 @@ function placeCranes(ring, pitRing, count) {
   const candidates = [];
   for (let z = bounds.minZ + 6; z <= bounds.maxZ - 6; z += 4) {
     for (let x = bounds.minX + 6; x <= bounds.maxX - 6; x += 4) {
-      if (!pointInRing(ring, x, z)) continue;
+      if (!ringContains(ring, x, z)) continue;
       const clearance = distanceToRing(ring, x, z);
       if (clearance < 8) continue;
-      if (pitRing && (pointInRing(pitRing, x, z) || distanceToRing(pitRing, x, z) < 7)) continue;
+      if (pitRing && (ringContains(pitRing, x, z) || distanceToRing(pitRing, x, z) < 7)) continue;
       candidates.push({ x, z, clearance });
     }
   }
@@ -880,7 +730,7 @@ export function buildXiliConstruction(scene, xiliSite, options = {}) {
     let piles = 0;
     for (let z = bounds.minZ + step / 2; z < bounds.maxZ && piles < 16; z += step) {
       for (let x = bounds.minX + step / 2; x < bounds.maxX && piles < 16; x += step) {
-        if (!pointInRing(pitRing, x, z) || distanceToRing(pitRing, x, z) < 5) continue;
+        if (!ringContains(pitRing, x, z) || distanceToRing(pitRing, x, z) < 5) continue;
         const ground = groundHeight(x, z);
         if (!Number.isFinite(ground)) continue;
         const height = Math.max(1, ground - pitBottom + 0.35);

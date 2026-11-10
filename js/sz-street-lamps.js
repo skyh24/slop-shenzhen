@@ -14,10 +14,6 @@ const POOL_RADIUS_M = 7.5;
 const CHUNK_SIZE_M = 1000;
 const MAX_LAMPS = 30000;
 
-function finitePoint(point) {
-  return Number.isFinite(point?.x) && Number.isFinite(point?.z);
-}
-
 function normalAt(a, b) {
   const dx = b.x - a.x;
   const dz = b.z - a.z;

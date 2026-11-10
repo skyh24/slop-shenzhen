@@ -4,6 +4,8 @@
 // 本模块不建碰撞体：大屏、机器人、广告面板都是装饰，交由 Lead 决定是否补碰撞。
 import * as THREE from 'three/webgpu';
 import { terrainHeight } from './sz-terrain.js';
+import { landmarkCenter, finitePoint, ringPerimeter, ringCentroid, outerRings, largestRing, sampleRing, distanceToRing } from './sz-polygon.js';
+import { canvasTexture } from './sz-mesh-utils.js';
 
 export const APEC_CITY_COLORS = Object.freeze({
   chinaRed: 0xc8102e,
@@ -71,100 +73,6 @@ function round(value, digits = 3) {
 
 function clampNumber(value, min, max) {
   return Math.min(Math.max(value, min), max);
-}
-
-function landmarkCenter(landmarks, id) {
-  const landmark = (landmarks ?? []).find((item) => item?.id === id);
-  if (!landmark || !Number.isFinite(landmark.x) || !Number.isFinite(landmark.z)) return null;
-  return { x: landmark.x, z: landmark.z };
-}
-
-function finitePoint(point) {
-  return Number.isFinite(point?.x) && Number.isFinite(point?.z);
-}
-
-function ringArea(ring) {
-  let sum = 0;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length];
-    sum += a.x * b.z - b.x * a.z;
-  }
-  return Math.abs(sum) / 2;
-}
-
-function ringPerimeter(ring) {
-  let length = 0;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length];
-    length += Math.hypot(b.x - a.x, b.z - a.z);
-  }
-  return length;
-}
-
-function ringCentroid(ring) {
-  let x = 0, z = 0, weight = 0;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length];
-    const cross = a.x * b.z - b.x * a.z;
-    weight += cross;
-    x += (a.x + b.x) * cross;
-    z += (a.z + b.z) * cross;
-  }
-  if (Math.abs(weight) < 1e-9) {
-    return { x: ring.reduce((sum, point) => sum + point.x, 0) / ring.length,
-      z: ring.reduce((sum, point) => sum + point.z, 0) / ring.length };
-  }
-  return { x: x / (3 * weight), z: z / (3 * weight) };
-}
-
-// 外环点列表：共享包 sites 段的解码结果是 { outer: [{x,z}], holes: [] }
-function outerRings(site) {
-  const rings = [];
-  for (const polygon of site?.polygons ?? []) {
-    const outer = polygon?.outer;
-    if (Array.isArray(outer) && outer.length >= 3 && outer.every(finitePoint)) rings.push(outer);
-  }
-  return rings;
-}
-
-function largestRing(rings) {
-  let best = rings[0];
-  for (const ring of rings) if (ringArea(ring) > ringArea(best)) best = ring;
-  return best;
-}
-
-// 沿外环按周长比例取点，同时给出该处单位切线（x 向东、z 向南）
-function sampleRing(ring, t) {
-  const perimeter = ringPerimeter(ring);
-  let target = (((t % 1) + 1) % 1) * perimeter;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length];
-    const length = Math.hypot(b.x - a.x, b.z - a.z);
-    if (target <= length || i === ring.length - 1) {
-      const u = length > 1e-9 ? Math.min(1, target / length) : 0;
-      return {
-        x: a.x + (b.x - a.x) * u,
-        z: a.z + (b.z - a.z) * u,
-        dx: length > 1e-9 ? (b.x - a.x) / length : 0,
-        dz: length > 1e-9 ? (b.z - a.z) / length : 0
-      };
-    }
-    target -= length;
-  }
-  const a = ring[0], b = ring[1];
-  return { x: a.x, z: a.z, dx: b.x - a.x, dz: b.z - a.z };
-}
-
-function distanceToRing(ring, x, z) {
-  let best = Infinity;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length];
-    const dx = b.x - a.x, dz = b.z - a.z;
-    const lengthSq = dx * dx + dz * dz;
-    const t = lengthSq > 1e-12 ? clampNumber(((x - a.x) * dx + (z - a.z) * dz) / lengthSq, 0, 1) : 0;
-    best = Math.min(best, Math.hypot(x - (a.x + dx * t), z - (a.z + dz * t)));
-  }
-  return best;
 }
 
 function sampleEllipse(center, radiusXM, radiusZM, phase, count) {
@@ -400,28 +308,6 @@ export function summarizeApecCityPlan(plan) {
 
 // ---------- 运行时贴图：canvas 现画，不加载外部图片 ----------
 
-function hasCanvas() {
-  return typeof document !== 'undefined' && typeof document.createElement === 'function';
-}
-
-function canvasTexture(width, height, draw) {
-  // 没有 canvas 的 node 环境（或极端降级）用 1×1 纯色贴图，构建和销毁仍然可用。
-  if (!hasCanvas()) {
-    const texture = new THREE.DataTexture(new Uint8Array([200, 16, 46, 255]), 1, 1, THREE.RGBAFormat);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.needsUpdate = true;
-    return texture;
-  }
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  draw(canvas.getContext('2d'), width, height);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
-  return texture;
-}
-
 // 双面 LED 面：正反两片、背面 UV 镜像，两面文字都正向可读；中国红底色加 APEC 紫边条和金色描边。
 function drawLedFace(primaryFirst) {
   return (context, width, height) => {
@@ -517,8 +403,8 @@ export function buildApecCityElements(scene, {
   };
 
   // 1. LED 大屏：深色钢框 + 两根方钢立柱 + 基础 + 双面提词屏面。三块屏共用两种主标语贴图。
-  const sloganTextures = [keepTexture(canvasTexture(1024, 512, drawLedFace(true))),
-    keepTexture(canvasTexture(1024, 512, drawLedFace(false)))];
+  const sloganTextures = [keepTexture(canvasTexture(1024, 512, drawLedFace(true), { fallback: [200, 16, 46, 255] })),
+    keepTexture(canvasTexture(1024, 512, drawLedFace(false), { fallback: [200, 16, 46, 255] }))];
   const faceMaterials = sloganTextures.map((texture) => keepMaterial(new THREE.MeshStandardNodeMaterial({
     map: texture, emissive: 0xffffff, emissiveMap: texture, emissiveIntensity: 0.3, roughness: 0.34, metalness: 0.05
   })));

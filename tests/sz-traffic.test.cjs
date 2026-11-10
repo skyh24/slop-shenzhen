@@ -3,6 +3,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 class Group {
   constructor() { this.children = []; }
@@ -90,7 +91,7 @@ const { createTrafficGraph, createSzTraffic, laneOffsets, laneRoute, routeSegmen
   './sz-intersection-control.js': signalModule,
   './sz-roads.js': roads,
   './sz-vehicles.js': trafficVehicles,
-  './building-collision.js': load('building-collision.js'),
+  './building-collision.js': load('building-collision.js', { './sz-polygon.js': polygonModule }),
   './vehicle-physics.js': vehiclePhysics
 });
 

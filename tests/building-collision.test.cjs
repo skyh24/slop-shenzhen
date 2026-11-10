@@ -3,9 +3,11 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const { polygonContains, polygonBoxOverlaps, polygonContact, polygonSegmentFraction } = loadModule(
-  readFileSync(join(__dirname, '../js/building-collision.js'), 'utf8'));
+  readFileSync(join(__dirname, '../js/building-collision.js'), 'utf8'),
+  { imports: { './sz-polygon.js': polygonModule } });
 const ring = (points) => points.map(([x, z]) => ({ x, z }));
 const courtyard = {
   outer: ring([[0, 0], [12, 0], [12, 12], [0, 12]]),

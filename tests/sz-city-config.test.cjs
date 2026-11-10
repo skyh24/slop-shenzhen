@@ -31,11 +31,14 @@ fixture.terrainSurface = fixtureTerrainSurface(fixture.terrain);
 const building = { minX: -5, maxX: 5, minZ: -5, maxZ: 5, polygons: [{ outer: ring(-5, -5, 5, 5), holes: [] }] };
 globalThis.__cityConfigFixture = { GEO: fixture, REAL_BUILDINGS: [building] };
 const terrain = uri(source('js/sz-ground-surface.js'));
-const spatial = uri(source('js/sz-spatial.js').replace('./sz-ground-surface.js', terrain));
+const polygon = uri(source('js/sz-polygon.js'));
+const spatial = uri(source('js/sz-spatial.js').replace('./sz-ground-surface.js', terrain)
+  .replace('./sz-polygon.js', polygon));
 const configSource = source('js/sz-city-config.js')
   .replace('./sz-geodata.js', uri('export const {GEO,REAL_BUILDINGS}=globalThis.__cityConfigFixture;'))
   .replace('./sz-spatial.js', spatial)
-  .replace('./building-collision.js', uri(source('js/building-collision.js')))
+  .replace('./building-collision.js', uri(source('js/building-collision.js').replace('./sz-polygon.js', polygon)))
+  .replace('./sz-polygon.js', polygon)
   .replace('./sz-strings.js', uri(source('js/sz-strings.js')));
 const modulePromise = import(uri(configSource));
 

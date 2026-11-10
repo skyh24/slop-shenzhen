@@ -5,9 +5,10 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
-const collision = loadModule(read('building-collision.js'));
+const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 const terrain = loadModule(read('sz-terrain.js'));
 const placement = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
 const parts = loadModule(read('sz-landmarks/parts.js'), { imports: {
@@ -163,7 +164,7 @@ test('Chunjian DSM cuts lie strictly inside the enclosed collision hulls and cap
 test('Chunjian interior cuts remove ground and road support while keeping the public apertures', () => {
   const surface = geo.terrainSurface;
   const { groundHeight, isOnLand } = loadModule(read('sz-spatial.js'), { imports: {
-    './sz-ground-surface.js': groundSurface
+    './sz-ground-surface.js': groundSurface, './sz-polygon.js': polygonModule
   } }).createCitySpatial(geo);
   const { createRoadSurfaceLayout, createRoadHeightSampler } = loadModule(read('sz-roads.js'), { imports: {
     'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }

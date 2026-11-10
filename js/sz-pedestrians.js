@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { buildWalkTracks, createColliderGrid, sampleTrack } from './sz-pedestrian-tracks.js';
+import { polygonContains } from './sz-polygon.js';
 
 // 正式深圳场景的环境人群：复用纽约的 PersonRig / PersonCrowd（步态、脚底接地、远近 LOD），
 // 但不搬纽约的人行道/斑马线数据。深圳没有全城铺装人行道网格，行走位置来自
@@ -100,22 +101,6 @@ function normalizeGreenArea(area) {
   return null;
 }
 
-function pointInRing(ring, x, z) {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const a = ring[i];
-    const b = ring[j];
-    if ((a.z > z) !== (b.z > z) && x < a.x + (b.x - a.x) * (z - a.z) / (b.z - a.z)) inside = !inside;
-  }
-  return inside;
-}
-
-function pointInPolygon(polygon, x, z) {
-  if (!pointInRing(polygon.outer, x, z)) return false;
-  for (const hole of polygon.holes ?? []) if (pointInRing(hole, x, z)) return false;
-  return true;
-}
-
 // 地点人流代理：约 100 m 网格上的建筑足迹覆盖率 + 道路等级 + 绿地。全部是模拟参数，
 // 不代表实测客流；没有建筑覆盖的人行道至少保留 densityBase，避免整段没人。
 export function createSzDensityModel(options = {}) {
@@ -163,7 +148,7 @@ export function createSzDensityModel(options = {}) {
           const key = cellKey(x, z);
           const centerX = (x + 0.5) * cellM;
           const centerZ = (z + 0.5) * cellM;
-          if (pointInPolygon(polygon, centerX, centerZ)) green.add(key);
+          if (polygonContains(polygon, centerX, centerZ)) green.add(key);
           else nearGreen.add(key);
         }
       }

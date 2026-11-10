@@ -4,13 +4,14 @@ const { join } = require('node:path');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const load = (file, imports = {}) => loadModule(read(file), { imports });
 const signalApi = load('sz-intersection-control.js');
 const surface = load('sz-controller-surfaces.js');
 const roads = load('sz-roads.js', { 'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) } });
-const collision = load('building-collision.js');
+const collision = load('building-collision.js', { './sz-polygon.js': polygonModule });
 const physics = load('vehicle-physics.js');
 const traffic = load('sz-traffic.js', { 'three/webgpu': {}, './sz-intersection-control.js': signalApi,
   './sz-roads.js': roads,

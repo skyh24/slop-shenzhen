@@ -3,6 +3,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const roads = loadModule(read('sz-roads.js'), { imports: {
@@ -10,7 +11,7 @@ const roads = loadModule(read('sz-roads.js'), { imports: {
 } });
 const lamps = loadModule(read('sz-street-lamps.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': { color: () => ({}), uniform: () => ({ value: 0 }) },
-  './sz-roads.js': roads
+  './sz-roads.js': roads, './sz-polygon.js': polygonModule
 } });
 
 function graph(links, metadata) {

@@ -326,3 +326,24 @@ rg -n "StorageInstancedBufferAttribute" js ref/slop-wuhan/js/runtime/main.js
 - **P6（名牌/细节组每帧 `updateMatrixWorld(true)`）**：改动小，和上面的 draw-call 排查一起做；出生点 CPU 预算只剩约 4.8 ms。
 - **P1（实例矩阵 storage 缓冲）**仍然值得做，但本次测量不显示它是出生点 CPU 瓶颈的主因；按第 3 节要求单独做前后各 5 次测量，不要和 P2/P3 混在一次提交里。
 - **P7（夜间光晕按灯杆分块、打开视锥剔除）**只影响夜间机位，夜间队列等待和 CPU 都不高，优先级放到 P2/P3/P6 之后；P9 先看 pipeline 数；P5 的数据格式不是启动瓶颈（data 阶段合计约 0.18 s），P4 校验约 15–60 ms，都排在后面。
+
+### S2 共享几何工具模块（2026-11-10）
+
+- 分支：`dsh-527cd33f-dcc4`（worktree 独立分支，基线 `4c54d2e`）。没有改 `docs/HANDOFF.md`、`docs/TASKS.md`，没有重建 `js/sz-city.json.gz`。
+- 新增两个模块：`js/sz-polygon.js`（147 行，不依赖 three.js）收 `ringArea`、`ringPerimeter`、`ringCentroid`、`sampleRing`、`distanceToRing`、`largestRing`、`outerRings`、`finitePoint`、`landmarkCenter` 和包含判定；`js/sz-mesh-utils.js`（79 行）收 `mergeParts`、`canvasTexture`。`index.html` 在 `sz-spatial.js` 前加两条 `modulepreload`。
+- 包含语义按 A3 保留两种，逐个调用点确认：
+  - `ringContains` / `polygonContains`：奇偶规则，点正好落在边上时结果不确定，与 `building-collision.js`、`sz-trees.js`、`sz-buildings.js`、`sz-pedestrians.js` 原实现一致。`building-collision.js` 仍 `export { polygonContains }`，`main.js`、`audio-acoustics.js`、`sz-park-arrivals.js`、`sz-building-details.js` 的导入路径和语义不变。
+  - `ringContainsInclusive` / `polygonContainsInclusive`：外环边界算内、内院边界算外，与 `sz-spatial.js` 原实现一致；`sz-spatial.js` 的覆盖区/陆地判定和 `sz-city-config.js` 的 `districtAt` 改用它。
+- A3 迁移范围：`mergeParts` 2 → 1（`sz-drone-routes.js` 的同名函数签名不同，未动）；`canvasTexture` 3 → 1（`repeatX` 与 APEC 红回退色改为选项参数，围挡平铺和无 canvas 兜底色不变）；`finitePoint` 3 → 1（`sz-street-lamps.js` 那份原本是死代码，删除后不再导入）；`landmarkCenter` 2 → 1（`sz-apec.js` 保留同名 re-export）；`ringArea` 4 → 1；`ringPerimeter`、`ringCentroid`、`sampleRing`、`distanceToRing`、`largestRing`、`outerRings` 各 2 → 1；`polygonContains` 4 处 → 1 份奇偶实现 + 1 份边界包含实现。空间分桶按任务要求不合并。
+- 环形面积统一为鞋带公式（`sz-station-sites.js`/`sz-apec-city.js` 原实现）；`sz-buildings.js`、`sz-light-show.js` 原来的梯形公式与它数学等价，实数据最大绝对差 3.4e-8 m²。按 `sz-buildings.js` 的裙房判定逐楼复核：`area < 1500` 阈值翻转 0 栋、外扩步数翻转 0 栋、外扩量差 ≤4.9e-11 m、顶点位移 ≤4.9e-9 mm；只有 `sz-light-show.js` 计划里 2 栋塔的 `areaM2` 四舍五入值 ±1 m²，该字段不参与几何和显示。
+- 行数：`sz-station-sites.js` 1008 → 858（验收要求 ≤1000）；`sz-apec-city.js` 727 → 613；`sz-metro-entrances.js` 680 → 607；`sz-buildings.js` 590 → 567；`sz-pedestrians.js` 647 → 632；`sz-trees.js` 564 → 552；其余小幅下降，见 `git diff --stat`。
+- 测试：Node 422 → 436 项通过、0 跳过。新增 `tests/sz-polygon.test.cjs` 10 项（凹多边形、带洞、点落在边上、退化环、采样/面积/中心/最近距离）和 `tests/sz-mesh-utils.test.cjs` 4 项（真实 0.187.0，覆盖索引/非索引合并、顶点色、Uint16/Uint32 索引、canvas 兜底、repeatX 平铺）。既有读取这些模块的用例补显式 import stub：新增 `tests/helpers/polygon.cjs` 和 `tests/helpers/mesh-utils.cjs`；`sz-spatial.js`、`sz-city-config.js` 的 data URI 用例把 `sz-polygon.js` 一起内联。Python 101 项通过。
+- 浏览器：`python3 tools/sz/serve.py --port 8099`；改前用 HEAD 的另一份 checkout 跑 8098，同一 ego-browser 会话、916×1246 视口、HUD 隐藏、midday（大屏另加一对 midnight 并打开 APEC 主题）。5 对同机位截图放 `docs/qa/dsh-527cd33f-dcc4/`（只留本地）。
+  - 机位：地铁出入口 `?qa=1&cam=-102.94,13.36,343.72,-113.94,12.56,334.72`；福田站 `-377.62,9.46,280.35,-387.62,8.74,290.35`；西丽围挡 `-11850,33.5,-2322,-11850,31,-2341`；APEC 大屏 `46,13.5,478,42.1,12.7,470.4`。
+  - 像素平均绝对差（0–255）：地铁 0.45、福田站 1.00、西丽围挡 0.11、APEC 大屏 0.38、夜间大屏 0.03；差异来自环境车流/人群位置和抗锯齿，主体几何目视一致。
+  - 几何 digest（逐网格世界矩阵 + 顶点/法线/UV/顶点色/索引 + 实例矩阵，FNV-1a）：地铁出入口 `2754469080`（130 网格/36,064 顶点/65,336 三角形）、福田站 `2314283066`（6/504/1,296）、西丽站 `3717316675`（6/7,760/3,958）改前改后完全相同；APEC 三块大屏和四块围挡广告面板的静态子树也分别相同。巡逻机器人几何本身 digest 相同，整组差异只来自巡逻位置随时间更新。
+  - draw calls P95 改前→改后：地铁 496→490、福田站 382→375、西丽 215→220、大屏 318→309、夜间大屏 330→309；三角数同一量级，差值来自环境车流位置和视锥剔除，不是本轮引入的批次变化。
+  - 控制台：CDP 在文档创建前挂 `error`/`unhandledrejection`/`console.error`，改前改后都只有既有的 3D TSL `this.bNode.getNodeType is not a function` 报错，没有新增模块解析错误或运行时异常。
+- 结束时页面已恢复普通 URL `http://127.0.0.1:8099/`、追尾相机和可见界面，截图 `restored-normal-play.png`。
+- 导出变化：`sz-spatial.js` 不再导出 `ringContains`/`polygonContains`（仓库内没有消费者；它的语义由 `sz-polygon.js` 的 `*Inclusive` 变体承担，避免旧名字和新模块的奇偶实现混淆）；`sz-apec.js` 仍按原样导出 `landmarkCenter`，`building-collision.js` 仍导出 `polygonContains`。
+- 未做：A3 之外的空间分桶合并（任务明确不做）；`main.js` 超长、`sz-building-details.js` 接近上限都不在本任务范围。`sz-street-lamps.js` 的 `finitePoint` 原本是死代码（无调用点），删除后没有替代导入，活调用点只有 `sz-apec-city.js` 和 `sz-metro-entrances.js` 两处。A3 表只扫了 `js/*.js`，`js/sz-landmarks/super-hq.js` 的 `ringArea`/`ringCentroid`/`inRing`/`boundaryDistance` 和 `sz-pedestrians.js`、`sz-building-details.js` 里名叫 `polygonArea` 的同源工具仍留在原模块，按任务范围本轮未动。

@@ -5,13 +5,14 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const terrain = loadModule(read('sz-terrain.js'));
 const placement = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
 const lightShow = loadModule(read('sz-light-show.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': {}, './sz-materials.js': { sceneUniforms: { night: { value: 0 } } },
-  './sz-building-layout.js': placement
+  './sz-building-layout.js': placement, './sz-polygon.js': polygonModule
 } });
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
 const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
@@ -58,7 +59,7 @@ test('real Three builds instanced light-show meshes without touching building co
   const tsl = await import(new URL('build/three.tsl.js', packageUrl));
   const showModule = loadModule(read('sz-light-show.js'), { imports: {
     'three/webgpu': THREE, 'three/tsl': tsl, './sz-materials.js': { sceneUniforms: { night: tsl.uniform(0) } },
-    './sz-building-layout.js': placement
+    './sz-building-layout.js': placement, './sz-polygon.js': polygonModule
   } });
   const scene = new THREE.Scene();
   const show = showModule.buildSzLightShow(scene, { buildings: towers, terrain: geo.terrain });

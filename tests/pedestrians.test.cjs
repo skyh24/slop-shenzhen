@@ -3,10 +3,12 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const pedestriansSource = readFileSync(join(__dirname, '../js/pedestrians.js'), 'utf8');
 const controllersSource = readFileSync(join(__dirname, '../js/controllers.js'), 'utf8');
-const polygonCollision = loadModule(readFileSync(join(__dirname, '../js/building-collision.js'), 'utf8'));
+const polygonCollision = loadModule(readFileSync(join(__dirname, '../js/building-collision.js'), 'utf8'),
+  { imports: { './sz-polygon.js': polygonModule } });
 
 // Lightweight numeric TSL & THREE harness for testing PersonCrowd, createPersonMaterial, and PersonRig without a GPU.
 const shaderState = {

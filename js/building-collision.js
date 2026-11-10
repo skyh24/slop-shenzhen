@@ -1,14 +1,4 @@
-function polygonContains(polygon, x, z) {
-  let inside = false;
-  for (let r = -1; r < polygon.holes.length; r++) {
-    const ring = r < 0 ? polygon.outer : polygon.holes[r];
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const a = ring[i], b = ring[j];
-      if ((a.z > z) !== (b.z > z) && x < a.x + (b.x - a.x) * (z - a.z) / (b.z - a.z)) inside = !inside;
-    }
-  }
-  return inside;
-}
+import { polygonContains } from './sz-polygon.js';
 
 // 斜梁和桥面沿四边形两条侧边升降。只对实际高度落在实体内的范围做平面碰撞。
 function spanContactPolygon(polygon, verticalSpan, minY, maxY) {

@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { polygonContains } from './sz-polygon.js';
 
 // 树木实例化渲染：按 1000 m 分块，每块树干 + 近冠（5 个叶球）+ 远冠（1 个低模冠），
 // 近/<180 m 切近冠，>900 m 隐藏。所有随机量只由树标识的固定哈希派生，加载结果稳定。
@@ -62,19 +63,6 @@ function compareChunkKeys(a, b) {
   const [ax, az] = a.split(',').map(Number);
   const [bx, bz] = b.split(',').map(Number);
   return ax - bx || az - bz;
-}
-
-function polygonContains(polygon, x, z) {
-  let inside = false;
-  for (let ringIndex = -1; ringIndex < polygon.holes.length; ringIndex++) {
-    const ring = ringIndex < 0 ? polygon.outer : polygon.holes[ringIndex];
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const a = ring[i];
-      const b = ring[j];
-      if ((a.z > z) !== (b.z > z) && x < a.x + (b.x - a.x) * (z - a.z) / (b.z - a.z)) inside = !inside;
-    }
-  }
-  return inside;
 }
 
 function pointSegmentDistanceSq(x, z, a, b) {

@@ -3,6 +3,9 @@
 import * as THREE from 'three/webgpu';
 import { STR } from './sz-strings.js';
 import { terrainHeight } from './sz-terrain.js';
+import { landmarkCenter } from './sz-polygon.js';
+
+export { landmarkCenter };
 
 // 工商领导人峰会 11 月 17—18 日，领导人非正式会议 11 月 18—19 日；会期 11 月 11—21 日
 export const APEC_PERIOD = { firstDay: '2026-11-11', lastDay: '2026-11-21' };
@@ -218,12 +221,6 @@ export function flowerSites(center, { radiusXM = 12, radiusZM = radiusXM, count 
 export function pointInArea(area, x, z) {
   if (!Array.isArray(area) || area.length !== 4 || !area.every(Number.isFinite)) return true;
   return x >= area[0] && x <= area[2] && z >= area[1] && z <= area[3];
-}
-
-export function landmarkCenter(landmarks, id) {
-  const landmark = (landmarks ?? []).find((item) => item?.id === id);
-  if (!landmark || !Number.isFinite(landmark.x) || !Number.isFinite(landmark.z)) return null;
-  return { x: landmark.x, z: landmark.z };
 }
 
 // 地标绑定建筑里挑面积最大的主轮廓；没有绑定就没有真实体量依据

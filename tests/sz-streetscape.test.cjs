@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
@@ -37,7 +38,7 @@ test('the selected promenade is coplanar and walkable and the modeled tree trunk
   const cityLighting = loadModule(read('city-lighting-materials.js'), { imports });
   const roadMaterial = loadModule(read('sz-road-material.js'), { imports: { ...imports,
     './city-lighting-materials.js': cityLighting } });
-  const collision = loadModule(read('building-collision.js'));
+  const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
   const terrain = loadModule(read('sz-terrain.js'));
   const layout = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
   const roads = loadModule(read('sz-roads.js'), { imports: { ...imports, './sz-road-material.js': roadMaterial } });
