@@ -187,68 +187,70 @@ const BODY_SPECS = {
     rearWiper: true
   }
 };
-// 深圳出租车（比亚迪 e6 类纯电两厢 MPV）：高车身、平直车顶、短前后悬、5 门大侧窗。
-// 流线型处理：机舱盖明显下压前倾、风挡后掠更大、车头压低；尾部用较大的收圆半径 + tailRake 做出微斜圆角尾门，
-// 断面四个角（lowerRound/upperRound）比轿车更圆，整体仍保持两厢 MPV 的高顶轮廓。
+// 深圳出租车（纯电，参考用户给的长、低、圆润流线型版本）：低矮前脸 + 大倾角风挡 + 长弧形车顶，
+// 车顶一路滑向圆润的溜背尾部；侧面是凸曲面（低超椭圆指数），大曲面侧窗配细 A/B/C 柱。
+// 尺寸按用户参考：约 4.90 m 长 × 1.86 m 宽 × 1.52 m 高，轴距 2.90 m，轮胎半径 0.365 m。
 BODY_SPECS.taxi = {
   name: 'taxi',
-  zFront: 2.3,
-  zRear: -2.4,
-  wheelRadius: 0.34,
-  wheelZ: 1.4,
-  wheelX: 0.77,
-  archGap: 0.05,
-  archFlare: 0.018,
-  tuck: 0.065,
-  lowerRound: 2.3, // 截面上/下圆角比默认 (2.8 / 3.2) 更圆：肩线/裙线到车顶的过渡更连续
-  upperRound: 2.6,
-  halfWidth: [[2.3, 0.862], [1.4, 0.885], [0, 0.885], [-1.4, 0.885], [-2.4, 0.872]],
-  sill: [[2.3, 0.3], [1.2, 0.28], [-1.2, 0.28], [-2.4, 0.32]],
-  shoulder: [[2.3, 0.7], [1.75, 0.78], [1.4, 0.8], [0, 0.84], [-1.4, 0.88], [-2.4, 0.88]],
-  // 机舱盖从 nozzle 前端 0.84 m 抬到风挡根部 ~1.02 m，前低后高的下压前脸
-  edge: [[2.24, 0.84], [1.7, 0.94], [1.2, 1.0], [0.6, 1.03], [0, 1.05], [-1.0, 1.08], [-1.8, 1.1], [-2.3, 1.09], [-2.36, 1.06]],
-  crown: [[2.2, 0.06], [1.4, 0.05], [1.1, 0.004], [-2.4, 0.004]],
-  tumble: [[2.3, 0.16], [0.9, 0.13], [-1.6, 0.13], [-2.4, 0.15]],
-  // 车头平面收圆更长（0.42 m），加上 rake 形成低矮圆润的前脸
-  nose: { halfWidth: [0.42, 0.64, 3.2], edge: [0.24, 0.82, 3], crown: [0.2, 0.02, 2], sill: [0.22, 0.34, 2.2], shoulder: [0.3, 0.6, 3] },
-  // 尾部整圈共用同一条平面收圆曲线（≈0.56 m、超椭圆指数 2.0），后脸到侧面是一块连续的圆角曲面，
-  // 不再出现「尾盖 + 侧板」两段折线；tip 半宽收窄到 0.80 m 让后角在平面里真正圆过去。
-  tail: { halfWidth: [0.56, 0.8, 2.0], edge: [0.56, 1.02, 2.0], crown: [0.56, 0.01, 2], sill: [0.56, 0.32, 2.0], shoulder: [0.56, 0.84, 2.0] },
-  noseRake: { length: 0.78, y: [[0.28, 0.16], [0.4, 0.06], [0.56, 0], [0.7, 0.02], [0.82, 0.1], [0.92, 0.2]], plan: 0.1 },
-  // 尾门从保险杠下缘到车顶边缘是一条连续前倾的斜面：setback 随高度单调增加，保险杠不再单独外凸成一层
-  tailRake: { length: 0.62, y: [[0.3, 0], [0.45, 0.004], [0.6, 0.018], [0.75, 0.05], [0.9, 0.1], [1.02, 0.16]], plan: 0.045 },
+  zFront: 2.42,
+  zRear: -2.48,
+  wheelRadius: 0.365,
+  wheelZ: 1.45,
+  wheelX: 0.9,
+  archGap: 0.055,
+  archFlare: 0.022,
+  tuck: 0.075,
+  lowerRound: 2.2, // 低超椭圆指数：侧裙到肩线是凸曲面，不再有方盒折线
+  upperRound: 2.4,
+  stationStep: 0.22, // 出租车用更密的 loft 站，曲面不起棱
+  lowerSamples: [0, 0.25, 0.5, 0.75, 1],
+  upperSamples: [0.3, 0.58, 0.8, 1],
+  halfWidth: [[2.42, 0.86], [1.45, 0.905], [0, 0.912], [-1.45, 0.908], [-2.48, 0.885]],
+  sill: [[2.42, 0.26], [1.2, 0.235], [-1.2, 0.235], [-2.48, 0.27]],
+  shoulder: [[2.42, 0.55], [1.8, 0.63], [1.45, 0.66], [0, 0.7], [-1.45, 0.74], [-2.48, 0.73]],
+  edge: [[2.3, 0.78], [1.8, 0.87], [1.3, 0.92], [0.7, 0.955], [0, 0.97], [-1.0, 0.985], [-1.8, 0.99], [-2.3, 0.975], [-2.44, 0.95]],
+  crown: [[2.3, 0.05], [1.5, 0.045], [1.15, 0.004], [-2.48, 0.004]],
+  tumble: [[2.42, 0.16], [0.9, 0.14], [-1.6, 0.14], [-2.48, 0.16]],
+  // 低矮圆润车头：长收圆 + 大 rake，前脸不再是一块竖直板
+  nose: { halfWidth: [0.5, 0.62, 3.0], edge: [0.34, 0.78, 3.0], crown: [0.3, 0.015, 2.2], sill: [0.26, 0.26, 2.2], shoulder: [0.4, 0.48, 3] },
+  // 圆润尾部：整圈同一条 0.6 m 收圆弧（指数 2.0），后脸连续过渡到侧面
+  tail: { halfWidth: [0.6, 0.8, 2.0], edge: [0.6, 0.92, 2.0], crown: [0.6, 0.006, 2], sill: [0.6, 0.25, 2], shoulder: [0.6, 0.68, 2] },
+  noseRake: { length: 0.95, y: [[0.26, 0.22], [0.4, 0.1], [0.55, 0.01], [0.68, 0.01], [0.78, 0.06], [0.9, 0.16]], plan: 0.12 },
+  // 溜背尾：setback 随高度单调增加，保险杠下缘是最靠后的点，往上连续前倾
+  tailRake: { length: 0.9, y: [[0.26, 0], [0.4, 0.01], [0.55, 0.03], [0.7, 0.07], [0.82, 0.13], [0.95, 0.21]], plan: 0.07 },
   cabin: {
-    cowl: 0.95,
-    roofFront: 0.34,
-    roofRear: -1.95,
-    // 玻璃房不参与 bodyRake：deck 取在被尾门斜面推到最新位置的车身上沿（≈z −2.10 附近），
-    // 后窗下沿与尾门上沿按同一前倾方向接上，从保险杠下缘到车顶是一条连续前倾的斜面。
-    deck: -2.14,
-    roofY: [[0.34, 1.615], [-0.4, 1.675], [-1.2, 1.68], [-1.95, 1.655]],
-    rail: [0.69, 0.71],
-    inset: 0.03,
-    bulge: 0.014,
-    roofEdge: 0.06,
-    roofCrown: 0.04,
-    roofRound: 4.5,
-    pillars: [-0.34, -1.72],
-    glassEnd: -2.06
+    cowl: 1.06,
+    roofFront: 0.15,
+    roofRear: -1.32,
+    // 玻璃房不参与 bodyRake：deck 放在被尾部 rake 推到前的车身上沿之前 1–2 cm，后窗不悬空
+    deck: -1.98,
+    // 长弧形车顶：中段饱满、前后两端收，顶线连续
+    roofY: [[0.15, 1.46], [-0.3, 1.505], [-0.85, 1.515], [-1.32, 1.455]],
+    rail: [0.63, 0.57],
+    inset: 0.022,
+    bulge: 0.02, // 侧窗是外凸曲面
+    roofEdge: 0.05,
+    roofCrown: 0.03,
+    roofRound: 3.2,
+    pillars: [-0.42, -1.42], // 细 B / C 柱
+    glassEnd: -1.86
   },
-  doors: [0.92, -0.34, -1.72], // 前门、后门、尾门侧缝
-  handles: [0.42, -0.62],
-  headlight: [0.55, 0.76, 0.2, 0.045], // 压低到前脸上部，随圆润鼻锥收进两侧
-  taillight: [0.7, 0.9, 0.11, 0.1], // 尾门两侧靠上的尾灯，落在微斜尾门面上
-  grille: [0.6, 0.34, 0.06],
-  intake: [0.44, 0.52, 0.09],
-  plates: [0.5, 0.62],
-  bumperLine: [0.72, 0.64],
-  bumpers: [[0.46, 0.04], [0.5, 0.06]],
+  pillarWidth: 0.026, // 细柱：材质画的立柱半宽（默认 0.038）
+  doors: [1.0, -0.42, -1.42],
+  handles: [0.35, -0.95],
+  headlight: [0.62, 0.68, 0.24, 0.04],
+  taillight: [0.62, 0.86, 0.16, 0.05],
+  grille: [0.58, 0.34, 0.05],
+  intake: [0.38, 0.52, 0.08],
+  plates: [0.45, 0.55],
+  bumperLine: [0.62, 0.55],
+  bumpers: [[0.42, 0.04], [0.46, 0.05]],
   chrome: true,
   cladding: 0,
   sign: true,
   rails: false,
   rearWiper: true,
-  szWaist: 0.6 // 深圳出租白色腰线高度：腰线以下白漆、以上天蓝
+  szWaist: 0.54 // 白色下半身分色线高度：以下白漆、以上天蓝
 };
 BODY_SPECS.pickup = {
   name: 'pickup',
@@ -603,7 +605,7 @@ function bodyHalfProfile(s, detail, spec = {}) {
   const n1 = spec.lowerRound || BODY_LOWER_ROUND;
   const n2 = spec.upperRound || BODY_UPPER_ROUND;
   const right = [];
-  const low = detail ? [0, 0.32, 0.64, 1] : [0, 1];
+  const low = detail ? spec.lowerSamples || [0, 0.32, 0.64, 1] : [0, 1];
   const up = detail ? spec.upperSamples || [0.38, 0.72, 1] : [1];
   const top = detail ? [0.66, 0.33] : [0.5];
   for (const a of low) {
@@ -1637,8 +1639,9 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
       wSideG = maxEdgeW(dSideG, e, wSideG, fwZ);
       dSideG = max(dSideG, e);
     };
-    for (const zp of cab.pillars) pillarCut(zp, 0.038);
-    if (cab.pillars.length === 1) pillarCut(cab.roofRear - 0.04, 0.014);
+    const pillarHalf = spec.pillarWidth ?? 0.038;
+    for (const zp of cab.pillars) pillarCut(zp, pillarHalf);
+    if (cab.pillars.length === 1) pillarCut(cab.roofRear - 0.04, spec.pillarWidth ? spec.pillarWidth * 0.55 : 0.014);
     const front = polygonEdge(ax, p.z, frontGlassPlanes, 0.085, fwX, fwZ);
     const sideGlass = cov(dSideG, wSideG);
     const frontGlass = cov(front.d, front.w);
@@ -1743,11 +1746,8 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
       const grime = smoothstep(sillY + 0.16, sillY - 0.01, p.y).mul(0.2);
       bCol.assign(mix(bCol, color(0x2d2b28), grime));
       if (shenzhen) {
-        // 深圳出租：侧面腰线以下为白身，上半部与车顶保持天蓝；前后保险杠按参考照片保持蓝色。
-        // 白漆在车尾转角前约 0.6–0.95 m 处收口，后侧围与尾门是连续的一块蓝漆，转角不会出现白色竖条。
-        const waistSide = smoothstep(0.45, 0.7, abs(n.x))
-          .mul(smoothstep(spec.zRear + 0.6, spec.zRear + 0.95, p.z))
-          .mul(isSzTaxi);
+        // 深圳出租：白色下半身绕车身一圈（含前后保险杠下缘），分色线是车身曲面上的平滑水平曲线
+        const waistSide = isSzTaxi;
         const waist = smoothstep(szWaistY + 0.008, szWaistY - 0.008, p.y).mul(waistSide);
         bCol.assign(mix(bCol, color(0xf2f5f7), waist));
       }
