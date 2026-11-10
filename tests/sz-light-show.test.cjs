@@ -60,6 +60,11 @@ test('light show skips landmark sources so LED strips stay inside tapered towers
   assert.equal(filtered.towers.some(tower => tower.id === landmarkId), false);
   assert.equal(filtered.totals.towers, all.totals.towers - 1);
   assert.ok(filtered.totals.strips < all.totals.strips);
+  // 把全部在册塔楼都排除（地标接管时 main.js 传入 skipIds）时不应再生成任何灯带。
+  const none = lightShow.planLightShow(towers, geo.terrain, { excludeIds: new Set(all.towers.map(tower => tower.id)) });
+  assert.equal(none.totals.towers, 0);
+  assert.equal(none.totals.strips, 0);
+  assert.equal(none.totals.crownSegments, 0);
 });
 
 test('real Three builds instanced light-show meshes without touching building colliders', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {

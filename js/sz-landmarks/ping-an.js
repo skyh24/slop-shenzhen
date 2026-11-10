@@ -201,7 +201,8 @@ function facadeFins(source, base, frame) {
   return parts;
 }
 
-// 四角切角钢带：沿切角斜面通高，白天读作角部亮带，夜里由材质自发光贴着塔身走。
+// 四角切角钢带：沿切角斜面通高，白天读作角部亮带；夜间不做自发光，
+// 把“灯”留给真正的外露钢架（8 根巨柱、V 斜带、顶冠折腿），避免夜里变成四块大亮斑。
 function cornerBands(source, base, frame) {
   const offset = BAND_PROUD - BAND_DEPTH / 2;
   const parts = [];
@@ -214,7 +215,7 @@ function cornerBands(source, base, frame) {
       };
       parts.push(loftPart(`${source.id}:corner-band:${face}:${i}`, source,
         section(COLUMN_TIERS[i - 1]), section(COLUMN_TIERS[i]),
-        base + COLUMN_TIERS[i - 1], base + COLUMN_TIERS[i], 'pingAnCrownEdge'));
+        base + COLUMN_TIERS[i - 1], base + COLUMN_TIERS[i], 'pingAnSteel'));
     }
   }
   return parts;

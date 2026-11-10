@@ -355,7 +355,7 @@ test('Ping An profile keeps the base full width to 120 m and folds the crown fro
   assert.deepEqual([...new Set(fins.map(row => Number(row.id.split(':')[2])))].sort(), [0, 2, 4, 6]);
   const bands = actual.filter(row => row.id.includes(':corner-band:'));
   assert.equal(bands.length, 20);
-  assert.ok(bands.every(row => row.style === 'pingAnCrownEdge' && row.heightSource === 'estimate'));
+  assert.ok(bands.every(row => row.style === 'pingAnSteel' && row.heightSource === 'estimate'));
   assert.equal(new Set(bands.map(row => Number(row.id.split(':')[2]))).size, 4);
   assert.ok(Math.abs(Math.min(...bands.map(row => row.minY)) - Math.fround(base)) < 1e-6);
   assert.ok(bands.every(row => row.maxY <= Math.fround(base + 579) + 1e-6));
