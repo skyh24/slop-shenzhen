@@ -86,7 +86,7 @@ z = −(lat − lat0) · KY
 
 ### 4. 建筑合并与楼高
 
-1. 读 OSM 建筑（保留 `height`、`building:levels`、`building`、`name`）
+1. 读 OSM 建筑（保留 `height`、`building:levels`、`building`、`name`）；Overture/GloBFP 补充楼只保留可信足迹：水面/湿地重叠 >20%、绿地 >60% 且 60m 内无 OSM 楼、面积 <60m² 且 50m 内无 OSM 楼的一律丢弃（`buildingFootprintFilter`）；`--footprint-source osm` 可只保留地图标注楼
 2. 读 Overture，和 OSM 轮廓重叠超过 25% 的丢掉
 3. 楼高按顺序取第一个可用值：
    1. `landmarks.json` 里核实过的值（只对地标）

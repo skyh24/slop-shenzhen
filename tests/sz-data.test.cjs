@@ -23,7 +23,7 @@ test('runtime adapter preserves every building source, footprint, hole and verti
   const { decodeCityPayload, decodePoly } = await modulePromise;
   const { buildings, geo } = decodeCityPayload(raw);
   assert.equal(buildings.length, raw.buildings.h.length);
-  assert.ok(buildings.length > 39000);
+  assert.ok(buildings.length > 35000);
   let holes = 0, raisedParts = 0;
   buildings.forEach((building, i) => {
     assert.equal(building.id, raw.buildings.id[i]);

@@ -125,3 +125,13 @@ node --test tests/*.test.cjs
 - **照片对照**：`docs/qa/realism/compare-futian.jpg`、`compare-houhai.jpg`、`compare-donghai.jpg`（本地）。
 - **仍然缺**：信息枢纽大厦主楼（240.7m）只有 8 层裙楼记录；联合广场（208m）只有 9,567m² 大体量估计 64.2m；南山科技联合大厦（307.2m）未入库；中洲滨海商业中心 T1/T2 未按名称核实。这些都需要重新提取足迹，不能用观感直接拉高。详见 [16-BUILDING-HEIGHT-AUDIT.md](16-BUILDING-HEIGHT-AUDIT.md)。
 - **QA**：新增 `?qa=1&cam=x,y,z,tx,ty,tz` 固定机位参数（仅 qa 模式），用于同机位对比；普通入口不受影响。
+
+## 2026-11-10 普通楼来源、误检过滤与街景核对
+
+用户追问：有多少楼的数据对齐、普通楼是什么产生的、地图上没有标记的楼不要随机生成，并要求检查街景和具体楼。
+
+- **来源**：36,980 栋 = OSM 地图标注 12,692 + Overture 足迹 16,565 + GloBFP 卫星足迹 7,723。没有任何程序随机放置的楼；唯一随机的是 7,333 栋没有高度数据时的类别+面积估计。楼高有显式来源的 5,180 栋（14.0%），其余是 GloBFP 反演 24,443、估计 7,333。
+- **过滤**：只对遥感补充楼生效，删除水面/湿地重叠 >20%（68）、绿地 >60% 且 60m 内无 OSM 楼（869）、面积 <60m² 且 50m 内无 OSM 楼（2,039），共 2,976 栋；OSM 标注楼永远保留。构建报告 `buildingFootprintFilter` 记录 id/面积/重叠。
+- **纯 OSM 模式**：`tools/sz/build.py --footprint-source osm` 只保留 12,692 栋 OSM 楼，供"只要地图标注"时使用；默认仍是 all。
+- **街景**：用 `?qa=1&cam=` 和传送截图对照 Wikimedia Commons 实景（华强北/深南/南头/平安/市民中心/春茧/大疆/腾讯，本地 `docs/qa/realism/cmp-*.jpg`）。差距最大的是地面/人行道/底商/树/人，以及地标形体（平安太针、大疆连桥可读性、春茧外壳太透）；详见 [17-FOOTPRINT-AND-STREET-AUDIT.md](17-FOOTPRINT-AND-STREET-AUDIT.md)。
+- **数据**：生产包 6,462,565 字节，SHA-256 `ec415e50…`；Python 51/51、Node 全量 388/388。

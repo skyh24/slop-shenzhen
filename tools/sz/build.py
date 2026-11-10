@@ -73,6 +73,8 @@ def main():
                     help='reproduce the pre-review appearance for the scoped building pilot')
     ap.add_argument('--terrain-source', choices=['copernicus', 'hgt'], default='copernicus',
                     help='select a traceable elevation product without modifying source heights')
+    ap.add_argument('--footprint-source', choices=['all', 'osm'], default='all',
+                    help='all = OSM + Overture + GloBFP footprints; osm = only map-marked OSM footprints')
     args = ap.parse_args()
 
     t0 = time.time()
@@ -81,7 +83,8 @@ def main():
     osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache)
     print(f'osm loaded in {time.time() - t0:.1f}s', flush=True)
 
-    buildings = build_buildings(osm, clip, report, reviewed_parent_uses=not args.without_building_use_review)
+    buildings = build_buildings(osm, clip, report, reviewed_parent_uses=not args.without_building_use_review,
+                                include_remote_footprints=args.footprint_source == 'all')
     print(f'buildings: {len(buildings)} in {time.time() - t0:.1f}s', flush=True)
     land, water, wetland, green = build_land(osm, clip, buildings, report)
     roads = build_roads(osm, clip, report)

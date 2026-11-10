@@ -35,6 +35,8 @@ CATEGORIES = ['unknown', 'residential', 'commercial', 'industrial', 'public']
 HEIGHT_SOURCES = ['landmark', 'osm-height', 'osm-levels', 'overture-height', 'overture-floors',
                   'globfp', 'globfp-overlap', 'estimate', 'published']
 
+REMOTE_FOOTPRINT_PREFIXES = ('overture/', 'globfp/')
+
 RESIDENTIAL = {'residential', 'apartments', 'house', 'dormitory', 'detached', 'terrace', 'semidetached_house'}
 COMMERCIAL = {'commercial', 'office', 'retail', 'hotel', 'supermarket', 'mall'}
 INDUSTRIAL = {'industrial', 'warehouse', 'factory', 'manufacture', 'storage_tank'}
@@ -262,9 +264,11 @@ def _facade(category, height, area, landmark):
     return 'office' if area > 1500 else 'residential_low'
 
 
-def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, height_overrides=None):
+def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, height_overrides=None,
+                    include_remote_footprints=True):
     bindings = load_landmark_bindings()
     overrides = load_height_overrides() if height_overrides is None else height_overrides
+    report['remoteFootprints'] = {'enabled': include_remote_footprints}
     records = []
     underground = []
     vertical_conflicts = []
@@ -346,28 +350,29 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
     osm_geoms = [r['geom'] for r in records] + withheld_footprints
     osm_tree = STRtree(osm_geoms)
     dropped = added = 0
-    with OVERTURE.open() as f:
-        for line in f:
-            rec = json.loads(line)
-            if rec.get('is_underground'):
-                continue
-            geom = _to_local(shape(rec['geom']))
-            if not geom.intersects(clip_local):
-                continue
-            for poly in _polygons(geom.intersection(clip_local)):
-                if poly.area < MIN_AREA:
+    if include_remote_footprints:
+        with OVERTURE.open() as f:
+            for line in f:
+                rec = json.loads(line)
+                if rec.get('is_underground'):
                     continue
-                idx = osm_tree.query(poly, predicate='intersects')
-                if any(osm_geoms[i].intersection(poly).area > 0.25 * poly.area for i in idx):
-                    dropped += 1
+                geom = _to_local(shape(rec['geom']))
+                if not geom.intersects(clip_local):
                     continue
-                records.append({
-                    'id': 'overture/' + rec['id'], 'geom': poly, 'src': 'overture',
-                    'kind': rec.get('subtype') or rec.get('class'),
-                    'oHeight': rec.get('height'), 'oFloors': rec.get('num_floors'),
-                    'minHeight': 0.0, 'name': (rec.get('name') or None), 'isPart': False,
-                })
-                added += 1
+                for poly in _polygons(geom.intersection(clip_local)):
+                    if poly.area < MIN_AREA:
+                        continue
+                    idx = osm_tree.query(poly, predicate='intersects')
+                    if any(osm_geoms[i].intersection(poly).area > 0.25 * poly.area for i in idx):
+                        dropped += 1
+                        continue
+                    records.append({
+                        'id': 'overture/' + rec['id'], 'geom': poly, 'src': 'overture',
+                        'kind': rec.get('subtype') or rec.get('class'),
+                        'oHeight': rec.get('height'), 'oFloors': rec.get('num_floors'),
+                        'minHeight': 0.0, 'name': (rec.get('name') or None), 'isPart': False,
+                    })
+                    added += 1
     report['overtureAdded'] = added
     report['overtureDuplicates'] = dropped
 
@@ -380,6 +385,8 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
     all_tree = STRtree(all_geoms)
     gb_added = 0
     for i, g in enumerate(gb_polys):
+        if not include_remote_footprints:
+            break
         if i in gb_excluded or g.area < 30:
             continue
         idx = all_tree.query(g, predicate='intersects')
@@ -487,6 +494,79 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
             'name': (r.get('name') or '').strip() or None,
             'levels': int(round(levels)) if levels and levels > 0 else -1,
         })
+    # 遥感补充楼（Overture / GloBFP）质量过滤：这些楼不在地图上标注，只保留可信足迹。
+    # 规则只作用于补充楼；OSM 已标注的楼永远保留。命中水面/湿地、公园深处或孤立小棚的
+    # 足迹多半是树冠、围墙、临时建筑或遥感误检，删除并写报告，避免在空地上凭空出现楼。
+    def is_remote(building):
+        return building['id'].startswith(REMOTE_FOOTPRINT_PREFIXES)
+
+    def cover_geoms(entries):
+        out_geoms = []
+        for entry in entries:
+            try:
+                geom = _to_local(entry['geom']).intersection(clip_local)
+            except Exception:
+                continue
+            if not geom.is_empty:
+                out_geoms.extend(_polygons(geom))
+        return out_geoms
+
+    cover = cover_geoms(osm.get('water', [])) + cover_geoms(osm.get('wetland', []))
+    green_geoms = cover_geoms(osm.get('green', []))
+    cover_tree = STRtree(cover)
+    green_tree = STRtree(green_geoms)
+
+    def cover_ratio(poly, tree, geoms):
+        idx = tree.query(poly, predicate='intersects')
+        if not len(idx) or poly.area <= 0:
+            return 0.0
+        return sum(geoms[i].intersection(poly).area for i in idx) / poly.area
+
+    osm_polys = [building['poly'] for building in out if not is_remote(building)]
+    osm_tree = STRtree(osm_polys)
+
+    def nearest_osm_distance(poly):
+        idx = osm_tree.query(poly.buffer(200), predicate='intersects')
+        if not len(idx):
+            return 999.0
+        return min(poly.distance(osm_polys[i]) for i in idx)
+
+    footprint_filter = {'waterOverlap': [], 'parkIsolated': [], 'smallIsolated': []}
+    filtered = []
+    for building in out:
+        if not is_remote(building):
+            filtered.append(building)
+            continue
+        poly = building['poly']
+        water_ratio = cover_ratio(poly, cover_tree, cover)
+        if water_ratio > 0.2:
+            footprint_filter['waterOverlap'].append({'id': building['id'], 'areaM2': round(poly.area, 1),
+                                                     'overlap': round(water_ratio, 2)})
+            continue
+        green_ratio = cover_ratio(poly, green_tree, green_geoms)
+        distance = nearest_osm_distance(poly)
+        if green_ratio > 0.6 and distance > 60:
+            footprint_filter['parkIsolated'].append({'id': building['id'], 'areaM2': round(poly.area, 1),
+                                                     'greenOverlap': round(green_ratio, 2),
+                                                     'osmDistanceM': round(distance, 1)})
+            continue
+        if poly.area < 60 and distance > 50:
+            footprint_filter['smallIsolated'].append({'id': building['id'], 'areaM2': round(poly.area, 1),
+                                                      'osmDistanceM': round(distance, 1)})
+            continue
+        filtered.append(building)
+    out = filtered
+    report['buildingFootprintFilter'] = {
+        'rule': 'remote-added footprints only: water/wetland overlap >20%; green overlap >60% and >60m from OSM; '
+                'area <60m2 and >50m from OSM',
+        'removed': {key: len(value) for key, value in footprint_filter.items()},
+        'removedTotal': sum(len(value) for value in footprint_filter.values()),
+        'examples': footprint_filter,
+    }
+
+    counts = {source: 0 for source in HEIGHT_SOURCES}
+    for building in out:
+        counts[building['heightSource']] += 1
     report['buildings'] = len(out)
     report['heightSources'] = counts
     report['buildingMinHeightCorrections'] = min_height_corrections
