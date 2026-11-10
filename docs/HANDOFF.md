@@ -203,3 +203,8 @@ node --test tests/*.test.cjs                         # 需 SZ_THREE_PACKAGE_DIR 
 - 高架桥面最小宽度改为 6.5 m（`max(link width, 6.5)`），测试 434 全绿；10 m 版本会破坏面积口径，未采用。
 - 复测驾驶仍停 z≈1074 → 判断不是宽度问题，而是 **OSM 高架中心线与派生道路/车辆行驶线不一致**，车辆走到缎带边缘只剩地形候选（高差 1.7–2.0 m > 1.5 m 阈值）。
 - 下一步：用派生道路中心线重建高架缎带，或给车辆加桥面中心线引导。
+
+## 2w. round 38：M9 30 Hz 根因（环境）
+
+- 1280×720 / 1920×1080 / 2560×1440 三档 rAF p50 均 33.3 ms（与分辨率无关）；页面已 visible+focused（Page.bringToFront + focus 模拟）；blank 页 16.7 ms。
+- 结论：WebGPU canvas swapchain 在自动化环境被固定在 30 Hz（非场景负载）。M9 必须换真实桌面窗口用 `tools/qa/perf-sample.mjs` 复测；当前 drawCalls 289–474、三角 0.88–1.9 M 在预算内，但帧率结论仍缺。
