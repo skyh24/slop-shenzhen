@@ -762,6 +762,16 @@ async function initApp() {
 
   // QA 专用传送：只在本机回环地址的 ?qa=1 下暴露，便于固定机位复测。
   if (qa) window.__szTeleport = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null, { exact: true });
+  // QA：把车辆放到最近的源路网节点（道路中心），用于自动驾驶/连续驾驶验收。
+  if (qa) window.__szTeleportRoad = (x, z, heading = 0) => {
+    let best = null, bestDistance = Infinity;
+    for (let index = 0; index < GEO.roadGraph.nodes.length; index += 2) {
+      const distance = (GEO.roadGraph.nodes[index] - x) ** 2 + (GEO.roadGraph.nodes[index + 1] - z) ** 2;
+      if (distance < bestDistance) { bestDistance = distance; best = index; }
+    }
+    if (best === null) return false;
+    return controllerManager.teleportActiveTo(GEO.roadGraph.nodes[best], GEO.roadGraph.nodes[best + 1], heading, null);
+  };
   // QA：非精确传送（自动找最近可站立落点），用于把车辆/人物放到道路上做连续走通测试。
   if (qa) window.__szTeleportNear = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null);
   // QA 诊断：列出某点附近的碰撞体，用于定位“走不过去”的地面入口。
