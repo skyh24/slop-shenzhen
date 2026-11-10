@@ -1,21 +1,9 @@
 import * as THREE from 'three/webgpu';
-import { attribute, clamp, float, floor, fract, fwidth, max } from 'three/tsl';
 import { createMarkingLayout } from './sz-road-markings.js';
+import { createSzRoadPaintMaterial } from './sz-road-material.js';
 
 const CELL = 600;
 const HEIGHT = 0.055;
-
-function paintMaterial() {
-  const material = new THREE.MeshStandardNodeMaterial({ vertexColors: true, transparent: true, depthWrite: false,
-    roughness: 0.7, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const paint = attribute('paint', 'vec3');
-  const t = paint.x.div(paint.y);
-  const footprint = max(fwidth(t), 0.0001);
-  const duty = paint.z;
-  const onSoFar = x => floor(x).mul(duty).add(clamp(fract(x).sub(float(1).sub(duty).mul(0.5)), 0, duty));
-  material.opacityNode = onSoFar(t.add(footprint.mul(0.5))).sub(onSoFar(t.sub(footprint.mul(0.5)))).div(footprint);
-  return material;
-}
 
 function colorFor(name) {
   if (name === 'yellow') return new THREE.Color(0xf0b81e);
@@ -56,7 +44,7 @@ export function buildSzRoadPaint(scene, graph, { roadHeight, intersections = [] 
   const cells = buildChunks(layout.strips, roadHeight);
   const group = new THREE.Group();
   group.name = 'shenzhen-road-markings';
-  const material = paintMaterial();
+  const material = createSzRoadPaintMaterial();
   const meshes = [];
   for (const [key, cell] of cells) {
     const geometry = new THREE.BufferGeometry();
@@ -76,5 +64,6 @@ export function buildSzRoadPaint(scene, graph, { roadHeight, intersections = [] 
   }
   scene.add(group);
   return { group, meshes, statistics: { ...layout.statistics, chunks: meshes.length },
-    dispose() { scene.remove(group); for (const mesh of meshes) mesh.geometry.dispose(); material.dispose(); } };
+    // 材质是模块级单例，只销毁本次几何。
+    dispose() { scene.remove(group); for (const mesh of meshes) mesh.geometry.dispose(); } };
 }

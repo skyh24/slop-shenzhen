@@ -3,8 +3,9 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { loadModule } = require('./helpers/module.cjs');
+const roadMaterialStub = { createSzRoadSurfaceMaterial: () => ({}) };
 const { createRoadHeightSampler, createRoadSurfaceLayout } = loadModule(readFileSync(join(__dirname, '../js/sz-roads.js'), 'utf8'),
-  { imports: { 'three/webgpu': {} } });
+  { imports: { 'three/webgpu': {}, './sz-road-material.js': roadMaterialStub } });
 
 const grid = { x0: 0, z0: 0, step: 20, nx: 2, nz: 2 };
 

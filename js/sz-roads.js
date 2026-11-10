@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { createSzRoadSurfaceMaterial } from './sz-road-material.js';
 
 const EPSILON = 1e-8;
 const turn = (a, b, c) => (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
@@ -384,10 +385,8 @@ export function buildSzRoads(scene, graph, terrainSurface, options = {}) {
   const layout = createRoadSurfaceLayout(graph, terrainSurface);
   const group = new THREE.Group();
   group.name = 'shenzhen-source-roads';
-  // 深度偏移只处理共面绘制，接触仍由真实地形三角面提供。
-  const material = options.material ?? new THREE.MeshStandardNodeMaterial({
-    color: 0x363a3c, roughness: 0.96, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
-  });
+  // 深度偏移和共面绘制在材质工厂里；接触仍由真实地形三角面提供。
+  const material = options.material ?? createSzRoadSurfaceMaterial();
   const meshes = [];
   for (const chunk of layout.chunks) {
     const geometry = new THREE.BufferGeometry();
@@ -407,8 +406,8 @@ export function buildSzRoads(scene, graph, terrainSurface, options = {}) {
     roadHeight: createRoadHeightSampler(layout.chunks, terrainSurface.grid),
     dispose() {
       scene.remove(group);
+      // 材质是模块级单例，跨场景复用，只销毁本次几何。
       for (const mesh of meshes) mesh.geometry.dispose();
-      if (!options.material) material.dispose();
     }
   };
 }

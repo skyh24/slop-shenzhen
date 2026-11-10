@@ -9,7 +9,7 @@ const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const load = (file, imports = {}) => loadModule(read(file), { imports });
 const signalApi = load('sz-intersection-control.js');
 const surface = load('sz-controller-surfaces.js');
-const roads = load('sz-roads.js', { 'three/webgpu': {} });
+const roads = load('sz-roads.js', { 'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) } });
 const collision = load('building-collision.js');
 const physics = load('vehicle-physics.js');
 const traffic = load('sz-traffic.js', { 'three/webgpu': {}, './sz-intersection-control.js': signalApi,

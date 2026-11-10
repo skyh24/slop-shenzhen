@@ -50,7 +50,7 @@ const three = {
   MeshStandardNodeMaterial: class {}, DynamicDrawUsage: 35048
 };
 const load = (name, imports) => loadModule(readFileSync(join(__dirname, '../js', name), 'utf8'), { imports });
-const roads = load('sz-roads.js', { 'three/webgpu': three });
+const roads = load('sz-roads.js', { 'three/webgpu': three, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) } });
 const signalModule = load('sz-intersection-control.js');
 const vehiclePhysics = load('vehicle-physics.js');
 const vehicleSpecs = {

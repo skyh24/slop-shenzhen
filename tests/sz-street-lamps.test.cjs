@@ -5,7 +5,9 @@ const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
-const roads = loadModule(read('sz-roads.js'), { imports: { 'three/webgpu': {} } });
+const roads = loadModule(read('sz-roads.js'), { imports: {
+  'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
+} });
 const lamps = loadModule(read('sz-street-lamps.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': { color: () => ({}), uniform: () => ({ value: 0 }) },
   './sz-roads.js': roads

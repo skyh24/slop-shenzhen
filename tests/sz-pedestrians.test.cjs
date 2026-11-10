@@ -75,7 +75,9 @@ function createPedestrianStub() {
 }
 
 const read = (name) => readFileSync(join(__dirname, '..', 'js', name), 'utf8');
-const roads = loadModule(read('sz-roads.js'), { imports: { 'three/webgpu': {} } });
+const roads = loadModule(read('sz-roads.js'), { imports: {
+  'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
+} });
 const collision = loadModule(read('building-collision.js'));
 const tracks = loadModule(read('sz-pedestrian-tracks.js'), {
   imports: { './sz-roads.js': roads, './building-collision.js': collision }

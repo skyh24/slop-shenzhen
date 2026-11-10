@@ -5,7 +5,9 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { loadModule } = require('./helpers/module.cjs');
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
-const roads = loadModule(read('sz-roads.js'), { imports: { 'three/webgpu': {} } });
+const roads = loadModule(read('sz-roads.js'), { imports: {
+  'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
+} });
 const groundSurface = loadModule(read('sz-ground-surface.js'));
 const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
   'three/webgpu': {},
@@ -140,7 +142,9 @@ test('plan statistics expose estimated provenance, deck area, piers and limitati
 test('real THREE build creates at most twelve chunk meshes and a walkable deck top',
   { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
     const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
-    const realRoads = loadModule(read('sz-roads.js'), { imports: { 'three/webgpu': THREE } });
+    const realRoads = loadModule(read('sz-roads.js'), { imports: {
+      'three/webgpu': THREE, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
+    } });
     const module = loadModule(read('sz-elevated-roads.js'), { imports: {
       'three/webgpu': THREE,
       './sz-roads.js': realRoads,

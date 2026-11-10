@@ -165,7 +165,9 @@ test('Chunjian interior cuts remove ground and road support while keeping the pu
   const { groundHeight, isOnLand } = loadModule(read('sz-spatial.js'), { imports: {
     './sz-ground-surface.js': groundSurface
   } }).createCitySpatial(geo);
-  const { createRoadSurfaceLayout, createRoadHeightSampler } = loadModule(read('sz-roads.js'), { imports: { 'three/webgpu': {} } });
+  const { createRoadSurfaceLayout, createRoadHeightSampler } = loadModule(read('sz-roads.js'), { imports: {
+    'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
+  } });
   const rawHeight = ({ x, z }) => terrain.terrainHeight(geo.terrain, x, z);
   const checkGround = ({ x, z }) => assert.ok(Math.abs(groundHeight(x, z) - rawHeight({ x, z })) < 1e-4
     && Number.isFinite(groundHeight(x, z)));
