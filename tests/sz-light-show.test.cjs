@@ -67,6 +67,36 @@ test('light show skips landmark sources so LED strips stay inside tapered towers
   assert.equal(none.totals.crownSegments, 0);
 });
 
+test('landmark steel bands follow the mega column axes and offset outward', () => {
+  const ring = (x, z) => [{ x: x - 1, z: z - 1 }, { x: x + 1, z: z - 1 }, { x: x + 1, z: z + 1 }, { x: x - 1, z: z + 1 }];
+  const colliders = [
+    { name: 'src:mega-column:0:1', loft: { lower: ring(-10, 0), upper: ring(-9, 0) }, minY: 0, maxY: 10 },
+    { name: 'src:mega-column:0:2', loft: { lower: ring(-9, 0), upper: ring(-8, 0) }, minY: 10, maxY: 20 },
+    { name: 'src:mega-column:1:1', loft: { lower: ring(10, 0), upper: ring(9, 0) }, minY: 0, maxY: 10 },
+    { name: 'src:mega-column:1:2', loft: { lower: ring(9, 0), upper: ring(8, 0) }, minY: 10, maxY: 20 },
+    { name: 'src:fin:0:0', loft: { lower: ring(0, 10), upper: ring(0, 9) }, minY: 0, maxY: 20 }
+  ];
+  const bands = lightShow.planLandmarkBands(colliders);
+  // 每根柱按源分段出灯带：两根柱各两段，共 4 段。
+  assert.equal(bands.rows.length, 4);
+  assert.equal(bands.bottom, 0);
+  assert.equal(bands.top, 20);
+  assert.ok(bands.rows.every(row => row.width > 0 && row.y1 - row.y0 === 10));
+  // 灯带落在柱截面外：柱心 -10→-9→-8，截面半宽 1，灯带宽 1.2、离面 0.2。
+  const gap = 1.2 / 2 + 0.2;
+  const westRows = bands.rows.filter(row => row.x0 < 0);
+  const eastRows = bands.rows.filter(row => row.x0 > 0);
+  assert.equal(westRows.length, 2);
+  assert.equal(eastRows.length, 2);
+  assert.ok(Math.abs(westRows[0].x0 - (-10 - 1 - gap)) < 1e-6);
+  assert.ok(Math.abs(westRows[0].x1 - (-9 - 1 - gap)) < 1e-6);
+  assert.ok(Math.abs(westRows[1].x0 - (-9 - 1 - gap)) < 1e-6);
+  assert.ok(Math.abs(westRows[1].x1 - (-8 - 1 - gap)) < 1e-6);
+  assert.ok(Math.abs(eastRows[0].x0 - (10 + 1 + gap)) < 1e-6);
+  assert.ok(Math.abs(eastRows[1].x1 - (8 + 1 + gap)) < 1e-6);
+  assert.equal(lightShow.planLandmarkBands([]), null);
+});
+
 test('real Three builds instanced light-show meshes without touching building colliders', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
   const packageUrl = pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, '/'));
   const THREE = await import(new URL('build/three.webgpu.js', packageUrl));
@@ -76,12 +106,19 @@ test('real Three builds instanced light-show meshes without touching building co
     './sz-building-layout.js': placement
   } });
   const scene = new THREE.Scene();
-  const show = showModule.buildSzLightShow(scene, { buildings: towers, terrain: geo.terrain });
+  const ring = (x, z) => [{ x: x - 1, z: z - 1 }, { x: x + 1, z: z - 1 }, { x: x + 1, z: z + 1 }, { x: x - 1, z: z + 1 }];
+  const landmarkBands = showModule.planLandmarkBands([
+    { name: 'src:mega-column:0:1', loft: { lower: ring(-10, 0), upper: ring(-9, 0) }, minY: 0, maxY: 300 },
+    { name: 'src:mega-column:1:1', loft: { lower: ring(10, 0), upper: ring(9, 0) }, minY: 0, maxY: 300 }
+  ]);
+  const show = showModule.buildSzLightShow(scene, { buildings: towers, terrain: geo.terrain, landmarkBands });
   assert.ok(show.statistics.towers >= 50);
-  assert.ok(show.statistics.meshes >= 1);
+  assert.ok(show.statistics.meshes >= 2);
+  assert.equal(show.statistics.landmarkBands, 2);
   assert.equal(show.group.children.length, show.statistics.meshes);
   assert.ok(show.group.children.every(mesh => mesh.isInstancedMesh && mesh.count > 0));
-  assert.equal(show.statistics.instances, show.statistics.strips + show.statistics.crownSegments);
+  assert.ok(show.group.children.some(mesh => mesh.name === 'shenzhen-light-show:steel-bands' && mesh.count === 2));
+  assert.equal(show.statistics.instances, show.statistics.strips + show.statistics.crownSegments + show.statistics.landmarkBands);
   show.dispose();
   assert.equal(show.group.parent, null);
 });
