@@ -229,9 +229,22 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, area)
     frame.y = Math.max(linearY, Number.isFinite(floor) ? floor : linearY);
     if (Number.isFinite(centerGround)) maxClearanceM = Math.max(maxClearanceM, frame.y - centerGround);
   }
-  for (let i = 1; i < frames.length; i++) {
-    const a = frames[i - 1];
-    const b = frames[i];
+  // 端部各外延 4 m 平段，让相邻链路/地面路的接触面在节点处有重叠，避免车辆在
+  // 链路交界因支撑高度跳变 >1.5 m 被判定“无支撑”而刹停（round 30/34 诊断）。
+  const OVERLAP_M = 4;
+  const overlapFrame = (frame, inner) => {
+    const dx = frame.x - inner.x, dz = frame.z - inner.z;
+    const length = Math.hypot(dx, dz) || 1;
+    const x = frame.x + dx / length * OVERLAP_M, z = frame.z + dz / length * OVERLAP_M;
+    return { ...frame, x, z, d: frame.d + OVERLAP_M,
+      left: { x: x + frame.nx * half, z: z + frame.nz * half },
+      right: { x: x - frame.nx * half, z: z - frame.nz * half } };
+  };
+  const surfaceFrames = [overlapFrame(frames[0], frames[1] ?? frames[0]), ...frames,
+    overlapFrame(frames[frames.length - 1], frames[frames.length - 2] ?? frames[0])];
+  for (let i = 1; i < surfaceFrames.length; i++) {
+    const a = surfaceFrames[i - 1];
+    const b = surfaceFrames[i];
     const topA = { x: a.left.x, y: a.y, z: a.left.z };
     const topB = { x: b.left.x, y: b.y, z: b.left.z };
     const topC = { x: b.right.x, y: b.y, z: b.right.z };
