@@ -225,16 +225,52 @@ function validateBridges(bridges, landmarkIds) {
   }
 }
 
+// 加载失败要按阶段区分给启动兜底入口：request 下载、decompress 解压或 UTF-8 解码、invalid 解析或校验。
+export class CityDataError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'CityDataError';
+    this.code = code;
+  }
+}
+
+function cityDataError(code, message, cause) {
+  const error = new CityDataError(code, message);
+  if (cause !== undefined) error.cause = cause;
+  return error;
+}
+
 // 只做下载、解压和解析，返回未校验的原始 JSON；校验统一放在 decodeCityPayload 里做一次。
 export async function readCityPayload(url, fetcher = fetch) {
-  const response = await fetcher(url);
-  if (!response.ok) throw new Error(`City data request failed: ${response.status}`);
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  let response;
+  try {
+    response = await fetcher(url);
+  } catch (error) {
+    throw cityDataError('request', `City data request failed: ${error.message}`, error);
+  }
+  if (!response.ok) throw new CityDataError('request', `City data request failed: ${response.status}`);
+  let bytes;
+  try {
+    bytes = new Uint8Array(await response.arrayBuffer());
+  } catch (error) {
+    throw cityDataError('request', `City data request failed: ${error.message}`, error);
+  }
+  // 静态服务器可能已经解压，按 gzip 魔数判断，而不是相信文件扩展名。
   const compressed = bytes[0] === 0x1f && bytes[1] === 0x8b;
-  const text = compressed
-    ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text()
-    : new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  const raw = JSON.parse(text);
+  let text;
+  try {
+    text = compressed
+      ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text()
+      : new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch (error) {
+    throw cityDataError('decompress', `City data decompress failed: ${error.message}`, error);
+  }
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch (error) {
+    throw cityDataError('invalid', `City data parse failed: ${error.message}`, error);
+  }
   return raw;
 }
 
@@ -344,9 +380,13 @@ export function validateCityPayload(raw) {
   return raw;
 }
 
-// 城市包只在这里校验一次（读取阶段不再校验）。
+// 城市包只在这里校验一次（读取阶段不再校验）；校验项的 message 依赖来源字段名，测试按正则匹配。
 export function decodeCityPayload(raw) {
-  validateCityPayload(raw);
+  try {
+    validateCityPayload(raw);
+  } catch (error) {
+    throw cityDataError('invalid', error.message, error);
+  }
   const b = raw.buildings;
   const buildings = b.h.map((height, i) => {
     const shape = polygon(b.rings[i]);
@@ -364,7 +404,7 @@ export function decodeCityPayload(raw) {
       name: Array.isArray(b.name) && b.name[i] >= 0 ? (raw.names?.[b.name[i]] ?? null) : null,
       levels: Array.isArray(b.lv) ? b.lv[i] : -1 };
   });
-  return { buildings, geo: { version: raw.version,
+  const decoded = { buildings, geo: { version: raw.version,
     frame: { origin: raw.origin, bearingDeg: 0, units: 'm' }, bounds: raw.bounds,
     coverage: raw.coverage.map(polygon), land: raw.land.map(polygon), water: raw.water.map(polygon),
     wetland: raw.wetland.map(polygon), green: raw.green.map(polygon),
@@ -379,4 +419,5 @@ export function decodeCityPayload(raw) {
     air: raw.air ?? null,
     parks: (raw.parks ?? []).map(park => ({ ...park, areas: park.areas.map(area => ({ ...area, polygon: polygon(area.polygon) })) }))
   } };
+  return decoded;
 }

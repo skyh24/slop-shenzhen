@@ -1239,7 +1239,10 @@ async function initApp() {
         audioSystem.ready = true;
       }, error => {
         console.error('[first-frame]', error);
-        if (loadingStatus && !graphicsLoss) loadingStatus.textContent = STR.loadingFailed;
+        if (graphicsLoss) return;
+        // 首帧之前仍属启动失败：交给兜底入口显示，重试按整页重载处理（避免重复画布和动画循环）。
+        if (globalThis.__szBoot?.fail) globalThis.__szBoot.fail('init', error);
+        else if (loadingStatus) loadingStatus.textContent = STR.loadingFailed;
       });
     }
 
@@ -1274,10 +1277,18 @@ async function initApp() {
   // 在启动流程里完成首帧，首帧异常可由 initApp 的调用方显示。
   renderFrame(performance.now());
   await renderer.setAnimationLoop(renderFrame);
+  // 场景就绪：启动失败兜底入口此后不再拦截普通运行期错误，只保留显式 fail() 调用。
+  globalThis.__szBoot?.ready?.();
 }
 
 initApp().catch(error => {
   console.error('[init]', error);
+  // 启动失败统一交给 index.html 的兜底入口（模块求值之前就已建立）；提示和重试都由它负责。
+  const boot = globalThis.__szBoot;
+  if (boot?.fail) {
+    boot.fail(navigator.gpu ? 'init' : 'webgpu', error);
+    return;
+  }
   const status = document.getElementById('loading-status');
   if (status) status.textContent = navigator.gpu ? STR.loadingFailed : STR.webgpuMissing;
 });

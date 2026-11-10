@@ -141,15 +141,71 @@ test('building names and levels survive decoding and invalid indices are rejecte
   assert.throws(() => validateCityPayload(missingTable), /building name index/);
 });
 
-test('reading the city payload no longer validates it; decoding validates once', async () => {
-  const { readCityPayload, decodeCityPayload } = await modulePromise;
-  // version=3 的包能读进来，说明读取阶段不再校验；解码阶段仍然拒绝它。
+test('city data failures carry the stage code the boot fallback maps to its messages', async () => {
+  const { CityDataError } = await modulePromise;
+  const error = new CityDataError('request', 'City data request failed: 404');
+  assert.ok(error instanceof Error);
+  assert.equal(error.name, 'CityDataError');
+  assert.equal(error.code, 'request');
+  assert.equal(error.message, 'City data request failed: 404');
+});
+
+test('readCityPayload only downloads, decompresses and parses; failures keep a stage code', async () => {
+  const { readCityPayload, CityDataError } = await modulePromise;
   const unvalidated = { ...raw, version: 3 };
   const loaded = await readCityPayload('fixture', async () => new Response(JSON.stringify(unvalidated)));
-  assert.equal(loaded.version, 3, 'readCityPayload must not reject data that only validation rejects');
-  assert.throws(() => decodeCityPayload(unvalidated), /version/);
-  await assert.rejects(() => readCityPayload('fixture', async () => new Response('', { status: 404 })), /404/);
-  await assert.rejects(() => readCityPayload('fixture', async () => new Response(bytes.subarray(0, 80))));
+  assert.equal(loaded.version, 3, 'read must not reject data that only validation rejects');
+  const failureOf = async (fetcher) => {
+    try {
+      await readCityPayload('fixture', fetcher);
+    } catch (error) {
+      return error;
+    }
+    assert.fail('readCityPayload should reject the injected failure');
+  };
+  const requestFailure = await failureOf(async () => new Response('', { status: 404 }));
+  assert.ok(requestFailure instanceof CityDataError);
+  assert.equal(requestFailure.code, 'request');
+  assert.match(requestFailure.message, /404/);
+  const gzipFailure = await failureOf(async () => new Response(new Uint8Array([0x1f, 0x8b, 0xde, 0xad, 0xbe, 0xef])));
+  assert.ok(gzipFailure instanceof CityDataError);
+  assert.equal(gzipFailure.code, 'decompress');
+  const utf8Failure = await failureOf(async () => new Response(new Uint8Array([0xff, 0xfe, 0xfd])));
+  assert.equal(utf8Failure.code, 'decompress');
+  const parseFailure = await failureOf(async () => new Response('not json'));
+  assert.equal(parseFailure.code, 'invalid');
+});
+
+test('decodeCityPayload validates once and preserves the source message', async () => {
+  const { decodeCityPayload, validateCityPayload, CityDataError } = await modulePromise;
+  const { buildings, geo } = decodeCityPayload(raw);
+  assert.equal(buildings.length, raw.buildings.h.length);
+  assert.equal(geo.version, raw.version);
+  const failureOf = (payload) => {
+    try {
+      decodeCityPayload(payload);
+    } catch (error) {
+      return error;
+    }
+    assert.fail('decodeCityPayload should reject invalid data');
+  };
+  const versionFailure = failureOf({ ...raw, version: 3 });
+  assert.ok(versionFailure instanceof CityDataError, 'validation failures use the startup error type');
+  assert.equal(versionFailure.code, 'invalid');
+  assert.match(versionFailure.message, /version/, 'the original validation message is preserved');
+  const parkFailure = failureOf({ ...raw, parks: [{ ...raw.parks[0], source: '' }] });
+  assert.equal(parkFailure.code, 'invalid');
+  assert.match(parkFailure.message, /park source/);
+  // validateCityPayload 本身的行为不变：仍是普通 Error，message 不变。
+  let plainFailure;
+  try {
+    validateCityPayload({ ...raw, version: 3 });
+  } catch (error) {
+    plainFailure = error;
+  }
+  assert.ok(plainFailure instanceof Error);
+  assert.ok(!(plainFailure instanceof CityDataError), 'validateCityPayload keeps throwing plain Error');
+  assert.match(plainFailure.message, /version/);
 });
 
 test('the city payload is validated at exactly one call site', () => {

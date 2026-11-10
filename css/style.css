@@ -238,6 +238,93 @@ body::after {
   to { transform: scaleX(0.1); }
 }
 
+/* Startup failure fallback. Shown instead of the progress bar when a module, the city payload or initApp fails before
+   the app can report it itself; index.html keeps a minimal copy of the visibility rules for the case where this
+   stylesheet is the failing resource. */
+#loading-overlay.loading-failed .loader {
+  display: none;
+}
+
+.boot-error {
+  width: min(440px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: rise-in 0.5s var(--ease-out) both;
+}
+
+.boot-error[hidden] {
+  display: none;
+}
+
+.boot-error-title {
+  font-size: 23px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.boot-error-message {
+  margin-top: 10px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text-2);
+}
+
+.boot-error-detail {
+  width: 100%;
+  max-height: 108px;
+  margin-top: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-ctl);
+  background: rgba(0, 0, 0, 0.34);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-3);
+  text-align: left;
+  overflow: auto;
+  word-break: break-word;
+  user-select: text;
+}
+
+.boot-error-detail[hidden] {
+  display: none;
+}
+
+.boot-retry {
+  height: 38px;
+  margin-top: 20px;
+  padding: 0 26px;
+  border-radius: var(--r-ctl);
+  background: var(--taxi);
+  color: var(--taxi-ink);
+  font-size: 14px;
+  font-weight: 650;
+  transition: transform 0.2s var(--ease-out), background-color 0.2s ease;
+}
+
+.boot-retry:hover {
+  background: #ffd34d;
+}
+
+.boot-retry:active {
+  transform: scale(0.98);
+}
+
+.boot-retry:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.boot-error-hint {
+  margin-top: 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }

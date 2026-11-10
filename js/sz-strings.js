@@ -86,6 +86,25 @@ export const STR = {
     gpu: '正在等待图形引擎完成第一帧……',
     deviceLost: '图形设备连接中断，请刷新页面。'
   },
+  // 启动兜底入口在 index.html 的 <head> 里以 classic script 执行，早于任何模块求值，因此这些文字在两边各有一份；
+  // tests/boot.test.cjs 校验两份逐项一致，改文案时两边同步。
+  boot: {
+    labels: {
+      failed: '载入失败',
+      retry: '重试',
+      retryHint: '恢复网络后点“重试”重新载入；如果仍然失败，请刷新页面。',
+      retrying: '正在重试……',
+      detail: '技术细节：'
+    },
+    messages: {
+      engine: '启动脚本或图形引擎（three.js）加载失败，请检查网络或 CDN。',
+      dataRequest: '城市数据下载失败：网络错误或文件缺失。',
+      dataDecompress: '城市数据解压失败：文件可能已经损坏。',
+      dataInvalid: '城市数据校验失败：版本或内容与当前程序不匹配。',
+      init: '场景初始化失败。',
+      webgpu: '当前浏览器不支持 WebGPU，请使用新版 Chrome 或 Edge。'
+    }
+  },
   shortcut: (label, key) => `${label} [${key}]`,
   timeNames: { golden: '金色时刻', midday: '正午', twilight: '蓝调时刻', midnight: '午夜 23:00' },
   modeButtons: { person: '步行', car: '开车', cyclist: '骑行', helicopter: '飞行' },

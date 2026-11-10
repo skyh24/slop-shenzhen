@@ -18,6 +18,162 @@
       }
     }
   </script>
+  <!-- 启动失败兜底样式：样式表本身可能是失败原因，这里只放“错误块必须可见、不能和进度条叠在一起”所需的最小布局，
+       其余外观在 css/style.css 里。 -->
+  <style>
+    #loading-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+      background: #0c0d10; color: #f6f5f2; }
+    /* 和 css/style.css 里的规则一致：样式表本身失败时，载入完成后遮罩仍然要能消失。 */
+    #loading-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    #loading-overlay.loading-failed .loader { display: none; }
+    #boot-error { width: min(440px, calc(100vw - 48px)); text-align: center; }
+    #boot-error[hidden] { display: none; }
+  </style>
+  <!-- 启动兜底入口：必须在主模块求值之前建立。模块下载失败、城市包请求/解压/校验失败和 initApp 抛错
+       都在这里显示中文原因并提供重试；文字与 js/sz-strings.js 的 STR.boot 由 tests/boot.test.cjs 校验一致。 -->
+  <script>
+    (() => {
+      'use strict';
+      const BOOT_LABELS = {
+        failed: '载入失败',
+        retry: '重试',
+        retryHint: '恢复网络后点“重试”重新载入；如果仍然失败，请刷新页面。',
+        retrying: '正在重试……',
+        detail: '技术细节：'
+      };
+      const BOOT_MESSAGES = {
+        engine: '启动脚本或图形引擎（three.js）加载失败，请检查网络或 CDN。',
+        dataRequest: '城市数据下载失败：网络错误或文件缺失。',
+        dataDecompress: '城市数据解压失败：文件可能已经损坏。',
+        dataInvalid: '城市数据校验失败：版本或内容与当前程序不匹配。',
+        init: '场景初始化失败。',
+        webgpu: '当前浏览器不支持 WebGPU，请使用新版 Chrome 或 Edge。'
+      };
+      // retryHandler 由 js/sz-geodata.js 注册：城市包失败可以页内重试，其余失败整页重载（不会留下第二块画布）。
+      let retryHandler = null;
+      let pendingResolve = null;
+      let pendingRender = null;
+      let painted = false;
+
+      const element = (id) => document.getElementById(id);
+      const retryKind = (error) => {
+        if (!error || error.name !== 'CityDataError') return 'init';
+        if (error.code === 'request') return 'dataRequest';
+        if (error.code === 'decompress') return 'dataDecompress';
+        return 'dataInvalid';
+      };
+
+      function paint(entry) {
+        const overlay = element('loading-overlay');
+        const panel = element('boot-error');
+        if (!overlay || !panel) return false;
+        const title = element('boot-error-title');
+        const message = element('boot-error-message');
+        const detail = element('boot-error-detail');
+        const hint = element('boot-error-hint');
+        const retry = element('boot-retry');
+        overlay.classList.remove('hidden');
+        overlay.classList.add('loading-failed');
+        panel.hidden = false;
+        if (title) title.textContent = BOOT_LABELS.failed;
+        if (message) message.textContent = BOOT_MESSAGES[entry.kind] ?? BOOT_MESSAGES.init;
+        if (hint) hint.textContent = BOOT_LABELS.retryHint;
+        if (retry) {
+          retry.textContent = BOOT_LABELS.retry;
+          retry.disabled = false;
+          // 属性赋值而不是 addEventListener：失败可能早于 DOMContentLoaded，重复赋值是幂等的。
+          retry.onclick = onRetryClick;
+        }
+        const text = entry.error && (entry.error.message || String(entry.error)) || '';
+        if (detail) {
+          detail.hidden = !text;
+          detail.textContent = text ? `${BOOT_LABELS.detail}${text}` : '';
+        }
+        painted = true;
+        if (retry && typeof retry.focus === 'function') retry.focus({ preventScroll: true });
+        return true;
+      }
+
+      function hide() {
+        const overlay = element('loading-overlay');
+        const panel = element('boot-error');
+        if (overlay) overlay.classList.remove('loading-failed');
+        if (panel) panel.hidden = true;
+      }
+
+      function fail(kind, error) {
+        const known = Object.hasOwn(BOOT_MESSAGES, kind) ? kind : retryKind(error);
+        // 同一时刻只保留一个失败等待：重复报告时新的覆盖旧的，旧等待由调用方丢弃。
+        pendingRender = { kind: known, error };
+        painted = false;
+        paint(pendingRender);
+        return new Promise((resolve) => { pendingResolve = resolve; });
+      }
+
+      function onRetryClick() {
+        const retry = retryHandler;
+        const resolve = pendingResolve;
+        pendingResolve = null;
+        const message = element('boot-error-message');
+        const retryButton = element('boot-retry');
+        if (message && retry) message.textContent = BOOT_LABELS.retrying;
+        if (retryButton) retryButton.disabled = true;
+        if (resolve) resolve();
+        if (retry) { retry(); return; }
+        // 没有页内重试处理函数时重载页面：模块图和渲染器整体重建，不会出现重复画布或重复动画循环。
+        location.reload();
+      }
+
+      function onError(event) {
+        if (boot.state !== 'loading') return;
+        const target = event.target;
+        if (target && target !== window) {
+          // 资源加载失败没有 message；只有启动用的脚本算阻塞失败，字体、样式表等失败不拦启动。
+          if (target.tagName !== 'SCRIPT') return;
+          fail('engine', new Error(`Startup script failed to load: ${target.src || 'module graph'}`));
+          return;
+        }
+        fail('init', event.error || new Error(event.message || 'Unknown startup error'));
+      }
+
+      function onRejection(event) {
+        if (boot.state !== 'loading') return;
+        const reason = event.reason;
+        fail(retryKind(reason), reason);
+      }
+
+      const boot = {
+        state: 'loading',
+        labels: BOOT_LABELS,
+        messages: BOOT_MESSAGES,
+        fail,
+        clear() {
+          retryHandler = null;
+          pendingResolve = null;
+          pendingRender = null;
+          boot.state = 'loading';
+          hide();
+        },
+        ready() {
+          boot.state = 'ready';
+          pendingRender = null;
+          hide();
+        },
+        setRetryHandler(handler) {
+          retryHandler = typeof handler === 'function' ? handler : null;
+        }
+      };
+      window.__szBoot = boot;
+      window.addEventListener('error', onError, true);
+      window.addEventListener('unhandledrejection', onRejection);
+      document.addEventListener('DOMContentLoaded', () => {
+        // 模块下载失败可能在文档解析完成前就报告，此时兜底块还不存在；解析完成后再补画一次。
+        const button = element('boot-retry');
+        if (button) button.onclick = onRetryClick;
+        if (pendingRender && !painted) paint(pendingRender);
+      }, { once: true });
+    })();
+  </script>
   <!-- Fetch the city modules in parallel before stylesheets; the module graph controls evaluation order. -->
   <link rel="modulepreload" href="./js/sz-strings.js" />
   <link rel="modulepreload" href="./js/sz-ui.js" />
@@ -149,6 +305,14 @@
       <div class="loader-title" data-text="title">Slop Shenzhen</div>
       <div class="loader-track" aria-hidden="true"><span id="loading-progress" class="loader-fill"></span></div>
       <div id="loading-status" data-text="startup.data"></div>
+    </div>
+    <!-- 启动失败提示：文字由 <head> 的兜底脚本按 STR.boot 填入，HTML 里不重复写中文。 -->
+    <div id="boot-error" role="alert" hidden>
+      <div id="boot-error-title" class="boot-error-title"></div>
+      <p id="boot-error-message" class="boot-error-message"></p>
+      <p id="boot-error-detail" class="boot-error-detail" hidden></p>
+      <button id="boot-retry" class="boot-retry" type="button"></button>
+      <p id="boot-error-hint" class="boot-error-hint"></p>
     </div>
   </div>
 
