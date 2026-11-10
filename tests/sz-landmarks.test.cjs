@@ -315,7 +315,7 @@ test('Ping An profile keeps the base full width to 120 m and folds the crown fro
   const ringWidth = ring => Math.max(...ring.map(p => p.x)) - Math.min(...ring.map(p => p.x));
   const shaft = actual.filter(row => row.id.includes(':shaft:'));
   const segmentAt = y => shaft.find(part => Math.abs(part.minY - Math.fround(base + y)) < 1e-6);
-  // 收分折线：0–120 满宽；120→407 62.7；407→467 52.8；467→555.6 47.0；555.6→579 44.35。
+  // 收分折线：0–120 满宽；120→407 62.7；407→467 52.8；467→543.6 47.79；543.6→555.6 47.0；555.6→579 44.35。
   assert.ok(Math.abs(ringWidth(segmentAt(22).loft.lower) - 76.5) < 0.01);
   assert.ok(Math.abs(ringWidth(segmentAt(120).loft.upper) - 62.7) < 0.01);
   assert.ok(Math.abs(ringWidth(segmentAt(467).loft.upper) - 47.79) < 0.01);

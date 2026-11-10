@@ -10,7 +10,7 @@ const NORTH_PARTS = Array.from({ length: 54 }, (_, index) => 1472466043 + index)
   .filter(id => id !== 1472466055).map(id => `way/${id}`);
 const sourceIds = [NORTH, ...NORTH_PARTS, MALL, BRIDGE, SOUTH_PODIUM];
 
-// 控制标高：屋顶、观景层、擦窗机层取自业主表与 CTBUH；冠底折面起点与空腔顶界为照片判读。
+// 控制标高：屋顶、观景层、擦窗机层取自业主表与 CTBUH；顶冠折面起点（579 m）与冠内空腔范围为照片判读，实心顶盖起点取源 590 m 组。
 const LOBBY_TOP = 22; // EST：街面照里入口玻璃与上部幕墙的分界
 const OBSERVATION_ROOF = 555.6; // PUBLISHED：CTBUH 最高使用层
 const OBSERVATION_DECK = 562.1; // PUBLISHED：观景层
