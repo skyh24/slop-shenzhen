@@ -5,7 +5,7 @@ import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
-import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
+import { GEO, REAL_BUILDINGS, DATA_TIMINGS } from './sz-geodata.js';
 import { getLocationLabel, getLocationInfo, inBounds, isWater, isTypingInField, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { buildSzGround } from './sz-ground.js';
 import { buildSzSea } from './sz-sea.js';
@@ -46,6 +46,11 @@ import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 
 const PLAYER_STATE_KEY = 'sz-player-state';
+
+// 城市包各阶段耗时来自 js/sz-geodata.js 的 DATA_TIMINGS；缺失或非有限值按 0 处理，不把未知写成实测。
+function dataStageMs(value) {
+  return Number.isFinite(value) && value >= 0 ? Math.round(value) : 0;
+}
 
 function summarizeSamples(values) {
   if (values.length === 0) return null;
@@ -152,7 +157,12 @@ async function initApp() {
   renderer.lighting = new ClusteredLighting(256, 32, 28, 48);
   container.appendChild(renderer.domElement);
 
-  // Start-up phase timings (logged once as "[init] ...") to keep load-time regressions traceable
+  // Start-up phase timings (logged once as "[init] ...") to keep load-time regressions traceable.
+  // 城市包在主模块求值之前就加载完了，这里把它的下载/解压/解析/校验/解码补到行首，各阶段才能分开看。
+  const DATA_STAGE_LABELS = {
+    downloadMs: 'data.download', decompressMs: 'data.decompress', parseMs: 'data.parse',
+    validateMs: 'data.validate', decodeMs: 'data.decode'
+  };
   let initTimings = [];
   let initMark = performance.now();
   const markInit = (label) => {
@@ -162,6 +172,11 @@ async function initApp() {
     if (qa) qa.startup[label] = ms;
     initMark = now;
   };
+  for (const [field, label] of Object.entries(DATA_STAGE_LABELS)) {
+    const ms = dataStageMs(DATA_TIMINGS[field]);
+    initTimings.push(`${label} ${ms}ms`);
+    if (qa) qa.startup[label] = ms;
+  }
 
   await renderer.init();
   markInit('renderer');
@@ -1239,7 +1254,10 @@ async function initApp() {
         audioSystem.ready = true;
       }, error => {
         console.error('[first-frame]', error);
-        if (loadingStatus && !graphicsLoss) loadingStatus.textContent = STR.loadingFailed;
+        if (graphicsLoss) return;
+        // 首帧之前仍属启动失败：交给兜底入口显示，重试按整页重载处理（避免重复画布和动画循环）。
+        if (globalThis.__szBoot?.fail) globalThis.__szBoot.fail('init', error);
+        else if (loadingStatus) loadingStatus.textContent = STR.loadingFailed;
       });
     }
 
@@ -1274,10 +1292,18 @@ async function initApp() {
   // 在启动流程里完成首帧，首帧异常可由 initApp 的调用方显示。
   renderFrame(performance.now());
   await renderer.setAnimationLoop(renderFrame);
+  // 场景就绪：启动失败兜底入口此后不再拦截普通运行期错误，只保留显式 fail() 调用。
+  globalThis.__szBoot?.ready?.();
 }
 
 initApp().catch(error => {
   console.error('[init]', error);
+  // 启动失败统一交给 index.html 的兜底入口（模块求值之前就已建立）；提示和重试都由它负责。
+  const boot = globalThis.__szBoot;
+  if (boot?.fail) {
+    boot.fail(navigator.gpu ? 'init' : 'webgpu', error);
+    return;
+  }
   const status = document.getElementById('loading-status');
   if (status) status.textContent = navigator.gpu ? STR.loadingFailed : STR.webgpuMissing;
 });

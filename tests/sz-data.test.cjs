@@ -140,3 +140,88 @@ test('building names and levels survive decoding and invalid indices are rejecte
   missingTable.buildings.name[0] = 0;
   assert.throws(() => validateCityPayload(missingTable), /building name index/);
 });
+
+test('city data failures carry the stage code the boot fallback maps to its messages', async () => {
+  const { CityDataError } = await modulePromise;
+  const error = new CityDataError('request', 'City data request failed: 404');
+  assert.ok(error instanceof Error);
+  assert.equal(error.name, 'CityDataError');
+  assert.equal(error.code, 'request');
+  assert.equal(error.message, 'City data request failed: 404');
+});
+
+test('readCityPayload only downloads, decompresses and parses; failures keep a stage code', async () => {
+  const { readCityPayload, CityDataError } = await modulePromise;
+  const metrics = {};
+  const unvalidated = { ...raw, version: 3 };
+  const loaded = await readCityPayload('fixture', async () => new Response(JSON.stringify(unvalidated)), metrics);
+  assert.equal(loaded.version, 3, 'read must not reject data that only validation rejects');
+  for (const key of ['downloadMs', 'decompressMs', 'parseMs']) {
+    assert.ok(Number.isFinite(metrics[key]) && metrics[key] >= 0, `metrics.${key} is a finite duration`);
+  }
+  const failureOf = async (fetcher) => {
+    try {
+      await readCityPayload('fixture', fetcher);
+    } catch (error) {
+      return error;
+    }
+    assert.fail('readCityPayload should reject the injected failure');
+  };
+  const requestFailure = await failureOf(async () => new Response('', { status: 404 }));
+  assert.ok(requestFailure instanceof CityDataError);
+  assert.equal(requestFailure.code, 'request');
+  assert.match(requestFailure.message, /404/);
+  const gzipFailure = await failureOf(async () => new Response(new Uint8Array([0x1f, 0x8b, 0xde, 0xad, 0xbe, 0xef])));
+  assert.ok(gzipFailure instanceof CityDataError);
+  assert.equal(gzipFailure.code, 'decompress');
+  const utf8Failure = await failureOf(async () => new Response(new Uint8Array([0xff, 0xfe, 0xfd])));
+  assert.equal(utf8Failure.code, 'decompress');
+  const parseFailure = await failureOf(async () => new Response('not json'));
+  assert.equal(parseFailure.code, 'invalid');
+});
+
+test('decodeCityPayload validates once, preserves the source message and records timings', async () => {
+  const { decodeCityPayload, validateCityPayload, CityDataError } = await modulePromise;
+  const metrics = {};
+  const { buildings, geo } = decodeCityPayload(raw, metrics);
+  assert.equal(buildings.length, raw.buildings.h.length);
+  assert.equal(geo.version, raw.version);
+  for (const key of ['validateMs', 'decodeMs']) {
+    assert.ok(Number.isFinite(metrics[key]) && metrics[key] >= 0, `metrics.${key} is a finite duration`);
+  }
+  const failureOf = (payload) => {
+    try {
+      decodeCityPayload(payload);
+    } catch (error) {
+      return error;
+    }
+    assert.fail('decodeCityPayload should reject invalid data');
+  };
+  const versionFailure = failureOf({ ...raw, version: 3 });
+  assert.ok(versionFailure instanceof CityDataError, 'validation failures use the startup error type');
+  assert.equal(versionFailure.code, 'invalid');
+  assert.match(versionFailure.message, /version/, 'the original validation message is preserved');
+  const parkFailure = failureOf({ ...raw, parks: [{ ...raw.parks[0], source: '' }] });
+  assert.equal(parkFailure.code, 'invalid');
+  assert.match(parkFailure.message, /park source/);
+  // validateCityPayload 本身的行为不变：仍是普通 Error，message 不变。
+  let plainFailure;
+  try {
+    validateCityPayload({ ...raw, version: 3 });
+  } catch (error) {
+    plainFailure = error;
+  }
+  assert.ok(plainFailure instanceof Error);
+  assert.ok(!(plainFailure instanceof CityDataError), 'validateCityPayload keeps throwing plain Error');
+  assert.match(plainFailure.message, /version/);
+});
+
+test('the city payload is validated at exactly one call site', () => {
+  const source = readFileSync(join(root, 'js/sz-data-format.js'), 'utf8');
+  const calls = [...source.matchAll(/(?<!function\s)validateCityPayload\(raw\)/g)];
+  assert.equal(calls.length, 1, 'validateCityPayload(raw) runs exactly once, in decodeCityPayload');
+  const decodeStart = source.indexOf('function decodeCityPayload');
+  assert.ok(decodeStart >= 0, 'decodeCityPayload is exported');
+  assert.ok(calls[0].index > decodeStart,
+    'the single validation call belongs to decodeCityPayload, not readCityPayload');
+});
