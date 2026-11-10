@@ -27,12 +27,15 @@ function centroid(ring) {
 }
 
 /** 解析：挑选福田中心区夜景灯光秀的楼栋（纯计划，不建几何）。
- *  输入：REAL_BUILDINGS 与地形；范围 x∈[-3000,3000]、z∈[-1500,2500] 且高度≥150 m。
+ *  输入：REAL_BUILDINGS 与地形；范围 x∈[-3000,3000]、z∈[-1500,2500] 且高度≥150 m；
+ *        excludeIds 是已被地标接管的源对象 id（收窄/收分塔楼由专模自己打光，不能再按基地足迹拉通高灯带）。
  *  输出：每栋楼的灯带位置（最多 6 条竖向）、塔顶轮廓与材质桶；确定性排序。
  *  说明：灯带样式/颜色是展示估计，不改变建筑高度来源。 */
-export function planLightShow(buildings, terrain) {
+export function planLightShow(buildings, terrain, { excludeIds = null } = {}) {
+  const excluded = excludeIds ? new Set(excludeIds) : null;
   const towers = [];
   for (const building of buildings) {
+    if (excluded?.has(building.id)) continue;
     if (building.height < SHOW_MIN_HEIGHT_M) continue;
     const polygon = building.polygons?.[0];
     if (!polygon || polygon.outer.length < 3) continue;
@@ -111,9 +114,9 @@ function createShowMaterial(bucket) {
  *  输入：REAL_BUILDINGS、地形。
  *  输出：{ group, statistics, towers, update, dispose }；6 个材质桶 → 6 个 InstancedMesh。
  *  约束：只做显示，不加碰撞体、不改建筑体量；白天隐藏、不占 draw call。 */
-export function buildSzLightShow(scene, { buildings = [], terrain = null } = {}) {
+export function buildSzLightShow(scene, { buildings = [], terrain = null, excludeIds = null } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('Light show requires a scene');
-  const plan = planLightShow(buildings, terrain);
+  const plan = planLightShow(buildings, terrain, { excludeIds });
   const group = new THREE.Group();
   group.name = 'shenzhen-light-show';
   scene.add(group);

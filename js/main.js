@@ -206,7 +206,9 @@ async function initApp() {
   }
   const cityBlocks = buildCityBlocks(scene, { skipIds, renderChunkSize: qa?.chunkSize });
   // 福田中心区夜景灯光秀：只给已建成普通高层加灯带，颜色/节奏为展示估计；白天隐藏。
-  const lightShow = buildSzLightShow(scene, { buildings: REAL_BUILDINGS, terrain: GEO.terrain });
+  // 地标源对象已由专模自己打光，排除它们，避免通高灯带按基地足迹飘出收分塔身之外。
+  const lightShow = buildSzLightShow(scene, { buildings: REAL_BUILDINGS, terrain: GEO.terrain,
+    excludeIds: landmarks.skipIds });
   const buildingSigns = buildBuildingSigns(scene, { buildings: cityBlocks.allBlocks, roadGraph: GEO.roadGraph });
   // 屋顶/阳台/空调/雨棚只在近景流式生成，不参与碰撞，也不改楼高和足迹。
   const buildingDetails = buildBuildingDetails(scene, {

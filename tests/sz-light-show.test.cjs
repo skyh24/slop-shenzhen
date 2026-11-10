@@ -52,6 +52,16 @@ test('light show ignores short towers and towers outside the CBD plan area', () 
   assert.equal(plan.totals.towers, 1);
 });
 
+test('light show skips landmark sources so LED strips stay inside tapered towers', () => {
+  const landmarkId = 'overture/825c9559-0144-4342-a025-a1e4b93d49a0';
+  const all = lightShow.planLightShow(towers, geo.terrain);
+  assert.ok(all.towers.some(tower => tower.id === landmarkId), 'Ping An source tower is planned by default');
+  const filtered = lightShow.planLightShow(towers, geo.terrain, { excludeIds: new Set([landmarkId]) });
+  assert.equal(filtered.towers.some(tower => tower.id === landmarkId), false);
+  assert.equal(filtered.totals.towers, all.totals.towers - 1);
+  assert.ok(filtered.totals.strips < all.totals.strips);
+});
+
 test('real Three builds instanced light-show meshes without touching building colliders', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
   const packageUrl = pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, '/'));
   const THREE = await import(new URL('build/three.webgpu.js', packageUrl));
