@@ -130,22 +130,6 @@ test('acoustic rays measure occupied wall thickness, leaving courtyards open', (
   assert.equal(polygonSegmentFraction(courtyard, -2, 6, 16, 0, 0, 0.25) * 16, 2);
 });
 
-test('road queries preserve the open area inside concave and courtyard bounds', () => {
-  const { buildRoadNetwork } = loadModule(readFileSync(join(__dirname, '../js/road-network.js'), 'utf8'), { imports: {
-    './city-config.js': {
-      ALL_AVENUES: [], ALL_STREETS: [], BLOCKS: [], ISLAND_BOUNDS: { minZ: -100, maxZ: 100 },
-      getIslandBoundsAtZ: () => ({ westX: -200, eastX: 200 })
-    },
-    './nyc-geodata.js': { GEO: {} }, './building-collision.js': { polygonBoxOverlaps }
-  } });
-  for (const polygon of [concave, courtyard]) {
-    const network = buildRoadNetwork([], [{ minX: 0, maxX: 12, minZ: 0, maxZ: 12, polygon }]);
-    assert.equal(network.walkable(5, 7, 5, 7), true);
-    assert.equal(network.walkable(0.5, 1.5, 5, 7), false);
-    assert.equal(network.walkable(2, 4, 5, 7), false);
-  }
-});
-
 test('listeners in a courtyard hear nearby voices but remain sheltered by its walls', () => {
   const { CityAcoustics } = loadModule(readFileSync(join(__dirname, '../js/audio-acoustics.js'), 'utf8'), {
     imports: { './building-collision.js': { polygonContains, polygonSegmentFraction } }

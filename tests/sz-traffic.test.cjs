@@ -192,6 +192,25 @@ test('traffic stops before a player and uses its drawn position for collision qu
   assert.ok(traffic.nearColliders(actor.pose.x, actor.pose.z, 0).includes(actor.collider));
 });
 
+test('traffic writes each car wheel style to both front and rear slots', () => {
+  const graph = { nodes: [0, 0, 900, 0], names: ['Road'], links: [[0, 1, 0, 8, 2, 1, []]], metadata: [groundRoad(1)] };
+  const traffic = createSzTraffic(new Group(), graph, { roadHeight: () => 6 });
+  for (let frame = 0; frame < 5; frame++) traffic.update(0.05, { x: 250, z: 0 });
+  const wheels = traffic.group.children.filter(child => child.name?.startsWith('traffic:wheels-'));
+  assert.equal(wheels.length, 2);
+  const styles = wheels.map(mesh => mesh.geometry.attributes.wheelStyle.array);
+  const active = traffic.vehicles.filter(vehicle => vehicle.route && vehicle.type !== 'bus');
+  assert.ok(active.length > 1);
+  active.forEach((actor, slot) => {
+    for (const array of styles) {
+      assert.equal(array[slot * 2], actor.style, `${actor.type} front wheel keeps its car style`);
+      assert.equal(array[slot * 2 + 1], actor.style, `${actor.type} rear wheel keeps its car style`);
+    }
+  });
+  assert.ok(styles[0].every((style, index) => style === styles[1][index]), 'left and right wheels share one style buffer');
+  assert.ok(new Set(active.map(actor => actor.style)).size > 1, 'the fleet is painted with more than one style');
+});
+
 test('traffic refuses finite routes that would park vehicles close to the focus', () => {
   const graph = {
     nodes: [0, 0, 200, 0], names: ['Road'], links: [[0, 1, 0, 8, 2, 1, []]], metadata: [groundRoad(1)]

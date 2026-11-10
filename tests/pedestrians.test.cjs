@@ -2,13 +2,10 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const test = require('node:test');
-const vm = require('node:vm');
 const { loadModule } = require('./helpers/module.cjs');
 
 const pedestriansSource = readFileSync(join(__dirname, '../js/pedestrians.js'), 'utf8');
 const controllersSource = readFileSync(join(__dirname, '../js/controllers.js'), 'utf8');
-const pedestrianSystemSource = ['traffic.js', 'pedestrian-system.js']
-  .map((file) => readFileSync(join(__dirname, '../js', file), 'utf8')).join('\n');
 const polygonCollision = loadModule(readFileSync(join(__dirname, '../js/building-collision.js'), 'utf8'));
 
 // Lightweight numeric TSL & THREE harness for testing PersonCrowd, createPersonMaterial, and PersonRig without a GPU.
@@ -592,55 +589,6 @@ test('PeopleNear hoisted varyings produce identical fragment color and roughness
   }
 });
 
-test('renderPed skips hidden rig updates beyond 50m while preserving <=50m footstep audio gait and dives', () => {
-  const match = pedestrianSystemSource.match(/  function renderPed\([^]*?\n  \}/);
-  assert.ok(match, 'renderPed is present');
-
-  const runRenderPed = ({ inView, x, z, diveStart = -Infinity, clock = 10 }) => {
-    let calls = 0;
-    let drawn = 0;
-    const ped = {
-      x, z, ux: 0, uz: 1, dir: 1, dodge: 0, dodgeTarget: 0, diveStart, diveHeading: 0.5,
-      rig: { placed: true, update() { calls++; } }
-    };
-    const renderPed = vm.runInNewContext(`(${match[0].trim()})`, {
-      hasView: true,
-      visible: () => inView,
-      pedGround: () => 0,
-      focusX: 0,
-      focusZ: 0,
-      clock,
-      PEDESTRIAN_DIVE_DURATION: 2.5,
-      Math,
-      pedCrowd: { add() { drawn++; } }
-    });
-    renderPed(ped, 1 / 60);
-    return { calls, drawn, placed: ped.rig.placed };
-  };
-
-  // Hidden within 50 m (covers 45 m footstep audio radius): gait still updates
-  const nearHidden = runRenderPed({ inView: false, x: 30, z: 30 });
-  assert.equal(nearHidden.calls, 1);
-  assert.equal(nearHidden.drawn, 0);
-  assert.equal(nearHidden.placed, true);
-
-  // Hidden beyond 50 m and not diving: rig.update is skipped and rig is marked unplaced for clean re-entry
-  const farHidden = runRenderPed({ inView: false, x: 45, z: 45 });
-  assert.equal(farHidden.calls, 0);
-  assert.equal(farHidden.drawn, 0);
-  assert.equal(farHidden.placed, false);
-
-  // Hidden beyond 50 m while diving: dive still completes
-  const farDiving = runRenderPed({ inView: false, x: 45, z: 45, diveStart: 9.0, clock: 10.0 });
-  assert.equal(farDiving.calls, 1);
-  assert.equal(farDiving.drawn, 0);
-
-  // Visible beyond 50 m: poses and draws normally
-  const farVisible = runRenderPed({ inView: true, x: 80, z: 80 });
-  assert.equal(farVisible.calls, 1);
-  assert.equal(farVisible.drawn, 1);
-});
-
 test('poseCharacters skips stationary inactive cyclist IK/uploads and culls parked characters beyond 320m', () => {
   const noopTarget = { addEventListener() {} };
   const { ThirdPersonControllerManager } = loadModule(controllersSource, {
@@ -655,7 +603,6 @@ test('poseCharacters skips stationary inactive cyclist IK/uploads and culls park
       './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8 } } },
       './pedestrians.js': {},
       './vehicle-lights.js': {},
-      './landmarks.js': {},
       './building-collision.js': polygonCollision
     }
   });

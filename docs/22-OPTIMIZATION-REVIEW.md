@@ -248,3 +248,17 @@ rg -n "StorageInstancedBufferAttribute" js ref/slop-wuhan/js/runtime/main.js
 ## 7. 交付记录
 
 执行者在这里追加：任务编号、分支、提交、测量前后数值、删除和迁移的测试、新发现的缺口、截图位置。不要改写上面的审查结论；结论被推翻时，在这里写明原因。
+
+### S1 删除纽约残留运行时（2026-11-10）
+
+- 分支：`dsh-3eda6f6c-f182`（原计划 `m9-prune-ny-runtime`；本工作树独立分支）。
+- 新增 `tests/runtime-reachability.test.cjs`：从 `js/main.js` 遍历相对 import，`js/` 下出现不可达的 `.js` 就失败；`js/sz-mvp/` 等用户确认删除前暂不纳入。另断言所有相对 import 都指向存在的文件。加测试时对当前代码失败，删除后通过。
+- 删除 `js/` 下 27 个不可达纽约文件（23,805 行）和 `js/building-geodata.bin.gz`、`js/tree-geodata.bin.gz`。可达模块仍是 80 个文件、30,172 行，和改前一致；`js/` 顶层从 89 个 `.js` 降到 62 个。
+- 测试：整份删除 16 个纽约测试文件——审查表列的 14 个，加上审查表漏掉的 `traffic.test.cjs`、`traffic-performance.test.cjs`（两者在顶层读 `traffic.js` 和 `pedestrian-system.js`，不删会在 js 删除后加载失败）；`building-collision` 删 1 条公路查询用例、`car-wheels` 删 1 条 `renderCar` 用例、`vehicle-physics` 删 8 条 `trafficHarness` 用例、`pedestrians` 删 1 条 `renderPed` 用例；`controllers.test.cjs`、`pedestrians.test.cjs` 清掉 `'./landmarks.js': {}` 过时 mock。
+- 迁移：`car-wheels` 的“每辆车的前后轮槽都写入同一车轮样式”用例迁到深圳实现，新增 `tests/sz-traffic.test.cjs` 的 `traffic writes each car wheel style to both front and rear slots`。
+- Node 测试 493 → 385 项通过、0 跳过（差值是删除的纽约用例）；Python 101 项通过。`git diff --stat` 只有删除、测试和文档改动，没有运行时代码逻辑改动。
+- 浏览器：`python3 tools/sz/serve.py --port 8097`，固定机位 `?qa=1&cam=-1800,200,-400,100,120,1150`，四个时段改前改后各截一张。改前 draw calls P95 617/618/640/640、三角数 P95 1.90/1.90/1.98/1.98 M；改后 624/624/640/640、1.92/1.92/1.98/1.98 M，同量级（差值来自环境车流位置）。像素平均差 0.7–1.8/255，画面一致。`[init]` 各阶段仍在；`compile` 每次 6.7–23.4 s 的波动是着色器缓存差异，不是本轮改动。
+- 控制台：改后和改前（未改动的 `main` 检出，端口 8098）是同一组消息，没有新增。两边都有 3D TSL 的 `this.bNode.getNodeType is not a function` 报错和 `Vertex attribute "uv" not found` 警告（既有问题），以及浏览器扩展的 `MaxListenersExceededWarning`、`ObjectMultiplex` 警告；后者不属于应用。本轮没有新增应用错误，但这些既有报错没有消除，冷启动“无报错”一项只能按“无新增”记录。
+- 新缺口：`vehicle-physics` 被删的玩家碰撞冲量/动量守恒用例在深圳实现里没有对应行为——`sz-traffic.js` 只用 `vehicleContact` 做碰撞检出和停车，不做冲量回弹和动量守恒；未为此改运行时代码。
+- S1c 未做：`js/sz-mvp/{materials,ground,buildings}.js` 仍 import `createGroundMaterial`、`createRoadMaterial` 和 `createBuildingMaterial({ showLandmarkLights: true })`，删掉会让 `mvp.html` 因缺导出白屏；用户确认推迟到 S1b（删除 MVP）时一起做。
+- 截图：`docs/qa/dsh-3eda6f6c-f182/`（只留本地，不进 Git）。

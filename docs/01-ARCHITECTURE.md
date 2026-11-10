@@ -6,11 +6,13 @@
 
 纽约原版大约 3.6 万行，`main.js` 按固定顺序搭场景：光照、地面（`city-grid.js`）、周边区（`boroughs.js`）、地标、普通建筑、街道细节、交通、路面标线、控制器、剔除、后期。各文件的职能和关键函数行号见 [16-NY-REFERENCE.md](16-NY-REFERENCE.md)。武汉参考仓库的现行入口、旧运行时、数据管线和函数行号见 [17-WUHAN-REFERENCE.md](17-WUHAN-REFERENCE.md)。
 
-深圳版保留这条启动流程，以及成熟的引擎系统：控制器、相机、车身、人物、物理、音频、光照、剔除、后期。和曼哈顿方格网绑死的部分（地面、路网、交通、建筑、街道细节、地图、材质）都由深圳模块重写，而不是改造纽约文件。纽约的 `road-network.js`、`traffic.js`、`buildings.js`、`trees.js`、`tsl-materials.js` 等最后都没有接入正式入口，计划从 `js/` 删除，见 [22-OPTIMIZATION-REVIEW.md](22-OPTIMIZATION-REVIEW.md) A1。
+深圳版保留这条启动流程，以及成熟的引擎系统：控制器、相机、车身、人物、物理、音频、光照、剔除、后期。和曼哈顿方格网绑死的部分（地面、路网、交通、建筑、街道细节、地图、材质）都由深圳模块重写，而不是改造纽约文件。纽约的运行时代码只剩正式入口实际加载的引擎文件（音频、碰撞与物理、车辆、人物、控制器、相机、光照、剔除、后期）；没有接入的 27 个纽约文件加两份 `.bin.gz` 数据包已在 2026-11-10 从 `js/` 删除，纽约代码只在只读的 `ref/slop-newyork/` 里，见 [22-OPTIMIZATION-REVIEW.md](22-OPTIMIZATION-REVIEW.md) A1。
 
-正式入口：`index.html`（import map 加 modulepreload）加载 `js/main.js`，可达 80 个文件、约 3 万行。
+正式入口：`index.html`（import map 加 modulepreload）加载 `js/main.js`，可达 80 个文件、30,172 行（2026-11-10 复核；`js/` 顶层另有 `sz-mvp/` 的 8 个文件等待删除）。`tests/runtime-reachability.test.cjs` 从 `js/main.js` 遍历相对 import，`js/` 下出现不可达模块就会失败。
 
 ## 模块矩阵
+
+下表左列的纽约文件只作模块对照，副本在 `ref/slop-newyork/`；除“保留”行里的引擎文件外，`js/` 里已没有这些文件。
 
 | 纽约文件 | 深圳处理 | 深圳模块 |
 | --- | --- | --- |
@@ -18,7 +20,7 @@
 | `nyc-geodata.js`、`building-geodata.js`、`tree-geodata.js`、`subway-geodata.js` | 替换 | `sz-geodata.js` 用顶层 `await` 读 `js/sz-city.json.gz`（gzip JSON，由 `tools/sz/build.py` 生成）；`sz-data-format.js` 校验并解码成 `GEO` 和 `REAL_BUILDINGS` |
 | `city-config.js` | 重写，导出同名接口 | `sz-city-config.js`：`signalPhase`、`walkSignal`、`isTypingInField` 等；纽约专有的街号函数直接抛错 |
 | `city-grid.js` | 替换 | `sz-ground.js`（地形块）、`sz-ground-surface.js`、`sz-terrain.js`（三角面高度查询）、`sz-roads.js`（路面）、`sz-sea.js`（海面） |
-| `boroughs.js` | 未替换 | 远景天际线没有做 |
+| `boroughs.js` | 未替换（文件已删） | 远景天际线没有做 |
 | `landmarks.js` | 替换 | `sz-landmarks/`：每个地标一个文件，`index.js` 汇总，`layout.js` 负责源足迹接管，`parts.js`、`render.js`、`materials.js` 共用部件、渲染和材质 |
 | `buildings.js`、`building-footprints.js`、`building-details.js`、`fire-escapes.js` | 替换 | `sz-buildings.js`（1 km 合批，塔楼加裙房、屋顶设备）、`sz-building-layout.js`、`sz-materials.js`（立面材质）、`sz-building-details.js`（近景阳台、空调、雨棚）、`sz-building-signs.js`（楼名和小区门牌） |
 | `street-details.js`、`street-props.js`、`trees.js`、`tree-placements.js` | 替换 | `sz-streetscape.js`、`sz-street-lamps.js`、`sz-road-frontage.js`（路口信号和路侧设施）、`sz-trees.js`（树干加近冠和远冠 LOD） |
@@ -29,7 +31,7 @@
 | `bus.js`、`helicopter.js` | 替换 | 公交和四旋翼载人飞行器都在 `sz-vehicles.js`（`createEvtolMesh`） |
 | `pedestrian-system.js`、`pedestrian-routes.js` | 替换 | `sz-pedestrians.js` 加 `sz-pedestrian-tracks.js`（模拟步行带），复用纽约 `pedestrians.js` 的 `PersonCrowd` 和 `PersonRig` |
 | `nyc-map.js` | 替换 | `sz-map.js`、`sz-map-layers.js`；传送和地铁菜单在 `sz-ui.js` |
-| `tsl-materials.js` | 未使用 | 深圳材质在 `sz-materials.js`；时段 uniform 取自 `city-lighting-materials.js`（`cityUniforms`） |
+| `tsl-materials.js` | 未使用（文件已删） | 深圳材质在 `sz-materials.js`；时段 uniform 取自 `city-lighting-materials.js`（`cityUniforms`） |
 | `controllers.js` | 改造 | 出生点、活动范围、海面判断、地形高度、四旋翼；高架接触面由 `sz-controller-surfaces.js` 提供 |
 | `cameras.js` | 改造 | 景点机位在 `sz-camera-presets.js` |
 | `audio-*`、`post-processing.js`、`scene-culling.js`、`vehicle-physics.js`、`vehicles.js`、`vehicle-lights.js`、`lighting.js`、`pedestrians.js`、`building-collision.js`、`touch-controls.js`、`gamepad-controls.js` | 保留 | — |

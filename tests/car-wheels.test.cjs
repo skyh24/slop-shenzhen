@@ -2,7 +2,6 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const test = require('node:test');
-const vm = require('node:vm');
 const { loadModule } = require('./helpers/module.cjs');
 
 // Numeric TSL node evaluator so we can run both createCarWheelMaterial and createLoftedCarMaterial
@@ -272,86 +271,6 @@ test('near instanced wheels match far proxy wheel shading across NYPD, blackout,
   });
   assert.ok(Math.abs(patternSamples[0] - patternSamples[1]) > 0.2,
     `spoke styles 0 and 1 produce distinct spoke patterns: ${patternSamples}`);
-});
-
-test('renderCar writes per-car wheel styles to both front and rear wheel slots with dirty tracking', () => {
-  const trafficSrc = readFileSync(join(__dirname, '../js/traffic.js'), 'utf8');
-  const match = trafficSrc.match(/  function renderCar\(c\) \{[\s\S]*?\n  \}/);
-  assert.ok(match, 'renderCar function present');
-  const carWheelStyles = { array: new Float32Array(8) };
-  const placed = [];
-  const makeInst = () => ({
-    count: 0,
-    setMatrixAt() {},
-    geometry: {
-      attributes: {
-        paintColor: { array: new Float32Array(12) },
-        carState: { array: new Float32Array(16) }
-      }
-    }
-  });
-  const ctx = {
-    BODY_SPECS: { sedan: { wheelRadius: 0.35, wheelX: 0.8, wheelZ: 1.4 } },
-    CAR_PROXY_DISTANCE: 90,
-    hasView: false,
-    visible: () => true,
-    focusX: 0,
-    focusZ: 0,
-    camX: 0,
-    camY: 10,
-    camZ: 0,
-    camFwdX: 0,
-    camFwdZ: 1,
-    MAX_LIGHT_DIST_SQ: 0,
-    MAX_LIGHT_DIST: 0,
-    clock: 0,
-    bodies: { sedan: { near: makeInst(), far: makeInst(), shadow: [2, 4.5, 0] } },
-    policeLightbars: {},
-    policeDrawn: { sedan: 0 },
-    dirtyPaint: new Set(),
-    dirtyState: new Set(),
-    dirtyWheelStyles: false,
-    carWheelStyles,
-    carWheelLeftInst: {},
-    carWheelRightInst: {},
-    carShadowInst: { setMatrixAt() {} },
-    litVehicles: [],
-    litVehicleCount: 0,
-    visibleCars: 0,
-    wheelCars: 0,
-    dummy: {
-      position: { set() {} },
-      rotation: { set() {} },
-      scale: { set() {} },
-      updateMatrix() {},
-      matrix: {}
-    },
-    placeWheels(c, idx) { placed.push(idx); }
-  };
-  const renderCar = vm.runInNewContext(`(${match[0].trim()})`, ctx);
-  const policeStyle = carStyleCode({ livery: 1, trim: 2, wheel: 3 });
-  const sportStyle = carStyleCode({ livery: 4, metallic: 1, trim: 2, wheel: 2 });
-  const c0 = { x: 10, z: 10, prevX: 10, prevZ: 10, yaw: 0, yawOffset: 0, pitch: 0, roll: 0, wheelSpin: 0,
-    bodyType: 'sedan', isPolice: false, paint: [1, 1, 1], style: policeStyle, blink: 0, blinkPhase: 0, acc: 0, speed: 5 };
-  const c1 = { ...c0, x: 20, style: sportStyle };
-  const c2 = { ...c0, x: 120, style: 99 }; // > 90 m -> far proxy, no separate wheels
-
-  renderCar(c0);
-  renderCar(c1);
-  renderCar(c2);
-  assert.equal(ctx.wheelCars, 2);
-  assert.deepEqual(placed, [0, 1]);
-  assert.equal(ctx.dirtyWheelStyles, true);
-  assert.deepEqual([...carWheelStyles.array.slice(0, 4)], [policeStyle, policeStyle, sportStyle, sportStyle]);
-
-  // Second frame with identical near cars & styles must leave dirtyWheelStyles false (no GPU upload)
-  ctx.dirtyWheelStyles = false;
-  ctx.wheelCars = 0;
-  ctx.bodies.sedan.near.count = 0;
-  ctx.bodies.sedan.far.count = 0;
-  renderCar(c0);
-  renderCar(c1);
-  assert.equal(ctx.dirtyWheelStyles, false);
 });
 
 test('Shenzhen locale paints the blue taxi over a white waistline, a red/blue two-tone roof sign with a green 空车 strip, and keeps brake lamps', () => {

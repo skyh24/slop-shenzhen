@@ -51,7 +51,6 @@ function keyboardHarness(nyc = {}) {
       './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } },
       './pedestrians.js': {},
       './vehicle-lights.js': {},
-      './landmarks.js': {},
       './building-collision.js': polygonCollision
     }
   });

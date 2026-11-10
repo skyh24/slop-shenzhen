@@ -2,13 +2,15 @@
 
 `ref/slop-newyork` 的运行时结构。深圳怎么保留、改造或替换这些模块，见 [01-ARCHITECTURE.md](01-ARCHITECTURE.md)。
 
-行号对应当前只读副本。原版不打包：`index.html` 用 import map 加载 three.js `0.187.0`（WebGPU + TSL），入口是 `js/main.js`。`js/` 大约 3.4 万行。
+2026-11-10 起，`js/` 只保留正式入口 `js/main.js` 可达的深圳运行时；没有接入的纽约运行时代码（地面、路网、交通、建筑、街道细节、地图、材质等 27 个文件加两份 `.bin.gz` 数据包）已从 `js/` 删除。纽约代码只在只读副本 `ref/slop-newyork/` 里，本文件的行号和路径都指这份副本，不是 `js/`。`js/` 的可达性由 `tests/runtime-reachability.test.cjs` 守住。
+
+行号对应当前只读副本。原版不打包：`index.html` 用 import map 加载 three.js `0.187.0`（WebGPU + TSL），入口是 `js/main.js`。原版的 `ref/slop-newyork/js/` 大约 3.4 万行。
 
 坐标系：1 单位 = 1 米。原点在第五大道与 42 街中心线交点。x 沿方格网向东，z 沿方格网向南（相对真北转了约 29°），y 向上。
 
 ## 启动顺序
 
-`initApp()`（`js/main.js` 第 25 行）按固定阶段搭场景。后面的系统只消费前面返回的字段。
+`initApp()`（`ref/slop-newyork/js/main.js` 第 25 行）按固定阶段搭场景。后面的系统只消费前面返回的字段。
 
 | 阶段 | 调用 | 位置 |
 | --- | --- | --- |
