@@ -1,12 +1,12 @@
 import { STR } from './sz-strings.js';
-import { populateTeleportMenu, wireMetroMenu } from './sz-ui.js';
+import { populateTeleportMenu, wireMetroMenu, wirePopovers, wireShortcuts, createLocationReadout, createHudTelemetry } from './sz-ui.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
 import { GEO, REAL_BUILDINGS, DATA_TIMINGS } from './sz-geodata.js';
-import { getLocationLabel, getLocationInfo, inBounds, isWater, isTypingInField, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
+import { getLocationLabel, inBounds, isWater, findGroundArrival, LANDMARK_SITES, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { buildSzGround } from './sz-ground.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads } from './sz-roads.js';
@@ -23,7 +23,6 @@ import { gatePoint, gateYaw, gateDeckY, flowerSeaAnchor, flowerSeaDeckY } from '
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
-import { polygonContains } from './building-collision.js';
 import { buildShenzhenBayBridge } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { buildSzElevatedRoads } from './sz-elevated-roads.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
@@ -44,21 +43,13 @@ import { SZMapSystem } from './sz-map.js';
 import { parkAt } from './sz-park-arrivals.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
+import { createQaSession } from './sz-qa.js';
 
 const PLAYER_STATE_KEY = 'sz-player-state';
 
 // 城市包各阶段耗时来自 js/sz-geodata.js 的 DATA_TIMINGS；缺失或非有限值按 0 处理，不把未知写成实测。
 function dataStageMs(value) {
   return Number.isFinite(value) && value >= 0 ? Math.round(value) : 0;
-}
-
-function summarizeSamples(values) {
-  if (values.length === 0) return null;
-  const sorted = values.slice().sort((a, b) => a - b);
-  return {
-    mean: values.reduce((sum, value) => sum + value, 0) / values.length,
-    p95: sorted[Math.ceil(sorted.length * 0.95) - 1]
-  };
 }
 
 async function initApp() {
@@ -69,21 +60,8 @@ async function initApp() {
   let graphicsLoss = null;
   let renderedFrames = 0;
   let elapsed = 0;
-  const query = new URLSearchParams(location.search);
-  // QA 固定机位：?qa=1&cam=x,y,z,tx,ty,tz，只用于同机位截图对照，不影响普通入口。
-  const freeCamera = (() => {
-    const value = query.get('cam');
-    if (!value || query.get('qa') !== '1') return null;
-    const numbers = value.split(',').map(Number);
-    if (numbers.length !== 6 || !numbers.every(Number.isFinite)) {
-      throw new Error('Invalid QA camera: expected x,y,z,tx,ty,tz');
-    }
-    return numbers;
-  })();
-  const qa = ['127.0.0.1', 'localhost'].includes(location.hostname) && query.get('qa') === '1' ? {
-    chunkSize: query.get('chunks') === '500' ? 500 : BUILDING_RENDER_CHUNK_SIZE,
-    startup: {}, frames: [], gpu: [], queue: [], previousFrameAt: null, queryPending: false, queuePending: false
-  } : null;
+  // QA 调试入口只在回环地址的 ?qa=1 下安装；固定机位、?skip= 阶段开关和帧采样都在 js/sz-qa.js。
+  const qa = createQaSession({ search: location.search, hostname: location.hostname, defaultChunkSize: BUILDING_RENDER_CHUNK_SIZE });
 
   // One progress bar for the whole start-up. Each stage fills a share of it sized after its typical duration (the
   // "[init]" timings logged below, on an M1 MacBook Air; `data` is fetching the code and data before this runs, which
@@ -142,7 +120,7 @@ async function initApp() {
     antialias: !isFirefox,
     powerPreference: 'high-performance',
     reversedDepthBuffer: true,
-    trackTimestamp: Boolean(qa)
+    trackTimestamp: qa.enabled
   });
   const onDeviceLost = renderer.onDeviceLost.bind(renderer);
   renderer.onDeviceLost = ({ api, reason, message, ...details }) => {
@@ -169,13 +147,13 @@ async function initApp() {
     const now = performance.now();
     const ms = Math.round(now - initMark);
     initTimings.push(`${label} ${ms}ms`);
-    if (qa) qa.startup[label] = ms;
+    qa.markStartup(label, ms);
     initMark = now;
   };
   for (const [field, label] of Object.entries(DATA_STAGE_LABELS)) {
     const ms = dataStageMs(DATA_TIMINGS[field]);
     initTimings.push(`${label} ${ms}ms`);
-    if (qa) qa.startup[label] = ms;
+    qa.markStartup(label, ms);
   }
 
   await renderer.init();
@@ -193,109 +171,85 @@ async function initApp() {
   markInit('ground');
   await showLoadingStage(STR.startup.roads, 'roads');
   const roads = buildSzRoads(scene, GEO.roadGraph, GEO.terrainSurface);
+  // 场地上下文：地形、路面、路网和各构建函数共用的接触面参数只构造一份，入口里不再重复传同一组闭包。
+  const site = {
+    buildings: REAL_BUILDINGS, terrain: GEO.terrain, terrainSurface: GEO.terrainSurface, sites: GEO.sites,
+    roadGraph: GEO.roadGraph, groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, isWater,
+    colliders: []
+  };
   // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
-  const elevatedRoads = buildSzElevatedRoads(scene, { graph: GEO.roadGraph, terrainSurface: GEO.terrainSurface });
-  const roadFrontage = buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, {
-    groundHeight: ground.groundHeight, roadHeight: roads.roadHeight
-  });
-  const roadPaint = buildSzRoadPaint(scene, GEO.roadGraph, {
-    roadHeight: roads.roadHeight, intersections: roadFrontage.control.intersections
-  });
+  const elevatedRoads = qa.stage('elevated', () =>
+    buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface }));
+  const roadFrontage = buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, site);
+  const roadPaint = qa.stage('paint', () =>
+    buildSzRoadPaint(scene, GEO.roadGraph, { ...site, intersections: roadFrontage.control.intersections }));
+  // 路缘接触和绘制共用同一份三角面，未覆盖的位置沿用源地形。
+  site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? ground.groundHeight(x, z);
   markInit('roads');
   await showLoadingStage(STR.startup.landmarks, 'landmarks');
-  const landmarks = buildSzLandmarks(scene, { buildings: REAL_BUILDINGS, terrain: GEO.terrain, sites: GEO.sites });
+  const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, site));
   const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
-  // 超级总部/西丽场地按「建好形态/在建工地」接管：场地内旧通用楼不再单独渲染，避免与地标和工地重叠。
-  const skipIds = new Set(landmarks.skipIds);
-  for (const landmarkId of ['super-hq', 'xili-station']) {
-    for (const role of Object.values(GEO.sites?.[landmarkId] ?? {})) {
-      for (const building of REAL_BUILDINGS) {
-        if (skipIds.has(building.id)) continue;
-        for (const polygon of role.polygons) {
-          if (polygonContains(polygon, building.cx, building.cz)) { skipIds.add(building.id); break; }
-        }
-      }
-    }
-  }
-  const cityBlocks = buildCityBlocks(scene, { skipIds, renderChunkSize: qa?.chunkSize });
+  const cityBlocks = qa.stage('blocks', () =>
+    buildCityBlocks(scene, { skipIds: landmarks.skipIds, renderChunkSize: qa.chunkSize }));
   // 福田中心区夜景灯光秀：只给已建成普通高层加灯带，颜色/节奏为展示估计；白天隐藏。
-  const lightShow = buildSzLightShow(scene, { buildings: REAL_BUILDINGS, terrain: GEO.terrain });
-  const buildingSigns = buildBuildingSigns(scene, { buildings: cityBlocks.allBlocks, roadGraph: GEO.roadGraph });
+  const lightShow = qa.stage('lightshow', () =>
+    buildSzLightShow(scene, { buildings: site.buildings, terrain: site.terrain }));
+  const buildingSigns = qa.stage('signs', () =>
+    buildBuildingSigns(scene, { buildings: cityBlocks.allBlocks, roadGraph: site.roadGraph }));
   // 屋顶/阳台/空调/雨棚只在近景流式生成，不参与碰撞，也不改楼高和足迹。
-  const buildingDetails = buildBuildingDetails(scene, {
-    buildings: REAL_BUILDINGS, terrain: GEO.terrain, skipIds
-  });
+  const buildingDetails = qa.stage('details', () =>
+    buildBuildingDetails(scene, { ...site, skipIds: landmarks.skipIds }));
   markInit('blocks');
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders];
-  const streetscape = buildSzStreetscape(scene, GEO.streetscape, GEO.terrainSurface, {
-    groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, colliders: buildings
-  });
+  site.colliders = buildings;
+  const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
+  site.pathAt = streetscape.pathAt;
   // 主干道路灯：点位由源路网中心线派生，夜间发光与地面光池在 update 里随时段切换。
-  const streetLamps = buildSzStreetLamps(scene, GEO.roadGraph, {
-    groundHeight: ground.groundHeight, roadHeight: roads.roadHeight
-  });
+  const streetLamps = qa.stage('lamps', () => buildSzStreetLamps(scene, site.roadGraph, site));
   // 树木：OSM 来源点加带标注的模拟行道树/公园树，接触面与铺装/建筑冲突在运行时复核。
-  const trees = buildSzTrees(scene, GEO.trees, {
-    groundHeight: ground.groundHeight, roadHeight: roads.roadHeight,
-    pathAt: streetscape.pathAt, colliders: buildings
-  });
+  const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, site));
+  // 国际交流中心模型给出的真实门廊/花海台面锚点只构造一次，APEC 主题和城市元素共用。
+  const anchors = {
+    iecGate: { x: gatePoint.x, z: gatePoint.z, yaw: gateYaw, baseY: gateDeckY },
+    iecFlowerSea: { x: flowerSeaAnchor.x, z: flowerSeaAnchor.z, baseY: flowerSeaDeckY }
+  };
   // APEC 周城市元素：会期内默认打开，模块内所有几何都在主题开关下。
-  const apecTheme = buildApecTheme(scene, {
-    roadGraph: GEO.roadGraph, terrain: GEO.terrain, landmarks: GEO.landmarks, buildings: REAL_BUILDINGS, area: GEO.bounds,
-    // 国际交流中心模型给出的真实门廊/花海台面锚点，避免 APEC 标识埋进新建筑或花坛落到台下。
-    anchors: {
-      iecGate: { x: gatePoint.x, z: gatePoint.z, yaw: gateYaw, baseY: gateDeckY },
-      iecFlowerSea: { x: flowerSeaAnchor.x, z: flowerSeaAnchor.z, baseY: flowerSeaDeckY }
-    }
-  });
+  const apecTheme = qa.stage('apec', () =>
+    buildApecTheme(scene, { ...site, landmarks: GEO.landmarks, area: GEO.bounds, anchors }));
   // APEC 城市元素：路侧 LED 大屏、会场巡逻机器人、西丽站围挡公益广告，随主题开关显隐。
-  const apecCity = buildApecCityElements(scene, {
-    terrain: GEO.terrain, landmarks: GEO.landmarks, sites: GEO.sites,
-    anchors: {
-      iecGate: { x: gatePoint.x, z: gatePoint.z, yaw: gateYaw, baseY: gateDeckY },
-      iecFlowerSea: { x: flowerSeaAnchor.x, z: flowerSeaAnchor.z, baseY: flowerSeaDeckY }
-    }
-  });
+  const apecCity = qa.stage('apecCity', () =>
+    buildApecCityElements(scene, { ...site, landmarks: GEO.landmarks, anchors }));
   // 地铁出入口：点位来自 OSM 已核实节点；雨棚/站名牌是外观参数，吸附到实际渲染地面。
-  const metroEntrances = buildSzMetroEntrances(scene, GEO.metro, {
-    groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, pathAt: streetscape.pathAt,
-    colliders: buildings, isWater,
-    // 1000 m 分块：286 个出入口的分块数约减半，draw call 明显下降，剔除粒度仍够用。
-    chunkSizeM: 1000
-  });
+  // 1000 m 分块：286 个出入口的分块数约减半，draw call 明显下降，剔除粒度仍够用。
+  const metroEntrances = qa.stage('metro', () =>
+    buildSzMetroEntrances(scene, GEO.metro, { ...site, chunkSizeM: 1000 }));
   // 福田站只建地面出入口/采光天窗；西丽站只做在建工地围挡/塔吊/基坑，不造站房。
-  const futianStation = GEO.sites?.['futian-station']?.station
-    ? buildFutianStation(scene, GEO.sites['futian-station'].station, {
-      groundHeight: ground.groundHeight, colliders: buildings
-    }) : null;
-  const xiliConstruction = GEO.sites?.['xili-station']?.site
-    ? buildXiliConstruction(scene, GEO.sites['xili-station'].site, {
-      groundHeight: ground.groundHeight, isWater
-    }) : null;
+  const stations = qa.stage('stations', () => ({
+    futian: GEO.sites?.['futian-station']?.station
+      ? buildFutianStation(scene, GEO.sites['futian-station'].station, site) : null,
+    xili: GEO.sites?.['xili-station']?.site
+      ? buildXiliConstruction(scene, GEO.sites['xili-station'].site, site) : null
+  }));
+  const futianStation = stations?.futian ?? null;
+  const xiliConstruction = stations?.xili ?? null;
   // 无人机航线：端点来自 air 段公开来源；航迹示意，会期低空管控时停在站点。
-  const drones = buildSzDroneRoutes(scene, { air: GEO.air, terrain: GEO.terrain });
-  if (qa) {
-    window.__szLamps = streetLamps; window.__szTrees = trees; window.__szApec = apecTheme;
-    window.__szApecCity = apecCity; window.__szDrones = drones; window.__szLightShow = lightShow;
-    window.__szElevatedRoads = elevatedRoads;
-    window.__szMetroEntrances = metroEntrances; window.__szFutian = futianStation; window.__szXili = xiliConstruction;
-  }
+  const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, terrain: site.terrain }));
   const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...trees.colliders,
     ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? [])];
+  site.colliders = colliders;
   await showLoadingStage(STR.startup.traffic, 'traffic');
-  const traffic = createSzTraffic(scene, GEO.roadGraph, {
-    roadHeight: roads.roadHeight,
-    colliders, signals: roadFrontage.control, detailedRoadIds: roadFrontage.detailedRoadIds,
+  const traffic = qa.stage('traffic', () => createSzTraffic(scene, GEO.roadGraph, {
+    ...site, signals: roadFrontage.control, detailedRoadIds: roadFrontage.detailedRoadIds,
     canTurn: createTurnFilter(GEO.roadGraph)
-  });
+  }));
   markInit('traffic');
 
   // 路缘接触和绘制共用同一份三角面，未覆盖的位置沿用源地形。
   await showLoadingStage(STR.startup.controllers, 'controllers');
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
-    groundHeight: (x, z) => roadFrontage.contactHeight(x, z) ?? ground.groundHeight(x, z),
+    groundHeight: site.heightAt,
     surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces],
     nearTraffic: traffic.nearColliders
   });
@@ -324,15 +278,14 @@ async function initApp() {
   } catch { /* Missing or unavailable storage does not prevent playing. */ }
   const players = Object.values(controllerManager.entities);
   // 环境人群复用纽约 PersonRig；行走位置是沿路侧模拟步行带，非全城实测人行道。
-  const pedestrians = createSzPedestrians(scene, GEO.roadGraph, {
-    heightAt: (x, z) => roadFrontage.contactHeight(x, z) ?? ground.groundHeight(x, z),
-    colliders,
+  const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, GEO.roadGraph, {
+    ...site,
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
     spawnMinM: 8,
     spawnMaxM: 160
-  });
+  }));
   roadFrontage.update(0);
   traffic.update(0, controllerManager.getActiveEntity().position, players, 0);
   pedestrians.update(0, controllerManager.getActiveEntity().position, 0, null, [controllerManager.getActiveEntity()]);
@@ -608,46 +561,7 @@ async function initApp() {
   try { savedApec = localStorage.getItem(APEC_STATE_KEY); } catch { /* ignore */ }
   setApecTheme(savedApec === null ? apecTheme.enabled : savedApec === '1', { persist: false });
 
-  // Popovers (native [popover]: light dismiss & Esc for free) open against the control that toggles them: data-anchor
-  // names the element they sit above / below, data-align the one whose right edge they line up with
-  const popovers = document.querySelectorAll('.popover[popover]');
-  const supportsPopover = typeof HTMLElement.prototype.togglePopover === 'function';
-  function closePopovers() {
-    if (!supportsPopover) return;
-    popovers.forEach((pop) => {
-      if (pop.matches(':popover-open')) pop.hidePopover();
-    });
-  }
-  popovers.forEach((pop) => {
-    const invokers = [...document.querySelectorAll(`[popovertarget="${pop.id}"]`)];
-    pop.addEventListener('beforetoggle', (e) => {
-      const open = e.newState === 'open';
-      const invoker = invokers.includes(e.source) ? e.source
-        : invokers.find(button => button === document.activeElement) ?? invokers[0];
-      for (const button of invokers) button.classList.toggle('is-open', open && button === invoker);
-      if (!open) return;
-      const anchor = document.getElementById(pop.dataset.anchor) || invoker;
-      const align = document.getElementById(pop.dataset.align) || invoker;
-      if (!anchor || !align) return;
-      const r = anchor.getBoundingClientRect();
-      const spaceAbove = Math.max(0, r.top - 20);
-      const spaceBelow = Math.max(0, window.innerHeight - r.bottom - 20);
-      let above = pop.dataset.side === 'above';
-      // The camera control moves to the top on touch screens; open toward the available space.
-      if ((above ? spaceAbove : spaceBelow) < 160) above = spaceAbove > spaceBelow;
-      pop.style.right = `${Math.max(8, window.innerWidth - align.getBoundingClientRect().right)}px`;
-      if (above) {
-        pop.style.top = 'auto';
-        pop.style.bottom = `${window.innerHeight - r.top + 8}px`;
-        pop.style.maxHeight = `${spaceAbove}px`;
-      } else {
-        pop.style.bottom = 'auto';
-        pop.style.top = `${r.bottom + 8}px`;
-        pop.style.maxHeight = `${spaceBelow}px`;
-      }
-    });
-  });
-
+  const closePopovers = wirePopovers();
   modeButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       selectMode(btn.getAttribute('data-mode'));
@@ -678,49 +592,13 @@ async function initApp() {
     if (btn && e.detail > 0) btn.blur();
   });
 
-  let locationText = '';
-  let locationBuilding = '';
-  // 普通楼没有名称时，用附近地标名兜底，让平安、春笋这类专模也有定位提示。
-  function nearestLandmarkName(x, z, radius = 240) {
-    let best = null;
-    for (const landmark of SZ_LANDMARKS) {
-      if (!Number.isFinite(landmark.x) || !Number.isFinite(landmark.z)) continue;
-      const distance = Math.hypot(landmark.x - x, landmark.z - z);
-      if (distance > radius) continue;
-      if (!best || distance < best.distance) best = { name: landmark.name, distance };
-    }
-    return best ? best.name : null;
-  }
-
-  function renderLocation(x, z) {
-    if (!elLocation) return;
-    const label = getLocationLabel(x, z);
-    // 就近建筑名只作定位提示；普通楼无名称时退回附近地标名。
-    const buildingName = buildingSigns.nearestName(x, z) ?? nearestLandmarkName(x, z) ?? '';
-    if (label === locationText && buildingName === locationBuilding) return;
-    locationText = label;
-    locationBuilding = buildingName;
-    const info = getLocationInfo(x, z);
-    const place = document.createElement('div');
-    if (info.road && info.kind === 'land') {
-      place.className = 'location-signs';
-      const sign = document.createElement('span');
-      sign.className = 'street-sign';
-      sign.textContent = label;
-      place.appendChild(sign);
-    } else {
-      place.className = 'location-place';
-      place.textContent = label;
-    }
-    if (buildingName) {
-      const near = document.createElement('span');
-      near.className = 'location-near';
-      near.textContent = buildingName;
-      place.appendChild(near);
-    }
-    elLocation.replaceChildren(place);
-  }
-
+  const renderLocation = createLocationReadout({
+    el: elLocation, nearestBuildingName: (x, z) => buildingSigns.nearestName(x, z)
+  });
+  const hud = createHudTelemetry({
+    els: { fps: elFps, speed: elSpeed, speedMeter: elSpeedMeter, altitude: elAltitude },
+    controllerManager, cameraSystem, topSpeed, renderLocation
+  });
   function teleportTo(x, z, heading, options = {}) {
     if (!inBounds(x, z)) return null;
     const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(GEO.parks, x, z) : null);
@@ -847,37 +725,6 @@ async function initApp() {
   const openMapBtn = document.getElementById('btn-open-map');
   if (openMapBtn) openMapBtn.addEventListener('click', () => mapSystem.toggleFullMap(true));
 
-  // QA 专用传送：只在本机回环地址的 ?qa=1 下暴露，便于固定机位复测。
-  if (qa) window.__szTeleport = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null, { exact: true });
-  // QA：列出某点附近的交通碰撞体，用于区分“被 NPC 车辆挡住”与“桥面/坡度问题”。
-  if (qa) window.__szNearTraffic = (x, z, radius = 12) => (traffic.nearColliders(x, z, radius) ?? []).map(item => ({
-    x: Math.round(item.x ?? item.minX ?? 0), z: Math.round(item.z ?? item.minZ ?? 0), kind: item.kind ?? item.type ?? 'vehicle'
-  }));
-  // QA：查询某点的接触候选面（地形/地标/高架），用于诊断载具卡住。
-  if (qa) window.__szSurfaceAt = (x, z) => controllerManager.surfaceResolver.at(x, z);
-  // QA：把车辆放到最近的源路网节点（道路中心），用于自动驾驶/连续驾驶验收。
-  if (qa) window.__szTeleportRoad = (x, z, heading = 0) => {
-    let best = null, bestDistance = Infinity;
-    for (let index = 0; index < GEO.roadGraph.nodes.length; index += 2) {
-      const distance = (GEO.roadGraph.nodes[index] - x) ** 2 + (GEO.roadGraph.nodes[index + 1] - z) ** 2;
-      if (distance < bestDistance) { bestDistance = distance; best = index; }
-    }
-    if (best === null) return false;
-    return controllerManager.teleportActiveTo(GEO.roadGraph.nodes[best], GEO.roadGraph.nodes[best + 1], heading, null);
-  };
-  // QA：非精确传送（自动找最近可站立落点），用于把车辆/人物放到道路上做连续走通测试。
-  if (qa) window.__szTeleportNear = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null);
-  // QA 诊断：列出某点附近的碰撞体，用于定位“走不过去”的地面入口。
-  if (qa) window.__szNearColliders = (x, z, radius = 40) => colliders.filter(collider =>
-    Number.isFinite(collider?.minX) && collider.maxX > x - radius && collider.minX < x + radius
-    && collider.maxZ > z - radius && collider.minZ < z + radius)
-    .sort((a, b) => Math.hypot((a.minX + a.maxX) / 2 - x, (a.minZ + a.maxZ) / 2 - z)
-      - Math.hypot((b.minX + b.maxX) / 2 - x, (b.minZ + b.maxZ) / 2 - z))
-    .slice(0, 12).map(collider => ({ type: collider.type, name: collider.name, sourceId: collider.sourceId,
-      minY: collider.minY, maxY: collider.maxY,
-      minX: Math.round(collider.minX), maxX: Math.round(collider.maxX),
-      minZ: Math.round(collider.minZ), maxZ: Math.round(collider.maxZ) }));
-
   if (hudToggleBtn) {
     hudToggleBtn.addEventListener('click', () => {
       document.body.classList.toggle('hud-minimized');
@@ -889,55 +736,15 @@ async function initApp() {
     });
   }
 
-  // Global keyboard shortcuts for modes (1-4), cameras (V / 5-0), and HUD (H)
-  window.addEventListener('keydown', (e) => {
-    if (isTypingInField(e)) return;
-    switch (e.code) {
-      case 'Digit1':
-        selectMode('person');
-        break;
-      case 'Digit2':
-        selectMode('car');
-        break;
-      case 'Digit3':
-        selectMode('cyclist');
-        break;
-      case 'Digit4':
-        selectMode('helicopter');
-        break;
-      case 'Digit5':
-        selectCamera('chase', true);
-        break;
-      case 'Digit6':
-        selectCamera('action', true);
-        break;
-      case 'Digit7':
-        selectCamera('pov', true);
-        break;
-      case 'Digit8':
-        selectCamera('fifthAve', true);
-        break;
-      case 'Digit9':
-        selectCamera('timesSquare', true);
-        break;
-      case 'Digit0':
-        selectCamera('chryslerGCT', true);
-        break;
-      case 'KeyV':
-        cycleCamera(e.shiftKey ? -1 : 1);
-        break;
-      case 'KeyH':
-        if (hudToggleBtn) hudToggleBtn.click();
-        break;
-      case 'KeyN':
-        if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) audioSystem.setEnabled(!audioSystem.enabled);
-        break;
-      case 'KeyB':
-        if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey && !mapSystem.isFullMapOpen) audioSystem.honk(controllerManager.getActiveEntity());
-        break;
-    }
+  // 模式 1–4、相机 V 与 5–0、HUD H、声音 N、喇叭 B 的全局快捷键由 js/sz-ui.js 统一接线。
+  wireShortcuts({
+    onMode: selectMode,
+    onCamera: (id) => selectCamera(id, true),
+    onCycleCamera: cycleCamera,
+    onToggleHud: () => hudToggleBtn?.click(),
+    onToggleSound: () => audioSystem.setEnabled(!audioSystem.enabled),
+    onHonk: () => { if (!mapSystem.isFullMapOpen) audioSystem.honk(controllerManager.getActiveEntity()); }
   });
-
   window.addEventListener('resize', () => {
     cameraSystem.onResize(window.innerWidth, window.innerHeight);
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -952,90 +759,20 @@ async function initApp() {
   selectMode(controllerManager.activeMode);
   selectCamera('chase', true);
   selectTime(initialTime);
-  if (qa) {
-    // 只返回快照，验收通过同一套玩家输入完成。
-    window.__szDebug = { scene, camera: cameraSystem.camera, signs: buildingSigns, details: buildingDetails,
-      controllerManager, teleport: teleportTo };
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) return;
-      qa.frames.length = 0;
-      qa.gpu.length = 0;
-      qa.queue.length = 0;
-      qa.previousFrameAt = null;
+  // QA 入口：只在回环地址的 ?qa=1 下调用，普通游玩地址不向 window 暴露任何调试对象。
+  if (qa.enabled) {
+    qa.install({
+      renderer, scene, cameraSystem, controllerManager, mapSystem, autoDrive, lightingSystem, audioSystem,
+      buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, sea, bridge,
+      modules: {
+        lamps: streetLamps, trees, apec: apecTheme, apecCity, drones, lightShow,
+        elevatedRoads, metroEntrances, futian: futianStation, xili: xiliConstruction
+      },
+      teleport: teleportTo,
+      getElapsed: () => elapsed,
+      getRenderedFrames: () => renderedFrames,
+      getGraphicsLoss: () => graphicsLoss
     });
-    function profileSnapshot() {
-      const durationMs = Math.min(10000, qa.frames.reduce((sum, frame) => sum + frame.intervalMs, 0));
-      const fields = ['intervalMs', 'simulationMs', 'sceneUiMs', 'renderCpuMs', 'drawCalls', 'triangles', 'gpuBytes'];
-      return {
-        chunkSize: qa.chunkSize,
-        startupMs: { ...qa.startup },
-        frames: qa.frames.length,
-        durationMs,
-        fps: durationMs ? qa.frames.length * 1000 / durationMs : null,
-        ...Object.fromEntries(fields.map(key => [key, summarizeSamples(qa.frames.map(frame => frame[key]))])),
-        gpuRenderMs: summarizeSamples(qa.gpu.map(sample => sample.ms)),
-        gpuSamples: qa.gpu.length,
-        gpuQueueWaitMs: summarizeSamples(qa.queue.map(sample => sample.ms)),
-        gpuQueueSamples: qa.queue.length
-      };
-    }
-    Object.defineProperty(window, '__szQA', { value: () => ({
-      ready: audioSystem.ready,
-      mode: controllerManager.activeMode,
-      entities: Object.fromEntries(Object.entries(controllerManager.entities).map(([mode, entity]) => [mode, {
-        x: entity.position.x, y: entity.position.y, z: entity.position.z, heading: entity.heading, speed: entity.speed
-      }])),
-      camera: { id: cameraSystem.activePresetId, position: cameraSystem.camera.position.toArray() },
-      time: lightingSystem.activePresetId,
-      map: { open: mapSystem.isFullMapOpen, search: mapSystem.searchHighlight,
-        waypoint: mapSystem.waypoint && { ...mapSystem.waypoint }, metro: [...mapSystem.metroLines],
-        view: { x: mapSystem.viewCenterX, z: mapSystem.viewCenterZ, zoom: mapSystem.viewZoom } },
-      traffic: { ...traffic.statistics, actors: traffic.vehicles.filter(actor => actor.route).map(actor => {
-        const stop = actor.stops[actor.stopIndex];
-        return { id: actor.id, x: actor.pose.x, y: actor.pose.y, z: actor.pose.z, heading: actor.pose.heading,
-          wayId: actor.pose.edge?.osmId, speed: actor.speed, s: actor.s, end: actor.end, stalled: actor.stalled,
-          wait: actor.waitingForSignal, blocker: actor.blocker ?? null, reservation: actor.reservation?.id ?? null,
-          stop: stop ? { s: stop.s, clearS: stop.clearS, osmNodeId: stop.approach.osmNodeId, group: stop.approach.group } : null };
-      }) },
-      pedestrians: { ...pedestrians.statistics },
-      roadFrontage: { ...roadFrontage.statistics, intersections: roadFrontage.control.intersections.map(intersection => ({
-        id: intersection.id, approaches: intersection.approaches.map(({ osmNodeId, group, stopX, stopZ }) => ({ osmNodeId, group, stopX, stopZ }))
-      })), clock: elapsed, control: roadFrontage.control.snapshot?.(elapsed) ?? [],
-        crossSections: GEO.roadGraph.metadata.flatMap(({ crossSection, osmId }, i) => crossSection
-          ? [{ id: crossSection.id, osmId, widthM: GEO.roadGraph.links[i][3], lanes: GEO.roadGraph.links[i][4], stations: crossSection.points.length / 3 }] : []) },
-      autoDrive: { status: autoDrive.status, ...autoDrive.statistics,
-        route: mapSystem.driveRoute && { from: [mapSystem.driveRoute.from.x, mapSystem.driveRoute.from.z],
-          to: [mapSystem.driveRoute.to.x, mapSystem.driveRoute.to.z], length: mapSystem.driveRoute.length,
-          wayIds: [...new Set(mapSystem.driveRoute.edges.map(edge => edge.osmId))],
-          stops: mapSystem.driveRoute.stops.map(stop => stop.approach.osmNodeId) } },
-      sea: sea && { heightM: sea.heightM, triangles: sea.triangles, verticalDatum: sea.mesh.userData.source.verticalDatum },
-      streetscape: streetscape.statistics && { ...streetscape.statistics, arrival: streetscape.arrival,
-        activePaths: streetscape.pathAt(controllerManager.getActiveEntity().position.x, controllerManager.getActiveEntity().position.z) },
-      landmarks: {
-        models: landmarks.group.children.map(group => group.name),
-        replaced: landmarks.skipIds.size,
-        collisionParts: landmarks.colliders.length,
-        roofSurfaces: landmarks.surfaces.map(surface => surface.id),
-        distant: bridge.group ? [{ id: bridge.group.name, ...bridge.statistics, playable: false }] : []
-      },
-      profile: profileSnapshot(),
-      details: {
-        chunks: buildingDetails.statistics.chunks, meshes: buildingDetails.statistics.meshes,
-        triangles: buildingDetails.statistics.triangles, buildings: buildingDetails.statistics.buildings,
-        balconies: buildingDetails.statistics.balconies, acUnits: buildingDetails.statistics.acUnits,
-        roofParts: buildingDetails.statistics.roofParts, pending: buildingDetails.statistics.pending,
-        updateMs: buildingDetails.statistics.updateMs
-      },
-      signs: {
-        signs: buildingSigns.statistics.signs, textures: buildingSigns.statistics.textures,
-        chunks: buildingSigns.statistics.chunks, compounds: buildingSigns.statistics.compounds,
-        compoundClusters: buildingSigns.statistics.compoundClusters,
-        updateMs: buildingSigns.statistics.updateMs
-      },
-      renderer: { backend: renderer.backend.constructor.name, initialized: renderer.initialized,
-        animationRegistered: Boolean(renderer.getAnimationLoop()), frame: renderer.info.frame, renderedFrames,
-        deviceLost: graphicsLoss && { ...graphicsLoss }, render: { ...renderer.info.render }, memory: { ...renderer.info.memory } }
-    }) });
   }
   // the web fonts change the buttons' widths once they arrive
   if (document.fonts) document.fonts.ready.then(placeModeIndicator);
@@ -1122,8 +859,6 @@ async function initApp() {
 
   // 6. Animation Loop
   let lastTime = performance.now();
-  let frameCount = 0;
-  let fpsTimer = 0;
   let nextPlayerSave = 0;
   let warmedUp = false; // see the first frame below
 
@@ -1131,8 +866,8 @@ async function initApp() {
 
   function renderFrame(now) {
     if (graphicsLoss) return;
-    const measureFrame = qa && audioSystem.ready && !document.hidden;
-    const profileStart = measureFrame ? performance.now() : 0;
+    // QA 采样令牌：非 qa 或未就绪时返回 null，下面几个调用都按空操作处理。
+    const profile = qa.beginFrame(audioSystem.ready);
     const rawDt = (now - lastTime) * 0.001;
     lastTime = now;
     const dt = Math.min(Math.max(rawDt, 0.001), 0.05);
@@ -1155,11 +890,7 @@ async function initApp() {
       manual: !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right) });
     controllerManager.update(dt, elapsed, cameraSystem.initialized ? cameraSystem.currentPos : null, driveInput);
     cameraSystem.update(dt, elapsed);
-    if (freeCamera) {
-      cameraSystem.camera.position.set(freeCamera[0], freeCamera[1], freeCamera[2]);
-      cameraSystem.camera.lookAt(freeCamera[3], freeCamera[4], freeCamera[5]);
-      cameraSystem.camera.updateMatrixWorld();
-    }
+    qa.applyCamera(cameraSystem.camera);
     streetscape.update(cameraSystem.camera.position);
     streetLamps.update(cameraSystem.camera.position, lightingSystem.uNightFactor.value);
     trees.update(cameraSystem.camera.position);
@@ -1174,7 +905,7 @@ async function initApp() {
     buildingSigns.group.updateMatrixWorld(true);
     buildingDetails.update(cameraSystem.camera.position);
     buildingDetails.group.updateMatrixWorld(true);
-    const simulationEnd = measureFrame ? performance.now() : 0;
+    qa.markSimulation(profile);
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();
       nextPlayerSave = now + 5000;
@@ -1184,7 +915,7 @@ async function initApp() {
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
     for (const root of dynamicRoots) root.updateMatrixWorld();
-    const renderStart = measureFrame ? performance.now() : 0;
+    qa.markRender(profile);
 
     // Render frame via TSL RenderPipeline (SSR + Bloom)
     if (!warmedUp) {
@@ -1208,35 +939,7 @@ async function initApp() {
     }
     renderPipeline.render();
     renderedFrames++;
-    if (measureFrame) {
-      const cutoff = now - 10000;
-      if (qa.previousFrameAt !== null) qa.frames.push({
-        at: now, intervalMs: now - qa.previousFrameAt, simulationMs: simulationEnd - profileStart,
-        sceneUiMs: renderStart - simulationEnd, renderCpuMs: performance.now() - renderStart,
-        drawCalls: renderer.info.render.drawCalls, triangles: renderer.info.render.triangles,
-        gpuBytes: renderer.info.memory.total
-      });
-      qa.previousFrameAt = now;
-      while (qa.frames[0]?.at < cutoff) qa.frames.shift();
-      while (qa.gpu[0]?.at < cutoff) qa.gpu.shift();
-      while (qa.queue[0]?.at < cutoff) qa.queue.shift();
-      if (renderedFrames % 30 === 0) {
-        const device = renderer.backend.device;
-        if (device && !qa.queuePending) {
-          const started = performance.now();
-          qa.queuePending = true;
-          device.queue.onSubmittedWorkDone().then(() => {
-            if (!document.hidden) qa.queue.push({ at: now, ms: performance.now() - started });
-          }).catch(error => console.warn('[profile queue]', error)).finally(() => { qa.queuePending = false; });
-        }
-        if (renderer.backend.trackTimestamp && !qa.queryPending) {
-          qa.queryPending = true;
-          renderer.resolveTimestampsAsync(THREE.TimestampQuery.RENDER).then(ms => {
-            if (Number.isFinite(ms) && !document.hidden) qa.gpu.push({ at: now, ms });
-          }).catch(error => console.warn('[profile timestamp]', error)).finally(() => { qa.queryPending = false; });
-        }
-      }
-    }
+    qa.endFrame(profile, now, renderer);
     if (!warmedUp) {
       warmedUp = true;
       markInit('firstFrame');
@@ -1261,32 +964,8 @@ async function initApp() {
       });
     }
 
-    // Telemetry uses wall time, not the clamped simulation step, so slow frames and high-refresh displays report
-    // their actual frame rate (updates DOM every 250ms).
-    frameCount++;
-    fpsTimer += Math.max(0, rawDt);
-    if (fpsTimer >= 0.25) {
-      const currentFps = Math.round(frameCount / fpsTimer);
-      frameCount = 0;
-      fpsTimer = 0;
-
-      const activeEnt = controllerManager.getActiveEntity();
-      const mode = controllerManager.activeMode;
-      const speed = Math.abs(activeEnt.speed);
-      const kmh = Math.round(speed * 3.6);
-      const altitude = Math.round(activeEnt.position.y);
-
-      if (elFps) {
-        elFps.textContent = String(currentFps);
-        elFps.className = currentFps >= 50 ? 'fps-ok' : currentFps >= 30 ? 'fps-warn' : 'fps-bad';
-      }
-      if (elSpeed) elSpeed.textContent = String(kmh);
-      if (elSpeedMeter) elSpeedMeter.style.transform = `scaleX(${Math.min(1, speed / topSpeed[mode])})`;
-      if (elAltitude) elAltitude.textContent = altitude.toLocaleString('zh-CN');
-      // The street corner of the player on the follow cameras, of the camera itself on the scenic ones
-      const where = cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos;
-      renderLocation(where.x, where.z);
-    }
+    // HUD 读数按墙钟时间更新，慢帧和高刷屏都显示实际帧率。
+    hud.update(rawDt);
   }
 
   // 在启动流程里完成首帧，首帧异常可由 initApp 的调用方显示。

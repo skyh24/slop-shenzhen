@@ -50,7 +50,7 @@ const loadPlan = (cultureModule, upperhillsModule = upperhills, iecModule = iec,
   './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun,
   './civic-center.js': civic, './chunjian.js': stadium, './shenzhen-bay-culture-square.js': cultureModule,
   './convention-center.js': convention, './upperhills.js': upperhillsModule, './nonferrous-tower.js': nonferrous,
-  './iec-xiangmihu.js': iecModule, './super-hq.js': superHqModule
+  './iec-xiangmihu.js': iecModule, './super-hq.js': superHqModule, '../building-collision.js': collision
 } });
 const { planSzLandmarks } = loadPlan(culture);
 const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
