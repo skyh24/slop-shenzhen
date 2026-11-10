@@ -7,7 +7,14 @@ const { loadModule } = require('./helpers/module.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const THREE_STUB = {};
-const trees = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE_STUB } });
+// 解码/LOD 纯函数测试用不到树冠库；真实 Three 用例里再加载 sz-tree-crown.js。
+const crownStub = {
+  CROWN_SPECIES: { ficus: {}, camphor: {}, phoenix: {}, bauhinia: {}, 'royal-palm': {}, kapok: {} },
+  createCrownLibrary: () => { throw new Error('crown library not used here'); }
+};
+const trees = loadModule(read('sz-trees.js'), {
+  imports: { 'three/webgpu': THREE_STUB, './sz-tree-crown.js': crownStub }
+});
 
 const SPECIES = ['ficus', 'camphor', 'phoenix', 'bauhinia', 'royal-palm', 'kapok'];
 const SOURCES = ['osm-node', 'osm-row', 'simulated-street', 'simulated-park'];
@@ -116,7 +123,12 @@ const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 
 test('instanced tree chunks place trunks on the lowest probe height and switch LOD by camera', { skip: !threeDir }, async () => {
   const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
-  const model = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE } });
+  const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
+  const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
+  const model = loadModule(read('sz-trees.js'), {
+    imports: { 'three/webgpu': THREE, './sz-tree-crown.js': { CROWN_SPECIES: crown.CROWN_SPECIES,
+      createCrownLibrary: crown.createCrownLibrary } }
+  });
   const payload = makePayload([
     { x: 0, z: 0, height: 120, crown: 100, osm: 'node/1', source: 'osm-node', appearance: 'osm-tags' },
     { x: 15000, z: 0, height: 120, crown: 100, source: 'simulated-park' },
@@ -154,13 +166,26 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
   assert.equal(matrix.elements[13], 5);
 
   // 近/远/隐藏三档切换：初始相机在原点时 0,0 块用近冠。
-  const nearMesh = built.group.getObjectByName('tree-crowns-near:0,0/0,0');
+  const nearMesh = built.group.getObjectByName('tree-crowns-near:0,0/0,0:ficus');
   const farMesh = built.group.getObjectByName('tree-crowns-far:0,0/0,0');
   assert.equal(nearMesh.visible, true);
   assert.equal(farMesh.visible, false);
   assert.equal(built.statistics.visible.nearCells, 1);
   assert.equal(built.statistics.visible.hiddenCells, 1);
   assert.equal(built.statistics.lodCells, 2);
+
+  // 近景榕树用叶卡树冠：实例属性齐全，远景仍是 80 三角形的低模 icosahedron。
+  assert.ok(nearMesh.geometry.attributes.aTreeData);
+  assert.ok(nearMesh.geometry.attributes.aTreeSway);
+  assert.equal(nearMesh.geometry.attributes.aTree.itemSize, 4);
+  assert.equal(nearMesh.count, 1);
+  assert.equal(farMesh.geometry.attributes.position.count / 3, 80);
+  assert.deepEqual(Array.from(built.statistics.crown.species, item => item.name), ['ficus']);
+  assert.equal(built.statistics.crown.species[0].seed, 20261110);
+  assert.ok(built.statistics.triangles.cardPerTree.ficus > 500);
+  assert.equal(built.statistics.crown.headlessAtlas, true);
+  assert.equal(built.statistics.visible.cardTrees, 1);
+  assert.equal(built.statistics.visible.triangles, 16 + built.statistics.triangles.cardPerTree.ficus);
 
   built.update(new THREE.Vector3(0, 5, 700));
   assert.equal(nearMesh.visible, false);
@@ -170,7 +195,7 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
 
   built.update(new THREE.Vector3(1500, 5, 0));
   assert.equal(nearMesh.visible, false);
-  assert.equal(built.group.getObjectByName('tree-crowns-near:1,0/6,0').visible, true);
+  assert.equal(built.group.getObjectByName('tree-crowns-near:1,0/6,0:ficus').visible, true);
   assert.equal(built.statistics.visible.hiddenCells, 1);
   assert.equal(built.statistics.visible.nearCells, 1);
 
@@ -185,7 +210,12 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
 
 test('missing or empty tree payload leaves scene untouched apart from an empty group', { skip: !threeDir }, async () => {
   const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
-  const model = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE } });
+  const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
+  const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
+  const model = loadModule(read('sz-trees.js'), {
+    imports: { 'three/webgpu': THREE, './sz-tree-crown.js': { CROWN_SPECIES: crown.CROWN_SPECIES,
+      createCrownLibrary: crown.createCrownLibrary } }
+  });
   const scene = new THREE.Scene();
   const built = model.buildSzTrees(scene, undefined, {});
   assert.equal(built.group.children.length, 0);
@@ -195,4 +225,66 @@ test('missing or empty tree payload leaves scene untouched apart from an empty g
   const withCount = model.buildSzTrees(scene, makePayload([{ x: 0, z: 0 }]), {});
   assert.equal(withCount.statistics.skipped.unsupportedGround, 1);
   withCount.dispose();
+});
+
+test('every species gets its own card-crown mesh in the near LOD', { skip: !threeDir }, async () => {
+  const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
+  const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
+  const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
+  const model = loadModule(read('sz-trees.js'), {
+    imports: { 'three/webgpu': THREE, './sz-tree-crown.js': { CROWN_SPECIES: crown.CROWN_SPECIES,
+      createCrownLibrary: crown.createCrownLibrary } }
+  });
+  const scene = new THREE.Scene();
+  const built = model.buildSzTrees(scene, makePayload([
+    { x: 0, z: 0, height: 120, crown: 100, species: 'camphor', osm: 'node/2', source: 'osm-node' },
+    { x: 30, z: 0, height: 130, crown: 40, species: 'royal-palm', osm: 'node/3', source: 'osm-node' },
+    { x: 60, z: 0, height: 110, crown: 90, species: 'phoenix', osm: 'node/4', source: 'osm-node' }
+  ]), { groundHeight: () => 0 });
+  const names = ['camphor', 'royal-palm', 'phoenix'];
+  for (const name of names) {
+    assert.ok(built.group.getObjectByName(`tree-crowns-near:0,0/0,0:${name}`), name);
+  }
+  assert.equal(built.statistics.visible.cardTrees, 3);
+  const expected = names.length * 16 + names.reduce((sum, name) => sum + built.statistics.triangles.cardPerTree[name], 0);
+  assert.equal(built.statistics.visible.triangles, expected);
+  assert.ok(built.statistics.triangles.cardPerTree['royal-palm'] < 100, 'palm fronds are cheap');
+  built.dispose();
+});
+
+test('near LOD hysteresis keeps crowns steady across the 180–198 m band', { skip: !threeDir }, async () => {
+  const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
+  const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
+  const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
+  const model = loadModule(read('sz-trees.js'), {
+    imports: { 'three/webgpu': THREE, './sz-tree-crown.js': { CROWN_SPECIES: crown.CROWN_SPECIES,
+      createCrownLibrary: crown.createCrownLibrary } }
+  });
+  const scene = new THREE.Scene();
+  const built = model.buildSzTrees(scene, makePayload([
+    { x: 0, z: 0, height: 120, crown: 100, osm: 'node/3', source: 'osm-node' }
+  ]), { groundHeight: () => 0 });
+  const cards = built.group.getObjectByName('tree-crowns-near:0,0/0,0:ficus');
+  const far = built.group.getObjectByName('tree-crowns-far:0,0/0,0');
+  // 初始在原点时是近冠；越过 198 m 才切远冠。
+  assert.equal(cards.visible, true);
+  built.update(new THREE.Vector3(0, 2, 199));
+  assert.equal(cards.visible, false);
+  assert.equal(far.visible, true);
+  built.update(new THREE.Vector3(0, 2, 185));
+  assert.equal(cards.visible, false);
+  assert.equal(far.visible, true);
+  built.update(new THREE.Vector3(0, 2, 179));
+  assert.equal(cards.visible, true);
+  assert.equal(far.visible, false);
+  // 179 → 190 仍在 180–198 的迟滞带内：保持近冠，不会来回闪。
+  built.update(new THREE.Vector3(0, 2, 190));
+  assert.equal(cards.visible, true);
+  assert.equal(far.visible, false);
+  built.update(new THREE.Vector3(0, 2, 197.9));
+  assert.equal(cards.visible, true);
+  built.update(new THREE.Vector3(0, 2, 198.1));
+  assert.equal(cards.visible, false);
+  assert.equal(far.visible, true);
+  built.dispose();
 });
