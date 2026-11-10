@@ -208,7 +208,9 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, area)
   const endY = sharedEnd ? endGround : endGround + lift;
   const stations = resample(points, DECK_STEP_M);
   if (stations.length < 2) return null;
-  const width = link[3];
+  // 高架/匝道桥面按最小 6.5 m 铺装：OSM 里不少匝道只有 3–4 m 宽，车辆很容易偏出缎带
+  // （round 35 诊断）；6.5 m 在双向匝道与视觉合理之间折中（10 m 会与测试面积口径冲突）。
+  const width = Math.max(link[3], 6.5);
   const frames = stationFrames(stations, width);
   const deckHeightAt = distance => startY + (endY - startY) * Math.min(1, distance / length);
   const half = Math.max(0.7, Math.min(1.4, width * 0.08));
