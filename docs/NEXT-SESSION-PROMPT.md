@@ -1,5 +1,7 @@
 # 新会话接续提示（2026-11-10 round 49 生成）
 
+2026-11-10 审查后更新：下面 round 49 提示保留作历史背景。继续实现时，先读 [审查与下一步清单](REVIEW-FOLLOWUP-2026-11-10.md) 和 [TASKS.md](TASKS.md) 的优先修复部分，按“裙房占道 → 启动失败处理 → 屋顶约束/无人机返航 → 高架驾驶/乘员闭环 → M9 测量与优化”推进。M9 测量可提前开展；旧卡点推测必须重新验证。本次仅完成审查文档落盘，没有修复运行时问题。
+
 把下面这段直接发给新的编码会话即可接续：
 
 > 继续 Slop Shenzhen 项目（工作目录 `/Users/holder/Documents/ChatGPT/slop-shenzhen`，正式入口 http://127.0.0.1:8080/ 需常驻）。先读 `docs/HANDOFF.md`、`docs/ACCEPTANCE-STATUS.md`、`docs/TASKS.md`、`docs/CONVENTIONS.md`，再按下列优先级推进：
