@@ -140,3 +140,24 @@ test('building names and levels survive decoding and invalid indices are rejecte
   missingTable.buildings.name[0] = 0;
   assert.throws(() => validateCityPayload(missingTable), /building name index/);
 });
+
+test('reading the city payload no longer validates it; decoding validates once', async () => {
+  const { readCityPayload, decodeCityPayload } = await modulePromise;
+  // version=3 的包能读进来，说明读取阶段不再校验；解码阶段仍然拒绝它。
+  const unvalidated = { ...raw, version: 3 };
+  const loaded = await readCityPayload('fixture', async () => new Response(JSON.stringify(unvalidated)));
+  assert.equal(loaded.version, 3, 'readCityPayload must not reject data that only validation rejects');
+  assert.throws(() => decodeCityPayload(unvalidated), /version/);
+  await assert.rejects(() => readCityPayload('fixture', async () => new Response('', { status: 404 })), /404/);
+  await assert.rejects(() => readCityPayload('fixture', async () => new Response(bytes.subarray(0, 80))));
+});
+
+test('the city payload is validated at exactly one call site', () => {
+  const source = readFileSync(join(root, 'js/sz-data-format.js'), 'utf8');
+  const calls = [...source.matchAll(/(?<!function\s)validateCityPayload\(raw\)/g)];
+  assert.equal(calls.length, 1, 'validateCityPayload(raw) runs exactly once, in decodeCityPayload');
+  const decodeStart = source.indexOf('function decodeCityPayload');
+  assert.ok(decodeStart >= 0, 'decodeCityPayload is exported');
+  assert.ok(calls[0].index > decodeStart,
+    'the single validation call belongs to decodeCityPayload, not readCityPayload');
+});

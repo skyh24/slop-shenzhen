@@ -225,6 +225,7 @@ function validateBridges(bridges, landmarkIds) {
   }
 }
 
+// 只做下载、解压和解析，返回未校验的原始 JSON；校验统一放在 decodeCityPayload 里做一次。
 export async function readCityPayload(url, fetcher = fetch) {
   const response = await fetcher(url);
   if (!response.ok) throw new Error(`City data request failed: ${response.status}`);
@@ -234,7 +235,6 @@ export async function readCityPayload(url, fetcher = fetch) {
     ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text()
     : new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   const raw = JSON.parse(text);
-  validateCityPayload(raw);
   return raw;
 }
 
@@ -344,6 +344,7 @@ export function validateCityPayload(raw) {
   return raw;
 }
 
+// 城市包只在这里校验一次（读取阶段不再校验）。
 export function decodeCityPayload(raw) {
   validateCityPayload(raw);
   const b = raw.buildings;
