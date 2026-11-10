@@ -24,8 +24,12 @@ def feature(identity, geom, tags):
 
 
 class BuildingTests(unittest.TestCase):
-    def build(self, features, overture=(), bindings=None, globfp=(), reviews=()):
+    def build(self, features, overture=(), bindings=None, globfp=(), reviews=(), height_overrides=None,
+              water=(), include_remote_footprints=True):
         report = {}
+        osm = {'buildings': features}
+        if water:
+            osm['water'] = [{'id': f'way/{9000 + i}', 'tags': {}, 'geom': geom} for i, geom in enumerate(water)]
         with tempfile.TemporaryDirectory() as directory:
             overture_file = Path(directory) / 'buildings.jsonl'
             overture_file.write_text('\n'.join(map(json.dumps, overture)))
@@ -36,7 +40,9 @@ class BuildingTests(unittest.TestCase):
             with (patch('buildings.OVERTURE', overture_file), patch('buildings.GLOBFP_SZ', globfp_file),
                   patch('buildings.FOOTPRINT_REVIEWS', reviews_file),
                   patch('buildings.load_landmark_bindings', return_value=bindings or {})):
-                output = build_buildings({'buildings': features}, box(-1, -1, 200, 200), report)
+                output = build_buildings(osm, box(-1, -1, 200, 200), report,
+                                         height_overrides=height_overrides,
+                                         include_remote_footprints=include_remote_footprints)
         return {item['id']: item for item in output}, report
 
     def test_underground_boundaries_stay_in_audit_and_keep_surface_parts(self):
@@ -151,3 +157,41 @@ class BuildingTests(unittest.TestCase):
         by_id, report = self.build([], globfp=[legacy], reviews=[review])
         self.assertEqual(by_id, {})
         self.assertEqual(report['excludedGlobfpFootprints'][0]['match'], 'legacy-bounds-and-height')
+
+    def test_published_height_overrides_replace_source_height_and_report_previous_value(self):
+        tower = feature(1, footprint(0, 0, 20), {'building': 'commercial', 'height': '100', 'building:levels': '25'})
+        overrides = {'way/1': {'osmId': 'way/1', 'name': '测试塔', 'heightM': 123.4,
+                               'sources': ['https://example.test/tower'], 'verifiedAt': '2026-11-09'}}
+        by_id, report = self.build([tower], height_overrides=overrides)
+        self.assertEqual(by_id['way/1']['height'], 123.4)
+        self.assertEqual(by_id['way/1']['heightSource'], 'published')
+        applied = report['buildingHeightOverrides']['applied']
+        self.assertEqual(len(applied), 1)
+        self.assertEqual(applied[0]['previousHeightM'], 100.0)
+        self.assertEqual(applied[0]['previousHeightSource'], 'osm-height')
+        self.assertEqual(applied[0]['heightM'], 123.4)
+        self.assertEqual(report['buildingHeightOverrides']['unused'], [])
+
+    def test_unused_published_overrides_are_reported_instead_of_silently_ignored(self):
+        building = feature(1, footprint(0, 0, 12), {'building': 'yes', 'height': '20'})
+        overrides = {'way/999': {'osmId': 'way/999', 'name': '不存在', 'heightM': 200.0,
+                                 'sources': ['https://example.test/missing']}}
+        _, report = self.build([building], height_overrides=overrides)
+        self.assertEqual(report['buildingHeightOverrides']['unused'], ['way/999'])
+
+    def test_remote_footprint_on_water_is_removed_and_reported(self):
+        building = feature(1, footprint(0, 0, 20), {'building': 'yes', 'height': '30'})
+        water = box(ORIGIN_LON + 40 / KX, ORIGIN_LAT - 100 / KY,
+                    ORIGIN_LON + 100 / KX, ORIGIN_LAT - 40 / KY)
+        overture = [{'id': 'on-water', 'geom': mapping(footprint(50, 50, 20))}]
+        by_id, report = self.build([building], overture=overture, water=[water])
+        self.assertNotIn('overture/on-water', by_id)
+        self.assertEqual(report['buildingFootprintFilter']['removed']['waterOverlap'], 1)
+        self.assertEqual(report['buildingFootprintFilter']['removedTotal'], 1)
+
+    def test_osm_only_mode_skips_remote_footprints(self):
+        building = feature(1, footprint(0, 0, 20), {'building': 'yes', 'height': '30'})
+        overture = [{'id': 'remote', 'geom': mapping(footprint(50, 50, 20))}]
+        by_id, report = self.build([building], overture=overture, include_remote_footprints=False)
+        self.assertNotIn('overture/remote', by_id)
+        self.assertFalse(report['remoteFootprints']['enabled'])

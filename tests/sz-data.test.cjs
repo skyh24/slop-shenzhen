@@ -23,9 +23,9 @@ test('runtime adapter preserves every building source, footprint, hole and verti
   const { decodeCityPayload, decodePoly } = await modulePromise;
   const { buildings, geo } = decodeCityPayload(raw);
   assert.equal(buildings.length, raw.buildings.h.length);
-  // 误识别过滤（docs/15-IMPROVEMENT-PLAN.md 3.2）会移除少数落在广场/绿地/车行道内的小轮廓，
-  // 因此总数从约 39.9k 降到约 38.1k；这里只保留数量级保护，不锁定具体数量。
-  assert.ok(buildings.length > 37500);
+  // 误识别过滤（docs/15 3.2 + docs/17）会移除落在广场/绿地/车行道/水面/孤立小棚的补充轮廓，
+  // 总数从约 39.9k 下降；这里只保留数量级保护，不锁定具体数量。
+  assert.ok(buildings.length > 33000);
   let holes = 0, raisedParts = 0;
   buildings.forEach((building, i) => {
     assert.equal(building.id, raw.buildings.id[i]);
@@ -117,4 +117,26 @@ test('air routes decode only source-endpoint schematic drone tracks', async () =
   const unsourced = JSON.parse(JSON.stringify(rawAir));
   unsourced.air.droneStations[0].sourceUrls = [];
   assert.throws(() => decodeCityPayload(unsourced), /air drone station/);
+});
+
+test('building names and levels survive decoding and invalid indices are rejected', async () => {
+  const { decodeCityPayload, validateCityPayload } = await modulePromise;
+  const { buildings } = decodeCityPayload(raw);
+  assert.ok(Array.isArray(raw.names) && raw.names.length > 0, 'shared payload carries a name table');
+  assert.equal(raw.buildings.name.length, raw.buildings.h.length);
+  assert.equal(raw.buildings.lv.length, raw.buildings.h.length);
+  let named = 0;
+  buildings.forEach((building, i) => {
+    assert.equal(building.name, raw.buildings.name[i] >= 0 ? raw.names[raw.buildings.name[i]] : null);
+    assert.equal(building.levels, raw.buildings.lv[i]);
+    assert.ok(Number.isInteger(building.levels) && building.levels >= -1);
+    if (building.name) named++;
+  });
+  assert.ok(named > 1000, 'ordinary buildings keep their source names');
+  const brokenName = { ...raw, buildings: { ...raw.buildings, name: raw.buildings.name.slice() } };
+  brokenName.buildings.name[0] = raw.names.length;
+  assert.throws(() => validateCityPayload(brokenName), /building name index/);
+  const missingTable = { ...raw, names: undefined, buildings: { ...raw.buildings, name: raw.buildings.name.slice() } };
+  missingTable.buildings.name[0] = 0;
+  assert.throws(() => validateCityPayload(missingTable), /building name index/);
 });

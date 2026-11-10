@@ -76,6 +76,8 @@ def main():
                     help='reproduce the pre-review appearance for the scoped building pilot')
     ap.add_argument('--terrain-source', choices=['copernicus', 'hgt'], default='copernicus',
                     help='select a traceable elevation product without modifying source heights')
+    ap.add_argument('--footprint-source', choices=['all', 'osm'], default='all',
+                    help='all = OSM + Overture + GloBFP footprints; osm = only map-marked OSM footprints')
     args = ap.parse_args()
 
     t0 = time.time()
@@ -84,7 +86,8 @@ def main():
     osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache)
     print(f'osm loaded in {time.time() - t0:.1f}s', flush=True)
 
-    buildings = build_buildings(osm, clip, report, reviewed_parent_uses=not args.without_building_use_review)
+    buildings = build_buildings(osm, clip, report, reviewed_parent_uses=not args.without_building_use_review,
+                                include_remote_footprints=args.footprint_source == 'all')
     print(f'buildings: {len(buildings)} in {time.time() - t0:.1f}s', flush=True)
     land, water, wetland, green = build_land(osm, clip, buildings, report)
     roads = build_roads(osm, clip, report)
@@ -116,6 +119,18 @@ def main():
     minx, minz, maxx, maxz = clip.bounds
     # 范围外的远景地面：北、东、西三面是陆地，南面（深圳湾）保持海面
     far_land = box(minx - FAR_PAD, minz - FAR_PAD, maxx + FAR_PAD, maxz).difference(clip)
+    # 楼名去重成字符串表，运行时按索引取，避免每条记录重复存中文串。
+    name_ids = {}
+    names = []
+
+    def name_index(value):
+        if not value:
+            return -1
+        if value not in name_ids:
+            name_ids[value] = len(names)
+            names.append(value)
+        return name_ids[value]
+
     payload = {
         'version': FORMAT_VERSION,
         'terrain': terrain,
@@ -149,7 +164,10 @@ def main():
             'facade': [FACADES.index(b['facade']) for b in buildings],
             'src': [HEIGHT_SOURCES.index(b['heightSource']) for b in buildings],
             'lm': [lm_index.get(b['landmark'], -1) for b in buildings],
+            'name': [name_index(b.get('name')) for b in buildings],
+            'lv': [b.get('levels', -1) for b in buildings],
         },
+        'names': names,
         'landmarks': landmarks,
         'parks': [{**park, 'areas': [{**area, 'polygon': enc_poly(area['polygon'])}
                                     for area in park['areas']]} for park in parks],
@@ -163,6 +181,12 @@ def main():
         payload['streetscape'] = streetscape
     if trees:
         payload['trees'] = trees
+
+    report['buildingNames'] = {
+        'uniqueNames': len(names),
+        'namedBuildings': sum(1 for b in buildings if b.get('name')),
+        'buildingsWithLevels': sum(1 for b in buildings if b.get('levels', -1) > 0),
+    }
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode()

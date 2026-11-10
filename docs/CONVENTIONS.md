@@ -44,7 +44,7 @@ default:
 - 原始数据放 `data/raw/`，不进 Git；每份都在 `data/source/sources.json` 里记地址、日期、SHA-256
 - 人工核对的数据只放 `data/source/`（`landmarks.json` 等），每条写出处和 `status`
 - `js/` 下的生成文件（当前为`sz-city.json.gz`，共享JSON v2）只能由 `tools/sz/build.py` 生成，不手改
-- 每栋楼都带 `heightSource`，取值 `landmark`、`osm-height`、`osm-levels`、`overture-height`、`overture-floors`、`globfp`、`estimate`。估计值不能写成实测值
+- 每栋楼都带 `heightSource`，取值 `landmark`、`osm-height`、`osm-levels`、`overture-height`、`overture-floors`、`globfp`、`estimate`，以及逐个公开资料核对的 `published`（必须写在 `data/source/building-height-overrides.json` 并带来源链接，构建报告记录原值）。估计值不能写成实测值
 - 匹配不上就不配，不用“离中心点最近”硬配；有歧义的记进 `build-report.json`
 - 运行时不联网取地理数据
 

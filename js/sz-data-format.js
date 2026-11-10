@@ -277,6 +277,23 @@ export function validateCityPayload(raw) {
     }
     requireData(Number.isInteger(buildings.lm[i]) && buildings.lm[i] >= -1 && buildings.lm[i] < raw.landmarks.length, 'building landmark');
   }
+  // 名称与层数只影响显示，允许旧包缺失；出现时必须和建筑数组一一对应。
+  if (raw.names !== undefined) {
+    requireData(Array.isArray(raw.names) && raw.names.every(name => typeof name === 'string' && name.length > 0), 'building names');
+  }
+  for (const field of ['name', 'lv']) {
+    if (buildings[field] === undefined) continue;
+    requireData(Array.isArray(buildings[field]) && buildings[field].length === buildings.h.length, `buildings.${field}`);
+  }
+  if (buildings.name !== undefined) {
+    for (const index of buildings.name) {
+      requireData(Number.isInteger(index) && index >= -1
+        && (index === -1 || (Array.isArray(raw.names) && index < raw.names.length)), 'building name index');
+    }
+  }
+  if (buildings.lv !== undefined) {
+    requireData(buildings.lv.every(level => Number.isInteger(level) && level >= -1), 'building levels');
+  }
   for (const field of ['coverage', 'land', 'water', 'wetland', 'green']) requireData(Array.isArray(raw[field]), field);
   const grid = raw.terrain;
   requireData(grid && Number.isInteger(grid.nx) && Number.isInteger(grid.nz) && grid.nx >= 2 && grid.nz >= 2
@@ -342,7 +359,9 @@ export function decodeCityPayload(raw) {
     return { id: b.id[i], height, minHeight: b.minH[i], year: 0, polygons: [shape],
       minX, maxX, minZ, maxZ, cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2,
       heightSource: raw.enums.heightSource[b.src[i]], category: raw.enums.category[b.cat[i]],
-      facade: raw.enums.facade[b.facade[i]], landmark: raw.landmarks[b.lm[i]]?.id ?? null };
+      facade: raw.enums.facade[b.facade[i]], landmark: raw.landmarks[b.lm[i]]?.id ?? null,
+      name: Array.isArray(b.name) && b.name[i] >= 0 ? (raw.names?.[b.name[i]] ?? null) : null,
+      levels: Array.isArray(b.lv) ? b.lv[i] : -1 };
   });
   return { buildings, geo: { version: raw.version,
     frame: { origin: raw.origin, bearingDeg: 0, units: 'm' }, bounds: raw.bounds,

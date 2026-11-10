@@ -6,7 +6,7 @@ import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
-import { getLocationLabel, getLocationInfo, inBounds, isWater, isTypingInField, findGroundArrival, LANDMARK_SITES, TELEPORT_LOCATIONS } from './sz-city-config.js';
+import { getLocationLabel, getLocationInfo, inBounds, isWater, isTypingInField, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { buildSzGround } from './sz-ground.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads } from './sz-roads.js';
@@ -27,6 +27,8 @@ import { polygonContains } from './building-collision.js';
 import { buildShenzhenBayBridge } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { buildSzElevatedRoads } from './sz-elevated-roads.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
+import { buildBuildingSigns } from './sz-building-signs.js';
+import { buildBuildingDetails } from './sz-building-details.js';
 import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
 import { createSzPedestrians } from './sz-pedestrians.js';
 import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
@@ -63,6 +65,16 @@ async function initApp() {
   let renderedFrames = 0;
   let elapsed = 0;
   const query = new URLSearchParams(location.search);
+  // QA 固定机位：?qa=1&cam=x,y,z,tx,ty,tz，只用于同机位截图对照，不影响普通入口。
+  const freeCamera = (() => {
+    const value = query.get('cam');
+    if (!value || query.get('qa') !== '1') return null;
+    const numbers = value.split(',').map(Number);
+    if (numbers.length !== 6 || !numbers.every(Number.isFinite)) {
+      throw new Error('Invalid QA camera: expected x,y,z,tx,ty,tz');
+    }
+    return numbers;
+  })();
   const qa = ['127.0.0.1', 'localhost'].includes(location.hostname) && query.get('qa') === '1' ? {
     chunkSize: query.get('chunks') === '500' ? 500 : BUILDING_RENDER_CHUNK_SIZE,
     startup: {}, frames: [], gpu: [], queue: [], previousFrameAt: null, queryPending: false, queuePending: false
@@ -195,6 +207,11 @@ async function initApp() {
   const cityBlocks = buildCityBlocks(scene, { skipIds, renderChunkSize: qa?.chunkSize });
   // 福田中心区夜景灯光秀：只给已建成普通高层加灯带，颜色/节奏为展示估计；白天隐藏。
   const lightShow = buildSzLightShow(scene, { buildings: REAL_BUILDINGS, terrain: GEO.terrain });
+  const buildingSigns = buildBuildingSigns(scene, { buildings: cityBlocks.allBlocks, roadGraph: GEO.roadGraph });
+  // 屋顶/阳台/空调/雨棚只在近景流式生成，不参与碰撞，也不改楼高和足迹。
+  const buildingDetails = buildBuildingDetails(scene, {
+    buildings: REAL_BUILDINGS, terrain: GEO.terrain, skipIds
+  });
   markInit('blocks');
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders];
   const streetscape = buildSzStreetscape(scene, GEO.streetscape, GEO.terrainSurface, {
@@ -268,6 +285,12 @@ async function initApp() {
     nearTraffic: traffic.nearColliders
   });
   const initialMode = controllerManager.activeMode;
+  // 首帧在加载阶段预热：把道路空间索引、出生点附近的牌子与近景细节建好，避免进场后长帧。
+  const loadingFocus = controllerManager.getActiveEntity().position;
+  buildingSigns.update(loadingFocus);
+  for (let i = 0; i < 24; i++) buildingSigns.update(loadingFocus);
+  buildingDetails.update(loadingFocus);
+  for (let i = 0; i < 40 && buildingDetails.statistics.pending > 0; i++) buildingDetails.update(loadingFocus);
   let initialTime = 'golden';
   // Reuse teleport placement so saved players return at rest, close to their last positions.
   try {
@@ -641,11 +664,27 @@ async function initApp() {
   });
 
   let locationText = '';
+  let locationBuilding = '';
+  // 普通楼没有名称时，用附近地标名兜底，让平安、春笋这类专模也有定位提示。
+  function nearestLandmarkName(x, z, radius = 240) {
+    let best = null;
+    for (const landmark of SZ_LANDMARKS) {
+      if (!Number.isFinite(landmark.x) || !Number.isFinite(landmark.z)) continue;
+      const distance = Math.hypot(landmark.x - x, landmark.z - z);
+      if (distance > radius) continue;
+      if (!best || distance < best.distance) best = { name: landmark.name, distance };
+    }
+    return best ? best.name : null;
+  }
+
   function renderLocation(x, z) {
     if (!elLocation) return;
     const label = getLocationLabel(x, z);
-    if (label === locationText) return;
+    // 就近建筑名只作定位提示；普通楼无名称时退回附近地标名。
+    const buildingName = buildingSigns.nearestName(x, z) ?? nearestLandmarkName(x, z) ?? '';
+    if (label === locationText && buildingName === locationBuilding) return;
     locationText = label;
+    locationBuilding = buildingName;
     const info = getLocationInfo(x, z);
     const place = document.createElement('div');
     if (info.road && info.kind === 'land') {
@@ -657,6 +696,12 @@ async function initApp() {
     } else {
       place.className = 'location-place';
       place.textContent = label;
+    }
+    if (buildingName) {
+      const near = document.createElement('span');
+      near.className = 'location-near';
+      near.textContent = buildingName;
+      place.appendChild(near);
     }
     elLocation.replaceChildren(place);
   }
@@ -894,6 +939,8 @@ async function initApp() {
   selectTime(initialTime);
   if (qa) {
     // 只返回快照，验收通过同一套玩家输入完成。
+    window.__szDebug = { scene, camera: cameraSystem.camera, signs: buildingSigns, details: buildingDetails,
+      controllerManager, teleport: teleportTo };
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) return;
       qa.frames.length = 0;
@@ -957,6 +1004,19 @@ async function initApp() {
         distant: bridge.group ? [{ id: bridge.group.name, ...bridge.statistics, playable: false }] : []
       },
       profile: profileSnapshot(),
+      details: {
+        chunks: buildingDetails.statistics.chunks, meshes: buildingDetails.statistics.meshes,
+        triangles: buildingDetails.statistics.triangles, buildings: buildingDetails.statistics.buildings,
+        balconies: buildingDetails.statistics.balconies, acUnits: buildingDetails.statistics.acUnits,
+        roofParts: buildingDetails.statistics.roofParts, pending: buildingDetails.statistics.pending,
+        updateMs: buildingDetails.statistics.updateMs
+      },
+      signs: {
+        signs: buildingSigns.statistics.signs, textures: buildingSigns.statistics.textures,
+        chunks: buildingSigns.statistics.chunks, compounds: buildingSigns.statistics.compounds,
+        compoundClusters: buildingSigns.statistics.compoundClusters,
+        updateMs: buildingSigns.statistics.updateMs
+      },
       renderer: { backend: renderer.backend.constructor.name, initialized: renderer.initialized,
         animationRegistered: Boolean(renderer.getAnimationLoop()), frame: renderer.info.frame, renderedFrames,
         deviceLost: graphicsLoss && { ...graphicsLoss }, render: { ...renderer.info.render }, memory: { ...renderer.info.memory } }
@@ -1080,6 +1140,11 @@ async function initApp() {
       manual: !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right) });
     controllerManager.update(dt, elapsed, cameraSystem.initialized ? cameraSystem.currentPos : null, driveInput);
     cameraSystem.update(dt, elapsed);
+    if (freeCamera) {
+      cameraSystem.camera.position.set(freeCamera[0], freeCamera[1], freeCamera[2]);
+      cameraSystem.camera.lookAt(freeCamera[3], freeCamera[4], freeCamera[5]);
+      cameraSystem.camera.updateMatrixWorld();
+    }
     streetscape.update(cameraSystem.camera.position);
     streetLamps.update(cameraSystem.camera.position, lightingSystem.uNightFactor.value);
     trees.update(cameraSystem.camera.position);
@@ -1090,6 +1155,10 @@ async function initApp() {
     metroEntrances.update(cameraSystem.currentPos);
     futianStation?.update(cameraSystem.currentPos);
     xiliConstruction?.update();
+    buildingSigns.update(cameraSystem.camera.position);
+    buildingSigns.group.updateMatrixWorld(true);
+    buildingDetails.update(cameraSystem.camera.position);
+    buildingDetails.group.updateMatrixWorld(true);
     const simulationEnd = measureFrame ? performance.now() : 0;
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();
