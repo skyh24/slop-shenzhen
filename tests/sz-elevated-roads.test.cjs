@@ -171,3 +171,26 @@ test('real THREE build creates at most twelve chunk meshes and a walkable deck t
     assert.equal(built.group.parent, null);
     assert.equal(scene.children.length, 0);
   });
+
+function connectorFixture() {
+  const graph = fixture();
+  graph.nodes.push(700, 300);
+  graph.links.push([3, 10, 2, 8, 2, 0, []]);
+  graph.metadata.push({ osmId: 'way/8', heightSource: 'unresolved', bridge: true, tunnel: false, layer: 1 });
+  return graph;
+}
+
+test('links with different layer estimates get a connector ramp at the shared node', () => {
+  const result = plan(connectorFixture());
+  assert.ok(result.statistics.connectors >= 1, 'connector ramp exists');
+  const ramp = result.surfaces.find(surface => surface.id.startsWith('sz-elevated-ramp:'));
+  assert.ok(ramp, 'ramp has a walkable surface');
+  const ys = ramp.triangles.flat().map(point => point.y);
+  assert.ok(ys.every(Number.isFinite));
+  assert.ok(Math.max(...ys) - Math.min(...ys) > 0.6, 'ramp actually bridges the layer height difference');
+  const resolver = loadModule(read('sz-controller-surfaces.js')).createSurfaceResolver({
+    groundHeight: () => FLAT_TERRAIN, surfaces: result.surfaces
+  });
+  const heights = resolver.at(700 - 1, 300);
+  assert.ok(heights.length >= 1);
+});
