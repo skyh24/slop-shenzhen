@@ -13,7 +13,7 @@
 | 普通建筑 | [buildings.js](../ref/slop-newyork/js/buildings.js) 保留源轮廓、楼高和年代；按年代及位置种子选择五类立面，另生成商铺、檐口、设备等 | 保留真实几何，区分建筑用途、群体类型和外观。缺用途或年代时不能用概率生成结果反写成事实 |
 | 建筑细节 | [building-details.js](../ref/slop-newyork/js/building-details.js) 检查相邻楼体与预留空间，再放雨棚、设备等；近处加载 | 迁移邻近避让、分块和流式细节；不照搬纽约水塔、消防梯，不全城自动加店铺 |
 | 道路与车道 | [geo-streets.mjs](../ref/slop-newyork/tools/geo-streets.mjs) 读取路宽/方向/车道标签；[road-network.js](../ref/slop-newyork/js/road-network.js) 生成可行车道；[road-paint.js](../ref/slop-newyork/js/road-paint.js) 据同一路网画标线 | 断面、标线、停车线与车流统一；纽约也有推导车道规则，不能当作深圳实测。深圳桥隧、高差和辅路需独立证据 |
-| 树木 | [build-trees.py](../ref/slop-newyork/tools/build-trees.py) 使用市政树点；[tree-placements.js](../ref/slop-newyork/js/tree-placements.js) 有小幅路缘适配；[city-grid.js](../ref/slop-newyork/js/city-grid.js) 在公园允许区域生成树群 | 深圳先源点、后有证据的树列/植被面。若显示点位发生调整，保留源位置和位移，不静默挪树或称为实测 |
+| 树木 | [build-trees.py](../ref/slop-newyork/tools/build-trees.py) 使用市政树点；[trees.js](../ref/slop-newyork/js/trees.js) 按种子长出三档阔叶树并实例化。生成步骤、细节距离和深圳树种接法见 [06](06-STREETSCAPE.md#纽约树木是怎么生成的) | 深圳先源点、后有证据的树列/植被面。若显示点位发生调整，保留源位置和位移，不静默挪树或称为实测。棕榈另做单干模型，红树林不进乔木实例 |
 | 行人 | [pedestrian-routes.js](../ref/slop-newyork/js/pedestrian-routes.js) 建人行道/过街连接；[pedestrian-system.js](../ref/slop-newyork/js/pedestrian-system.js) 在附近模拟人群、信号等待、排队和避让 | 复用路线与行为思路，改接深圳真实步行网络和表面高程；人数、活动与时段均为模拟，随机过程改用实体固定种子 |
 | 地标 | [landmarks.js](../ref/slop-newyork/js/landmarks.js) 将专属模型拟合至地块；普通建筑生成时排除重叠对象 | 按已核实源 ID 及部件绑定替换，保留真实邻楼；地标显示、碰撞和可通行面同源，不照搬整体矩形碰撞盒 |
 

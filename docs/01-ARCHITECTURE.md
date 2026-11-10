@@ -20,7 +20,7 @@
 | `main.js` | 改造 | 启动顺序不变；换模块名、移动方式（`helicopter` 改为 `evtol`）、中文提示、深圳相机快捷键；加无人机和灯光秀的更新 |
 | `nyc-geodata.js` | 替换为 `sz-geodata.js` | 由 `tools/sz/build.py` 生成；用顶层 `await` 读压缩包 `sz-geodata.json.gz` |
 | `building-geodata.js` | 替换为 `sz-buildings-data.js` | `SZB1` 二进制格式，在纽约 `NYB1` 基础上加用途、立面类型、高度来源 |
-| `tree-geodata.js`、`subway-geodata.js` | 并入 `sz-geodata.js` | 深圳没有行道树普查，树点来自 OSM 加规则补种 |
+| `tree-geodata.js`、`subway-geodata.js` | 树点并入 `sz-geodata.js`；`trees.js` 的生成和实例化保留 | 深圳没有全市行道树普查。点位用 OSM 单株和有证据的树列、植被面，不按固定间距铺满。树种和棕榈见 [06](06-STREETSCAPE.md#纽约树木是怎么生成的) |
 | `city-config.js` | 重写，导出同名接口 | `ISLAND_BOUNDS` 改为地图范围；`getIslandBoundsAtZ` 返回范围边界；`blockAt` 查街区多边形；`signalPhase`、`walkSignal` 原样保留；新增 `isWater`、`terrainHeight`、地名和地标表 |
 | `city-grid.js` | 替换为 `sz-ground.js` | 陆地、海面、路面、人行道街区、公园、地形山体，按 500 米分块合批 |
 | `boroughs.js` | 替换为 `sz-skyline.js` | 远景天际线（前海、宝安、香港元朗）、远山 |
@@ -29,7 +29,7 @@
 | `street-details.js` | 替换为 `sz-street-details.js` | 行道树、路灯、信号灯、地铁出入口、天桥、公交站 |
 | `road-network.js` | 小改 | “是否在陆地上”从曼哈顿东西岸线改为海岸多边形；其余不动 |
 | `traffic.js` | 改造 | 车型配比：蓝色出租车、国产车体型、公交、外卖电单车；车牌 |
-| `cars.js` | 改造 | 新增国产车 `BODY_SPECS`、蓝色出租车涂装、绿牌和蓝牌图集 |
+| `cars.js` | 改造 | 按 [07](07-VEHICLES.md#车型) 改 `BODY_SPECS`：蓝色出租车、国产电动车轮廓、新增 `hatch`、皮卡槽改为小厢货。不写品牌名、不画车标。绿牌和蓝牌图集仍由车牌模块生成 |
 | `bus.js` | 改造 | 深圳纯电公交涂装 |
 | `helicopter.js` | 替换为 `evtol.js` | 四旋翼载人飞行器模型；控制器沿用直升机的飞行模型并重新调参 |
 | `controllers.js` | 改造 | 出生点、活动范围、海面判断、山体地面高度、飞行器 |

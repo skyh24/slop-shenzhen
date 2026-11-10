@@ -7,6 +7,7 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | 文件 | 内容 |
 | --- | --- |
 | [HANDOFF.md](HANDOFF.md) | **从这里开始**：当前事实、证据层级、暂停收尾与工作树风险 |
+| [REVIEW-FOLLOWUP-2026-11-10.md](REVIEW-FOLLOWUP-2026-11-10.md) | 当前代码审查：已复现问题、优化候选、功能缺口、下一步顺序与验收条件 |
 | [NEXT-AGENT-PLAN.md](NEXT-AGENT-PLAN.md) | 下一位执行顺序E0–E6、依赖、并行归属与通过标准 |
 | [HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md) | 历史快照；旧状态不作为当前执行指令 |
 | [13-WEBSITE-OPTIMIZATION-PLAN.md](13-WEBSITE-OPTIMIZATION-PLAN.md) | 网站加载、数据表示、分块与性能优化；与另一个13号数据计划区分 |
@@ -23,8 +24,8 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [03-ROADS-GROUND.md](03-ROADS-GROUND.md) | 路网、路面、海岸、地形、高架和天桥 |
 | [04-BUILDINGS.md](04-BUILDINGS.md) | 普通建筑的挤出方式、立面类型和片区规则 |
 | [05-LANDMARKS.md](05-LANDMARKS.md) | 每个地标一张卡片 |
-| [06-STREETSCAPE.md](06-STREETSCAPE.md) | 树种、地铁、天桥、夜景灯光、海湾、远景 |
-| [07-VEHICLES.md](07-VEHICLES.md) | 蓝色出租车、国产车体型、绿牌、公交、电单车、声音 |
+| [06-STREETSCAPE.md](06-STREETSCAPE.md) | 树种、纽约树木生成管线、地铁、天桥、夜景灯光、海湾、远景 |
+| [07-VEHICLES.md](07-VEHICLES.md) | 纽约车身生成、深圳蓝色出租车、国产电动车轮廓、绿牌、公交、电单车、声音 |
 | [08-AIR.md](08-AIR.md) | 四旋翼载人飞行器、无人机配送航线 |
 | [09-UI-GAMEPLAY.md](09-UI-GAMEPLAY.md) | 中文界面、地图、传送、出租车接单 |
 | [10-PERF-QA.md](10-PERF-QA.md) | 性能预算、自动检查、浏览器验收路线 |
