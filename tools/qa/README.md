@@ -9,3 +9,8 @@ ego-browser nodejs < tools/qa/perf-sample.mjs
 # 例：60 s、指定机位
 SZ_PERF_SECONDS=60 SZ_PERF_CAMERA=cam-superHq ego-browser nodejs < tools/qa/perf-sample.mjs
 ```
+
+## 备注
+
+- `ego-browser nodejs` 走本机浏览器服务，命令行前缀环境变量可能不会传入脚本（实测 `SZ_PERF_SECONDS=5` 仍按默认 60 s 跑）；需要改采样时长/尺寸时，直接改脚本顶部默认值，或用 `--ego-server-name` 独立服务再传环境变量。
+- 2026-11-10 冒烟结果：2560×1440、chase 机位、60 s → p50 33.3 ms / p95 34.2 ms（≈30 FPS）、drawCalls 289、三角 0.88 M；帧间隔集中在 33 ms，仍是后台窗口 30 Hz 上限，不是场景负载。
