@@ -345,7 +345,8 @@ export function buildSzTrees(scene, payload, options = {}) {
     const record = { index, id, x, z, y: baseY, height, crown, speciesName, sourceName,
       style, trunkHeight, trunkRadius, seed: treeSeed(id) };
     placed.push(record);
-    const radius = Math.max(0.22, trunkRadius * 1.1);
+    // 碰撞体略小于树干可视半径：真实行道树树干约 0.4–0.9 m 直径，1.1 倍会把 2.5 m 人行道封死。
+    const radius = Math.max(0.18, trunkRadius * 0.8);
     treeColliders.push({ type: 'tree', name: id, sourceId: id, polygon: colliderPolygon(x, z, radius),
       minY: baseY, maxY: baseY + Math.max(1.6, trunkHeight),
       minX: x - radius, maxX: x + radius, minZ: z - radius, maxZ: z + radius });
