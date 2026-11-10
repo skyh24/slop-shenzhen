@@ -94,6 +94,26 @@ function graniteMaterial(skylight) {
   return material;
 }
 
+// 春茧园区的铺装和草坪：只按世界坐标做无缝分格与草纹，不引入贴图，标高由几何贴着 DSM 地面。
+function stadiumPavingMaterial() {
+  const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.84, metalness: 0.04 });
+  const u = positionWorld.x.mul(0.31).add(positionWorld.z.mul(0.05));
+  const v = positionWorld.z.mul(0.29).sub(positionWorld.x.mul(0.04));
+  const joint = cell => smoothstep(0.455, 0.5, abs(fract(cell).sub(0.5)))
+    .mul(smoothstep(0.12, 0.5, fwidth(cell)).oneMinus());
+  const seams = max(joint(u), joint(v));
+  material.colorNode = mix(color(0x918e86), color(0x6f6d67), seams.mul(0.55));
+  material.roughnessNode = mix(float(0.86), float(0.7), seams);
+  return material;
+}
+
+function stadiumLawnMaterial() {
+  const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.95, metalness: 0.02 });
+  const wave = positionWorld.x.mul(0.09).add(positionWorld.z.mul(0.07));
+  material.colorNode = mix(color(0x4c6a39), color(0x718b48), sin(wave).mul(0.5).add(0.5));
+  return material;
+}
+
 function cultureParkMaterial() {
   const paving = createCulturePavingMask();
   const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.83, metalness: 0.04 });
@@ -156,6 +176,8 @@ export function createLandmarkMaterial(name) {
     case 'stadiumRoof': return new THREE.MeshStandardMaterial({ color: 0xbbc9ce, metalness: 0.21, roughness: 0.45 });
     case 'stadiumSeats': return new THREE.MeshStandardMaterial({ color: 0x738b98, roughness: 0.64 });
     case 'stadiumDeck': return new THREE.MeshStandardMaterial({ color: 0x9fa5a5, roughness: 0.73 });
+    case 'stadiumPaving': return stadiumPavingMaterial();
+    case 'stadiumLawn': return stadiumLawnMaterial();
     case 'cultureGranite': return graniteMaterial(false);
     case 'cultureMonolith': return graniteMaterial(true);
     case 'culturePark': return cultureParkMaterial();

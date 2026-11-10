@@ -23,7 +23,7 @@ const civic = loadModule(readLandmark('civic-center.js'), { imports: {
   '../building-collision.js': collision, './parts.js': parts
 } });
 const stadium = loadModule(readLandmark('chunjian.js'), { imports: {
-  '../building-collision.js': collision, './parts.js': parts
+  '../building-collision.js': collision, './parts.js': parts, '../sz-terrain.js': terrain
 } });
 const convention = loadModule(readLandmark('convention-center.js'), { imports: { '../sz-terrain.js': terrain, './parts.js': parts } });
 const loadCulture = THREE => loadModule(readLandmark('shenzhen-bay-culture-square.js'), { imports: {

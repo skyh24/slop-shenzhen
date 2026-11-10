@@ -32,16 +32,48 @@ const smooth = t => t * t * (3 - 2 * t);
 const centerZ = source => (source.minZ + source.maxZ) / 2;
 const mixPoint = (a, b, t) => point(blend(a.x, b.x, t), blend(a.z, b.z, t));
 
+// 屋面细部尺寸除注明外都是照片/图纸判读的外形估计（EST），不当作实测值。
+// 公开依据：大屋盖由网架和上封板组成、底侧封板约 6 万块平面单元板拼装（百度百科）；
+// 上封板全部钢结构、最厚板 60 mm、结构最大跨度 64 m（中建二局承建者回顾）；
+// 方塔轴线柱网 9 m、东西两组建筑物各自伸出 17 组树状支撑（《大鹏展翅》结构设计简介）。
+// 单元板缝约 1 m 级，本模型按预算只表达结构肋和通长檐口，不表达全部板缝。
+export const roofDetail = {
+  longitudinalV: [0, -0.42, 0.42, -0.78, 0.78],
+  ribWidth: 1.1,
+  ribDepth: 0.6,
+  ribLift: 0.06,
+  transverseSpacing: 27,
+  crossWidth: 0.9,
+  crossDepth: 0.55,
+  eaveWidth: 0.8,
+  eaveDepth: 1.3,
+  eaveDrop: 0.04
+};
+
+export const colonnadeSpec = {
+  groupsPerWing: 17,
+  rowFraction: 0.1,
+  inset: 8,
+  minClearance: 2.5,
+  contact: 0.1,
+  stemRadius: 0.6,
+  branchOffsets: [[4.6, 2.8], [-4.6, 2.8], [0, -4.7]]
+};
+
 function canopyProfile(buildings, base) {
   const middle = buildings.get(middleRoofId);
   const west = buildings.get(westTipId);
   const east = buildings.get(eastTipId);
-  const station = (x, z) => {
+  // 长轴剖面：端部取翼端 minX/maxX，横向半宽随 u 增大，z 中线在翼端略作偏移。
+  const axis = x => {
     const tip = x < middle.cx ? west : east;
     const end = x < middle.cx ? tip.minX : tip.maxX;
     const u = clamp01((x - middle.cx) / (end - middle.cx));
-    const zMid = blend(centerZ(middle), centerZ(tip), u);
-    return { u, v: Math.min(1, Math.abs(z - zMid) / (63.7 + 14 * u * u)) };
+    return { u, zMid: blend(centerZ(middle), centerZ(tip), u), width: 63.7 + 14 * u * u };
+  };
+  const station = (x, z) => {
+    const { u, zMid, width } = axis(x);
+    return { u, v: Math.min(1, Math.abs(z - zMid) / width) };
   };
   const sample = (x, z) => {
     const { u, v } = station(x, z);
@@ -51,7 +83,7 @@ function canopyProfile(buildings, base) {
     const camber = (1 - v * v) * blend(maxCanopyRise - 68, 3.6, wing);
     return { y: base + eave + camber, depth: 2.25 + (1 - v * v) * blend(6.75, 1.9, wing) };
   };
-  return { sample, station };
+  return { sample, station, axis };
 }
 
 function clipByZ(ring, z, sign) {
@@ -99,22 +131,43 @@ function roofTriangles(polygon) {
   return triangles;
 }
 
+// 屋盖顶/底高度查询：与渲染用的三角面完全同源，肋和柱顶都按这片面取高，避免另建代理面。
+function surfaceAt(triangles, x, z) {
+  for (const triangle of triangles) {
+    if (x < triangle.minX || x > triangle.maxX || z < triangle.minZ || z > triangle.maxZ) continue;
+    const [a, b, c] = triangle.points;
+    const determinant = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
+    if (Math.abs(determinant) < 1e-10) continue;
+    const u = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / determinant;
+    const v = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / determinant;
+    const w = 1 - u - v;
+    if (Math.min(u, v, w) < -1e-7) continue;
+    return { top: u * a.y + v * b.y + w * c.y, bottom: u * a.bottom + v * b.bottom + w * c.bottom };
+  }
+  return null;
+}
+
 function roofParts(sources, profile) {
   const roofPolygons = sources.flatMap(source => source.polygons);
   const parts = [];
+  const triangles = [];
   for (const source of sources) {
     for (const [p, polygon] of source.polygons.entries()) {
       for (const [i, triangle] of roofTriangles(polygon).entries()) {
         const section = triangle.map(vertex => profile.sample(vertex.x, vertex.z));
-        parts.push(roofPanelPart(`civic-center:canopy:${source.id}:${p}:${i}`, source,
-          triangle.map((vertex, j) => ({ ...vertex, y: section[j].y })), section.map(row => row.depth), 'civicRoofBlue',
-          { baseSourceId: platformId }));
+        const points = triangle.map((vertex, j) => ({ ...vertex, y: section[j].y }));
+        parts.push(roofPanelPart(`civic-center:canopy:${source.id}:${p}:${i}`, source, points,
+          section.map(row => row.depth), 'civicRoofBlue', { baseSourceId: platformId }));
+        triangles.push({
+          points: points.map((vertex, j) => ({ ...vertex, bottom: section[j].y - section[j].depth })),
+          minX: Math.min(...points.map(vertex => vertex.x)), maxX: Math.max(...points.map(vertex => vertex.x)),
+          minZ: Math.min(...points.map(vertex => vertex.z)), maxZ: Math.max(...points.map(vertex => vertex.z))
+        });
       }
+      // 通长檐口/收边：屋盖外轮廓和四处采光开口的边都压一道收边板，顶面略低于屋面。
       for (const [i, a] of polygon.outer.entries()) {
         const b = polygon.outer[(i + 1) % polygon.outer.length];
         const mid = mixPoint(a, b, 0.5);
-        const { u, v } = profile.station(mid.x, mid.z);
-        if (v < 0.85 && u < 0.97) continue;
         const length = Math.hypot(b.x - a.x, b.z - a.z);
         const dx = (b.z - a.z) * 0.6 / length, dz = (a.x - b.x) * 0.6 / length;
         const inside = sign => roofPolygons.some(roof => polygonContains(roof, mid.x + sign * dx, mid.z + sign * dz));
@@ -123,12 +176,51 @@ function roofParts(sources, profile) {
         for (let j = 0; j < count; j++) {
           const at = t => {
             const position = mixPoint(a, b, t);
-            return { ...position, y: profile.sample(position.x, position.z).y - 0.65 };
+            return { ...position, y: profile.sample(position.x, position.z).y - roofDetail.eaveDrop };
           };
           parts.push(spanPart(`civic-center:eave:${source.id}:${p}:${i}:${j}`, source,
-            at(j / count), at((j + 1) / count), 0.23, 0.23, 0.24, 'civicTrim', { baseSourceId: platformId }));
+            at(j / count), at((j + 1) / count), roofDetail.eaveWidth, roofDetail.eaveWidth,
+            roofDetail.eaveDepth, 'civicTrim', { baseSourceId: platformId }));
         }
       }
+    }
+  }
+  return { parts, triangles };
+}
+
+// 屋面结构肋：纵肋沿等 v 线通长，横肋沿长轴按结构柱网尺度分格。
+// 肋顶只比屋面高 6 cm，屋盖最高点仍由曲面决定；端点按渲染曲面取高，肋贴着三角面走。
+function roofRibs(source, profile, triangles) {
+  const xs = triangles.flatMap(triangle => triangle.points.map(vertex => vertex.x));
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const parts = [];
+  const along = (from, to) => [0, 0.25, 0.5, 0.75, 1]
+    .map(t => surfaceAt(triangles, blend(from.x, to.x, t), blend(from.z, to.z, t)));
+  const rib = (id, from, to, width, depth) => {
+    const hits = along(from, to);
+    if (hits.some(hit => !hit)) return;
+    const a = { ...from, y: hits[0].top + roofDetail.ribLift };
+    const b = { ...to, y: hits[hits.length - 1].top + roofDetail.ribLift };
+    parts.push(spanPart(id, source, a, b, width, width, depth, 'civicTrim', { baseSourceId: source.id }));
+  };
+  for (const v of roofDetail.longitudinalV) {
+    for (let x0 = Math.ceil(minX / roofGrid) * roofGrid; x0 + roofGrid <= maxX; x0 += roofGrid) {
+      const x1 = x0 + roofGrid;
+      const axis0 = profile.axis(x0), axis1 = profile.axis(x1);
+      rib(`civic-center:rib:long:${v}:${x0}`,
+        point(x0, axis0.zMid + v * axis0.width), point(x1, axis1.zMid + v * axis1.width),
+        roofDetail.ribWidth, roofDetail.ribDepth);
+    }
+  }
+  for (let x = Math.ceil(minX / roofDetail.transverseSpacing) * roofDetail.transverseSpacing;
+    x < maxX; x += roofDetail.transverseSpacing) {
+    const { zMid, width } = profile.axis(x);
+    const steps = Math.max(1, Math.ceil((2 * width) / roofGrid));
+    for (let i = 0; i < steps; i++) {
+      rib(`civic-center:rib:cross:${x}:${i}`,
+        point(x, zMid + (-1 + (2 * i) / steps) * width),
+        point(x, zMid + (-1 + (2 * (i + 1)) / steps) * width),
+        roofDetail.crossWidth, roofDetail.crossDepth);
     }
   }
   return parts;
@@ -150,30 +242,35 @@ function towerParts(source, terrain, canopyBase, west) {
   });
 }
 
-function treeSupports(wing, terrain, profile, roofPolygons) {
-  const parts = [];
+// 屋面支承柱廊：沿每翼北侧屋面一线立 17 组白色树状柱（公开数量），柱顶接到屋盖下皮。
+// 柱位按实景判读布置在翼楼屋面之上、屋盖轮廓之下，断面与分枝为估计；中跨不设柱。
+function colonnadeSupports(wing, terrain, profile, triangles) {
   const wingY = baseAt(wing, terrain) + wing.height;
-  for (const [i, u] of [0.12, 0.37, 0.63, 0.88].entries()) {
-    for (const [j, v] of [0.08, 0.19, 0.72].entries()) {
-      const x = blend(wing.minX, wing.maxX, u);
-      const z = blend(wing.minZ, wing.maxZ, v);
-      if (!wing.polygons.some(polygon => polygonContains(polygon, x, z))) continue;
-      const section = profile.sample(x, z);
-      const upperY = section.y - section.depth;
-      if (upperY - wingY < 2.2) continue;
-      const name = `civic-center:tree:${wing.id}:${i}:${j}`;
-      const ring = Array.from({ length: 8 }, (_, k) => point(x + 0.53 * Math.cos(k * Math.PI / 4),
-        z + 0.53 * Math.sin(k * Math.PI / 4)));
-      const jointY = blend(wingY, upperY, 0.53);
-      parts.push(loftPart(`${name}:stem`, wing, ring, ring, wingY, jointY, 'civicPillar'));
-      for (const [k, [dx, dz]] of [[4.6, 2.8], [-4.6, 2.8], [0, -4.7]].entries()) {
-        const a = { x, z, y: jointY };
-        const b = { x: x + dx, z: z + dz };
-        if (!roofPolygons.some(polygon => polygonContains(polygon, b.x, b.z))) continue;
-        const top = profile.sample(b.x, b.z);
-        parts.push(spanPart(`${name}:branch:${k}`, wing, a, { ...b, y: top.y - top.depth + 0.15 },
-          0.69, 0.53, 0.69, 'civicPillar'));
-      }
+  const inWing = (x, z) => wing.polygons.some(polygon => polygonContains(polygon, x, z));
+  const underside = (x, z) => surfaceAt(triangles, x, z)?.bottom ?? null;
+  const parts = [];
+  const rowZ = blend(wing.minZ, wing.maxZ, colonnadeSpec.rowFraction);
+  const count = colonnadeSpec.groupsPerWing;
+  for (let k = 0; k < count; k++) {
+    const x = blend(wing.minX + colonnadeSpec.inset, wing.maxX - colonnadeSpec.inset, k / (count - 1));
+    if (!inWing(x, rowZ)) continue;
+    const trunkTop = underside(x, rowZ);
+    if (trunkTop === null || trunkTop - wingY < colonnadeSpec.minClearance) continue;
+    const targets = colonnadeSpec.branchOffsets.map(([dx, dz], b) => {
+      const bx = x + dx, bz = rowZ + dz;
+      const bottom = underside(bx, bz);
+      return bottom === null ? null : { x: bx, z: bz, y: bottom + colonnadeSpec.contact, b };
+    }).filter(Boolean);
+    if (targets.length < 2) continue;
+    const jointY = wingY + (Math.min(...targets.map(target => target.y)) - wingY) * 0.5;
+    const name = `civic-center:colonnade:${wing.id}:${k}`;
+    const ring = radius => Array.from({ length: 8 }, (_, i) => point(
+      x + radius * Math.cos(i * Math.PI / 4), rowZ + radius * Math.sin(i * Math.PI / 4)));
+    parts.push(loftPart(`${name}:stem`, wing, ring(colonnadeSpec.stemRadius),
+      ring(colonnadeSpec.stemRadius * 0.75), wingY, jointY, 'civicPillar', { baseSourceId: wing.id }));
+    for (const target of targets) {
+      parts.push(spanPart(`${name}:branch:${target.b}`, wing, { x, z: rowZ, y: jointY },
+        target, 0.66, 0.5, 0.66, 'civicPillar', { baseSourceId: wing.id }));
     }
   }
   return parts;
@@ -184,7 +281,7 @@ export function build(buildings, terrain) {
   const base = baseAt(platform, terrain);
   const profile = canopyProfile(buildings, base);
   const roofSources = roofIds.map(id => buildings.get(id));
-  const roofPolygons = roofSources.flatMap(source => source.polygons);
+  const { parts: canopyParts, triangles } = roofParts(roofSources, profile);
   return [
     ...footprintParts(platform, base, 'civicStone', { roofContact: true }),
     ...glassIds.flatMap(id => {
@@ -197,8 +294,9 @@ export function build(buildings, terrain) {
     }),
     ...towerParts(buildings.get(roundTowerId), terrain, base, true),
     ...towerParts(buildings.get(squareTowerId), terrain, base, false),
-    ...roofParts(roofSources, profile),
-    ...treeSupports(buildings.get(westWingId), terrain, profile, roofPolygons),
-    ...treeSupports(buildings.get(eastWingId), terrain, profile, roofPolygons)
+    ...canopyParts,
+    ...roofRibs(buildings.get(middleRoofId), profile, triangles),
+    ...colonnadeSupports(buildings.get(westWingId), terrain, profile, triangles),
+    ...colonnadeSupports(buildings.get(eastWingId), terrain, profile, triangles)
   ];
 }
