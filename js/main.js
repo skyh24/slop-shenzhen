@@ -11,6 +11,7 @@ import { buildSzGround } from './sz-ground.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads } from './sz-roads.js';
 import { buildSzRoadFrontage } from './sz-road-frontage.js';
+import { buildSzRoadPaint } from './sz-road-paint.js';
 import { buildSzStreetscape } from './sz-streetscape.js';
 import { buildSzStreetLamps } from './sz-street-lamps.js';
 import { buildSzTrees } from './sz-trees.js';
@@ -169,6 +170,9 @@ async function initApp() {
   const elevatedRoads = buildSzElevatedRoads(scene, { graph: GEO.roadGraph, terrainSurface: GEO.terrainSurface });
   const roadFrontage = buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, {
     groundHeight: ground.groundHeight, roadHeight: roads.roadHeight
+  });
+  const roadPaint = buildSzRoadPaint(scene, GEO.roadGraph, {
+    roadHeight: roads.roadHeight, intersections: roadFrontage.control.intersections
   });
   markInit('roads');
   await showLoadingStage(STR.startup.landmarks, 'landmarks');
@@ -358,13 +362,13 @@ async function initApp() {
   markInit('controllers');
 
   await showLoadingStage(STR.startup.culling, 'culling');
-  const cullingRoots = [ground.group, roads.group, elevatedRoads.group, cityBlocks.group];
+  const cullingRoots = [ground.group, roads.group, elevatedRoads.group, roadPaint.group, cityBlocks.group];
   for (const root of cullingRoots) {
     const [first, ...chunks] = root.children;
     // 每类静态分块共用材质和顶点布局，预编译其中一块即可。
     for (const chunk of chunks) chunk.userData.sharesPipelineWith = first;
   }
-  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, streetscape.group, roadFrontage.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
+  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, streetscape.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
     futianStation?.group, xiliConstruction?.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [

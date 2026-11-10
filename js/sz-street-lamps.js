@@ -4,13 +4,13 @@ import { roadLinkPoints } from './sz-roads.js';
 
 // 主干道路灯：点位按源路网中心线等距派生，属外观还原参数，不代表逐杆实测位置。
 const LAMP_CLASSES = new Set(['trunk', 'trunk_link', 'primary', 'primary_link']);
-const SPACING_BY_CLASS = { trunk: 32, trunk_link: 34, primary: 30, primary_link: 32 };
+const SPACING_BY_CLASS = { trunk: 24, trunk_link: 26, primary: 22, primary_link: 24 };
 const CURB_OFFSET_M = 0.9; // 灯杆立在路缘外侧
 const ARM_LENGTH_M = 2.2;
 const HEAD_HEIGHT_M = 7.9;
 const POLE_HEIGHT_M = 8.2;
 const JUNCTION_MARGIN_M = 14; // 路口附近不放灯杆
-const POOL_RADIUS_M = 6.2;
+const POOL_RADIUS_M = 7.5;
 const CHUNK_SIZE_M = 1000;
 const MAX_LAMPS = 30000;
 
@@ -244,7 +244,7 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
   textures.main = texture;
   materials.pool = new THREE.MeshBasicMaterial({ map: texture, color: 0xffc98a, transparent: true, opacity: 0,
     blending: THREE.AdditiveBlending, depthWrite: false });
-  materials.halo = new THREE.PointsMaterial({ map: texture, color: 0xffd7a8, size: 6.5, sizeAttenuation: true,
+  materials.halo = new THREE.PointsMaterial({ map: texture, color: 0xffd7a8, size: 8.0, sizeAttenuation: true,
     transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
   const group = new THREE.Group();
   group.name = 'shenzhen-street-lamps';
@@ -292,8 +292,8 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
     update(cameraPosition, nightFactor) {
       const night = Number.isFinite(nightFactor) ? Math.min(1, Math.max(0, nightFactor)) : 0;
       glow.value = night;
-      materials.pool.opacity = night * 0.55;
-      materials.halo.opacity = night * 0.75;
+      materials.pool.opacity = night * 0.72;
+      materials.halo.opacity = night * 0.9;
       if (cameraPosition) {
         for (const chunk of chunkGroups) {
           const distance = Math.hypot(cameraPosition.x - chunk.center.x, cameraPosition.z - chunk.center.z);

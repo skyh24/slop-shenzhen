@@ -21,7 +21,7 @@ const ground = () => ({ heightSource: 'terrain', bridge: false, tunnel: false, l
 test('street lamps are spaced along both sides of ground primary roads', () => {
   const link = [0, 1, 0, 12, 3, 0, []];
   const plan = lamps.planLampSites(graph([link], [ground()]));
-  assert.ok(plan.sites.length >= 16 && plan.sites.length <= 20, `sites=${plan.sites.length}`);
+  assert.ok(plan.sites.length >= 22 && plan.sites.length <= 28, `sites=${plan.sites.length}`);
   const sides = new Set(plan.sites.map(site => site.side));
   assert.deepEqual([...sides].sort(), [-1, 1]);
   for (const site of plan.sites) {
@@ -29,7 +29,7 @@ test('street lamps are spaced along both sides of ground primary roads', () => {
     assert.equal(site.class, 'primary');
   }
   const north = plan.sites.filter(site => site.side === 1).map(site => site.x).sort((a, b) => a - b);
-  for (let i = 1; i < north.length; i++) assert.ok(Math.abs(north[i] - north[i - 1] - 30) < 1.5);
+  for (let i = 1; i < north.length; i++) assert.ok(Math.abs(north[i] - north[i - 1] - 22) < 1.5);
   // 灯臂必须朝路中心：灯头比灯杆更靠近中心线。
   const site = plan.sites[0];
   const headX = site.x + Math.cos(site.yaw) * 2.2;
