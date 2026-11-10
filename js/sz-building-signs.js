@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { attribute, float, materialColor, mix, vec3 } from 'three/tsl';
 import { sceneUniforms } from './sz-materials.js';
 
 // 普通建筑名称标牌：按玩家位置分块流式生成，近处贴墙入口牌，高楼屋顶立式双面牌。
@@ -10,7 +11,14 @@ export const ENTRANCE_UNLOAD_RADIUS = ENTRANCE_RADIUS * 1.3;
 export const ROOF_UNLOAD_RADIUS = ROOF_RADIUS * 1.3;
 export const NEAREST_NAME_RADIUS = 150;
 export const ROOF_SIGN_MIN_HEIGHT = 60;
-export const MAX_SIGN_TEXTURES = 160;
+// 每个 200 m 块把该块所有名牌画进一张图集，块内只用一个网格、一个材质（改前每块牌一个网格一个材质）。
+export const SIGN_ATLAS_MAX_WIDTH = 2048;
+export const SIGN_ATLAS_MAX_HEIGHT = 4096;
+// 图集里每块牌的分辨率和改前单张 canvas 一致，文字像素密度不变；放不下时整体减半。
+const SIGN_TILE_PIXEL_WIDTH = { entrance: 640, compound: 640, roof: 1024 };
+const SIGN_TILE_PADDING = 4;
+// 夜间增益和改前每材质 color.setRGB 的系数一致：屋顶发光字明显提亮，入口印刷牌只轻微提亮。
+export const SIGN_NIGHT = Object.freeze({ printedGain: 0.12, roofGain: 0.85, roofTint: [1, 0.985, 0.94] });
 // 小区门牌：把只有单元号（1栋/A座）的住宅楼按邻近具名住宅聚成小区，只在小区临路边立一块门牌。
 export const COMPOUND_RADIUS = 90;
 export const COMPOUND_CELL = 100;
@@ -353,12 +361,16 @@ export function planBuildingSigns(building, options = {}) {
   return tall ? planRoof(building, name, wall, baseY) : planEntrance(building, name, wall, baseY);
 }
 
+function signPanelBackground(info) {
+  if (info.kind === 'roof') return '#101722';
+  return info.variant === 'residential' ? '#7c1f22' : '#14181d';
+}
+
 function drawSignPanel(ctx, width, height, info) {
   const residential = info.variant === 'residential';
   const roof = info.kind === 'roof';
   ctx.clearRect(0, 0, width, height);
-  const background = roof ? '#101722' : (residential ? '#7c1f22' : '#14181d');
-  ctx.fillStyle = background;
+  ctx.fillStyle = signPanelBackground(info);
   ctx.fillRect(0, 0, width, height);
   const inset = Math.max(3, Math.round(height * 0.045));
   ctx.lineWidth = Math.max(2, Math.round(height * 0.02));
@@ -377,17 +389,80 @@ function drawSignPanel(ctx, width, height, info) {
   ctx.fillText(info.name, width / 2, height / 2 + height * 0.015);
 }
 
-// 浏览器默认实现；测试通过 options.createTexture 注入替身，不在测试里改运行时路径。
-export function createCanvasSignTexture(info) {
-  if (typeof document === 'undefined' || !document.createElement) return null;
-  const canvas = document.createElement('canvas');
-  const pixelWidth = info.kind === 'roof' ? 1024 : 640;
+function tileHeightOf(info, scale) {
+  const baseWidth = SIGN_TILE_PIXEL_WIDTH[info.kind] ?? 640;
+  const width = Math.max(96, Math.round(baseWidth * scale));
   const aspect = Number.isFinite(info.aspect) && info.aspect > 0 ? info.aspect : 4;
-  canvas.width = pixelWidth;
-  canvas.height = Math.max(80, Math.round(pixelWidth / aspect));
+  return Math.max(48, Math.round(width / aspect));
+}
+
+const KIND_ORDER = { roof: 0, entrance: 1, compound: 2 };
+
+// 纯布局：把一块内所有名牌按货架算法排进一张图集。输入输出都确定，便于单测和前后对比。
+// 每块牌的分辨率和改前单张 canvas 相同；超过最大高度时整体减半重排，宁可降一档也不开超大贴图。
+export function planSignAtlas(specs, options = {}) {
+  const maxWidth = Number.isFinite(options.maxWidth) ? options.maxWidth : SIGN_ATLAS_MAX_WIDTH;
+  const maxHeight = Number.isFinite(options.maxHeight) ? options.maxHeight : SIGN_ATLAS_MAX_HEIGHT;
+  if (!Array.isArray(specs) || specs.length === 0) return { width: 0, height: 0, scale: 1, tiles: [] };
+  let scale = 1;
+  for (;;) {
+    const ordered = specs.map((spec, index) => ({ spec, index })).sort((a, b) => {
+      const kindA = KIND_ORDER[a.spec.kind] ?? 9;
+      const kindB = KIND_ORDER[b.spec.kind] ?? 9;
+      if (kindA !== kindB) return kindA - kindB;
+      const heightA = tileHeightOf(a.spec, scale);
+      const heightB = tileHeightOf(b.spec, scale);
+      if (heightA !== heightB) return heightB - heightA;
+      const nameOrder = String(a.spec.name).localeCompare(String(b.spec.name), 'zh');
+      return nameOrder !== 0 ? nameOrder : a.index - b.index;
+    });
+    const tiles = [];
+    let cursorX = 0;
+    let cursorY = 0;
+    let shelfHeight = 0;
+    let usedWidth = 0;
+    for (const { spec } of ordered) {
+      const width = Math.max(96, Math.round((SIGN_TILE_PIXEL_WIDTH[spec.kind] ?? 640) * scale));
+      const height = tileHeightOf(spec, scale);
+      const padding = Math.max(2, Math.round(SIGN_TILE_PADDING * scale));
+      const slotWidth = width + padding * 2;
+      const slotHeight = height + padding * 2;
+      if (cursorX > 0 && cursorX + slotWidth > maxWidth) {
+        cursorY += shelfHeight;
+        cursorX = 0;
+        shelfHeight = 0;
+      }
+      tiles.push({ spec, x: cursorX, y: cursorY, width, height, padding, slotWidth, slotHeight });
+      cursorX += slotWidth;
+      usedWidth = Math.max(usedWidth, cursorX);
+      shelfHeight = Math.max(shelfHeight, slotHeight);
+    }
+    const height = cursorY + shelfHeight;
+    if (height <= maxHeight || scale <= 0.25) {
+      return { width: Math.max(256, usedWidth), height: Math.max(1, height), scale, tiles };
+    }
+    scale /= 2;
+  }
+}
+
+// 浏览器默认实现：一张图集画一块内所有牌。测试通过 options.createAtlasTexture 注入替身。
+export function createSignAtlasTexture(layout) {
+  if (typeof document === 'undefined' || !document.createElement) return null;
+  if (!layout || !layout.tiles.length || !(layout.width > 0) || !(layout.height > 0)) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(layout.width);
+  canvas.height = Math.ceil(layout.height);
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
-  drawSignPanel(ctx, canvas.width, canvas.height, info);
+  for (const tile of layout.tiles) {
+    ctx.save();
+    // 内边距也填该牌底色：生成 mipmap 时相邻牌不会串色。
+    ctx.fillStyle = signPanelBackground(tile.spec);
+    ctx.fillRect(tile.x, tile.y, tile.slotWidth, tile.slotHeight);
+    ctx.translate(tile.x + tile.padding, tile.y + tile.padding);
+    drawSignPanel(ctx, tile.width, tile.height, tile.spec);
+    ctx.restore();
+  }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
@@ -395,29 +470,74 @@ export function createCanvasSignTexture(info) {
   return texture;
 }
 
-// 双面立式牌：两片四边形各自使用正读 UV，背面的文字不会镜像。
-function doubleSidedPanelGeometry(width, height) {
-  const halfWidth = width / 2;
-  const halfHeight = height / 2;
-  const zOffset = 0.03;
-  const positions = [
-    -halfWidth, -halfHeight, zOffset, halfWidth, -halfHeight, zOffset,
-    halfWidth, halfHeight, zOffset, -halfWidth, halfHeight, zOffset,
-    halfWidth, -halfHeight, -zOffset, -halfWidth, -halfHeight, -zOffset,
-    -halfWidth, halfHeight, -zOffset, halfWidth, halfHeight, -zOffset
-  ];
-  const uvs = [
-    0, 0, 1, 0, 1, 1, 0, 1,
-    0, 0, 1, 0, 1, 1, 0, 1
-  ];
-  const indices = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7];
+// 一块内所有名牌合成一个几何：入口牌单面，屋顶/小区牌双面。位置直接烘进顶点，网格留在原点。
+export function buildSignAtlasGeometry(layout) {
+  const positions = [];
+  const normals = [];
+  const uvs = [];
+  const glows = [];
+  const indices = [];
+  const pushQuad = (corners, normal, quadUvs, glow) => {
+    const base = positions.length / 3;
+    corners.forEach((corner, index) => {
+      positions.push(corner[0], corner[1], corner[2]);
+      normals.push(normal[0], normal[1], normal[2]);
+      uvs.push(quadUvs[index][0], quadUvs[index][1]);
+      glows.push(glow);
+    });
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  const width = layout.width > 0 ? layout.width : 1;
+  const height = layout.height > 0 ? layout.height : 1;
+  for (const tile of layout.tiles) {
+    const spec = tile.spec;
+    const u0 = (tile.x + tile.padding) / width;
+    const u1 = (tile.x + tile.padding + tile.width) / width;
+    const v1 = 1 - (tile.y + tile.padding) / height;
+    const v0 = 1 - (tile.y + tile.padding + tile.height) / height;
+    const glow = spec.kind === 'roof' ? 1 : 0;
+    const cos = Math.cos(spec.rotationY);
+    const sin = Math.sin(spec.rotationY);
+    const world = (lx, ly, lz) => [spec.x + lx * cos + lz * sin, spec.y + ly, spec.z - lx * sin + lz * cos];
+    const halfWidth = spec.width / 2;
+    const halfHeight = spec.height / 2;
+    if (spec.kind === 'entrance') {
+      pushQuad([
+        world(-halfWidth, -halfHeight, 0), world(halfWidth, -halfHeight, 0),
+        world(halfWidth, halfHeight, 0), world(-halfWidth, halfHeight, 0)
+      ], [sin, 0, cos], [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], glow);
+    } else {
+      // 正面
+      pushQuad([
+        world(-halfWidth, -halfHeight, 0.03), world(halfWidth, -halfHeight, 0.03),
+        world(halfWidth, halfHeight, 0.03), world(-halfWidth, halfHeight, 0.03)
+      ], [sin, 0, cos], [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], glow);
+      // 背面：反向绕序并把 U 镜像，从背后看文字仍然正读。
+      pushQuad([
+        world(halfWidth, -halfHeight, -0.03), world(-halfWidth, -halfHeight, -0.03),
+        world(-halfWidth, halfHeight, -0.03), world(halfWidth, halfHeight, -0.03)
+      ], [-sin, 0, -cos], [[u1, v0], [u0, v0], [u0, v1], [u1, v1]], glow);
+    }
+  }
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-  geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setAttribute('signGlow', new THREE.Float32BufferAttribute(glows, 1));
   geometry.setIndex(indices);
-  geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
   return geometry;
+}
+
+// 一块图集只有一个材质：夜间亮度按顶点 signGlow 区分屋顶发光字和入口印刷牌，行为和改前逐材质更新一致。
+export function createSignAtlasMaterial(texture) {
+  const material = new THREE.MeshBasicNodeMaterial({ map: texture, toneMapped: false, side: THREE.FrontSide });
+  material.name = 'BuildingSignAtlasMaterial';
+  const glow = attribute('signGlow', 'float');
+  const gain = mix(float(SIGN_NIGHT.printedGain), float(SIGN_NIGHT.roofGain), glow);
+  const tint = mix(vec3(1, 1, 1), vec3(...SIGN_NIGHT.roofTint), glow);
+  material.colorNode = materialColor.mul(tint).mul(float(1).add(sceneUniforms.night.mul(gain)));
+  return material;
 }
 
 // buildings 建议传 buildCityBlocks().allBlocks（带 baseY），否则用 options.groundHeight(x, z) 补地面高；
@@ -426,13 +546,10 @@ function doubleSidedPanelGeometry(width, height) {
 export function buildBuildingSigns(scene, options = {}) {
   const buildings = Array.isArray(options.buildings) ? options.buildings : [];
   const roadGraph = options.roadGraph ?? null;
-  const textureFactory = options.createTexture ?? createCanvasSignTexture;
   const maxChunkOps = Number.isFinite(options.maxChunkOps) ? Math.max(1, Math.floor(options.maxChunkOps)) : 2;
   // 单块可能挤着几十栋有名字的楼；再限一个每帧建牌数，避免 Canvas 建纹理造成长帧。
   const maxSignsPerUpdate = Number.isFinite(options.maxSignsPerUpdate)
     ? Math.max(1, Math.floor(options.maxSignsPerUpdate)) : 4;
-  const canCreateTextures = typeof textureFactory === 'function'
-    && (options.createTexture !== undefined || typeof document !== 'undefined');
   const group = new THREE.Group();
   group.name = 'ShenzhenBuildingSigns';
   if (scene && typeof scene.add === 'function') scene.add(group);
@@ -539,108 +656,23 @@ export function buildBuildingSigns(scene, options = {}) {
     return roadIndex;
   };
 
+  const atlasFactory = options.createAtlasTexture ?? createSignAtlasTexture;
+  // 一块内所有名牌画进一张图集：白天一张贴图、一个网格，夜间按顶点属性区分亮度。
+  const canCreateTextures = typeof atlasFactory === 'function'
+    && (options.createAtlasTexture !== undefined || typeof document !== 'undefined');
   const chunks = new Map();
-  const textureCache = new Map();
-  const materialCache = new Map();
-  const geometryCache = new Map();
-  let textureClock = 0;
-  let lastNight = -1;
+  // 每帧最多重建几块图集；图集重建要重画 canvas，流式生成期间不能每帧对每块都做。
+  const rebuildBudget = Number.isFinite(options.maxAtlasRebuilds)
+    ? Math.max(1, Math.floor(options.maxAtlasRebuilds)) : 1;
   let disposed = false;
-  const statistics = { signs: 0, textures: 0, chunks: 0, updateMs: 0, compounds: 0, compoundClusters: 0,
-    texturesCreated: 0, texturesDisposed: 0, namedBuildings: buildings.filter(b => buildingDisplayName(b)).length };
+  const statistics = { signs: 0, textures: 0, meshes: 0, chunks: 0, updateMs: 0, compounds: 0,
+    compoundClusters: 0, texturesCreated: 0, texturesDisposed: 0,
+    namedBuildings: buildings.filter(b => buildingDisplayName(b)).length };
   buildCompoundClusters();
 
   function chunkCenter(key) {
     const [cx, cz] = key.split(',').map(Number);
     return { x: cx * SIGN_CHUNK_SIZE + SIGN_CHUNK_SIZE / 2, z: cz * SIGN_CHUNK_SIZE + SIGN_CHUNK_SIZE / 2 };
-  }
-
-  function acquireTexture(info) {
-    const key = `${info.kind}|${info.variant}|${info.name}|${info.aspect.toFixed(3)}`;
-    let entry = textureCache.get(key);
-    if (entry) {
-      entry.refs++;
-      entry.lastUsed = ++textureClock;
-      textureCache.delete(key);
-      textureCache.set(key, entry);
-      return { key, texture: entry.texture, kind: info.kind };
-    }
-    if (textureCache.size >= MAX_SIGN_TEXTURES) {
-      for (const [oldKey, oldEntry] of textureCache) {
-        if (oldEntry.refs > 0) continue;
-        textureCache.delete(oldKey);
-        oldEntry.texture.dispose();
-        statistics.texturesDisposed++;
-        if (textureCache.size < MAX_SIGN_TEXTURES) break;
-      }
-    }
-    const texture = textureFactory(info);
-    if (!texture) return null;
-    entry = { texture, refs: 1, lastUsed: ++textureClock };
-    textureCache.set(key, entry);
-    statistics.texturesCreated++;
-    return { key, texture, kind: info.kind };
-  }
-
-  function releaseTexture(key) {
-    const entry = textureCache.get(key);
-    if (!entry) return;
-    entry.refs--;
-    if (entry.refs <= 0) {
-      textureCache.delete(key);
-      entry.texture.dispose();
-      statistics.texturesDisposed++;
-    }
-  }
-
-  function acquireMaterial(textureKey, texture, kind) {
-    let entry = materialCache.get(textureKey);
-    if (entry) {
-      entry.refs++;
-      return entry;
-    }
-    const material = new THREE.MeshBasicMaterial({ map: texture, toneMapped: false, side: THREE.FrontSide });
-    material.name = `BuildingSignMaterial:${kind}`;
-    entry = { material, refs: 1, kind };
-    applyMaterialNight(entry);
-    materialCache.set(textureKey, entry);
-    return entry;
-  }
-
-  function releaseMaterial(textureKey) {
-    const entry = materialCache.get(textureKey);
-    if (!entry) return;
-    entry.refs--;
-    if (entry.refs <= 0) {
-      materialCache.delete(textureKey);
-      entry.material.dispose();
-    }
-  }
-
-  function acquireGeometry(kind, width, height) {
-    const key = `${kind}|${width.toFixed(2)}|${height.toFixed(2)}`;
-    let entry = geometryCache.get(key);
-    if (entry) {
-      entry.refs++;
-      return entry.geometry;
-    }
-    const geometry = kind === 'roof' || kind === 'compound'
-      ? doubleSidedPanelGeometry(width, height)
-      : new THREE.PlaneGeometry(width, height);
-    entry = { geometry, refs: 1 };
-    geometryCache.set(key, entry);
-    return geometry;
-  }
-
-  function releaseGeometry(kind, width, height) {
-    const key = `${kind}|${width.toFixed(2)}|${height.toFixed(2)}`;
-    const entry = geometryCache.get(key);
-    if (!entry) return;
-    entry.refs--;
-    if (entry.refs <= 0) {
-      geometryCache.delete(key);
-      entry.geometry.dispose();
-    }
   }
 
   function ensureChunkState(key) {
@@ -649,18 +681,74 @@ export function buildBuildingSigns(scene, options = {}) {
       const chunkGroup = new THREE.Group();
       chunkGroup.name = `BuildingSigns:${key}`;
       group.add(chunkGroup);
-      state = { key, group: chunkGroup, entrance: [], roof: [], compound: [],
-        entranceDone: false, roofDone: false, compoundDone: false,
-        entranceCursor: 0, roofCursor: 0, compoundCursor: 0 };
+      state = {
+        key,
+        group: chunkGroup,
+        records: { entrance: [], roof: [], compound: [] },
+        wanted: { entrance: false, roof: false, compound: false },
+        done: { entrance: false, roof: false, compound: false },
+        cursor: { entrance: 0, roof: 0, compound: 0 },
+        atlas: null,
+        dirty: false
+      };
       chunks.set(key, state);
     }
     return state;
   }
 
+  function recordCount(state) {
+    return state.records.entrance.length + state.records.roof.length + state.records.compound.length;
+  }
+
+  function disposeAtlas(state) {
+    if (!state.atlas) return;
+    state.group.remove(state.atlas.mesh);
+    state.atlas.geometry.dispose();
+    state.atlas.material.dispose();
+    state.atlas.texture?.dispose?.();
+    state.atlas = null;
+    statistics.texturesDisposed++;
+  }
+
+  function rebuildAtlas(state) {
+    state.dirty = false;
+    const records = [...state.records.roof, ...state.records.entrance, ...state.records.compound];
+    if (records.length === 0) {
+      disposeAtlas(state);
+      return;
+    }
+    const specs = records.map(record => record.spec);
+    const layout = planSignAtlas(specs);
+    const texture = atlasFactory(layout, specs);
+    if (!texture) return;
+    const geometry = buildSignAtlasGeometry(layout);
+    const material = createSignAtlasMaterial(texture);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `BuildingSignAtlas:${state.key}`;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.userData.signs = records.map(record => ({ kind: record.spec.kind,
+      buildingId: record.buildingId ?? null, name: record.spec.name }));
+    // 先建新图集再释放旧图集，重建期间不出现空帧。
+    disposeAtlas(state);
+    state.group.add(mesh);
+    state.atlas = { mesh, geometry, material, texture, layout };
+    statistics.texturesCreated++;
+  }
+
+  // 只有该块想生成的牌都生成完（或卸载后）才重建图集，避免流式生成期间每帧重画 canvas。
+  function markChunkDirty(state) {
+    const ready = (!state.wanted.entrance || state.done.entrance)
+      && (!state.wanted.roof || state.done.roof)
+      && (!state.wanted.compound || state.done.compound);
+    if (ready && (recordCount(state) || state.atlas)) state.dirty = true;
+  }
+
   // 每帧只建预算内的牌子；没建完的块保留游标，下一次 update 接着做，避免一帧内建几十张 Canvas。
   function generateKind(state, kind, list, budget) {
-    if (state[`${kind}Done`]) return;
-    let cursor = state[`${kind}Cursor`];
+    if (state.done[kind]) return;
+    state.wanted[kind] = true;
+    let cursor = state.cursor[kind];
     for (; cursor < list.length; cursor++) {
       if (budget.remaining <= 0) break;
       const building = list[cursor];
@@ -669,51 +757,28 @@ export function buildBuildingSigns(scene, options = {}) {
       const spec = planBuildingSigns(building, { ...options, roadIndex: getRoadIndex() });
       if (!spec) continue;
       if (!canCreateTextures) continue;
-      const texture = acquireTexture(spec);
-      if (!texture) continue;
       budget.remaining--;
-      const material = acquireMaterial(texture.key, texture.texture, spec.kind);
-      const geometry = acquireGeometry(spec.kind, spec.width, spec.height);
-      const mesh = new THREE.Mesh(geometry, material.material);
-      mesh.name = `BuildingSign:${spec.kind}:${building.id}`;
-      mesh.position.set(spec.x, spec.y, spec.z);
-      mesh.rotation.y = spec.rotationY;
-      mesh.castShadow = false;
-      mesh.receiveShadow = false;
-      mesh.userData.sign = { kind: spec.kind, buildingId: building.id, name: spec.name };
-      state.group.add(mesh);
-      state[spec.kind].push({ mesh, textureKey: texture.key, spec });
+      state.records[kind].push({ spec, buildingId: building.id });
     }
-    state[`${kind}Cursor`] = cursor;
-    if (cursor >= list.length) state[`${kind}Done`] = true;
+    state.cursor[kind] = cursor;
+    if (cursor >= list.length) state.done[kind] = true;
   }
 
   // 小区门牌：和入口牌同半径生成，每块每帧受同一预算限制。
   function generateCompounds(state, budget) {
-    if (state.compoundDone) return;
+    state.wanted.compound = true;
+    if (state.done.compound) return;
     const list = compoundByChunk.get(state.key) || [];
-    let cursor = state.compoundCursor;
+    let cursor = state.cursor.compound;
     for (; cursor < list.length; cursor++) {
       if (budget.remaining <= 0 || !canCreateTextures) break;
       const spec = planCompoundSign(list[cursor], { ...options, roadIndex: getRoadIndex() });
       if (!spec) continue;
-      const texture = acquireTexture(spec);
-      if (!texture) continue;
       budget.remaining--;
-      const material = acquireMaterial(texture.key, texture.texture, 'compound');
-      const geometry = acquireGeometry('compound', spec.width, spec.height);
-      const mesh = new THREE.Mesh(geometry, material.material);
-      mesh.name = `BuildingSign:compound:${list[cursor].name}`;
-      mesh.position.set(spec.x, spec.y, spec.z);
-      mesh.rotation.y = spec.rotationY;
-      mesh.castShadow = false;
-      mesh.receiveShadow = false;
-      mesh.userData.sign = { kind: 'compound', buildingId: null, name: spec.name, compound: true };
-      state.group.add(mesh);
-      state.compound.push({ mesh, textureKey: texture.key, spec });
+      state.records.compound.push({ spec, buildingId: null });
     }
-    state.compoundCursor = cursor;
-    if (cursor >= list.length) state.compoundDone = true;
+    state.cursor.compound = cursor;
+    if (cursor >= list.length) state.done.compound = true;
   }
 
   function generateChunk(key, wantEntrance, wantRoof, budget) {
@@ -722,61 +787,40 @@ export function buildBuildingSigns(scene, options = {}) {
     if (wantEntrance) generateKind(state, 'entrance', list, budget);
     if (wantRoof) generateKind(state, 'roof', list, budget);
     if (wantEntrance) generateCompounds(state, budget);
+    markChunkDirty(state);
   }
 
-  function disposeSigns(state, kind) {
-    for (const record of state[kind]) {
-      state.group.remove(record.mesh);
-      releaseGeometry(kind, record.spec.width, record.spec.height);
-      releaseMaterial(record.textureKey);
-      releaseTexture(record.textureKey);
-    }
-    state[kind] = [];
-    state[`${kind}Done`] = false;
-    state[`${kind}Cursor`] = 0;
+  function unloadKind(state, kind) {
+    if (state.records[kind].length === 0 && !state.done[kind] && !state.wanted[kind]) return false;
+    state.records[kind] = [];
+    state.done[kind] = false;
+    state.cursor[kind] = 0;
+    state.wanted[kind] = false;
+    return true;
   }
 
   function pruneChunk(state) {
-    if (state.entrance.length || state.compound.length || state.roof.length) return;
-    if (!state.entranceDone && !state.compoundDone && !state.roofDone) {
-      group.remove(state.group);
-      chunks.delete(state.key);
-    }
-  }
-
-  function currentNight() {
-    const value = Number(sceneUniforms?.night?.value);
-    return Number.isFinite(value) ? clamp(value, 0, 1) : 0;
-  }
-
-  // 屋顶发光字随 sceneUniforms.night 提亮；入口牌只轻微提高亮度，避免把印刷牌画成霓虹灯。
-  function applyMaterialNight(entry) {
-    const night = currentNight();
-    const roof = entry.kind === 'roof';
-    const gain = roof ? 1 + night * 0.85 : 1 + night * 0.12;
-    entry.material.color.setRGB(gain, gain * (roof ? 0.985 : 1), gain * (roof ? 0.94 : 1));
-  }
-
-  function applyNight() {
-    const night = currentNight();
-    if (Math.abs(night - lastNight) < 0.02) return;
-    lastNight = night;
-    for (const entry of materialCache.values()) applyMaterialNight(entry);
+    if (recordCount(state) || state.atlas) return;
+    group.remove(state.group);
+    chunks.delete(state.key);
   }
 
   function refreshStatistics() {
     let signs = 0;
-    let activeChunks = 0;
     let compounds = 0;
+    let activeChunks = 0;
+    let meshes = 0;
     for (const state of chunks.values()) {
-      const count = state.entrance.length + state.roof.length + state.compound.length;
+      const count = recordCount(state);
       signs += count;
-      compounds += state.compound.length;
+      compounds += state.records.compound.length;
       if (count) activeChunks++;
+      if (state.atlas) meshes++;
     }
     statistics.signs = signs;
+    statistics.meshes = meshes;
+    statistics.textures = meshes;
     statistics.compounds = compounds;
-    statistics.textures = textureCache.size;
     statistics.chunks = activeChunks;
   }
 
@@ -789,22 +833,21 @@ export function buildBuildingSigns(scene, options = {}) {
       statistics.updateMs = nowMs() - started;
       return;
     }
-    applyNight();
     const operations = [];
     for (const state of chunks.values()) {
       const center = chunkCenter(state.key);
       const distance = Math.hypot(center.x - x, center.z - z);
-      if (state.entrance.length && distance > ENTRANCE_UNLOAD_RADIUS) {
+      if (state.records.entrance.length && distance > ENTRANCE_UNLOAD_RADIUS) {
         operations.push({ type: 'unload', kind: 'entrance', state, distance });
       }
-      if (state.compound.length && distance > ENTRANCE_UNLOAD_RADIUS) {
+      if (state.records.compound.length && distance > ENTRANCE_UNLOAD_RADIUS) {
         operations.push({ type: 'unload', kind: 'compound', state, distance });
       }
-      if (state.roof.length && distance > ROOF_UNLOAD_RADIUS) {
+      if (state.records.roof.length && distance > ROOF_UNLOAD_RADIUS) {
         operations.push({ type: 'unload', kind: 'roof', state, distance });
       }
       // 远到连屋顶牌都卸载了，就把空块状态也删掉，避免跨城长跑后块表无限增长。
-      if (!state.entrance.length && !state.compound.length && !state.roof.length && distance > ROOF_UNLOAD_RADIUS) {
+      if (recordCount(state) === 0 && !state.atlas && distance > ROOF_UNLOAD_RADIUS) {
         group.remove(state.group);
         chunks.delete(state.key);
       }
@@ -820,9 +863,9 @@ export function buildBuildingSigns(scene, options = {}) {
         const distance = Math.hypot(center.x - x, center.z - z);
         if (distance > ROOF_RADIUS || !chunkBuildings.has(key)) continue;
         const state = chunks.get(key);
-        const wantEntrance = distance <= ENTRANCE_RADIUS && !(state && state.entranceDone);
-        const wantCompound = distance <= ENTRANCE_RADIUS && !(state && state.compoundDone);
-        const wantRoof = !(state && state.roofDone);
+        const wantEntrance = distance <= ENTRANCE_RADIUS && !(state && state.done.entrance);
+        const wantCompound = distance <= ENTRANCE_RADIUS && !(state && state.done.compound);
+        const wantRoof = !(state && state.done.roof);
         if (wantEntrance || wantCompound || wantRoof) {
           operations.push({ type: 'load', key, distance, entrance: wantEntrance || wantCompound, roof: wantRoof });
         }
@@ -838,11 +881,19 @@ export function buildBuildingSigns(scene, options = {}) {
       if (processed >= maxChunkOps) break;
       processed++;
       if (operation.type === 'unload') {
-        disposeSigns(operation.state, operation.kind);
+        if (unloadKind(operation.state, operation.kind)) operation.state.dirty = true;
         pruneChunk(operation.state);
       } else {
         generateChunk(operation.key, operation.entrance, operation.roof, budget);
       }
+    }
+    // 图集重建单独限预算：先重建牌子多的块，牌子少的排后面。
+    let rebuilt = 0;
+    for (const state of chunks.values()) {
+      if (rebuilt >= rebuildBudget) break;
+      if (!state.dirty) continue;
+      rebuildAtlas(state);
+      rebuilt++;
     }
     refreshStatistics();
     statistics.updateMs = nowMs() - started;
@@ -876,22 +927,14 @@ export function buildBuildingSigns(scene, options = {}) {
     if (disposed) return;
     disposed = true;
     for (const state of chunks.values()) {
-      disposeSigns(state, 'entrance');
-      disposeSigns(state, 'compound');
-      disposeSigns(state, 'roof');
+      disposeAtlas(state);
+      state.group.removeFromParent();
       group.remove(state.group);
     }
     chunks.clear();
-    for (const entry of materialCache.values()) entry.material.dispose();
-    materialCache.clear();
-    for (const entry of geometryCache.values()) entry.geometry.dispose();
-    geometryCache.clear();
-    for (const entry of textureCache.values()) entry.texture.dispose();
-    textureCache.clear();
     if (scene && typeof scene.remove === 'function') scene.remove(group);
     refreshStatistics();
   }
 
-  applyNight();
   return { group, update, dispose, statistics, nearestName };
 }
