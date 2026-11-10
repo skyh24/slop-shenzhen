@@ -170,7 +170,10 @@ test('DJI reads as two towers: dark core spine, vertical fins, facade V braces a
   const crossbars = actual.filter(part => part.id.includes(':crossbar:'));
   assert.ok(braces.length >= 36 && braces.length % 2 === 0);
   assert.equal(crossbars.length, braces.length / 2);
-  assert.ok([...braces, ...crossbars].every(part => part.heightSource === 'estimate'));
+  const middles = actual.filter(part => part.id.includes(':v-brace-mid:'));
+  assert.equal(middles.length, crossbars.length);
+  assert.ok(middles.every(part => part.style === 'djiSteel' && part.heightSource === 'estimate'));
+  assert.ok([...braces, ...crossbars, ...middles].every(part => part.heightSource === 'estimate'));
   // 连桥按图 3 补的边梁、按图 4 补的桁架/护栏带，逐段与桥面同数。
   assert.equal(actual.filter(part => part.id.includes(':bridge-edge-beam:')).length, 44);
   assert.equal(actual.filter(part => part.id.includes(':bridge-guard:')).length, 44);
@@ -337,6 +340,25 @@ test('Ping An profile keeps the base full width to 120 m and folds the crown fro
   assert.equal(columns.length, 40);
   assert.equal(columns.filter(row => row.minY === Math.fround(base)).length, 8);
   assert.equal(columns.filter(row => row.maxY === Math.fround(base + 579)).length, 8);
+  // 立面 V 形斜撑：每个立面两条，从 555.6 m 高位斜向收到底部中央 250 m，外凸贴墙。
+  const vBraces = actual.filter(row => row.id.includes(':v-brace:'));
+  assert.equal(vBraces.length, 8);
+  assert.ok(vBraces.every(row => row.style === 'pingAnCrownEdge' && row.heightSource === 'estimate'));
+  assert.equal(new Set(vBraces.map(row => Number(row.id.split(':')[2]))).size, 4);
+  assert.ok(vBraces.every(row => Math.abs(row.maxY - Math.fround(base + 555.6)) < 1e-6));
+  // 主立面石材竖挺与四角切角钢带贴着收分塔身（夜里灯带沿建筑走，不超出轮廓）。
+  const fins = actual.filter(row => row.id.includes(':fin:'));
+  // 南北面 41.3 m 每面 15 根、东西面 40.6 m 每面 14 根，共 58 根。
+  assert.equal(fins.length, 58);
+  assert.ok(fins.every(row => row.style === 'pingAnSteel' && row.heightSource === 'estimate'));
+  assert.ok(fins.every(row => row.minY === Math.fround(base + 22) && row.maxY === Math.fround(base + 579)));
+  assert.deepEqual([...new Set(fins.map(row => Number(row.id.split(':')[2])))].sort(), [0, 2, 4, 6]);
+  const bands = actual.filter(row => row.id.includes(':corner-band:'));
+  assert.equal(bands.length, 20);
+  assert.ok(bands.every(row => row.style === 'pingAnCrownEdge' && row.heightSource === 'estimate'));
+  assert.equal(new Set(bands.map(row => Number(row.id.split(':')[2]))).size, 4);
+  assert.ok(Math.abs(Math.min(...bands.map(row => row.minY)) - Math.fround(base)) < 1e-6);
+  assert.ok(bands.every(row => row.maxY <= Math.fround(base + 579) + 1e-6));
   // 显示与碰撞同源：塔身中段实心、塔外空；巨柱位置可碰撞；桥下街道净空。
   assert.ok(actual.some(row => occupies(row, tower.cx, tower.cz, base + 40, base + 41)));
   assert.ok(actual.every(row => !occupies(row, tower.cx + 60, tower.cz, base + 40, base + 41)));

@@ -36,10 +36,28 @@ const CHAMFER = 17.6;
 const COLUMN_TIERS = [0, 120, 407, 467, OBSERVATION_ROOF, VOID_BOTTOM];
 const COLUMN_WIDTH = [5.7, 2.8];
 const COLUMN_DEPTH = [2.7, 1.15];
-const COLUMN_PROTRUSION = 0.4;
+const COLUMN_PROTRUSION = 0.7;
 const COLUMN_POSITIONS = [0.26, 0.74];
 // 四条 45° 切角斜面（八边形顶点 1→2、3→4、5→6、7→0）：8 根巨柱与 4 支顶冠钢腿都落在这四面。
 const CORNER_FACES = [1, 3, 5, 7];
+// 主立面石材竖挺：KPF 说的 chevron-shaped stone verticals，照片间距约 1.7 m、浅色石条。
+const MAIN_FACES = [0, 2, 4, 6]; // 八边形的四条主立面（0→1 北、2→3 东、4→5 南、6→7 西）
+const FIN_SPACING = 2.8;
+const FIN_WIDTH = 1.1;
+const FIN_DEPTH = 0.7;
+const FIN_PROUD = 0.5;
+// 四角切角钢带：照片角部比幕墙亮，占切角斜面约 40%，两根巨柱分列两侧。
+const BAND_RATIO = 0.48;
+const BAND_DEPTH = 0.62;
+const BAND_PROUD = 0.42;
+// 立面 V 形斜撑：照片里每个立面两条亮色斜线，从大约 555 m 的高位斜向收到底部中央 250 m 处。
+// 照片判读（EST）：峰值高度 250 m、顶部 555.6 m、斜带宽 2.4 m、外凸 0.45 m。
+const V_APEX = 250;
+const V_TOP = OBSERVATION_ROOF;
+const V_WIDTH = 3.2;
+const V_DEPTH = 0.62;
+const V_PROUD = 0.6;
+const V_ANCHOR = [0.06, 0.94];
 const LEG_WIDTH = [4.8, 3.2];
 const LEG_DEPTH = [1.55, 1.25];
 const LEG_PROTRUSION = 0.45;
@@ -132,10 +150,73 @@ function megaColumns(source, base, frame) {
       for (let i = 1; i < COLUMN_TIERS.length; i++) {
         parts.push(loftPart(`${source.id}:mega-column:${index}:${i}`, source,
           section(COLUMN_TIERS[i - 1]), section(COLUMN_TIERS[i]),
-          base + COLUMN_TIERS[i - 1], base + COLUMN_TIERS[i], 'pingAnSteel'));
+          base + COLUMN_TIERS[i - 1], base + COLUMN_TIERS[i], 'pingAnCrownEdge'));
       }
     });
   });
+  return parts;
+}
+
+// 四个主立面的 V 形斜撑：两条亮带从高位两角斜向收到底部中央，照片里的标志性 V 就地靠在幕墙外。
+// 斜杆是沿立面切向的方杆：上下两个矩形截面按同一方向 loft，杆宽沿立面、外凸沿法向，不会像水平板那样只剩一条棱。
+function chevronBraces(source, base, frame) {
+  const top = frame.outline(widthAt(V_TOP));
+  const apex = frame.outline(widthAt(V_APEX));
+  const offset = V_PROUD - V_DEPTH / 2;
+  const parts = [];
+  for (const face of MAIN_FACES) {
+    const high = edgeFrame(top, face);
+    const low = edgeFrame(apex, face);
+    const section = (edge, t) => rectangle(
+      point(blend(edge.a.x, edge.b.x, t) + edge.n.x * offset,
+        blend(edge.a.z, edge.b.z, t) + edge.n.z * offset),
+      edge.d.x, edge.d.z, V_WIDTH, V_DEPTH);
+    for (const t of V_ANCHOR) {
+      parts.push(loftPart(`${source.id}:v-brace:${face}:${t}`, source, section(low, 0.5), section(high, t),
+        base + V_APEX, base + V_TOP, 'pingAnCrownEdge'));
+    }
+  }
+  return parts;
+}
+
+// 四个主立面的石材竖挺：从大堂顶通到冠底，随收分一起内倾。同一批 parts 参与碰撞。
+function facadeFins(source, base, frame) {
+  const lower = frame.outline(widthAt(LOBBY_TOP));
+  const upper = frame.outline(widthAt(VOID_BOTTOM));
+  const offset = FIN_PROUD - FIN_DEPTH / 2;
+  const parts = [];
+  for (const face of MAIN_FACES) {
+    const low = edgeFrame(lower, face);
+    const high = edgeFrame(upper, face);
+    const count = Math.max(3, Math.round(low.length / FIN_SPACING));
+    for (let k = 0; k < count; k++) {
+      const t = (k + 0.5) / count;
+      const section = edge => rectangle(
+        point(blend(edge.a.x, edge.b.x, t) + edge.n.x * offset, blend(edge.a.z, edge.b.z, t) + edge.n.z * offset),
+        edge.d.x, edge.d.z, FIN_WIDTH, FIN_DEPTH);
+      parts.push(loftPart(`${source.id}:fin:${face}:${k}`, source, section(low), section(high),
+        base + LOBBY_TOP, base + VOID_BOTTOM, 'pingAnSteel'));
+    }
+  }
+  return parts;
+}
+
+// 四角切角钢带：沿切角斜面通高，白天读作角部亮带，夜里由材质自发光贴着塔身走。
+function cornerBands(source, base, frame) {
+  const offset = BAND_PROUD - BAND_DEPTH / 2;
+  const parts = [];
+  for (const face of CORNER_FACES) {
+    for (let i = 1; i < COLUMN_TIERS.length; i++) {
+      const section = y => {
+        const edge = edgeFrame(frame.outline(widthAt(y)), face);
+        return rectangle(point((edge.a.x + edge.b.x) / 2 + edge.n.x * offset,
+          (edge.a.z + edge.b.z) / 2 + edge.n.z * offset), edge.d.x, edge.d.z, edge.length * BAND_RATIO, BAND_DEPTH);
+      };
+      parts.push(loftPart(`${source.id}:corner-band:${face}:${i}`, source,
+        section(COLUMN_TIERS[i - 1]), section(COLUMN_TIERS[i]),
+        base + COLUMN_TIERS[i - 1], base + COLUMN_TIERS[i], 'pingAnCrownEdge'));
+    }
+  }
   return parts;
 }
 
@@ -198,7 +279,9 @@ function build(buildings, terrain) {
   const base = baseAt(source, terrain);
   const frame = towerFrame(tip);
   return [...westLobby(source, base), ...towerShell(source, base, frame), ...crownShell(source, tip, base, frame),
-    ...megaColumns(source, base, frame), ...crownLegs(source, base, frame), ...retailParts(buildings, terrain)];
+    ...megaColumns(source, base, frame), ...chevronBraces(source, base, frame), ...facadeFins(source, base, frame),
+    ...cornerBands(source, base, frame),
+    ...crownLegs(source, base, frame), ...retailParts(buildings, terrain)];
 }
 
 export { sourceIds, build };

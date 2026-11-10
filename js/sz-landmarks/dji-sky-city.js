@@ -33,6 +33,8 @@ const CORE_STYLE = 'djiGuard';
 const FIN_STYLE = 'djiBrace';
 const BRACE_STYLE = 'djiSteel';
 const TRUSS_STYLE = 'djiGuard';
+// 桥的吊索/护栏用既有 pingAnCrownEdge（带夜间自发光）复用为“桥体灯带”，不新增材质键。
+const NIGHT_STEEL = 'pingAnCrownEdge';
 
 // 核心筒竖挺：外凸 0.45 米、宽 0.45 米、间距约 2.2 米（照片比例，估计值）。
 const FIN_PROUD = 0.45;
@@ -165,7 +167,7 @@ function bridgeParts(source, buildings, terrain, towerSolids) {
     const wB = bridgeWidth(b);
     const mid = midness((a + b) / 2);
     add('bridge-deck', axis(a, yA), axis(b, yB), wA, wB, blend(...BRIDGE_EDGE_DEPTH, mid), 'djiDeck', 'design');
-    add('suspension-cable', axis(a, base + bridgeCable(a)), axis(b, base + bridgeCable(b)), 0.12, 0.12, 0.12, 'djiSteel');
+    add('suspension-cable', axis(a, base + bridgeCable(a)), axis(b, base + bridgeCable(b)), 0.12, 0.12, 0.12, NIGHT_STEEL);
     // 图 3 的边梁贴在中央桥面两侧，顶面与桥面齐平；图 4 的桁架/护栏区立在边梁外沿，端部高、跨中低。
     const eA = bridgeEdgeWidth(a);
     const eB = bridgeEdgeWidth(b);
@@ -175,7 +177,7 @@ function bridgeParts(source, buildings, terrain, towerSolids) {
       add('bridge-edge-beam', axis(a, yA, side * (wA / 2 + eA / 2)), axis(b, yB, side * (wB / 2 + eB / 2)),
         eA, eB, blend(...BRIDGE_EDGE_DEPTH, mid), TRUSS_STYLE, 'design');
       add('bridge-guard', axis(a, yA + hA, side * (wA / 2 + eA - 0.075)),
-        axis(b, yB + hB, side * (wB / 2 + eB - 0.075)), 0.15, 0.15, Math.max(hA, hB), TRUSS_STYLE, 'design');
+        axis(b, yB + hB, side * (wB / 2 + eB - 0.075)), 0.15, 0.15, Math.max(hA, hB), NIGHT_STEEL, 'design');
     }
   }
 
@@ -246,6 +248,16 @@ function facadeBraces(wing, volume, solids) {
     }
     braces.push(spanPart(`${volume.id}:crossbar:${i}`, wing, at(0.045, capY), at(0.955, capY),
       BRACE_THICKNESS, BRACE_THICKNESS, CROSSBAR_DEPTH, BRACE_STYLE, placement));
+    // 照片里的 V 撑是 Y 形：顶横杆中点还有一根竖杆落到 V 底；竖杆在平面内没有长度，用细 loft 建。
+    const section = y => {
+      const centre = at(0.5, y);
+      const half = BRACE_THICKNESS / 2;
+      return [[-half, -half], [half, -half], [half, half], [-half, half]].map(([u, v]) => ({
+        x: centre.x + dx * u + normal.x * v, z: centre.z + dz * u + normal.z * v
+      }));
+    };
+    braces.push(loftPart(`${volume.id}:v-brace-mid:${i}`, wing, section(footY), section(capY),
+      footY, capY, BRACE_STYLE, placement));
   }
   return braces;
 }
