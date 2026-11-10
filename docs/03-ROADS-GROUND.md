@@ -6,10 +6,32 @@
 
 ## 路网
 
+### 当前实现（2026-11-10 核对代码）
+
+| 内容 | 模块 |
+| --- | --- |
+| 路面网格 | `js/sz-roads.js` 的 `buildSzRoads`，按源数据分块，一个共享沥青材质 |
+| 标线 | `js/sz-road-markings.js` 生成布局，`js/sz-road-paint.js` 负责虚线着色和 600 m 分块 |
+| 路口信号、路侧设施 | `js/sz-road-frontage.js`、`js/sz-intersection-control.js` |
+| 车流路网 | `js/sz-traffic.js` 的 `createTrafficGraph`，只用地面道路（`isGroundRoad`） |
+| 高架和匝道 | `js/sz-elevated-roads.js`，车公庙 37 条链路，层高按 `layer` 估计，显示和接触共用三角面 |
+| 地形和派生路面 | `js/sz-ground.js`、`js/sz-ground-surface.js`、`js/sz-terrain.js`，数据由 `tools/sz/road_surface.py` 和 `tools/sz/terrain_surface.py` 生成 |
+
+纽约的 `road-network.js` 和 `road-paint.js` 不在正式入口里，计划从 `js/` 删除，见 [22-OPTIMIZATION-REVIEW.md](22-OPTIMIZATION-REVIEW.md)。路面材质的改进方向也写在那份文档的 V1。
+
+派生路面规则（`tools/sz/road_surface.py`，原写在已删除的 15 号评审第 3.1 节，是公开、可复现的估计，不是实测）：
+
+- 基线取 `min(FABDEM 中值滤波, 原 DSM)`，只降不升，逐顶点上限为原 DSM +0.5 m。
+- 共享路网节点取中值；纵坡按道路等级限制在 6–10%；横向按路宽做平的横断面。
+- 路面外侧有平台和 15–45 m 的过渡带接回原地形；桥隧按 OSM `bridge`、`tunnel` 单独处理，不参与平滑；春茧等排除区受保护。
+- 构建报告列出每段的派生前后高差。拿到工程标高后逐段替换。
+
+### 早期方案
+
 以下纽约路网与按宽度推算车道的条目为早期方案；正式实施以本文末尾“用户画面反馈与优化验收”为准。车道数不能仅由宽度阈值推断并冒充真实值。
 
 - 数据：`GEO.roadGraph`，见 `02-DATA-PIPELINE.md`
-- 运行：纽约 `road-network.js` 的中心线分支（4b 段）直接吃这份数据
+- 运行（早期设想，未采用）：纽约 `road-network.js` 的中心线分支（4b 段）直接吃这份数据
 - 改动点
   - `onLand(x, z)`：改用 `city-config.js` 的 `isOnLand`，查海岸多边形
   - 主路判断正则 `MAJOR`：改为匹配“大道|快速|干道”，以及宽度大于等于 14 米
@@ -63,7 +85,7 @@
 
 ## 路面标线
 
-`road-paint.js` 沿用。车道线白色，中央双黄线只画在有对向车道的路段；路口有斑马线。深圳主路常见的公交专用道画黄色宽线，并写“公交专用”。
+正式实现是 `js/sz-road-markings.js` 加 `js/sz-road-paint.js`，纽约 `road-paint.js` 没有沿用。车道线白色，中央双黄线只画在有对向车道的路段；路口有斑马线。深圳主路常见的公交专用道画黄色宽线，并写“公交专用”。
 
 ## 验收
 

@@ -8,7 +8,7 @@ Slop Shenzhen：浏览器里的 1:1 深圳关内城市漫游（南山、福田�
 2. [docs/11-MVP.md](docs/11-MVP.md)：MVP 的粗糙之处和**正式版九条硬性要求**
 3. [docs/CONVENTIONS.md](docs/CONVENTIONS.md)：完整规范，本文件只是摘要
 4. [docs/TASKS.md](docs/TASKS.md)：按里程碑的任务清单
-5. [docs/NEXT-AGENT-PLAN.md](docs/NEXT-AGENT-PLAN.md)：当前收尾顺序、任务归属与验收门槛
+5. 按你做的那条线读：功能修复看 [docs/REVIEW-FOLLOWUP-2026-11-10.md](docs/REVIEW-FOLLOWUP-2026-11-10.md) 第 4 节；架构、性能、画面优化看 [docs/22-OPTIMIZATION-REVIEW.md](docs/22-OPTIMIZATION-REVIEW.md) 第 5 节。长期计划和并行分工在 [docs/NEXT-AGENT-PLAN.md](docs/NEXT-AGENT-PLAN.md)
 6. 做哪个模块，再读 `docs/` 里对应的 00 到 10 号文档
 
 ## 正式版硬性要求（摘要）

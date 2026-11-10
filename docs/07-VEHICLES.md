@@ -20,7 +20,7 @@
 
 ## 做法
 
-纽约的车流系统（`traffic.js`）、车辆物理（`vehicle-physics.js`）、车身着色器（`cars.js`）都保留。车型由 `BODY_SPECS`（车身剖面参数）和 `FLEET_MIX`（每 20 辆车的车型配比）决定，涂装是 `carStyleCode` 里的 `livery` 编号，车牌是一张生成的贴图图集。深圳版只换这几样。
+纽约的车辆物理（`vehicle-physics.js`）和车身着色器（`cars.js`）保留；纽约车流 `traffic.js` 没有接入正式入口，车流由 `js/sz-traffic.js` 重写。车型由 `BODY_SPECS`（车身剖面参数）和 `FLEET_MIX`（每 20 辆车的车型配比）决定，涂装是 `carStyleCode` 里的 `livery` 编号，车牌是一张生成的贴图图集。深圳版只换这几样。
 
 跟纽约的区别（2026-11-09 晚起）：深圳入口已经把 `js/cars.js` 的 loft 车身 + TSL 单材质真正接回运行中的车辆，`js/sz-vehicles.js` 负责深圳车型、贴花和车轮，`js/sz-traffic.js` 用每车型一个车身 InstancedMesh 加大车车轮 InstancedMesh。`setCarLocale('shenzhen')` 只在深圳入口切换，纽约默认行为不变。
 

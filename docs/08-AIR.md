@@ -11,7 +11,7 @@
 - 滑橇式起落架
 - 机腹一圈蓝色灯带
 
-文件：`js/evtol.js`，导出 `createEvtolMesh()`，结构和纽约 `helicopter.js` 一样返回 `{ group, rotors, update(dt, throttle) }`。
+文件：`js/sz-vehicles.js` 的 `createEvtolMesh()`（早期规划写的 `js/evtol.js` 没有单独建），由 `controllers.js` 的飞行模式使用；座舱里有坐姿飞行员。
 
 ### 飞行手感
 
@@ -57,12 +57,12 @@
 
 ### 性能
 
-所有无人机共用一个实例化网格（`InstancedMesh`），螺旋桨用着色器转，不建独立对象。
+目标：所有无人机共用一个实例化网格（`InstancedMesh`），螺旋桨用着色器转，不建独立对象。当前实现还不是这样：`sz-drone-routes.js` 的 `buildDroneModel` 每架 13 个网格，站点每个 2 个，见 [22 号第 3 节](22-OPTIMIZATION-REVIEW.md#3-性能) P10。
 
 ## 验收
 
 - 从市民中心起飞，绕平安大厦一圈，回到人才公园降落
-- 当前实现两条航线、每条 2 架（共 4 架）在 100 m 示意航迹往返；会期管控时全部停在起降点
+- 当前实现两条航线、每条 2 架（共 4 架）在 100 m 示意航迹往返；会期管控时全部停在起降点。已知缺陷：到达端点时瞬移回另一端，没有返航转向，见 [REVIEW-FOLLOWUP 1.4](REVIEW-FOLLOWUP-2026-11-10.md#14-p2无人机到端点后瞬移不会返航)
 - 人才公园潮汐广场的取餐柜/降落细节仍未建（潮汐广场 OSM 无对象，精确柜位未公开）
 - 测试检查 `air-routes.json` 每条航线、站点都有 `sourceUrls` 和 `verifiedAt`，且 `trackStatus='schematic'`、`altitudeSource='estimate'`
 

@@ -31,7 +31,7 @@ ESTIMATE_SEED = 20261118
 UNDERGROUND_TAGS = ('name', 'building', 'building:part', 'building:levels', 'building:levels:underground',
                     'layer', 'location', 'height', 'min_height')
 
-# 卫星轮廓误识别过滤阈值，出处 docs/15-IMPROVEMENT-PLAN.md 3.2
+# 卫星轮廓误识别过滤阈值，规则见 docs/02-DATA-PIPELINE.md 第 4 节
 MISIDENTIFIED_MAX_AREA = 300.0
 PLAZA_GREEN_SHARE = 0.6
 CARRIAGEWAY_SHARE = 0.8
@@ -214,7 +214,7 @@ def filter_misidentified_footprints(candidates, plaza_geoms, green_geoms, road_l
                                     plaza_green_share=PLAZA_GREEN_SHARE,
                                     carriageway_share=CARRIAGEWAY_SHARE, buffer_m=CARRIAGEWAY_BUFFER,
                                     report_key='globfpMisidentified', source_label='GloBFP-only'):
-    """按 docs/15 第 3.2 节的规则筛掉只来自某个补充来源（GloBFP 或 Overture）的广场设施/路面误识别轮廓。
+    """按 docs/02-DATA-PIPELINE.md 第 4 节的规则筛掉只来自某个补充来源（GloBFP 或 Overture）的广场设施/路面误识别轮廓。
 
     输入几何都是局部米制坐标。candidates 是某一补充来源的候选（GlobFP 或 Overture）；
     counterpart_geoms 为已有对照轮廓，命中即保留，绝不因为误识别规则丢掉有对照的楼。
@@ -575,7 +575,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
     gb_added = len(kept_candidates)
     report['globfpAdded'] = gb_added
 
-    # Overture-only 补充楼同样按 docs/15 3.2 的规则过滤广场设施/路面误识别；
+    # Overture-only 补充楼同样按 docs/02-DATA-PIPELINE.md 第 4 节的规则过滤广场设施/路面误识别；
     # 有 OSM 轮廓对照的楼一律保留（counterpart_geoms 只给 OSM，不含其他 Overture 轮廓）。
     # 放在 GlobFP 之后执行，GlobFP 候选的去重对照集仍是全部 Overture 补充记录，globfpMisidentified 口径不变。
     kept_overture, _dropped_overture = filter_misidentified_footprints(
