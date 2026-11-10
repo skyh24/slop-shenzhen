@@ -25,11 +25,16 @@ const PODIUM_ENTRANCE_CLEARANCE_M = 1.5;
 const PODIUM_OCCUPANCY_CELL_M = 64;
 const PODIUM_OCCUPANCY_PAD_M = 2;
 // 屋顶细节：女儿墙 + 电梯机房/空调机组体块。类型、位置、数量都是显示估计（estimate），
-// 不属于建筑高度来源；只加在真实足迹内，不生成碰撞体。
+// 不属于建筑高度来源；设备完整底面必须落在真实屋顶有效区域内（扣除内院），放不下就缩小、换位置或跳过。
 const PARAPET_MIN_HEIGHT_M = 20;
 const PARAPET_HEIGHT_M = 0.9;
 const ROOF_EQUIPMENT_MIN_HEIGHT_M = 60;
 const ROOF_EQUIPMENT_MAX = 3;
+const ROOF_EQUIPMENT_EDGE_MARGIN_M = 0.5;
+const ROOF_EQUIPMENT_GAP_M = 0.5;
+const ROOF_EQUIPMENT_MIN_SIZE_M = 1.5;
+const ROOF_EQUIPMENT_SHRINK_STEPS = [1, 0.75, 0.55, 0.35];
+const ROOF_EQUIPMENT_GRID_MAX = 12;
 const flatRing = ring => ring.flatMap(p => [p.x, p.z]);
 
 function ringArea(ring) {
@@ -361,32 +366,137 @@ function podiumPlan(candidate, context, placement) {
   return null;
 }
 
+// 屋顶设备底面的矩形环：yaw 为绕竖直轴的旋转（弧度），本地 x 轴对应 sizeX。
+function roofUnitRing({ x, z, sizeX, sizeZ, yaw }) {
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const hx = sizeX / 2, hz = sizeZ / 2;
+  return [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]].map(([u, v]) => ({
+    x: x + u * cos - v * sin, z: z + u * sin + v * cos
+  }));
+}
+
+// 屋顶有效区域包含检查：完整底面在内、与边界各边保持净距、不盖内院。
+// 只判断中心或四角会漏掉凹口和穿过底面的内院，所以同时检查边相交、边界顶点和双向净距。
+function roofUnitFits(rings, polygon, outerBounds, unit, margin) {
+  const rect = roofUnitRing(unit);
+  // 先用外包围盒排除贴近屋顶边缘的候选，避免每个候选都做整圈边界距离计算。
+  const rectBounds = ringBounds(rect);
+  if (rectBounds.minX < outerBounds.minX + margin || rectBounds.maxX > outerBounds.maxX - margin
+    || rectBounds.minZ < outerBounds.minZ + margin || rectBounds.maxZ > outerBounds.maxZ - margin) return false;
+  for (const point of rect) if (!polygonContainsPoint(polygon, point.x, point.z)) return false;
+  for (const ring of rings) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[j], b = ring[i];
+      for (let k = 0, l = rect.length - 1; k < rect.length; l = k++) {
+        if (segmentsCross(a, b, rect[l], rect[k])) return false;
+      }
+      if (ringContains(rect, a.x, a.z)) return false;
+      for (const point of rect) if (pointSegmentDistance(point.x, point.z, a, b) < margin) return false;
+    }
+    // 凹口或内院的边界顶点可能贴在设备某条边中间，只查四角距离会漏掉。
+    for (const vertex of ring) {
+      for (let k = 0, l = rect.length - 1; k < rect.length; l = k++) {
+        if (pointSegmentDistance(vertex.x, vertex.z, rect[l], rect[k]) < margin) return false;
+      }
+    }
+  }
+  return true;
+}
+
+// 解析：同一栋楼内设备之间保持间距（按放大后的矩形判断重叠）。
+function roofUnitsOverlap(placed, unit, gap) {
+  const rect = roofUnitRing(unit);
+  const bounds = ringBounds(rect);
+  for (const other of placed) {
+    // 包围盒预筛也要按要求的间距外扩，否则斜向相邻的两台设备会漏检。
+    const apartBounds = { minX: other.bounds.minX - gap, maxX: other.bounds.maxX + gap,
+      minZ: other.bounds.minZ - gap, maxZ: other.bounds.maxZ + gap };
+    if (!boundsOverlap(bounds, apartBounds)) continue;
+    // 对方矩形每边外扩 gap，重叠即说明净距不足。
+    const expanded = roofUnitRing({ ...other.unit, sizeX: other.unit.sizeX + gap * 2, sizeZ: other.unit.sizeZ + gap * 2 });
+    if (polygonsOverlap({ outer: expanded, holes: [] }, { outer: rect, holes: [] })) return true;
+  }
+  return false;
+}
+
+// 主朝向取最长边方向：矩形在 π/2 旋转下相同，所以把朝向归一化到 [0, π/2)。
+function roofOrientations(ring, seed) {
+  let longest = 0, longestLength = -1;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const ex = ring[i].x - ring[j].x, ez = ring[i].z - ring[j].z;
+    const length = Math.sqrt(ex * ex + ez * ez);
+    if (length > longestLength) { longestLength = length; longest = Math.atan2(ring[i].z - ring[j].z, ring[i].x - ring[j].x); }
+  }
+  const quarter = Math.PI / 2;
+  const dominant = ((longest % quarter) + quarter) % quarter;
+  const orientations = [dominant, dominant + quarter, 0];
+  if (seed > 0.5) orientations.reverse();
+  return orientations.filter((yaw, index) => orientations.findIndex(other => Math.abs(other - yaw) < 1e-3) === index);
+}
+
+// 解析：屋顶设备的候选位置，固定种子决定顺序；先沿用原来的极坐标位置，再用收缩包围盒网格补充。
+function roofEquipmentPositions(bounds, seed, index) {
+  const centerX = (bounds.minX + bounds.maxX) / 2, centerZ = (bounds.minZ + bounds.maxZ) / 2;
+  const span = Math.min(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ);
+  const angle = (seed * 7.3 + index * 2.1) % (Math.PI * 2);
+  const radius = span * (0.08 + 0.06 * ((seed + index * 0.37) % 1));
+  const preferred = { x: centerX + Math.cos(angle) * radius, z: centerZ + Math.sin(angle) * radius };
+  const positions = [preferred, { x: centerX, z: centerZ }];
+  const inset = Math.min(span * 0.15, 4);
+  const step = Math.max(2, span / 4);
+  const grid = [];
+  for (let x = bounds.minX + inset; x <= bounds.maxX - inset + 1e-9; x += step) {
+    for (let z = bounds.minZ + inset; z <= bounds.maxZ - inset + 1e-9; z += step) grid.push({ x, z });
+  }
+  const distance = point => { const dx = point.x - preferred.x, dz = point.z - preferred.z; return dx * dx + dz * dz; };
+  grid.sort((a, b) => distance(a) - distance(b) || a.x - b.x || a.z - b.z);
+  positions.push(...grid.slice(0, ROOF_EQUIPMENT_GRID_MAX));
+  return positions;
+}
+
 /** 解析：普通建筑屋顶细节计划：≥20 m 加女儿墙；≥60 m 按 id 固定种子加 1–3 个屋顶设备体块。
  *  输入：单栋建筑与首个足迹多边形。
- *  输出：{ parapet, equipment }；设备位置在足迹包围盒内、尺寸 3–9 m，纯显示估计。 */
-function roofPlan(building, polygon) {
+ *  输出：{ parapet, equipment }；设备 { x, z, sizeX, sizeZ, height, yaw } 的完整底面落在屋顶有效区域内
+ *  （扣除内院、距边界 ≥0.5 m、设备之间 ≥0.5 m），放不下就缩小、换位置或跳过。 */
+export function roofPlan(building, polygon) {
   const parapet = building.height >= PARAPET_MIN_HEIGHT_M ? PARAPET_HEIGHT_M : 0;
   const equipment = [];
-  if (building.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M) {
-    const ring = polygon.outer;
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (const point of ring) {
-      minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x);
-      minZ = Math.min(minZ, point.z); maxZ = Math.max(maxZ, point.z);
+  if (!polygon || polygon.outer.length < 3 || building.height < ROOF_EQUIPMENT_MIN_HEIGHT_M) {
+    return { parapet, equipment };
+  }
+  const ring = polygon.outer;
+  const rings = [ring, ...(polygon.holes ?? [])];
+  const bounds = ringBounds(ring);
+  const span = Math.min(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ);
+  const seed = buildingSeed(building.id);
+  const count = 1 + Math.floor(seed * ROOF_EQUIPMENT_MAX);
+  const positions = roofEquipmentPositions(bounds, seed, 0);
+  const orientations = roofOrientations(ring, seed);
+  const placed = [];
+  for (let index = 0; index < count; index++) {
+    const sizeX = Math.min(9, Math.max(3, span * (0.1 + 0.05 * ((seed + index * 0.21) % 1))));
+    const sizeZ = Math.min(9, Math.max(3, span * (0.09 + 0.04 * ((seed + index * 0.53) % 1))));
+    const height = 2 + ((seed + index * 0.31) % 1) * 3;
+    let unit = null;
+    const ordered = index === 0 ? positions : roofEquipmentPositions(bounds, seed, index);
+    for (const yaw of orientations) {
+      for (const position of ordered) {
+        for (const scale of ROOF_EQUIPMENT_SHRINK_STEPS) {
+          const candidate = { x: position.x, z: position.z,
+            sizeX: Math.max(ROOF_EQUIPMENT_MIN_SIZE_M, sizeX * scale),
+            sizeZ: Math.max(ROOF_EQUIPMENT_MIN_SIZE_M, sizeZ * scale), height, yaw };
+          if (roofUnitsOverlap(placed, candidate, ROOF_EQUIPMENT_GAP_M)) continue;
+          if (!roofUnitFits(rings, polygon, bounds, candidate, ROOF_EQUIPMENT_EDGE_MARGIN_M)) continue;
+          unit = candidate;
+          break;
+        }
+        if (unit) break;
+      }
+      if (unit) break;
     }
-    const seed = buildingSeed(building.id);
-    const count = 1 + Math.floor(seed * ROOF_EQUIPMENT_MAX);
-    const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
-    const span = Math.min(maxX - minX, maxZ - minZ);
-    for (let index = 0; index < count; index++) {
-      const angle = (seed * 7.3 + index * 2.1) % (Math.PI * 2);
-      const radius = span * (0.08 + 0.06 * ((seed + index * 0.37) % 1));
-      const sizeX = Math.min(9, Math.max(3, span * (0.1 + 0.05 * ((seed + index * 0.21) % 1))));
-      const sizeZ = Math.min(9, Math.max(3, span * (0.09 + 0.04 * ((seed + index * 0.53) % 1))));
-      const height = 2 + ((seed + index * 0.31) % 1) * 3;
-      equipment.push({ x: cx + Math.cos(angle) * radius, z: cz + Math.sin(angle) * radius,
-        sizeX, sizeZ, height });
-    }
+    if (!unit) continue;
+    equipment.push(unit);
+    placed.push({ unit, bounds: ringBounds(roofUnitRing(unit)) });
   }
   return { parapet, equipment };
 }
@@ -454,11 +564,9 @@ export function buildCityBlocks(scene, options = {}) {
       addWalls(batch, [roofPolygon.outer].map(flatRing), placement.maxY, placement.maxY + roof.parapet, meta, placement.baseY);
     }
     for (const unit of roof.equipment) {
-      const base = [[unit.x - unit.sizeX / 2, unit.z - unit.sizeZ / 2], [unit.x + unit.sizeX / 2, unit.z - unit.sizeZ / 2],
-        [unit.x + unit.sizeX / 2, unit.z + unit.sizeZ / 2], [unit.x - unit.sizeX / 2, unit.z + unit.sizeZ / 2]]
-        .map(([x, z]) => [x, z]);
-      addWalls(batch, [base.flat()], placement.maxY, placement.maxY + unit.height, meta, placement.baseY);
-      addFlatPolygon(batch, [base.flat()], placement.maxY + unit.height, meta);
+      const base = flatRing(roofUnitRing(unit));
+      addWalls(batch, [base], placement.maxY, placement.maxY + unit.height, meta, placement.baseY);
+      addFlatPolygon(batch, [base], placement.maxY + unit.height, meta);
     }
     allBlocks.push({ ...building, baseY: placement.baseY, minY: placement.minY, maxY: placement.maxY });
   }
