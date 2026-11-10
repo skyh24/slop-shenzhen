@@ -762,6 +762,8 @@ async function initApp() {
 
   // QA 专用传送：只在本机回环地址的 ?qa=1 下暴露，便于固定机位复测。
   if (qa) window.__szTeleport = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null, { exact: true });
+  // QA：非精确传送（自动找最近可站立落点），用于把车辆/人物放到道路上做连续走通测试。
+  if (qa) window.__szTeleportNear = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null);
   // QA 诊断：列出某点附近的碰撞体，用于定位“走不过去”的地面入口。
   if (qa) window.__szNearColliders = (x, z, radius = 40) => colliders.filter(collider =>
     Number.isFinite(collider?.minX) && collider.maxX > x - radius && collider.minX < x + radius
