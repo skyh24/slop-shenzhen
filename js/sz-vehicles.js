@@ -3,40 +3,60 @@ import { LoftGeometry } from 'three/addons/geometries/LoftGeometry.js';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { STR } from './sz-strings.js';
 import { mirrorSection, roundedBox } from './vehicles.js';
+import {
+  BODY_SPECS, buildCarGeometry, buildCarSidePatch, buildSteerableWheelGeo, carLayout,
+  carStyleCode, carTipZ, createCarWheelMaterial, createLoftedCarMaterial, setCarLocale, taxiSignPlacement
+} from './cars.js';
+
+// 涂装、车牌与出租车语义写在 cars.js 的 locale 分支里；这里在模块初始化时切到深圳，纽约默认行为不动。
+setCarLocale('shenzhen');
 
 const PALETTE = Object.freeze({
-  blue: 0x1f8fe0, yellow: 0xffce28, green: 0x69bc7a, white: 0xf0f3ee,
+  blue: 0x1f8fe0, taxiBlue: 0x1f8fe0, taxiWhite: 0xf2f5f7, yellow: 0xffce28, green: 0x69bc7a, white: 0xf0f3ee,
   dark: 0x1d252f, rubber: 0x15181d, glass: 0x294651, silver: 0xa8b4b9,
   red: 0xde283c, amber: 0xffa135, light: 0xe1f6ff
 });
 
+// 车型外观全部来自纽约 loft 引擎的 BODY_SPECS：完整车身剖面、玻璃房、后视镜、轮眉内衬和顶灯。
+const CAR_BODIES = Object.freeze({
+  taxi: BODY_SPECS.taxi,
+  sedan: BODY_SPECS.sedan,
+  suv: BODY_SPECS.suv,
+  minivan: BODY_SPECS.minivan,
+  van: BODY_SPECS.van
+});
+
+// 碰撞与相机使用的整车尺寸由 loft 剖面推导，保证显示和碰撞是同一份几何。
+function loftDimensions(body) {
+  if (body._dimensions) return body._dimensions;
+  const layout = carLayout(body);
+  const cab = body.cabin;
+  const shoulderWidth = Math.max(...body.halfWidth.map((point) => point[1])) + body.archFlare;
+  const spec = Object.freeze({
+    width: 2 * shoulderWidth,
+    height: layout.cabinTop(layout.cabin((cab.roofFront + cab.roofRear) / 2), 0),
+    length: body.zFront - body.zRear,
+    wheelbase: 2 * body.wheelZ,
+    track: 2 * body.wheelX,
+    radius: body.wheelRadius,
+    tireWidth: body.wheelRadius * 0.68,
+    sill: Math.min(...body.sill.map((point) => point[1])),
+    headlight: [body.headlight[0], body.headlight[1]]
+  });
+  body._dimensions = spec;
+  return spec;
+}
+
 // 车体尺寸不含后视镜和营运顶灯，轮距、轮胎和车灯位置均为米。
 const VEHICLE_SPECS = Object.freeze({
-  taxi: { width: 1.81, height: 1.67, length: 4.695, wheelbase: 2.8, track: 1.54, radius: 0.335, tireWidth: 0.215, sill: 0.24, headlight: [0.59, 0.81] },
-  sedan: { width: 1.875, height: 1.46, length: 4.8, wheelbase: 2.92, track: 1.62, radius: 0.345, tireWidth: 0.23, sill: 0.21, headlight: [0.61, 0.68] },
-  suv: { width: 1.89, height: 1.67, length: 4.775, wheelbase: 2.765, track: 1.63, radius: 0.36, tireWidth: 0.225, sill: 0.29, headlight: [0.61, 0.85] },
-  bus: { width: 2.55, height: 3.24, length: 12.2, wheelbase: 5.9, track: 2.05, radius: 0.49, tireWidth: 0.275, sill: 0.36, headlight: [0.95, 0.82] }
+  taxi: loftDimensions(BODY_SPECS.taxi),
+  sedan: loftDimensions(BODY_SPECS.sedan),
+  suv: loftDimensions(BODY_SPECS.suv),
+  minivan: loftDimensions(BODY_SPECS.minivan),
+  van: loftDimensions(BODY_SPECS.van),
+  bus: Object.freeze({ width: 2.55, height: 3.24, length: 12.2, wheelbase: 5.9, track: 2.05, radius: 0.49, tireWidth: 0.275, sill: 0.36, headlight: [0.95, 0.82] })
 });
-const CAR_PROFILE = {
-  taxi: {
-    belt: [0.92, 0.98, 1.015, 0.99, 0.96, 0.87],
-    cabin: [[-0.451, 0.03, 0.43], [-0.357, 0.71, 0.42], [-0.272, 0.95, 0.402], [-0.17, 1, 0.402],
-      [0.015, 1, 0.405], [0.138, 0.945, 0.41], [0.282, 0.37, 0.435], [0.34, 0.03, 0.44]],
-    roof: [2, 5], pillars: [1, 4, 6]
-  },
-  sedan: {
-    belt: [0.78, 0.865, 0.91, 0.9, 0.84, 0.748],
-    cabin: [[-0.395, 0.02, 0.41], [-0.305, 0.45, 0.4], [-0.207, 0.9, 0.389], [-0.13, 0.99, 0.382],
-      [-0.038, 1, 0.381], [0.08, 0.956, 0.392], [0.209, 0.42, 0.426], [0.276, 0.025, 0.438]],
-    roof: [2, 5], pillars: [1, 4, 6]
-  },
-  suv: {
-    belt: [0.99, 1.048, 1.07, 1.056, 0.99, 0.905],
-    cabin: [[-0.456, 0.02, 0.45], [-0.401, 0.74, 0.442], [-0.345, 0.95, 0.424], [-0.186, 1, 0.416],
-      [-0.016, 1, 0.414], [0.092, 0.957, 0.419], [0.211, 0.5, 0.435], [0.281, 0.026, 0.451]],
-    roof: [2, 5], pillars: [1, 3, 4, 6]
-  }
-};
+
 const BUS_PROFILE = [2.83, 2.89, 2.9, 2.9, 2.89, 2.85];
 const ROTATION_X = [0, 0, Math.PI / 2];
 const TURN = Math.PI * 2;
@@ -48,7 +68,7 @@ function materialFor(materials, finish) {
     body: { roughness: 0.36, metalness: 0.16 },
     trim: { roughness: 0.58, metalness: 0.12 },
     glass: { roughness: 0.18, metalness: 0.38 },
-    canopy: { roughness: 0.16, metalness: 0.18, transparent: true, opacity: 0.56, depthWrite: false },
+    canopy: { roughness: 0.16, metalness: 0.18, transparent: true, opacity: 0.4, depthWrite: false },
     brake: { roughness: 0.29, emissive: PALETTE.red, emissiveIntensity: 0.2 },
     reverse: { roughness: 0.3, emissive: PALETTE.light, emissiveIntensity: 0 }
   };
@@ -179,54 +199,6 @@ function addBodyShell(b, spec, belt, paint, stripe, detail) {
   b.add('lofted-body-and-wheel-wells', shell, (x, y) => y < spec.sill - 0.016 ? PALETTE.dark : y < stripeTop ? stripe : paint);
 }
 
-function addCarCabin(b, spec, profile, paint, detail) {
-  const sections = profile.cabin.map(([at, rise, w]) => {
-    const deck = interpolateBelt(profile.belt, at);
-    const top = deck + (spec.height - deck) * rise - 0.013;
-    const base = deck - 0.009;
-    const side = w * spec.width;
-    const rail = side * (1 - 0.285 * rise);
-    return mirrorSection([
-      [side, base], [side * 0.94, THREE.MathUtils.lerp(base, top, 0.46)], [rail, top - 0.019 * rise], [rail * 0.86, top]
-    ], [0, top + 0.011], at * spec.length).reverse();
-  });
-  b.add('windscreen-and-side-glass', new LoftGeometry(sections, { closed: false }), PALETTE.glass, ZERO, ZERO, 'glass');
-  const roof = sections.slice(profile.roof[0], profile.roof[1] + 1)
-    .map(section => section.slice(2, 7).map(point => point.clone().add(new THREE.Vector3(0, 0.0025, 0))));
-  b.add('painted-roof', new LoftGeometry(roof, { closed: false }), paint);
-  if (!detail) return;
-  for (const index of profile.pillars) {
-    const section = sections[index];
-    for (const offset of [0, section.length - 1]) {
-      const side = offset === 0 ? 1 : -1;
-      const a = section[offset].clone();
-      const mid = section[offset + side].clone();
-      const top = section[offset + 2 * side].clone();
-      for (const point of [a, mid, top]) point.x += Math.sign(point.x) * 0.009;
-      b.tube('window-pillar', a.toArray(), mid.toArray(), 0.026, PALETTE.dark, 'trim');
-      b.tube('window-pillar', mid.toArray(), top.toArray(), 0.025, PALETTE.dark, 'trim');
-    }
-  }
-}
-
-function addCarLamps(b, spec, type, detail) {
-  const end = spec.length / 2;
-  const [x, y] = spec.headlight;
-  const rearY = type === 'sedan' ? 0.75 : 0.86;
-  for (const side of [-1, 1]) {
-    const frontX = side * x;
-    const rearX = side * (spec.width * 0.29);
-    b.box('headlight-housing', [0.29, 0.104, 0.043], PALETTE.dark, [frontX, y, end - 0.014], [0, side * 0.12, 0], 'trim');
-    b.box('daylight-strip', [0.251, 0.028, 0.045], PALETTE.light, [frontX, y + 0.022, end - 0.005], [0, side * 0.12, 0], 'light');
-    b.box('tail-lamp', [0.314, 0.051, 0.038], PALETTE.red, [rearX, rearY, -end - 0.003], ZERO, detail ? 'brake' : 'light');
-    b.box('reverse-lens', [0.095, 0.021, 0.027], 0x838e93, [rearX, rearY - 0.05, -end - 0.004], ZERO, detail ? 'reverse' : 'trim');
-  }
-  for (const sign of [-1, 1]) {
-    b.box('green-plate-panel', [0.435, 0.118, 0.016], PALETTE.green, [0, 0.55, sign * (end + 0.012)], ZERO, 'trim');
-  }
-  b.box('lower-air-intake', [spec.width * 0.51, 0.075, 0.025], PALETTE.dark, [0, 0.4, end], ZERO, 'trim');
-}
-
 function makeWheel(spec, materials, detail) {
   const b = builder(materials);
   const { radius, tireWidth } = spec;
@@ -270,75 +242,183 @@ function attachWheels(group, spec, template) {
   return wheels;
 }
 
-function addTaxiText(group, text, size, position, yaw, fg, background) {
-  if (!text || typeof document === 'undefined') return;
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 64;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  if (background) {
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+// 玩家出租车的 4 个可转向/滚动车轮直接用 loft 引擎的车轮几何：左右各一套，前轴 ±z。
+// 车轮截面是 18 段 lathe，最低点略高于半径（约 5 mm）；按包围盒落地，轮胎才真正贴地。
+function attachLoftWheels(group, body, detail) {
+  const geometry = { '-1': buildSteerableWheelGeo(body, -1), 1: buildSteerableWheelGeo(body, 1) };
+  geometry[-1].computeBoundingBox();
+  geometry[1].computeBoundingBox();
+  const groundOffset = -geometry[-1].boundingBox.min.y;
+  const material = createCarWheelMaterial({ wheelRadius: body.wheelRadius, style: carStyleCode({ wheel: 1 }) });
+  const wheels = [];
+  for (const isFront of [true, false]) {
+    for (const side of [-1, 1]) {
+      const steerPivot = new THREE.Group();
+      steerPivot.position.set(side * body.wheelX, groundOffset, isFront ? body.wheelZ : -body.wheelZ);
+      const tire = new THREE.Mesh(geometry[side], material);
+      tire.castShadow = detail;
+      tire.receiveShadow = detail;
+      steerPivot.add(tire);
+      group.add(steerPivot);
+      wheels.push({ steerPivot, tire, isFront });
+    }
   }
-  ctx.fillStyle = fg;
-  ctx.font = 'bold 43px system-ui, sans-serif';
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'center';
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
-  const map = new THREE.CanvasTexture(canvas);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
-  const material = new THREE.MeshBasicMaterial({ map, transparent: !background });
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(...size), material);
-  mesh.position.set(...position);
-  mesh.rotation.y = yaw;
-  group.add(mesh);
+  return wheels;
+}
+
+// canvas 贴图只在浏览器里生成；无 document 的单元测试环境返回 null，调用方跳过贴花。
+function createCanvasTexture(draw, width, height) {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  draw(ctx, width, height);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+function decalMaterial(texture, basic = false) {
+  if (basic) return new THREE.MeshBasicMaterial({ map: texture, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  return new THREE.MeshStandardNodeMaterial({
+    map: texture, transparent: true, roughness: 0.28, metalness: 0.12,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+  });
+}
+
+// 车门上的「深圳出租」：贴在建好车身的曲面侧门外皮上。
+function addTaxiDoorDecals(chassis, body, localMaterials) {
+  const texture = createCanvasTexture((ctx, width, height) => {
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 46px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(STR.vehicleLabels?.taxi ?? '深圳出租', width / 2, height / 2 + 2);
+  }, 280, 88);
+  if (!texture) return;
+  const material = decalMaterial(texture);
+  localMaterials.push(material);
+  const doorMid = (body.doors[0] + body.doors[1]) / 2;
+  // 字贴在白色腰线以上的蓝色车门上，高度随车体腰线（szWaist）变化
+  const waist = body.szWaist ?? 0.6;
+  for (const side of [-1, 1]) {
+    const patch = new THREE.Mesh(buildCarSidePatch(body, side, doorMid - 0.4, doorMid + 0.4, waist + 0.03, waist + 0.28, 0.004), material);
+    patch.name = 'taxi-door-lettering';
+    chassis.add(patch);
+  }
+}
+
+// 新能源绿牌：粤B 字样的渐变绿牌贴在前后保险杠上，倾斜跟随斜面。
+function addPlateDecals(chassis, body, localMaterials) {
+  const texture = createCanvasTexture((ctx, width, height) => {
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#f7fcf8');
+    gradient.addColorStop(1, '#a8dcb9');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = '#3f7a52';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(3, 3, width - 6, height - 6);
+    ctx.fillStyle = '#14210f';
+    ctx.font = 'bold 56px "PingFang SC", "Microsoft YaHei", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('粤B·D12345', width / 2, height / 2 + 2);
+  }, 512, 96);
+  if (!texture) return;
+  const material = new THREE.MeshStandardNodeMaterial({
+    map: texture, roughness: 0.32, metalness: 0.05,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+  });
+  localMaterials.push(material);
+  for (const front of [true, false]) {
+    const y = body.plates[front ? 0 : 1];
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.008), material);
+    plate.position.set(0, y, carTipZ(body, y, front) + (front ? 0.004 : -0.004));
+    plate.rotation.x = Math.atan((carTipZ(body, y + 0.06, front) - carTipZ(body, y - 0.06, front)) / 0.12);
+    plate.name = front ? 'front-plate' : 'rear-plate';
+    chassis.add(plate);
+  }
+}
+
+// 顶灯正面一红一蓝：「深圳」红底白字 + TAXI 蓝底白字，底部一条空车绿条。
+function addRoofSignDecals(chassis, body, localMaterials) {
+  const texture = createCanvasTexture((ctx, width, height) => {
+    const strip = 10;
+    ctx.fillStyle = '#c22a29';
+    ctx.fillRect(0, 0, width / 2, height - strip);
+    ctx.fillStyle = '#1f5fbf';
+    ctx.fillRect(width / 2, 0, width / 2, height - strip);
+    ctx.fillStyle = '#1f9d55';
+    ctx.fillRect(0, height - strip, width, strip);
+    ctx.fillStyle = '#f7f9fb';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 44px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText(STR.vehicleLabels?.taxiMark ?? '深圳', width * 0.25, (height - strip) / 2 + 2);
+    ctx.font = 'bold 38px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText(STR.vehicleLabels?.taxiSign ?? 'TAXI', width * 0.75, (height - strip) / 2 + 2);
+  }, 320, 80);
+  if (!texture) return;
+  const { z, y } = taxiSignPlacement(body);
+  const material = decalMaterial(texture, true);
+  localMaterials.push(material);
+  for (const side of [-1, 1]) {
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.11), material);
+    face.position.set(0, y + 0.105, z + side * 0.09);
+    face.rotation.y = side === 1 ? 0 : Math.PI;
+    face.name = 'roof-sign-lettering';
+    chassis.add(face);
+  }
 }
 
 function createShenzhenCarMesh({ type = 'taxi', color = PALETTE.white, detail = true } = {}) {
-  if (!Object.hasOwn(CAR_PROFILE, type)) throw new Error(`Unknown Shenzhen car type: ${type}`);
+  const body = CAR_BODIES[type];
+  if (!body) throw new Error(`Unknown Shenzhen car type: ${type}`);
   const spec = VEHICLE_SPECS[type];
-  const profile = CAR_PROFILE[type];
-  const materials = new Map();
-  const b = builder(materials);
-  const paint = type === 'taxi' ? PALETTE.blue : color;
-  addBodyShell(b, spec, profile.belt, paint, type === 'taxi' ? PALETTE.white : paint, detail);
-  addCarCabin(b, spec, profile, paint, detail);
-  addCarLamps(b, spec, type, detail);
-  if (detail) {
-    for (const side of [-1, 1]) {
-      const x = side * spec.width / 2;
-      const z = spec.length * 0.145;
-      const y = interpolateBelt(profile.belt, 0.145) + 0.125;
-      b.tube('mirror-stalk', [x * 0.855, y - 0.053, z - 0.07], [x + side * 0.105, y, z], 0.029, PALETTE.dark, 'trim');
-      b.add('mirror-housing', roundedBox(0.105, 0.051, 0.137, 0.033), paint, [x + side * 0.105, y, z]);
-      b.box('mirror-glass', [0.151, 0.064, 0.014], PALETTE.glass, [x + side * 0.105, y, z - 0.069], ZERO, 'glass');
-      for (const at of [-0.193, -0.008]) {
-        b.box('flush-handle', [0.019, 0.028, 0.16], PALETTE.silver, [x * 0.99, interpolateBelt(profile.belt, at) - 0.171, at * spec.length], ZERO, 'trim');
-      }
-    }
-  }
-  if (type === 'taxi') {
-    b.add('taxi-roof-sign', roundedBox(0.246, 0.068, 0.25, 0.026), PALETTE.white, [0, spec.height + 0.071, -0.18]);
-    for (const side of [-1, 1]) b.box('availability-panel', [0.376, 0.077, 0.004], 0x158845,
-      [0, spec.height + 0.077, -0.18 + side * 0.124], ZERO, 'light');
-  }
   const group = new THREE.Group();
-  const chassis = b.finish();
-  group.add(chassis);
+  const chassis = new THREE.Group();
+  const paint = type === 'taxi' ? PALETTE.taxiBlue : color;
+  const material = createLoftedCarMaterial(body, paint);
+  // 车身与轮毂材质来自 cars.js 的全局材质缓存（环境车共用），销毁时只释放本模型独有的贴花材质与几何。
+  const localMaterials = [];
+
+  const bodyMesh = new THREE.Mesh(buildCarGeometry(body, false), material);
+  bodyMesh.name = `${type}-lofted-body`;
+  bodyMesh.castShadow = true;
+  bodyMesh.receiveShadow = true;
+  chassis.add(bodyMesh);
   if (type === 'taxi' && detail) {
-    for (const side of [-1, 1]) {
-      addTaxiText(chassis, STR.vehicleLabels?.taxi, [0.57, 0.124], [side * (spec.width / 2 + 0.001), 0.728, 0.19], side * Math.PI / 2, '#ffffff');
-      addTaxiText(chassis, STR.vehicleLabels?.available, [0.374, 0.077], [0, spec.height + 0.077, -0.18 + side * 0.127], side === 1 ? 0 : Math.PI, '#e8ffec', '#158845');
-    }
+    addTaxiDoorDecals(chassis, body, localMaterials);
+    addPlateDecals(chassis, body, localMaterials);
+    addRoofSignDecals(chassis, body, localMaterials);
   }
-  const wheels = attachWheels(group, spec, makeWheel(spec, materials, detail));
-  const setLights = (braking, reversing) => {
-    materials.get('brake').emissiveIntensity = braking ? 1.45 : 0.2;
-    materials.get('reverse').emissiveIntensity = reversing ? 0.95 : 0;
+  group.add(chassis);
+
+  const wheels = attachLoftWheels(group, body, detail);
+  // 固定色材质的灯光状态在 carState uniform 里：x 刹车、w 倒车（转向灯语义留给环境车实例）。
+  const carState = material.userData.carState;
+  const setLights = detail && carState ? (braking, reversing) => {
+    carState.value.x = braking ? 1 : 0;
+    carState.value.w = reversing ? 1 : 0;
+  } : null;
+  const bounds = new THREE.Box3().setFromObject(group, true);
+  const dispose = () => {
+    const geometries = new Set();
+    group.traverse(({ geometry }) => {
+      if (geometry) geometries.add(geometry);
+    });
+    for (const geometry of geometries) geometry.dispose();
+    for (const decal of localMaterials) {
+      if (decal.map) decal.map.dispose();
+      decal.dispose();
+    }
   };
-  return { ...finalize(group), chassis, spec, wheels, setLights: detail ? setLights : null };
+  return { group, bounds, dispose, chassis, spec, wheels, setLights };
 }
 
 function createShenzhenBusMesh({ detail = true } = {}) {
@@ -378,18 +458,47 @@ function createShenzhenBusMesh({ detail = true } = {}) {
   return { ...finalize(group), spec, wheels };
 }
 
-// 远处交通只需同一轮廓的低精度缓冲，保留颜色属性供 InstancedMesh 使用。
-function createTrafficVehicleGeometry({ type = 'taxi', color = PALETTE.white } = {}) {
-  const model = type === 'bus' ? createShenzhenBusMesh({ detail: false }) : createShenzhenCarMesh({ type, color, detail: false });
-  model.group.updateMatrixWorld(true);
-  const copies = [];
-  model.group.traverse(object => {
-    if (object.geometry) copies.push(object.geometry.clone().applyMatrix4(object.matrixWorld));
-  });
-  const geometry = mergeGeometries(copies);
-  for (const copy of copies) copy.dispose();
-  model.dispose();
-  return geometry;
+// 环境轿车：loft 车身（不含车轮）+ 每实例涂装/灯光材质；车轮在 sz-traffic 里单独实例化。
+function createTrafficCarBody(type) {
+  const body = CAR_BODIES[type];
+  if (!body) throw new Error(`Unknown Shenzhen car type: ${type}`);
+  return { geometry: buildCarGeometry(body, false), material: createLoftedCarMaterial(body), body, spec: VEHICLE_SPECS[type] };
+}
+
+// 环境车统一一套轮毂几何（按各车半径缩放实例），左右各一份，避免 30 辆车各建一份缓冲。
+function createTrafficWheels() {
+  const base = BODY_SPECS.sedan;
+  const left = buildSteerableWheelGeo(base, -1);
+  const right = buildSteerableWheelGeo(base, 1);
+  left.computeBoundingBox();
+  return {
+    left,
+    right,
+    material: createCarWheelMaterial({ instanced: true }),
+    baseRadius: base.wheelRadius,
+    // 车轮截面是 18 段 lathe，最低点略高于半径；实例按这个偏移落地，轮胎才真正贴地。
+    groundOffset: -left.boundingBox.min.y
+  };
+}
+
+// 公交沿用顶点色合并几何；轿车不再走这条低细节路径。
+function createTrafficVehicleGeometry({ type = 'bus' } = {}) {
+  switch (type) {
+    case 'bus': {
+      const model = createShenzhenBusMesh({ detail: false });
+      model.group.updateMatrixWorld(true);
+      const copies = [];
+      model.group.traverse(object => {
+        if (object.geometry) copies.push(object.geometry.clone().applyMatrix4(object.matrixWorld));
+      });
+      const geometry = mergeGeometries(copies);
+      for (const copy of copies) copy.dispose();
+      model.dispose();
+      return geometry;
+    }
+    default:
+      throw new Error(`Unhandled traffic geometry type: ${type}`);
+  }
 }
 
 const CYCLE_RADIUS = 0.335;
@@ -506,11 +615,41 @@ function addLandingSkids(b, cargo) {
   }
 }
 
+// 座舱乘员：一名坐姿飞行员。头、躯干在座舱玻璃后，双臂前伸到操纵台，双腿折进脚部空间。
+// 衣服用浅灰白衬衣 + 深色马甲、皮肤色头部，逆光和透过舱盖时都能看出「有人坐着」。
+function addSeatedPilot(b) {
+  const x = -0.37;
+  const shirt = 0xd9e2e8;
+  const vest = 0x2f3d4c;
+  const trouser = 0x3a4753;
+  const skin = 0xe3b995;
+  for (const side of [-1, 1]) {
+    const shoulderX = x + side * 0.15;
+    const hipX = x + side * 0.09;
+    b.tube('pilot-upper-arm', [shoulderX, 1.77, -0.23], [x + side * 0.2, 1.58, 0.12], 0.047, shirt);
+    b.tube('pilot-forearm', [x + side * 0.2, 1.58, 0.12], [x + side * 0.12, 1.46, 0.5], 0.038, shirt);
+    b.ball('pilot-hand', [0.046, 0.032, 0.052], skin, [x + side * 0.12, 1.45, 0.54]);
+    b.tube('pilot-thigh', [hipX, 1.48, -0.24], [hipX + side * 0.02, 1.49, 0.14], 0.063, trouser);
+    b.tube('pilot-shin', [hipX + side * 0.02, 1.49, 0.14], [hipX + side * 0.02, 1.32, 0.53], 0.053, trouser);
+    b.box('pilot-foot', [0.1, 0.07, 0.19], 0x14171b, [hipX + side * 0.02, 1.285, 0.6], ZERO, 'trim');
+    b.ball('pilot-shoulder', [0.085, 0.07, 0.08], shirt, [shoulderX, 1.77, -0.23]);
+  }
+  b.box('pilot-pelvis', [0.26, 0.14, 0.22], trouser, [x, 1.49, -0.3], ZERO, 'trim');
+  b.box('pilot-torso', [0.34, 0.36, 0.26], shirt, [x, 1.69, -0.27], [0.16, 0, 0]);
+  // 马甲只贴在躯干前后外皮上，避免把浅色衬衣全部盖住
+  b.box('pilot-vest-front', [0.3, 0.26, 0.03], vest, [x, 1.67, -0.13], [0.16, 0, 0], 'trim');
+  b.box('pilot-vest-back', [0.3, 0.26, 0.03], vest, [x, 1.67, -0.41], [0.16, 0, 0], 'trim');
+  b.ball('pilot-head', [0.112, 0.125, 0.115], skin, [x, 1.94, -0.19]);
+  b.ball('pilot-cap', [0.118, 0.055, 0.12], 0x1e2733, [x, 2.005, -0.21], 'trim');
+  b.box('pilot-visor', [0.17, 0.02, 0.05], 0x101519, [x, 1.97, -0.085], ZERO, 'trim');
+}
+
 function addPassengerBody(b) {
   b.ball('white-fuselage', [0.916, 0.431, 1.44], PALETTE.white, [0, 0.957, -0.038]);
   b.ball('lower-technical-fairing', [0.723, 0.284, 0.98], PALETTE.dark, [0, 0.745, -0.18], 'trim');
   const canopy = new THREE.SphereGeometry(1, 32, 14, 0, TURN, 0, Math.PI * 0.5).scale(0.872, 1.06, 1.315);
-  b.add('panoramic-canopy', canopy, 0x366b80, [0, 1.132, 0.01], ZERO, 'canopy');
+  // 舱盖用浅蓝灰半透明，追尾机位能看到舱内的白色衬衣飞行员，而不是一块暗色玻璃。
+  b.add('panoramic-canopy', canopy, 0x9dc4d6, [0, 1.132, 0.01], ZERO, 'canopy');
   const gasket = new THREE.TorusGeometry(1, 0.026, 8, 42).rotateX(Math.PI / 2).scale(0.879, 1, 1.318);
   b.add('canopy-sill', gasket, PALETTE.dark, [0, 1.13, 0.01], ZERO, 'trim');
   for (let i = 0; i < 12; i++) {
@@ -530,6 +669,7 @@ function addPassengerBody(b) {
   const band = new THREE.TorusGeometry(1, 0.026, 8, 40).rotateX(Math.PI / 2).scale(0.844, 1, 1.321);
   b.add('belly-blue-light-band', band, 0x4298ff, [0, 0.774, -0.04], ZERO, 'light');
   b.ball('white-tail-light', [0.055, 0.049, 0.049], PALETTE.light, [0, 1.04, -1.463], 'light');
+  addSeatedPilot(b);
 }
 
 function addCargoBody(b) {
@@ -629,4 +769,5 @@ function createEvtolMesh() { return createAircraft(false); }
 function createCargoDroneMesh() { return createAircraft(true); }
 
 export { PALETTE, VEHICLE_SPECS, createShenzhenCarMesh, createShenzhenBusMesh, createTrafficVehicleGeometry,
-  createSharedCycleMesh, createEvtolMesh, createCargoDroneMesh };
+  createTrafficCarBody, createTrafficWheels, createSharedCycleMesh, createEvtolMesh, createCargoDroneMesh,
+  wheelArchTop, rotorSweep, carStyleCode };

@@ -1,7 +1,9 @@
 import * as THREE from 'three/webgpu';
 import { routeSignalStops } from './sz-intersection-control.js';
 import { isGroundRoad, roadTravelPoints } from './sz-roads.js';
-import { createTrafficVehicleGeometry, VEHICLE_SPECS } from './sz-vehicles.js';
+import {
+  carStyleCode, createTrafficCarBody, createTrafficVehicleGeometry, createTrafficWheels, VEHICLE_SPECS
+} from './sz-vehicles.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { vehicleContact } from './vehicle-physics.js';
 
@@ -15,12 +17,56 @@ const SIGNAL_EXIT_BUFFER = 12;
 const RAMP_LANE_BLEND = 36;
 const ROUTE_RANGE = 560;
 const REVIEWED_MAINLINE_RANGE = 1500;
+const TURN = Math.PI * 2;
+const WHEEL_SPIN_STEP = 0.6;
+// 深圳车队约 30 辆：出租车 6、轿车 9、SUV 8、MPV 3、物流面包 2、公交 2（docs/07 的车型配比按 30 辆折算）。
 const FLEET = [
   { type: 'taxi', count: 6, speed: 10 },
-  { type: 'sedan', color: 0xc7ced2, count: 12, speed: 11 },
-  { type: 'suv', color: 0x344653, count: 10, speed: 10 },
+  { type: 'sedan', count: 9, speed: 11 },
+  { type: 'suv', count: 8, speed: 10 },
+  { type: 'minivan', count: 3, speed: 10 },
+  { type: 'van', count: 2, speed: 9 },
   { type: 'bus', count: 2, speed: 8 }
 ];
+// 涂装按车型轮换；出租车固定天蓝 + livery 1（空车）/ 5（载客），其余为白/银/灰/黑为主的私家车色。
+const FLEET_PAINTS = {
+  taxi: [
+    { color: 0x1f8fe0, style: carStyleCode({ livery: 1, metallic: 0, trim: 0, wheel: 1 }) },
+    { color: 0x1f8fe0, style: carStyleCode({ livery: 5, metallic: 0, trim: 0, wheel: 0 }) },
+    { color: 0x1f8fe0, style: carStyleCode({ livery: 1, metallic: 0, trim: 1, wheel: 2 }) },
+    { color: 0x1f8fe0, style: carStyleCode({ livery: 5, metallic: 0, trim: 1, wheel: 1 }) }
+  ],
+  sedan: [
+    { color: 0xf2f4f7, style: carStyleCode({ livery: 0, metallic: 0, trim: 1, wheel: 0 }) },
+    { color: 0xc8d0d8, style: carStyleCode({ livery: 0, metallic: 1, trim: 1, wheel: 1 }) },
+    { color: 0x525a63, style: carStyleCode({ livery: 0, metallic: 1, trim: 2, wheel: 2 }) },
+    { color: 0x1c2026, style: carStyleCode({ livery: 0, metallic: 1, trim: 2, wheel: 3 }) },
+    { color: 0x1d3b6c, style: carStyleCode({ livery: 0, metallic: 1, trim: 1, wheel: 1 }) },
+    { color: 0x8a1c22, style: carStyleCode({ livery: 0, metallic: 1, trim: 0, wheel: 0 }) },
+    { color: 0xe8ebee, style: carStyleCode({ livery: 0, metallic: 0, trim: 2, wheel: 0 }) }
+  ],
+  suv: [
+    { color: 0xeef1f3, style: carStyleCode({ livery: 0, metallic: 1, trim: 1, wheel: 0 }) },
+    { color: 0x9aa2ac, style: carStyleCode({ livery: 0, metallic: 1, trim: 1, wheel: 1 }) },
+    { color: 0x3a434d, style: carStyleCode({ livery: 0, metallic: 1, trim: 2, wheel: 2 }) },
+    { color: 0x15181c, style: carStyleCode({ livery: 0, metallic: 1, trim: 2, wheel: 3 }) },
+    { color: 0x27405c, style: carStyleCode({ livery: 0, metallic: 1, trim: 1, wheel: 1 }) },
+    { color: 0x2c3a30, style: carStyleCode({ livery: 0, metallic: 1, trim: 0, wheel: 0 }) },
+    { color: 0xb9c0c7, style: carStyleCode({ livery: 0, metallic: 1, trim: 2, wheel: 2 }) }
+  ],
+  minivan: [
+    { color: 0xf0f2f5, style: carStyleCode({ livery: 0, metallic: 1, trim: 1, wheel: 0 }) },
+    { color: 0x4a5058, style: carStyleCode({ livery: 0, metallic: 1, trim: 2, wheel: 2 }) },
+    { color: 0x1a1d22, style: carStyleCode({ livery: 0, metallic: 1, trim: 2, wheel: 3 }) },
+    { color: 0xaab2bb, style: carStyleCode({ livery: 0, metallic: 1, trim: 1, wheel: 1 }) }
+  ],
+  van: [
+    { color: 0xf4f5f6, style: carStyleCode({ livery: 0, metallic: 0, trim: 2, wheel: 0 }) },
+    { color: 0xeef0f2, style: carStyleCode({ livery: 0, metallic: 0, trim: 2, wheel: 1 }) },
+    { color: 0xb9c0c7, style: carStyleCode({ livery: 0, metallic: 1, trim: 2, wheel: 0 }) },
+    { color: 0x8e959c, style: carStyleCode({ livery: 0, metallic: 0, trim: 2, wheel: 2 }) }
+  ]
+};
 const squareDistance = (x, z, point) => (x - point.x) ** 2 + (z - point.z) ** 2;
 const interpolate = (a, b, t) => a + (b - a) * t;
 const cellKey = (x, z) => `${x},${z}`;
@@ -369,13 +415,21 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
   const blockedByBuilding = makeObstacleIndex(colliders);
   const group = new THREE.Group();
   group.name = 'shenzhen-ground-traffic';
-  const material = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.53 });
+  const busMaterial = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.53 });
   const vehicles = [];
   const batches = FLEET.map(entry => {
-    const geometry = createTrafficVehicleGeometry(entry);
+    const car = entry.type === 'bus' ? null : createTrafficCarBody(entry.type);
+    const geometry = car ? car.geometry : createTrafficVehicleGeometry({ type: entry.type });
+    if (car) {
+      // 每实例涂装与灯光状态（paintColor / carState）由 createLoftedCarMaterial 读取。
+      geometry.setAttribute('paintColor', new THREE.InstancedBufferAttribute(new Float32Array(entry.count * 3), 3));
+      geometry.setAttribute('carState', new THREE.InstancedBufferAttribute(new Float32Array(entry.count * 4), 4));
+    }
     geometry.computeBoundingBox();
+    // 轿车几何不含车轮，包围盒落到地面后碰撞盒才和可见轮胎一致。
+    if (car) geometry.boundingBox.min.y = 0;
     const model = trafficModelBounds(geometry.boundingBox, VEHICLE_SPECS[entry.type]);
-    const mesh = new THREE.InstancedMesh(geometry, material, entry.count);
+    const mesh = new THREE.InstancedMesh(geometry, car ? car.material : busMaterial, entry.count);
     mesh.name = `traffic:${entry.type}`;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     mesh.frustumCulled = false;
@@ -383,22 +437,44 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
     mesh.receiveShadow = true;
     mesh.count = 0;
     group.add(mesh);
+    const paints = car ? FLEET_PAINTS[entry.type] : null;
     const actors = Array.from({ length: entry.count }, () => {
       const id = vehicles.length;
       const random = seededRandom(id);
+      const palette = paints ? paints[id % paints.length] : null;
       const actor = { id, type: entry.type, model, random, desiredSpeed: entry.speed * (0.88 + 0.22 * random()),
-        route: null, pose: {}, collider: { type: 'vehicle', id: `traffic:${id}` }, speed: 0, stalled: 0 };
+        route: null, pose: {}, collider: { type: 'vehicle', id: `traffic:${id}` }, speed: 0, stalled: 0,
+        paint: palette ? new THREE.Color(palette.color) : null, style: palette ? palette.style : 0,
+        wheelSpin: 0, steer: 0, blinkPhase: (id * 0.37) % 0.8, prevX: 0, prevZ: 0, prevHeading: 0 };
       vehicles.push(actor);
       return actor;
     });
-    return { mesh, actors };
+    return { mesh, actors, wheels: Boolean(car) };
   });
+  // 环境车轮子单独实例化：左右各一份 InstancedMesh，前轴随路线弯道转向、四轮按车速滚动。
+  const wheelCapacity = batches.reduce((sum, batch) => sum + (batch.wheels ? batch.actors.length : 0), 0);
+  const wheelSetup = createTrafficWheels();
+  const wheelStyles = new THREE.InstancedBufferAttribute(new Float32Array(wheelCapacity * 2), 1);
+  wheelSetup.left.setAttribute('wheelStyle', wheelStyles);
+  wheelSetup.right.setAttribute('wheelStyle', wheelStyles);
+  const wheelLeft = new THREE.InstancedMesh(wheelSetup.left, wheelSetup.material, wheelCapacity * 2);
+  const wheelRight = new THREE.InstancedMesh(wheelSetup.right, wheelSetup.material, wheelCapacity * 2);
+  for (const [mesh, name] of [[wheelLeft, 'traffic:wheels-left'], [wheelRight, 'traffic:wheels-right']]) {
+    mesh.name = name;
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.frustumCulled = false;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.count = 0;
+    group.add(mesh);
+  }
   scene.add(group);
 
   const scratch = {};
   const probe = {};
   const contact = {};
   const transform = new THREE.Object3D();
+  const wheelTransform = new THREE.Object3D();
   const statistics = { directedEdges: network.edges.length, active: 0, spawned: 0, signalEntries: 0, signalWaits: 0,
     signalExitRejects: 0, nearEndRejects: 0, mainlineEndRejects: 0, offscreenRecycled: 0 };
   let refill = 0;
@@ -407,6 +483,72 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
   let players = [];
   let clock = 0;
   let simulationTime = 0;
+
+  // 每实例涂装与灯光：出租车 livery 1 空车 / 5 载客；刹车点亮尾灯，转向时闪烁同侧转向灯（carState.x/y/z）。
+  function writeCarState(batch, actor, slot) {
+    const { paintColor, carState } = batch.mesh.geometry.attributes;
+    const paint = paintColor.array;
+    const o3 = slot * 3;
+    paint[o3] = actor.paint.r;
+    paint[o3 + 1] = actor.paint.g;
+    paint[o3 + 2] = actor.paint.b;
+    const state = carState.array;
+    const o4 = slot * 4;
+    const turning = Math.abs(actor.steer) > 0.06 ? Math.sign(actor.steer) : 0;
+    const blinkOn = turning !== 0 && (clock + actor.blinkPhase) % 0.8 <= 0.4;
+    state[o4] = actor.blocker || actor.speed < 0.4 ? 1 : 0;
+    state[o4 + 1] = blinkOn && turning > 0 ? 1 : 0;
+    state[o4 + 2] = blinkOn && turning < 0 ? 1 : 0;
+    state[o4 + 3] = actor.style;
+  }
+
+  // 轮子按实际位移滚动（角速度 = 位移 / 轮胎半径），前轴转向角由航向变化率换算。
+  // 车身实例用 Euler(pitch, heading, roll, 'YXZ') 贴合路面，车轮位置按同一旋转摆到车身坐标系里，
+  // 上坡和下坡时轮胎仍落在路面平面上（否则前后轮会与轮拱错开）。
+  function placeCarWheels(actor, wheelIndex, dt) {
+    const { pose } = actor;
+    const spec = VEHICLE_SPECS[actor.type];
+    const sinY = Math.sin(pose.heading);
+    const cosY = Math.cos(pose.heading);
+    const forward = (pose.x - actor.prevX) * sinY + (pose.z - actor.prevZ) * cosY;
+    const rawStep = forward / spec.radius;
+    actor.wheelSpin = (actor.wheelSpin + Math.sign(rawStep) * Math.min(Math.abs(rawStep), WHEEL_SPIN_STEP)) % TURN;
+    const turn = Math.atan2(Math.sin(pose.heading - actor.prevHeading), Math.cos(pose.heading - actor.prevHeading));
+    actor.steer += (Math.max(-0.5, Math.min(0.5, turn * 2.4)) - actor.steer) * Math.min(1, dt * 8);
+    actor.prevX = pose.x;
+    actor.prevZ = pose.z;
+    actor.prevHeading = pose.heading;
+    const styles = wheelStyles.array;
+    styles[wheelIndex * 2] = actor.style;
+    styles[wheelIndex * 2 + 1] = actor.style;
+    const scale = spec.radius / wheelSetup.baseRadius;
+    wheelTransform.scale.set(scale, scale, scale);
+    const halfTrack = spec.track / 2;
+    const halfBase = spec.wheelbase / 2;
+    const lift = wheelSetup.groundOffset * scale;
+    // Euler(pitch, heading, roll, 'YXZ') 的三列（three Matrix4.makeRotationFromEuler 的同款公式）
+    const a = Math.cos(pose.pitch), b = Math.sin(pose.pitch);
+    const c = cosY, d = sinY;
+    const e = Math.cos(pose.roll), f = Math.sin(pose.roll);
+    const col0 = [c * e + d * f * b, a * f, c * f * b - d * e];
+    const col1 = [d * e * b - c * f, a * e, d * f + c * e * b];
+    const col2 = [a * d, -b, a * c];
+    for (let w = 0; w < 2; w++) {
+      const wz = w === 0 ? halfBase : -halfBase;
+      wheelTransform.rotation.set(pose.pitch + actor.wheelSpin + w * 0.55, pose.heading + (w === 0 ? actor.steer : 0),
+        pose.roll, 'YXZ');
+      for (const side of [-1, 1]) {
+        const x = side * halfTrack;
+        wheelTransform.position.set(
+          pose.x + col0[0] * x + col1[0] * lift + col2[0] * wz,
+          pose.y + col0[1] * x + col1[1] * lift + col2[1] * wz,
+          pose.z + col0[2] * x + col1[2] * lift + col2[2] * wz
+        );
+        wheelTransform.updateMatrix();
+        (side < 0 ? wheelLeft : wheelRight).setMatrixAt(wheelIndex * 2 + w, wheelTransform.matrix);
+      }
+    }
+  }
 
   function collides(body, actor) {
     for (const candidate of players) {
@@ -496,6 +638,11 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
       actor.end = last;
       actor.speed = Math.min(4, actor.desiredSpeed);
       actor.stalled = 0;
+      actor.wheelSpin = 0;
+      actor.steer = 0;
+      actor.prevX = actor.pose.x;
+      actor.prevZ = actor.pose.z;
+      actor.prevHeading = actor.pose.heading;
       statistics.spawned++;
       return;
     }
@@ -605,19 +752,42 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
       }
     }
     let active = 0;
-    for (const { mesh, actors } of batches) {
+    let wheelSlots = 0;
+    for (const batch of batches) {
+      const { mesh, actors } = batch;
       let count = 0;
-      for (const { route, pose } of actors) {
-        if (!route) continue;
+      for (const actor of actors) {
+        if (!actor.route) continue;
+        const { pose } = actor;
         transform.position.set(pose.x, pose.y, pose.z);
         transform.rotation.set(pose.pitch, pose.heading, pose.roll, 'YXZ');
         transform.updateMatrix();
-        mesh.setMatrixAt(count++, transform.matrix);
+        mesh.setMatrixAt(count, transform.matrix);
+        if (batch.wheels) {
+          writeCarState(batch, actor, count);
+          placeCarWheels(actor, wheelSlots, dt);
+          wheelSlots++;
+        }
+        count++;
       }
-      if (count > 0) mesh.instanceMatrix.needsUpdate = true;
+      if (count > 0) {
+        mesh.instanceMatrix.needsUpdate = true;
+        if (batch.wheels) {
+          mesh.geometry.attributes.paintColor.needsUpdate = true;
+          mesh.geometry.attributes.carState.needsUpdate = true;
+        }
+      }
       mesh.count = count;
       active += count;
     }
+    const wheelCount = wheelSlots * 2;
+    if (wheelCount > 0) {
+      wheelLeft.instanceMatrix.needsUpdate = true;
+      wheelRight.instanceMatrix.needsUpdate = true;
+      wheelStyles.needsUpdate = true;
+    }
+    wheelLeft.count = wheelCount;
+    wheelRight.count = wheelCount;
     statistics.active = active;
   }
 
@@ -634,10 +804,17 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
     dispose() {
       for (const actor of vehicles) dropRoute(actor);
       scene.remove(group);
+      const geometries = new Set();
       for (const { mesh } of batches) {
-        mesh.geometry.dispose();
+        geometries.add(mesh.geometry);
         mesh.dispose();
       }
-      material.dispose();
+      geometries.add(wheelSetup.left);
+      geometries.add(wheelSetup.right);
+      for (const geometry of geometries) geometry.dispose();
+      wheelSetup.material.dispose();
+      busMaterial.dispose();
+      wheelLeft.dispose();
+      wheelRight.dispose();
     } };
 }

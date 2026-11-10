@@ -27,6 +27,7 @@ import { buildShenzhenBayBridge } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { buildSzElevatedRoads } from './sz-elevated-roads.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
 import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
+import { createSzPedestrians } from './sz-pedestrians.js';
 import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
 import { createAutoDrive } from './sz-auto-drive.js';
 import { VEHICLE_SPECS } from './sz-vehicles.js';
@@ -280,8 +281,19 @@ async function initApp() {
     }
   } catch { /* Missing or unavailable storage does not prevent playing. */ }
   const players = Object.values(controllerManager.entities);
+  // 环境人群复用纽约 PersonRig；行走位置是沿路侧模拟步行带，非全城实测人行道。
+  const pedestrians = createSzPedestrians(scene, GEO.roadGraph, {
+    heightAt: (x, z) => roadFrontage.contactHeight(x, z) ?? ground.groundHeight(x, z),
+    colliders,
+    // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
+    greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
+    // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
+    spawnMinM: 8,
+    spawnMaxM: 160
+  });
   roadFrontage.update(0);
   traffic.update(0, controllerManager.getActiveEntity().position, players, 0);
+  pedestrians.update(0, controllerManager.getActiveEntity().position, 0, null, [controllerManager.getActiveEntity()]);
   const driveCar = controllerManager.entities.car;
   const driveModel = trafficModelBounds(driveCar.collisionBounds, VEHICLE_SPECS.taxi);
   const driveOptions = { model: driveModel, roadHeight: roads.roadHeight, control: roadFrontage.control };
@@ -309,6 +321,14 @@ async function initApp() {
     if (!cameraSystem.initialized) return true;
     trafficBounds.min.set(body.minX, body.minY, body.minZ);
     trafficBounds.max.set(body.maxX, body.maxY, body.maxZ);
+    return trafficFrustum.intersectsBox(trafficBounds);
+  }
+  // 人群只需要在地面附近判断可见性；给一个约 4 m 高的包围盒，避免把正后方的人也算进骨骼解算。
+  function isPedVisible(x, z, radius) {
+    if (!cameraSystem.initialized) return true;
+    const y = controllerManager.getActiveEntity().position.y;
+    trafficBounds.min.set(x - radius, y - 2.5, z - radius);
+    trafficBounds.max.set(x + radius, y + 4, z + radius);
     return trafficFrustum.intersectsBox(trafficBounds);
   }
   const touchControls = new TouchControls(controllerManager, STR.touchActions);
@@ -349,6 +369,7 @@ async function initApp() {
 
   const dynamicRoots = [
     traffic.group,
+    pedestrians.group,
     ...players.map(entity => entity.mesh),
     controllerManager.entities.cyclist.helmet
   ].filter(Boolean);
@@ -910,6 +931,7 @@ async function initApp() {
           wait: actor.waitingForSignal, blocker: actor.blocker ?? null, reservation: actor.reservation?.id ?? null,
           stop: stop ? { s: stop.s, clearS: stop.clearS, osmNodeId: stop.approach.osmNodeId, group: stop.approach.group } : null };
       }) },
+      pedestrians: { ...pedestrians.statistics },
       roadFrontage: { ...roadFrontage.statistics, intersections: roadFrontage.control.intersections.map(intersection => ({
         id: intersection.id, approaches: intersection.approaches.map(({ osmNodeId, group, stopX, stopZ }) => ({ osmNodeId, group, stopX, stopZ }))
       })), clock: elapsed, control: roadFrontage.control.snapshot?.(elapsed) ?? [],
@@ -1047,6 +1069,8 @@ async function initApp() {
         camera.coordinateSystem, camera.reversedDepth);
     }
     traffic.update(dt, controllerManager.getActiveEntity().position, players, elapsed, isTrafficVisible);
+    pedestrians.update(dt, controllerManager.getActiveEntity().position, elapsed, isPedVisible,
+      [controllerManager.getActiveEntity()]);
     const { forward, backward, left, right } = controllerManager.keys;
     const driveInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode,
       manual: !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right) });

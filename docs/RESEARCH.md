@@ -9,7 +9,7 @@
 | 仓库 | 作用 | 关键结论 |
 | --- | --- | --- |
 | `ref/slop-newyork`（mrdoob，MIT） | 代码底座 | three.js `0.187.0` 的 WebGPURenderer 加 TSL，`index.html` 里的 import map 从 jsDelivr 取 three，不打包；`js/` 约 3.4 万行；`node --test` 跑测试 |
-| `ref/slop-wuhan`（LightYearZh） | 中国城市数据管线和流程经验 | OSM 加 Overture 加 3D-GloBFP 加 Terrain Tiles 的楼高融合；地标按 OSM 身份绑定；出租车接单；“数据有、生成了、加进场景、看得见、碰撞相符”逐级验收 |
+| `ref/slop-wuhan`（LightYearZh） | 中国城市数据管线和流程经验 | OSM 加 Overture 加 3D-GloBFP 加 Terrain Tiles 的楼高融合；地标按 OSM 身份绑定；出租车接单；“数据有、生成了、加进场景、看得见、碰撞相符”逐级验收。模块和函数行号见 [17-WUHAN-REFERENCE.md](17-WUHAN-REFERENCE.md) |
 | `ref/slop-cities`（zz85） | 社区城市索引 | 只作参考，不取代码 |
 
 ### 纽约底座能直接用的部分

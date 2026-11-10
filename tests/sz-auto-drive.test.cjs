@@ -13,7 +13,11 @@ const roads = load('sz-roads.js', { 'three/webgpu': {} });
 const collision = load('building-collision.js');
 const physics = load('vehicle-physics.js');
 const traffic = load('sz-traffic.js', { 'three/webgpu': {}, './sz-intersection-control.js': signalApi,
-  './sz-roads.js': roads, './sz-vehicles.js': {}, './building-collision.js': collision, './vehicle-physics.js': physics });
+  './sz-roads.js': roads,
+  // 路线规划只用到 sz-traffic 的纯函数；车队涂装用到的 carStyleCode 给一个等价替身。
+  './sz-vehicles.js': { carStyleCode: ({ livery = 0, metallic = 0, trim = 0, wheel = 0 }) =>
+    (livery & 7) + ((metallic & 1) << 3) + ((trim & 3) << 4) + ((wheel & 3) << 6) },
+  './building-collision.js': collision, './vehicle-physics.js': physics });
 const { createAutoDrive, hasRoadFootprint } = load('sz-auto-drive.js', {
   './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic, './vehicle-physics.js': physics
 });

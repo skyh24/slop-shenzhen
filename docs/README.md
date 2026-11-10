@@ -8,6 +8,7 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | --- | --- |
 | [HANDOFF.md](HANDOFF.md) | **从这里开始**：当前事实、证据层级、暂停收尾与工作树风险 |
 | [REVIEW-FOLLOWUP-2026-11-10.md](REVIEW-FOLLOWUP-2026-11-10.md) | 当前代码审查：已复现问题、优化候选、功能缺口、下一步顺序与验收条件 |
+| [SLIM-REVIEW-2026-11-10.md](SLIM-REVIEW-2026-11-10.md) | 代码精简审查：纽约残留、重复工具函数、入口连线，以及 S1–S5 执行计划与验收条件 |
 | [NEXT-AGENT-PLAN.md](NEXT-AGENT-PLAN.md) | 下一位执行顺序E0–E6、依赖、并行归属与通过标准 |
 | [HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md) | 历史快照；旧状态不作为当前执行指令 |
 | [13-WEBSITE-OPTIMIZATION-PLAN.md](13-WEBSITE-OPTIMIZATION-PLAN.md) | 网站加载、数据表示、分块与性能优化；与另一个13号数据计划区分 |
@@ -20,6 +21,8 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [RESEARCH.md](RESEARCH.md) | 前期调研：参考仓库、武汉教训、数据源、APEC、地标核实、检索服务状况 |
 | [00-SCOPE.md](00-SCOPE.md) | 场景简报：分期范围、坐标约定、地标清单、暂缓与待确认事项 |
 | [01-ARCHITECTURE.md](01-ARCHITECTURE.md) | 纽约原版各模块保留、改造还是替换，以及新增模块 |
+| [16-NY-REFERENCE.md](16-NY-REFERENCE.md) | 纽约原版模块地图：启动顺序、文件、关键函数和行号 |
+| [17-WUHAN-REFERENCE.md](17-WUHAN-REFERENCE.md) | 武汉参考模块地图：现行 `js/runtime/` 入口、旧上海运行时、数据管线和关键函数行号 |
 | [02-DATA-PIPELINE.md](02-DATA-PIPELINE.md) | 数据源、锁定的快照、处理步骤、楼高规则、许可 |
 | [03-ROADS-GROUND.md](03-ROADS-GROUND.md) | 路网、路面、海岸、地形、高架和天桥 |
 | [04-BUILDINGS.md](04-BUILDINGS.md) | 普通建筑的挤出方式、立面类型和片区规则 |

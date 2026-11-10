@@ -6,46 +6,90 @@ const { loadModule } = require('./helpers/module.cjs');
 
 class Group {
   constructor() { this.children = []; }
-  add(object) { this.children.push(object); }
+  add(...objects) { this.children.push(...objects); }
 }
 
 class InstancedMesh {
-  constructor() {
-    this.instanceMatrix = { setUsage() {} };
+  constructor(geometry, material, capacity) {
+    this.geometry = geometry;
+    this.material = material;
+    this.capacity = capacity;
+    this.instanceMatrix = { setUsage() {}, needsUpdate: false };
     this.transforms = [];
+    this.count = 0;
   }
   setMatrixAt(index, matrix) { this.transforms[index] = [...matrix]; }
+  dispose() {}
+}
+
+class InstancedBufferAttribute {
+  constructor(array, itemSize) {
+    this.array = array;
+    this.itemSize = itemSize;
+    this.needsUpdate = false;
+  }
 }
 
 class Object3D {
   position = { set: (...point) => { this.point = point; } };
   rotation = { set: (...angles) => { this.angles = angles; } };
+  scale = { set: (...values) => { this.scaleValues = values; } };
   updateMatrix() { this.matrix = [...this.point, ...this.angles]; }
 }
 
-const three = { Group, InstancedMesh, Object3D, MeshStandardNodeMaterial: class {} };
+class Color {
+  constructor(hex) {
+    this.r = ((hex >> 16) & 255) / 255;
+    this.g = ((hex >> 8) & 255) / 255;
+    this.b = (hex & 255) / 255;
+  }
+}
+
+const three = {
+  Group, InstancedMesh, InstancedBufferAttribute, Object3D, Color,
+  MeshStandardNodeMaterial: class {}, DynamicDrawUsage: 35048
+};
 const load = (name, imports) => loadModule(readFileSync(join(__dirname, '../js', name), 'utf8'), { imports });
 const roads = load('sz-roads.js', { 'three/webgpu': three });
 const signalModule = load('sz-intersection-control.js');
 const vehiclePhysics = load('vehicle-physics.js');
 const vehicleSpecs = {
-  taxi: { track: 1.54, wheelbase: 2.8 }, sedan: { track: 1.62, wheelbase: 2.92 },
-  suv: { track: 1.63, wheelbase: 2.77 }, bus: { track: 2.05, wheelbase: 5.9 }
+  taxi: { track: 1.6, wheelbase: 2.8, radius: 0.35 }, sedan: { track: 1.6, wheelbase: 2.8, radius: 0.35 },
+  suv: { track: 1.69, wheelbase: 2.9, radius: 0.38 }, minivan: { track: 1.69, wheelbase: 3.03, radius: 0.37 },
+  van: { track: 1.72, wheelbase: 3.6, radius: 0.38 }, bus: { track: 2.05, wheelbase: 5.9, radius: 0.49 }
+};
+// 车体几何的测试替身：记录 computeBoundingBox / 实例属性，不建真实缓冲。
+function geometryFixture(halfWidth, halfLength, height = 1.8, minY = 0) {
+  return {
+    boundingBox: { min: { x: -halfWidth, y: minY, z: -halfLength }, max: { x: halfWidth, y: height, z: halfLength } },
+    attributes: {},
+    computeBoundingBox() {},
+    setAttribute(name, attribute) { this.attributes[name] = attribute; return this; },
+    dispose() {}
+  };
+}
+const trafficVehicles = {
+  VEHICLE_SPECS: vehicleSpecs,
+  carStyleCode: ({ livery = 0, metallic = 0, trim = 0, wheel = 0 }) =>
+    (livery & 7) + ((metallic & 1) << 3) + ((trim & 3) << 4) + ((wheel & 3) << 6),
+  createTrafficVehicleGeometry({ type }) {
+    return geometryFixture(type === 'bus' ? 1.275 : 0.95, type === 'bus' ? 6.1 : 2.4);
+  },
+  createTrafficCarBody(type) {
+    return { geometry: geometryFixture(0.95, type === 'van' ? 2.9 : 2.4, 1.8, 0.25), material: {} };
+  },
+  createTrafficWheels() {
+    return {
+      left: geometryFixture(0.05, 0.35), right: geometryFixture(0.05, 0.35), material: {},
+      baseRadius: 0.35, groundOffset: 0.345
+    };
+  }
 };
 const { createTrafficGraph, createSzTraffic, laneOffsets, laneRoute, routeSegments, trafficModelBounds, writeTrafficCollider } = load('sz-traffic.js', {
   'three/webgpu': three,
   './sz-intersection-control.js': signalModule,
   './sz-roads.js': roads,
-  './sz-vehicles.js': {
-    VEHICLE_SPECS: vehicleSpecs,
-    createTrafficVehicleGeometry({ type }) {
-      const halfWidth = type === 'bus' ? 1.275 : 1.02;
-      const halfLength = type === 'bus' ? 6.1 : 2.4;
-      return { computeBoundingBox() {}, boundingBox: {
-        min: { x: -halfWidth, y: 0, z: -halfLength }, max: { x: halfWidth, y: 1.8, z: halfLength }
-      } };
-    }
-  },
+  './sz-vehicles.js': trafficVehicles,
   './building-collision.js': load('building-collision.js'),
   './vehicle-physics.js': vehiclePhysics
 });
@@ -125,7 +169,26 @@ test('traffic stops before a player and uses its drawn position for collision qu
   assert.ok(actor.pose.x < player.position.x - actor.model.hz);
   assert.equal(actor.speed, 0);
   const position = [actor.pose.x, actor.pose.y, actor.pose.z];
-  assert.ok(traffic.group.children[0].transforms.some(values => position.every((value, index) => value === values[index])));
+  const bodyMesh = traffic.group.children.find(child => child.name === `traffic:${actor.type}`);
+  assert.ok(bodyMesh.transforms.some(values => position.every((value, index) => value === values[index])));
+  const wheelMeshes = traffic.group.children.filter(child => child.name?.startsWith('traffic:wheels-'));
+  const activeCars = traffic.vehicles.filter(vehicle => vehicle.route && vehicle.type !== 'bus').length;
+  assert.equal(wheelMeshes.length, 2);
+  assert.equal(wheelMeshes[0].material, wheelMeshes[1].material, 'left and right wheels share one material');
+  for (const wheels of wheelMeshes) {
+    assert.equal(wheels.count, activeCars * 2, 'two wheel instances per active car');
+    assert.ok(wheels.capacity >= activeCars * 2);
+  }
+  // 平坦路面上车轮实例落地：中心高度 = 路面高度 + 18 段 lathe 的贴地偏移 × 轮胎缩放。
+  const activeCarsList = traffic.vehicles.filter(vehicle => vehicle.route && vehicle.type !== 'bus');
+  const carIndex = activeCarsList.indexOf(actor.type === 'bus' ? activeCarsList[0] : actor);
+  const car = activeCarsList[carIndex < 0 ? 0 : carIndex];
+  const spec = vehicleSpecs[car.type];
+  const scale = spec.radius / 0.35;
+  const front = wheelMeshes[0].transforms[(carIndex < 0 ? 0 : carIndex) * 2];
+  const rear = wheelMeshes[0].transforms[(carIndex < 0 ? 0 : carIndex) * 2 + 1];
+  assert.ok(Math.abs(front[1] - (car.pose.y + 0.345 * scale)) < 1e-9, 'wheels sit on the road surface');
+  assert.ok(Math.abs(Math.abs(front[0] - rear[0]) - spec.wheelbase) < 1e-9, 'front and rear axles are one wheelbase apart');
   assert.ok(traffic.nearColliders(actor.pose.x, actor.pose.z, 0).includes(actor.collider));
 });
 
