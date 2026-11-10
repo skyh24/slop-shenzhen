@@ -213,3 +213,8 @@ node --test tests/*.test.cjs                         # 需 SZ_THREE_PACKAGE_DIR 
 
 - `js/sz-metro-entrances.js` 支持 `chunkSizeM` 选项，main.js 传 1000 m：286 个出入口的分块从 **102 → 64**、drawCallsEstimate 105 → 67，场景 draw call 余量增加；实测出生点 renderer.drawCalls 289 不变（该处地铁在剔除距离外）。
 - 测试保持全绿；M9 仍受环境 30 Hz swapchain 限制，无法在本机判定。
+
+## 2y. round 40：冷启动回归
+
+- 8080 冷加载：12 个地标模型全在、console errors = 0；superHq 机位 drawCalls 408、三角 827,608、地铁分块 64。
+- 验收截图 `docs/qa/round40/super-hq-camera.png`。
