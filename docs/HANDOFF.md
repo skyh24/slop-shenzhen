@@ -135,3 +135,8 @@ node --test tests/*.test.cjs                         # 需 SZ_THREE_PACKAGE_DIR 
 ## 6. 首读
 
 本文件 → [改进计划](15-IMPROVEMENT-PLAN.md) → [下一位计划](NEXT-AGENT-PLAN.md) → [规范](CONVENTIONS.md) → [验收标准](10-PERF-QA.md) → 对应模块。
+
+## 2j. round 22：Q8 驾驶版尝试（未达成）
+
+- 驾车模式传送到 (-3300, 880) 失败（精确落点被挡），车辆仍在旧位置，连续驾驶 1.8 km 不在车公庙 Q8 范围；页面无“车公庙”快捷传送点。
+- 下一步：用**地图点选传送**把车放到深南辅路合法落点，再连续驾驶走 Q8；步行版已由 round 20/21 连续走通。
