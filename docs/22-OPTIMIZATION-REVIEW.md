@@ -347,3 +347,46 @@ rg -n "StorageInstancedBufferAttribute" js ref/slop-wuhan/js/runtime/main.js
 - 结束时页面已恢复普通 URL `http://127.0.0.1:8099/`、追尾相机和可见界面，截图 `restored-normal-play.png`。
 - 导出变化：`sz-spatial.js` 不再导出 `ringContains`/`polygonContains`（仓库内没有消费者；它的语义由 `sz-polygon.js` 的 `*Inclusive` 变体承担，避免旧名字和新模块的奇偶实现混淆）；`sz-apec.js` 仍按原样导出 `landmarkCenter`，`building-collision.js` 仍导出 `polygonContains`。
 - 未做：A3 之外的空间分桶合并（任务明确不做）；`main.js` 超长、`sz-building-details.js` 接近上限都不在本任务范围。`sz-street-lamps.js` 的 `finitePoint` 原本是死代码（无调用点），删除后没有替代导入，活调用点只有 `sz-apec-city.js` 和 `sz-metro-entrances.js` 两处。A3 表只扫了 `js/*.js`，`js/sz-landmarks/super-hq.js` 的 `ringArea`/`ringCentroid`/`inRing`/`boundaryDistance` 和 `sz-pedestrians.js`、`sz-building-details.js` 里名叫 `polygonArea` 的同源工具仍留在原模块，按任务范围本轮未动。
+### S3 收窄入口连线（2026-11-10）
+
+- 分支：`dsh-5df3d2ce-c89c`（工作树独立分支，基线 `4c54d2e`；按用户指示已合入 main，合入时 main 已包含 S2 的 `e205548`）。
+- 新增 `js/sz-qa.js`（302 行）：`createQaSession({ search, hostname, defaultChunkSize })` 只在 `127.0.0.1` / `localhost` 且 `?qa=1` 时 `enabled`，原来散在 `main.js` 的 QA 代码全部搬进来：
+  - `?qa=1&cam=x,y,z,tx,ty,tz` 固定机位，仍然只在 qa 下覆盖相机；
+  - `?skip=landmarks,trees,…` 阶段开关，17 个阶段名（landmarks、blocks、lightshow、signs、details、paint、elevated、streetscape、lamps、trees、apec、apecCity、metro、stations、drones、traffic、pedestrians），只在 qa 下生效，未列出的阶段照常构建；未知阶段名在 `stage()` 抛错、安装时 `console.warn`；
+  - 10 个 `window.__sz*` 模块对象、8 个调试入口（`__szTeleport`、`__szNearTraffic`、`__szSurfaceAt`、`__szTeleportRoad`、`__szTeleportNear`、`__szNearColliders`、`__szDebug`、`__szQA`）、`[init]` 阶段快照和帧/GPU/队列采样（原 `summarizeSamples`、`profileSnapshot`、采样逻辑原样搬移）。
+  - 入口里只留 `if (qa.enabled) qa.install({…})`；普通地址下 `window` 只有既有的 `__szBoot`，没有新增调试对象。
+- `js/main.js` 1309 → 988 行：场地上下文对象 `site`（buildings/terrain/sites/roadGraph/terrainSurface/groundHeight/roadHeight/isWater/colliders/heightAt/pathAt）替换各构建函数的重复参数；IEC 门廊/花海锚点只构造一次；`renderFrame` 里的采样内联代码换成 `beginFrame/markSimulation/markRender/endFrame` 四行；`trackTimestamp: qa.enabled`。
+- 场地接管：`js/sz-landmarks/layout.js` 新增导出 `siteTakeoverIds(buildings, sites)`，把 super-hq / xili-station 场地轮廓内的普通楼并入 `planSzLandmarks` 返回的 `skipIds`；入口里的 11 行循环和 `polygonContains` import 删除。真实快照上接管 75 个 id（super-hq 74、xili 1），与改前集合完全一致（`planSzLandmarks` 的旧断言不变）。
+- 纯界面接线搬进 `js/sz-ui.js`（110 → 279 行）：`wirePopovers()`、`wireShortcuts({…})`、`createLocationReadout()`、`createHudTelemetry()`；入口只留调用。这是本轮“main.js 不超过 1000 行”验收的必要条件（执行前与用户确认过范围）。`index.html` 给 `js/sz-qa.js` 补了一条 modulepreload（`tests/boot.test.cjs` 要求模块图里每个相对 import 都预载）。
+- 测试：新增 `tests/sz-qa.test.cjs` 8 项（入口行数、普通地址不挂 `__sz*`、loopback + `?qa=1` 判定、cam/chunks 解析、skip 只在 qa 下生效、startup/固定机位、`[init]` 标签、场地接管位置）；`tests/sz-landmarks.test.cjs` 的静态桩加载器补 `'../building-collision.js': collision`；`tests/sz-main-startup.test.cjs` 的 QA 断言由 `qa.startup[` 改为 `qa.markStartup(`。改前本工作树 422 项通过（任务提示里的 493 项对应 S1 删除纽约用例之前的旧状态），本分支改后 430 项通过、0 跳过；合入 S2（+14 项）后的 main 上 Node 444 项通过、0 跳过；Python 101 项通过。工作树没有 `.venv`，本轮用指向主检出 `.venv` 的符号链接跑测试（`.gitignore` 已忽略，不进 Git）。
+- 浏览器（`python3 tools/sz/serve.py`；本工作树 8093 用本地不缓存版本，main 检出 8094 作改前对照；CDP 设备指标 2560×1440，控制台 hook）：
+  - 普通地址 `window` 上只有 `__szBoot`；`?qa=1` 下 10 个模块对象和 8 个调试入口与改前一致，`__szQA()` 可读。
+  - `[init]` 阶段集合与改前完全相同（data.download/decompress/parse/validate/decode + renderer/lighting/ground/roads/landmarks/blocks/traffic/controllers/culling/ui/postFX/compile/warmup/firstFrame/gpu）。
+  - 固定机位同机位截图（CBD `?qa=1&cam=-900,10,1069,-426,140,1069`，夜间深南 `-400,9.4,438,-120,12,438`）：像素平均差 0.02–0.15/255、变化像素 0.9–2.9%（车流/人群位置差异）；draw calls 536/469、三角数 1.89 M/1.91 M，与改前同量级。
+  - `?qa=1&skip=landmarks,trees,traffic,pedestrians`：地标计划空、树块 0 个、车流 0 个，draw calls 536 → 452，`[init]` 各阶段仍在。
+  - 控制台：改前后同一组既有消息（4 条 TSL `bNode.getNodeType` 报错、`Vertex attribute "uv"` 警告），无新增应用错误。
+  - 界面：普通地址下用页面内合成 keydown 核对快捷键（自动化窗口当前不在操作系统前台，真实按键到不了页面；P0 会话里同类按键曾生效，判断为环境差异），Digit2 → 出租车、V → 动作相机、H → 收起/展开 HUD、N → 静音/恢复、B 不报错；鼠标打开传送到/相机弹层，`data-anchor` 定位写入 right/top/bottom/maxHeight；按住 W 时 HUD 速度到 34 km/h，位置读数“福中三路深圳市民中心”正常；结束时恢复人模式 + 追尾相机 + HUD 显示。记录在 `docs/qa/dsh-5df3d2ce-c89c/ui-verify.json`。
+  - 启动计时：qa 模式下 compile 阶段在多次加载间波动 4.8–85 s（改前改后都出现），判断是自动化窗口的着色器编译/缓存噪声，本轮不以启动耗时下结论；`[init]` 其余阶段量级正常。
+- 新发现（本轮未处理）：`js/main.js` 仍保留 `wireMetroMenu(…)` 之后的一段内联地铁菜单构建（约 49 行，按钮版），和 `js/sz-ui.js` 的复选框版往同一个 `#metro-lines` 追加内容；浏览器里 `#metro-lines` 共 29 行（12 个复选框 + 17 个按钮）。本轮只做搬移，没有删这段重复实现，建议单独立项处理。
+- 截图：`docs/qa/dsh-5df3d2ce-c89c/`（只留本地，不进 Git）。
+
+### P1 实例矩阵换 storage 缓冲（2026-11-10，已测量并回滚）
+
+- 做法：在 `setupSceneCulling` 之后遍历场景，把每个 `InstancedMesh.instanceMatrix` 换成 `new THREE.StorageInstancedBufferAttribute(array, 16)`（复用同一个 Float32Array，不复制 usage），必须排在首帧/着色器预编译之前。
+- 覆盖与正确性（`?qa=1`，`__szDebug.scene` 统计）：改后 4383 个实例网格 / 475,961 个实例全部是 storage 属性（改前 0 个）。`needsUpdate` 仍然生效：30 个环境车 actor 在 1.2 s 内全部移动，`traffic:sedan` 的 GPU 实例矩阵读回内容随之变化；选一块可见链上的静态实例块，改 CPU 矩阵但不置 `needsUpdate` 时 GPU 不变，置 `needsUpdate` 后 GPU 与 CPU 一致（改前改后同样成立）。同机位截图像素平均差 0.35/255、变化像素 3.9–4.7%（车流/人群/道旗动画），draw calls/三角数完全相同（夜间 346 / 1,547,787），控制台无新增错误。
+- 前后测量（同机位、2560×1440、每机位 3 次、每次稳定 30 s；机位同 P0：出生点 / 福田 CBD 街面 / 夜间深南大道）：
+
+| 机位 | 版本 | 帧时 p50/p95 (ms) | CPU 渲染 p50 (ms) | 模拟 p50 (ms) | GPU 读数 p50 (ms) | 队列等待 p50 (ms) | draw calls | 三角形 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 出生点 | S3 | 16.7/33.4 | 12.23 | 0.78 | 59.4 | 75.1 | 1484 | 3.78 M |
+| 出生点 | +P1 | 16.9/33.9 | 13.52 | 0.87 | 61.1 | 86.9 | 1484 | 3.78 M |
+| 福田 CBD 街面 | S3 | 16.7/33.4 | 6.85 | 0.85 | 66.1 | 92.5 | 536 | 1.89 M |
+| 福田 CBD 街面 | +P1 | 17.0/50.0 | 10.63 | 2.17 | 89.4 | 301.2 | 536 | 1.89 M |
+| 夜间深南大道 | S3 | 16.7/33.4 | 7.39 | 0.92 | 73.7 | 70.1 | 471 | 1.95 M |
+| 夜间深南大道 | +P1 | 17.4/34.3 | 11.95 | 5.49 | 53.4 | 337.2 | 471 | 1.93 M |
+
+- 结论与回滚：**没有可复现收益，已回滚**（`js/main.js` 988 行，不再含 `StorageInstancedBufferAttribute`）。理由：
+  1. 每机位第 1 次运行两边基本相等（出生点 CPU 12.04 vs 11.91–12.83 ms、队列 75.3 vs 65.8–79.1 ms；CBD CPU 6.36 vs 6.15–7.12 ms），随后同一阶段内的运行逐渐恶化（队列等待最高 985 ms、CBD 第 2 次帧 p95 50 ms），这是连续运行的环境漂移，不是一次启动遍历能造成的差异。
+  2. 另做了一轮交错 A/B（同一时间段交替换两种 `main.js`），被 30 Hz 窗口节流污染（S3 两个机位 p50 33.3 ms）且出现一次 240 s 加载超时，数据不采纳。
+  3. 代码核实：r187 已经把 `instanceMatrix` 作为逐实例顶点属性绑定并只在 `needsUpdate`（version）时上传；`__szDebug.scene` 里 4383 个实例网格的共享 reference 路径全部成立（没有走 uniform buffer 的网格），武汉注释里“小实例走 uniform 缓冲、每 pass 重传约 2.5 MB/帧”的前提在本仓库不成立。真正每帧变化的大实例是 3994 个 APEC 道旗（约 0.25 MB/帧），换 storage 后它仍然每帧 `needsUpdate` 上传；省下的只有车流/车轮的 `DynamicDrawUsage` 每 pass 重传（约 18 KB/帧），低于测量噪声。
+- 备注：P1 补丁保留在 `docs/qa/dsh-5df3d2ce-c89c/p1/variants/main.p1.js`（只留本地），前后原始记录在同目录 `p1/before-p1/`、`p1/after-p1/`。

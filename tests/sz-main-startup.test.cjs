@@ -23,7 +23,7 @@ test('initApp pre-fills the five data.* timings from DATA_TIMINGS', () => {
   const preset = main.slice(presetStart, rendererInit);
   assert.match(preset, /DATA_TIMINGS/, 'DATA_TIMINGS pre-fills the [init] timings');
   assert.match(preset, /initTimings\.push\(/);
-  assert.match(preset, /qa\.startup\[/, 'QA snapshots receive the same staged timings');
+  assert.match(preset, /qa\.markStartup\(/, 'QA snapshots receive the same staged timings');
   assert.match(preset, /\$\{label\} \$\{ms\}ms/, 'timings keep the "[init]" label format');
   let previous = -1;
   for (const label of DATA_LABELS) {

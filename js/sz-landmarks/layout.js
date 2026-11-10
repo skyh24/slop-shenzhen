@@ -10,6 +10,10 @@ import { sourceIds as upperhillsIds, build as buildUpperhills } from './upperhil
 import { sourceIds as nonferrousIds, optionalSkipIds as nonferrousDuplicates, build as buildNonferrous } from './nonferrous-tower.js';
 import { sourceIds as iecIds, optionalSkipIds as iecDuplicates, build as buildIec } from './iec-xiangmihu.js';
 import { sourceIds as superHqIds, optionalSkipIds as superHqSkips, build as buildSuperHq } from './super-hq.js';
+import { polygonContains } from '../building-collision.js';
+
+// 超级总部/西丽在建场地由「建好形态/在建工地」接管：场地轮廓内的旧通用楼不再单独渲染。
+const siteTakeoverSites = ['super-hq', 'xili-station'];
 
 const definitions = [
   { id: 'tencent-binhai', sourceIds: tencentIds, build: buildTencent },
@@ -25,6 +29,23 @@ const definitions = [
   { id: 'iec-xiangmihu', site: 'iec-xiangmihu', sourceIds: iecIds, optionalSkipIds: iecDuplicates, build: buildIec },
   { id: 'super-hq', site: 'super-hq', sourceIds: superHqIds, optionalSkipIds: superHqSkips, build: buildSuperHq }
 ];
+
+// 场地接管清单和地标计划放在一起：两者都是「谁不再按通用楼渲染」的判定，同源同处便于核对；
+// 场地内旧通用楼交给地标和工地，避免同一位置叠出两套体量。
+export function siteTakeoverIds(buildings, sites = {}) {
+  const ids = new Set();
+  for (const siteId of siteTakeoverSites) {
+    for (const role of Object.values(sites?.[siteId] ?? {})) {
+      for (const building of buildings) {
+        if (ids.has(building.id)) continue;
+        for (const polygon of role.polygons) {
+          if (polygonContains(polygon, building.cx, building.cz)) { ids.add(building.id); break; }
+        }
+      }
+    }
+  }
+  return ids;
+}
 
 export function planSzLandmarks(buildings, terrain, sites = {}) {
   const source = new Map(buildings.map(building => [building.id, building]));
@@ -42,5 +63,7 @@ export function planSzLandmarks(buildings, terrain, sites = {}) {
     for (const id of definition.optionalSkipIds ?? []) if (source.has(id)) skipIds.add(id);
     plans.push({ id: definition.id, parts });
   }
+  // 场地接管与地标接管合并成一份 skipIds：超级总部/西丽场地轮廓内的旧通用楼不再单独渲染。
+  for (const id of siteTakeoverIds(buildings, sites)) skipIds.add(id);
   return { plans, skipIds };
 }
