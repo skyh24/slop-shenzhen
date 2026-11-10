@@ -255,7 +255,8 @@ class QaSession {
       traffic: { ...traffic.statistics, actors: traffic.vehicles.filter(actor => actor.route).map(actor => {
         const stop = actor.stops[actor.stopIndex];
         return { id: actor.id, x: actor.pose.x, y: actor.pose.y, z: actor.pose.z, heading: actor.pose.heading,
-          wayId: actor.pose.edge?.osmId, speed: actor.speed, s: actor.s, end: actor.end, stalled: actor.stalled,
+          wayId: actor.pose.edge?.osmId, surfaceId: actor.pose.edge?.surfaceId ?? null, speed: actor.speed,
+          s: actor.s, end: actor.end, stalled: actor.stalled,
           wait: actor.waitingForSignal, blocker: actor.blocker ?? null, reservation: actor.reservation?.id ?? null,
           stop: stop ? { s: stop.s, clearS: stop.clearS, osmNodeId: stop.approach.osmNodeId, group: stop.approach.group } : null };
       }) },

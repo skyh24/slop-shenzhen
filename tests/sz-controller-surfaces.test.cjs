@@ -63,3 +63,23 @@ test('unknown ground and unresolved structural heights are never replaced with z
   assert.throws(() => createSurfaceResolver({ groundHeight: () => 0,
     surfaces: [{ id: 'bridge', heightSource: 'unresolved', triangles: [triangle] }] }), /resolved height provenance/);
 });
+
+test('a bridge abutment climbs from the ground only inside the step height and only when declared climbable', async () => {
+  const { createSurfaceResolver } = await modulePromise;
+  const flat = y => [{ x: 0, y, z: 0 }, { x: 10, y, z: 0 }, { x: 0, y, z: 10 }];
+  const ground = 8;
+  const deck = createSurfaceResolver({ groundHeight: () => ground, surfaces: [
+    { id: 'bridge:abutment', heightSource: 'estimate', triangles: [flat(ground + 0.18)], climbableFromGround: true }
+  ] });
+  assert.equal(deck.resolve(5, 2, { previousY: ground, previousSurfaceId: 'terrain' }).surfaceId, 'bridge:abutment');
+  // 桥面高于抬脚高度时仍沿地面，不从桥底吸附。
+  const underpass = createSurfaceResolver({ groundHeight: () => ground, surfaces: [
+    { id: 'bridge:high', heightSource: 'estimate', triangles: [flat(ground + 4.8)], climbableFromGround: true }
+  ] });
+  assert.equal(underpass.resolve(5, 2, { previousY: ground, previousSurfaceId: 'terrain' }).surfaceId, 'terrain');
+  // 没有声明的普通平台保持原来的“不自动踏上”行为，避免楼梯/屋顶/连桥被误吸。
+  const platform = createSurfaceResolver({ groundHeight: () => ground, surfaces: [
+    { id: 'landmark:platform', heightSource: 'estimate', triangles: [flat(ground + 0.18)] }
+  ] });
+  assert.equal(platform.resolve(5, 2, { previousY: ground, previousSurfaceId: 'terrain' }).surfaceId, 'terrain');
+});

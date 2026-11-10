@@ -44,19 +44,60 @@ function heightInDisc(triangle, x, z, radius) {
   return highest;
 }
 
+/** 解析：只按表面身份取高度（车流/规划用），索引与控制器接触面使用同一批三角面。
+ *  输入：surfaces（id + triangles）。
+ *  输出：(x, z, surfaceId) → 高度或 null；平面不在该表面覆盖范围内时返回 null，由调用方回退到地面。 */
+export function createSurfaceHeightAt(surfaces = []) {
+  const cells = new Map();
+  for (const surface of surfaces) {
+    if (!surface?.id) throw new Error('A rendered surface requires identity');
+    for (const triangle of surface.triangles) {
+      const xs = triangle.map(p => p.x), zs = triangle.map(p => p.z);
+      if (!xs.every(Number.isFinite) || !zs.every(Number.isFinite)
+        || !triangle.every(p => Number.isFinite(p.y))) {
+        throw new Error(`Invalid contact triangle: ${surface.id}`);
+      }
+      const row = { surfaceId: surface.id, triangle };
+      for (let ix = Math.floor(Math.min(...xs) / CELL); ix <= Math.floor(Math.max(...xs) / CELL); ix++) {
+        for (let iz = Math.floor(Math.min(...zs) / CELL); iz <= Math.floor(Math.max(...zs) / CELL); iz++) {
+          const key = `${ix},${iz}`;
+          if (!cells.has(key)) cells.set(key, []);
+          cells.get(key).push(row);
+        }
+      }
+    }
+  }
+  return (x, z, surfaceId) => {
+    if (!Number.isFinite(x) || !Number.isFinite(z) || !surfaceId) return null;
+    let height = null;
+    // 相邻三角面在共享边上会重复命中且同高；取最高值避免凹缝，不跨表面混合层级。
+    for (const row of cells.get(`${Math.floor(x / CELL)},${Math.floor(z / CELL)}`) || []) {
+      if (row.surfaceId !== surfaceId) continue;
+      const candidate = triangleHeight(row.triangle, x, z);
+      if (candidate !== null && (height === null || candidate > height)) height = candidate;
+    }
+    return height;
+  };
+}
+
 export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
   if (typeof groundHeight !== 'function') throw new Error('A terrain contact function is required');
   const cells = new Map();
+  const driveSuccessors = new Map();
   for (const surface of surfaces) {
     if (!surface.id || !surface.heightSource || surface.heightSource === 'unresolved') {
       throw new Error('A rendered surface requires identity and resolved height provenance');
+    }
+    if (Array.isArray(surface.driveSuccessors) && surface.driveSuccessors.length > 0) {
+      driveSuccessors.set(surface.id, surface.driveSuccessors);
     }
     for (const triangle of surface.triangles) {
       if (triangle.length !== 3 || triangle.some(p => ![p.x, p.y, p.z].every(Number.isFinite))) {
         throw new Error(`Invalid contact triangle: ${surface.id}`);
       }
       const xs = triangle.map(p => p.x), zs = triangle.map(p => p.z);
-      const row = { surfaceId: surface.id, heightSource: surface.heightSource, triangle };
+      const row = { surfaceId: surface.id, heightSource: surface.heightSource, triangle,
+        climbableFromGround: surface.climbableFromGround === true };
       for (let ix = Math.floor(Math.min(...xs) / CELL); ix <= Math.floor(Math.max(...xs) / CELL); ix++) {
         for (let iz = Math.floor(Math.min(...zs) / CELL); iz <= Math.floor(Math.max(...zs) / CELL); iz++) {
           const key = `${ix},${iz}`;
@@ -79,7 +120,8 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
       if (previous && Math.abs(previous.height - height) > 0.01) {
         throw new Error(`Overlapping levels share a surface identity: ${row.surfaceId}`);
       }
-      candidates.set(row.surfaceId, { height, surfaceId: row.surfaceId, heightSource: row.heightSource });
+      candidates.set(row.surfaceId, { height, surfaceId: row.surfaceId, heightSource: row.heightSource,
+        climbableFromGround: row.climbableFromGround });
     }
     return [...candidates.values()].sort((a, b) => a.height - b.height || a.surfaceId.localeCompare(b.surfaceId));
   }
@@ -94,7 +136,21 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
     const same = reachable.find(c => c.surfaceId === previousSurfaceId);
     if (same) {
       // 下坡跨过已建平台时先接触较高的上表面。桥下仍沿当前地面，不向上吸附。
-      return reachable.findLast(c => c.height > same.height + 1e-7 && c.height <= previousY + 1e-7) ?? same;
+      // 地面走到桥头时，只有显式声明可接地、且高差在抬脚高度内的桥面才允许踏上（桥面比地面高 4.8 m 时不可达）。
+      const raised = reachable.findLast(c => c.height > same.height + 1e-7
+        && (c.height <= previousY + 1e-7
+          || (same.surfaceId === 'terrain' && c.climbableFromGround && c.height <= previousY + maxStepUp)));
+      return raised ?? same;
+    }
+    // 多条并行桥面在分岔鼻端重叠时，按车行连通性交接到本段在车流图里的后继表面，
+    // 不按几何最近随便吸附到相邻层（否则会骑到 1.5 m 以上的另一条缎带上卡住）。
+    const successors = driveSuccessors.get(previousSurfaceId);
+    if (successors) {
+      // 按计划给出的走向顺序取第一条可达链路，避免在重叠缎带里吸附到相邻层。
+      for (const surfaceId of successors) {
+        const candidate = reachable.find(c => c.surfaceId === surfaceId);
+        if (candidate) return candidate;
+      }
     }
     return reachable.sort((a, b) => Math.abs(a.height - previousY) - Math.abs(b.height - previousY)
       || a.surfaceId.localeCompare(b.surfaceId))[0] ?? null;

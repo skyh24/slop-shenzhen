@@ -9,10 +9,12 @@ const roads = loadModule(read('sz-roads.js'), { imports: {
   'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
 } });
 const groundSurface = loadModule(read('sz-ground-surface.js'));
+const controllerSurfaces = loadModule(read('sz-controller-surfaces.js'));
 const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
   'three/webgpu': {},
   './sz-roads.js': roads,
-  './sz-ground-surface.js': groundSurface
+  './sz-ground-surface.js': groundSurface,
+  './sz-controller-surfaces.js': controllerSurfaces
 } });
 
 const AREA = { minX: 0, maxX: 1000, minZ: 0, maxZ: 1000 };
@@ -148,7 +150,8 @@ test('real THREE build creates at most twelve chunk meshes and a walkable deck t
     const module = loadModule(read('sz-elevated-roads.js'), { imports: {
       'three/webgpu': THREE,
       './sz-roads.js': realRoads,
-      './sz-ground-surface.js': groundSurface
+      './sz-ground-surface.js': groundSurface,
+      './sz-controller-surfaces.js': controllerSurfaces
     } });
     const scene = new THREE.Scene();
     const built = module.buildSzElevatedRoads(scene, { graph: fixture(), terrainSurface: surface, area: AREA });
@@ -198,4 +201,176 @@ test('links with different layer estimates get a connector ramp at the shared no
   });
   const heights = resolver.at(700 - 1, 300);
   assert.ok(heights.length >= 1);
+});
+
+// 车行链路夹具：在基础夹具上补一条陡坡、一条隧道和一条 layer 0 桥，用来验证 driveLinks 的筛选条件。
+// 陡坡从共享地面节点起步（起点落地），60 m 内升到 layer2 的 9.6 m，派生纵坡约 16% 超过 12% 上限。
+function driveFixture() {
+  const graph = fixture();
+  graph.nodes.push(160, 100, 700, 500, 760, 500, 800, 700, 860, 700);
+  graph.links.push(
+    [0, 10, 0, 8, 2, 0, []],
+    [11, 12, 0, 8, 2, 0, []],
+    [13, 14, 0, 8, 2, 0, []]
+  );
+  graph.metadata.push(
+    { osmId: 'way/9', heightSource: 'unresolved', bridge: true, tunnel: false, layer: 2 },
+    { osmId: 'way/10', heightSource: 'unresolved', bridge: true, tunnel: true, layer: 2 },
+    { osmId: 'way/11', heightSource: 'unresolved', bridge: true, tunnel: false, layer: 0 }
+  );
+  return graph;
+}
+
+test('elevated planning exposes only drivable drive links with a derived max grade', () => {
+  assert.equal(elevated.ELEVATED_DRIVE_MAX_GRADE, 0.12);
+  const result = elevated.planElevatedRoads(driveFixture(), surface, AREA);
+  assert.deepEqual(Array.from(result.links, link => link.index), [3, 4, 6, 7, 8, 9]);
+  assert.deepEqual(Array.from(result.driveLinks, link => link.index), [3, 4, 6]);
+  assert.ok(result.driveLinks.every(link => result.links.includes(link)), 'drive links reuse the planned record objects');
+  for (const link of result.links) {
+    assert.ok(Number.isFinite(link.maxGrade));
+    assert.ok(Math.abs(link.maxGrade - Math.abs(link.endDeckY - link.startDeckY) / link.lengthM) < 1e-12);
+  }
+  const steep = result.links.find(link => link.index === 7);
+  assert.ok(steep.maxGrade > elevated.ELEVATED_DRIVE_MAX_GRADE, `steep grade ${steep.maxGrade}`);
+  assert.equal(result.driveLinks.includes(steep), false, 'grades above the cap stay out of the drive network');
+  const tunnel = result.links.find(link => link.index === 8);
+  assert.equal(tunnel.tunnel, true);
+  assert.ok(tunnel.layer > 0);
+  assert.equal(result.driveLinks.includes(tunnel), false, 'tunnels stay out of the drive network');
+  const layerZero = result.links.find(link => link.index === 9);
+  assert.equal(layerZero.layer, 0);
+  assert.equal(result.driveLinks.includes(layerZero), false, 'layer 0 bridges are not drivable decks');
+  for (const link of result.driveLinks) {
+    assert.equal(link.tunnel, false);
+    assert.ok(link.layer > 0);
+    assert.ok(link.maxGrade <= elevated.ELEVATED_DRIVE_MAX_GRADE);
+  }
+});
+
+test('drive statistics count the filtered links and their planned deck length', () => {
+  const result = elevated.planElevatedRoads(driveFixture(), surface, AREA);
+  const statistics = result.statistics;
+  assert.equal(statistics.driveLinks, result.driveLinks.length);
+  assert.equal(statistics.driveLinks, 3);
+  assert.equal(statistics.driveDeckLengthM, result.driveLinks.reduce((sum, link) => sum + link.lengthM, 0));
+  assert.equal(statistics.driveDeckLengthM, 1100);
+  assert.ok(statistics.limitations.some(text => /12%/.test(text)), 'limitations record the drive grade cap');
+});
+
+// 假 THREE 只负责让 buildSzElevatedRoads 走完建场景的流程；真实渲染几何由下面 skip 门的真 THREE 测试覆盖。
+function fakeElevatedThree() {
+  class FakeBufferAttribute {
+    constructor(array, itemSize) { this.array = array; this.itemSize = itemSize; }
+  }
+  class FakeBufferGeometry {
+    constructor() { this.attributes = {}; }
+    setAttribute(name, attribute) { this.attributes[name] = attribute; return this; }
+    computeVertexNormals() {}
+    computeBoundingBox() {}
+    computeBoundingSphere() {}
+    dispose() {}
+  }
+  class FakeGroup {
+    constructor() { this.children = []; this.parent = null; }
+    add(...objects) { for (const object of objects) { object.parent = this; this.children.push(object); } }
+    remove(object) { this.children = this.children.filter(child => child !== object); object.parent = null; }
+  }
+  class FakeMaterial {
+    constructor(options) { Object.assign(this, options); }
+    dispose() {}
+  }
+  class FakeMesh {
+    constructor(geometry, material) {
+      this.geometry = geometry;
+      this.material = material;
+      this.position = { set: () => {} };
+      this.userData = {};
+    }
+  }
+  return { Group: FakeGroup, Mesh: FakeMesh, BufferGeometry: FakeBufferGeometry,
+    BufferAttribute: FakeBufferAttribute, MeshStandardNodeMaterial: FakeMaterial };
+}
+
+test('built elevated roads expose drive surfaces and a deck height sampler on the same triangles', () => {
+  const fake = fakeElevatedThree();
+  const module = loadModule(read('sz-elevated-roads.js'), { imports: {
+    'three/webgpu': fake,
+    './sz-roads.js': roads,
+    './sz-ground-surface.js': groundSurface,
+    './sz-controller-surfaces.js': controllerSurfaces
+  } });
+  const built = module.buildSzElevatedRoads(new fake.Group(), { graph: driveFixture(), terrainSurface: surface, area: AREA });
+  const drive = built.drive;
+  assert.ok(drive, 'build result carries a drive network');
+  assert.deepEqual(Array.from(drive.links, link => link.index), [3, 4, 6]);
+  assert.equal(drive.statistics.links, drive.links.length);
+  assert.equal(drive.statistics.surfaces, drive.links.length);
+  assert.equal(drive.statistics.deckLengthM, drive.links.reduce((sum, link) => sum + link.lengthM, 0));
+  assert.equal(drive.statistics.heightSource, 'rendered-top-triangles');
+  assert.deepEqual(Array.from(drive.surfaces, item => item.id), Array.from(drive.links, link => link.surfaceId));
+  const rendered = new Map(built.surfaces.map(item => [item.id, item]));
+  for (const item of drive.surfaces) {
+    assert.equal(item, rendered.get(item.id), 'drive surfaces are the rendered deck surfaces');
+    assert.ok(item.triangles.length > 0);
+  }
+  // 隧道、layer 0 桥和陡坡的渲染表面存在，但不进入车行采样器。
+  const excluded = built.surfaces.filter(item => ['sz-elevated-road:7', 'sz-elevated-road:8', 'sz-elevated-road:9']
+    .includes(item.id));
+  assert.equal(excluded.length, 3);
+  for (const item of excluded) {
+    const [point] = item.triangles[0];
+    assert.equal(drive.heightAt(point.x, point.z, item.id), null, `${item.id} is not drivable`);
+  }
+  for (const link of drive.links) {
+    const middle = link.frames[Math.floor(link.frames.length / 2)];
+    for (const frame of [link.frames[1], middle]) {
+      const height = drive.heightAt(frame.x, frame.z, link.surfaceId);
+      assert.ok(Number.isFinite(height), `deck height at ${link.surfaceId}`);
+      assert.ok(Math.abs(height - frame.y) < 1e-6, `${link.surfaceId} deck height matches the planned frame`);
+    }
+    assert.equal(drive.heightAt(middle.x, middle.z + 20, link.surfaceId), null, 'off-deck points have no deck height');
+    assert.equal(drive.heightAt(middle.x, middle.z, 'sz-elevated-road:9999'), null, 'unknown surfaces have no deck height');
+  }
+});
+
+test('the real Shenzhen snapshot exposes drivable elevated chains with rendered deck contact', () => {
+  const { gunzipSync } = require('node:zlib');
+  const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
+  const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
+  const { geo } = decodeCityPayload(raw);
+  const plan = elevated.planElevatedRoads(geo.roadGraph, geo.terrainSurface);
+  assert.ok(plan.links.length >= 33, `plan links ${plan.links.length}`);
+  assert.ok(plan.driveLinks.length >= 30, `drive links ${plan.driveLinks.length}`);
+  const deckLength = plan.driveLinks.reduce((sum, link) => sum + link.lengthM, 0);
+  assert.ok(deckLength > 5000, `drivable deck length ${deckLength}`);
+  assert.ok(plan.driveLinks.every(link => link.maxGrade <= elevated.ELEVATED_DRIVE_MAX_GRADE), 'steep links stay out of the drive graph');
+  assert.ok(plan.driveLinks.some(link => link.sharedStart), 'a deck end meets ground on the start side');
+  assert.ok(plan.driveLinks.some(link => link.sharedEnd), 'a deck end meets ground on the end side');
+
+  // 车公庙目标链路：地面 → 403 上匝道 → 6595 桥面 → 11114 下匝道 → 地面。
+  const byOsm = new Map(plan.links.map(link => [link.osmId, link]));
+  const chain = ['way/40955020', 'way/854919717', 'way/1524817657'].map(osmId => {
+    const link = byOsm.get(osmId);
+    assert.ok(link, `${osmId} is planned`);
+    return link;
+  });
+  assert.equal(chain[0].endNode, chain[1].startNode);
+  assert.equal(chain[1].endNode, chain[2].startNode);
+  assert.ok(chain[0].sharedStart, 'the ramp foot meets the ground link');
+  assert.ok(chain[2].sharedEnd, 'the exit ramp meets the ground link');
+  const driveSurfaceIds = new Set(plan.driveLinks.map(link => link.surfaceId));
+  const deckHeight = controllerSurfaces.createSurfaceHeightAt(plan.surfaces.filter(item => driveSurfaceIds.has(item.id)));
+  for (const link of chain) {
+    assert.ok(driveSurfaceIds.has(link.surfaceId));
+    for (const frame of [link.frames[1], link.frames[Math.floor(link.frames.length / 2)], link.frames.at(-2)]) {
+      const height = deckHeight(frame.x, frame.z, link.surfaceId);
+      assert.ok(Number.isFinite(height), `deck height at ${link.surfaceId}`);
+      assert.ok(Math.abs(height - frame.y) < 1e-6, `${link.surfaceId} height comes from the rendered deck top`);
+    }
+  }
+  const successorOf = id => plan.surfaces.find(item => item.id === id)?.driveSuccessors ?? [];
+  assert.ok(successorOf(chain[0].surfaceId).includes(chain[1].surfaceId), '403 hands over to 6595');
+  // 桥面上 6595 与并行 6592 的缎带重叠，按走向顺滑度优先 11114，避免吸附到相邻层。
+  assert.equal(successorOf(chain[1].surfaceId)[0], chain[2].surfaceId);
 });
