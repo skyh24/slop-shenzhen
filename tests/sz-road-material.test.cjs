@@ -49,6 +49,15 @@ test('road materials keep their own depth offsets and expose the wear, wetness a
   for (const node of ['colorNode', 'roughnessNode', 'opacityNode', 'mrtNode']) {
     assert.ok(paint[node], `markings expose ${node}`);
   }
+  assert.equal(paint.positionNode, null, 'markings keep their build-time geometry instead of screen-space widening');
+  // 标线是透明叠加层：MRT 必须写零，SSR 才继续看到下面的沥青和水坑。
+  for (const name of ['normal', 'metalRough']) {
+    const output = paint.mrtNode.outputNodes[name];
+    assert.ok(output, `markings write the ${name} MRT output`);
+    assert.ok(output.isConstNode, `${name} MRT output is a constant`);
+    assert.deepEqual([output.value.x, output.value.y, output.value.z, output.value.w], [0, 0, 0, 0],
+      `${name} MRT output stays zero`);
+  }
   assert.equal(createSzRoadPaintMaterial(), paint, 'one shared markings material for every paint chunk');
   assert.notEqual(surface, paint);
 });
@@ -73,6 +82,11 @@ test('buildSzRoads draws its chunks with the shared material and the marking dep
   assert.equal(built.meshes[0].material, material.createSzRoadSurfaceMaterial());
   assert.equal(built.meshes[0].receiveShadow, true);
   assert.equal(built.roadHeight(6, 8), 5);
+  // 人行道/自行车道通过 options.material 注入自己的材质（js/sz-streetscape.js 依赖）。
+  const custom = new THREE.MeshStandardNodeMaterial({ color: 0x123456 });
+  const customBuilt = roads.buildSzRoads(new THREE.Scene(), graph, terrain, { material: custom });
+  assert.equal(customBuilt.meshes[0].material, custom);
+  customBuilt.dispose();
   built.dispose();
   assert.equal(built.group.parent, null);
   assert.equal(material.createSzRoadSurfaceMaterial(), built.meshes[0].material,
