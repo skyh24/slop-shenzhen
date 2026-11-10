@@ -2,7 +2,9 @@ import * as THREE from 'three/webgpu';
 import { createMarkingLayout } from './sz-road-markings.js';
 import { createSzRoadPaintMaterial } from './sz-road-material.js';
 
-const CELL = 600;
+// 标线是静态几何，按 2.4 km 合并成块：出生点 1484 次绘制里有 246 次来自标线 600 m 分块，
+// 放大到 2.4 km 后同一视野内的块数约降到 1/16，三角形不变。
+const CELL = 2400;
 const HEIGHT = 0.055;
 
 function colorFor(name) {

@@ -50,7 +50,7 @@ function buildPaving(group, kind, paths, terrain) {
   const joint = min(min(tile.x, tile.x.oneMinus()), min(tile.y, tile.y.oneMinus()));
   const grout = smoothstep(0.01, max(0.03, pixel), joint).oneMinus().mul(smoothstep(0.1, 0.5, pixel).oneMinus());
   material.colorNode = color(style.color).mul(grout.mul(-0.18).add(1));
-  const layer = buildSzRoads(group, pathGraph(paths), terrain, { material });
+  const layer = buildSzRoads(group, pathGraph(paths), terrain, { material, batch: false });
   layer.group.name = `shenzhen-pilot-${kind}`;
   return { ...layer, material };
 }
