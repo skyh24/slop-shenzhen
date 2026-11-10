@@ -224,7 +224,9 @@ async function initApp() {
   // 地铁出入口：点位来自 OSM 已核实节点；雨棚/站名牌是外观参数，吸附到实际渲染地面。
   const metroEntrances = buildSzMetroEntrances(scene, GEO.metro, {
     groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, pathAt: streetscape.pathAt,
-    colliders: buildings, isWater
+    colliders: buildings, isWater,
+    // 1000 m 分块：286 个出入口的分块数约减半，draw call 明显下降，剔除粒度仍够用。
+    chunkSizeM: 1000
   });
   // 福田站只建地面出入口/采光天窗；西丽站只做在建工地围挡/塔吊/基坑，不造站房。
   const futianStation = GEO.sites?.['futian-station']?.station

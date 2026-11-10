@@ -208,3 +208,8 @@ node --test tests/*.test.cjs                         # 需 SZ_THREE_PACKAGE_DIR 
 
 - 1280×720 / 1920×1080 / 2560×1440 三档 rAF p50 均 33.3 ms（与分辨率无关）；页面已 visible+focused（Page.bringToFront + focus 模拟）；blank 页 16.7 ms。
 - 结论：WebGPU canvas swapchain 在自动化环境被固定在 30 Hz（非场景负载）。M9 必须换真实桌面窗口用 `tools/qa/perf-sample.mjs` 复测；当前 drawCalls 289–474、三角 0.88–1.9 M 在预算内，但帧率结论仍缺。
+
+## 2x. round 39：地铁出入口分块 500→1000 m（M9 余量）
+
+- `js/sz-metro-entrances.js` 支持 `chunkSizeM` 选项，main.js 传 1000 m：286 个出入口的分块从 **102 → 64**、drawCallsEstimate 105 → 67，场景 draw call 余量增加；实测出生点 renderer.drawCalls 289 不变（该处地铁在剔除距离外）。
+- 测试保持全绿；M9 仍受环境 30 Hz swapchain 限制，无法在本机判定。

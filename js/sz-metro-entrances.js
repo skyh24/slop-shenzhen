@@ -471,6 +471,7 @@ function rotatePoint(x, z, yaw, lx, lz) {
 }
 
 export function buildSzMetroEntrances(scene, metro, options = {}) {
+  const chunkSizeM = options.chunkSizeM ?? ENTRANCE_CHUNK_SIZE_M;
   const { groundHeight, roadHeight = null, pathAt = () => [], colliders = [], isWater = null } = options;
   if (typeof groundHeight !== 'function') throw new Error('Metro entrances require a ground height sampler');
   const plan = planMetroEntrances(metro, options);
@@ -559,7 +560,7 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
   const structureMeshes = [];
   const chunkMap = new Map();
   for (const entrance of placed) {
-    const key = `${Math.floor(entrance.x / ENTRANCE_CHUNK_SIZE_M)},${Math.floor(entrance.z / ENTRANCE_CHUNK_SIZE_M)}`;
+    const key = `${Math.floor(entrance.x / chunkSizeM)},${Math.floor(entrance.z / chunkSizeM)}`;
     if (!chunkMap.has(key)) chunkMap.set(key, []);
     chunkMap.get(key).push(entrance);
   }
