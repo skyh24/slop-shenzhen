@@ -166,13 +166,41 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   assert.ok(hoodHeight < 0.95, `low bonnet line ${hoodHeight.toFixed(2)}`);
   assert.ok(angleFromVertical(1, (taxiBody.cabin.cowl - taxiBody.cabin.roofFront) / (taxiLayout.rail.front.y - taxiLayout.belt.cowl.y)) > 40,
     'windscreen is more raked than 40° from vertical');
-  // 尾部：tailRake + 较大平面收圆，尾门微斜圆角而不是垂直平板；后窗仍接近直立
+  // 尾部：整圈同一条平面收圆曲线 + 单调前倾的 tailRake，尾门微斜圆角而不是垂直平板；
+  // 后断面从保险杠下缘到车顶边缘连续过渡，没有「上层车身 / 下层保险杠」的台阶。
   assert.ok(taxiBody.tailRake && taxiBody.tailRake.length >= 0.35, 'tail has a rake, so the tailgate is not a vertical slab');
-  assert.ok(taxiBody.tail.halfWidth[0] >= 0.2, 'tail plan corners are rounded, not a flat plank');
+  const tailRounding = ['halfWidth', 'edge', 'crown', 'sill', 'shoulder'].map(key => taxiBody.tail[key]);
+  for (const parameter of tailRounding) {
+    assert.ok(parameter[0] >= 0.5, `tail rounding ${parameter[0]} blends the rear face into the sides`);
+    assert.ok(parameter[2] <= 2.2, `tail superellipse exponent ${parameter[2]} keeps the corner round`);
+  }
+  assert.ok(new Set(tailRounding.map(parameter => parameter[0])).size === 1,
+    'every rear parameter uses the same rounding length, so the whole corner is one continuous surface');
   const tailTop = cars.carTipZ(taxiBody, 1.0, false);
   const tailBumper = cars.carTipZ(taxiBody, 0.7, false);
   const tailRake = angleFromVertical(1.0 - 0.7, tailTop - tailBumper);
   assert.ok(tailRake > 5 && tailRake < 30, `tail rakes forward gently, got ${tailRake.toFixed(1)}°`);
+  // 尾门斜面从下到上持续前移，保险杠高度不再外凸出一层
+  const rearHeights = [0.33, 0.45, 0.6, 0.75, 0.9, 1.0, 1.03];
+  const rearTips = rearHeights.map(y => cars.carTipZ(taxiBody, y, false));
+  for (let i = 1; i < rearTips.length; i++) {
+    assert.ok(rearTips[i] >= rearTips[i - 1] - 1e-6,
+      `tail profile moves forward monotonically (${rearHeights[i - 1]}→${rearHeights[i]}: ${rearTips[i - 1].toFixed(3)}→${rearTips[i].toFixed(3)})`);
+  }
+  // 最后 1.2 m 的侧面断面单调连续：半宽/肩线/上沿/上下拐角都不出现反向折点
+  const rearSection = [];
+  for (let z = taxiBody.zRear; z <= taxiBody.zRear + 1.2 + 1e-9; z += 0.02) rearSection.push(taxiLayout.body(z));
+  for (const key of ['W', 'yS', 'yE', 'yT', 'xB', 'xE']) {
+    for (let i = 1; i < rearSection.length; i++) {
+      assert.ok(rearSection[i][key] >= rearSection[i - 1][key] - 0.002,
+        `rear ${key} has no reverse kink at z ${(taxiBody.zRear + i * 0.02).toFixed(2)}`);
+    }
+  }
+  assert.ok(rearSection[0].W < rearSection.at(-1).W - 0.05, 'rear plan corner tapers in smoothly');
+  // 后窗下沿接在被尾门斜面推到前处的车身上沿，不在车尾外悬空
+  const capTopZ = cars.carTipZ(taxiBody, taxiLayout.body(taxiBody.zRear).yT - 0.02, false);
+  assert.ok(taxiBody.cabin.deck > capTopZ, `backlight base ${taxiBody.cabin.deck} sits ahead of the raked tailgate top ${capTopZ.toFixed(2)}`);
+  assert.ok(taxiBody.cabin.deck - capTopZ < 0.25, 'backlight base joins the tailgate top without a large ledge');
   const backlightRise = taxiLayout.cabin(taxiBody.cabin.roofRear).railY - taxiLayout.cabin(taxiBody.cabin.deck).beltY;
   const backlightRun = Math.abs(taxiBody.cabin.deck - taxiBody.cabin.roofRear);
   const backlightAngle = angleFromVertical(backlightRise, backlightRun);

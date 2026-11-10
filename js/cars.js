@@ -200,8 +200,8 @@ BODY_SPECS.taxi = {
   archGap: 0.05,
   archFlare: 0.018,
   tuck: 0.065,
-  lowerRound: 3.4, // 截面上/下圆角比默认 (2.8 / 3.2) 更圆，侧面过渡更流线
-  upperRound: 3.8,
+  lowerRound: 2.3, // 截面上/下圆角比默认 (2.8 / 3.2) 更圆：肩线/裙线到车顶的过渡更连续
+  upperRound: 2.6,
   halfWidth: [[2.3, 0.862], [1.4, 0.885], [0, 0.885], [-1.4, 0.885], [-2.4, 0.872]],
   sill: [[2.3, 0.3], [1.2, 0.28], [-1.2, 0.28], [-2.4, 0.32]],
   shoulder: [[2.3, 0.7], [1.75, 0.78], [1.4, 0.8], [0, 0.84], [-1.4, 0.88], [-2.4, 0.88]],
@@ -211,26 +211,30 @@ BODY_SPECS.taxi = {
   tumble: [[2.3, 0.16], [0.9, 0.13], [-1.6, 0.13], [-2.4, 0.15]],
   // 车头平面收圆更长（0.42 m），加上 rake 形成低矮圆润的前脸
   nose: { halfWidth: [0.42, 0.64, 3.2], edge: [0.24, 0.82, 3], crown: [0.2, 0.02, 2], sill: [0.22, 0.34, 2.2], shoulder: [0.3, 0.6, 3] },
-  // 尾部平面收圆 0.24 m + tailRake 使尾门微斜圆角，不再是垂直平板
-  tail: { halfWidth: [0.24, 0.84, 3.4], edge: [0.2, 1.03, 3.2], crown: [0.16, 0.006, 2], sill: [0.16, 0.34, 2.2], shoulder: [0.22, 0.84, 3.2] },
+  // 尾部整圈共用同一条平面收圆曲线（≈0.56 m、超椭圆指数 2.0），后脸到侧面是一块连续的圆角曲面，
+  // 不再出现「尾盖 + 侧板」两段折线；tip 半宽收窄到 0.80 m 让后角在平面里真正圆过去。
+  tail: { halfWidth: [0.56, 0.8, 2.0], edge: [0.56, 1.02, 2.0], crown: [0.56, 0.01, 2], sill: [0.56, 0.32, 2.0], shoulder: [0.56, 0.84, 2.0] },
   noseRake: { length: 0.78, y: [[0.28, 0.16], [0.4, 0.06], [0.56, 0], [0.7, 0.02], [0.82, 0.1], [0.92, 0.2]], plan: 0.1 },
-  tailRake: { length: 0.42, y: [[0.3, 0.12], [0.5, 0.02], [0.7, 0], [0.86, 0.05], [1.03, 0.14]], plan: 0.08 },
+  // 尾门从保险杠下缘到车顶边缘是一条连续前倾的斜面：setback 随高度单调增加，保险杠不再单独外凸成一层
+  tailRake: { length: 0.62, y: [[0.3, 0], [0.45, 0.004], [0.6, 0.018], [0.75, 0.05], [0.9, 0.1], [1.02, 0.16]], plan: 0.045 },
   cabin: {
     cowl: 0.95,
     roofFront: 0.34,
-    roofRear: -2.16,
-    deck: -2.36,
-    roofY: [[0.34, 1.615], [-0.4, 1.675], [-1.2, 1.68], [-2.16, 1.65]],
+    roofRear: -1.95,
+    // 玻璃房不参与 bodyRake：deck 取在被尾门斜面推到最新位置的车身上沿（≈z −2.10 附近），
+    // 后窗下沿与尾门上沿按同一前倾方向接上，从保险杠下缘到车顶是一条连续前倾的斜面。
+    deck: -2.14,
+    roofY: [[0.34, 1.615], [-0.4, 1.675], [-1.2, 1.68], [-1.95, 1.655]],
     rail: [0.69, 0.71],
     inset: 0.03,
     bulge: 0.014,
     roofEdge: 0.06,
     roofCrown: 0.04,
     roofRound: 4.5,
-    pillars: [-0.34, -1.82],
-    glassEnd: -2.24
+    pillars: [-0.34, -1.72],
+    glassEnd: -2.06
   },
-  doors: [0.92, -0.34, -1.82], // 前门、后门、尾门侧缝
+  doors: [0.92, -0.34, -1.72], // 前门、后门、尾门侧缝
   handles: [0.42, -0.62],
   headlight: [0.55, 0.76, 0.2, 0.045], // 压低到前脸上部，随圆润鼻锥收进两侧
   taillight: [0.7, 0.9, 0.11, 0.1], // 尾门两侧靠上的尾灯，落在微斜尾门面上
@@ -1739,8 +1743,11 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
       const grime = smoothstep(sillY + 0.16, sillY - 0.01, p.y).mul(0.2);
       bCol.assign(mix(bCol, color(0x2d2b28), grime));
       if (shenzhen) {
-        // 深圳出租：侧面腰线以下为白身，上半部与车顶保持天蓝；前后保险杠按参考照片保持蓝色
-        const waistSide = smoothstep(0.35, 0.55, abs(n.x)).mul(isSzTaxi);
+        // 深圳出租：侧面腰线以下为白身，上半部与车顶保持天蓝；前后保险杠按参考照片保持蓝色。
+        // 白漆在车尾转角前约 0.6–0.95 m 处收口，后侧围与尾门是连续的一块蓝漆，转角不会出现白色竖条。
+        const waistSide = smoothstep(0.45, 0.7, abs(n.x))
+          .mul(smoothstep(spec.zRear + 0.6, spec.zRear + 0.95, p.z))
+          .mul(isSzTaxi);
         const waist = smoothstep(szWaistY + 0.008, szWaistY - 0.008, p.y).mul(waistSide);
         bCol.assign(mix(bCol, color(0xf2f5f7), waist));
       }
@@ -1883,16 +1890,21 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
         const tailColor = mix(mix(tailRuby, color(0xf07818), turnRearSection), color(0xe4edf4), reverseRearSection);
 
         const rearValance = smoothstep(rearSill + 0.075, rearSill + 0.02, p.y).mul(rear);
-        const exhaust = rrectEdge(vec2(ax.sub(0.5), p.y.sub(rearSill + 0.036)), vec2(0.052, 0.017), 0.008, fwXY);
-        const exhaustRim = cov(exhaust.d, exhaust.w).mul(rearValance);
-        const exhaustBore = cov(exhaust.d.add(0.006), exhaust.w).mul(rearValance);
         const reflector = rrect(vec2(ax.sub(0.65), p.y.sub(spec.bumpers[1][0] + 0.04)), vec2(0.075, 0.01), 0.004, fwXY).mul(rear);
         const emblemRear = spec.barnDoors
           ? float(0.0)
           : rrect(vec2(p.x, p.y.sub(tlY - tlH * 0.12)), vec2(0.022, 0.01), 0.009, fwXY).mul(rear);
 
-        bCol.assign(mix(bCol, color(0x14171b), max(rearValance, tailgateHandle)));
-        bCol.assign(mix(mix(bCol, color(0x828a92), exhaustRim), color(0x060709), exhaustBore));
+        if (shenzhen) {
+          // 后保险杠只是同一块尾门曲面上的喷漆分区：轻微压暗，不出现深色「下段体块」或排气管
+          bCol.assign(mix(bCol, bCol.mul(0.62), rearValance));
+        } else {
+          const exhaust = rrectEdge(vec2(ax.sub(0.5), p.y.sub(rearSill + 0.036)), vec2(0.052, 0.017), 0.008, fwXY);
+          const exhaustRim = cov(exhaust.d, exhaust.w).mul(rearValance);
+          const exhaustBore = cov(exhaust.d.add(0.006), exhaust.w).mul(rearValance);
+          bCol.assign(mix(bCol, color(0x14171b), max(rearValance, tailgateHandle)));
+          bCol.assign(mix(mix(bCol, color(0x828a92), exhaustRim), color(0x060709), exhaustBore));
+        }
         bCol.assign(mix(bCol, color(0x8a0c14), reflector));
         bCol.assign(mix(bCol, color(0x16090c), taillight));
         bCol.assign(mix(bCol, tailColor, tailLens));

@@ -402,6 +402,16 @@ test('Shenzhen locale paints the blue taxi over a white waistline, a red/blue tw
   assert.ok(availGlow[1] > hiredGlow[1] + 1, `空车 strip glows green: ${availGlow} vs ${hiredGlow}`);
 
   // 尾灯在尾门两侧靠上，位置直接取 spec，避免改体型后测试硬编码失效
+  // 车尾转角是一块连续的蓝漆：白腰线在转角之前收口，后保险杠只是同一曲面上的轻微压暗区域
+  const evalBody = (position, normal) => {
+    env.attrs = { position, normal, partId: [CAR_PARTS.BODY], paintColor: blue, carState: [0, 0, 0, available] };
+    return material.colorNode.eval();
+  };
+  const rearQuarter = evalBody([0.88, 0.5, taxi.zRear + 0.35], [1, 0, 0]);
+  assert.ok(rearQuarter[2] > rearQuarter[0] + 0.25, `rear corner/quarter stays blue without a white sliver: ${rearQuarter}`);
+  const rearBumper = evalBody([0.2, 0.36, taxi.zRear + 0.1], [0, 0, -1]);
+  assert.ok(rearBumper[2] > rearBumper[0] + 0.25, `rear bumper is the same painted surface, not a dark second tier: ${rearBumper}`);
+
   const brakeAttrs = { position: [taxi.taillight[0], taxi.taillight[1], taxi.zRear + 0.06], normal: [0, 0, -1], partId: [CAR_PARTS.BODY], paintColor: blue };
   const litBrake = emit(brakeAttrs, [1, 0, 0, available]);
   const darkBrake = emit(brakeAttrs, [0, 0, 0, available]);
