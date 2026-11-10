@@ -156,12 +156,26 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   const angleFromVertical = (rise, run) => Math.atan2(Math.abs(run), rise) * 180 / Math.PI;
   // 长 / 低 / 宽比例
   assert.ok(taxiSpec.length > 4.85 && taxiSpec.length < 4.95, `taxi length ${taxiSpec.length}`);
-  assert.ok(taxiSpec.width > 1.85 && taxiSpec.width < 1.88, `taxi width ${taxiSpec.width}`);
+  assert.ok(taxiSpec.width > 1.9 && taxiSpec.width < 1.95, `taxi width ${taxiSpec.width}`);
   assert.ok(taxiSpec.height > 1.5 && taxiSpec.height < 1.57, `taxi height ${taxiSpec.height}`);
   assert.ok(taxiSpec.wheelbase > 2.88 && taxiSpec.wheelbase < 2.92, `taxi wheelbase ${taxiSpec.wheelbase}`);
   assert.ok(taxiSpec.radius > 0.355 && taxiSpec.radius < 0.37, `taxi wheel radius ${taxiSpec.radius}`);
   assert.ok(taxiSpec.height / taxiSpec.length < 0.33, 'low and long: height/length below 0.33');
   assert.ok(taxiSpec.width / taxiSpec.height > 1.2, 'wide stance relative to the low roof');
+  // 车身加宽后轮子应完全收进轮拱：轮胎外沿要比轴位车身半宽内收 ≥10 mm
+  const halfWidthPeak = Math.max(...taxiBody.halfWidth.map((point) => point[1]));
+  assert.ok(halfWidthPeak > 0.94 && halfWidthPeak < 0.96, `wide lower body half width ${halfWidthPeak}`);
+  assert.ok(taxiSpec.track > 1.63 && taxiSpec.track < 1.69, `track tucked in to ${taxiSpec.track}`);
+  const axleHalfWidth = taxiLayout.body(taxiSpec.wheelbase / 2).W;
+  const tireOuter = taxiSpec.track / 2 + taxiSpec.tireWidth / 2;
+  assert.ok(axleHalfWidth - tireOuter >= 0.01,
+    `tire outer face ${tireOuter.toFixed(3)} is recessed ${((axleHalfWidth - tireOuter) * 1000).toFixed(0)} mm inside the body ${axleHalfWidth.toFixed(3)}`);
+  // 转向间隙：轮胎在平面里扫过的外接圆要留在轮拱切口内，前轮打满不穿轮眉
+  const steeringSweep = Math.hypot(taxiSpec.radius, taxiSpec.tireWidth / 2);
+  assert.ok(steeringSweep < taxiSpec.radius + taxiBody.archGap,
+    `steered tire sweep ${steeringSweep.toFixed(3)} stays inside the arch ${(taxiSpec.radius + taxiBody.archGap).toFixed(3)}`);
+  // 上下同步加宽：tumblehome 收小，车顶/玻璃房一起变宽
+  for (const point of taxiBody.tumble) assert.ok(point[1] <= 0.125 && point[1] >= 0.09, `tumblehome ${point[1]}`);
   // 低矮圆润前脸：长收圆 + 大 rake，机舱盖低、风挡大倾角
   const noseFront = cars.carTipZ(taxiBody, 0.95, true);
   const noseBumper = cars.carTipZ(taxiBody, 0.6, true);
@@ -183,6 +197,7 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   assert.ok(taxiBody.upperRound >= 2 && taxiBody.upperRound <= 2.4, `upperRound ${taxiBody.upperRound}`);
   const midSection = taxiLayout.body(0);
   assert.ok(midSection.W - midSection.xE > 0.08, 'side glass sits in from the widest point (convex shoulder, no vertical slab)');
+  assert.ok(midSection.W - midSection.xE <= 0.13, 'tumblehome stays small so the cabin is wide too (upper and lower body widened together)');
   // 大曲面玻璃房 + 细 A/B/C 柱
   assert.ok(taxiBody.cabin.bulge >= 0.015, 'side glass is curved outward');
   assert.ok(taxiBody.cabin.pillars.length >= 2 && taxiBody.pillarWidth <= 0.03, 'slim B/C pillars');
