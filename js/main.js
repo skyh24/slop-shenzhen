@@ -762,6 +762,10 @@ async function initApp() {
 
   // QA 专用传送：只在本机回环地址的 ?qa=1 下暴露，便于固定机位复测。
   if (qa) window.__szTeleport = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null, { exact: true });
+  // QA：列出某点附近的交通碰撞体，用于区分“被 NPC 车辆挡住”与“桥面/坡度问题”。
+  if (qa) window.__szNearTraffic = (x, z, radius = 12) => (traffic.nearColliders(x, z, radius) ?? []).map(item => ({
+    x: Math.round(item.x ?? item.minX ?? 0), z: Math.round(item.z ?? item.minZ ?? 0), kind: item.kind ?? item.type ?? 'vehicle'
+  }));
   // QA：查询某点的接触候选面（地形/地标/高架），用于诊断载具卡住。
   if (qa) window.__szSurfaceAt = (x, z) => controllerManager.surfaceResolver.at(x, z);
   // QA：把车辆放到最近的源路网节点（道路中心），用于自动驾驶/连续驾驶验收。
