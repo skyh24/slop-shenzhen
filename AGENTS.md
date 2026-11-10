@@ -43,7 +43,7 @@ node --test tests/*.test.cjs                     # 单元测试
 .venv/bin/python tools/sz/build.py               # 生成正式共享包和报告；--no-cache 重新解析 PBF
 ```
 
-正式入口：<http://127.0.0.1:8080/>，已运行深圳。`mvp.html` 只作历史参考，不能作为正式验收入口。
+正式入口：<http://127.0.0.1:8080/>，已运行深圳。MVP 预览页（`mvp.html`）已于 2026-11-10 删除，正式验收入口只有这一个。
 
 WebGPU 需要安全上下文，只用 `127.0.0.1` 或 `localhost` 打开。本机没有 GDAL：读 PBF 用 `osmium`，读 Shapefile 用 `pyshp`。
 
@@ -52,7 +52,6 @@ WebGPU 需要安全上下文，只用 `127.0.0.1` 或 `localhost` 打开。本�
 | 路径 | 内容 |
 | --- | --- |
 | `js/` | 正式深圳运行时代码，保留纽约引擎；按 `docs/01-ARCHITECTURE.md` 的矩阵逐个替换 |
-| `js/sz-mvp/`、`mvp.html` | 临时 MVP 渲染器，正式版接管后删除 |
 | `tools/sz/` | 深圳数据管线（Python） |
 | `tools/ny/` | 纽约原版的数据工具，只作参考 |
 | `data/source/` | 人工核对过的数据和快照清单，进 Git |

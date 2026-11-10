@@ -8,7 +8,7 @@
 
 深圳版保留这条启动流程，以及成熟的引擎系统：控制器、相机、车身、人物、物理、音频、光照、剔除、后期。和曼哈顿方格网绑死的部分（地面、路网、交通、建筑、街道细节、地图、材质）都由深圳模块重写，而不是改造纽约文件。纽约的运行时代码只剩正式入口实际加载的引擎文件（音频、碰撞与物理、车辆、人物、控制器、相机、光照、剔除、后期）；没有接入的 27 个纽约文件加两份 `.bin.gz` 数据包已在 2026-11-10 从 `js/` 删除，纽约代码只在只读的 `ref/slop-newyork/` 里，见 [22-OPTIMIZATION-REVIEW.md](22-OPTIMIZATION-REVIEW.md) A1。
 
-正式入口：`index.html`（import map 加 modulepreload）加载 `js/main.js`，可达 80 个文件、30,172 行（2026-11-10 复核；`js/` 顶层另有 `sz-mvp/` 的 8 个文件等待删除）。`tests/runtime-reachability.test.cjs` 从 `js/main.js` 遍历相对 import，`js/` 下出现不可达模块就会失败。
+正式入口：`index.html`（import map 加 modulepreload）加载 `js/main.js`，可达 80 个文件、30,172 行（2026-11-10 复核）。`js/` 下的模块全部可达（临时 MVP 预览已在同日删除）；`tests/runtime-reachability.test.cjs` 从 `js/main.js` 遍历相对 import，再出现不可达模块就会失败。
 
 ## 模块矩阵
 

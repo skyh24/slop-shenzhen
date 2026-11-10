@@ -262,3 +262,14 @@ rg -n "StorageInstancedBufferAttribute" js ref/slop-wuhan/js/runtime/main.js
 - 新缺口：`vehicle-physics` 被删的玩家碰撞冲量/动量守恒用例在深圳实现里没有对应行为——`sz-traffic.js` 只用 `vehicleContact` 做碰撞检出和停车，不做冲量回弹和动量守恒；未为此改运行时代码。
 - S1c 未做：`js/sz-mvp/{materials,ground,buildings}.js` 仍 import `createGroundMaterial`、`createRoadMaterial` 和 `createBuildingMaterial({ showLandmarkLights: true })`，删掉会让 `mvp.html` 因缺导出白屏；用户确认推迟到 S1b（删除 MVP）时一起做。
 - 截图：`docs/qa/dsh-3eda6f6c-f182/`（只留本地，不进 Git）。
+
+### S1b + S1c 删除临时 MVP 及其残留材质入口（2026-11-10）
+
+- 用户确认删除 `mvp.html` 后，按 A2 删除 MVP：`mvp.html`、`css/sz-mvp.css`、`js/sz-mvp/`（8 个文件、543 行）。`js/` 顶层 `.js` 仍 62 个，全部可达；`tests/runtime-reachability.test.cjs` 去掉了 `sz-mvp/` 例外，现在整棵 `js/` 都必须可达。
+- `tests/sz-air-evidence.test.cjs`：删掉只测 MVP `air.js` 的“旧预览保持静默”用例，保留直接校验 `data/source/air-routes.json` 和 `data/source/air-evidence.json` 的用例（A2 给的迁移方向之一）。
+- 管线：`tools/sz/build.py` 去掉写包后清理 `js/sz-mvp/data/sz-mvp.json.gz` 的旧逻辑；`tools/sz/roads.py` 文档串和 `CLASSES` 注释不再指向已删的 `js/sz-mvp/roads.js`，改说明编号写进共享包 `enums.roadClass`；`tools/sz/buildings.py` 的立面编号注释改指 `js/sz-materials.js` 的 `FACADE_PROFILES`。
+- S1c：删除 `js/sz-materials.js` 的 `createGroundMaterial`、`createRoadMaterial` 和 `createBuildingMaterial` 的 `showLandmarkLights` 分支（约 130 行）；`createWaterMaterial` 保留（`sz-sea.js` 在用）。`tests/sz-facade-material.test.cjs` 相应删掉 2 处 `showLandmarkLights` 用例/断言，节点数预算测试保留。
+- 文档：`AGENTS.md`、`docs/01-ARCHITECTURE.md`、`docs/09-UI-GAMEPLAY.md`、`docs/11-MVP.md`、`docs/README.md` 同步“MVP 预览已删除、纽约代码只在 ref/”；`docs/HANDOFF.md`、`docs/TASKS.md` 按规则未改，仍写着 `mvp.html`。
+- 测试：Node 385 → 383 项通过、0 跳过（删掉灯光秀预览 1 条、空气预览 1 条；另有一处灯光秀断言并入原有用例后删除）；Python 101 项通过。
+- 画面：`sz-materials.js` 只删了没人调用的入口，正式入口材质图不变；固定机位四时段截图 `docs/qa/dsh-3eda6f6c-f182/after-mvp-*.png` 与 S1 的 `after-*.png` 对比应无差异。控制台仍只有既有 TSL 报错，无新增。
+- 未验证：`build.py` 输出哈希未能复跑——工作树没有 `data/raw/`（不进 Git），主检出目录正在别的分支上，不能在那里重建覆盖 `js/sz-city.json.gz`。本轮对 `build.py` 只删掉一段对已不存在文件的 `unlink(missing_ok=True)`，不影响 payload 字节；如需证据，应在有 `data/raw/` 的干净检出里跑一次 `build.py` 比对 SHA-256。

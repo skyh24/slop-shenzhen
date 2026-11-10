@@ -86,7 +86,7 @@ flowchart LR
 python3 tools/sz/serve.py --port 8080
 ```
 
-打开 <http://127.0.0.1:8080/> 运行正式深圳入口；`mvp.html` 是历史预览，不用于正式验收。需要支持 WebGPU 的桌面浏览器（新版 Chrome 或 Edge）。
+打开 <http://127.0.0.1:8080/> 运行正式深圳入口；历史 MVP 预览页（`mvp.html`）已于 2026-11-10 删除。需要支持 WebGPU 的桌面浏览器（新版 Chrome 或 Edge）。
 
 ## 重建数据
 

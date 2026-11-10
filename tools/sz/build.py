@@ -194,8 +194,6 @@ def main():
     report['outputBytes'] = OUT.stat().st_size
     report['seconds'] = round(time.time() - t0, 1)
     REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
-    # 共享包成功写出后移除旧产物，避免正式版与预览读取不同快照。
-    (ROOT / 'js/sz-mvp/data/sz-mvp.json.gz').unlink(missing_ok=True)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 

@@ -1,12 +1,12 @@
 # 11 MVP 现状与接手要求
 
-更新：2026-11-09。本文件写给接手的执行者：MVP 做到了哪里、哪里粗糙、正式版必须达到什么要求。**第 3 节的九条要求是硬性要求**，每条都有验收标准，做完一条在 [TASKS.md](TASKS.md) 勾一条。
+更新：2026-11-10。本文件写给接手的执行者：MVP 做到了哪里、哪里粗糙、正式版必须达到什么要求。**第 3 节的九条要求是硬性要求**，每条都有验收标准，做完一条在 [TASKS.md](TASKS.md) 勾一条。
 
-> 状态说明：第1、2节记录早期MVP，数值和路径不代表当前正式入口。当前index已运行深圳，共享包为`js/sz-city.json.gz`，见HANDOFF。第3节为未全部验收的目标。
+> 状态说明：第1、2节记录早期MVP，数值和路径不代表当前正式入口。**2026-11-10 已删除 MVP 预览页：`mvp.html`、`css/sz-mvp.css`、`js/sz-mvp/` 和旧的 MVP 数据包；正文提到这些路径的地方只作历史。**当前 index 已运行深圳，共享包为 `js/sz-city.json.gz`，见 HANDOFF。第 3 节仍为未全部验收的目标。
 
 ## 1. MVP 是什么
 
-一个独立的预览页 `mvp.html`，用真实数据画出一期范围（南山加福田，`113.920–114.085E, 22.495–22.588N`）：
+一个独立的预览页 `mvp.html`（已删除，本节只作历史），用真实数据画出一期范围（南山加福田，`113.920–114.085E, 22.495–22.588N`）：
 
 | 项目 | 数量 |
 | --- | --- |
@@ -24,7 +24,7 @@
 
 ```sh
 python3 tools/sz/serve.py --port 8080            # 正式静态服务器，常驻后台
-open http://127.0.0.1:8080/mvp.html               # 加 ?time=night 或 ?time=dusk
+# mvp.html 已于 2026-11-10 删除，原命令为 open http://127.0.0.1:8080/mvp.html（可加 ?time=night 或 ?time=dusk）
 .venv/bin/python tools/sz/build.py                # 重建数据（读缓存）；加 --no-cache 重新解析 PBF
 ```
 
@@ -46,8 +46,8 @@ open http://127.0.0.1:8080/mvp.html               # 加 ?time=night 或 ?time=du
 | `tools/sz/land.py` | 海岸线切面后按建筑密度判陆地 |
 | `tools/sz/roads.py` | 8 级道路和路宽 |
 | `tools/sz/build.py` | 串起来，写数据包和 `data/source/build-report.json` |
-| `js/sz-mvp/*.js` | 预览渲染器：地面、建筑着色器、车流、无人机、飞行器、相机 |
-| `mvp.html`、`css/sz-mvp.css`、`js/sz-strings.js` | 预览页 |
+| `js/sz-mvp/*.js`（已删除） | 预览渲染器：地面、建筑着色器、车流、无人机、飞行器、相机 |
+| `mvp.html`、`css/sz-mvp.css`（已删除）、`js/sz-strings.js` | 预览页 |
 
 ## 2. 哪里粗糙
 
@@ -64,7 +64,7 @@ open http://127.0.0.1:8080/mvp.html               # 加 ?time=night 或 ?time=du
 | 夜景 | 窗灯太亮太密，灯光秀所有超高层同一种图案 | 白天、夜晚的过渡生硬 |
 | 树木和街道设施 | 没有 | |
 
-**MVP 的定位**：验证数据管线和渲染路线可行。`tools/sz/` 管线要保留并继续完善；`js/sz-mvp/` 渲染器是**临时的**，正式版走纽约引擎（下面第 3.6 节），MVP 里的建筑着色器、车流、无人机可以移植过去再删掉 `sz-mvp/`。
+**MVP 的定位**：验证数据管线和渲染路线可行。`tools/sz/` 管线要保留并继续完善；`js/sz-mvp/` 渲染器是**临时的**，正式版走纽约引擎（下面第 3.6 节），MVP 里的建筑着色器、车流、无人机可以移植过去再删掉 `sz-mvp/`。2026-11-10 已按此删除 `js/sz-mvp/`、`mvp.html` 和 `css/sz-mvp.css`。
 
 ## 3. 正式版硬性要求
 
@@ -153,7 +153,7 @@ open http://127.0.0.1:8080/mvp.html               # 加 ?time=night 或 ?time=du
 
 ### 3.6 交互和界面还原纽约原版
 
-正式版入口是 `index.html`，**沿用纽约原版的界面结构、元素 ID、布局、快捷键和操作手感**，只把文字换成中文（放在 `js/sz-strings.js`）、内容换成深圳。`mvp.html` 的右侧按钮面板不保留。
+正式版入口是 `index.html`，**沿用纽约原版的界面结构、元素 ID、布局、快捷键和操作手感**，只把文字换成中文（放在 `js/sz-strings.js`）、内容换成深圳。历史 MVP 预览页（已删除）的右侧按钮面板不保留。
 
 纽约原版要保留的部分（见根目录 `index.html`、`js/main.js`、`js/nyc-map.js`）：
 

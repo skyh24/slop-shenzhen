@@ -105,7 +105,7 @@ const aaBand = (x, a, b, fw) => smoothstep(ZERO, fw, x.sub(a)).mul(smoothstep(ZE
 const packV = (fields, fallback = 0) => FACADE_PROFILES.map((p) => vec4(
   num(p[fields[0]]), num(p[fields[1]]), num(p[fields[2]]), fields.length > 3 ? num(p[fields[3]]) : num(fallback)));
 
-export function createBuildingMaterial({ showLandmarkLights = false } = {}) {
+export function createBuildingMaterial() {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.68, metalness: 0.06 });
   const pickV = (id, values) => values.reduce((acc, value, i) => acc.add(value.mul(step(abs(id.sub(num(i))), HALF))), vec4(0));
   const pickC = (id, values) => values.reduce((acc, value, i) => acc.add(color(value).mul(step(abs(id.sub(num(i))), HALF))), vec3(0));
@@ -256,18 +256,6 @@ export function createBuildingMaterial({ showLandmarkLights = false } = {}) {
     .mul(occupancy.mul(num(0.45)).add(num(0.55))).mul(night);
   m.emissiveNode = windowGlow.add(groundGlow);
 
-  if (showLandmarkLights) {
-    // 临时预览页沿用原灯光秀，正式入口的地标各自控制亮灯部位。
-    const tall = smoothstep(num(70), num(130), buildingHeight);
-    const wave = sin(v.mul(num(0.035)).sub(time.mul(num(1.6))).add(u.mul(num(0.01)))).mul(HALF).add(HALF);
-    const sweep = smoothstep(num(0.75), ONE, wave);
-    const showCol = mix(mix(color(0x2bd9ff), color(0x7a5cff), fract(time.mul(num(0.05)))),
-      mix(color(0xff3b30), color(0xffd166), wave), sceneUniforms.apec);
-    const showGlow = showCol.mul(sweep.mul(num(0.9)).add(num(0.15))).mul(tall).mul(wall).mul(sceneUniforms.show).mul(num(1.4));
-    const crown = smoothstep(floorHeight.mul(num(-1.5)), ZERO, v.sub(buildingHeight)).mul(tall).mul(night).mul(num(0.8));
-    m.emissiveNode = m.emissiveNode.add(showGlow).add(vec3(0.95, 0.97, 1.0).mul(crown).mul(wall));
-  }
-
   const hardSurface = max(windowFrameMask, mullionMask);
   const glassRough = mix(num(0.42), num(0.12), glazing);
   let roughSurface = mix(num(0.86), num(0.55), hardSurface);
@@ -283,14 +271,6 @@ export function createBuildingMaterial({ showLandmarkLights = false } = {}) {
   return m;
 }
 
-export function createGroundMaterial(hex, rough = 0.95) {
-  const m = new THREE.MeshStandardNodeMaterial({ roughness: rough, metalness: 0 });
-  const p = positionWorld.xz;
-  const grain = hash21(floor(p.div(7.0))).mul(0.08).add(0.96);
-  m.colorNode = color(hex).mul(grain);
-  return m;
-}
-
 export function createWaterMaterial({ coastal = false } = {}) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.12, metalness: coastal ? 0.22 : 0.35 });
   const p = positionWorld.xz;
@@ -303,23 +283,5 @@ export function createWaterMaterial({ coastal = false } = {}) {
   const nightCol = mix(color(0x101e27), color(0x21343e), ripple);
   m.colorNode = mix(day, nightCol, sceneUniforms.night);
   m.roughnessNode = ripple.mul(0.15).add(0.06);
-  return m;
-}
-
-export function createRoadMaterial() {
-  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.92, metalness: 0 });
-  const u = uv().x;
-  const v = uv().y;
-  const w = attribute('bmeta', 'vec4').x;
-  const major = step(9, w);
-  const halfW = w.mul(0.5);
-  const fw = max(fwidth(v), 0.01);
-  const center = smoothstep(fw.add(0.12), 0.12, abs(v)).mul(step(fract(u.div(9)), 0.5)).mul(major);
-  const edge = stepBand(abs(v), halfW.sub(0.55), halfW.sub(0.35)).mul(major);
-  const asphalt = color(0x3a3d42).mul(hash21(floor(positionWorld.xz.div(2))).mul(0.08).add(0.95));
-  const paint = min(center.add(edge), 1);
-  m.colorNode = mix(asphalt, color(0xe9e6dc), paint.mul(0.85));
-  // 夜间路面被路灯照亮，主干道偏暖
-  m.emissiveNode = color(0xffb46b).mul(sceneUniforms.night).mul(major.mul(0.06).add(0.02));
   return m;
 }

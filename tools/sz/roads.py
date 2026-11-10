@@ -1,4 +1,4 @@
-"""把 OSM highway 整理成带宽度、等级、方向的折线。MVP 只做显示和沿线车流，不建路口拓扑。"""
+"""把 OSM highway 整理成带宽度、等级、方向的折线，供路面和沿线车流使用，不建路口拓扑。"""
 
 import re
 
@@ -6,7 +6,7 @@ from shapely.ops import transform
 
 from geo import project
 
-# 等级编号，和 js/sz-mvp/roads.js 的 ROAD_CLASS 表一一对应
+# 等级编号按本表顺序写进共享包的 enums.roadClass（tools/sz/build.py），后续改动必须保持顺序
 CLASSES = ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'local', 'service', 'pedestrian']
 
 CLASS_OF = {

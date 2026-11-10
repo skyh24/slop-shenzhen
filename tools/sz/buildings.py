@@ -38,7 +38,7 @@ CARRIAGEWAY_SHARE = 0.8
 CARRIAGEWAY_BUFFER = 1.0
 MISIDENTIFIED_REPORT_LIMIT = 300
 
-# 立面类型编号，和 js/sz-mvp/buildings.js 的 FACADE 表一一对应
+# 立面类型编号，和 js/sz-materials.js 的 FACADE_PROFILES 顺序一一对应
 FACADES = ['glass_tower', 'office', 'residential_tower', 'residential_low', 'village', 'industrial', 'public', 'landmark']
 CATEGORIES = ['unknown', 'residential', 'commercial', 'industrial', 'public']
 HEIGHT_SOURCES = ['landmark', 'osm-height', 'osm-levels', 'overture-height', 'overture-floors',

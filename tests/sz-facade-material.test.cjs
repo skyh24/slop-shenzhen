@@ -125,7 +125,7 @@ test('FACADE_PROFILES follows the data pipeline facade order and carries the sha
 });
 
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
-test('building material builds one MeshStandardNodeMaterial with day/night nodes, including the landmark light-show path',
+test('building material builds one MeshStandardNodeMaterial with day/night nodes',
   { skip: !threeDir }, async () => {
     const loadThree = (file) => import(pathToFileURL(join(threeDir, 'build', file)));
     const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
@@ -135,11 +135,6 @@ test('building material builds one MeshStandardNodeMaterial with day/night nodes
     for (const node of ['colorNode', 'roughnessNode', 'metalnessNode', 'emissiveNode']) {
       assert.ok(material[node], `${node} must be assigned`);
     }
-    const showMaterial = materials.createBuildingMaterial({ showLandmarkLights: true });
-    assert.ok(showMaterial instanceof THREE.MeshStandardNodeMaterial);
-    assert.ok(showMaterial.emissiveNode);
-    assert.notEqual(showMaterial.emissiveNode, material.emissiveNode);
-
     // Dawn/Naga 冷编译对 TSL 图规模很敏感：这里直接守住节点数预算，防止再退回一次 50s 冷启动。
     const countNodes = (roots) => {
       const seen = new Set();
@@ -382,23 +377,4 @@ test('night window light follows building use: office stays cool, housing turns 
   assert.ok(housing.luminance > 0.01, 'housing suites must light up at night');
   assert.ok(office.emissive[2] >= office.emissive[0], 'office night light stays cool white (blue >= red)');
   assert.ok(housing.emissive[0] > housing.emissive[2], 'housing night light turns warm (red > blue)');
-});
-
-test('landmark light-show preview stays frame-animated when explicitly enabled', () => {
-  const evaluator = createFacadeEvaluator();
-  const material = evaluator.materials.createBuildingMaterial({ showLandmarkLights: true });
-  const { state, materials } = evaluator;
-  materials.sceneUniforms.night.value = 1;
-  materials.sceneUniforms.show.value = 1;
-  const sample = () => {
-    state.meta.current = [7, seed, wallLength, 220];
-    state.normal.current = [0, 0, 1];
-    state.uv.current = [10, 120];
-    evaluator.bump();
-    return Array.from(material.emissiveNode.values);
-  };
-  const first = sample();
-  state.time.current = [7.5];
-  const second = sample();
-  assert.notDeepEqual(second, first, 'the preview light show still animates over time');
 });

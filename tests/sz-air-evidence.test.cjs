@@ -2,7 +2,6 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const { loadModule } = require('./helpers/module.cjs');
 
 const read = file => readFileSync(path.join(__dirname, '..', file), 'utf8');
 
@@ -23,19 +22,4 @@ test('unverified published endpoints cannot create operational flight routes', (
     assert.match(item.verifiedAt, /^\d{4}-\d{2}-\d{2}$/);
   }
   assert.ok(evidence.routes.every(route => route.track === null));
-});
-
-test('legacy preview remains inert even with an old cached invented flight payload', () => {
-  class Group {
-    constructor() { this.children = []; this.visible = true; }
-    add(child) { this.children.push(child); }
-  }
-  const { createAir } = loadModule(read('js/sz-mvp/air.js'), {
-    imports: { 'three/webgpu': { Group } }
-  });
-  const air = createAir({ air: { droneRoutes: [['fake-a', 'fake-b']] } });
-  assert.equal(air.droneCount, 0);
-  assert.equal(air.evtol, null);
-  assert.equal(air.routeLines.visible, false);
-  assert.doesNotThrow(() => air.update(1));
 });
