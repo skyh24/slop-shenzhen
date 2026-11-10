@@ -165,3 +165,8 @@ node --test tests/*.test.cjs                         # 需 SZ_THREE_PACKAGE_DIR 
 
 - 同一机位（市民中心轴线 (0,380) 朝南）依次切换 midday/golden/twilight/midnight，四张截图与 active 状态均正确（`docs/qa/round27/`）；0 console error。
 - 夜间可见灯光秀与窗灯；HUD 28–30 fps 仍受浏览器 30 Hz 上限影响，非 M9 证据。
+
+## 2p. round 28：3.6 结构/ID/快捷键复核
+
+- 原版 94 个元素 ID 全部保留（missing=0）；深圳版新增 35 个均为扩展（8 个新地标机位、高铁/无人机图层、地铁菜单、驾车规划面板、APEC 图标）。
+- 快捷键 Digit1–0、KeyV/H/N/B 与原版一致；面板视觉与触屏布局逐像素对照未做。证据 `docs/qa/round28/`。
