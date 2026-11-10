@@ -193,8 +193,10 @@ function glowInstances(chunk, group, materials, textures, glow) {
   group.add(pool);
   const haloGeometry = new THREE.BufferGeometry();
   haloGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  // Points 的视锥剔除读几何包围球，先算出来再打开剔除，否则整块光晕会被误剔。
+  haloGeometry.computeBoundingSphere();
   const halo = new THREE.Points(haloGeometry, materials.halo);
-  halo.frustumCulled = false;
+  halo.frustumCulled = true;
   halo.name = `${group.name}:halos`;
   group.add(halo);
   return { poolGeometry, haloGeometry, textures };
@@ -236,7 +238,8 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
       headZ: site.z - Math.sin(site.yaw) * ARM_LENGTH_M,
       headY: y + HEAD_HEIGHT_M - 0.16 });
   }
-  const texture = radialTexture();
+  // 光晕贴图可注入，便于 Node 里用真实 three 跑运行期测试；默认仍走 canvas 径向渐变。
+  const texture = typeof options.createGlowTexture === 'function' ? options.createGlowTexture() : radialTexture();
   textures.main = texture;
   materials.pool = new THREE.MeshBasicMaterial({ map: texture, color: 0xffc98a, transparent: true, opacity: 0,
     blending: THREE.AdditiveBlending, depthWrite: false });
