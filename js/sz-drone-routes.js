@@ -22,7 +22,10 @@ function inWindow(day, window) {
   return Boolean(window?.from && window?.to && day >= window.from && day <= window.to);
 }
 
-/** APEC 低空管控是否覆盖当前日期；窗口来自深圳市政府 2026-11-03 通告（air-routes.json 记录）。 */
+/** 解析：判定当前日期是否落在 APEC 低空管控窗口内。
+ *  输入：air 段（apecSuspension.windows 来自深圳市政府 2026-11-03 通告）与日期。
+ *  输出：布尔值；只按日期比较，不区分区县（现有两条航线都在管控范围内）。
+ *  说明：管制窗口是真实来源；停运后的行为（停在起降点）是展示约定。 */
 export function isApecAirSuspended(air, now = new Date()) {
   const day = dateOnly(validDate(now));
   return (air?.apecSuspension?.windows ?? []).some(window => inWindow(day, window));
@@ -41,7 +44,10 @@ function routeFlights(route, index) {
   }));
 }
 
-/** 纯计划：站点、航线、飞行器与停运状态；不建几何，测试和统计都用它。 */
+/** 解析：把 air 段的公开站点/航线解析成可执行的飞行计划（纯函数，不建几何）。
+ *  输入：air（4 站点/2 航线，每条带 sourceUrls+verifiedAt）。
+ *  输出：{ routes, suspended, stations, windows }；缺失站点或非法的航线直接丢弃，不补造数据。
+ *  来源纪律：端点来自公开来源；航迹、高度、班次都是示意（trackStatus='schematic'）。 */
 export function planDroneFlights(air, { now = new Date() } = {}) {
   const stations = new Map((air?.droneStations ?? []).map(station => [station.id, station]));
   const suspended = isApecAirSuspended(air, now);
@@ -91,7 +97,10 @@ function buildDroneModel(materials) {
   return { group, bodies: [body, stripe, ...group.children.filter(child => child.isMesh && child !== body && child !== stripe)] };
 }
 
-/** 建场景：站点桩、示意航线、按计划飞行的无人机；停运时全部停在站点。 */
+/** 解析：在场景里建无人机航线：站点桩 + 100 m 示意航线 + 四旋翼模型。
+ *  输入：air 段、地形网格；可选 now 用于停运判定。
+ *  行为：APEC 管控窗口内无人机收在起降点地面不飞；其余时间沿两端直线往返。
+ *  输出：{ group, surfaces(空), statistics, routes, suspended, update, dispose }。 */
 export function buildSzDroneRoutes(scene, { air = null, terrain = null, now = new Date() } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('Drone routes require a scene');
   const plan = planDroneFlights(air, { now });

@@ -377,6 +377,10 @@ export const flowerSeaDeckY = LAWN_DECK;
 
 // ---------- 构建 ----------
 
+/** 解析：香蜜湖国际交流中心（APEC 2026 主会场）程序化建模。
+ *  输入：source（不用）、terrain、context.sites['iec-xiangmihu']（场地/湖/湖畔公园）。
+ *  输出：97 部件（主厅大屋盖、宴会厅、酒店 3 塔、门廊/旗杆/台地）；全部 heightSource='estimate'；
+ *        所有顶点在 way/1080860977 内且不进湖。gate/flowerSea 锚点供 APEC 元素对齐。 */
 export function build(source, terrain, context = {}) {
   const sites = context?.sites;
   const site = sites?.site;
@@ -470,6 +474,9 @@ function greenMaterial() {
   return material;
 }
 
+/** 解析：国际交流中心材质分派（iecRoof/iecGlass/iecStone/iecPlaza/iecHotel/iecGreen/iecFlag）。
+ *  输入：样式名。
+ *  输出：对应 MeshStandardNodeMaterial；未知名抛错。 */
 export function createIecMaterial(name) {
   switch (name) {
     case 'iecRoof':

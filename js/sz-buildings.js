@@ -40,6 +40,9 @@ function expandRing(ring, expand) {
   return ring.map(p => ({ x: cx + (p.x - cx) * scale, z: cz + (p.z - cz) * scale }));
 }
 
+/** 解析：普通建筑屋顶细节计划：≥20 m 加女儿墙；≥60 m 按 id 固定种子加 1–3 个屋顶设备体块。
+ *  输入：单栋建筑与首个足迹多边形。
+ *  输出：{ parapet, equipment }；设备位置在足迹包围盒内、尺寸 3–9 m，纯显示估计。 */
 function roofPlan(building, polygon) {
   const parapet = building.height >= PARAPET_MIN_HEIGHT_M ? PARAPET_HEIGHT_M : 0;
   const equipment = [];
@@ -67,6 +70,9 @@ function roofPlan(building, polygon) {
   return { parapet, equipment };
 }
 
+/** 解析：普通高层“塔楼+裙房”中的裙房计划。
+ *  条件：≥100 m、足迹面积 ≥1500 m²、无架空层、裙房上方至少留 30 m 塔楼。
+ *  输出：{ outer, holes, height }；外扩 4–9 m、高约 16% 塔高封顶 20 m，显示与碰撞共用轮廓。 */
 function podiumPlan(building) {
   if (building.minHeight > 0 || building.height < PODIUM_MIN_TOWER_HEIGHT_M) return null;
   const polygon = building.polygons[0];
@@ -81,6 +87,10 @@ function podiumPlan(building) {
   return { outer: expandRing(polygon.outer, expand), holes: polygon.holes ?? [], height: top };
 }
 
+/** 解析：普通建筑总入口：按 1 km 分块合并墙体/屋顶/裙房/女儿墙/屋顶设备，返回碰撞体。
+ *  输入：buildings（默认 REAL_BUILDINGS）、terrain、skipIds（地标/场地接管）、renderChunkSize。
+ *  输出：{ group, colliders, allBlocks, roofs, update, dispose }。
+ *  约束：所有体量都由共享包足迹+高度派生；heightSource 保留源数据，新增细节标 estimate。 */
 export function buildCityBlocks(scene, options = {}) {
   const buildings = options.buildings ?? REAL_BUILDINGS;
   const terrain = options.terrain ?? GEO.terrain;

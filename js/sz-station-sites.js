@@ -454,6 +454,10 @@ function placeFutianSkylights(ring, pavilions, groundHeight, colliders) {
   return found;
 }
 
+/** 解析：福田站地面部分：沿真实站体足迹内退布置 6 座地面亭 + 2 座采光天窗 + 站名牌。
+ *  输入：GEO.sites['futian-station'].station（OSM 站体多边形）、地形。
+ *  输出：{ group, colliders, statistics, entrances, skylights, update, dispose }；
+ *        不建站房/站台/轨道（福田站是地下高铁站）。 */
 export function buildFutianStation(scene, stationSite, options = {}) {
   const rings = outerRings(stationSite);
   if (rings.length === 0) return emptyResult('missing-site');
@@ -664,6 +668,10 @@ function placeCranes(ring, pitRing, count) {
   return chosen.slice(0, count);
 }
 
+/** 解析：西丽站在建工地：围挡（含中文公益广告）、2 台塔吊、基坑/桩头、临时道路。
+ *  输入：GEO.sites['xili-station'].site（OSM 场地多边形）、地形。
+ *  输出：{ group, colliders, statistics, cranes, parts, update, dispose }；
+ *        全部 heightSource='estimate'，不造建成站房。 */
 export function buildXiliConstruction(scene, xiliSite, options = {}) {
   const rings = outerRings(xiliSite);
   if (rings.length === 0) return emptyResult('missing-site');

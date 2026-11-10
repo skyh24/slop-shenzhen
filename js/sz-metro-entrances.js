@@ -108,6 +108,10 @@ function resolvedLines(entrance, station, lineLookup) {
  * 把 OSM 出入口关联到最近车站，并解析中文站名、出入口编号和线路色。
  * 无坐标、无站名或没有可用官方线路色的入口记为 unresolved，不进入建模。
  */
+/** 解析：把 OSM 地铁出入口关联到最近车站并解析中文站名/出口字母/官方线路色。
+ *  输入：metro.entrances/stations/lines；maxStationDistanceM 默认 300 m。
+ *  输出：{ entrances, unresolved }；无站名或无官方线路色的入口记 unresolved，不硬配。
+ *  来源：位置来自 OSM 节点；朝向、雨棚形状为外观估计。 */
 export function planMetroEntrances(metro, options = {}) {
   if (!Array.isArray(metro?.entrances) || !Array.isArray(metro?.stations)) {
     throw new Error('Metro entrances require entrance and station arrays');
@@ -470,6 +474,10 @@ function rotatePoint(x, z, yaw, lx, lz) {
   return { x: x + lx * cos + lz * sin, z: z - lx * sin + lz * cos };
 }
 
+/** 解析：建全城地铁出入口：石基座 + 玻璃雨棚 + 顶置站名牌，按 500/1000 m 分块实例化。
+ *  输入：groundHeight/roadHeight/pathAt/colliders/isWater 用于落点校验；chunkSizeM 可调。
+ *  输出：{ group, colliders, statistics, entrances, update(camera), dispose }；
+ *        站名牌按相机距离 LOD（<450 m 文字牌、450–1200 m 纯色牌、>1200 m 不画）。 */
 export function buildSzMetroEntrances(scene, metro, options = {}) {
   const chunkSizeM = options.chunkSizeM ?? ENTRANCE_CHUNK_SIZE_M;
   const { groundHeight, roadHeight = null, pathAt = () => [], colliders = [], isWater = null } = options;

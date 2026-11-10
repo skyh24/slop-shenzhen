@@ -26,7 +26,10 @@ function centroid(ring) {
   return { x: cx / ring.length, z: cz / ring.length };
 }
 
-/** 纯计划：挑出福田中心区已建成的普通高层，沿足迹均分位置放竖向灯带；确定性排序。 */
+/** 解析：挑选福田中心区夜景灯光秀的楼栋（纯计划，不建几何）。
+ *  输入：REAL_BUILDINGS 与地形；范围 x∈[-3000,3000]、z∈[-1500,2500] 且高度≥150 m。
+ *  输出：每栋楼的灯带位置（最多 6 条竖向）、塔顶轮廓与材质桶；确定性排序。
+ *  说明：灯带样式/颜色是展示估计，不改变建筑高度来源。 */
 export function planLightShow(buildings, terrain) {
   const towers = [];
   for (const building of buildings) {
@@ -84,6 +87,9 @@ export function planLightShow(buildings, terrain) {
   };
 }
 
+/** 解析：灯光秀材质——TSL 时间驱动青/品红/暖金呼吸循环，按夜景系数渐入。
+ *  输入：材质桶编号（按建筑 id 固定分桶，0–5）。
+ *  输出：MeshBasicNodeMaterial；白天亮度归零，`buildSzLightShow` 会整组隐藏。 */
 function createShowMaterial(bucket) {
   const phase = bucket * 1.13;
   // 三色循环：青、品红、暖金；亮度按夜景系数渐入，白天不可见。
@@ -101,7 +107,10 @@ function createShowMaterial(bucket) {
   return material;
 }
 
-/** 建场景：按计划给 137 座左右的高层加灯带 + 塔顶轮廓；6 个材质桶对应 6 次 draw call。 */
+/** 解析：把灯光秀计划实例化到场景。
+ *  输入：REAL_BUILDINGS、地形。
+ *  输出：{ group, statistics, towers, update, dispose }；6 个材质桶 → 6 个 InstancedMesh。
+ *  约束：只做显示，不加碰撞体、不改建筑体量；白天隐藏、不占 draw call。 */
 export function buildSzLightShow(scene, { buildings = [], terrain = null } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('Light show requires a scene');
   const plan = planLightShow(buildings, terrain);

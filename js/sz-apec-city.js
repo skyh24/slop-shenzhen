@@ -176,6 +176,9 @@ function sampleEllipse(center, radiusXM, radiusZM, phase, count) {
   return points;
 }
 
+/** 解析：APEC 路侧 LED 大屏布点计划（3 块，双面）。
+ *  输入：GEO.landmarks（已核实中心点）。
+ *  输出：{ x, z, yaw, widthM, heightM, primaryLine, source }；偏移是展示估计，非逐屏测绘。 */
 export function planApecScreens(landmarks = []) {
   const screens = [];
   const missing = [];
@@ -236,6 +239,9 @@ function resolveRobotAnchor(def, landmarks, anchors) {
   };
 }
 
+/** 解析：会场周边巡逻机器人布点与巡逻椭圆参数。
+ *  输入：landmarks、IEC 门廊/花海锚点（来自模型导出的真实台面标高）。
+ *  输出：2 台机器人的中心、半径、相位、灯条参数；确定性、无随机。 */
 export function planApecRobots(landmarks = [], anchors = null) {
   const robots = [];
   const missing = [];
@@ -279,6 +285,9 @@ function xiliGate(ring) {
   return { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, widthM: 9 };
 }
 
+/** 解析：西丽站在建工地围挡公益广告的布点（4 块）。
+ *  输入：GEO.sites['xili-station'].site.polygons（OSM 场地轮廓）。
+ *  输出：沿围挡外缘的广告面板位置/朝向/尺寸；位置按周长均分，属展示估计。 */
 export function planXiliHoardings(sites = null) {
   const xili = sites?.['xili-station']?.site
     ?? (Array.isArray(sites?.['xili-station']?.polygons) ? sites['xili-station'] : null);
@@ -329,6 +338,9 @@ export function planXiliHoardings(sites = null) {
 }
 
 // 计划层：只做布点和来源标注，不建几何；测试、统计和 Lead 检查都用它。
+/** 解析：APEC 城市元素总计划（大屏 + 巡逻机器人 + 围挡广告）。
+ *  输入：landmarks、sites、IEC 台面锚点。
+ *  输出：{ screens, robots, hoardings, missing }；纯函数，测试与统计都用它。 */
 export function planApecCityElements({ landmarks = [], sites = null, anchors = null } = {}) {
   const screenPlan = planApecScreens(landmarks);
   const robotPlan = planApecRobots(landmarks, anchors);
@@ -466,6 +478,10 @@ function triangleCount(geometry) {
 
 // ---------- 构建 ----------
 
+/** 解析：把 APEC 城市元素建成场景对象（46 网格/816 三角，随主题开关显隐）。
+ *  输入：terrain、landmarks、sites、anchors。
+ *  输出：{ group, statistics, screens, robots, hoardings, update, dispose }；
+ *        update 做机器人确定性巡逻与夜间灯条亮度，不含碰撞体。 */
 export function buildApecCityElements(scene, {
   terrain = null, landmarks = [], sites = null, anchors = null
 } = {}) {

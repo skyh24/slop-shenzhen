@@ -207,6 +207,9 @@ function roundedRing(semiLong, semiShort, segments, squareness, scale = 1) {
 
 // ── 场地与双塔定位（纯函数，测试不需要 THREE） ────────────────────
 
+/** 解析：以已核实的超总场地多边形建立局部坐标系（东北角为原点、沿边定向）。
+ *  输入：way/336349626 的场地环（GEO.sites['super-hq'].site）。
+ *  输出：{ origin, u, v, bounds, area }；后续双塔/双轴/C 塔连廊都用这套局部坐标。 */
 export function siteFrame(polygon) {
   if (!polygon?.outer || polygon.outer.length < 3) return null;
   const outer = polygon.outer;
@@ -224,6 +227,10 @@ export function siteFrame(polygon) {
     area: Math.abs(ringArea(outer)) };
 }
 
+/** 解析：C 塔双塔与连廊的平面布置（纯几何计划）。
+ *  输入：超总场地多边形。
+ *  输出：东塔/西塔平面（约 62×54 m）、双塔中心距与 119.15 m 连廊的起止点。
+ *  说明：设计值来自 landmarks.json（400/336 m、119.15 m）；平面收分是效果图拟合。 */
 export function twinTowerPlan(polygon) {
   const frame = siteFrame(polygon);
   if (!frame) return null;
@@ -677,6 +684,9 @@ function towerInsideSite(plan) {
   return [...ground, ...westGround].every(p => inRing(polygon.outer, p.x, p.z));
 }
 
+/** 解析：超总按建好形态建模：C 塔双塔 + 连廊 + 招银 387 m + 展馆 + 车站地面口 + 十字双轴。
+ *  输入：source（不用，占位）、terrain、context.sites（场地/招银/展馆/车站多边形）。
+ *  输出：部件数组（245 部件/4,540 三角）；场地缺失时返回 []，不凭地标 id 造体量。 */
 export function build(source, terrain, context = {}) {
   const sources = siteSources(context);
   if (!sources || !terrain) return [];
@@ -785,6 +795,9 @@ function signMaterial() {
   return material;
 }
 
+/** 解析：超总专用材质分派（superHqGlass/superHqCmbGlass/superHqMetal/superHqStone 等 7 种）。
+ *  输入：样式名（materials 导出列表）。
+ *  输出：对应 MeshStandardNodeMaterial；未知名字直接抛错，避免静默用错材质。 */
 export function createSuperHqMaterial(name) {
   if (Object.hasOwn(glazingStyles, name)) return glassMaterial(glazingStyles[name], name === 'superHqCmbGlass');
   switch (name) {

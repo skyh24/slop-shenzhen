@@ -191,6 +191,10 @@ function pierSpacing(record) {
   return tiles;
 }
 
+/** 解析：单条高架/匝道链路 → 桥面缎带、桥墩、可站立三角面。
+ *  高度：与地面道路共享的端点落地为地形；其余端点按 `layer×4.8 m` 估计，沿线线性插值，
+ *        内部再用中心+两侧地形采样做下限，避免桥面埋入地面。
+ *  输出：{ frames, geometry, topTriangles, piers, surfaceId, ... }；测试直接检查这些字段。 */
 function planLink(graph, link, index, metadata, groundHeight, groundNodes, area) {
   const points = roadLinkPoints(graph, link);
   if (points.length < 2 || !polylineIntersectsArea(points, area)) return null;
@@ -369,6 +373,9 @@ function connectorBackFrame(record, end) {
   return frame ? { frame, width: record.width } : null;
 }
 
+/** 解析：在两条高架链路各退约 18 m 处拉一条渐变坡道（顶面 + 可站立三角面）。
+ *  输入：低/高层链路端点帧与坡度是否合规标记。
+ *  输出：与链路记录同构的坡道记录；宽度取两条链路的 0.85、只生成顶面。 */
 function makeConnectorRamp(node, serial, low, high, gradeOK) {
   const a = low.frame, b = high.frame;
   const width = Math.min(low.width, high.width) * 0.85;
@@ -425,6 +432,9 @@ function makeConnectorRamp(node, serial, low, high, gradeOK) {
   };
 }
 
+/** 解析：识别相邻高架链路在共享节点处的 layer 高差（如 4.8 m vs 9.6 m），生成连接坡道。
+ *  输入：已规划的链路记录（含 startNode/endNode 与端部高度）。
+ *  输出：坡道记录（几何 + 独立 surfaceId `sz-elevated-ramp:<node>`），坡度按 35% 上限标记。 */
 function planConnectorRamps(records) {
   const byNode = new Map();
   for (const record of records) {
@@ -455,6 +465,10 @@ function planConnectorRamps(records) {
   return ramps;
 }
 
+/** 解析：车公庙立交高架/匝道的总计划（纯函数）。
+ *  选区：bridge=true 或 |layer|>0 且与默认矩形（x -3800..-2500、z 500..1300）相交的链路；
+ *        与地面道路重合的链路跳过（groundDuplicates）。
+ *  输出：{ links, surfaces, chunks, statistics }；surface 供控制器当可站立面，chunk 供渲染。 */
 export function planElevatedRoads(graph, terrainSurface, area = DEFAULT_ELEVATED_AREA) {
   validateGraph(graph);
   const bounds = normalizeArea(area);
@@ -516,6 +530,10 @@ export function planElevatedRoads(graph, terrainSurface, area = DEFAULT_ELEVATED
   return { version: 1, heightSource: 'estimate', area: bounds, links: records, surfaces, chunks, statistics };
 }
 
+/** 解析：把高架计划建成场景：≤12 个空间分块网格 + 可站立表面。
+ *  输入：roadGraph、terrainSurface（GEO 里的派生地形）。
+ *  输出：{ group, meshes, surfaces, statistics, links, update, dispose }。
+ *  约束：桥面高度、桥墩、连接坡道均为 estimate；不生成车辆可行驶网络。 */
 export function buildSzElevatedRoads(scene, { graph, terrainSurface, area } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('A THREE scene is required');
   const plan = planElevatedRoads(graph, terrainSurface, area);
