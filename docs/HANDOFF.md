@@ -160,3 +160,8 @@ node --test tests/*.test.cjs                         # 需 SZ_THREE_PACKAGE_DIR 
 - 尝试给 elevated-roads 每个链路端部加 14 m 接地渐变段，解决 round 25 诊断的“桥面结束、地形陡升卡住车”。
 - 结果：测试暴露 4 处失败——接地段三角面低于“桥面高于地形”的既有断言、表面 resolver 报 Invalid contact triangle（NaN）、桥面面积统计变化、真实 THREE 构建含非有限顶点；本轮已 `git checkout` 回滚该文件，仓库保持 433 测试全绿。
 - 教训：端部接坡会改变“桥面 = 高架”的既有语义与测试口径，需要把“桥面三角”和“接地坡道三角”分开统计/断言、并单独排查 NaN 来源后再做；下一轮应在独立分支上先补测试再改模块。
+
+## 2o. round 27：Q7 四时段视觉回归
+
+- 同一机位（市民中心轴线 (0,380) 朝南）依次切换 midday/golden/twilight/midnight，四张截图与 active 状态均正确（`docs/qa/round27/`）；0 console error。
+- 夜间可见灯光秀与窗灯；HUD 28–30 fps 仍受浏览器 30 Hz 上限影响，非 M9 证据。
