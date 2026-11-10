@@ -7,7 +7,7 @@
 - **代码**：分支 `main`，HEAD `c687ba0`。正式入口 <http://127.0.0.1:8080/> 运行深圳，`index.html` 加载 `js/main.js`，可达 80 个文件、约 3 万行。`mvp.html` 只作历史参考。
 - **共享包**：`js/sz-city.json.gz` 6,916,984 字节，SHA-256 `690c6d1e99fa642e9cefb756eaadd1f80b0dc7f612f7a486148c83f099bcce75`，由 `tools/sz/build.py` 生成。
 - **数据**：36,064 栋普通楼，来源是 OSM 12,692、Overture 16,022、GloBFP 7,350，没有随机放置的楼，见 [21 号](21-FOOTPRINT-AND-STREET-AUDIT.md)。其中 4 栋楼高按公开资料修正，见 [20 号](20-BUILDING-HEIGHT-AUDIT.md)。另有约 5.9 万棵树（OSM 点位加标注为模拟的补种）。
-- **测试**：2026-11-10 晚，Node 451 项通过、37 项跳过。跳过的是需要真实 Three 的用例，设置 `SZ_THREE_PACKAGE_DIR` 指向 Three 0.187.0 后会运行。Python 101 项通过。
+- **测试**：2026-11-10 晚，设置 `SZ_THREE_PACKAGE_DIR=.agents/three-0.187.0` 后 Node 493 项全部通过、0 跳过；不设置时有 37 项需要真实 Three 的用例会跳过。Python 101 项通过。
 - **验收**：九条硬性要求还没有一条整体通过；M9 性能未通过，所以没有 baseline 标签。逐条证据和缺口见 [ACCEPTANCE-STATUS.md](ACCEPTANCE-STATUS.md)。
 
 ## 2. 已经挂进场景的主要内容
@@ -24,7 +24,7 @@
 
 ## 3. 下一步
 
-两条线可以并行，由不同的人做：
+按 worktree 并行执行时，分批、阻塞项和每个任务的提示词见 [NEXT-AGENT-PLAN.md 的 worktree 并行计划](NEXT-AGENT-PLAN.md#worktree-并行计划2026-11-10-晚)。两条线可以并行，由不同的人做：
 
 1. **功能修复**，按 [REVIEW-FOLLOWUP-2026-11-10.md](REVIEW-FOLLOWUP-2026-11-10.md) 第 4 节的顺序：
    1. 自动裙房占道（第一项）。
@@ -52,7 +52,7 @@
 
 ```sh
 python3 tools/sz/serve.py --port 8080
-SZ_THREE_PACKAGE_DIR=<three-0.187.0 目录> node --test tests/*.test.cjs
+SZ_THREE_PACKAGE_DIR=$PWD/.agents/three-0.187.0 node --test tests/*.test.cjs
 .venv/bin/python -m unittest discover -s tools/sz/tests
 .venv/bin/python tools/sz/build.py                    # 生成共享包和报告
 ```
