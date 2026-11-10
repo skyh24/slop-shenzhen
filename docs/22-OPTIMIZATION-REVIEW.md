@@ -326,7 +326,6 @@ rg -n "StorageInstancedBufferAttribute" js ref/slop-wuhan/js/runtime/main.js
 - **P6（名牌/细节组每帧 `updateMatrixWorld(true)`）**：改动小，和上面的 draw-call 排查一起做；出生点 CPU 预算只剩约 4.8 ms。
 - **P1（实例矩阵 storage 缓冲）**仍然值得做，但本次测量不显示它是出生点 CPU 瓶颈的主因；按第 3 节要求单独做前后各 5 次测量，不要和 P2/P3 混在一次提交里。
 - **P7（夜间光晕按灯杆分块、打开视锥剔除）**只影响夜间机位，夜间队列等待和 CPU 都不高，优先级放到 P2/P3/P6 之后；P9 先看 pipeline 数；P5 的数据格式不是启动瓶颈（data 阶段合计约 0.18 s），P4 校验约 15–60 ms，都排在后面。
-
 ### S2 共享几何工具模块（2026-11-10）
 
 - 分支：`dsh-527cd33f-dcc4`（worktree 独立分支，基线 `4c54d2e`）。没有改 `docs/HANDOFF.md`、`docs/TASKS.md`，没有重建 `js/sz-city.json.gz`。
@@ -390,3 +389,21 @@ rg -n "StorageInstancedBufferAttribute" js ref/slop-wuhan/js/runtime/main.js
   2. 另做了一轮交错 A/B（同一时间段交替换两种 `main.js`），被 30 Hz 窗口节流污染（S3 两个机位 p50 33.3 ms）且出现一次 240 s 加载超时，数据不采纳。
   3. 代码核实：r187 已经把 `instanceMatrix` 作为逐实例顶点属性绑定并只在 `needsUpdate`（version）时上传；`__szDebug.scene` 里 4383 个实例网格的共享 reference 路径全部成立（没有走 uniform buffer 的网格），武汉注释里“小实例走 uniform 缓冲、每 pass 重传约 2.5 MB/帧”的前提在本仓库不成立。真正每帧变化的大实例是 3994 个 APEC 道旗（约 0.25 MB/帧），换 storage 后它仍然每帧 `needsUpdate` 上传；省下的只有车流/车轮的 `DynamicDrawUsage` 每 pass 重传（约 18 KB/帧），低于测量噪声。
 - 备注：P1 补丁保留在 `docs/qa/dsh-5df3d2ce-c89c/p1/variants/main.p1.js`（只留本地），前后原始记录在同目录 `p1/before-p1/`、`p1/after-p1/`。
+
+### P0 优化：静态地表与建筑分块（2026-11-10）
+
+- 分支 `m9-perf-optimizations`；提交 `ae51d78`（地面/道路/标线合并）、`2c0e2ab`（建筑渲染块 1→2.4 km）、`8904684`（测试阈值随合并舍入调整）。运行时代码：`js/sz-ground.js`、`js/sz-roads.js`、`js/sz-road-paint.js`、`js/sz-buildings.js`、`js/sz-streetscape.js`，未改材质和玩法。
+- 做法：地面/道路/标线按 2.4 km 超块合并几何、把分块原点烘焙进顶点；建筑渲染块从 1 km 放大到 2.4 km；步行道样板（`sz-streetscape`）继续逐块建 mesh，保留亚毫米局部坐标。draw-call 归因见 `docs/qa/m9-perf-optimizations/attribution*.json`（地面 372→28、道路 331→28、标线 246→23、建筑块 105→约 22）。
+- 测量：与 P0 基线同机位、清玩家存档、显式金色/午夜时段，60 s 采样；before 在 8080（基线代码），after 在 8101（本分支）。帧间隔受窗口焦点影响的行单独标注。
+- 结果（p50）：
+
+| 机位 | draw calls 前→后 | 三角形 前→后 | CPU 渲染 ms 前→后 | 帧间隔 p50 前→后 |
+| --- | --- | --- | --- | --- |
+| 出生点 | 1484 → 540（−63.6%） | 3.77 → 4.04 M（+7.2%） | 10.36 → 5.45（−47.4%） | 16.7 → 16.7 ms |
+| 福田 CBD 街面 | 536 → 316（−41.0%） | 1.89 → 2.07 M（+9.4%） | 5.76 → 3.84（−33.3%） | 16.7 → 16.7 ms |
+| 夜间深南大道 | 471 → 305（−35.2%） | 1.98 → 2.32 M（+16.9%） | 5.70 → 4.01（−29.7%） | 16.7 → 本轮 32.5（窗口失焦被节流，作废） |
+
+- 结论：出生点从贴近 1500 draw call 预算降到 540，CPU 渲染从 10.36 ms 降到 5.45 ms，留出约 5 ms/帧余量；三角形仍在 600 万预算内（出生点 4.04 M）。代价是视锥剔除粒度变粗、细长边界处三角形略增；画面同机位截图未见缺失或接缝。
+- 测试：Node 422 项全过；唯一改动是 `tests/sz-chunjian.test.cjs` 的地面射线/采样器共面阈值从 1 µm 放宽到 1 mm，与 10 号文档 QA-G02 的默认共面阈值一致（合并把原点烘焙进 float32，10 km 处约 1 mm 舍入；接触仍用未合并的 `groundHeight` 采样器）。
+- 未做：GPU 时间戳仍不可用作帧时间（第 7 节 P0 基线已记录）；真实 20 min 稳定性、夜间 60 s 有效帧间隔需要窗口持续聚焦后补测。剩余 draw call 大户：地标 61、建筑细节 45、街景 frontage 32、树/路灯各约 30。
+- 第二轮尝试（未保留）：地标同材质合批不可行——12 个地标共 76 个 mesh、76 个独立材质（每个 style 一份），没有可共享材质；建筑细节块 200→400 只降 12 次绘制，且会改变 650 m 细节加载边界，已回退；阴影替身格 500→2000 不改变替身绘制数；街景 frontage 合批会破坏 `sz-road-frontage` 的分要素高程断言。静态分块这一档的收益已经拿完，继续在 chunk 上抠只值 ≤20 次绘制；P1（实例矩阵）已由上一轮测量并回滚（见上），下一档转 P2/P3（名牌图集、地铁口分块）。

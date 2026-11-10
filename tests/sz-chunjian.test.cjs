@@ -235,7 +235,9 @@ test('Chunjian rendered hall roof shields the exact ground raycast cut', { skip:
       assert.ok(Number.isFinite(visibleRoof) && Math.abs(visibleRoof - roofAt(roof, point)) < 1e-6);
     }
     const outside = { x: mask.boundsXZ[0] - 2, z: center.z };
-    assert.ok(Math.abs(hit(ground.group, outside) - ground.groundHeight(outside.x, outside.z)) < 1e-6
+    // 渲染地面按 2.4 km 合并后，分块原点被烘焙进 float32 顶点，10 km 处约 1 mm 舍入；10 号文档 QA-G02 的默认
+    // 共面阈值就是 1 mm，接触仍由未合并的 groundHeight 采样器提供，所以这里按 1 mm 校验而不是 1 µm。
+    assert.ok(Math.abs(hit(ground.group, outside) - ground.groundHeight(outside.x, outside.z)) < 1e-3
       && Number.isFinite(hit(ground.group, outside)));
   }
   ground.dispose();

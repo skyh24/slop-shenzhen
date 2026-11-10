@@ -5,7 +5,9 @@ import { createBuildingMaterial } from './sz-materials.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
 import { ringArea, ringContains, polygonContains } from './sz-polygon.js';
 
-export const BUILDING_RENDER_CHUNK_SIZE = 1000;
+// 普通楼按 2.4 km 合并成一个渲染块：出生点 1484 次绘制里 105 次来自 1 km 建筑块，
+// 放大后块数约降到 1/5，三角形只随视野内建筑范围略增。
+export const BUILDING_RENDER_CHUNK_SIZE = 2400;
 // 普通高层按“塔楼 + 裙房”两级表达：裙房由塔楼足迹向外放大生成，是显示估计，不是测绘裙房。
 // 高度取 16% 塔高并封顶 20 m；只有外扩后的足迹避开地面道路沥青、真实入口、内院和邻楼时才生成，
 // 连最小外扩量都放不下就保留原塔楼，不为外观新增阻挡。显示与碰撞共用同一份通过检查的外环。
@@ -478,7 +480,7 @@ export function roofPlan(building, polygon) {
   return { parapet, equipment };
 }
 
-/** 解析：普通建筑总入口：按 1 km 分块合并墙体/屋顶/裙房/女儿墙/屋顶设备，返回碰撞体。
+/** 解析：普通建筑总入口：按 2.4 km 分块合并墙体/屋顶/裙房/女儿墙/屋顶设备，返回碰撞体。
  *  输入：buildings（默认 REAL_BUILDINGS）、terrain、skipIds（地标/场地接管）、roadGraph、entrances、renderChunkSize。
  *  输出：{ group, colliders, allBlocks, roofs, update, dispose }。
  *  约束：所有体量都由共享包足迹+高度派生；heightSource 保留源数据，新增细节标 estimate。 */

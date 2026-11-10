@@ -1,6 +1,58 @@
 import * as THREE from 'three/webgpu';
 import { createSzRoadSurfaceMaterial } from './sz-road-material.js';
 
+// 静态地表按 2.4 km 超块合并（与 sz-ground.js 同款逻辑）：页面只需给每个分块一份带位置/法线/颜色/索引的
+// BufferGeometry 和世界原点，合并时把原点烘焙进顶点位置。三角形不变，只牺牲更粗的视锥剔除。
+const STATIC_BATCH_SIZE = 2400;
+
+function mergeChunkGeometries(entries) {
+  const names = Object.keys(entries[0].geometry.attributes);
+  const merged = new THREE.BufferGeometry();
+  const arrays = new Map(names.map(name => [name, []]));
+  const indices = [];
+  let vertexOffset = 0;
+  for (const { geometry, x, z } of entries) {
+    const count = geometry.attributes.position.count;
+    for (const name of names) {
+      const source = geometry.attributes[name];
+      const copy = new source.array.constructor(source.array.length);
+      copy.set(source.array);
+      if (name === 'position') {
+        for (let i = 0; i < copy.length; i += 3) { copy[i] += x; copy[i + 2] += z; }
+      }
+      arrays.get(name).push(copy);
+    }
+    const index = geometry.index;
+    if (index) for (let i = 0; i < index.count; i++) indices.push(index.array[i] + vertexOffset);
+    else for (let i = 0; i < count; i++) indices.push(i + vertexOffset);
+    vertexOffset += count;
+  }
+  for (const [name, pieces] of arrays) {
+    const first = entries[0].geometry.attributes[name];
+    const length = pieces.reduce((sum, piece) => sum + piece.length, 0);
+    const array = new first.array.constructor(length);
+    let offset = 0;
+    for (const piece of pieces) { array.set(piece, offset); offset += piece.length; }
+    merged.setAttribute(name, new THREE.BufferAttribute(array, first.itemSize, first.normalized));
+  }
+  merged.setIndex(indices);
+  merged.computeBoundingBox();
+  merged.computeBoundingSphere();
+  return merged;
+}
+
+function batchChunks(entries) {
+  const buckets = new Map();
+  for (const entry of entries) {
+    const key = `${Math.floor(entry.x / STATIC_BATCH_SIZE)},${Math.floor(entry.z / STATIC_BATCH_SIZE)}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(entry);
+  }
+  return [...buckets.entries()].map(([key, items]) => ({
+    key, chunks: items, geometry: mergeChunkGeometries(items)
+  }));
+}
+
 const EPSILON = 1e-8;
 const turn = (a, b, c) => (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
 
@@ -387,19 +439,28 @@ export function buildSzRoads(scene, graph, terrainSurface, options = {}) {
   group.name = 'shenzhen-source-roads';
   // 深度偏移和共面绘制在材质工厂里；接触仍由真实地形三角面提供。
   const material = options.material ?? createSzRoadSurfaceMaterial();
-  const meshes = [];
+  const entries = [];
   for (const chunk of layout.chunks) {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(chunk.positions, 3));
     geometry.computeVertexNormals();
     geometry.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(chunk.origin[0], 0, chunk.origin[1]);
-    mesh.name = chunk.id;
+    entries.push({ geometry, x: chunk.origin[0], z: chunk.origin[1], id: chunk.id, sources: chunk.sources });
+  }
+  const meshes = [];
+  // 步行道样板要按局部坐标做亚毫米共面校核，合并会把原点烘焙进 float32 顶点；这些场景继续按块建 mesh。
+  const batches = options.batch === false
+    ? entries.map(entry => ({ key: entry.id, chunks: [entry], geometry: entry.geometry, origin: [entry.x, entry.z] }))
+    : batchChunks(entries);
+  for (const batch of batches) {
+    const mesh = new THREE.Mesh(batch.geometry, material);
+    mesh.name = options.batch === false ? batch.key : `road-ground-batch:${batch.key}`;
+    if (batch.origin) mesh.position.set(batch.origin[0], 0, batch.origin[1]);
     mesh.receiveShadow = true;
-    mesh.userData.sourceRoads = chunk.sources;
+    mesh.userData.sourceRoads = batch.chunks.flatMap(entry => entry.sources ?? []);
     group.add(mesh);
     meshes.push(mesh);
+    if (options.batch !== false) for (const entry of batch.chunks) entry.geometry.dispose();
   }
   scene.add(group);
   return { group, meshes, surfaces: layout.chunks, statistics: layout.statistics,
