@@ -152,9 +152,13 @@ test('city data failures carry the stage code the boot fallback maps to its mess
 
 test('readCityPayload only downloads, decompresses and parses; failures keep a stage code', async () => {
   const { readCityPayload, CityDataError } = await modulePromise;
+  const metrics = {};
   const unvalidated = { ...raw, version: 3 };
-  const loaded = await readCityPayload('fixture', async () => new Response(JSON.stringify(unvalidated)));
+  const loaded = await readCityPayload('fixture', async () => new Response(JSON.stringify(unvalidated)), metrics);
   assert.equal(loaded.version, 3, 'read must not reject data that only validation rejects');
+  for (const key of ['downloadMs', 'decompressMs', 'parseMs']) {
+    assert.ok(Number.isFinite(metrics[key]) && metrics[key] >= 0, `metrics.${key} is a finite duration`);
+  }
   const failureOf = async (fetcher) => {
     try {
       await readCityPayload('fixture', fetcher);
@@ -176,11 +180,15 @@ test('readCityPayload only downloads, decompresses and parses; failures keep a s
   assert.equal(parseFailure.code, 'invalid');
 });
 
-test('decodeCityPayload validates once and preserves the source message', async () => {
+test('decodeCityPayload validates once, preserves the source message and records timings', async () => {
   const { decodeCityPayload, validateCityPayload, CityDataError } = await modulePromise;
-  const { buildings, geo } = decodeCityPayload(raw);
+  const metrics = {};
+  const { buildings, geo } = decodeCityPayload(raw, metrics);
   assert.equal(buildings.length, raw.buildings.h.length);
   assert.equal(geo.version, raw.version);
+  for (const key of ['validateMs', 'decodeMs']) {
+    assert.ok(Number.isFinite(metrics[key]) && metrics[key] >= 0, `metrics.${key} is a finite duration`);
+  }
   const failureOf = (payload) => {
     try {
       decodeCityPayload(payload);

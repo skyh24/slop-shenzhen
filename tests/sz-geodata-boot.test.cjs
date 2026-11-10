@@ -120,6 +120,11 @@ test('city data failures wait for an in-page retry before the module graph resol
     assert.equal(namespace.CITY_PAYLOAD.version, 2);
     assert.equal(namespace.GEO.version, 2);
     assert.deepEqual(namespace.REAL_BUILDINGS, []);
+    assert.deepEqual(Object.keys(namespace.DATA_TIMINGS).sort(),
+      ['decodeMs', 'decompressMs', 'downloadMs', 'parseMs', 'validateMs']);
+    for (const [key, value] of Object.entries(namespace.DATA_TIMINGS)) {
+      assert.ok(Number.isFinite(value) && value >= 0, `DATA_TIMINGS.${key} is a finite duration`);
+    }
   } finally {
     delete globalThis.__szBoot;
     delete globalThis.__szGeodataStubCalls;

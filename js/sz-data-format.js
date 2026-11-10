@@ -240,8 +240,14 @@ function cityDataError(code, message, cause) {
   return error;
 }
 
+// 计时只用于启动日志；Node 的 vm 沙箱里可能没有 performance，退回 Date.now()。
+function nowMs() {
+  return typeof performance === 'object' && typeof performance?.now === 'function' ? performance.now() : Date.now();
+}
+
 // 只做下载、解压和解析，返回未校验的原始 JSON；校验统一放在 decodeCityPayload 里做一次。
-export async function readCityPayload(url, fetcher = fetch) {
+export async function readCityPayload(url, fetcher = fetch, metrics = null) {
+  const startedAt = nowMs();
   let response;
   try {
     response = await fetcher(url);
@@ -255,6 +261,8 @@ export async function readCityPayload(url, fetcher = fetch) {
   } catch (error) {
     throw cityDataError('request', `City data request failed: ${error.message}`, error);
   }
+  const downloadedAt = nowMs();
+  if (metrics) metrics.downloadMs = downloadedAt - startedAt;
   // 静态服务器可能已经解压，按 gzip 魔数判断，而不是相信文件扩展名。
   const compressed = bytes[0] === 0x1f && bytes[1] === 0x8b;
   let text;
@@ -265,12 +273,15 @@ export async function readCityPayload(url, fetcher = fetch) {
   } catch (error) {
     throw cityDataError('decompress', `City data decompress failed: ${error.message}`, error);
   }
+  const decompressedAt = nowMs();
+  if (metrics) metrics.decompressMs = decompressedAt - downloadedAt;
   let raw;
   try {
     raw = JSON.parse(text);
   } catch (error) {
     throw cityDataError('invalid', `City data parse failed: ${error.message}`, error);
   }
+  if (metrics) metrics.parseMs = nowMs() - decompressedAt;
   return raw;
 }
 
@@ -381,12 +392,15 @@ export function validateCityPayload(raw) {
 }
 
 // 城市包只在这里校验一次（读取阶段不再校验）；校验项的 message 依赖来源字段名，测试按正则匹配。
-export function decodeCityPayload(raw) {
+export function decodeCityPayload(raw, metrics = null) {
+  const validateStartedAt = nowMs();
   try {
     validateCityPayload(raw);
   } catch (error) {
     throw cityDataError('invalid', error.message, error);
   }
+  const validatedAt = nowMs();
+  if (metrics) metrics.validateMs = validatedAt - validateStartedAt;
   const b = raw.buildings;
   const buildings = b.h.map((height, i) => {
     const shape = polygon(b.rings[i]);
@@ -419,5 +433,6 @@ export function decodeCityPayload(raw) {
     air: raw.air ?? null,
     parks: (raw.parks ?? []).map(park => ({ ...park, areas: park.areas.map(area => ({ ...area, polygon: polygon(area.polygon) })) }))
   } };
+  if (metrics) metrics.decodeMs = nowMs() - validatedAt;
   return decoded;
 }
