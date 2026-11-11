@@ -58,7 +58,7 @@ function keyboardHarness(nyc = {}) {
   });
   // Exercise the production event handlers without constructing the scene's 3D models.
   const controller = Object.create(ThirdPersonControllerManager.prototype);
-  controller.keys = Object.fromEntries(['forward', 'backward', 'left', 'right', 'up', 'down'].map((action) => [action, false]));
+  controller.keys = Object.fromEntries(['forward', 'backward', 'left', 'right', 'up', 'down', 'boost', 'brake'].map((action) => [action, false]));
   controller.getGroundHeight = (x, z) => nyc.blockAt?.(x, z) ? 0.22 : 0;
   controller.groundHeight = (x, z) => controller.getGroundHeight(x, z, controller.activeMode);
   controller.maxFlightAltitude = 900;
@@ -109,6 +109,23 @@ test('either jump binding stays active until both are released', () => {
   assert.equal(controller.keys.up, true);
   key('keyup', 'KeyE');
   assert.equal(controller.keys.up, false);
+});
+
+test('Space also brakes the car and Shift boosts it', () => {
+  const { controller, key } = keyboardHarness();
+  key('keydown', 'Space');
+  assert.equal(controller.keys.up, true);
+  assert.equal(controller.keys.brake, true);
+  key('keyup', 'Space');
+  assert.equal(controller.keys.up, false);
+  assert.equal(controller.keys.brake, false);
+
+  for (const code of ['ShiftLeft', 'ShiftRight']) {
+    key('keydown', code);
+    assert.equal(controller.keys.boost, true);
+    key('keyup', code);
+    assert.equal(controller.keys.boost, false);
+  }
 });
 
 test('keyboard and touch input remain active independently', () => {
@@ -255,11 +272,18 @@ test('car accelerates gradually to full speed and preserves coasting and braking
   const acceleration = carDynamicsHarness();
   acceleration.controller.keys.forward = true;
   acceleration.advance(2);
-  assert.ok(Math.abs(acceleration.car.speed * 3.6 - 60) < 0.01);
+  assert.ok(Math.abs(acceleration.car.speed * 3.6 - 40) < 0.01);
   acceleration.advance(2);
-  assert.ok(Math.abs(acceleration.car.speed * 3.6 - 120) < 0.01);
+  assert.ok(Math.abs(acceleration.car.speed * 3.6 - 80) < 0.01);
+  acceleration.advance(5);
+  assert.equal(acceleration.car.speed, 80 / 3.6);
+
+  acceleration.controller.keys.boost = true;
   acceleration.advance(5);
   assert.equal(acceleration.car.speed, 120 / 3.6);
+  acceleration.controller.keys.boost = false;
+  acceleration.advance(3);
+  assert.equal(acceleration.car.speed, 80 / 3.6, 'releasing Shift settles back to the normal limit');
 
   const coasting = carDynamicsHarness({ speed: 50 / 3.6 });
   coasting.advance(5);
@@ -270,6 +294,28 @@ test('car accelerates gradually to full speed and preserves coasting and braking
   braking.advance(1.5);
   assert.ok(braking.car.speed >= 0 && braking.car.speed < 0.2, 'braking reaches a stop without reversing early');
   assert.ok(braking.car.position.z > 9.8 && braking.car.position.z < 10.6, 'preserve the roughly ten-metre stopping distance');
+});
+
+test('Space brakes the car without requiring reverse throttle', () => {
+  const braking = carDynamicsHarness({ speed: 120 / 3.6 });
+  braking.controller.keys.brake = true;
+  braking.advance(1);
+  assert.ok(braking.car.speed >= 0 && braking.car.speed * 3.6 < 100, 'Space sheds speed');
+  braking.advance(3);
+  assert.equal(braking.car.speed, 0, 'Space brings the car to rest');
+  assert.equal(braking.car.lights[0], true, 'Space lights the brake lamps');
+});
+
+test('releasing boost does not add extra deceleration while braking', () => {
+  for (const action of ['brake', 'backward']) {
+    const boosted = carDynamicsHarness({ speed: 120 / 3.6 });
+    const released = carDynamicsHarness({ speed: 120 / 3.6 });
+    boosted.controller.keys.boost = true;
+    boosted.controller.keys[action] = released.controller.keys[action] = true;
+    boosted.advance(0.5);
+    released.advance(0.5);
+    assert.equal(released.car.speed, boosted.car.speed, 'the same brake input has the same strength');
+  }
 });
 
 test('car steering follows speed and reverses direction when backing up', () => {
@@ -1061,7 +1107,7 @@ test('passenger aircraft caps speed and altitude and brings level skids onto ter
   controller.keys.forward = controller.keys.up = true;
   for (let i = 0; i < 120; i++) controller.updateHelicopter(1 / 60);
   assert.ok(Math.abs(ent.speed * 3.6 - 250) < 0.01);
-  assert.equal(ent.verticalSpeed, 6);
+  assert.equal(ent.verticalSpeed, 20);
 
   ent.position.y = 399.97;
   controller.updateHelicopter(1 / 60);
@@ -1128,7 +1174,7 @@ test('aircraft stops before terrain above its ceiling without compressing skids 
 
 test('player vehicles reach their forward speed limits in four seconds across frame rates', () => {
   for (const hz of [30, 60, 120, null]) {
-    for (const [mode, target] of [['car', 120], ['cyclist', 60], ['helicopter', 500]]) {
+    for (const [mode, target] of [['car', 80], ['cyclist', 60], ['helicopter', 500]]) {
       const sim = mode === 'car' ? carDynamicsHarness() : teleportHarness(mode);
       const { controller } = sim;
       const entity = sim.car || sim.ent;

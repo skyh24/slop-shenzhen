@@ -4,6 +4,7 @@ const { join } = require('node:path');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { runInNewContext } = require('node:vm');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
@@ -31,6 +32,29 @@ const model = traffic.trafficModelBounds(bounds, { wheelbase: 2.8, track: 1.54 }
 const groundRoad = id => ({ osmId: `way/${id}`, heightSource: 'terrain', layer: 0, bridge: false, tunnel: false });
 const rule = (restriction, from, to, via, viaWays = []) => ({ osmId: 'relation/1', restriction,
   fromWayId: `way/${from}`, toWayIds: [`way/${to}`], viaNodeId: `node/${via}`, viaWayIds: viaWays });
+
+test('brake and boost inputs cancel automatic driving through the frame wiring', () => {
+  const main = read('main.js');
+  const start = main.indexOf('    const { forward, backward, left, right');
+  const end = main.indexOf('    controllerManager.update(', start);
+  assert.ok(start >= 0 && end > start);
+  const wiring = main.slice(start, end);
+  const route = { from: { x: 0, z: 0, dx: 1, dz: 0 }, length: 50, stops: [], limits: [9],
+    samples: [{ x: 0, z: 0, s: 0 }, { x: 50, z: 0, s: 50 }] };
+  for (const action of ['brake', 'boost']) {
+    const car = { position: { x: 0, y: 0, z: 0 }, heading: Math.PI / 2, speed: 0 };
+    const autoDrive = createAutoDrive({ model, roadHeight: () => 0, nearTraffic: () => [] });
+    assert.equal(autoDrive.start(route, car, 'car'), true);
+    const controllerManager = { activeMode: 'car', keys: { [action]: true } };
+    const context = { controllerManager, autoDrive, driveCar: car, dt: 1 / 60, elapsed: 0,
+      mapSystem: { isFullMapOpen: false } };
+    assert.equal(runInNewContext(`${wiring}\ndriveInput;`, context), null);
+    assert.equal(autoDrive.status, 'manual');
+    controllerManager.keys[action] = false;
+    assert.equal(runInNewContext(`${wiring}\ndriveInput;`, { ...context }), null);
+    assert.equal(autoDrive.status, 'manual', 'releasing the key does not resume the route');
+  }
+});
 
 test('route planning respects directed links, actual pavement, and source turn restrictions', () => {
   const graph = { nodes: [0, 0, 75, 0, 150, 0, 225, 0, 75, 55], nodeIds: ['node/1', 'node/2', 'node/3', 'node/4', 'node/5'],

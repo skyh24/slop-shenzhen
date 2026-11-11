@@ -15,18 +15,26 @@ import { loftContactPolygon, polygonContact, roofPanelContactPolygon, spanContac
 const groundCollider = { type: 'ground' };
 
 const CAR_DRIVE = {
-  speed: 120 / 3.6, reverseSpeed: 10.5, acceleration: 4.5, forwardAcceleration: 120 / 3.6 / 4,
+  speed: 80 / 3.6, boostSpeed: 120 / 3.6, reverseSpeed: 10.5, acceleration: 4.5,
+  forwardAcceleration: 80 / 3.6 / 4, boostAcceleration: 120 / 3.6 / 4,
+  // 松开 Shift 后主动回落到常规上限，避免长时间停在 120 km/h。
+  boostDeceleration: 4,
   powerSpeed: 14.5, // Above 52 km/h, engine power limits acceleration.
   rolling: 0.18, drag: 0.0012, coast: 0.6, brake: 9,
   wheelbase: VEHICLE_SPECS.taxi.wheelbase, grip: 9.5, cornering: 10.5
 };
+const CAR_BOOST_DRIVE = { ...CAR_DRIVE, speed: CAR_DRIVE.boostSpeed, forwardAcceleration: CAR_DRIVE.boostAcceleration };
 const BICYCLE_DRIVE = {
   speed: 60 / 3.6, reverseSpeed: 4.5, acceleration: 6.5, forwardAcceleration: 60 / 3.6 / 4,
   powerSpeed: 10.5, // Above 38 km/h, rider power limits acceleration.
   rolling: 0.1, drag: 0.004, coast: 0.45, brake: 10.5
 };
 const CAR_AUTO_DRIVE = { ...CAR_DRIVE, speed: 36, forwardAcceleration: null };
-const EVTOL_DRIVE = { speed: 500 / 3.6, acceleration: 500 / 3.6 / 4, reverseSpeed: 21.6, verticalSpeed: 6, altitude: 400 };
+// 2026-11-11 用户指定升降上限 20 m/s、2 秒加速到位，因此垂直加速度取 10 m/s²。
+const EVTOL_DRIVE = {
+  speed: 500 / 3.6, acceleration: 500 / 3.6 / 4, reverseSpeed: 21.6,
+  verticalSpeed: 20, verticalAcceleration: 10, altitude: 400
+};
 const PERSON_STEP_UP = 0.38;
 const CONTACT_EPSILON = 1e-5;
 
@@ -153,7 +161,9 @@ class ThirdPersonControllerManager {
       left: false,
       right: false,
       up: false,
-      down: false
+      down: false,
+      boost: false,
+      brake: false
     };
 
     this.entities = {
@@ -207,22 +217,34 @@ class ThirdPersonControllerManager {
       left: ['KeyA', 'ArrowLeft'],
       right: ['KeyD', 'ArrowRight'],
       up: ['Space', 'KeyE'],
-      down: ['KeyQ', 'KeyC']
+      down: ['KeyQ', 'KeyC'],
+      boost: ['ShiftLeft', 'ShiftRight'],
+      brake: ['Space']
     };
-    const actionsByCode = new Map(Object.entries(bindings).flatMap(([action, codes]) => codes.map((code) => [code, action])));
+    // Space 同时承担跳跃/上升和汽车刹车，一个键可以对应多个动作。
+    const actionsByCode = new Map();
+    for (const [action, codes] of Object.entries(bindings)) {
+      for (const code of codes) {
+        const list = actionsByCode.get(code);
+        if (list) list.push(action);
+        else actionsByCode.set(code, [action]);
+      }
+    }
     this._pressedCodes = new Set();
     this._keyboardKeys = {};
     this._touchKeys = {};
     this._gamepadKeys = {};
 
     const onKey = (e, isDown) => {
-      const action = actionsByCode.get(e.code);
-      if (!action || (isDown && isTypingInField(e))) return;
+      const actions = actionsByCode.get(e.code);
+      if (!actions || (isDown && isTypingInField(e))) return;
       if (isDown) this._pressedCodes.add(e.code);
       else this._pressedCodes.delete(e.code);
       // Releasing one binding must not cancel another key held for the same action.
-      this._keyboardKeys[action] = bindings[action].some((code) => this._pressedCodes.has(code));
-      this._blendInput(action);
+      for (const action of actions) {
+        this._keyboardKeys[action] = bindings[action].some((code) => this._pressedCodes.has(code));
+        this._blendInput(action);
+      }
     };
 
     window.addEventListener('keydown', (e) => onKey(e, true));
@@ -1083,8 +1105,11 @@ class ThirdPersonControllerManager {
     else if (this.keys.backward) throttle = -this.keys.backward;
 
     if (driveInput) throttle = driveInput.throttle;
-    const serviceBrake = driveInput?.brake ?? 0;
+    const boost = Boolean(this.keys.boost);
+    const serviceBrake = Math.max(driveInput?.brake ?? 0, this.keys.brake ? 1 : 0);
     const braking = serviceBrake > 0 || c.speed * throttle < 0;
+    // 手动驾驶按住 Shift 时可到 120 km/h；自动驾驶仍用自身限速。
+    const drive = driveInput ? CAR_AUTO_DRIVE : boost ? CAR_BOOST_DRIVE : CAR_DRIVE;
 
     let steerInput = 0;
     if (this.keys.left) steerInput = this.keys.left;
@@ -1106,7 +1131,11 @@ class ThirdPersonControllerManager {
       const vx = sin * c.speed + c.vx, vz = cos * c.speed + c.vz;
       const forward = vx * sin + vz * cos;
       const sideways = vx * cos - vz * sin;
-      const speed = driveSpeed(forward, throttle, step, driveInput ? CAR_AUTO_DRIVE : CAR_DRIVE, serviceBrake);
+      let speed = driveSpeed(forward, throttle, step, drive, serviceBrake);
+      // 松开 Shift 后从加力区回落到常规上限，制动和碰撞仍按原有方式处理。
+      if (!driveInput && !boost && !braking && speed > CAR_DRIVE.speed) {
+        speed = Math.max(CAR_DRIVE.speed, speed - CAR_DRIVE.boostDeceleration * step);
+      }
       const acceleration = (speed - forward) / step;
       // Braking and cornering share tire grip; air resistance does not use it.
       const tireAcceleration = acceleration + CAR_DRIVE.drag * forward * Math.abs(forward);
@@ -1298,7 +1327,7 @@ class ThirdPersonControllerManager {
     }
 
     if (vertInput !== 0) {
-      h.verticalSpeed += vertInput * 22.0 * dt;
+      h.verticalSpeed += vertInput * EVTOL_DRIVE.verticalAcceleration * dt;
       h.verticalSpeed = Math.max(-maxVertSpeed, Math.min(maxVertSpeed, h.verticalSpeed));
     } else {
       h.verticalSpeed *= Math.max(0, 1 - dt * 3.5);

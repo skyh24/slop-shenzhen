@@ -889,9 +889,9 @@ async function initApp() {
     traffic.update(dt, controllerManager.getActiveEntity().position, players, elapsed, isTrafficVisible);
     pedestrians.update(dt, controllerManager.getActiveEntity().position, elapsed, isPedVisible,
       [controllerManager.getActiveEntity()]);
-    const { forward, backward, left, right } = controllerManager.keys;
+    const { forward, backward, left, right, brake, boost } = controllerManager.keys;
     const driveInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode,
-      manual: !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right) });
+      manual: !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right || brake || boost) });
     controllerManager.update(dt, elapsed, cameraSystem.initialized ? cameraSystem.currentPos : null, driveInput);
     cameraSystem.update(dt, elapsed);
     qa.applyCamera(cameraSystem.camera);
