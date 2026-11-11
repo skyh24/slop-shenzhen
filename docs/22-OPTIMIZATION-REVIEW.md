@@ -443,3 +443,21 @@ rg -n "StorageInstancedBufferAttribute" js ref/slop-wuhan/js/runtime/main.js
 - 测试：Node 全套 422 → 426 项通过、0 跳过（新增 `tests/sz-tree-crown.test.cjs` 2 项：六树种几何确定性/归一化/预算，图集与共享材质；`tests/sz-trees.test.cjs` 加 2 项：每个树种都有独立近冠网格、近/远迟滞不闪，并把近冠断言扩到叶卡实例属性和按树种统计）。Python 101 项通过。任务书写的 493 项是 S1 删除纽约用例之前的旧基线，本工作树基线实测 422 项。
 - 浏览器：`python3 tools/sz/serve.py --port 8158`；改前用 `git archive HEAD` 导出的干净副本同端口服务，保证同一 origin/缓存；改前改后各截同机位图，存 `docs/qa/dsh-cbb3b304-5782/`（`baseline-*.png`、`after-*.png`，含 `after-ficus-close.png`，目录只留本地）。控制台只有既有消息（TSL `this.bNode.getNodeType` 报错、`Vertex attribute "uv" not found` 警告、浏览器扩展的 `MaxListenersExceededWarning`/`ObjectMultiplex`），本轮没有新增应用报错。
 - 已知限制：六种树的形态参数、叶色和透光强度都是外观估计；棕榈羽叶只有 16 张卡片，近距离看比真实羽状叶简化；远景全树种仍是低模冠；夜间、雨天和真实桌面窗口的帧率未测。
+
+### P10 无人机连续往返与实例化（2026-11-11）
+
+- 分支 `dsh-e2c175e5-44a3`，提交 `14fb405`（连续往返）、`cb916fd`（实例化）；内容已由 `50f6cf0` 落在 `main`，合并复核时两个文件与 `main` 逐字节一致。
+- 往返：新增 `dronePoseAt(route, flight, elapsed)`，按 2 倍航线长度取三角波，端点处同时翻转路径比例、运动方向和朝向；初始 `phase`/`direction` 生效，`turnAtEnds: false` 保留单程停在目标端。停运窗口内仍收在起降点且旋翼不转。
+- 合批：每架无人机从 12 个网格（机身、条纹、4 臂、4 旋翼、2 灯）降到 5 个实例网格——机身（机身+条纹+4 臂按顶点色合并）、旋翼、红/绿航行灯、站点（平台+桩合并）；`statistics.meshes` 改为可绘制对象数（5 + 航线数），新增 `instancedMeshes`、`instances`。
+- 代价：旋翼和航行灯没有并进机身材质，因为旋翼是半透明、航行灯是不受光，混进去会改变画面；实例矩阵每帧改写，`frustumCulled` 关闭（数量很小）。
+- 测试：Node 新增跨两个端点不跳变、两端都到达、返回朝向、停运实例矩阵不变、旋翼持续自转等用例；全套 476 → 489 项通过、0 跳过。本项没有做 draw call 前后测量，只有对象数量对比。
+
+### 车公庙高架车行链路（2026-11-11，对应 REVIEW 第 4 节第 4 步）
+
+- 分支 `dsh-75ff7e49-3276`（rebase 后 `c8c0e73`，合并提交 `6a586c7`）。文件：`sz-elevated-roads.js`、`sz-traffic.js`、`sz-auto-drive.js`、`sz-drive-route.js`、`sz-controller-surfaces.js`、`main.js`、`sz-qa.js`。
+- 计划：每条链路派生 `maxGrade`；只有非隧道、`layer>0`、纵坡 ≤12% 的链路进入 `drive.links`（当前快照 33 条、约 5.74 km 桥面）。`buildSzElevatedRoads` 用与渲染同一批顶面三角面建 `drive.heightAt(x, z, surfaceId)`，并在共享节点处按高差 ≤0.35 m、走向顺滑度生成 `driveSuccessors`。
+- 车流：`createTrafficGraph({ elevated })` 把桥面作为带 `surfaceId` 的双向边接入；`heightFor(x, z, edge)` 有表面身份时只查桥面三角面，否则走地面沥青，桥下车辆不会被吸到桥上。桥面中途不生成车辆，约一半环境车从带高架后继的落地引道出发；路线预算对高架段加长，避免车停在桥面。
+- 规划/自动：`hasRoadFootprint`、`permitMove`、`poseOnRoute` 接受表面身份，并按附近 ±8 m 内的段身份逐点回退；`validateSamples` 对桥面位姿跳过“地面支撑/建筑净空”检查（运行时碰撞仍由控制器执行），窄路面额外限速；`createDrivePlanner` 返回走过的 `surfaces`。
+- 控制器：`climbableFromGround` 只允许在桥头、且高差在 `maxStepUp` 内从地面踏上桥面；多条并行缎带重叠时按 `driveSuccessors` 交接，不再按几何最近吸附。
+- 测试：Node 新增高架链路筛选、纵坡上限、后继顺序、桥下地面保持地面、真实快照 403→6595→11114 链路与渲染桥面高度一致等用例；全套 476 → 489 项通过、0 跳过。Python 104 项通过。
+- 未做：draw call / 帧时前后测量；玩家手动驾驶上桥、自动驾驶路线和环境车流的完整实际走通验收。
