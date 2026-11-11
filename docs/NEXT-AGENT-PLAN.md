@@ -35,7 +35,7 @@
 | 第二批 | G `m9-main-wiring` | 22 号 S3，完成后在同一 worktree 做 P1 实例 storage 缓冲 | `main.js`、新建 `sz-qa.js`、`sz-landmarks/layout.js` | B 已合入；P1 还要等 P0 |
 | 第二批 | H `m5-elevated-driving` | REVIEW 第 4 节第 4 步：高架车辆路线、自动导航和环境车流 | `sz-traffic.js`、`sz-drive-route.js`、`sz-elevated-roads.js`、`sz-auto-drive.js` | 第一批全部合入 |
 | 第二批 | I `m9-render-batching` | 22 号 P2 楼名牌合批、P3 地铁玻璃分块、P7 路灯光晕 | `sz-building-signs.js`、`sz-metro-entrances.js`、`sz-street-lamps.js` | P0；F 改 `sz-metro-entrances.js` 时串行 |
-| 第三批 | — | S4 统一日夜 uniform 加 V2 窗灯（同一个 worktree）；V3 水面（要改 `build.py`）；V4 近景树；乘员上下车闭环；S1b 删除 MVP（要你确认）；M9 完整验收 | — | 第二批 |
+| 第三批 | J `m9-night-uniform`；K `m9-water`；L `m6-crew-transfer` | S4 统一日夜 uniform 加 V2 窗灯（J）；V3 水面（K，要改 `build.py`，遵守 HANDOFF 第 8 节数据包规则）；乘员上下车闭环（L）。已完成的 V4 近景树、S1b 删除 MVP 不再开新分支；M9 完整验收仍在主 checkout 由协调者和用户做 | J：`main.js`、`sz-materials.js` 等；K：`build.py`、海面/河面材质；L：`controllers.js`、`sz-vehicles.js` | 第二批 |
 
 合并规则：
 - 只有协调者往 `main` 合并。
@@ -78,7 +78,7 @@ worktree 里没有这些被忽略的目录，统一从主 checkout 取（下文 
 > - 不改 `docs/HANDOFF.md`、`docs/TASKS.md`；不重建 `js/sz-city.json.gz`；不 push，不合并到 `main`。
 >
 > 测试：
-> - `SZ_THREE_PACKAGE_DIR=<MAIN>/.agents/three-0.187.0 node --test tests/*.test.cjs`，基线是 493 项通过、0 跳过。
+> - `SZ_THREE_PACKAGE_DIR=<MAIN>/.agents/three-0.187.0 node --test tests/*.test.cjs`，基线见 `docs/HANDOFF.md` 第 1 节（2026-11-11：Node 489 项通过、0 跳过）。
 > - `<MAIN>/.venv/bin/python -m unittest discover -s tools/sz/tests`。
 >
 > 浏览器：
