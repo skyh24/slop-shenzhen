@@ -18,7 +18,7 @@ test('rendered Shenzhen Bay water keeps the Hong Kong pylon island and the park 
   const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
   const { buildSzSea } = loadModule(read('sz-sea.js'), { imports: {
     ...imports, './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports }),
-    './sz-materials.js': loadModule(read('sz-materials.js'), { imports })
+    './sz-water-material.js': { createSzWaterMaterial: () => new THREE.MeshStandardNodeMaterial({ roughness: 0.12 }) }
   } });
   const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
   const raw = JSON.parse(gunzipSync(readFileSync(join(root, 'js/sz-city.json.gz'))));

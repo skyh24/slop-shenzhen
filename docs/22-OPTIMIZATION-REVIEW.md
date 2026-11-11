@@ -461,3 +461,57 @@ rg -n "StorageInstancedBufferAttribute" js ref/slop-wuhan/js/runtime/main.js
 - 控制器：`climbableFromGround` 只允许在桥头、且高差在 `maxStepUp` 内从地面踏上桥面；多条并行缎带重叠时按 `driveSuccessors` 交接，不再按几何最近吸附。
 - 测试：Node 新增高架链路筛选、纵坡上限、后继顺序、桥下地面保持地面、真实快照 403→6595→11114 链路与渲染桥面高度一致等用例；全套 476 → 489 项通过、0 跳过。Python 104 项通过。
 - 未做：draw call / 帧时前后测量；玩家手动驾驶上桥、自动驾驶路线和环境车流的完整实际走通验收。
+
+### V3 海面法线波浪与夜间岸线反光（2026-11-11）
+
+- 分支：`dsh-b56ae6f1-c908`（worktree 独立分支，基线 `36a2a45`）。范围是 V3 的前半部分：只做海面，不改数据；没有重建 `js/sz-city.json.gz` / `js/sz-city.szc.gz`，没有改 `js/sz-materials.js`（避免和 V2/S4 的同文件冲突），`ref/` 只读。
+- 新增 `js/sz-water-material.js`（370 行，只新建这一个运行时代码文件）：
+  - `getWaterWaveTexture()`：进程内缓存 256×256 RGBA HalfFloat `DataTexture`，固定种子 mulberry32 `0x2f6b9d1` + 复高斯谱 + 逆 FFT + 9 级手工 mip（256→1），RepeatWrapping / LinearMipmapLinear / anisotropy 8。RGBA 分别是每块单位 RMS 的坡度 dh/du、dh/dv、坡度平方和高度，mip 在 float 里手工求均值，采样返回像素足迹内的平均坡度与平均坡度平方，两者之差就是解析不了的细浪坡度方差（LEAN mapping）。
+  - `createSzWaterMaterial({ coastal })`：按变体缓存。4 层不同尺度/旋转/漂移的波浪贴图（61 / 23.3 / 8.7 / 3.3 m）加风斑噪声驱动能量 → `normalNode`；`roughnessNode = clamp(variance^0.25 + pond·0.05, 0.08, 0.65)`；`metalnessNode` 用水的菲涅尔（F0≈0.02）承载 SSR 反射；白天体色是珠江口绿灰（海面深水 `0x1f312b`、含沙浅滩 `0x49563f`、浪峰透光 `0x71835a`，内河更暗更绿 `0x15241a`/`0x33432a`），不是纽约的深蓝绿；夜间解析岸线反光：反射射线朝城市一侧（深圳湾城市在北，世界 z 向南为正，所以 −R.z > 0）时，在 1.6 km 外、140 m 高的楼群带里画 3.6 m 开间 × 3.3 m 层高亮窗、底层店铺光和 30 m 间距的岸线灯，用未解析坡度方差做盒滤波拉成竖条，最后乘菲涅尔和 `cityUniforms.uInteriorGlow` 的夜间权重；白天用 `If` 门控直接跳过。只读 `cityUniforms`，不写；不 import `sz-materials.js`。
+  - 与参考的偏差：没有搬纽约的曼哈顿解析天际线（那需要 ISLAND_BOUNDS/岸线/跨河地块数据），深圳湾是开阔湾面，改用武汉的固定距离城市带骨架，再按深圳湾尺度调距离、高度、地块宽度；岸线灯带不跟随真实湾岸线、后海湾凹口和香港方向，是外观近似。
+- 接线：`js/sz-sea.js` 改用 `createSzWaterMaterial({ coastal: true })`，几何、`heightM`、`userData.source`、dispose 都没改；`index.html` 在 `sz-sea.js` 后补一条 `modulepreload`（boot 测试要求模块图里的相对 import 全部预载）。`sz-materials.js` 的旧 `createWaterMaterial` 按范围保留未删，目前没有调用者。
+- 测试：新增 `tests/sz-water-material.test.cjs` 4 项（入口接线与预载、贴图尺寸/类型/9 级 mip/跨加载确定性、两种变体的五条节点通道与缓存、TSL import 完整性静态守卫）；`tests/sz-ground.test.cjs` 的 `sz-sea.js` 桩补 `./sz-water-material.js`。全量 `python3 tools/qa/check.py --scope full`：Node 484 项通过、0 跳过（本轮基线 480 + 新增 4），Python 110 项通过。过程中有一次全量 Node 在浏览器并发负载下出现 1 项失败（`tests/sz-building-details.test.cjs` 的 "streams 200 m detail chunks in and out around the player"，期望更新顺序 `[2,1]` 实得 `[1,2]`），单独重跑和随后全量都通过，判定为既有时间敏感用例的偶发抖动，不是本轮引入。
+  - 静态守卫的由来：首版 `hash2D` 用了 `sin` 但顶部 `three/tsl` import 漏了它。Node 侧只建节点、不执行 Fn 体，所以 Node 测试全绿；浏览器真正构建着色器时才抛 `ReferenceError: sin is not defined`，海面变纯黑。修复后补了“文件里调用的 TSL helper 必须在顶部 import”的守卫（用 three/tsl 导出清单比对），并验证过把 `sin` 去掉后守卫会失败。
+- 浏览器（`python3 tools/sz/serve.py --port 8095`；改前用 `git archive HEAD` 的干净导出跑 8096；同一 ego-browser 会话、1600×900、DPR 1、HUD 隐藏、`?qa=1&cam=` 固定机位、四时段。中途自动化 Chrome 的 GPU 编译态异常（单页 60 s 只推进 13–75/873 个着色器 job，改前基线同样慢），按已知环境问题处理：重启 ego Chrome、保留 profile 的 shader 缓存后恢复正常，单次 load 回到约 6–7 s；前后截图与 compile 都用恢复后的同口径，失败那次不计入结果）：
+  - 机位：深圳湾公园水岸 `?qa=1&cam=-7462,9.6,2681,-8900,4,4600`；深圳湾大桥远景 `?qa=1&cam=-10804.1,35.85,4963.3,-10530,30,7270`。
+  - 改前：海面是平坦灰绿面，只有旧材质两组正弦波留下的粗平行条带，没有太阳耀斑、没有岸线倒影，midnight 水面全黑。
+  - 改后：细碎连续波浪、掠射角有太阳耀斑、水体呈绿灰—橄榄色；twilight/midnight 保留细波纹；夜间朝后海天际线方向出现拉长的岸线灯光反射。8 对同机位对比图和 4 张夜间证据图在 `docs/qa/dsh-b56ae6f1-c908/`（只留本地，不进 Git）。
+  - 像素差（1600×900，before vs after）：白天两机位 RMSE 0.14–0.22、变化像素 45–49%（基本就是海面整体换材质）；twilight 0.035–0.050；midnight 0.011–0.013。夜间证据机位 midnight RMSE 0.115、变化像素 27.2%，倒影带来了实质变化。
+  - 性能：海面网格 2,385 三角形、`heightM=0`、`verticalDatum=EGM2008` 改前改后相同；after 8 张的 drawCalls mean 128–173、三角形 mean 0.78–1.30 M，都在 [10 号](10-PERF-QA.md) 的 1500 draw call / 600 万三角形预算内。自动化浏览器这次在新 Chrome 窗口里被锁在约 30 Hz（after 记录的 fps ≈28），按 [25 号](25-FAST-CHECKS.md) 和 10 号规则不把自动化浏览器的帧率当性能结论；本轮只用 draw calls/三角形和 compile 说明开销没有明显变化。
+  - 控制台：after 两轮共 12–13 次加载只剩既有 `THREE.TSL: TypeError: this.bNode.getNodeType is not a function`，没有新的 TSL/WGSL/boot 错误；修复前的 `sin is not defined` 已消失。
+  - compile（`__szQA().startupMs.compile`，机位 1、midday、3 次全新整页加载）：改前 1045 / 1072 / 1232 ms，中位 1072 ms；改后 1048 / 884 / 1049 ms，中位 1048 ms（−24 ms，−2.2%，仍在改前波动范围内）。`[init]` 全阶段合计中位 5727 → 5444 ms；导航到 ready 约 6.0–6.3 s（波动区间见两份 JSON，未挑值）。
+- 碰撞和海岸线：本轮只改材质和入口，`js/sz-sea.js` 的几何、`geo.land`/`geo.water`、`js/sz-spatial.js`、地形挖洞规则都没有改；`tests/sz-ground.test.cjs` 仍断言深圳湾大桥北塔处水面 y=0、香港侧无海面、公园保持干燥，改前改后都通过；海面三角形数和 verticalDatum 同上。没有做玩家人工走查水面碰撞（这次不涉及碰撞面；需要时另按 10 号路线走）。
+- 已知限制：
+  - 夜间反光是固定解析带，不跟随真实深圳湾岸线走向、后海湾凹口和香港方向的灯光；整体强度是按开阔湾面压过的近似，不是实测。
+  - 低仰角看海面时菲涅尔反射占主导，画面偏天空的蓝绿；绿灰体色在中高视角和大桥远景更明显。若要求任何角度都更“绿灰”，需要再压 metalness 或按视角混体色，属后续调色。
+  - 内河/水库的 `coastal=false` 变体已实现（更暗更绿、波纹更细、夜间四面 360 m 楼群带）但本轮没有接线，按任务范围留给内河数据任务。
+  - 波浪幅度、颜色和夜间楼群参数都是外观估计，不是实测；twilight 水面偏暗橄榄，见截图。
+- 截图和原始记录：`docs/qa/dsh-b56ae6f1-c908/`（只留本地）：`before-*`/`after-*` 8 对、`night-city-*` 4 张、`compile-before.json`、`compile-after.json`、`compare-after.json`、`after-observations.json`。
+
+#### V3 附带调查：内河/水库在画面里确实不可见（只报告，不修；给 3-3 批 I）
+
+结论（代码 + OSM + 浏览器截图三证）：
+
+1. **数据里有面，但只有面**：`geo.water` 622 个多边形、780 个环（158 个洞）、13,695 个顶点、净面积 7.671 km²。`tools/sz/land.py:48` 已经拿到 `id`/`name`，但 `tools/sz/build.py:177` 写包时只写 `enc_poly(w['poly'])`，id/name/tags 全部丢掉；payload 里的 water 只有 delta 分米编码的纯几何。
+2. **生成器把水挖成洞，没有生成水面**：`tools/sz/terrain_surface.py:40` 把 water 从陆地可生成地表里完全减掉，生成器自己标了 `waterSurface: not-generated`、`waterLevelsGenerated: false`；`tools/sz/sea_surface.py:71` 只取海侧再减陆地，内河/湖在水体内部不会进 seaSurface。
+3. **运行时只把 geo.water 当空间索引**：`js/sz-spatial.js:39/44/76` 建 water 索引、算 isOnLand/isWater/groundHeight；2D 地图会画水（`js/sz-map-layers.js:245`、`js/sz-map.js:491-493`），3D 侧只有 `js/main.js:169-170` 的 ground + sea，没有 water 网格。
+4. **画面里看到的是“洞透天穹”**：洞内没有地面、海面或残留路面（道路也由同一份 terrainSurface 裁出），`scene.background=null` + 360° SkyMesh（`js/lighting.js:138-146`）让视线打到天空/雾，所以河道和湖盆呈现浅灰白色空腔。用共享包实测：622/622 个 water 多边形面内代表点的地面采样都是 `null`；5 个 QA 点均不在 seaSurface 内。浏览器 midday 截图：大沙河下游/上游、新洲河中游/下游、香蜜湖的河/湖位置都是浅灰白空带或空盆，洞口是硬切边；海面同机位对照图正常。截图见 `docs/qa/dsh-b56ae6f1-c908/inland-*.png`。
+5. **身份匹配**（pyosmium 只读 PBF + 质心/包围盒匹配）：
+
+   | 目标 | geo.water index | OSM | 类型 / payload 面积 |
+   | --- | --- | --- | --- |
+   | 大沙河下游 | 2 | way/25603390（沙河河畔） | natural=water，181,420 m² |
+   | 大沙河上游 | 0 | way/9764162 | natural=water，60,624 m² |
+   | 新洲河 | 342–347 | way/2207998xx | water=river，合计 50,612 m² |
+   | 香蜜湖 | 1 | way/25482483 | water=lake，221,148 m² |
+   | 西丽水库 | 包内不存在 | rel/3290940（西丽湖） | 南岸在 phase1 北界外约 602 m |
+
+   额外缺口：新洲河中心线在范围内 5,919 m，只有 43.9%（2,598 m）有水面多边形，缺 3.3 km；大沙河 100% 有面。
+
+6. **3-3 批 I 的补齐清单**（完整版和证据行号见本地 `docs/qa/dsh-b56ae6f1-c908/inland-water-gap.md`；数据增量估计 +10~20 KB gzip）：
+   - 共享包 data 层，**必须**：`water.version`；`water.source{osmSnapshotId, verticalDatum, heightMethod, heightSource}`；每条 `entries[].rings`（沿用 enc_poly）、`kind`、`levelM`、`minDisplayAreaM2`、`osmId`、`tags{natural/water/waterway/landuse}`、`heightSource/heightMethod`。`levelM` 不能写死 0：用 DEM 在面内采样中值（现有 DEM 实测大沙河约 1.6 m、新洲河 5.6–7.1 m、香蜜湖 12.5 m），标注为估计值。
+   - **可选**：`lodSimplifyM`、`lodDistanceM`、`areaM2`、`centroid`、`name`、`sourceUrl`、`flowDeg`、`flowSpeedMps`（视觉估计）、`maxWaveAmplitudeM`、`navigable`；岸壁裙边不写字段，运行时用 terrainSurface 采样环顶点反算。
+   - 管线：`land.py:42-49` 透传 tags 子集，`build.py:177` 改为写条目对象（或平行数组 + enums，参考 buildings 的 name 索引），新增 kind 映射与水位计算。几何 rings 现有即可，不需要新采数据；外部数据仍只用现有 OSM PBF + Copernicus DEM。
+   - 运行时：新增 `js/sz-water.js`，用本轮的 `sz-water-material.js` 非 coastal 变体、按 `levelM` 平铺、1–2 km 分块合并、用 terrainSurface sampler 在环顶点取岸高做 1–2 m 裙边；`main.js:169-170` 之后挂 `buildSzWater(scene, GEO.water)`；`js/sz-data-format.js` 新增 `validateWater`（参考 `validateSeaSurface`）。`sz-spatial.js` 的 isWater/groundHeight 语义保持不变，水面高度只用于渲染/相机。
+   - 验收：terrainSurface 继续挖洞（现有 `tests/sz-ground.test.cjs` 的 narrow water cut 断言保留）；5 组机位（大沙河上/下游、新洲河中/下游、香蜜湖）日夜截图；海/河共用同一材质实现；重建两个共享包时必须遵守 [HANDOFF](HANDOFF.md) 第 8 节的单分支规则。
+   - 不在本任务：西丽水库要画需北扩 phase1 或明确“本期不含”；新洲河 3.3 km 无面缺口需要先定宽度来源并标估计，另立数据任务。
