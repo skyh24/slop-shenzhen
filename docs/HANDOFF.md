@@ -53,8 +53,8 @@
 
 ```sh
 python3 tools/sz/serve.py --port 8080
-SZ_THREE_PACKAGE_DIR=$PWD/.agents/three-0.187.0 node --test tests/*.test.cjs
-.venv/bin/python -m unittest discover -s tools/sz/tests
+python3 tools/qa/check.py --scope controls           # 日常选择受影响范围
+python3 tools/qa/check.py --scope full               # 大版本或共享核心改动
 .venv/bin/python tools/sz/build.py                    # 生成共享包和报告
 ```
 
@@ -81,3 +81,9 @@ SZ_THREE_PACKAGE_DIR=$PWD/.agents/three-0.187.0 node --test tests/*.test.cjs
 - 后合并的分支必须 rebase 到最新 `main`，用 `tools/sz/build.py` 重建两个包；**不能手工解决二进制冲突**，也不要 `git checkout --ours/--theirs` 挑一份产物。
 - 重建后把 `js/sz-city.json.gz` 的字节数与 SHA-256 更新到本文件第 1 节，并确认 `data/source/sources.json` 的核心哈希校验仍通过。
 - 两个包必须来自同一次构建、同一份 `data/raw/`；只更新其中一个视为未完成。
+
+## 9. 日常测试与审查调整（2026-11-11）
+
+用户要求功能开发后快速测试、审查并提交，大版本统一全量验收。本轮将日常检查与里程碑验收拆开，集中到 `docs/25-FAST-CHECKS.md`；同步规范和 agent 入口，移除重复全量/固定双代理的日常要求，保留数据、接触、坏包及集成风险回归。新增按模块的测试入口，替换开发服务器只匹配源码字符串的低价值测试。规则变更不降低正式版九条要求，也不把局部通过当作里程碑通过。
+
+本轮完成：新增 `tools/qa/check.py`，按模块选择并合并去重，保存源摘要/版本/结果，拒绝空跑、跳过和测试期间源码变化；移除 7 个重复 Python 包装和 2 个开发服务器源码正则用例，新增 1 个 HTTP 行为测试及 5 个运行器回归。完整复核 **Node 480 项、Python 110 项（其中管线 105、工具 5）全部通过，0 跳过**；Node 7.03 秒，Python 1.062 秒，并行执行。日常工具范围 6 项约 0.17 秒。本次只改流程/测试工具，浏览器不适用；没有更改游戏运行时或数据包。详细规则和经验只维护 25 号文档。

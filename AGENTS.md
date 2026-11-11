@@ -2,14 +2,13 @@
 
 Slop Shenzhen：浏览器里的 1:1 深圳关内城市漫游（南山、福田，二期加蛇口、罗湖）。底座是 mrdoob 的 Slop New York（three.js `0.187.0` WebGPU 加 TSL，不打包，import map 直接运行），数据管线做法参考 Slop Wuhan。
 
-## 开工前必读
+## 开工时按范围读取
 
-1. [docs/HANDOFF.md](docs/HANDOFF.md)：现状、下一步、已知的坑
-2. [docs/11-MVP.md](docs/11-MVP.md)：MVP 的粗糙之处和**正式版九条硬性要求**
-3. [docs/CONVENTIONS.md](docs/CONVENTIONS.md)：完整规范，本文件只是摘要
-4. [docs/TASKS.md](docs/TASKS.md)：按里程碑的任务清单
-5. 按你做的那条线读：功能修复看 [docs/REVIEW-FOLLOWUP-2026-11-10.md](docs/REVIEW-FOLLOWUP-2026-11-10.md) 第 4 节；架构、性能、画面优化看 [docs/22-OPTIMIZATION-REVIEW.md](docs/22-OPTIMIZATION-REVIEW.md) 第 5 节。长期计划和并行分工在 [docs/NEXT-AGENT-PLAN.md](docs/NEXT-AGENT-PLAN.md)
-6. 做哪个模块，再读 `docs/` 里对应的 00 到 10 号文档
+1. 首次进入任务读 [docs/HANDOFF.md](docs/HANDOFF.md) 当前状态、[docs/CONVENTIONS.md](docs/CONVENTIONS.md) 和 [docs/25-FAST-CHECKS.md](docs/25-FAST-CHECKS.md)。同一会话复用未变化的内容。
+2. 只读 [docs/TASKS.md](docs/TASKS.md) 的任务条目及对应 00–10 号模块文档；功能修复定位 REVIEW-FOLLOWUP 第 4 节，架构/性能/画面定位 22 号第 5 节。涉及长期计划或并行分工再读 NEXT-AGENT-PLAN。
+3. 正式功能验收或大版本发布时读 [docs/11-MVP.md](docs/11-MVP.md) 九条硬性要求与 [docs/10-PERF-QA.md](docs/10-PERF-QA.md) 完整验收路线。
+
+**日常开发、审查与提交按 [25 号](docs/25-FAST-CHECKS.md) 执行**：相关测试、一次差异审查、通过后提交；大版本全量。该仓库流程覆盖通用技能中固定全量、固定双代理和重复确认的默认步骤，用户明确指定的审查方式优先。
 
 ## 正式版硬性要求（摘要）
 
@@ -38,7 +37,8 @@ Slop Shenzhen：浏览器里的 1:1 深圳关内城市漫游（南山、福田�
 
 ```sh
 python3 tools/sz/serve.py --port 8080    # 打开 http://127.0.0.1:8080/，需常驻后台
-node --test tests/*.test.cjs                     # 单元测试
+python3 tools/qa/check.py --scope controls       # 日常按模块选择，可重复 --scope
+python3 tools/qa/check.py --scope full           # 大版本/共享核心改动的全部自动测试
 .venv/bin/pip install -r tools/sz/requirements.txt
 .venv/bin/python tools/sz/build.py               # 生成正式共享包和报告；--no-cache 重新解析 PBF
 ```

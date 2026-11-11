@@ -1,6 +1,5 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { execFileSync } = require('node:child_process');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -16,12 +15,6 @@ const outer = [{x:-20,z:-20},{x:20,z:-20},{x:20,z:20},{x:-20,z:20}];
 const hole = [{x:-5,z:-5},{x:5,z:-5},{x:5,z:5},{x:-5,z:5}];
 const building = { id:'way/123', cx:0, cz:0, minX:-20,maxX:20,minZ:-20,maxZ:20,
   height:100,minHeight:40,heightSource:'osm-height',polygons:[{outer,holes:[hole]}] };
-
-test('building pipeline excludes underground boundaries without suppressing surface structures', () => {
-  const root = join(__dirname, '..');
-  execFileSync(join(root, '.venv/bin/python'), ['-m', 'unittest', 'discover', '-s', 'tools/sz/tests', '-p', 'test_buildings.py'],
-    { cwd: root, stdio: 'pipe' });
-});
 
 test('building walls and colliders share source part heights and retain open courtyards', () => {
   const placement = buildingPlacement(building, grid);

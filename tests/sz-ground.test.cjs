@@ -10,14 +10,6 @@ const root = join(__dirname, '..');
 const source = readFileSync(join(root, 'js/sz-ground-surface.js'), 'utf8').replace("import * as THREE from 'three/webgpu';", 'const THREE = {};');
 const modulePromise = import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
-test('terrain surface geometry preserves coastline holes, original planes and chunk seams', () => {
-  execFileSync(join(root, '.venv/bin/python'), ['-m', 'unittest', 'discover', '-s', 'tools/sz/tests', '-p', 'test_terrain_surface.py'], { cwd: root, stdio: 'pipe' });
-});
-
-test('seaward polygons preserve island and wetland holes and require the ocean editing datum', () => {
-  execFileSync(join(root, '.venv/bin/python'), ['-m', 'unittest', 'discover', '-s', 'tools/sz/tests', '-p', 'test_sea_surface.py'], { cwd: root, stdio: 'pipe' });
-});
-
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 test('rendered Shenzhen Bay water keeps the Hong Kong pylon island and the park dry', { skip: !threeDir }, async () => {
   const read = name => readFileSync(join(root, 'js', name), 'utf8');

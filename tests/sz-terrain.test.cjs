@@ -1,7 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
-const { execFileSync } = require('node:child_process');
 const { join } = require('node:path');
 const root = join(__dirname, '..');
 const modulePromise = import(`data:text/javascript;base64,${readFileSync(join(root, 'js/sz-terrain.js')).toString('base64')}`);
@@ -19,8 +18,4 @@ test('terrain contact matches both rendered triangle planes and boundary vertice
   assert.equal(terrainHeight(grid, -12.5, 62.5), 15, 'diagonal is planar rather than bilinear');
   assert.equal(terrainHeight(grid, -26, 50), null);
   assert.equal(terrainHeight(null, 0, 0), null);
-});
-
-test('HGT pipeline preserves source elevations and validates provenance', () => {
-  execFileSync(join(root, '.venv/bin/python'), ['-m', 'unittest', 'discover', '-s', 'tools/sz/tests', '-p', 'test_terrain.py'], { cwd: root, stdio: 'pipe' });
 });

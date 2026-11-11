@@ -2,9 +2,13 @@
 
 | 文件 | 用途 |
 | --- | --- |
+| `check.py` | 日常按模块选择回归，大版本 `--scope full`；自动配置 Three、并行 Node/Python，拒绝跳过并保存本地结果。流程与经验统一见 [25 号](../../docs/25-FAST-CHECKS.md)。 |
 | `perf-sample.mjs` | M9 帧率/绘制采样：固定 2560×1440、可选 scenic 机位，输出 rAF 帧间隔 P50/P95/max、drawCalls、三角数。必须在**可见、聚焦**的浏览器窗口跑（后台窗口会被限到 30 Hz）。 |
 
 ```sh
+python3 tools/qa/check.py --scope controls --list
+python3 tools/qa/check.py --scope controls
+python3 tools/qa/check.py --scope full
 ego-browser nodejs < tools/qa/perf-sample.mjs
 # 例：60 s、指定机位
 SZ_PERF_SECONDS=60 SZ_PERF_CAMERA=cam-superHq ego-browser nodejs < tools/qa/perf-sample.mjs
