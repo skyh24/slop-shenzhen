@@ -87,7 +87,7 @@ z = −(lat − lat0) · KY
 ### 4. 建筑合并与楼高
 
 1. 读 OSM 建筑（保留 `height`、`building:levels`、`building`、`name`）。Overture/GloBFP 补充楼只保留可信足迹，OSM 标注楼永远保留。过滤分两轮，丢弃项全部写进构建报告：
-   - 误识别过滤（`filter_misidentified_footprints`，报告段 `globfpMisidentified` / `overtureMisidentified`）：面积 <300 m²、和 OSM 楼没有相交，并且落在 OSM 广场和绿地里的比例 ≥60%，或落在车行道（半宽加 1 m）里的比例 ≥80% 的，丢弃。规则原写在已删除的 15 号评审第 3.2 节。
+   - 误识别过滤（`filter_misidentified_footprints`，报告段 `globfpMisidentified` / `overtureMisidentified`）：面积 <300 m²、和 OSM 楼没有相交，并且落在 OSM 广场和绿地里的比例 ≥60%，或落在车行道（半宽加 1 m）里的比例 ≥80% 的，丢弃。80% 这一档会放过中心线已经穿过、重叠约 58.5%（加缓冲约 74.6%）的楼。福中三路那栋约 94 m²、估高 7.3 m 的白楼就是这样留下的。中心线穿越要补进门槛，见 [23 号](23-BUILDING-AND-STREET-PLAN.md)。
    - 足迹可信度过滤（`buildingFootprintFilter`）：水面/湿地重叠 >20%、绿地 >60% 且 60m 内无 OSM 楼、面积 <60m² 且 50m 内无 OSM 楼的，丢弃。
    - `--footprint-source osm` 可只保留地图标注楼。
 2. 读 Overture，和 OSM 轮廓重叠超过 25% 的丢掉
@@ -97,7 +97,7 @@ z = −(lat − lat0) · KY
    3. OSM `building:levels × 3.2 m`
    4. Overture `height`
    5. Overture `num_floors × 3.2 m`
-   6. 3D-GloBFP：交并比至少 0.6、面积比至少 0.65、中心距不超过 12 米，且没有相近的第二候选
+   6. 3D-GloBFP：交并比至少 0.6、面积比至少 0.65、中心距不超过 12 米，且没有相近的第二候选。现行代码在这条失败后还有未列入本清单的后备：小轮廓被相交 GloBFP 盖住一半以上就按重叠面积加权继承高度，标 `globfp-overlap`（`buildings.py` 第 643 行）。福中三路样本里，约 4.6×7.5 m 的底面因此得到 118.5 m。这条后备要删掉，目标规则见 [23 号](23-BUILDING-AND-STREET-PLAN.md)
    7. 按用途和占地估算，标 `estimate`
    8. `data/source/building-height-overrides.json` 里逐个公开资料核实的值（最后应用，标 `published`；必须带来源链接，构建报告记录原值和未使用项）
 4. 每栋楼记录 `heightSource`、`category`、`facade`

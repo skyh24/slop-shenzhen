@@ -19,6 +19,8 @@
 
 纽约的 `road-network.js` 和 `road-paint.js` 不在正式入口里，计划从 `js/` 删除，见 [22-OPTIMIZATION-REVIEW.md](22-OPTIMIZATION-REVIEW.md)。路面材质的改进方向也写在那份文档的 V1。
 
+城区平坦基准、商圈铺装、深南中央绿带和标线标准见 [23 号](23-BUILDING-AND-STREET-PLAN.md)。在那之前，派生路面仍按下一条估计规则生成。
+
 派生路面规则（`tools/sz/road_surface.py`，原写在已删除的 15 号评审第 3.1 节，是公开、可复现的估计，不是实测）：
 
 - 基线取 `min(FABDEM 中值滤波, 原 DSM)`，只降不升，逐顶点上限为原 DSM +0.5 m。
