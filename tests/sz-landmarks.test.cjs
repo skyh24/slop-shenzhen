@@ -156,6 +156,104 @@ test('DJI bridge alignment, tapered deck and open span agree with the source and
     || part.minY > deck[10].top[1] - 8));
 });
 
+test('DJI reads as two towers: dark core spine, vertical fins, facade V braces and bridge edge beams', () => {
+  const actual = byLandmark.get('dji-sky-city');
+  // 核心筒和连接件不再用浅灰 djiCore 立面（那会让地标读成几栋白塔），核心筒高度仍是源值。
+  assert.equal(actual.some(part => part.style === 'djiCore'), false);
+  const spineIds = ['way/1110477862', 'way/1110477866',
+    ...dji.sourceIds.filter(id => /way\/11515963(27|28|29|30)/.test(id))];
+  const spine = actual.filter(part => spineIds.includes(part.sourceId) && part.style === 'djiGuard');
+  assert.ok(spine.length >= 6);
+  const fins = actual.filter(part => part.id.includes(':fin:'));
+  assert.ok(fins.length >= 48 && fins.every(part => part.style === 'djiBrace' && part.heightSource === 'estimate'));
+  // V 撑贴在悬浮块立面上：两根斜杆 + 一根顶横杆。
+  const braces = actual.filter(part => part.id.includes(':v-brace:'));
+  const crossbars = actual.filter(part => part.id.includes(':crossbar:'));
+  assert.ok(braces.length >= 36 && braces.length % 2 === 0);
+  assert.equal(crossbars.length, braces.length / 2);
+  const middles = actual.filter(part => part.id.includes(':v-brace-mid:'));
+  assert.equal(middles.length, crossbars.length);
+  assert.ok(middles.every(part => part.style === 'djiSteel' && part.heightSource === 'estimate'));
+  assert.ok([...braces, ...crossbars, ...middles].every(part => part.heightSource === 'estimate'));
+  // 连桥按图 3 补的边梁、按图 4 补的桁架/护栏带，逐段与桥面同数。
+  assert.equal(actual.filter(part => part.id.includes(':bridge-edge-beam:')).length, 44);
+  assert.equal(actual.filter(part => part.id.includes(':bridge-guard:')).length, 44);
+});
+
+test('DJI takeover retires exactly the 13 sourced objects and keeps every neighbour and data artifact', () => {
+  const actual = byLandmark.get('dji-sky-city');
+  assert.ok(actual.length > 0);
+  // 只退 13 个源对象，邻楼（含围栏外 OSM 楼）和围栏内非 OSM 低矮足迹都不动。
+  for (const id of dji.sourceIds) assert.ok(plan.skipIds.has(id), id);
+  for (const id of ['way/1081126155', 'way/1152627769', 'way/1081126156', 'way/1081126166', 'way/1081126161']) {
+    assert.equal(plan.skipIds.has(id), false, id);
+  }
+  for (const id of ['globfp/47955', 'globfp/48108', 'globfp/48101', 'overture/9930e54f-66cc-406b-ac59-80266429e177']) {
+    assert.equal(plan.skipIds.has(id), false, id);
+  }
+  const bridge = actual.filter(part => part.sourceId === 'way/1110959408');
+  assert.ok(bridge.length > 0);
+  // 桥面两端落在源连接件足迹内，且标高在该连接件的源高度区间里（89.75 m 结构长度两端埋进塔体）。
+  const deck = actual.filter(part => part.style === 'djiDeck');
+  const ends = [[midpoint(deck[0].polygon.outer[0], deck[0].polygon.outer[3]), 'way/1151596329', deck[0].top[0]],
+    [midpoint(deck.at(-1).polygon.outer[1], deck.at(-1).polygon.outer[2]), 'way/1151596328', deck.at(-1).top[0]]];
+  for (const [point, id, y] of ends) {
+    const connector = byId.get(id);
+    assert.ok(collision.polygonContains(connector.polygons[0], point.x, point.z));
+    const connectorBase = layout.buildingPlacement(connector, geo.terrain).baseY;
+    assert.ok(y >= connectorBase + connector.minHeight && y <= connectorBase + connector.height);
+  }
+});
+
+// 碰撞射线：显示和碰撞出自同一批 parts，用同一组接触面检查墙、柱、连桥底/桥面。
+function contactPolygon(part, bottom, top) {
+  if (bottom >= part.maxY || top <= part.minY) return null;
+  const collider = parts.partCollider(part);
+  if (collider.loft) return collision.loftContactPolygon(collider.loft, bottom, top);
+  if (collider.verticalSpan) return collision.spanContactPolygon(collider.polygon, collider.verticalSpan, bottom, top);
+  if (collider.roofPanel) return collision.roofPanelContactPolygon(collider.roofPanel, bottom, top);
+  return collider.polygon;
+}
+const horizontalHit = (rows, origin, dir, bottom, top, maxDistance = 200) => {
+  const polygons = rows.map(part => ({ part, polygon: contactPolygon(part, bottom, top) })).filter(row => row.polygon);
+  for (let distance = 0; distance <= maxDistance; distance += 0.02) {
+    const x = origin.x + dir.x * distance, z = origin.z + dir.z * distance;
+    const row = polygons.find(({ polygon }) => collision.polygonContains(polygon, x, z));
+    if (row) return { distance, part: row.part };
+  }
+  return null;
+};
+const verticalHit = (rows, x, z, from, to) => {
+  const polygons = rows.map(part => ({ part, polygon: contactPolygon(part, from - 1, to + 1) })).filter(row => row.polygon);
+  for (let y = from; y <= to; y += 0.02) {
+    const row = polygons.find(({ part, polygon }) => y >= part.minY && y <= part.maxY
+      && collision.polygonContains(polygon, x, z));
+    if (row) return { y, part: row.part };
+  }
+  return null;
+};
+
+test('landmark collision rays hit the displayed walls, columns and bridge under/over sides', () => {
+  const pingAnParts = byLandmark.get('ping-an');
+  const djiParts = byLandmark.get('dji-sky-city');
+  const tower = byId.get(pingAn.sourceIds[0]);
+  const base = terrain.terrainHeight(geo.terrain, tower.cx, tower.cz);
+  const wall = horizontalHit(pingAnParts, { x: -520, z: tower.cz }, { x: 1, z: 0 }, base + 100, base + 101);
+  assert.ok(wall && /:shaft:\d+$/.test(wall.part.id) && Math.abs(wall.distance - (520 + tower.minX)) < 1);
+  const column = horizontalHit(pingAnParts, { x: -380, z: 1037.05 }, { x: -1, z: 0 }, base + 100, base + 101);
+  assert.ok(column && column.part.id.includes(':mega-column:'));
+  // 零售连桥底：竖直射线先命中连桥，而不是塔身或裙房。
+  const retail = verticalHit(pingAnParts, -406.8, 1211.3, 0, 80);
+  assert.ok(retail && retail.part.sourceId === 'way/773719241');
+  // 大疆连桥底净空与桥面实体。
+  const under = horizontalHit(djiParts, { x: -11992.15, z: -3760 }, { x: 0, z: -1 }, 132, 132.1, 60);
+  assert.equal(under, null);
+  const deck = verticalHit(djiParts, -11992.15, -3779.5, 100, 170);
+  assert.ok(deck && deck.part.sourceId === 'way/1110959408' && Math.abs(deck.part.minY - deck.y) < 0.5);
+  const through = horizontalHit(djiParts, { x: -11992.15, z: -3760 }, { x: 0, z: -1 }, 137.45, 137.55, 60);
+  assert.ok(through && through.part.sourceId === 'way/1110959408');
+});
+
 test('sloped contact clips the prism to its visible section at the player height', () => {
   const source = byId.get('way/1110959408');
   const part = parts.spanPart('sloped-test', source, { x: 0, y: 10, z: 0 }, { x: 10, y: 20, z: 0 }, 3, 3, 1, 'djiDeck');
@@ -203,12 +301,73 @@ test('Ping An retains the mapped tower axis, double corner columns and open diam
   assert.equal(crown.baseSourceId, tower.id);
   const shaft = actual.filter(row => row.id.includes(':shaft:'));
   const width = row => row.maxX - row.minX;
-  assert.ok(shaft.every((row, i) => i === 0 || width(shaft[i - 1]) > width(row)));
+  // 0–120 m 保持满宽，所以各段外包宽只能非递增。
+  assert.ok(shaft.every((row, i) => i === 0 || width(shaft[i - 1]) >= width(row)));
   assert.ok(Math.abs(shaft[0].maxX - tower.maxX) < 0.5);
+  assert.ok(width(shaft[0]) > 76);
   assert.equal(actual.filter(row => /:mega-column:\d:1$/.test(row.id)).length, 8);
   assert.equal(actual.filter(row => row.id.includes(':crown-leg:')).length, 4);
+  assert.equal(actual.filter(row => row.id.includes(':crown-skirt:')).length, 8);
   assert.ok(actual.every(row => !occupies(row, tip.cx, tip.cz, base + 581, base + 586)));
   assert.ok(occupies(crown, tip.cx, tip.cz, base + 591, base + 592));
+});
+
+test('Ping An profile keeps the base full width to 120 m and folds the crown from the 579 m ring', () => {
+  const actual = byLandmark.get('ping-an');
+  const tower = byId.get(pingAn.sourceIds[0]);
+  const base = terrain.terrainHeight(geo.terrain, tower.cx, tower.cz);
+  const ringWidth = ring => Math.max(...ring.map(p => p.x)) - Math.min(...ring.map(p => p.x));
+  const shaft = actual.filter(row => row.id.includes(':shaft:'));
+  const segmentAt = y => shaft.find(part => Math.abs(part.minY - Math.fround(base + y)) < 1e-6);
+  // 收分折线：0–120 满宽；120→407 62.7；407→467 52.8；467→543.6 47.79；543.6→555.6 47.0；555.6→579 44.35。
+  assert.ok(Math.abs(ringWidth(segmentAt(22).loft.lower) - 76.5) < 0.01);
+  assert.ok(Math.abs(ringWidth(segmentAt(120).loft.upper) - 62.7) < 0.01);
+  assert.ok(Math.abs(ringWidth(segmentAt(467).loft.upper) - 47.79) < 0.01);
+  assert.ok(Math.abs(ringWidth(segmentAt(543.6).loft.upper) - 47) < 0.01);
+  assert.ok(Math.abs(ringWidth(segmentAt(555.6).loft.upper) - 46.26) < 0.01);
+  assert.ok(Math.abs(ringWidth(segmentAt(562.1).loft.upper) - 45.63) < 0.01);
+  assert.ok(Math.abs(ringWidth(segmentAt(567.65).loft.upper) - 44.35) < 0.01);
+  // 顶冠从 579 m 折面环连续收到 599.1 m 平顶，冠高 20.1 m，不再是 9 m 小钻石。
+  const crown = actual.find(row => row.id.endsWith(':diamond-crown'));
+  assert.equal(crown.minY, Math.fround(base + 590));
+  assert.ok(Math.abs(ringWidth(crown.loft.lower) - 26.59) < 0.01);
+  assert.ok(Math.abs(ringWidth(crown.loft.upper) - 11.9) < 0.01);
+  const skirts = actual.filter(row => row.id.includes(':crown-skirt:'));
+  assert.equal(skirts.length, 8);
+  assert.ok(skirts.every(row => Math.abs(row.maxY - Math.fround(base + 590)) < 1e-6
+    && Math.abs(row.minY - Math.fround(base + 579 - 1.2)) < 1e-6 && row.roofContact === false));
+  // 8 根巨柱分 5 段从地面通到冠底，柱面与塔身同一收分折线。
+  const columns = actual.filter(row => row.id.includes(':mega-column:'));
+  assert.equal(columns.length, 40);
+  assert.equal(columns.filter(row => row.minY === Math.fround(base)).length, 8);
+  assert.equal(columns.filter(row => row.maxY === Math.fround(base + 579)).length, 8);
+  // 立面 V 形斜撑：每个立面两条，从 555.6 m 高位斜向收到底部中央 250 m，外凸贴墙。
+  const vBraces = actual.filter(row => row.id.includes(':v-brace:'));
+  assert.equal(vBraces.length, 8);
+  assert.ok(vBraces.every(row => row.style === 'pingAnCrownEdge' && row.heightSource === 'estimate'));
+  assert.equal(new Set(vBraces.map(row => Number(row.id.split(':')[2]))).size, 4);
+  assert.ok(vBraces.every(row => Math.abs(row.maxY - Math.fround(base + 555.6)) < 1e-6));
+  // 主立面石材竖挺与四角切角钢带贴着收分塔身（夜里灯带沿建筑走，不超出轮廓）。
+  const fins = actual.filter(row => row.id.includes(':fin:'));
+  // 南北面 41.3 m 每面 15 根、东西面 40.6 m 每面 14 根，共 58 根。
+  assert.equal(fins.length, 58);
+  assert.ok(fins.every(row => row.style === 'pingAnSteel' && row.heightSource === 'estimate'));
+  assert.ok(fins.every(row => row.minY === Math.fround(base + 22) && row.maxY === Math.fround(base + 579)));
+  assert.deepEqual([...new Set(fins.map(row => Number(row.id.split(':')[2])))].sort(), [0, 2, 4, 6]);
+  const bands = actual.filter(row => row.id.includes(':corner-band:'));
+  assert.equal(bands.length, 20);
+  assert.ok(bands.every(row => row.style === 'pingAnSteel' && row.heightSource === 'estimate'));
+  assert.equal(new Set(bands.map(row => Number(row.id.split(':')[2]))).size, 4);
+  assert.ok(Math.abs(Math.min(...bands.map(row => row.minY)) - Math.fround(base)) < 1e-6);
+  assert.ok(bands.every(row => row.maxY <= Math.fround(base + 579) + 1e-6));
+  // 显示与碰撞同源：塔身中段实心、塔外空；巨柱位置可碰撞；桥下街道净空。
+  assert.ok(actual.some(row => occupies(row, tower.cx, tower.cz, base + 40, base + 41)));
+  assert.ok(actual.every(row => !occupies(row, tower.cx + 60, tower.cz, base + 40, base + 41)));
+  const column = columns[0];
+  const columnCenter = column.polygon.outer.reduce((sum, p) => ({ x: sum.x + p.x / column.polygon.outer.length,
+    z: sum.z + p.z / column.polygon.outer.length }), { x: 0, z: 0 });
+  assert.ok(occupies(column, columnCenter.x, columnCenter.z, base + 100, base + 101));
+  assert.ok(actual.every(row => !occupies(row, columnCenter.x, columnCenter.z, base + 580, base + 581)));
 });
 
 test('Ping An keeps the west portico and crossing under the mapped retail bridge clear at street height', () => {

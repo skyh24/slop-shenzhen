@@ -18,7 +18,7 @@ import { buildSzTrees } from './sz-trees.js';
 import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzDroneRoutes } from './sz-drone-routes.js';
-import { buildSzLightShow } from './sz-light-show.js';
+import { buildSzLightShow, planLandmarkBands } from './sz-light-show.js';
 import { gatePoint, gateYaw, gateDeckY, flowerSeaAnchor, flowerSeaDeckY } from './sz-landmarks/iec-xiangmihu.js';
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
@@ -194,8 +194,12 @@ async function initApp() {
   const cityBlocks = qa.stage('blocks', () =>
     buildCityBlocks(scene, { skipIds: landmarks.skipIds, renderChunkSize: qa.chunkSize }));
   // 福田中心区夜景灯光秀：只给已建成普通高层加灯带，颜色/节奏为展示估计；白天隐藏。
+  // 地标源对象已由专模自己打光，排除它们，避免通高灯带按基地足迹飘出收分塔身之外；
+  // 地标外露钢架（平安 8 根巨柱）单独沿柱轴生成彩色灯带，位置上跟着钢架走。
+  const landmarkBands = planLandmarkBands(landmarks.colliders);
   const lightShow = qa.stage('lightshow', () =>
-    buildSzLightShow(scene, { buildings: site.buildings, terrain: site.terrain }));
+    buildSzLightShow(scene, { buildings: site.buildings, terrain: site.terrain,
+      excludeIds: landmarks.skipIds, landmarkBands }));
   const buildingSigns = qa.stage('signs', () =>
     buildBuildingSigns(scene, { buildings: cityBlocks.allBlocks, roadGraph: site.roadGraph }));
   // 屋顶/阳台/空调/雨棚只在近景流式生成，不参与碰撞，也不改楼高和足迹。
