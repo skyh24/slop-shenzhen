@@ -493,6 +493,8 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
   const glass = glassGeometry();
   const signs = signGeometry(placed, atlas);
   const structureMeshes = [];
+  // 玻璃和结构共用同一套 chunkMap 分块：包围球只覆盖一个块，视锥剔除才真正生效。
+  const glassMeshes = [];
   const chunkMap = new Map();
   for (const entrance of placed) {
     const key = `${Math.floor(entrance.x / chunkSizeM)},${Math.floor(entrance.z / chunkSizeM)}`;
@@ -500,34 +502,31 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
     chunkMap.get(key).push(entrance);
   }
   for (const [key, chunk] of chunkMap) {
+    // 玻璃几何和材质全城共用一份，每块只多一个 InstancedMesh，不 clone。
     const mesh = new THREE.InstancedMesh(structure, structureMaterial, chunk.length);
     mesh.name = `metro-entrance-structures:${key}`;
+    const glassChunkMesh = new THREE.InstancedMesh(glass, glassMaterial, chunk.length);
+    glassChunkMesh.name = `metro-entrance-glass:${key}`;
     const matrix = new THREE.Matrix4();
     chunk.forEach((entrance, index) => {
       matrix.compose(new THREE.Vector3(entrance.x, entrance.y, entrance.z),
         rotationOf(entrance.yaw), new THREE.Vector3(1, 1, 1));
       mesh.setMatrixAt(index, matrix);
+      glassChunkMesh.setMatrixAt(index, matrix);
     });
     mesh.instanceMatrix.needsUpdate = true;
     mesh.castShadow = false;
     mesh.receiveShadow = true;
     mesh.computeBoundingSphere();
-    group.add(mesh);
+    // 玻璃既不投影也不收影：透明面在阴影贴图里读不出效果，只会多一次阴影提交。
+    glassChunkMesh.instanceMatrix.needsUpdate = true;
+    glassChunkMesh.castShadow = false;
+    glassChunkMesh.receiveShadow = false;
+    glassChunkMesh.computeBoundingSphere();
+    group.add(mesh, glassChunkMesh);
     structureMeshes.push(mesh);
+    glassMeshes.push(glassChunkMesh);
   }
-  const glassMesh = new THREE.InstancedMesh(glass, glassMaterial, placed.length);
-  glassMesh.name = 'metro-entrance-glass';
-  const matrix = new THREE.Matrix4();
-  placed.forEach((entrance, index) => {
-    matrix.compose(new THREE.Vector3(entrance.x, entrance.y, entrance.z),
-      rotationOf(entrance.yaw), new THREE.Vector3(1, 1, 1));
-    glassMesh.setMatrixAt(index, matrix);
-  });
-  glassMesh.instanceMatrix.needsUpdate = true;
-  glassMesh.castShadow = false;
-  glassMesh.receiveShadow = false;
-  glassMesh.computeBoundingSphere();
-  group.add(glassMesh);
 
   const nearSigns = new THREE.Mesh(signs.near, nearSignMaterial);
   nearSigns.name = 'metro-entrance-signs-near';
@@ -568,7 +567,7 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
       lineRefs: entrance.lineRefs, colours: entrance.colours, facingSource: entrance.facingSource
     })),
     signAtlas: { stations: atlas.stationKeys.size, badges: atlas.letterKeys.size, width: atlas.width, height: atlas.height },
-    drawCallsEstimate: chunkMap.size + 3,
+    drawCallsEstimate: chunkMap.size * 2 + 2,
     colliderCount: entranceColliders.length
   };
   return {
@@ -579,15 +578,17 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
     update(cameraPositionValue) {
       if (!cameraPositionValue) return;
       let anyVisible = false;
-      for (const mesh of structureMeshes) {
-        const center = mesh.boundingSphere.center;
+      const limitSq = STRUCTURE_MAX_DISTANCE_M * STRUCTURE_MAX_DISTANCE_M;
+      for (let i = 0; i < structureMeshes.length; i++) {
+        // 玻璃块和同索引的结构块同一套距离判断，避免玻璃留在隐藏的结构块外面。
+        const center = structureMeshes[i].boundingSphere.center;
         const dx = cameraPositionValue.x - center.x;
         const dz = cameraPositionValue.z - center.z;
-        const visible = dx * dx + dz * dz < STRUCTURE_MAX_DISTANCE_M * STRUCTURE_MAX_DISTANCE_M;
-        mesh.visible = visible;
+        const visible = dx * dx + dz * dz < limitSq;
+        structureMeshes[i].visible = visible;
+        glassMeshes[i].visible = visible;
         if (visible) anyVisible = true;
       }
-      glassMesh.visible = anyVisible;
       nearSigns.visible = anyVisible;
       farSigns.visible = anyVisible;
     },

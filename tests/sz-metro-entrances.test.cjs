@@ -57,7 +57,8 @@ test('buildSzMetroEntrances snaps canopies to the rendered ground and maintains 
     const { buildSzMetroEntrances } = loadModule(metroSource, { imports });
     const scene = new THREE.Scene();
     const model = buildSzMetroEntrances(scene, geo.metro, {
-      groundHeight, roadHeight: () => null, pathAt: () => [], colliders: []
+      // 和 js/main.js 一致用 1000 m 分块；分块数决定下面的 drawCallsEstimate 预算。
+      groundHeight, roadHeight: () => null, pathAt: () => [], colliders: [], chunkSizeM: 1000
     });
     assert.equal(scene.children.length, 1);
     assert.ok(model.statistics.placed > 250, `placed=${model.statistics.placed}`);
@@ -91,6 +92,26 @@ test('buildSzMetroEntrances snaps canopies to the rendered ground and maintains 
     assert.ok(chunks.every(chunk => chunk.visible === false), 'far camera hides entrance chunks');
     model.update(new THREE.Vector3(0, 0, 0));
     assert.ok(chunks.some(chunk => chunk.visible === true), 'near camera shows entrance chunks');
+
+    // 玻璃必须和结构一样按块实例化：每块包围球只覆盖一个 chunk，视锥剔除才有意义。
+    const glassChunks = model.group.children.filter(child => child.name.startsWith('metro-entrance-glass:'));
+    assert.equal(glassChunks.length, model.statistics.chunks);
+    let glassInstanceTotal = 0;
+    for (const glassChunk of glassChunks) {
+      assert.equal(glassChunk.isInstancedMesh, true, `${glassChunk.name} is an InstancedMesh`);
+      assert.equal(glassChunk.frustumCulled, true, `${glassChunk.name} keeps frustum culling`);
+      assert.ok(glassChunk.boundingSphere, `${glassChunk.name} has a bounding sphere`);
+      assert.ok(Number.isFinite(glassChunk.boundingSphere.radius), `${glassChunk.name} radius is finite`);
+      // 1000 m 块的对角半径上限约 707 m，取 1500 作为宽松上限，全城包围球会远超这个值。
+      assert.ok(glassChunk.boundingSphere.radius <= 1500, `${glassChunk.name} radius=${glassChunk.boundingSphere.radius}`);
+      glassInstanceTotal += glassChunk.count;
+    }
+    assert.equal(glassInstanceTotal, model.statistics.placed);
+    model.update(new THREE.Vector3(1e9, 0, 1e9));
+    assert.ok(glassChunks.every(chunk => chunk.visible === false), 'far camera hides glass chunks');
+    model.update(new THREE.Vector3(0, 0, 0));
+    assert.ok(glassChunks.some(chunk => chunk.visible === true), 'near camera shows glass chunks');
+
     const signMeshes = model.group.children.filter(child => child.name.startsWith('metro-entrance-signs-'));
     assert.equal(signMeshes.length, 2);
 

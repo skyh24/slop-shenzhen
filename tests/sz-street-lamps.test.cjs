@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
+const { pathToFileURL } = require('node:url');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
@@ -71,4 +72,58 @@ test('street lamp planning is deterministic and chunk grouping keeps every site'
 test('street lamp planner rejects malformed road graphs', () => {
   assert.throws(() => lamps.planLampSites(null), /Road graph/);
   assert.throws(() => lamps.planLampSites({ links: [], metadata: [], nodes: [] }), /Road graph/);
+});
+
+test('real Three street lamps cull halo points per chunk and dispose their group', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+  const packageUrl = pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, '/'));
+  const [THREE, tsl] = await Promise.all([
+    import(new URL('build/three.webgpu.js', packageUrl)),
+    import(new URL('build/three.tsl.js', packageUrl))
+  ]);
+  const runtime = loadModule(read('sz-street-lamps.js'), { imports: {
+    'three/webgpu': THREE, 'three/tsl': tsl, './sz-roads.js': roads
+  } });
+  const scene = new THREE.Scene();
+  const model = runtime.buildSzStreetLamps(scene, graph([[0, 1, 0, 12, 3, 0, []]], [ground()]), {
+    groundHeight: () => 0,
+    roadHeight: () => null,
+    createGlowTexture: () => ({ isTexture: true, dispose() {} })
+  });
+  assert.ok(model.sites.length > 0);
+  const chunked = runtime.groupLampSites(model.sites);
+  assert.ok(chunked.size >= 2, `chunks=${chunked.size}`);
+  assert.equal(model.group.children.length, chunked.size);
+  assert.equal(model.statistics.chunks, chunked.size);
+  let haloCount = 0;
+  for (const [key, sites] of chunked) {
+    const chunkGroup = model.group.children.find(child => child.name === `lamps:${key}`);
+    assert.ok(chunkGroup, `missing chunk group lamps:${key}`);
+    const haloPoints = chunkGroup.children.filter(child => child.isPoints);
+    assert.equal(haloPoints.length, 1);
+    const halo = haloPoints[0];
+    haloCount++;
+    assert.equal(halo.name, `lamps:${key}:halos`);
+    assert.equal(halo.frustumCulled, true);
+    assert.equal(halo.geometry.attributes.position.count, sites.length);
+    const sphere = halo.geometry.boundingSphere;
+    assert.ok(sphere, 'halo geometry keeps a bounding sphere for frustum culling');
+    assert.ok(Number.isFinite(sphere.radius) && sphere.radius > 0);
+    assert.ok(Number.isFinite(sphere.center.x) && Number.isFinite(sphere.center.y) && Number.isFinite(sphere.center.z));
+    // 包围球要落在本块灯位附近，不能退化成整个城市范围。
+    const meanX = sites.reduce((sum, site) => sum + site.x, 0) / sites.length;
+    const meanZ = sites.reduce((sum, site) => sum + site.z, 0) / sites.length;
+    assert.ok(Math.hypot(sphere.center.x - meanX, sphere.center.z - meanZ) < 1200);
+    for (const kind of ['poles', 'arms', 'heads']) {
+      const mesh = chunkGroup.children.find(child => child.name === `lamps:${key}:${kind}`);
+      assert.ok(mesh?.isInstancedMesh, `lamps:${key}:${kind} stays instanced`);
+      assert.equal(mesh.frustumCulled, true);
+      assert.equal(mesh.count, sites.length);
+    }
+  }
+  assert.equal(haloCount, chunked.size);
+  assert.equal(model.group.children.reduce((sum, child) => sum + child.children.filter(part => part.isPoints).length, 0),
+    chunked.size);
+  model.dispose();
+  assert.equal(model.group.parent, null);
+  assert.ok(!scene.children.includes(model.group));
 });

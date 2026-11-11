@@ -7,11 +7,13 @@ const { loadModule } = require('./helpers/module.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const SOURCE = read('sz-building-signs.js');
+const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 
-function loadSigns(THREE = {}) {
+function loadSigns(THREE = {}, TSL = {}) {
   return loadModule(SOURCE, { imports: {
     'three/webgpu': THREE,
-    './sz-materials.js': { sceneUniforms: { night: { value: 0 } } }
+    'three/tsl': TSL,
+    './sz-materials.js': { sceneUniforms: { night: TSL.uniform ? TSL.uniform(0) : { value: 0 } } }
   } });
 }
 
@@ -139,20 +141,78 @@ test('missing names, unit-only names and landmarks never produce signs', () => {
   assert.equal(landmark, null);
 });
 
-test('signs stream by chunk, share textures per name, and release them on unload',
-  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
-    const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
-    const runtime = loadSigns(THREE);
+function fakeTextureFactory(created, disposed) {
+  return (layout, specs) => {
+    const record = { layout, specs };
+    created.push(record);
+    return {
+      isTexture: true, colorSpace: null, anisotropy: 0, needsUpdate: false,
+      dispose() { disposed.push(record); }
+    };
+  };
+}
+
+function flattenSigns(api) {
+  const out = [];
+  api.group.traverse(object => {
+    if (object.isMesh && Array.isArray(object.userData.signs)) out.push(...object.userData.signs);
+  });
+  return out;
+}
+
+test('planSignAtlas packs one chunk into a deterministic atlas at the original pixel density', () => {
+  const specs = [
+    { kind: 'roof', name: '高塔', aspect: 5, width: 20, height: 4, rotationY: 0, x: 0, y: 100, z: 0 },
+    { kind: 'entrance', name: '测试大厦', aspect: 4, width: 4, height: 1, rotationY: -1.57, x: 10, y: 4, z: 0 },
+    { kind: 'compound', name: '测试花园', aspect: 3.5, width: 6, height: 1.7, rotationY: 0, x: 0, y: 3, z: 10 }
+  ];
+  const layout = signs.planSignAtlas(specs);
+  assert.deepEqual(layout, signs.planSignAtlas(specs), 'same input gives the same layout');
+  assert.equal(layout.scale, 1);
+  assert.equal(layout.tiles.length, specs.length);
+  assert.ok(layout.width <= signs.SIGN_ATLAS_MAX_WIDTH);
+  assert.ok(layout.height <= signs.SIGN_ATLAS_MAX_HEIGHT);
+  const roof = layout.tiles.find(tile => tile.spec.kind === 'roof');
+  const entrance = layout.tiles.find(tile => tile.spec.kind === 'entrance');
+  assert.equal(roof.width, 1024, 'roof tiles keep the 1024 px canvas width used before batching');
+  assert.equal(entrance.width, 640, 'entrance tiles keep the 640 px canvas width used before batching');
+  assert.equal(roof.height, Math.max(48, Math.round(1024 / 5)));
+  // 牌之间不能重叠：任意两块矩形不相交。
+  for (let i = 0; i < layout.tiles.length; i++) {
+    for (let j = i + 1; j < layout.tiles.length; j++) {
+      const a = layout.tiles[i];
+      const b = layout.tiles[j];
+      const overlap = a.x < b.x + b.slotWidth && b.x < a.x + a.slotWidth
+        && a.y < b.y + b.slotHeight && b.y < a.y + a.slotHeight;
+      assert.equal(overlap, false, `tiles ${i} and ${j} overlap`);
+    }
+  }
+});
+
+test('planSignAtlas halves tile resolution instead of opening an oversized texture', () => {
+  const specs = Array.from({ length: 12 }, (_, index) => ({
+    kind: 'roof', name: `高楼${index}`, aspect: 8, width: 22, height: 2.75,
+    rotationY: 0, x: index * 10, y: 80, z: 0
+  }));
+  const layout = signs.planSignAtlas(specs, { maxHeight: 900 });
+  assert.ok(layout.scale < 1, 'layout falls back to a smaller tile scale');
+  assert.ok(layout.height <= 900, `height=${layout.height}`);
+  assert.equal(layout.tiles.length, specs.length);
+});
+
+test('sign night constants keep roof signs brighter than printed entrance signs', () => {
+  assert.ok(signs.SIGN_NIGHT.roofGain > signs.SIGN_NIGHT.printedGain);
+  assert.ok(signs.SIGN_NIGHT.roofTint.every(value => value > 0.9 && value <= 1));
+  assert.ok(signs.SIGN_NIGHT.roofTint[1] < 1 && signs.SIGN_NIGHT.roofTint[2] < 1);
+});
+
+test('signs stream by chunk, batch one atlas mesh per chunk, and release them on unload',
+  { skip: !threeDir }, async () => {
+    const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
+    const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
+    const runtime = loadSigns(THREE, TSL);
     const created = [];
     const disposed = [];
-    const createTexture = (info) => {
-      created.push(info);
-      const texture = {
-        isTexture: true, colorSpace: null, anisotropy: 0, needsUpdate: false,
-        dispose() { disposed.push(info.name); }
-      };
-      return texture;
-    };
     const buildings = [
       boxBuilding({ id: 'b1', name: '测试花园1栋', category: 'residential', facade: 'residential_tower', height: 30, cx: -20, cz: -20 }),
       boxBuilding({ id: 'b2', name: '测试花园2栋', category: 'residential', facade: 'residential_tower', height: 30, cx: 20, cz: -20 }),
@@ -165,38 +225,64 @@ test('signs stream by chunk, share textures per name, and release them on unload
     ];
     const scene = new THREE.Scene();
     const api = runtime.buildBuildingSigns(scene, {
-      buildings, roadGraph: roadAtZ(60), createTexture, maxChunkOps: 16
+      buildings, roadGraph: roadAtZ(60), createAtlasTexture: fakeTextureFactory(created, disposed),
+      maxChunkOps: 16, maxAtlasRebuilds: 16
     });
     assert.equal(api.statistics.signs, 0);
     assert.equal(created.length, 0, 'textures are created lazily by update, not for the whole city');
 
     for (let i = 0; i < 8; i++) api.update({ x: 0, y: 0, z: 0 });
-    assert.ok(api.statistics.signs >= 4, `expected several signs, got ${api.statistics.signs}`);
+    const signCount = api.statistics.signs;
+    assert.ok(signCount >= 4, `expected several signs, got ${signCount}`);
     assert.ok(api.statistics.chunks >= 1);
+    assert.ok(api.statistics.meshes >= 1);
     assert.ok(api.statistics.textures >= 1);
+    assert.equal(api.statistics.textures, api.statistics.meshes);
+    assert.ok(api.statistics.meshes <= api.statistics.chunks, 'one atlas mesh per chunk at most');
+    assert.ok(api.statistics.meshes < signCount, 'several signs share one atlas mesh');
+    assert.equal(created.length, api.statistics.meshes, 'one canvas atlas per chunk mesh');
+    assert.ok(created.every(record => record.layout.tiles.length >= 1));
+    assert.ok(created.every(record => record.layout.tiles.length === record.specs.length));
     assert.ok(api.statistics.updateMs >= 0 && Number.isFinite(api.statistics.updateMs));
-    // 同一名称的两栋住宅共享一张纹理，不会每栋一张。
-    assert.equal(created.filter(info => info.name === '测试花园').length, 1);
-    assert.ok(created.length < buildings.length);
 
-    const signIds = [];
-    api.group.traverse(object => {
-      if (object.isMesh) signIds.push(object.userData.sign?.buildingId);
-    });
-    assert.equal(signIds.length, api.statistics.signs);
+    const packed = flattenSigns(api);
+    assert.equal(packed.length, signCount);
+    const signIds = packed.map(sign => sign.buildingId).filter(Boolean);
     assert.ok(signIds.includes('b1') && signIds.includes('b2') && signIds.includes('b3'));
     assert.ok(!signIds.includes('b4'), 'unit-only names do not get signs');
     assert.ok(!signIds.includes('b5'), 'buildings without names do not get signs');
     assert.ok(!signIds.includes('b7'), 'landmark facades do not get signs');
 
+    // 每个图集网格带 position/uv/signGlow，屋顶牌写 1、入口牌写 0；双面牌每条牌 8 个顶点。
+    let meshCount = 0;
+    api.group.traverse(object => {
+      if (!object.isMesh) return;
+      meshCount++;
+      assert.ok(object.material.isMeshBasicNodeMaterial, 'atlas material is a node material');
+      assert.ok(object.material.colorNode, 'atlas material carries the night color node');
+      assert.ok(object.geometry.getAttribute('position'));
+      assert.ok(object.geometry.getAttribute('uv'));
+      const glow = object.geometry.getAttribute('signGlow');
+      assert.ok(glow, 'atlas geometry carries the per-sign night glow attribute');
+      assert.equal(glow.count, object.geometry.getAttribute('position').count);
+      const kinds = object.userData.signs.map(sign => sign.kind);
+      const hasRoof = kinds.includes('roof');
+      const glowValues = Array.from(glow.array);
+      if (hasRoof) assert.ok(glowValues.includes(1), 'roof signs glow at night');
+      const hasPrinted = kinds.includes('entrance') || kinds.includes('compound');
+      if (hasPrinted) assert.ok(glowValues.includes(0), 'printed signs do not glow like roof signs');
+    });
+    assert.equal(meshCount, api.statistics.meshes);
+
     assert.ok(api.nearestName(0, 0), 'nearestName finds a nearby named building');
     assert.equal(api.nearestName(5000, 5000), null);
     assert.equal(api.nearestName(1000, 1000), null, 'unit-only names are not offered to the HUD');
 
-    // 传送到城市另一头：1.3 倍半径外卸载，纹理和几何随之释放。
+    // 传送到城市另一头：1.3 倍半径外卸载，图集贴图和几何随之释放。
     for (let i = 0; i < 20; i++) api.update({ x: 5000, y: 0, z: 5000 });
     assert.equal(api.statistics.signs, 0);
     assert.equal(api.statistics.chunks, 0);
+    assert.equal(api.statistics.meshes, 0);
     assert.equal(api.statistics.textures, 0);
     assert.equal(disposed.length, created.length);
     assert.equal(api.group.children.length, 0);
@@ -206,54 +292,49 @@ test('signs stream by chunk, share textures per name, and release them on unload
   });
 
 test('chunk streaming output is deterministic for the same data and position',
-  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
-    const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
-    const runtime = loadSigns(THREE);
-    const createTexture = () => ({ isTexture: true, colorSpace: null, anisotropy: 0, needsUpdate: false, dispose() {} });
+  { skip: !threeDir }, async () => {
+    const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
+    const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
+    const runtime = loadSigns(THREE, TSL);
     const build = () => {
       const api = runtime.buildBuildingSigns(new THREE.Scene(), {
         buildings: [
           boxBuilding({ id: 'd1', name: '东海岸花园1栋', category: 'residential', facade: 'residential_tower', height: 45 }),
           boxBuilding({ id: 'd2', name: '东海岸大厦', height: 90, facade: 'glass_tower', levels: 22, cx: 30, cz: 30 })
         ],
-        roadGraph: roadAtZ(60), createTexture, maxChunkOps: 16
+        roadGraph: roadAtZ(60), createAtlasTexture: fakeTextureFactory([], []),
+        maxChunkOps: 16, maxAtlasRebuilds: 16
       });
       for (let i = 0; i < 4; i++) api.update({ x: 0, y: 0, z: 0 });
       const meshes = [];
       api.group.traverse(object => {
         if (!object.isMesh) return;
-        meshes.push([object.name, object.position.toArray(), object.rotation.y, object.userData.sign]);
+        meshes.push({
+          name: object.name,
+          position: object.geometry.getAttribute('position').array,
+          uv: object.geometry.getAttribute('uv').array,
+          glow: object.geometry.getAttribute('signGlow').array,
+          signs: object.userData.signs
+        });
       });
       return { meshes, statistics: { ...api.statistics, updateMs: 0 } };
     };
     assert.deepEqual(build(), build());
   });
 
-test('roof signs brighten with sceneUniforms.night while entrance signs stay printed',
-  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
-    const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
-    const uniform = { night: { value: 0 } };
-    const runtime = loadModule(SOURCE, { imports: {
-      'three/webgpu': THREE, './sz-materials.js': { sceneUniforms: uniform }
-    } });
-    const createTexture = () => ({ isTexture: true, colorSpace: null, anisotropy: 0, needsUpdate: false, dispose() {} });
-    const api = runtime.buildBuildingSigns(new THREE.Scene(), {
-      buildings: [boxBuilding({ id: 'tower', name: '夜光大厦', height: 100, facade: 'glass_tower', levels: 25 })],
-      roadGraph: roadAtZ(60), createTexture, maxChunkOps: 16
-    });
-    for (let i = 0; i < 3; i++) api.update({ x: 0, y: 0, z: 0 });
-    const materials = [];
-    api.group.traverse(object => {
-      if (object.isMesh) materials.push({ kind: object.userData.sign.kind, material: object.material });
-    });
-    const roof = materials.find(item => item.kind === 'roof');
-    assert.ok(roof, 'expected a roof sign');
-    const dayBrightness = roof.material.color.r;
-    uniform.night.value = 1;
-    api.update({ x: 0, y: 0, z: 0 });
-    assert.ok(roof.material.color.r > dayBrightness, 'roof sign gets brighter at night');
-    assert.ok(roof.material.color.r > 1, 'roof sign goes into a glow range at night');
-    api.dispose();
+test('atlas material is a node material driven by the shared night uniform and roof/printed gains',
+  { skip: !threeDir }, async () => {
+    const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
+    const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
+    const runtime = loadSigns(THREE, TSL);
+    const texture = { isTexture: true, colorSpace: null, anisotropy: 0, needsUpdate: false, dispose() {} };
+    const material = runtime.createSignAtlasMaterial(texture);
+    assert.equal(material.isMeshBasicNodeMaterial, true);
+    assert.equal(material.map, texture);
+    assert.ok(material.colorNode, 'night gain is expressed as a shader node, not per-frame JS material updates');
+    // 纯函数常量：屋顶比入口亮得多，且屋顶夜间略偏暖。
+    assert.ok(signs.SIGN_NIGHT.roofGain > signs.SIGN_NIGHT.printedGain);
+    assert.ok(signs.SIGN_NIGHT.roofGain < 1 && signs.SIGN_NIGHT.printedGain > 0);
   });
 
 test('baseY from cityBlocks keeps signs at terrain height', () => {
@@ -283,14 +364,11 @@ test('compound gate sign needs at least two unit-only siblings and stays on the 
 });
 
 test('unit-only residential buildings join a compound name for HUD and a single gate sign',
-  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
-    const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
-    const runtime = loadSigns(THREE);
+  { skip: !threeDir }, async () => {
+    const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
+    const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
+    const runtime = loadSigns(THREE, TSL);
     const created = [];
-    const createTexture = (info) => {
-      created.push(info);
-      return { isTexture: true, colorSpace: null, anisotropy: 0, needsUpdate: false, dispose() {} };
-    };
     const buildings = [
       boxBuilding({ id: 'c1', name: '海边花园1栋', category: 'residential', facade: 'residential_tower', height: 45, cx: -20, cz: 0 }),
       boxBuilding({ id: 'c2', name: '2栋', category: 'residential', facade: 'residential_tower', height: 45, cx: 0, cz: 0 }),
@@ -298,18 +376,17 @@ test('unit-only residential buildings join a compound name for HUD and a single 
       boxBuilding({ id: 'c4', name: '4栋', category: 'residential', facade: 'residential_low', height: 24, cx: 44, cz: 0 })
     ];
     const api = runtime.buildBuildingSigns(new THREE.Scene(), {
-      buildings, roadGraph: roadAtZ(80), createTexture, maxChunkOps: 16
+      buildings, roadGraph: roadAtZ(80), createAtlasTexture: fakeTextureFactory(created, []),
+      maxChunkOps: 16, maxAtlasRebuilds: 16
     });
     assert.equal(api.statistics.compoundClusters, 1);
     for (let i = 0; i < 8; i++) api.update({ x: 10, y: 0, z: 0 });
     assert.ok(api.statistics.compounds >= 1, `expected a compound sign, got ${api.statistics.compounds}`);
-    const compound = [];
-    api.group.traverse(object => {
-      if (object.isMesh && object.userData.sign?.kind === 'compound') compound.push(object);
-    });
-    assert.equal(compound.length, 1, 'one gate sign per compound');
-    assert.equal(compound[0].userData.sign.name, '海边花园');
-    assert.ok(created.some(info => info.kind === 'compound' && info.name === '海边花园'));
+    const packed = flattenSigns(api);
+    const compounds = packed.filter(sign => sign.kind === 'compound');
+    assert.equal(compounds.length, 1, 'one gate sign per compound');
+    assert.equal(compounds[0].name, '海边花园');
+    assert.ok(created.some(record => record.specs.some(spec => spec.kind === 'compound' && spec.name === '海边花园')));
     // 小区内单元楼在 HUD 里也显示小区名
     assert.equal(api.nearestName(22, 0), '海边花园');
     assert.equal(api.nearestName(-20, 0), '海边花园');
