@@ -39,8 +39,9 @@ test('bridge surfaces use the actual render buffers and both navigation spans st
   const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));
   const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
   const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
+  const cityLighting = loadModule(read('city-lighting-materials.js'), { imports });
   const geometry = loadModule(read('sz-geometry.js'), { imports });
-  const materials = loadModule(read('sz-materials.js'), { imports });
+  const materials = loadModule(read('sz-materials.js'), { imports: { ...imports, './city-lighting-materials.js': cityLighting } });
   const { buildShenzhenBayBridge } = loadModule(read('sz-landmarks/shenzhen-bay-bridge.js'), {
     imports: { ...imports, '../sz-geometry.js': geometry, '../sz-materials.js': materials }
   });

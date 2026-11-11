@@ -1,10 +1,13 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn, attribute, uv, vec2, vec3, vec4, float, fract, floor, step, mix, smoothstep, abs, sin, dot, max, min,
-  uniform, positionWorld, normalWorldGeometry, time, color, fwidth
+  clamp, pow, normalize, uniform, positionWorld, normalWorldGeometry, cameraPosition, time, color, fwidth
 } from 'three/tsl';
+import { cityUniforms } from './city-lighting-materials.js';
 
-// 全局氛围参数：night 0 白天 → 1 深夜；show 控制楼体灯光秀
+// 全局氛围参数：night 0 白天 → 1 深夜；show 控制楼体灯光秀。
+// 楼体窗灯和首层灯按 docs/22 的 V2 改读 cityUniforms.uInteriorGlow（和纽约立面同一套时段参数），
+// night 仍供水面、地标、灯光秀等模块使用。
 export const sceneUniforms = {
   night: uniform(0),
   show: uniform(0),
@@ -225,7 +228,13 @@ export function createBuildingMaterial() {
   const wallColor = wallBase.mul(tone.mul(num(0.16)).add(num(0.92)));
   const trimColor = wallColor.mul(num(1.18));
   const paneTone = mix(ONE, occupancy.mul(num(0.22)).add(num(0.89)), detail);
-  const glassColor = glassTint.mul(paneTone);
+  // 幕墙玻璃的菲涅尔天空反射：正对视线几乎不变，掠射角向天空色偏移；权重乘玻璃率，
+  // 实体墙和非幕墙开窗不受影响，也不重建法线。
+  const viewDir = normalize(cameraPosition.sub(positionWorld));
+  const facing = clamp(ONE.sub(abs(dot(viewDir, normalWorldGeometry))), ZERO, ONE);
+  const fresnel = pow(facing, num(2));
+  const skyReflect = mix(cityUniforms.uSkyHorizonColor, cityUniforms.uSkyTopColor, fresnel);
+  const glassColor = mix(glassTint.mul(paneTone), skyReflect, fresnel.mul(num(0.62)).mul(glazing));
   const floorColor = wallColor.mul(mix(num(0.74), num(0.5), curtain));
   const frameColor = trimColor.mul(mix(ONE, num(0.6), glazing));
   const groundGlassColor = glassTint.mul(num(0.3));
@@ -244,26 +253,34 @@ export function createBuildingMaterial() {
   m.colorNode = mix(surface, roofColor, ONE.sub(wall));
 
   // 夜间窗灯：按恒定种子决定套间亮灯，不逐帧随机；远景退化成整栋平均亮度，避免碎点闪烁。
-  const night = sceneUniforms.night;
+  // 亮度只由城市时段参数 uInteriorGlow 驱动：gate 把白天（golden 0.48 / midday 0.24）完全关掉，
+  // 仿射项给出黄昏 1.25 约 0.85、午夜 1.55 封顶 0.95 的强度，比旧 night 系数在黄昏亮约 3 倍、午夜约 1.1 倍。
+  const interiorGlow = cityUniforms.uInteriorGlow;
+  const glowGate = smoothstep(HALF, num(1.2), interiorGlow);
+  const glowStrength = glowGate.mul(min(interiorGlow.mul(num(0.9)).sub(num(0.28)), num(0.95)));
   const probability = litShare.mul(tone.mul(num(0.5)).add(num(0.75)));
   const lit = step(occupancy, probability).mul(occupancy.mul(num(2)).add(num(0.7)));
   const light = mix(probability.mul(num(0.26)), lit, detail);
   const windowColor = mix(color(0xd7e6ff), color(0xffc58b), warmth);
-  const windowGlow = windowColor.mul(glazed).mul(light).mul(night).mul(num(0.8));
+  const windowGlow = windowColor.mul(glazed).mul(light).mul(glowStrength).mul(num(0.8));
   // 首层灯光压暗并按套间变化：原来整条店面同样亮，夜景里像一条发光带。
   const groundGlow = mix(color(0xd9e6f0), color(0xffd49a), warmth)
     .mul(groundGlass.add(groundDoor.mul(num(0.7)))).mul(num(0.34))
-    .mul(occupancy.mul(num(0.45)).add(num(0.55))).mul(night);
+    .mul(occupancy.mul(num(0.45)).add(num(0.55))).mul(glowStrength);
   m.emissiveNode = windowGlow.add(groundGlow);
 
   const hardSurface = max(windowFrameMask, mullionMask);
-  const glassRough = mix(num(0.42), num(0.12), glazing);
+  // 幕墙玻璃对齐纽约 createCurtainWallMaterial：满玻璃率粗糙度 0.055，窗台附近叠一点积灰；
+  // 积灰只给幕墙（curtain=1），非幕墙立面的基础粗糙度仍是 0.42→0.12 的旧插值，观感不变。
+  const sillDirt = ONE.sub(smoothstep(sill, sill.add(num(0.18)), cellV)).mul(num(0.12)).mul(curtain);
+  const glassRough = mix(num(0.42), mix(num(0.12), num(0.055), curtain), glazing).add(sillDirt);
   let roughSurface = mix(num(0.86), num(0.55), hardSurface);
   roughSurface = mix(roughSurface, glassRough, glazed);
   roughSurface = mix(roughSurface, num(0.2), groundGlass.add(groundDoor));
   m.roughnessNode = roughSurface;
 
-  const glassMetal = glazing.mul(HALF);
+  // 只有满玻璃率幕墙抬到 0.72；普通开窗玻璃维持旧的 0.5 × glazing，避免全村窗户变成镜面。
+  const glassMetal = glazing.mul(mix(HALF, num(0.72), curtain));
   let metalSurface = mix(num(0.04), num(0.3), hardSurface);
   metalSurface = mix(metalSurface, glassMetal, glazed);
   metalSurface = mix(metalSurface, num(0.15), groundGlass.add(groundDoor));
