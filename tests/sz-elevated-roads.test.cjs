@@ -224,7 +224,10 @@ function driveFixture() {
 test('elevated planning exposes only drivable drive links with a derived max grade', () => {
   assert.equal(elevated.ELEVATED_DRIVE_MAX_GRADE, 0.12);
   const result = elevated.planElevatedRoads(driveFixture(), surface, AREA);
-  assert.deepEqual(Array.from(result.links, link => link.index), [3, 4, 6, 7, 8, 9]);
+  assert.deepEqual(Array.from(result.links, link => link.index), [3, 4, 6, 7, 9]);
+  // 隧道链路不摊成桥面，由隧道模块建洞身；这里只记数量。
+  assert.equal(result.statistics.tunnelLinks, 1);
+  assert.ok(result.links.every(link => link.tunnel === false));
   assert.deepEqual(Array.from(result.driveLinks, link => link.index), [3, 4, 6]);
   assert.ok(result.driveLinks.every(link => result.links.includes(link)), 'drive links reuse the planned record objects');
   for (const link of result.links) {
@@ -234,10 +237,6 @@ test('elevated planning exposes only drivable drive links with a derived max gra
   const steep = result.links.find(link => link.index === 7);
   assert.ok(steep.maxGrade > elevated.ELEVATED_DRIVE_MAX_GRADE, `steep grade ${steep.maxGrade}`);
   assert.equal(result.driveLinks.includes(steep), false, 'grades above the cap stay out of the drive network');
-  const tunnel = result.links.find(link => link.index === 8);
-  assert.equal(tunnel.tunnel, true);
-  assert.ok(tunnel.layer > 0);
-  assert.equal(result.driveLinks.includes(tunnel), false, 'tunnels stay out of the drive network');
   const layerZero = result.links.find(link => link.index === 9);
   assert.equal(layerZero.layer, 0);
   assert.equal(result.driveLinks.includes(layerZero), false, 'layer 0 bridges are not drivable decks');
@@ -314,10 +313,10 @@ test('built elevated roads expose drive surfaces and a deck height sampler on th
     assert.equal(item, rendered.get(item.id), 'drive surfaces are the rendered deck surfaces');
     assert.ok(item.triangles.length > 0);
   }
-  // 隧道、layer 0 桥和陡坡的渲染表面存在，但不进入车行采样器。
-  const excluded = built.surfaces.filter(item => ['sz-elevated-road:7', 'sz-elevated-road:8', 'sz-elevated-road:9']
+  // layer 0 桥和陡坡的渲染表面存在，但不进入车行采样器；隧道交给隧道模块，不在这里出现。
+  const excluded = built.surfaces.filter(item => ['sz-elevated-road:7', 'sz-elevated-road:9']
     .includes(item.id));
-  assert.equal(excluded.length, 3);
+  assert.equal(excluded.length, 2);
   for (const item of excluded) {
     const [point] = item.triangles[0];
     assert.equal(drive.heightAt(point.x, point.z, item.id), null, `${item.id} is not drivable`);
@@ -478,11 +477,14 @@ test('the real Shenzhen snapshot exposes drivable elevated chains with rendered 
   const plan = elevated.planElevatedRoads(geo.roadGraph, geo.terrainSurface);
   assert.ok(plan.links.length >= 33, `plan links ${plan.links.length}`);
   assert.ok(plan.driveLinks.length >= 30, `drive links ${plan.driveLinks.length}`);
-  assert.equal(plan.interchanges.length, 1);
+  assert.equal(plan.interchanges.length, 2);
+  const chegongmiao = plan.interchanges.find(item => item.id === 'chegongmiao');
+  assert.ok(chegongmiao, 'the existing Chegongmiao partition stays first');
   assert.equal(plan.interchanges[0].id, 'chegongmiao');
-  assert.equal(plan.interchanges[0].links, plan.links.length);
-  assert.equal(plan.interchanges[0].driveLinks, plan.driveLinks.length);
-  assert.equal(plan.statistics.interchanges[0].heightSource, 'estimate');
+  assert.ok(chegongmiao.links >= 33, `Chegongmiao links ${chegongmiao.links}`);
+  assert.equal(chegongmiao.links, plan.links.filter(link => link.interchangeId === 'chegongmiao').length);
+  assert.ok(plan.interchanges.every(item => item.heightSource === 'estimate'));
+  assert.equal(plan.statistics.interchanges.reduce((sum, item) => sum + item.links, 0), plan.links.length);
   assert.ok(plan.statistics.barriers > 0, 'decks carry guardrails');
   assert.ok(plan.statistics.barrierLengthM > 1000, 'guardrails run along the decks');
   assert.ok(plan.statistics.pierColliders > 0, 'piers have contact bodies');
@@ -494,6 +496,34 @@ test('the real Shenzhen snapshot exposes drivable elevated chains with rendered 
   assert.ok(plan.driveLinks.every(link => link.maxGrade <= elevated.ELEVATED_DRIVE_MAX_GRADE), 'steep links stay out of the drive graph');
   assert.ok(plan.driveLinks.some(link => link.sharedStart), 'a deck end meets ground on the start side');
   assert.ok(plan.driveLinks.some(link => link.sharedEnd), 'a deck end meets ground on the end side');
+
+  // 深南广深立交：OSM 来源是深南广深立交桥匝道与京港澳高速（广深段）桥面，layer 1 只表示上下关系。
+  assert.equal(plan.interchanges.length, 2);
+  const guangshen = plan.interchanges.find(item => item.id === 'shennan-guangshen');
+  assert.ok(guangshen, 'the Shennan-GuangShen interchange is planned as its own partition');
+  assert.equal(guangshen.name, '深南广深立交');
+  assert.ok(guangshen.heightSource === 'estimate');
+  assert.ok(guangshen.links >= 10, `Shennan-GuangShen links ${guangshen.links}`);
+  assert.ok(guangshen.driveLinks >= 8, `Shennan-GuangShen drive links ${guangshen.driveLinks}`);
+  assert.ok(guangshen.deckLengthM > 2500, `Shennan-GuangShen deck length ${guangshen.deckLengthM}`);
+  const interchangeIds = new Set(plan.interchanges.map(item => item.id));
+  const guangshenLinks = plan.links.filter(link => link.interchangeId === 'shennan-guangshen');
+  assert.equal(guangshenLinks.length, guangshen.links);
+  const guangshenOsm = new Set(guangshenLinks.map(link => link.osmId));
+  for (const osmId of ['way/40933268', 'way/40933281', 'way/40933456', 'way/40933273']) {
+    assert.ok(guangshenOsm.has(osmId), `${osmId} is planned in the Shennan-GuangShen partition`);
+  }
+  // 京港澳高速（广深段）主线也是 bridge layer 1，匝道要靠它接到地面才成闭环。
+  assert.ok(guangshenOsm.has('way/40933472') && guangshenOsm.has('way/40933474'),
+    'the Guangshen mainline decks share the same plan');
+  const guangshenDrive = plan.driveLinks.filter(link => link.interchangeId === 'shennan-guangshen');
+  assert.ok(guangshenDrive.some(link => link.sharedStart), 'a ramp foot meets the ground on the start side');
+  assert.ok(guangshenDrive.some(link => link.sharedEnd), 'a ramp foot meets the ground on the end side');
+  assert.ok(guangshenDrive.every(link => link.maxGrade <= elevated.ELEVATED_DRIVE_MAX_GRADE));
+  // 隧道链路不摊成贴地桥面：深南广深分区里有紫众道 tunnel（layer -1），只记数量留给隧道模块。
+  assert.ok(plan.statistics.tunnelLinks >= 1, `tunnel links ${plan.statistics.tunnelLinks}`);
+  assert.ok(plan.links.every(link => link.tunnel === false));
+  assert.equal(guangshenLinks.every(link => interchangeIds.has(link.interchangeId)), true);
 
   // 车公庙目标链路：地面 → 403 上匝道 → 6595 桥面 → 11114 下匝道 → 地面。
   const byOsm = new Map(plan.links.map(link => [link.osmId, link]));

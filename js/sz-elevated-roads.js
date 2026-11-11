@@ -32,13 +32,21 @@ export const SHENZHEN_INTERCHANGES = Object.freeze([
     source: 'OSM 车公庙立交 trunk_link 与香蜜湖路 bridge（快照见 data/source/sources.json）',
     area: Object.freeze({ minX: -3800, maxX: -2500, minZ: 500, maxZ: 1300 }),
     heightSource: 'estimate'
+  }),
+  Object.freeze({
+    id: 'shennan-guangshen',
+    name: '深南广深立交',
+    // 选区取深南广深立交桥 OSM 匝道范围外扩 300 m：深南大道与京港澳高速（广深段）的喇叭形匝道都在其中。
+    source: 'OSM 深南广深立交桥 motorway_link/secondary_link bridge layer 1 与京港澳高速 bridge layer 1',
+    area: Object.freeze({ minX: -4992, maxX: -3913, minZ: 543, maxZ: 1412 }),
+    heightSource: 'estimate'
   })
 ]);
 
 const LIMITATIONS = [
   '桥面高度按 OSM layer 每层 4.8 m 估算，没有实测纵断面或设计线形校正。',
   '匝道与地面道路共享节点处按地形高程落地，坡度为两端线性插值，不是测量坡度。',
-  '只建 OSM 已有 bridge、tunnel、layer 和匝道来源的立交对象；分区以外的桥隧留待核，不按地名凭空补建。',
+  '只建 OSM 已有 bridge、layer 和匝道来源的桥面；OSM tunnel 链路交给 sz-tunnels.js 的洞身，不摊成贴地桥面。',
   '桥墩按约 28 m 间距估计布置，只在净空大于 2 m 时设墩，墩位与基础未做地勘核实。',
   '护栏按 0.95 m 高、0.35 m 宽的混凝土护栏估计，仅桥面离开地面 0.75 m 以上的段落连续设置；不是深圳设计图尺寸。',
   '车行链路只接受非隧道、layer>0 且派生纵坡不超过 12% 的桥面；高程未知或层间不连续的链路不接入车流和自动导航。'
@@ -655,6 +663,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
   const recordsByInterchange = new Map(interchanges.map(entry => [entry.id, []]));
   let groundDuplicates = 0;
   let skippedLinks = 0;
+  let tunnelLinks = 0;
   for (let index = 0; index < graph.links.length; index++) {
     const link = graph.links[index];
     const metadata = graph.metadata[index];
@@ -663,6 +672,11 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     const points = roadLinkPoints(graph, link);
     const owner = interchanges.find(entry => polylineIntersectsArea(points, entry.area));
     if (!owner) continue;
+    // OSM 隧道由 sz-tunnels.js 的洞身负责；这里不再把它摊成贴地桥面，避免隧道口出现假护栏。
+    if (metadata.tunnel === true) {
+      tunnelLinks++;
+      continue;
+    }
     if (groundSignatures.has(canonicalSignature(points))) {
       groundDuplicates++;
       continue;
@@ -758,6 +772,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     heightSource: 'estimate',
     groundDuplicates,
     skippedLinks,
+    tunnelLinks,
     limitations: [...LIMITATIONS]
   };
 
