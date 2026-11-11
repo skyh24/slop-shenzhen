@@ -289,7 +289,7 @@ function fakeElevatedThree() {
     }
   }
   return { Group: FakeGroup, Mesh: FakeMesh, BufferGeometry: FakeBufferGeometry,
-    BufferAttribute: FakeBufferAttribute, MeshStandardNodeMaterial: FakeMaterial };
+    BufferAttribute: FakeBufferAttribute, MeshStandardNodeMaterial: FakeMaterial, DoubleSide: 2 };
 }
 
 test('built elevated roads expose drive surfaces and a deck height sampler on the same triangles', () => {
@@ -334,6 +334,142 @@ test('built elevated roads expose drive surfaces and a deck height sampler on th
   }
 });
 
+const FIXTURE_INTERCHANGES = [{
+  id: 'fixture', name: '夹具立交', source: 'test fixture graph',
+  area: AREA, heightSource: 'estimate'
+}];
+const planOver = (graph, interchanges = FIXTURE_INTERCHANGES) =>
+  elevated.planElevatedRoads(graph, surface, { interchanges });
+
+test('interchange partitions label every planned deck with its OSM source and keep heights estimated', () => {
+  const result = planOver(driveFixture());
+  assert.equal(result.heightSource, 'estimate');
+  assert.equal(result.interchanges.length, 1);
+  const [partition] = result.interchanges;
+  assert.equal(partition.id, 'fixture');
+  assert.equal(partition.name, '夹具立交');
+  assert.equal(partition.source, 'test fixture graph');
+  assert.equal(partition.heightSource, 'estimate');
+  assert.equal(partition.links, result.links.length);
+  assert.deepEqual(Array.from(result.interchanges[0].linkIndices), Array.from(result.links, link => link.index));
+  for (const link of result.links) {
+    assert.equal(link.interchangeId, 'fixture');
+    assert.ok(Number.isFinite(link.barrierLengthM));
+  }
+  assert.deepEqual({ minX: result.area.minX, maxX: result.area.maxX, minZ: result.area.minZ, maxZ: result.area.maxZ }, AREA);
+  assert.equal(result.statistics.interchanges.length, 1);
+  assert.equal(result.statistics.heightSource, 'estimate');
+  assert.ok(elevated.SHENZHEN_INTERCHANGES.every(entry => entry.heightSource === 'estimate'));
+  assert.throws(() => elevated.planElevatedRoads(fixture(), surface, { interchanges: [] }), /interchange/i);
+  assert.throws(() => elevated.planElevatedRoads(fixture(), surface, { interchanges: [
+    { id: 'a', name: 'A', source: 's', area: AREA, heightSource: 'measured' }
+  ] }), /estimate/);
+  assert.throws(() => elevated.planElevatedRoads(fixture(), surface, { interchanges: [
+    { id: 'a', name: 'A', source: 's', area: AREA, heightSource: 'estimate' },
+    { id: 'a', name: 'B', source: 's', area: AREA, heightSource: 'estimate' }
+  ] }), /Duplicate interchange id/);
+});
+
+test('overlapping interchange areas plan a shared deck once and attribute it to the first area', () => {
+  const overlapping = [
+    { id: 'first', name: '第一分区', source: 'fixture', area: AREA, heightSource: 'estimate' },
+    { id: 'second', name: '第二分区', source: 'fixture', area: { minX: 0, maxX: 900, minZ: 0, maxZ: 900 }, heightSource: 'estimate' }
+  ];
+  const result = planOver(driveFixture(), overlapping);
+  const indices = result.links.map(link => link.index);
+  assert.equal(new Set(indices).size, indices.length, 'no deck is planned twice');
+  assert.equal(result.links.some(link => link.interchangeId === 'second'), false);
+  assert.equal(result.interchanges[1].links, 0);
+  assert.equal(result.statistics.links, result.links.length);
+});
+
+test('guardrails appear where the deck leaves the ground and the contact wall shares its vertices', () => {
+  const result = planOver(driveFixture());
+  const bridge = result.links.find(link => link.index === 4);
+  assert.ok(bridge.barriers.length > 0, 'a fully elevated deck carries guardrails');
+  assert.equal(bridge.barrierColliders.length, bridge.barriers.length);
+  const hasVertex = (geometry, point, y) => {
+    for (let i = 0; i < geometry.length; i += 3) {
+      if (geometry[i] === point.x && geometry[i + 1] === y && geometry[i + 2] === point.z) return true;
+    }
+    return false;
+  };
+  for (let i = 0; i < bridge.barriers.length; i++) {
+    const barrier = bridge.barriers[i];
+    const collider = bridge.barrierColliders[i];
+    assert.equal(collider.type, 'elevated-barrier');
+    assert.equal(collider.polygon.outer.length, 4);
+    assert.ok(Number.isFinite(collider.minY) && Number.isFinite(collider.maxY));
+    assert.ok(Math.abs(collider.minY - Math.min(barrier.startY, barrier.endY)) < 1e-9);
+    assert.ok(Math.abs(collider.maxY - Math.max(barrier.startY, barrier.endY)
+      - elevated.ELEVATED_BARRIER_HEIGHT_M) < 1e-9);
+    const start = collider.polygon.outer[0];
+    assert.ok(hasVertex(bridge.geometry, start, collider.minY), 'wall bottom is the rendered deck edge');
+    assert.ok(hasVertex(bridge.geometry, start, collider.maxY), 'wall top is the rendered guardrail top');
+    assert.ok(collider.maxX - collider.minX <= 9 && collider.maxZ - collider.minZ <= 9,
+      'each contact wall is a short segment, not a link-wide box');
+  }
+  for (const link of result.links) {
+    for (const collider of link.barrierColliders) {
+      assert.ok(collider.minY >= FLAT_TERRAIN + 0.75 - 1e-6,
+        'guardrail contact starts above the street, so the road under the deck stays open');
+      assert.ok(collider.maxY <= FLAT_TERRAIN + 9.6 + 0.95 + 1e-6);
+    }
+  }
+  const offender = result.colliders.filter(collider => collider.type === 'elevated-barrier'
+    && collider.minY < FLAT_TERRAIN + 0.75 - 1e-6);
+  assert.equal(offender.length, 0, 'ramp feet keep both sides open');
+});
+
+test('piers expose a contact body from the ground to the deck underside', () => {
+  const result = planOver(driveFixture());
+  const bridge = result.links.find(link => link.index === 4);
+  assert.ok(bridge.piers.length > 0);
+  assert.equal(bridge.pierColliders.length, bridge.piers.length);
+  for (let i = 0; i < bridge.piers.length; i++) {
+    const pier = bridge.piers[i];
+    const collider = bridge.pierColliders[i];
+    assert.equal(collider.type, 'elevated-pier');
+    assert.ok(Math.abs(collider.minY - pier.baseY) < 1e-9);
+    assert.ok(Math.abs(collider.maxY - pier.topY) < 1e-9);
+    assert.ok(Math.abs(collider.minX - (pier.x - pier.half)) < 1e-9);
+    assert.ok(Math.abs(collider.maxZ - (pier.z + pier.half)) < 1e-9);
+  }
+  const barriers = result.colliders.filter(collider => collider.type === 'elevated-barrier');
+  const piers = result.colliders.filter(collider => collider.type === 'elevated-pier');
+  assert.equal(result.statistics.barrierColliders, barriers.length);
+  assert.equal(result.statistics.pierColliders, piers.length);
+  assert.equal(result.statistics.colliders, result.colliders.length);
+  assert.equal(result.statistics.colliders, barriers.length + piers.length);
+});
+
+test('built elevated roads expose the guardrail and pier contact bodies', () => {
+  const fake = fakeElevatedThree();
+  const module = loadModule(read('sz-elevated-roads.js'), { imports: {
+    'three/webgpu': fake,
+    './sz-roads.js': roads,
+    './sz-ground-surface.js': groundSurface,
+    './sz-controller-surfaces.js': controllerSurfaces
+  } });
+  const built = module.buildSzElevatedRoads(new fake.Group(), {
+    graph: driveFixture(), terrainSurface: surface, interchanges: FIXTURE_INTERCHANGES
+  });
+  assert.ok(built.colliders.length > 0);
+  assert.equal(built.interchanges.length, 1);
+  assert.equal(built.colliders.length, built.statistics.colliders);
+  assert.equal(built.meshes.length, built.group.children.length);
+  for (const mesh of built.group.children) {
+    assert.equal(mesh.material.side, 2, 'guardrail faces render from both sides');
+  }
+  for (const collider of built.colliders) {
+    assert.equal(collider.polygon.outer.length, 4);
+    assert.equal(collider.polygon.holes.length, 0);
+    for (const point of collider.polygon.outer) {
+      assert.ok(Number.isFinite(point.x) && Number.isFinite(point.z));
+    }
+  }
+});
+
 test('the real Shenzhen snapshot exposes drivable elevated chains with rendered deck contact', () => {
   const { gunzipSync } = require('node:zlib');
   const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
@@ -342,6 +478,17 @@ test('the real Shenzhen snapshot exposes drivable elevated chains with rendered 
   const plan = elevated.planElevatedRoads(geo.roadGraph, geo.terrainSurface);
   assert.ok(plan.links.length >= 33, `plan links ${plan.links.length}`);
   assert.ok(plan.driveLinks.length >= 30, `drive links ${plan.driveLinks.length}`);
+  assert.equal(plan.interchanges.length, 1);
+  assert.equal(plan.interchanges[0].id, 'chegongmiao');
+  assert.equal(plan.interchanges[0].links, plan.links.length);
+  assert.equal(plan.interchanges[0].driveLinks, plan.driveLinks.length);
+  assert.equal(plan.statistics.interchanges[0].heightSource, 'estimate');
+  assert.ok(plan.statistics.barriers > 0, 'decks carry guardrails');
+  assert.ok(plan.statistics.barrierLengthM > 1000, 'guardrails run along the decks');
+  assert.ok(plan.statistics.pierColliders > 0, 'piers have contact bodies');
+  assert.equal(plan.colliders.length, plan.statistics.colliders);
+  assert.equal(plan.colliders.length, plan.statistics.barrierColliders + plan.statistics.pierColliders);
+  assert.ok(plan.colliders.every(collider => collider.minY >= 0), 'no contact body dips below the datum');
   const deckLength = plan.driveLinks.reduce((sum, link) => sum + link.lengthM, 0);
   assert.ok(deckLength > 5000, `drivable deck length ${deckLength}`);
   assert.ok(plan.driveLinks.every(link => link.maxGrade <= elevated.ELEVATED_DRIVE_MAX_GRADE), 'steep links stay out of the drive graph');

@@ -240,8 +240,10 @@ async function initApp() {
   const xiliConstruction = stations?.xili ?? null;
   // 无人机航线：端点来自 air 段公开来源；航迹示意，会期低空管控时停在站点。
   const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, terrain: site.terrain }));
+  // 高架护栏和桥墩的接触体与显示几何同源，加入同一份静态碰撞列表；minY 在桥面以上，桥下道路不受影响。
   const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...trees.colliders,
-    ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? [])];
+    ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? []),
+    ...elevatedRoads.colliders];
   site.colliders = colliders;
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = qa.stage('traffic', () => createSzTraffic(scene, GEO.roadGraph, {
