@@ -47,6 +47,17 @@ CATEGORIES = ['unknown', 'residential', 'commercial', 'industrial', 'public']
 HEIGHT_SOURCES = ['landmark', 'osm-height', 'osm-levels', 'overture-height', 'overture-floors',
                   'globfp', 'estimate', 'published']
 
+# 23 号第 3 节的建筑记录字段：角色、上游族、分项可信度
+ROLES = ['main', 'podium', 'canopy', 'bridge', 'unknown']
+UPSTREAM_FAMILIES = ['osm', 'overture-eastasia', 'globfp-eastasia', 'eastasia-shared', 'unknown']
+CONFIDENCE_LEVELS = ['unknown', 'low', 'medium', 'high']
+# 高度来源到可信度的固定映射；只有 published 是个案核实值
+HEIGHT_CONFIDENCE = {'landmark': 'medium', 'osm-height': 'medium', 'osm-levels': 'medium',
+                     'overture-height': 'medium', 'overture-floors': 'medium',
+                     'globfp': 'low', 'estimate': 'low', 'published': 'high'}
+BRIDGE_TYPES = {'bridge'}
+CANOPY_TYPES = {'roof', 'canopy', 'carport', 'awning', 'shelter', 'roofing'}
+
 REMOTE_FOOTPRINT_PREFIXES = ('overture/', 'globfp/')
 
 RESIDENTIAL = {'residential', 'apartments', 'house', 'dormitory', 'detached', 'terrace', 'semidetached_house'}
@@ -277,6 +288,41 @@ def filter_misidentified_footprints(candidates, plaza_geoms, green_geoms, road_l
     return kept, dropped
 
 
+def _road_conflict(polygon, road_items, road_tree, road_buffers, road_reach):
+    """判断轮廓是否占道：中心线穿入优先，其次看落在估算车行道半宽内的面积占比。
+
+    几何都是局部米制；road_items 来自 _local_carriageways，宽度是估算值。
+    返回 (road, reason) 或 None。OSM 已标注的楼只调用它做待核标记，不据此删除。
+    """
+    if road_tree is None:
+        return None
+    for index in road_tree.query(polygon, predicate='intersects'):
+        road = road_items[index]
+        if road['geom'].intersection(polygon).length > ROAD_CENTERLINE_MIN_LENGTH:
+            return road, 'road-centerline'
+    pieces, widest = [], None
+    area = polygon.area
+    if area <= 0:
+        return None
+    for index in road_tree.query(polygon.buffer(road_reach), predicate='intersects'):
+        road = road_items[index]
+        buffered = road_buffers.get(index)
+        if buffered is None:
+            # 只用估算半宽，不再额外加 1 米浮动缓冲
+            buffered = road['geom'].buffer(road['halfWidthM'])
+            road_buffers[index] = buffered
+        intersection = polygon.intersection(buffered)
+        if intersection.is_empty or intersection.area <= 0:
+            continue
+        pieces.append(intersection)
+        if widest is None or intersection.area > widest[0]:
+            widest = (intersection.area, road)
+    share = min(unary_union(pieces).area / area, 1.0) if pieces else 0.0
+    if share >= ROAD_OVERLAP_SHARE:
+        return widest[1], 'road-carriageway'
+    return None
+
+
 def filter_road_conflicts(candidates, road_lines, report, *, report_key, source_label):
     """把落在估算车行道上的补充轮廓暂缓出正式场景，规则见 docs/23-BUILDING-AND-STREET-PLAN.md 第 3 节。
 
@@ -292,34 +338,8 @@ def filter_road_conflicts(candidates, road_lines, report, *, report_key, source_
     for candidate in candidates:
         polygon = candidate['geom']
         area = polygon.area
-        if area <= 0:
-            kept.append(candidate)
-            continue
-        hit = None
-        if road_tree is not None:
-            for index in road_tree.query(polygon, predicate='intersects'):
-                road = road_items[index]
-                if road['geom'].intersection(polygon).length > ROAD_CENTERLINE_MIN_LENGTH:
-                    hit = (road, 'road-centerline')
-                    break
-        if hit is None and road_tree is not None:
-            pieces, widest = [], None
-            for index in road_tree.query(polygon.buffer(road_reach), predicate='intersects'):
-                road = road_items[index]
-                buffered = road_buffers.get(index)
-                if buffered is None:
-                    # 只用估算半宽，不再额外加 1 米浮动缓冲
-                    buffered = road['geom'].buffer(road['halfWidthM'])
-                    road_buffers[index] = buffered
-                intersection = polygon.intersection(buffered)
-                if intersection.is_empty or intersection.area <= 0:
-                    continue
-                pieces.append(intersection)
-                if widest is None or intersection.area > widest[0]:
-                    widest = (intersection.area, road)
-            share = min(unary_union(pieces).area / area, 1.0) if pieces else 0.0
-            if share >= ROAD_OVERLAP_SHARE:
-                hit = (widest[1], 'road-carriageway')
+        hit = None if area <= 0 else _road_conflict(
+            polygon, road_items, road_tree, road_buffers, road_reach)
         if hit is None:
             kept.append(candidate)
             continue
@@ -498,6 +518,112 @@ def _facade(category, height, area, landmark):
     return 'office' if area > 1500 else 'residential_low'
 
 
+def _record_top(record):
+    """记录自身顶面高度；没有显式高度或层数时返回 None，不反推。"""
+    if record.get('height'):
+        return record['height']
+    if record.get('levels'):
+        return record['levels'] * LEVEL_HEIGHT
+    return None
+
+
+def _record_role(record):
+    """23 号第 3 节的角色：桥梁、雨棚优先；裙房只在被替换的外框内成立。"""
+    if record.get('src') != 'osm':
+        # 遥感补充轮廓没有角色证据，一律记未知
+        return 'unknown'
+    types = (record.get('buildingType'), record.get('buildingPartType'), record.get('explicitUse'))
+    if any(value in BRIDGE_TYPES for value in types if value):
+        return 'bridge'
+    if any(value in CANOPY_TYPES for value in types if value):
+        return 'canopy'
+    if record.get('isPart'):
+        parent_top = record.get('parentTop')
+        own_top = _record_top(record)
+        if (parent_top and own_top is not None and own_top <= 0.5 * parent_top
+                and record['geom'].area >= 0.5 * record['parentArea']):
+            return 'podium'
+        return 'unknown'
+    return 'main'
+
+
+def _record_upstream(record, height_source):
+    """上游族：Overture 轮廓借用 GloBFP 高度时同属一个上游，不算两次独立核实。"""
+    src = record.get('src')
+    if src == 'osm':
+        return 'osm'
+    if src == 'globfp':
+        return 'globfp-eastasia'
+    return 'eastasia-shared' if height_source == 'globfp' else 'overture-eastasia'
+
+
+def _record_confidence(record, height_source):
+    """分项可信度：轮廓按来源，高度按实际取值来源，年代只有 OSM 标注可追溯。"""
+    src = record.get('src')
+    if src == 'osm':
+        era = 'medium'
+    elif src == 'globfp':
+        era = 'low'
+    else:
+        era = 'unknown'
+    return {'footprint': 'medium' if src == 'osm' else 'low',
+            'height': HEIGHT_CONFIDENCE[height_source], 'era': era}
+
+
+def build_pending_review(buildings, road_lines, globfp_deferred, overture_deferred, size_mismatches):
+    """23 号第 3 节的待核清单：同一 id 合并理由，计数保持全量，样本按固定配额截取。
+
+    buildings 是最终进场景的记录；暂缓轮廓不在其中，只能从两条补充路径的 deferred 列表来。
+    OSM 已标注的楼占道只登记待核、不删除，所以要从 buildings 里再查一遍。
+    """
+    road_items, road_tree = _indexed(road_lines)
+    road_buffers = {}
+    road_reach = max((item['halfWidthM'] for item in road_items), default=0.0)
+    osm_kept = []
+    for building in buildings:
+        if building['id'].startswith(REMOTE_FOOTPRINT_PREFIXES):
+            continue
+        if _road_conflict(building['poly'], road_items, road_tree, road_buffers, road_reach):
+            osm_kept.append({'id': building['id'], 'areaM2': round(building['poly'].area, 1),
+                             'heightM': building['height'], 'heightSource': building['heightSource']})
+    deferred = list(globfp_deferred) + list(overture_deferred)
+    by_reason = {
+        'road-conflict-deferred': len(deferred),
+        'road-conflict-osm-kept': len(osm_kept),
+        'height-source-size-mismatch': len(size_mismatches),
+    }
+    count = len({item['id'] for item in deferred} | {item['id'] for item in osm_kept}
+                | {item['id'] for item in size_mismatches})
+    # 配额：两条补充来源各取暂缓顺序前 50 条，其余两类各取记录顺序前 100 条；计数不受配额影响
+    samples = [(item, 'road-conflict-deferred') for item in globfp_deferred[:50]]
+    samples += [(item, 'road-conflict-deferred') for item in overture_deferred[:50]]
+    samples += [(item, 'road-conflict-osm-kept') for item in osm_kept[:100]]
+    samples += [(item, 'height-source-size-mismatch') for item in size_mismatches[:100]]
+    objects, indexed = [], {}
+    for item, reason in samples:
+        identity = item['id']
+        if identity in indexed:
+            if reason not in indexed[identity]['reasons']:
+                indexed[identity]['reasons'].append(reason)
+            continue
+        entry = {'id': identity, 'reasons': [reason], 'areaM2': item.get('areaM2'),
+                 'heightM': item.get('heightM'), 'heightSource': item.get('heightSource')}
+        indexed[identity] = entry
+        objects.append(entry)
+    return {
+        'rule': ('ambiguous or deferred building records: road-conflict-deferred = supplemental footprints '
+                 'kept out of the scene by the road gate; road-conflict-osm-kept = OSM-mapped buildings '
+                 'overlapping the estimated carriageway that stay in the scene; '
+                 'height-source-size-mismatch = no own height and GloBFP overlap of at least half the '
+                 'footprint, but the strict same-building match failed (former globfp-overlap population); '
+                 'counts are complete, samples use a fixed quota'),
+        'count': count,
+        'byReason': by_reason,
+        'objects': objects,
+        'truncated': count > len(objects),
+    }
+
+
 def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, height_overrides=None,
                     include_remote_footprints=True):
     bindings = load_landmark_bindings()
@@ -567,11 +693,18 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
             idx = part_tree.query(r['geom'], predicate='intersects')
             covered = sum(part_geoms[i].intersection(r['geom']).area for i in idx)
             if covered > 0.5 * r['geom'].area:
-                # 外框被部件替代时，地标身份交给落在外框里的部件
-                if r['id'] in bindings:
-                    for i in idx:
-                        if part_geoms[i].representative_point().within(r['geom']):
-                            part_records[i].setdefault('parentId', r['id'])
+                # 裙房判定要用父楼顶面和外框面积：顶面优先取核实过的地标高度。
+                binding = bindings.get(r['id'])
+                parent_top = binding['height'] if binding and binding['height'] else _record_top(r)
+                parent_area = r['geom'].area
+                for i in idx:
+                    if not part_geoms[i].representative_point().within(r['geom']):
+                        continue
+                    part_records[i].setdefault('parentTop', parent_top)
+                    part_records[i].setdefault('parentArea', parent_area)
+                    # 外框被部件替代时，地标身份交给落在外框里的部件
+                    if binding:
+                        part_records[i].setdefault('parentId', r['id'])
                 # 部件通常不带名称；名称标牌需要父楼名字，只做显示用的继承。
                 if (r.get('name') or '').strip():
                     for i in idx:
@@ -675,6 +808,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
     applied_overrides = []
     matched_overrides = set()
     counts = {s: 0 for s in HEIGHT_SOURCES}
+    size_mismatches = []
     for r in records:
         pieces = _polygons(r['geom'].simplify(0.3, preserve_topology=True))
         if not pieces:
@@ -690,6 +824,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
             binding = {'landmark': parent['landmark'], 'part': 'part',
                        'height': None if (r.get('height') or r.get('levels')) else parent['height']}
         height = source = None
+        size_mismatch = False
         if binding and binding['height']:
             height, source = binding['height'], 'landmark'
         elif r.get('height'):
@@ -705,6 +840,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
         else:
             idx = gb_tree.query(poly, predicate='intersects')
             best = None
+            overlap_area = 0.0
             for i in idx:
                 if i in gb_excluded:
                     continue
@@ -712,6 +848,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
                 inter = g.intersection(poly).area
                 if inter <= 0:
                     continue
+                overlap_area += inter
                 iou = inter / g.union(poly).area
                 ratio = min(g.area, area) / max(g.area, area)
                 dist = g.centroid.distance(poly.centroid)
@@ -720,6 +857,10 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
                     best = (iou, gb_heights[i])
             if best:
                 height, source = best[1], 'globfp'
+            elif overlap_area >= 0.5 * area:
+                # 原 globfp-overlap 后备覆盖过的那批楼：有 GloBFP 轮廓盖住一半以上但尺寸不相称，
+                # 高度保持未知并进待核清单；不再按重叠面积加权继承高度。
+                size_mismatch = True
         if not height or height < 2.5:
             height, source = _estimate(category, area, r['id']), 'estimate'
         override = overrides.get(r['id'])
@@ -747,9 +888,13 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
                                                'heightM': round(height, 1), 'minHeightM': rounded_min,
                                                'previousMinHeightM': previous_min})
         counts[source] += 1
+        if size_mismatch:
+            size_mismatches.append({'id': r['id'], 'areaM2': round(area, 1),
+                                    'heightM': round(height, 1), 'heightSource': source})
         landmark = binding['landmark'] if binding else None
         # 层数只作立面节奏与标牌位置的参考；缺失时写 -1，不反推楼高。
         levels = r.get('levels') or r.get('oFloors') or -1
+        confidence = _record_confidence(r, source)
         out.append({
             'id': r['id'], 'poly': poly, 'height': round(height, 1),
             'minHeight': rounded_min,
@@ -757,6 +902,9 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
             'heightSource': source, 'landmark': landmark,
             'name': (r.get('name') or '').strip() or None,
             'levels': int(round(levels)) if levels and levels > 0 else -1,
+            'role': _record_role(r), 'upstream': _record_upstream(r, source),
+            'footprintConfidence': confidence['footprint'],
+            'heightConfidence': confidence['height'], 'eraConfidence': confidence['era'],
         })
     # 遥感补充楼（Overture / GloBFP）质量过滤：这些楼不在地图上标注，只保留可信足迹。
     # 规则只作用于补充楼；OSM 已标注的楼永远保留。命中水面/湿地、公园深处或孤立小棚的
@@ -862,4 +1010,19 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
         'objects': deferred_objects,
         'truncated': False,
     }
+    # 23 号第 3 节：记录分项统计和待核清单。暂缓对象不进场景，只在清单里留位置和理由。
+    role_counts = {role: 0 for role in ROLES}
+    upstream_counts = {family: 0 for family in UPSTREAM_FAMILIES}
+    confidence_counts = {aspect: {level: 0 for level in CONFIDENCE_LEVELS}
+                         for aspect in ('footprint', 'height', 'era')}
+    for building in out:
+        role_counts[building['role']] += 1
+        upstream_counts[building['upstream']] += 1
+        confidence_counts['footprint'][building['footprintConfidence']] += 1
+        confidence_counts['height'][building['heightConfidence']] += 1
+        confidence_counts['era'][building['eraConfidence']] += 1
+    report['buildingRecords'] = {'roles': role_counts, 'upstreamFamilies': upstream_counts,
+                                 'confidence': confidence_counts}
+    report['pendingReview'] = build_pending_review(
+        out, carriageways, gb_deferred, overture_deferred, size_mismatches)
     return out

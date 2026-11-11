@@ -360,6 +360,17 @@ export function validateCityPayload(raw) {
   for (const key of ['id', 'rings', 'minH', 'cat', 'facade', 'src', 'lm']) {
     requireData(Array.isArray(buildings[key]) && buildings[key].length === buildings.h.length, `buildings.${key}`);
   }
+  // 角色、上游族、分项可信度是新增字段，旧包可能没有；出现时必须和建筑数组一一对应并落在枚举内。
+  for (const [field, enumName] of [['role', 'buildingRole'], ['upstream', 'upstreamFamily'],
+    ['fpConf', 'confidence'], ['hConf', 'confidence'], ['eraConf', 'confidence']]) {
+    if (buildings[field] === undefined) continue;
+    const levels = raw.enums?.[enumName];
+    requireData(Array.isArray(levels) && levels.length > 0, `enums.${enumName}`);
+    requireData(Array.isArray(buildings[field]) && buildings[field].length === buildings.h.length,
+      `buildings.${field}`);
+    requireData(buildings[field].every(value => Number.isInteger(value) && value >= 0 && value < levels.length),
+      `building ${enumName}`);
+  }
   requireData(Array.isArray(raw.landmarks), 'landmarks');
   requireData(raw.parks === undefined || Array.isArray(raw.parks), 'parks');
   const landmarkIds = new Set(raw.landmarks.map(landmark => landmark.id));
@@ -476,12 +487,20 @@ export function decodeCityPayload(raw, metrics = null) {
       minZ = Math.min(minZ, p.z);
       maxZ = Math.max(maxZ, p.z);
     }
+    // 旧包没有这三组数组时保持 null；有值时按枚举还原字符串，不在这里补造可信度。
+    const confidence = Array.isArray(b.fpConf) && Array.isArray(b.hConf) && Array.isArray(b.eraConf)
+      ? { footprint: raw.enums.confidence[b.fpConf[i]],
+        height: raw.enums.confidence[b.hConf[i]], era: raw.enums.confidence[b.eraConf[i]] }
+      : null;
     return { id: b.id[i], height, minHeight: b.minH[i], year: 0, polygons: [shape],
       minX, maxX, minZ, maxZ, cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2,
       heightSource: raw.enums.heightSource[b.src[i]], category: raw.enums.category[b.cat[i]],
       facade: raw.enums.facade[b.facade[i]], landmark: raw.landmarks[b.lm[i]]?.id ?? null,
       name: Array.isArray(b.name) && b.name[i] >= 0 ? (raw.names?.[b.name[i]] ?? null) : null,
-      levels: Array.isArray(b.lv) ? b.lv[i] : -1 };
+      levels: Array.isArray(b.lv) ? b.lv[i] : -1,
+      role: Array.isArray(b.role) ? raw.enums.buildingRole[b.role[i]] : null,
+      upstreamFamily: Array.isArray(b.upstream) ? raw.enums.upstreamFamily[b.upstream[i]] : null,
+      confidence };
   });
   const decoded = { buildings, geo: { version: raw.version,
     frame: { origin: raw.origin, bearingDeg: 0, units: 'm' }, bounds: raw.bounds,

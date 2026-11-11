@@ -102,7 +102,8 @@ z = −(lat − lat0) · KY
    7. 按用途和占地估算，标 `estimate`
    8. `data/source/building-height-overrides.json` 里逐个公开资料核实的值（最后应用，标 `published`；必须带来源链接，构建报告记录原值和未使用项）
 4. 每栋楼记录 `heightSource`、`category`、`facade`
-5. 面积小于 16 平方米或大半在水里的轮廓丢掉
+5. 每条记录再标角色、上游族和分项可信度：`role`（`main` / `podium` / `canopy` / `bridge` / `unknown`，遥感补充轮廓一律 `unknown`；裙房要证明是被替换外框内的低矮部件）、`upstream`（`osm` / `overture-eastasia` / `globfp-eastasia` / `eastasia-shared`，Overture 轮廓借用 GloBFP 高度时记 `eastasia-shared`，不能当两次独立核实）、`footprintConfidence` / `heightConfidence` / `eraConfidence`（`unknown` / `low` / `medium` / `high`；估计值不能写成实测值）。统计写进 `build-report.json` 的 `buildingRecords`；不确定对象按 id 合并去重后写进 `pendingReview`（`rule`、`count`、`byReason`、`objects`、`truncated`），按理由全量计数、样本按固定配额截取。占道暂缓对象只进清单、不进正式场景。
+6. 面积小于 16 平方米或大半在水里的轮廓丢掉
 
 ### 5. 地形
 

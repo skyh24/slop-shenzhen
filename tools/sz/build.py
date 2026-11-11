@@ -10,7 +10,8 @@ from shapely.geometry import box
 
 from beihuan import apply_beihuan_sections
 from bridges import build_bridges
-from buildings import CATEGORIES, FACADES, HEIGHT_SOURCES, build_buildings
+from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, ROLES,
+                       UPSTREAM_FAMILIES, build_buildings)
 from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project
 from land import build_land
 from landmark_sites import build_landmark_sites
@@ -171,7 +172,9 @@ def main():
         'origin': [ORIGIN_LON, ORIGIN_LAT],
         'bounds': [round(minx), round(minz), round(maxx), round(maxz)],
         'coverage': [enc_poly(p) for p in getattr(clip, 'geoms', [clip])],
-        'enums': {'facade': FACADES, 'category': CATEGORIES, 'heightSource': HEIGHT_SOURCES, 'roadClass': CLASSES},
+        'enums': {'facade': FACADES, 'category': CATEGORIES, 'heightSource': HEIGHT_SOURCES,
+                  'buildingRole': ROLES, 'upstreamFamily': UPSTREAM_FAMILIES,
+                  'confidence': CONFIDENCE_LEVELS, 'roadClass': CLASSES},
         'land': [enc_poly(p) for p in land],
         'farLand': [enc_poly(p) for p in getattr(far_land, 'geoms', [far_land])],
         'water': [enc_poly(w['poly']) for w in water],
@@ -196,6 +199,11 @@ def main():
             'lm': [lm_index.get(b['landmark'], -1) for b in buildings],
             'name': [name_index(b.get('name')) for b in buildings],
             'lv': [b.get('levels', -1) for b in buildings],
+            'role': [ROLES.index(b['role']) for b in buildings],
+            'upstream': [UPSTREAM_FAMILIES.index(b['upstream']) for b in buildings],
+            'fpConf': [CONFIDENCE_LEVELS.index(b['footprintConfidence']) for b in buildings],
+            'hConf': [CONFIDENCE_LEVELS.index(b['heightConfidence']) for b in buildings],
+            'eraConf': [CONFIDENCE_LEVELS.index(b['eraConfidence']) for b in buildings],
         },
         'names': names,
         'landmarks': landmarks,

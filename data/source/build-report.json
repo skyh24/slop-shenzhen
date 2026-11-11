@@ -39845,6 +39845,2674 @@
     ],
     "truncated": false
   },
+  "buildingRecords": {
+    "roles": {
+      "main": 11858,
+      "podium": 14,
+      "canopy": 136,
+      "bridge": 12,
+      "unknown": 22098
+    },
+    "upstreamFamilies": {
+      "osm": 12692,
+      "overture-eastasia": 8629,
+      "globfp-eastasia": 5490,
+      "eastasia-shared": 7307,
+      "unknown": 0
+    },
+    "confidence": {
+      "footprint": {
+        "unknown": 0,
+        "low": 21426,
+        "medium": 12692,
+        "high": 0
+      },
+      "height": {
+        "unknown": 0,
+        "low": 28926,
+        "medium": 5188,
+        "high": 4
+      },
+      "era": {
+        "unknown": 15936,
+        "low": 5490,
+        "medium": 12692,
+        "high": 0
+      }
+    }
+  },
+  "pendingReview": {
+    "rule": "ambiguous or deferred building records: road-conflict-deferred = supplemental footprints kept out of the scene by the road gate; road-conflict-osm-kept = OSM-mapped buildings overlapping the estimated carriageway that stay in the scene; height-source-size-mismatch = no own height and GloBFP overlap of at least half the footprint, but the strict same-building match failed (former globfp-overlap population); counts are complete, samples use a fixed quota",
+    "count": 10819,
+    "byReason": {
+      "road-conflict-deferred": 1991,
+      "road-conflict-osm-kept": 420,
+      "height-source-size-mismatch": 8488
+    },
+    "objects": [
+      {
+        "id": "globfp/5",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 1250.0,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/6",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 1003.1,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/7",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 1038.1,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/14",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 34.3,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/24",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 94.2,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/29",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 123.5,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/33",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 71.9,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/36",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 107.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/38",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 56.1,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/39",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 110.0,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/41",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 78.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/42",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 179.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/44",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 78.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/48",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 134.7,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/49",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 2486.9,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/50",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 714.1,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/77",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 94.3,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/80",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 47.2,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/98",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 222.3,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/114",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 71.9,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/133",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 33.7,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/144",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 89.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/146",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 146.0,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/162",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 80.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/185",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 53.9,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/370",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 349.7,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/387",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 161.7,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/448",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 89.7,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/455",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 66.0,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/503",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 114.2,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/583",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 601.9,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/669",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 201.9,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/688",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 97.7,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/706",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 231.5,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/714",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 104.3,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/716",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 265.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/763",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 1897.7,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/771",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 139.2,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/806",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 70.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/810",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 223.3,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/816",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 285.1,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/844",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 90.0,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/922",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 374.9,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/929",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 363.5,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/954",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 134.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/999",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 317.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/1000",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 294.7,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/1002",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 199.1,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/1003",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 94.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "globfp/1032",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 36.9,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/b7db765d-4b00-4dd0-97c5-75ce331740c7",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 15454.2,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/48b2281b-7596-4f61-965b-39d77dcff8d9",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 23.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/bd49b485-9527-4f5d-b7a4-562f5c44ea78",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 116.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/8241b12e-2d6b-4a52-94fd-dd5f37bd2f34",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 294.1,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/3b29ca5b-5c9d-44c6-8960-2a44aa1bdf5c",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 157.2,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/c2e1c51d-047f-4e60-937d-8c133e4ff39b",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 494.2,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/595195b0-f527-41ba-9b33-9f07249acc8a",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 16.9,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/c8f30c1b-0c74-4fe5-aa97-a1355097e19d",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 131.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/d5600223-0c8f-457d-9b92-511b6404f7b9",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 432.3,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/f10ce5eb-b66e-4a41-bd4b-7242148b4072",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 572.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/eaeaab85-d919-4122-938f-2b010e16d27a",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 48.3,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/972f0095-632e-4a47-8676-3908d5526377",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 166.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/e0901486-78e5-46ec-b306-18d5c15fd215",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 45.3,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/cd5eaf44-1e95-4b27-8afb-caafb078e4e9",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 16.4,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/a7556581-6a37-407a-af71-f94d96bc5ac9",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 249.1,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/771a1ca9-a30a-4bcf-b671-e68b645c0f42",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 150.0,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/fcebad11-7964-4840-897c-ab2fdc00086d",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 99.0,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/8752b641-5c2e-4ba6-ae70-d9d6b3781b5d",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 54.0,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/0857e650-c079-4be1-a1ba-ac2442c8f095",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 73.0,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/385bde17-113a-4dbe-9bab-02b8533a9638",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 4564.3,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/a6100324-6e63-4024-9e99-15bb2c41d3fb",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 2162.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/f090af25-fa60-4bc9-99da-2bdfee0566c1",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 94.3,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/9b9ca793-5c25-4b18-a954-8762180c50ff",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 70659.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/d98e662d-e42b-46ae-9810-e2bb5f30a008",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 56.1,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/e91c8968-844f-425b-9cd5-a21bb287df47",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 53.9,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/5e1e01d6-ceee-4af2-bd63-dbd78365a0ee",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 18.0,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/641d0c50-456f-4e51-8398-a90cc48f5f84",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 752.5,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/2c4af1c9-86f0-4036-a9be-65e2bb51f794",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 525.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/27e0aeb5-78fe-4f22-b379-9545cebae51a",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 161.7,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/d40ea2d3-b62c-4983-ab52-12380e3113ab",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 416.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/05f1a214-9ff0-4ad0-a012-d8ca25915f5c",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 650.2,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/c7cf13c6-cc0a-4277-b0bc-8c7551a0dd4f",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 655.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/657dde19-b337-4854-8aa0-b1c84f4c3d7c",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 801.3,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/633f4408-661a-4d71-b677-17996fb3060a",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 389.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/d74e11dd-1241-468d-ba0d-d902593d9ed4",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 40.5,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/a8172451-1062-4517-bc69-e847339baf3d",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 114.2,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/f238a556-5c20-4db7-9190-754b1aa2c358",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 191.7,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/fe930b38-8268-43a1-88a7-ae5bae913345",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 192.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/0b1e52bd-5144-4127-8740-5065c5786864",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 216.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/83928717-8889-40a2-a5f7-c25843489c85",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 107.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/bc094c5d-971f-486d-b1ca-9331afe0de82",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 40.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/15747d24-ef64-4d00-9373-1f3e73abc6ac",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 1298.4,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/7d2b37a4-e6f9-48be-8c04-7a0c1d722d42",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 235.8,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/a49aa4d4-9378-4912-b656-31cddc240f45",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 296.4,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/254b4665-e6fb-4847-be1e-9626b0e53971",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 283.0,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/8bf5f53b-7677-4c76-bb78-ce8f7cbd9c68",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 836.6,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/2c5b1425-aeae-48fa-bedf-9462f495c772",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 1546.2,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/865573ca-da5e-473d-9728-0aefc85f7097",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 1546.9,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/d05d3584-2560-49dd-9a4f-cd30d4d781f5",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 1546.2,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "overture/85f3294b-a810-4fd4-8df8-4e31d9608d2f",
+        "reasons": [
+          "road-conflict-deferred"
+        ],
+        "areaM2": 1546.5,
+        "heightM": null,
+        "heightSource": null
+      },
+      {
+        "id": "way/99498037",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 8076.6,
+        "heightM": 25.6,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/130965708",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 15495.1,
+        "heightM": 22.8,
+        "heightSource": "globfp"
+      },
+      {
+        "id": "way/130965710",
+        "reasons": [
+          "road-conflict-osm-kept",
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 18626.8,
+        "heightM": 33.4,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/135961010",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2244.2,
+        "heightM": 92.8,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/135961031",
+        "reasons": [
+          "road-conflict-osm-kept",
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 4353.5,
+        "heightM": 34.0,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/179272767",
+        "reasons": [
+          "road-conflict-osm-kept",
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1826.7,
+        "heightM": 72.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/179272768",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2269.9,
+        "heightM": 49.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/179272769",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2221.4,
+        "heightM": 24.7,
+        "heightSource": "globfp"
+      },
+      {
+        "id": "way/179272773",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 3141.4,
+        "heightM": 22.4,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/179272775",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 7860.7,
+        "heightM": 24.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/179272781",
+        "reasons": [
+          "road-conflict-osm-kept",
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 2011.3,
+        "heightM": 27.7,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/181234749",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 16648.7,
+        "heightM": 71.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/183019557",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 19026.5,
+        "heightM": 10.0,
+        "heightSource": "osm-height"
+      },
+      {
+        "id": "way/183019558",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2331.4,
+        "heightM": 10.0,
+        "heightSource": "osm-height"
+      },
+      {
+        "id": "way/183019559",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 14104.7,
+        "heightM": 10.0,
+        "heightSource": "osm-height"
+      },
+      {
+        "id": "way/193921211",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 25737.8,
+        "heightM": 9.6,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/193921212",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 28346.6,
+        "heightM": 9.6,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/220657163",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 400.4,
+        "heightM": 22.4,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/230847098",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1758.5,
+        "heightM": 16.0,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/230847099",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1009.1,
+        "heightM": 16.0,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/230847100",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1876.7,
+        "heightM": 16.0,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/230847102",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1771.6,
+        "heightM": 12.8,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/230847104",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 4159.3,
+        "heightM": 16.0,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/230847105",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 3631.2,
+        "heightM": 19.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/230935209",
+        "reasons": [
+          "road-conflict-osm-kept",
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 477.6,
+        "heightM": 29.4,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/230935214",
+        "reasons": [
+          "road-conflict-osm-kept",
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 521.8,
+        "heightM": 35.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/230935722",
+        "reasons": [
+          "road-conflict-osm-kept",
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1114.9,
+        "heightM": 19.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/230935723",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2677.7,
+        "heightM": 36.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/230935725",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1024.6,
+        "heightM": 20.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231065260",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 493.0,
+        "heightM": 21.1,
+        "heightSource": "globfp"
+      },
+      {
+        "id": "way/231086125",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 6390.2,
+        "heightM": 19.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/231214221",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1259.7,
+        "heightM": 29.0,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231402252",
+        "reasons": [
+          "road-conflict-osm-kept",
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 989.1,
+        "heightM": 87.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231406104",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 854.2,
+        "heightM": 9.6,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "relation/3105897",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2875.0,
+        "heightM": 19.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/231406259",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1776.8,
+        "heightM": 25.6,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/231436813",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1512.1,
+        "heightM": 31.4,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231676801",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 500.9,
+        "heightM": 22.7,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231768591",
+        "reasons": [
+          "road-conflict-osm-kept",
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 628.9,
+        "heightM": 23.4,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231795526",
+        "reasons": [
+          "road-conflict-osm-kept",
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 2159.8,
+        "heightM": 22.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/232498509",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 496.9,
+        "heightM": 24.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/235150406",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 21516.7,
+        "heightM": 25.0,
+        "heightSource": "osm-height"
+      },
+      {
+        "id": "way/235150407",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 7431.1,
+        "heightM": 35.8,
+        "heightSource": "osm-height"
+      },
+      {
+        "id": "way/235152143",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 6419.9,
+        "heightM": 35.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237484981",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 5010.7,
+        "heightM": 16.0,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/240804167",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2277.8,
+        "heightM": 3.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/240804168",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2666.8,
+        "heightM": 3.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/240804170",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1319.9,
+        "heightM": 22.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/240804171",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 30788.0,
+        "heightM": 16.0,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/240804175",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2795.5,
+        "heightM": 25.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/240804185",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2463.0,
+        "heightM": 30.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/240804188",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2484.4,
+        "heightM": 3.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/240804190",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1249.1,
+        "heightM": 3.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/240804199",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2516.1,
+        "heightM": 3.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/240804201",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2209.0,
+        "heightM": 3.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/240804208",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 268.2,
+        "heightM": 3.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/240804217",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2272.5,
+        "heightM": 3.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/240804236",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 930.8,
+        "heightM": 3.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/240804244",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1399.0,
+        "heightM": 3.2,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/241116477",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 5395.6,
+        "heightM": 66.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/242559859",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 6619.1,
+        "heightM": 24.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/243384973",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 636.7,
+        "heightM": 14.7,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/243384982",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 890.4,
+        "heightM": 17.8,
+        "heightSource": "globfp"
+      },
+      {
+        "id": "way/245754224",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 2614.5,
+        "heightM": 5.4,
+        "heightSource": "globfp"
+      },
+      {
+        "id": "way/245794164",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 124.0,
+        "heightM": 16.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/245794176",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 153.7,
+        "heightM": 6.4,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/246094010",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 198.7,
+        "heightM": 20.4,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/246096304",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 3715.1,
+        "heightM": 30.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/246096308",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 3479.5,
+        "heightM": 34.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/246096310",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1704.4,
+        "heightM": 29.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/246096311",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 492.2,
+        "heightM": 28.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/246096313",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 3007.9,
+        "heightM": 24.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/246096325",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 3028.6,
+        "heightM": 24.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/246141483",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 680.4,
+        "heightM": 22.5,
+        "heightSource": "globfp"
+      },
+      {
+        "id": "way/246141488",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 835.9,
+        "heightM": 20.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/246255724",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 4919.8,
+        "heightM": 32.0,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/246255725",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1185.0,
+        "heightM": 25.0,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/246256027",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 477.1,
+        "heightM": 19.0,
+        "heightSource": "globfp"
+      },
+      {
+        "id": "way/246479596",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 5409.3,
+        "heightM": 19.6,
+        "heightSource": "globfp"
+      },
+      {
+        "id": "way/246481992",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1361.6,
+        "heightM": 28.0,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/246568338",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 366.2,
+        "heightM": 12.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/246760834",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 14052.8,
+        "heightM": 9.6,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/249529377",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1267.7,
+        "heightM": 51.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/249529385",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 8868.9,
+        "heightM": 32.7,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/251476472",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 378.6,
+        "heightM": 15.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/259011173",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 85.1,
+        "heightM": 9.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/259011174",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 124.5,
+        "heightM": 14.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/259011175",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 142.2,
+        "heightM": 15.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/264194869",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 216.1,
+        "heightM": 6.3,
+        "heightSource": "globfp"
+      },
+      {
+        "id": "way/264350258",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1115.5,
+        "heightM": 7.2,
+        "heightSource": "globfp"
+      },
+      {
+        "id": "way/264353334",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 744.8,
+        "heightM": 25.7,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/264599121",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 325.0,
+        "heightM": 14.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/269974974",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 7442.1,
+        "heightM": 12.8,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/269978218",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 1108.5,
+        "heightM": 25.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/288893074",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 73.3,
+        "heightM": 8.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/303958167",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 291.1,
+        "heightM": 17.0,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/303958179",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 288.7,
+        "heightM": 14.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/309548190",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 4996.2,
+        "heightM": 21.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/325410485",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 60702.2,
+        "heightM": 34.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/328412134",
+        "reasons": [
+          "road-conflict-osm-kept"
+        ],
+        "areaM2": 992.8,
+        "heightM": 9.6,
+        "heightSource": "osm-levels"
+      },
+      {
+        "id": "way/96293663",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 15059.8,
+        "heightM": 27.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/96327301",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 6774.8,
+        "heightM": 37.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/96337911",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 35471.0,
+        "heightM": 36.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/135961006",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 5278.8,
+        "heightM": 36.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/135961020",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 648.7,
+        "heightM": 102.4,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "relation/8766001",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 17054.1,
+        "heightM": 35.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/135961024",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 4206.5,
+        "heightM": 25.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/135961025",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 648.7,
+        "heightM": 87.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/135961026",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 648.7,
+        "heightM": 91.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/135961027",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1115.9,
+        "heightM": 77.7,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/135961033",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 505.2,
+        "heightM": 37.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/166998733",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 617.3,
+        "heightM": 24.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/170144292",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 4566.6,
+        "heightM": 18.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/170144300",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1963.8,
+        "heightM": 64.4,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/170144302",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1812.0,
+        "heightM": 24.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "relation/14150083",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 3413.2,
+        "heightM": 25.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/173156705",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 604.1,
+        "heightM": 27.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/187671936",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 18130.5,
+        "heightM": 65.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/193923327",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 9366.4,
+        "heightM": 68.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/193923330",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 6123.5,
+        "heightM": 51.0,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/203271378",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 4488.8,
+        "heightM": 30.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/211796832",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 783.3,
+        "heightM": 20.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/215920326",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 3145.5,
+        "heightM": 48.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/219166984",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 12534.0,
+        "heightM": 18.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/220651122",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 4732.1,
+        "heightM": 29.4,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/220879203",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 2135.1,
+        "heightM": 72.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/220880942",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 2871.9,
+        "heightM": 56.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/230935221",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 598.0,
+        "heightM": 19.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/230935724",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1837.3,
+        "heightM": 27.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/230956723",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 2058.8,
+        "heightM": 27.7,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/230956725",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 622.1,
+        "heightM": 24.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "relation/3097097",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1392.8,
+        "heightM": 18.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/230957349",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 3279.3,
+        "heightM": 27.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/230957354",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 506.8,
+        "heightM": 20.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231065255",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 508.8,
+        "heightM": 39.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231066365",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1374.4,
+        "heightM": 14.7,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231066366",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 664.1,
+        "heightM": 27.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231067701",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1882.6,
+        "heightM": 16.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231067702",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 673.7,
+        "heightM": 28.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231067703",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 141.5,
+        "heightM": 14.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231067707",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 30.5,
+        "heightM": 11.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231067708",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 393.6,
+        "heightM": 14.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231067848",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 203.3,
+        "heightM": 18.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231067853",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 23.2,
+        "heightM": 10.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231085256",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1894.9,
+        "heightM": 79.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231214220",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 165.8,
+        "heightM": 19.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231304396",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 199.6,
+        "heightM": 14.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "relation/3104263",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 3669.2,
+        "heightM": 14.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231405992",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 984.1,
+        "heightM": 25.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "relation/3106310",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1165.6,
+        "heightM": 23.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231572974",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 541.6,
+        "heightM": 23.0,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231664852",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 456.9,
+        "heightM": 29.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231796341",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 433.4,
+        "heightM": 37.0,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231796342",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 313.4,
+        "heightM": 12.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231796343",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 915.5,
+        "heightM": 22.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231796344",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 331.9,
+        "heightM": 31.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/231796623",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1293.0,
+        "heightM": 29.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "relation/3112064",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 3296.5,
+        "heightM": 22.0,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/232501631",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 3593.6,
+        "heightM": 60.4,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/232501635",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 2362.1,
+        "heightM": 24.7,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/234531247",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 2143.8,
+        "heightM": 63.4,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/234739976",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1361.5,
+        "heightM": 25.0,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/234757971",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 693.7,
+        "heightM": 23.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237521946",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 999.0,
+        "heightM": 102.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237522700",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 992.3,
+        "heightM": 19.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237756467",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 240.2,
+        "heightM": 13.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237756469",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 294.4,
+        "heightM": 17.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237756470",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 218.8,
+        "heightM": 17.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237756472",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 825.3,
+        "heightM": 23.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237756473",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 518.6,
+        "heightM": 30.0,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237757340",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1439.1,
+        "heightM": 24.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237757393",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 822.4,
+        "heightM": 21.4,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237757461",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 588.8,
+        "heightM": 25.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237757463",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1491.4,
+        "heightM": 68.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "relation/3203337",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 5218.7,
+        "heightM": 71.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237893512",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 291.7,
+        "heightM": 17.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/237893523",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 289.5,
+        "heightM": 17.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238021558",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 683.8,
+        "heightM": 25.0,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238021559",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1516.5,
+        "heightM": 34.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238021561",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 332.6,
+        "heightM": 18.2,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238021562",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 384.1,
+        "heightM": 15.5,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238021563",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 683.2,
+        "heightM": 28.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238021564",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 890.3,
+        "heightM": 24.3,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238021565",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1512.6,
+        "heightM": 24.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238021566",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 681.3,
+        "heightM": 28.9,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238021567",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 986.6,
+        "heightM": 23.1,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238156891",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 12108.0,
+        "heightM": 36.4,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238156899",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1746.8,
+        "heightM": 28.6,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238449613",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1204.6,
+        "heightM": 27.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/238450236",
+        "reasons": [
+          "height-source-size-mismatch"
+        ],
+        "areaM2": 1215.8,
+        "heightM": 23.6,
+        "heightSource": "estimate"
+      }
+    ],
+    "truncated": true
+  },
   "landPieces": 1,
   "landAreaKm2": 113.4,
   "seaAreaKm2": 24.66,
@@ -41900,11 +44568,11 @@
     ],
     "unresolvedLinks": [],
     "timing": {
-      "baselineSeconds": 0.079,
-      "stationSeconds": 0.155,
-      "profileSeconds": 1.047,
-      "vertexSeconds": 0.802,
-      "totalSeconds": 2.191
+      "baselineSeconds": 0.056,
+      "stationSeconds": 0.136,
+      "profileSeconds": 0.927,
+      "vertexSeconds": 0.784,
+      "totalSeconds": 2.0
     },
     "limitations": [
       "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
@@ -42035,7 +44703,7 @@
     "triangles": 386824,
     "areaKm2": 105.747093,
     "areaErrorM2": -1.71e-06,
-    "seconds": 2.85,
+    "seconds": 2.59,
     "waterLevelsGenerated": false,
     "heightSource": "copernicus-glo30-dsm",
     "exclusions": [
@@ -43133,13 +45801,13 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 3236,
-    "metadataBytes": 7753895,
-    "numericBytes": 14499672,
-    "uncompressedBytes": 22253616,
+    "columns": 3241,
+    "metadataBytes": 7754614,
+    "numericBytes": 14670272,
+    "uncompressedBytes": 22424936,
     "lossless": true,
-    "compressedBytes": 6704556
+    "compressedBytes": 6710223
   },
-  "outputBytes": 6866541,
-  "seconds": 42.0
+  "outputBytes": 6872995,
+  "seconds": 39.6
 }
