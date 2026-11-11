@@ -28,12 +28,16 @@ from road_surface import build_road_surface
 from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
+from fastpack import encode_city
+from package_validation import CORE_SOURCES, audit_payload, verify_sources
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'js/sz-city.json.gz'
 REPORT = ROOT / 'data/source/build-report.json'
 LANDMARKS = ROOT / 'data/source/landmarks.json'
 AIR = ROOT / 'data/source/air-routes.json'
+FAST_OUT = ROOT / 'js/sz-city.szc.gz'
+VALIDATION_REPORT = ROOT / 'data/source/data-validation-report.json'
 
 FORMAT_VERSION = 2
 FAR_PAD = 30000
@@ -69,6 +73,20 @@ def landmark_entries(landmarks):
     return out
 
 
+def write_fast_package(payload, raw, sources):
+    validation = audit_payload(payload, raw, sources)
+    packed, stats = encode_city(payload)
+    compressed = gzip.compress(packed, 9, mtime=0)
+    stats['compressedBytes'] = len(compressed)
+    validation['output'] = stats
+    # 校验和编码全部成功后才替换产物；失败保留上一次可用包。
+    temporary = FAST_OUT.with_suffix('.tmp')
+    temporary.write_bytes(compressed)
+    temporary.replace(FAST_OUT)
+    VALIDATION_REPORT.write_text(json.dumps(validation, ensure_ascii=False, indent=2) + '\n')
+    return stats
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-cache', action='store_true', help='re-read the OSM PBF instead of the pickle cache')
@@ -78,7 +96,19 @@ def main():
                     help='select a traceable elevation product without modifying source heights')
     ap.add_argument('--footprint-source', choices=['all', 'osm'], default='all',
                     help='all = OSM + Overture + GloBFP footprints; osm = only map-marked OSM footprints')
+    ap.add_argument('--repack-existing', action='store_true',
+                    help='validate the existing shared snapshot and generate lossless SZC1 without rebuilding geometry')
     args = ap.parse_args()
+
+    if args.repack_existing:
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        print(json.dumps(write_fast_package(payload, raw, sources), indent=2))
+        return
+
+    terrain_ids = ('copernicus-dem-N22E113', 'copernicus-dem-N22E114') if args.terrain_source == 'copernicus' else ('terrain-N22E113', 'terrain-N22E114')
+    sources = verify_sources(source_ids=(*CORE_SOURCES, *terrain_ids))
 
     t0 = time.time()
     report = {'formatVersion': FORMAT_VERSION, 'origin': [ORIGIN_LON, ORIGIN_LAT], 'bbox': PHASE1_BBOX}
@@ -189,7 +219,8 @@ def main():
     }
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode()
+    raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
+    report['fastPackage'] = write_fast_package(payload, raw, sources)
     OUT.write_bytes(gzip.compress(raw, 9, mtime=0))
     report['outputBytes'] = OUT.stat().st_size
     report['seconds'] = round(time.time() - t0, 1)

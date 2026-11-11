@@ -34,7 +34,7 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [10-PERF-QA.md](10-PERF-QA.md) | 性能预算、自动检查、浏览器验收路线 |
 | [11-MVP.md](11-MVP.md) | MVP 历史、**正式版九条硬性要求和验收标准** |
 
-### 专项规划（12–19）
+### 专项规划（12–23）
 
 | 文件 | 内容 |
 | --- | --- |
@@ -42,9 +42,10 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [13-DATA-DETAIL-PILOT.md](13-DATA-DETAIL-PILOT.md) | 新数据源小范围验证：本地测绘/总图、Overture 部件与路网、CMAB、树木公园 |
 | [14-CITY-EXPLORATION-PLAN.md](14-CITY-EXPLORATION-PLAN.md) | 后续探索体验：名称搜索与区域高亮、地铁透视、重点区域建模、导航与快捷上下车 |
 | [18-ROAD-BUILDING-CLEARANCE-PLAN.md](18-ROAD-BUILDING-CLEARANCE-PLAN.md) | 道路与建筑净空治理方案 |
+| [23-BUILDING-AND-STREET-PLAN.md](23-BUILDING-AND-STREET-PLAN.md) | 建筑身份与占道、城区平坦地面、深南绿带、路侧和标线标准 |
 | [19-WEBSITE-OPTIMIZATION-PLAN.md](19-WEBSITE-OPTIMIZATION-PLAN.md) | 网站加载、数据格式、分块与发布优化（原 13 号） |
 
-### 审计与参考（16–22）
+### 审计与参考（16–24）
 
 | 文件 | 内容 |
 | --- | --- |
@@ -52,6 +53,7 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [17-WUHAN-REFERENCE.md](17-WUHAN-REFERENCE.md) | 武汉参考模块地图：现行 `js/runtime/` 入口、旧上海运行时、数据管线和关键函数行号 |
 | [20-BUILDING-HEIGHT-AUDIT.md](20-BUILDING-HEIGHT-AUDIT.md) | 楼高与公开资料核对、4 栋修正、照片对照和已知缺口（原 16 号） |
 | [21-FOOTPRINT-AND-STREET-AUDIT.md](21-FOOTPRINT-AND-STREET-AUDIT.md) | 普通楼来源统计、遥感误检过滤、纯 OSM 模式、街景照片对照（原 17 号） |
+| [24-VALIDATED-FAST-DATA.md](24-VALIDATED-FAST-DATA.md) | 近期公开数据核验、SZC1 快读候选与合并复核 |
 | [RESEARCH.md](RESEARCH.md) | 前期调研：参考仓库、武汉教训、数据源、APEC、地标核实、检索服务状况 |
 
 2026-11-10 删除的过期文档：`15-IMPROVEMENT-PLAN.md`（规则并入 02、03 号）、`CODE-REVIEW-2026-11-10.md`（模块说明并入 01 号）、`SLIM-REVIEW-2026-11-10.md`（并入 22 号）、`NEXT-SESSION-PROMPT.md`（接续提示并入 NEXT-AGENT-PLAN）。

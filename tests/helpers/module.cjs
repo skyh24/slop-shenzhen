@@ -21,7 +21,7 @@ function loadModule(source, { imports = {}, globals = {}, filename = 'module.js'
     exported.push(...names(bindings));
     return '';
   });
-  code = code.replace(/^export\s+(const|let|var|function|class)\s+([\w$]+)/gm, (_declaration, kind, name) => {
+  code = code.replace(/^export\s+(const|let|var|async\s+function|function|class)\s+([\w$]+)/gm, (_declaration, kind, name) => {
     exported.push([name, name]);
     return `${kind} ${name}`;
   });

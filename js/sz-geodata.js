@@ -1,7 +1,11 @@
 import { readCityPayload, decodeCityPayload } from './sz-data-format.js';
 
 // 正式版与预览共用一次加载，后续模块不得各自请求不同城市快照。
-const CITY_URL = new URL('./sz-city.json.gz', import.meta.url);
+// 快读包先在本机 QA 对照；来源真实性审核未完成，不自动迁移正式默认包。
+const fastData = typeof location !== 'undefined' && ['127.0.0.1', 'localhost'].includes(location.hostname)
+  && new URLSearchParams(location.search).get('qa') === '1'
+  && new URLSearchParams(location.search).get('data') === 'szc';
+const CITY_URL = new URL(fastData ? './sz-city.szc.gz' : './sz-city.json.gz', import.meta.url);
 
 // 失败阶段映射成启动页兜底入口认识的四个种类之一，界面文字由 sz-strings.js 集中提供。
 function bootKind(error) {

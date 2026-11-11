@@ -141,3 +141,12 @@
 本次侧对话检索确认公开总平面图可提供高度/层数、塔裙和入口等具体变更；Overture交通有segment/connector连接语义，CMAB提供用途/年代等预测属性。深圳开放计划含公园服务设施、古树及天桥线索，但不能视为已经下载的完整清单。具体官方/作者来源、适用限制及执行步骤见[13号计划第3节](13-DATA-DETAIL-PILOT.md#3-来源登记与采用方式)。
 
 本地交接复核发现主线程已经取得官方2026测绘目录附件并审计FABDEM等候选，详见[已有高程审计](qa/m2-terrain-candidates/README.md)；此前对话中“附件尚未取得”的表述仅对应侧对话当时的检索状态，不能覆盖主线程新证据。本次未下载新原始数据、未更换全城数据源，未确认获得与纽约CSCL等同的深圳全市开放道路数据包。
+
+## 11. 近期数据时间核验（2026-11-11）
+
+用户接受 2025–2026 年深圳数据，限定免费公开来源。本次新增的事实与文件清单见 [24 号](24-VALIDATED-FAST-DATA.md)：
+
+- [Overture 当前版本](https://docs.overturemaps.org/release-calendar/)是 2026-10-21.0，本地已使用；发布日期不代表单栋轮廓采集日期。
+- [深圳 2026 目录公告](https://pnr.sz.gov.cn/xxgk/gggs/content/post_12759228.html)及[原表](https://pnr.sz.gov.cn/attachment/1/1708/1708809/12759228.xlsx)列 2025 年地形图/0.5 m DOM，2024 年 0.1 m DOM、16 点/m² LiDAR、LOD1.3；详细成果依申请，尚未取得。
+- Esri Wayback 43291 的[配套元数据服务](https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4)在天空之城、福中三路两处返回 `SRC_DATE=20260125`，分辨率分别 0.31/0.34 m，绝对精度 8.47 m。已取得两处瓦片和完整查询结果，哈希与查询 URL 登记 sources.json。仅作为局部核验材料，未将影像纳入发布包，也未据此宣称全区矢量足迹或高度已更新。
+- [GloBFP 论文](https://essd.copernicus.org/articles/16/5357/2024/)参考年份 2020，仍超出用户窗口。新快读候选保留来源并明确 `realityValidation=incomplete`；不能通过转换文件格式把历史源变成近期实测。

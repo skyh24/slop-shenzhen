@@ -1,13 +1,13 @@
 # 当前交接：Slop Shenzhen
 
-更新：2026-11-10 晚。这份文件只写“现在是什么状态、下一步做什么”。轮次记录在 [HANDOFF-HISTORY-2026-11-10.md](HANDOFF-HISTORY-2026-11-10.md) 和 [HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md)，只作历史证据。
+更新：2026-11-11，合并复核见第 7 节。这份文件只写“现在是什么状态、下一步做什么”。轮次记录在 [HANDOFF-HISTORY-2026-11-10.md](HANDOFF-HISTORY-2026-11-10.md) 和 [HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md)，只作历史证据。
 
 ## 1. 当前状态
 
-- **代码**：分支 `main`，HEAD `c687ba0`。正式入口 <http://127.0.0.1:8080/> 运行深圳，`index.html` 加载 `js/main.js`，可达 80 个文件、约 3 万行。`mvp.html` 只作历史参考。
+- **代码**：本轮基于 `main` 的 `2aae618` 复核 `m1-validated-fast-data` 更新，合并目标为 `main`；具体提交以 Git 为准。正式入口 <http://127.0.0.1:8080/> 运行深圳，`index.html` 加载 `js/main.js`。`mvp.html` 已删除，只作历史参考。
 - **共享包**：`js/sz-city.json.gz` 6,916,984 字节，SHA-256 `690c6d1e99fa642e9cefb756eaadd1f80b0dc7f612f7a486148c83f099bcce75`，由 `tools/sz/build.py` 生成。
 - **数据**：36,064 栋普通楼，来源是 OSM 12,692、Overture 16,022、GloBFP 7,350，没有随机放置的楼，见 [21 号](21-FOOTPRINT-AND-STREET-AUDIT.md)。其中 4 栋楼高按公开资料修正，见 [20 号](20-BUILDING-HEIGHT-AUDIT.md)。另有约 5.9 万棵树（OSM 点位加标注为模拟的补种）。
-- **测试**：2026-11-10 晚，设置 `SZ_THREE_PACKAGE_DIR=.agents/three-0.187.0` 后 Node 493 项全部通过、0 跳过；不设置时有 37 项需要真实 Three 的用例会跳过。Python 101 项通过。
+- **测试**：2026-11-11 合并复核，设置 `SZ_THREE_PACKAGE_DIR=.agents/three-0.187.0` 后 Node 476 项全部通过、0 跳过；Python 104 项通过。数量变化包含此前删除纽约测试与后续新增回归，不与旧 493 项直接比较。
 - **验收**：九条硬性要求还没有一条整体通过；M9 性能未通过，所以没有 baseline 标签。逐条证据和缺口见 [ACCEPTANCE-STATUS.md](ACCEPTANCE-STATUS.md)。
 
 ## 2. 已经挂进场景的主要内容
@@ -60,3 +60,12 @@ SZ_THREE_PACKAGE_DIR=$PWD/.agents/three-0.187.0 node --test tests/*.test.cjs
 ## 6. 首读顺序
 
 本文件 → [REVIEW-FOLLOWUP](REVIEW-FOLLOWUP-2026-11-10.md) 或 [22 号优化审查](22-OPTIMIZATION-REVIEW.md)（看你做哪条线）→ [规范](CONVENTIONS.md) → [验收标准](10-PERF-QA.md) → [架构](01-ARCHITECTURE.md) → 对应模块文档。
+
+## 7. 近期数据与快读候选补充（2026-11-11）
+
+- 用户确认只用免费公开数据，时间窗口接受 2025–2026。天空之城与福中三路已下载并登记 2026-01-25 影像及元数据；官方 2025 地形图只确认目录存在，尚未取得。
+- 分支 `m1-validated-fast-data` 加入 `build.py --repack-existing`：校验核心原始文件哈希、运行数据契约和地形索引，再无损生成 `js/sz-city.szc.gz`。原 JSON 包内容不变，普通入口仍用 JSON；快读候选仅本机 `?qa=1&data=szc`。
+- `data/source/data-validation-report.json` 分开记录编码通过与真实性未完成。现有 2020 GloBFP 仍在；3 条量化后无效轮廓、299 条高宽比候选待核。不因打包宣称占道、窄楼或天空之城残留已修好。
+- 数据读取浏览器对照：100.2 → 93.5 ms 中位数，压缩包 6,916,984 → 6,754,700 字节；不是整页冷启动收益。全量 Node 451 项通过、0 跳过，Python 104 项通过。场景冷启动和实走状态见 [24 号记录](24-VALIDATED-FAST-DATA.md)。未完成 M1/M9 整体验收，未打 baseline 标签。
+- 合并复核更新：Node 476 项通过；重新生成候选包并校验来源哈希。普通/快读入口和 main 对照均显示画面，均有相同 4 条既有 TSL 报错。快读达到 L4、短走约 4.41 m，完整驾驶和接触验收未做；详见 [24 号第 5 节](24-VALIDATED-FAST-DATA.md#5-合并复核2026-11-11)。
+- 汽车 80 km/h、Shift 加力 120 km/h、空格刹车与飞行器升降 2 秒到 20 m/s 已接入；补齐刹车/加力退出自动驾驶、制动不叠加退出加力减速度的回归。开发服务器响应禁止缓存，避免刷新后混用新旧模块。尚未完成里程碑，不打 baseline 标签。

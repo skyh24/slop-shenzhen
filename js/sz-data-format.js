@@ -245,7 +245,68 @@ function nowMs() {
   return typeof performance === 'object' && typeof performance?.now === 'function' ? performance.now() : Date.now();
 }
 
-// 只做下载、解压和解析，返回未校验的原始 JSON；校验统一放在 decodeCityPayload 里做一次。
+// SZC1 保留数值精度。地形消费者原本支持 TypedArray，直接使用视图；其余字段恢复普通数组。
+export async function decodeFastCity(input) {
+  const bytes = input.byteOffset % 8 === 0 ? input : new Uint8Array(input);
+  requireData(bytes.byteLength >= 48 && bytes.byteLength <= 256 * 1024 * 1024, 'SZC1 length');
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  requireData(view.getUint32(0, true) === 0x31435a53 && view.getUint32(4, true) === 1, 'SZC1 version');
+  const metadataLength = view.getUint32(8, true);
+  const binaryLength = view.getUint32(12, true);
+  const binaryOffset = 48 + Math.ceil(metadataLength / 8) * 8;
+  requireData(metadataLength > 0 && binaryOffset + binaryLength === bytes.length, 'SZC1 sections');
+  const checked = new Uint8Array(bytes.length - 32);
+  checked.set(bytes.subarray(0, 16));
+  checked.set(bytes.subarray(48), 16);
+  const digest = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', checked));
+  requireData(digest.every((value, i) => value === bytes[16 + i]), 'SZC1 checksum');
+  const { payload, columns } = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(48, 48 + metadataLength)));
+  requireData(payload && Array.isArray(columns) && columns.length <= 100000, 'SZC1 metadata');
+  const types = { u8: Uint8Array, u16: Uint16Array, u32: Uint32Array, i32: Int32Array, f64: Float64Array };
+  requireData(new Uint8Array(new Uint16Array([1]).buffer)[0] === 1, 'SZC1 little endian platform');
+  let offset = 0;
+  for (const column of columns) {
+    const Type = Object.hasOwn(types, column.type) ? types[column.type] : null;
+    requireData(Type && Number.isSafeInteger(column.count) && column.count > 0
+      && column.offset === offset && column.bytes === column.count * Type.BYTES_PER_ELEMENT
+      && column.offset + column.bytes <= binaryLength, 'SZC1 column bounds');
+    requireData(Array.isArray(column.path) && column.path.length > 0 && column.path.length <= 32, 'SZC1 column path');
+    let target = payload;
+    for (let i = 0; i < column.path.length; i++) {
+      const key = column.path[i];
+      requireData((typeof key === 'string' || (Number.isSafeInteger(key) && key >= 0))
+        && !['__proto__', 'constructor', 'prototype'].includes(key)
+        && target !== null && typeof target === 'object' && Object.hasOwn(target, key), 'SZC1 column target');
+      if (i === column.path.length - 1) {
+        requireData(target[key] === null, 'SZC1 column placeholder');
+        const values = new Type(bytes.buffer, bytes.byteOffset + binaryOffset + offset, column.count);
+        const terrainColumn = (column.path.length === 4 && column.path[0] === 'terrainSurface'
+          && column.path[1] === 'chunks' && Number.isInteger(column.path[2])
+          && ['positions', 'indices', 'cellRanges', 'kinds'].includes(key))
+          || (column.path.length === 2 && column.path[0] === 'terrain' && key === 'heights');
+        if (terrainColumn) {
+          requireData(values.every(Number.isFinite), 'SZC1 finite column');
+          target[key] = values;
+          continue;
+        }
+        // 顺序复制比 Array.from 的迭代器路径快，同时保留现有 Array 接口。
+        const restored = new Array(values.length);
+        for (let j = 0; j < values.length; j++) {
+          requireData(Number.isFinite(values[j]), 'SZC1 finite column');
+          restored[j] = values[j];
+        }
+        target[key] = restored;
+      } else {
+        target = target[key];
+      }
+    }
+    offset += Math.ceil(column.bytes / 8) * 8;
+  }
+  requireData(offset === binaryLength, 'SZC1 trailing bytes');
+  return payload;
+}
+
+// 下载和解压后按魔数解析 JSON 或 SZC1；语义校验统一由 decodeCityPayload 做一次。
 export async function readCityPayload(url, fetcher = fetch, metrics = null) {
   const startedAt = nowMs();
   let response;
@@ -265,11 +326,15 @@ export async function readCityPayload(url, fetcher = fetch, metrics = null) {
   if (metrics) metrics.downloadMs = downloadedAt - startedAt;
   // 静态服务器可能已经解压，按 gzip 魔数判断，而不是相信文件扩展名。
   const compressed = bytes[0] === 0x1f && bytes[1] === 0x8b;
+  let unpacked;
   let text;
+  let fast;
   try {
-    text = compressed
-      ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text()
-      : new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    unpacked = compressed
+      ? new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer())
+      : bytes;
+    fast = unpacked[0] === 0x53 && unpacked[1] === 0x5a && unpacked[2] === 0x43 && unpacked[3] === 0x31;
+    if (!fast) text = new TextDecoder('utf-8', { fatal: true }).decode(unpacked);
   } catch (error) {
     throw cityDataError('decompress', `City data decompress failed: ${error.message}`, error);
   }
@@ -277,7 +342,7 @@ export async function readCityPayload(url, fetcher = fetch, metrics = null) {
   if (metrics) metrics.decompressMs = decompressedAt - downloadedAt;
   let raw;
   try {
-    raw = JSON.parse(text);
+    raw = fast ? await decodeFastCity(unpacked) : JSON.parse(text);
   } catch (error) {
     throw cityDataError('invalid', `City data parse failed: ${error.message}`, error);
   }

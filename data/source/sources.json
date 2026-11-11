@@ -678,6 +678,50 @@
       ],
       "downloadedAt": "2026-11-09",
       "usage": "Baseline only for the explicitly derived road corridor surface (tools/sz/road_surface.py). Never replaces the global terrain; raw Copernicus DSM heights are preserved outside the road corridor and recorded before/after in build-report.json."
+    },
+    {
+      "id": "dji-freshness-2026-metadata",
+      "file": "data/raw/streetscape/freshness-2026/dji-metadata.json",
+      "url": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query?f=json&where=1%3D1&outFields=%2A&returnGeometry=false&geometry=%7B%22spatialReference%22%3A+%7B%22wkid%22%3A+4326%7D%2C+%22x%22%3A+113.93798463663494%2C+%22y%22%3A+22.580380529136097%7D&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects",
+      "downloadedAt": "2026-11-10",
+      "bytes": 2084,
+      "sha256": "a27b18b9c1a91a41638d6baad0a3aa7da9114d1d20ba846f07a775ba3c4c47a3",
+      "role": "Local dated imagery review only; not a building vector source or height measurement",
+      "acquiredAt": "2026-01-25",
+      "checkedAt": "2026-11-11"
+    },
+    {
+      "id": "dji-freshness-2026-image",
+      "file": "data/raw/streetscape/freshness-2026/dji-18-214039-114186.jpg",
+      "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/18/114186/214039",
+      "downloadedAt": "2026-11-10",
+      "bytes": 15535,
+      "sha256": "7920331c7754602814862fcc5a207141899f1869e5404efbcb55607de21aab19",
+      "role": "Local dated imagery review only; not a building vector source or height measurement",
+      "acquiredAt": "2026-01-25",
+      "checkedAt": "2026-11-11"
+    },
+    {
+      "id": "fuzhong-freshness-2026-metadata",
+      "file": "data/raw/streetscape/freshness-2026/fuzhong-metadata.json",
+      "url": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query?f=json&where=1%3D1&outFields=%2A&returnGeometry=false&geometry=%7B%22spatialReference%22%3A+%7B%22wkid%22%3A+4326%7D%2C+%22x%22%3A+114.04510391333397%2C+%22y%22%3A+22.54520100678435%7D&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects",
+      "downloadedAt": "2026-11-10",
+      "bytes": 2101,
+      "sha256": "4dcd7fa8fb832cc827a8ae81b48acc0c892969485576e31b899bce06f8c6c9d8",
+      "role": "Local dated imagery review only; not a building vector source or height measurement",
+      "acquiredAt": "2026-01-25",
+      "checkedAt": "2026-11-11"
+    },
+    {
+      "id": "fuzhong-freshness-2026-image",
+      "file": "data/raw/streetscape/freshness-2026/fuzhong-18-214117-114214.jpg",
+      "url": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/18/114214/214117",
+      "downloadedAt": "2026-11-10",
+      "bytes": 13895,
+      "sha256": "f2dc32afe554400617160ff916c06369504347be773bdcd9aa21f4eeeb274c69",
+      "role": "Local dated imagery review only; not a building vector source or height measurement",
+      "acquiredAt": "2026-01-25",
+      "checkedAt": "2026-11-11"
     }
   ]
 }
