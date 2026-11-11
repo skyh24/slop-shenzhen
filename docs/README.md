@@ -15,6 +15,7 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [ACCEPTANCE-STATUS.md](ACCEPTANCE-STATUS.md) | 九条硬性要求逐条的验收等级和证据 |
 | [NEXT-AGENT-PLAN.md](NEXT-AGENT-PLAN.md) | E0–E6 长期计划、并行分工，以及发给新会话的接续提示 |
 | [CONVENTIONS.md](CONVENTIONS.md) | 开发规范：语言、代码风格、坐标、数据、建模、验收、Git |
+| [GLOSSARY.md](../GLOSSARY.md) | 区域、街区、场所、走廊与通行表面的领域词汇 |
 | [HANDOFF-HISTORY-2026-11-10.md](HANDOFF-HISTORY-2026-11-10.md)、[HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md) | 交接历史，只作证据，不作当前指令 |
 
 ### 模块规格（00–11）
@@ -34,7 +35,7 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [10-PERF-QA.md](10-PERF-QA.md) | 性能预算、自动检查、浏览器验收路线 |
 | [11-MVP.md](11-MVP.md) | MVP 历史、**正式版九条硬性要求和验收标准** |
 
-### 专项规划（12–23）
+### 专项规划（12–27）
 
 | 文件 | 内容 |
 | --- | --- |
@@ -43,9 +44,10 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [14-CITY-EXPLORATION-PLAN.md](14-CITY-EXPLORATION-PLAN.md) | 后续探索体验：名称搜索与区域高亮、地铁透视、重点区域建模、导航与快捷上下车 |
 | [18-ROAD-BUILDING-CLEARANCE-PLAN.md](18-ROAD-BUILDING-CLEARANCE-PLAN.md) | 道路与建筑净空治理方案 |
 | [23-BUILDING-AND-STREET-PLAN.md](23-BUILDING-AND-STREET-PLAN.md) | 建筑身份与占道、城区平坦地面、深南绿带、路侧和标线标准 |
+| [27-REGION-DATA-PLAN.md](27-REGION-DATA-PLAN.md) | 道路围合区域、地标关联、可扩展风貌基础数据及分阶段接入计划 |
 | [19-WEBSITE-OPTIMIZATION-PLAN.md](19-WEBSITE-OPTIMIZATION-PLAN.md) | 网站加载、数据格式、分块与发布优化（原 13 号） |
 
-### 审计与参考（16–25）
+### 审计与参考（16–26）
 
 | 文件 | 内容 |
 | --- | --- |
