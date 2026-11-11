@@ -37,12 +37,15 @@ PLAZA_GREEN_SHARE = 0.6
 CARRIAGEWAY_SHARE = 0.8
 CARRIAGEWAY_BUFFER = 1.0
 MISIDENTIFIED_REPORT_LIMIT = 300
+# 补充轮廓占道暂缓门槛，见 docs/23-BUILDING-AND-STREET-PLAN.md 第 3 节
+ROAD_OVERLAP_SHARE = 0.5
+ROAD_CENTERLINE_MIN_LENGTH = 0.5
 
 # 立面类型编号，和 js/sz-materials.js 的 FACADE_PROFILES 顺序一一对应
 FACADES = ['glass_tower', 'office', 'residential_tower', 'residential_low', 'village', 'industrial', 'public', 'landmark']
 CATEGORIES = ['unknown', 'residential', 'commercial', 'industrial', 'public']
 HEIGHT_SOURCES = ['landmark', 'osm-height', 'osm-levels', 'overture-height', 'overture-floors',
-                  'globfp', 'globfp-overlap', 'estimate', 'published']
+                  'globfp', 'estimate', 'published']
 
 REMOTE_FOOTPRINT_PREFIXES = ('overture/', 'globfp/')
 
@@ -272,6 +275,75 @@ def filter_misidentified_footprints(candidates, plaza_geoms, green_geoms, road_l
         'truncated': len(dropped) > MISIDENTIFIED_REPORT_LIMIT,
     }
     return kept, dropped
+
+
+def filter_road_conflicts(candidates, road_lines, report, *, report_key, source_label):
+    """把落在估算车行道上的补充轮廓暂缓出正式场景，规则见 docs/23-BUILDING-AND-STREET-PLAN.md 第 3 节。
+
+    输入几何都是局部米制坐标；road_lines 来自 _local_carriageways，宽度是估算值，不是实测。
+    只给遥感补充来源（GloBFP 独有 / Overture 独有）用，OSM 已标注的楼不经过这里、永远不自动删。
+    先看中心线是否穿入轮廓，再看轮廓落在车行道半宽内的面积占比，两个门槛都写进报告段。
+    返回 (kept, deferred)；没有候选时也写报告段，避免结论被误读成“没有检查”。
+    """
+    road_items, road_tree = _indexed(road_lines)
+    road_buffers = {}
+    road_reach = max((item['halfWidthM'] for item in road_items), default=0.0)
+    kept, deferred = [], []
+    for candidate in candidates:
+        polygon = candidate['geom']
+        area = polygon.area
+        if area <= 0:
+            kept.append(candidate)
+            continue
+        hit = None
+        if road_tree is not None:
+            for index in road_tree.query(polygon, predicate='intersects'):
+                road = road_items[index]
+                if road['geom'].intersection(polygon).length > ROAD_CENTERLINE_MIN_LENGTH:
+                    hit = (road, 'road-centerline')
+                    break
+        if hit is None and road_tree is not None:
+            pieces, widest = [], None
+            for index in road_tree.query(polygon.buffer(road_reach), predicate='intersects'):
+                road = road_items[index]
+                buffered = road_buffers.get(index)
+                if buffered is None:
+                    # 只用估算半宽，不再额外加 1 米浮动缓冲
+                    buffered = road['geom'].buffer(road['halfWidthM'])
+                    road_buffers[index] = buffered
+                intersection = polygon.intersection(buffered)
+                if intersection.is_empty or intersection.area <= 0:
+                    continue
+                pieces.append(intersection)
+                if widest is None or intersection.area > widest[0]:
+                    widest = (intersection.area, road)
+            share = min(unary_union(pieces).area / area, 1.0) if pieces else 0.0
+            if share >= ROAD_OVERLAP_SHARE:
+                hit = (widest[1], 'road-carriageway')
+        if hit is None:
+            kept.append(candidate)
+            continue
+        road, reason = hit
+        deferred.append({
+            'id': candidate.get('id'), 'areaM2': round(area, 1), 'reason': reason,
+            'roadId': road['id'], 'roadWidthM': round(2 * road['halfWidthM'], 1),
+            'roadWidthSource': 'estimated', 'imageryChecked': False,
+        })
+    report[report_key] = {
+        'rule': (f'{source_label}, supplemental footprints only: defer when a road centerline crosses '
+                 f'more than {ROAD_CENTERLINE_MIN_LENGTH:g} m inside the footprint, or when at least '
+                 f'{ROAD_OVERLAP_SHARE:.0%} of the footprint lies inside the estimated carriageway '
+                 f'(road half width, no extra buffer); OSM-mapped buildings are never removed'),
+        'roadWidthSource': 'estimated',
+        'imageryChecked': False,
+        'count': len(deferred),
+        'areaM2': round(sum(item['areaM2'] for item in deferred), 1),
+        'objects': deferred[:MISIDENTIFIED_REPORT_LIMIT],
+        'candidates': len(candidates),
+        'kept': len(kept),
+        'truncated': len(deferred) > MISIDENTIFIED_REPORT_LIMIT,
+    }
+    return kept, deferred
 
 
 def load_height_overrides(path=HEIGHT_OVERRIDES):
@@ -571,6 +643,11 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
     kept_candidates, _dropped_candidates = filter_misidentified_footprints(
         gb_candidates, plaza_local, green_local, carriageways, report, counterpart_geoms=all_geoms,
     )
+    # 再按占道门槛暂缓：暂缓对象不进场景，globfpAdded 只统计真正进场景的补充楼
+    kept_candidates, gb_deferred = filter_road_conflicts(
+        kept_candidates, carriageways, report,
+        report_key='globfpRoadConflicts', source_label='GloBFP-only',
+    )
     records.extend(kept_candidates)
     gb_added = len(kept_candidates)
     report['globfpAdded'] = gb_added
@@ -582,6 +659,11 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
         overture_candidates, plaza_local, green_local, carriageways, report,
         counterpart_geoms=osm_geoms,
         report_key='overtureMisidentified', source_label='Overture-only (no OSM building)',
+    )
+    # 同样的占道门槛；暂缓对象按对象身份从 records 里移除，overtureAdded 只统计进场景的楼
+    kept_overture, overture_deferred = filter_road_conflicts(
+        kept_overture, carriageways, report,
+        report_key='overtureRoadConflicts', source_label='Overture-only (no OSM building)',
     )
     kept_overture_ids = {id(record) for record in kept_overture}
     records = [record for record in records
@@ -623,7 +705,6 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
         else:
             idx = gb_tree.query(poly, predicate='intersects')
             best = None
-            overlap_h = overlap_a = 0.0
             for i in idx:
                 if i in gb_excluded:
                     continue
@@ -631,17 +712,14 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
                 inter = g.intersection(poly).area
                 if inter <= 0:
                     continue
-                overlap_h += gb_heights[i] * inter
-                overlap_a += inter
                 iou = inter / g.union(poly).area
                 ratio = min(g.area, area) / max(g.area, area)
                 dist = g.centroid.distance(poly.centroid)
+                # 只保留严格同楼匹配；尺寸不相称或中心偏离时不借高度，落到 estimate 或待核。
                 if iou >= 0.6 and ratio >= 0.65 and dist <= 12 and (best is None or iou > best[0]):
                     best = (iou, gb_heights[i])
             if best:
                 height, source = best[1], 'globfp'
-            elif overlap_a >= 0.5 * area:
-                height, source = overlap_h / overlap_a, 'globfp-overlap'
         if not height or height < 2.5:
             height, source = _estimate(category, area, r['id']), 'estimate'
         override = overrides.get(r['id'])
@@ -768,4 +846,20 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
     expected = sorted({v['landmark'] for v in bindings.values()})
     report['landmarkBuildingsBound'] = found
     report['landmarksWithoutBuilding'] = [x for x in expected if x not in found]
+    # 两条补充路径的占道暂缓对象合成一段；对象列表不截断，每条自带来源，供人工逐条核对。
+    deferred_objects = [{'source': 'globfp', **item} for item in gb_deferred]
+    deferred_objects += [{'source': 'overture', **item} for item in overture_deferred]
+    report['deferredFootprints'] = {
+        'rule': ('supplemental GloBFP and Overture footprints only: defer when a road centerline crosses '
+                 f'more than {ROAD_CENTERLINE_MIN_LENGTH:g} m inside the footprint, or when at least '
+                 f'{ROAD_OVERLAP_SHARE:.0%} of the footprint lies inside the estimated carriageway '
+                 '(road half width, no extra buffer); OSM-mapped buildings are never auto-removed'),
+        'roadWidthSource': 'estimated',
+        'imageryChecked': False,
+        'count': len(deferred_objects),
+        'areaM2': round(sum(item['areaM2'] for item in deferred_objects), 1),
+        'bySource': {'globfp': len(gb_deferred), 'overture': len(overture_deferred)},
+        'objects': deferred_objects,
+        'truncated': False,
+    }
     return out

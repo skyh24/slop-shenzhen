@@ -14,6 +14,7 @@ export const sourceIds = [];
 
 // 场地内的既有通用楼（Overture / Globfp 足迹，运行包里仍在渲染）。新会场体量会与它们穿模，
 // 由 registry 在接管本模型时按 optionalSkipIds 让位；ids 来自当前共享包内质心落在场地内的建筑。
+// globfp/26340 在 23 号第 1 步的占道门槛里被暂缓，已不在共享包内，故从名单移除。
 export const optionalSkipIds = [
   'way/1431482482', 'way/1431482483', 'way/1431884285', 'way/1572116213', 'way/1572116214',
   'way/1572116215', 'way/1572116216',
@@ -27,7 +28,7 @@ export const optionalSkipIds = [
   'overture/8156a63f-cb6a-4faf-9ba0-58a78d94c78b', 'overture/2f62fd12-9f55-42a7-a703-d73dd3086e4f',
   'overture/8a590566-9588-4073-b4e1-14c030df64f6', 'overture/67738848-c5a0-4b73-901f-89308567d646',
   'overture/e316beed-eab5-4a6f-a134-f4f604e1d8f7', 'overture/f93c06e2-ed59-4c06-a8bd-9857ecec2016',
-  'globfp/26138', 'globfp/26139', 'globfp/26310', 'globfp/26334', 'globfp/26340', 'globfp/26355', 'globfp/26362'
+  'globfp/26138', 'globfp/26139', 'globfp/26310', 'globfp/26334', 'globfp/26355', 'globfp/26362'
 ];
 
 export const siteId = 'iec-xiangmihu';

@@ -87,7 +87,8 @@ z = −(lat − lat0) · KY
 ### 4. 建筑合并与楼高
 
 1. 读 OSM 建筑（保留 `height`、`building:levels`、`building`、`name`）。Overture/GloBFP 补充楼只保留可信足迹，OSM 标注楼永远保留。过滤分两轮，丢弃项全部写进构建报告：
-   - 误识别过滤（`filter_misidentified_footprints`，报告段 `globfpMisidentified` / `overtureMisidentified`）：面积 <300 m²、和 OSM 楼没有相交，并且落在 OSM 广场和绿地里的比例 ≥60%，或落在车行道（半宽加 1 m）里的比例 ≥80% 的，丢弃。80% 这一档会放过中心线已经穿过、重叠约 58.5%（加缓冲约 74.6%）的楼。福中三路那栋约 94 m²、估高 7.3 m 的白楼就是这样留下的。中心线穿越要补进门槛，见 [23 号](23-BUILDING-AND-STREET-PLAN.md)。
+   - 误识别过滤（`filter_misidentified_footprints`，报告段 `globfpMisidentified` / `overtureMisidentified`）：面积 <300 m²、和 OSM 楼没有相交，并且落在 OSM 广场和绿地里的比例 ≥60%，或落在车行道（半宽加 1 m）里的比例 ≥80% 的，丢弃。80% 这一档会放过中心线已经穿过、重叠约 58.5%（加缓冲约 74.6%）的楼；福中三路那栋约 94 m²、估高 7.3 m 的白楼就是这样留下的。中心线穿越和车行道占比改由下一条占道暂缓门槛处理，见 [23 号](23-BUILDING-AND-STREET-PLAN.md)。
+   - 占道暂缓门槛（`filter_road_conflicts`，报告段 `globfpRoadConflicts` / `overtureRoadConflicts`，汇总段 `deferredFootprints`）：只作用于遥感补充轮廓（GloBFP 独有、Overture 独有），OSM 已标注的楼永不自动删，也不缩窄道路来躲楼。道路中心线穿入轮廓超过 0.5 m，或轮廓有 ≥50% 的面积落在按估算宽度生成的车行道（半宽，不再额外加 1 m 缓冲）里，就暂缓出正式场景，逐条写进 `build-report.json`：每条带触发道路的 `roadId` 和 `roadWidthM`，并标明 `roadWidthSource: "estimated"`、`imageryChecked: false`。路宽是估算值，没有用影像否定这个轮廓；存在性确认不了的留待人工核对，不写成“现实中不存在”。
    - 足迹可信度过滤（`buildingFootprintFilter`）：水面/湿地重叠 >20%、绿地 >60% 且 60m 内无 OSM 楼、面积 <60m² 且 50m 内无 OSM 楼的，丢弃。
    - `--footprint-source osm` 可只保留地图标注楼。
 2. 读 Overture，和 OSM 轮廓重叠超过 25% 的丢掉
@@ -97,7 +98,7 @@ z = −(lat − lat0) · KY
    3. OSM `building:levels × 3.2 m`
    4. Overture `height`
    5. Overture `num_floors × 3.2 m`
-   6. 3D-GloBFP：交并比至少 0.6、面积比至少 0.65、中心距不超过 12 米，且没有相近的第二候选。现行代码在这条失败后还有未列入本清单的后备：小轮廓被相交 GloBFP 盖住一半以上就按重叠面积加权继承高度，标 `globfp-overlap`（`buildings.py` 第 643 行）。福中三路样本里，约 4.6×7.5 m 的底面因此得到 118.5 m。这条后备要删掉，目标规则见 [23 号](23-BUILDING-AND-STREET-PLAN.md)
+   6. 3D-GloBFP：只看严格同楼匹配——交并比 ≥0.6、面积比 ≥0.65、中心距 ≤12 m，多个候选取交并比最高的一个。没有第二套后备规则，原“盖住一半就按重叠面积加权继承高度”的 `globfp-overlap` 已删除。尺寸不相称的候选保持高度未知，落到第 7 步 `estimate` 或进待核清单。福中三路约 4.6×7.5 m 的底面不再得到 118.5 m，见 [23 号](23-BUILDING-AND-STREET-PLAN.md)
    7. 按用途和占地估算，标 `estimate`
    8. `data/source/building-height-overrides.json` 里逐个公开资料核实的值（最后应用，标 `published`；必须带来源链接，构建报告记录原值和未使用项）
 4. 每栋楼记录 `heightSource`、`category`、`facade`
