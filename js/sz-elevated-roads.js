@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { isGroundRoad, roadLinkPoints } from './sz-roads.js';
 import { createGroundSurfaceSampler } from './sz-ground-surface.js';
+import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
 
 // 立交桥面高程没有实测纵断面，按 layer 的估算层高派生，接触面与显示几何共用同一批三角面。
 const LAYER_HEIGHT_M = 4.8;
@@ -10,6 +11,8 @@ const PIER_SPACING_M = 28;
 const PIER_MIN_CLEARANCE_M = 2;
 const MAX_CHUNKS = 12;
 const EPSILON = 1e-8;
+// 车行链路只接受可驾驶的估计纵坡；更陡的派生桥面是未核实断面，不接入车流/自动导航。
+export const ELEVATED_DRIVE_MAX_GRADE = 0.12;
 
 const DEFAULT_ELEVATED_AREA = Object.freeze({ minX: -3800, maxX: -2500, minZ: 500, maxZ: 1300 });
 
@@ -17,7 +20,8 @@ const LIMITATIONS = [
   '桥面高度按 OSM layer 每层 4.8 m 估算，没有实测纵断面或设计线形校正。',
   '匝道与地面道路共享节点处按地形高程落地，坡度为两端线性插值，不是测量坡度。',
   '仅补齐车公庙立交范围（默认 x -3800..-2500、z 500..1300），不代表全市其余桥隧。',
-  '桥墩按约 28 m 间距估计布置，只在净空大于 2 m 时设墩，墩位与基础未做地勘核实。'
+  '桥墩按约 28 m 间距估计布置，只在净空大于 2 m 时设墩，墩位与基础未做地勘核实。',
+  '车行链路只接受非隧道、layer>0 且派生纵坡不超过 12% 的桥面；高程未知或层间不连续的链路不接入车流和自动导航。'
 ];
 
 function normalizeArea(area) {
@@ -305,6 +309,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, area)
     lengthM: length,
     areaM2,
     maxClearanceM,
+    maxGrade: Math.abs(endY - startY) / length,
     points,
     frames,
     geometry,
@@ -505,10 +510,41 @@ export function planElevatedRoads(graph, terrainSurface, area = DEFAULT_ELEVATED
   }
 
   const connectors = planConnectorRamps(records);
+  // 车行链路：高程来自本计划同一批桥面三角面、纵坡可驾驶且非隧道；连接在车流图里再按共享节点高差复核。
+  const driveLinks = records.filter(record => !record.tunnel && record.layer > 0
+    && record.maxGrade <= ELEVATED_DRIVE_MAX_GRADE);
+  const driveByStart = new Map();
+  for (const record of driveLinks) {
+    if (!driveByStart.has(record.startNode)) driveByStart.set(record.startNode, []);
+    driveByStart.get(record.startNode).push(record);
+  }
+  // 车行后继：共享节点处桥面高差在容差内的同向链路，供控制器在多条并行缎带分岔处按车行连通性交接。
+  const successors = new Map();
+  for (const record of driveLinks) {
+    const end = record.points[record.points.length - 1];
+    const previous = record.points[record.points.length - 2];
+    const length = Math.hypot(end.x - previous.x, end.z - previous.z) || 1;
+    const candidates = [];
+    for (const next of driveByStart.get(record.endNode) ?? []) {
+      // 0.35 m 与 sz-traffic.js 的 ELEVATED_HEIGHT_TOLERANCE 是同一接缝容差，两份需同步。
+      if (next === record || Math.abs(record.endDeckY - next.startDeckY) > 0.35) continue;
+      const start = next.points[1];
+      const denominator = Math.hypot(start.x - next.points[0].x, start.z - next.points[0].z) || 1;
+      const dot = ((end.x - previous.x) / length) * ((start.x - next.points[0].x) / denominator)
+        + ((end.z - previous.z) / length) * ((start.z - next.points[0].z) / denominator);
+      if (dot > -0.45) candidates.push({ id: next.surfaceId, dot });
+    }
+    // 分岔鼻端按走向最顺的链路优先，控制器交接时用这个顺序消歧。
+    candidates.sort((a, b) => b.dot - a.dot || a.id.localeCompare(b.id));
+    successors.set(record.surfaceId, candidates.map(candidate => candidate.id));
+  }
   const surfaces = [...records, ...connectors].map(record => ({
     id: record.surfaceId,
     heightSource: 'estimate',
-    triangles: record.topTriangles
+    triangles: record.topTriangles,
+    // 桥头与地面共享节点处允许车辆从地面踏上桥面；桥下高差超过抬脚高度时不会吸附。
+    climbableFromGround: true,
+    driveSuccessors: successors.get(record.surfaceId) ?? []
   }));
   const chunks = buildChunks([...records, ...connectors]);
   const statistics = {
@@ -520,6 +556,8 @@ export function planElevatedRoads(graph, terrainSurface, area = DEFAULT_ELEVATED
     surfaces: surfaces.length,
     triangles: [...records, ...connectors].reduce((sum, record) => sum + record.geometry.length / 9, 0),
     piers: records.reduce((sum, record) => sum + record.piers.length, 0),
+    driveLinks: driveLinks.length,
+    driveDeckLengthM: driveLinks.reduce((sum, record) => sum + record.lengthM, 0),
     maxDeckHeightM: records.reduce((max, record) => Math.max(max, record.maxClearanceM), 0),
     heightSource: 'estimate',
     groundDuplicates,
@@ -527,7 +565,7 @@ export function planElevatedRoads(graph, terrainSurface, area = DEFAULT_ELEVATED
     limitations: [...LIMITATIONS]
   };
 
-  return { version: 1, heightSource: 'estimate', area: bounds, links: records, surfaces, chunks, statistics };
+  return { version: 1, heightSource: 'estimate', area: bounds, links: records, driveLinks, surfaces, chunks, statistics };
 }
 
 /** 解析：把高架计划建成场景：≤12 个空间分块网格 + 可站立表面。
@@ -537,6 +575,9 @@ export function planElevatedRoads(graph, terrainSurface, area = DEFAULT_ELEVATED
 export function buildSzElevatedRoads(scene, { graph, terrainSurface, area } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('A THREE scene is required');
   const plan = planElevatedRoads(graph, terrainSurface, area);
+  // 车行网络复用渲染桥面的顶面三角面：车轮接触、自动规划和渲染桥面同源，桥下层不串到上层。
+  const driveSurfaceIds = new Set(plan.driveLinks.map(record => record.surfaceId));
+  const driveSurfaces = plan.surfaces.filter(surface => driveSurfaceIds.has(surface.id));
   const group = new THREE.Group();
   group.name = 'shenzhen-elevated-roads';
   // 没有纹理，沥青观感只靠颜色和粗糙度；polygonOffset 只处理与地面共面处的绘制顺序。
@@ -571,6 +612,17 @@ export function buildSzElevatedRoads(scene, { graph, terrainSurface, area } = {}
     surfaces: plan.surfaces,
     statistics: plan.statistics,
     links: plan.links,
+    drive: {
+      links: plan.driveLinks,
+      surfaces: driveSurfaces,
+      heightAt: createSurfaceHeightAt(driveSurfaces),
+      statistics: {
+        links: plan.driveLinks.length,
+        deckLengthM: plan.statistics.driveDeckLengthM,
+        surfaces: driveSurfaces.length,
+        heightSource: 'rendered-top-triangles'
+      }
+    },
     update() {},
     dispose() {
       if (group.parent) group.parent.remove(group);

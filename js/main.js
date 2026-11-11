@@ -245,7 +245,10 @@ async function initApp() {
   site.colliders = colliders;
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = qa.stage('traffic', () => createSzTraffic(scene, GEO.roadGraph, {
-    ...site, signals: roadFrontage.control, detailedRoadIds: roadFrontage.detailedRoadIds,
+    ...site,
+    // 车公庙高架车行链路：桥面顶面三角面来自 elevatedRoads，车流、自动规划和轮胎接触共用同一表面身份。
+    elevated: elevatedRoads.drive,
+    signals: roadFrontage.control, detailedRoadIds: roadFrontage.detailedRoadIds,
     canTurn: createTurnFilter(GEO.roadGraph)
   }));
   markInit('traffic');
@@ -295,7 +298,8 @@ async function initApp() {
   pedestrians.update(0, controllerManager.getActiveEntity().position, 0, null, [controllerManager.getActiveEntity()]);
   const driveCar = controllerManager.entities.car;
   const driveModel = trafficModelBounds(driveCar.collisionBounds, VEHICLE_SPECS.taxi);
-  const driveOptions = { model: driveModel, roadHeight: roads.roadHeight, control: roadFrontage.control };
+  // 自动驾驶与地图规划使用交通模块的组合高度：地面沥青 + 高架桥面（按边表面身份取样）。
+  const driveOptions = { model: driveModel, roadHeight: traffic.roadHeight, control: roadFrontage.control };
   const autoDrive = createAutoDrive({ ...driveOptions, nearTraffic: traffic.nearColliders });
   let planner = null;
   const drivePlanner = () => planner ??= createDrivePlanner(traffic.network, GEO.roadGraph, { ...driveOptions,

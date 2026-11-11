@@ -56,6 +56,15 @@ test('brake and boost inputs cancel automatic driving through the frame wiring',
   }
 });
 
+const DECK_SURFACE = 'sz-elevated-road:7';
+const DECK_SURFACE_B = 'sz-elevated-road:8';
+// 架空链路按正式 createTrafficGraph 的 elevated 分支接入，覆盖 surfaceId/共享端/桥面高的字段契约。
+const deckLink = (overrides = {}) => ({ index: 1, osmId: 'way/900', surfaceId: DECK_SURFACE, name: 'Elevated',
+  points: [{ x: 0, z: 0 }, { x: 50, z: 0 }, { x: 100, z: 0 }], startNode: 0, endNode: 1,
+  width: 7, lanes: 2, direction: 1, startDeckY: 20, endDeckY: 20, sharedStart: false, sharedEnd: false, ...overrides });
+const emptyGraph = () => ({ nodes: [], nodeIds: ['node/1', 'node/2'], names: [], links: [], metadata: [],
+  turnRestrictions: { rules: [] } });
+
 test('route planning respects directed links, actual pavement, and source turn restrictions', () => {
   const graph = { nodes: [0, 0, 75, 0, 150, 0, 225, 0, 75, 55], nodeIds: ['node/1', 'node/2', 'node/3', 'node/4', 'node/5'],
     names: ['Road'], links: [[0, 1, 0, 10, 2, 1, []], [1, 2, 0, 10, 2, 1, []], [2, 3, 0, 10, 2, 1, []], [1, 4, 0, 10, 2, 1, []]],
@@ -205,4 +214,102 @@ test('the player car uses existing physics on the sourced eastbound Shennan sign
   assert.equal(auto.statistics.signalEntries, 1);
   assert.ok(auto.statistics.signalWaits > 0);
   assert.ok(car.speed < 0.15);
+});
+
+test('an elevated deck route is planned and driven with its surface identity', () => {
+  const graph = emptyGraph();
+  graph.nodeIds = ['node/1', 'node/2', 'node/3'];
+  const first = deckLink({ points: [{ x: 0, z: 0 }, { x: 50, z: 0 }] });
+  const second = deckLink({ index: 2, osmId: 'way/901', surfaceId: DECK_SURFACE_B,
+    points: [{ x: 50, z: 0 }, { x: 100, z: 0 }], startNode: 1, endNode: 2 });
+  const network = traffic.createTrafficGraph(graph, { elevated: { links: [first, second] } });
+  assert.equal(network.edges.length, 2);
+  assert.ok(network.edges[0].next.includes(network.edges[1]), '共享节点两端桥面高差在容差内，链路连通');
+  const queries = [];
+  // 两条桥面各有不同高程；某次接触检查若漏传边，查询返回 null，footprint 就会失败。
+  const deckHeight = edge => edge?.surfaceId === DECK_SURFACE ? 10 : edge?.surfaceId === DECK_SURFACE_B ? 20 : null;
+  const roadHeight = (x, z, edge) => {
+    queries.push(edge);
+    return deckHeight(edge);
+  };
+  const planner = createDrivePlanner(network, graph, { model, roadHeight, isClear: () => true });
+  const start = planner.snap(10, 0), end = planner.snap(90, 0);
+  assert.ok(start && end);
+  const route = planner.route(start, end);
+  assert.ok(route);
+  assert.ok(Math.abs(route.length - 80) < 1e-5);
+  assert.deepEqual(Array.from(route.surfaces), [DECK_SURFACE, DECK_SURFACE_B]);
+  assert.equal(route.from.edge, network.edges[0]);
+  const auto = createAutoDrive({ model, roadHeight, nearTraffic: () => [] });
+  const car = { position: { x: route.from.x, y: 10, z: route.from.z },
+    heading: Math.atan2(route.from.dx, route.from.dz), speed: 0 };
+  queries.length = 0;
+  assert.equal(auto.start(route, car, 'car'), true);
+  assert.equal(queries.length, 5);
+  assert.ok(queries.every(edge => edge === network.edges[0]), '启动检查查询起点桥面身份');
+  let input = null;
+  for (const s of [14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58]) {
+    car.position.x = route.from.x + s;
+    input = auto.update(car, { dt: 1 / 60, elapsed: s / 10, mode: 'car', manual: false });
+    assert.ok(input);
+  }
+  queries.length = 0;
+  assert.equal(input.permitMove(car.position.x + 0.5, car.position.z, car.heading), true);
+  const contactEdges = new Set([network.edges[0], network.edges[1]]);
+  assert.ok(queries.length >= 5);
+  assert.ok(queries.every(edge => contactEdges.has(edge)), '移动许可只查询路线附近段的桥面身份');
+  assert.ok(queries.includes(network.edges[1]), '当前段桥面身份参与接触查询');
+  assert.ok(queries.some(edge => edge.surfaceId === DECK_SURFACE_B), '当前进度段桥面身份参与接触查询');
+  assert.equal(auto.status, 'driving');
+});
+
+test('a ground edge under an elevated deck keeps the ground surface', () => {
+  const graph = { nodes: [0, 6, 100, 6], nodeIds: ['node/1', 'node/2'], names: ['Ground Road'],
+    links: [[0, 1, 0, 10, 2, 0, []]], metadata: [groundRoad(5)], turnRestrictions: { rules: [] } };
+  // 桥面正压在桥下地面路之上：平面位置重叠，只有表面身份不同。
+  const network = traffic.createTrafficGraph(graph, { elevated: { links: [deckLink({ points: [{ x: 0, z: 6 }, { x: 100, z: 6 }] })] } });
+  assert.equal(network.edges.filter(edge => edge.surfaceId).length, 1, '同一张图里既有桥面也有桥下地面');
+  const queries = [];
+  const roadHeight = (x, z, edge) => {
+    const height = edge?.surfaceId === DECK_SURFACE ? 20 : 0;
+    queries.push({ edge, height });
+    return height;
+  };
+  const planner = createDrivePlanner(network, graph, { model, roadHeight, isClear: () => true });
+  const start = planner.snap(50, 8.3);
+  assert.ok(start);
+  assert.equal(start.candidates[0].edge.surfaceId, undefined, '地面车道候选先于桥面候选');
+  const route = planner.route(start, planner.snap(90, 8.3));
+  assert.ok(route);
+  assert.ok(Math.abs(route.length - 40) < 1e-5);
+  assert.deepEqual(Array.from(route.surfaces), []);
+  assert.ok(route.edges.every(edge => edge.surfaceId === undefined), '规划路线只走地面边');
+  assert.ok(route.samples.every(sample => sample.edge.surfaceId === undefined));
+  const auto = createAutoDrive({ model, roadHeight, nearTraffic: () => [] });
+  const car = { position: { x: route.from.x, y: 0, z: route.from.z },
+    heading: Math.atan2(route.from.dx, route.from.dz), speed: 0 };
+  queries.length = 0;
+  assert.equal(auto.start(route, car, 'car'), true);
+  assert.equal(queries.length, 5);
+  assert.ok(queries.every(({ edge }) => edge === route.from.edge), '桥下地面车只查询地面边');
+  assert.ok(queries.every(({ height }) => height === 0), '桥下地面车按地面高程接触');
+  const input = auto.update(car, { dt: 1 / 60, elapsed: 0, mode: 'car', manual: false });
+  assert.ok(input);
+  queries.length = 0;
+  assert.equal(input.permitMove(car.position.x + 0.5, car.position.z, car.heading), true);
+  assert.ok(queries.length >= 5);
+  assert.ok(queries.every(({ edge }) => !edge?.surfaceId), '桥下地面车只查询路线附近的地面边');
+  assert.ok(queries.every(({ height }) => height === 0));
+  assert.ok(queries.some(({ edge }) => edge === route.from.edge));
+});
+
+test('hasRoadFootprint forwards the edge identity to every height query', () => {
+  const deck = { surfaceId: DECK_SURFACE };
+  const calls = [];
+  assert.equal(hasRoadFootprint((x, z, edge) => { calls.push(edge); return 5; }, model, 0, 0, 0, deck), true);
+  assert.equal(calls.length, 5);
+  assert.ok(calls.every(edge => edge === deck));
+  assert.equal(hasRoadFootprint((x, z, edge) => edge === null ? 3 : null, model, 0, 0, 0), true, '省略边时按 null 查询地面');
+  assert.equal(hasRoadFootprint((x, z, edge) => edge?.surfaceId ? 20 : null, model, 0, 0, 0), false);
+  assert.equal(hasRoadFootprint((x, z, edge) => edge?.surfaceId ? 20 : null, model, 0, 0, 0, deck), true);
 });

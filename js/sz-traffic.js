@@ -19,6 +19,12 @@ const ROUTE_RANGE = 560;
 const REVIEWED_MAINLINE_RANGE = 1500;
 const TURN = Math.PI * 2;
 const WHEEL_SPIN_STEP = 0.6;
+// 高架链路进入车流后多给一段续行预算，让“地面→匝道→桥面→地面”能在一段路线内走完。
+const ELEVATED_ROUTE_RANGE = 1200;
+const ELEVATED_ROUTE_SEGMENTS = 260;
+// 同一节点两条桥面链路的估计桥面高差超过该值时视为未核实连接，不强行拼接。
+// 与 sz-elevated-roads.js 的桥面接缝高差阈值保持一致（surface 层带交接容差）。
+const ELEVATED_HEIGHT_TOLERANCE = 0.35;
 // 深圳车队约 30 辆：出租车 6、轿车 9、SUV 8、MPV 3、物流面包 2、公交 2（docs/07 的车型配比按 30 辆折算）。
 const FLEET = [
   { type: 'taxi', count: 6, speed: 10 },
@@ -81,7 +87,7 @@ function seededRandom(id) {
   };
 }
 
-export function createTrafficGraph(graph, { canTurn = () => true } = {}) {
+export function createTrafficGraph(graph, { canTurn = () => true, elevated = null } = {}) {
   const edges = [];
   const outgoing = new Map();
   const cells = new Map();
@@ -122,13 +128,62 @@ export function createTrafficGraph(graph, { canTurn = () => true } = {}) {
       edges.push(edge);
     }
   }
+  // 高架链路带表面身份进入同一张车流图：桥面高度来自渲染桥面计划，未知高程链路根本不在这里。
+  for (const record of elevated?.links ?? []) {
+    if (!Array.isArray(record.points) || record.points.length < 2) continue;
+    if (record.osmId === undefined || record.surfaceId === undefined) continue;
+    const direction = record.direction ?? 0;
+    for (const sign of direction === 0 ? [1, -1] : [direction === -1 ? -1 : 1]) {
+      const path = sign === 1 ? record.points : [...record.points].reverse();
+      const from = sign === 1 ? record.startNode : record.endNode;
+      const to = sign === 1 ? record.endNode : record.startNode;
+      const edge = { from, to, sign, width: record.width, lanes: record.lanes, direction,
+        name: record.name ?? '', osmId: record.osmId, highway: null, sourceIndex: record.index,
+        segments: [], next: [], travelWidth: null, surfaceId: record.surfaceId, elevated: true,
+        startDeckY: sign === 1 ? record.startDeckY : record.endDeckY,
+        endDeckY: sign === 1 ? record.endDeckY : record.startDeckY,
+        sharedStart: sign === 1 ? record.sharedStart : record.sharedEnd,
+        sharedEnd: sign === 1 ? record.sharedEnd : record.sharedStart };
+      for (let j = 1; j < path.length; j++) {
+        const start = path[j - 1];
+        const end = path[j];
+        const length = Math.hypot(end.x - start.x, end.z - start.z);
+        if (length < 1e-8) continue;
+        const dx = (end.x - start.x) / length;
+        const dz = (end.z - start.z) / length;
+        edge.segments.push({ x: start.x, z: start.z, dx, dz, length });
+        if (length < 6) continue;
+        const markers = Math.ceil(length / 36);
+        for (let k = 0; k < markers; k++) {
+          const distance = (k + 0.5) / markers * length;
+          const x = start.x + dx * distance;
+          const z = start.z + dz * distance;
+          const key = cellKey(Math.floor(x / SPAWN_CELL), Math.floor(z / SPAWN_CELL));
+          if (!cells.has(key)) cells.set(key, []);
+          cells.get(key).push({ edge, segment: j - 1, distance, x, z });
+        }
+      }
+      if (edge.segments.length === 0) continue;
+      if (!outgoing.has(from)) outgoing.set(from, []);
+      outgoing.get(from).push(edge);
+      edges.push(edge);
+    }
+  }
   // 只按源节点身份连边，不把平面交叉、反向掉头和未解析桥隧拼进路线。
   for (const edge of edges) {
     const last = edge.segments.at(-1);
     edge.next = (outgoing.get(edge.to) ?? []).filter(next => {
       const first = next.segments[0];
-      return next.sourceIndex !== edge.sourceIndex && next.to !== edge.from
-        && last.dx * first.dx + last.dz * first.dz > -0.45 && canTurn(edge, next);
+      if (next.sourceIndex === edge.sourceIndex || next.to === edge.from
+        || last.dx * first.dx + last.dz * first.dz <= -0.45 || !canTurn(edge, next)) return false;
+      // 高程衔接：地面↔桥面只走链路的落地端；两条桥面链路则要求共享节点估计桥面高差在容差内。
+      if (next.elevated || edge.elevated) {
+        if (next.elevated && edge.elevated) {
+          return Math.abs(edge.endDeckY - next.startDeckY) <= ELEVATED_HEIGHT_TOLERANCE;
+        }
+        return next.elevated ? next.sharedStart === true : edge.sharedEnd === true;
+      }
+      return true;
     });
   }
   return { edges, cells };
@@ -221,14 +276,22 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice) 
   let start = Math.max(0, marker.distance - 16);
   let remaining = ROUTE_RANGE;
   let reviewed = false;
-  while (edge && remaining > 0 && segments.length < (reviewed ? 160 : 80)) {
+  let elevatedSeen = false;
+  while (edge && remaining > 0
+    && segments.length < (elevatedSeen ? ELEVATED_ROUTE_SEGMENTS : reviewed ? 160 : 80)) {
     if (edge.travelWidth && !reviewed) {
       // 复核快速路多保留一段续行预算，避免按通用街区预算截停在主线上。
       remaining += REVIEWED_MAINLINE_RANGE - ROUTE_RANGE;
       reviewed = true;
     }
+    if (edge.elevated && !elevatedSeen) {
+      // 高架段同样是已复核链路：给整条“上桥—桥面—下桥”留足续行预算，车流不会停在桥面上。
+      remaining += ELEVATED_ROUTE_RANGE;
+      elevatedSeen = true;
+    }
     used.add(edge.sourceIndex);
-    const useLanes = edge.travelWidth || detailedRoads.has(edge.osmId);
+    // 高架链路没有地面分幅横断面，统一走桥面中心线（方向 0 时取桥面半宽的居中车道）。
+    const useLanes = !edge.elevated && (edge.travelWidth || detailedRoads.has(edge.osmId));
     const offsets = useLanes ? laneOffsets(edge) : [edge.direction === 0 ? Math.min(edge.width / 4, 2.3) : 0];
     const halfWidth = (edge.travelWidth ?? edge.width) / 2;
     const lanes = offsets.filter(offset => Math.abs(offset) + model.hx + 0.08 <= halfWidth);
@@ -312,7 +375,30 @@ export function poseOnRoute(samples, s, model, roadHeight, pose) {
   const heading = Math.atan2(interpolate(a.dx, b.dx, t), interpolate(a.dz, b.dz, t));
   const sin = Math.sin(heading);
   const cos = Math.cos(heading);
-  const heightAt = (px, pz) => roadHeight(x + px * cos + pz * sin, z - px * sin + pz * cos);
+  // 轮胎接触按当前段的表面身份取高度：高架段只采样桥面三角面，桥下地面车不会串到桥上。
+  // 相邻两段在衔接处各自只覆盖到自己的端头，车轮跨过接缝时按附近两段身份依次查询，避免半个车身落空。
+  const edges = [];
+  let from = lo;
+  let to = hi;
+  while (from > 0 && samples[from - 1].s >= s - 8) from--;
+  while (to < samples.length - 1 && samples[to + 1].s <= s + 8) to++;
+  for (let i = from; i <= to; i++) {
+    if (!edges.includes(samples[i].edge)) edges.push(samples[i].edge);
+  }
+  const first = t < 0.5 ? a.edge : b.edge;
+  if (edges[0] !== first) {
+    const index = edges.indexOf(first);
+    if (index > 0) edges.unshift(edges.splice(index, 1)[0]);
+  }
+  const heightAt = (px, pz) => {
+    const wx = x + px * cos + pz * sin;
+    const wz = z - px * sin + pz * cos;
+    for (const edge of edges) {
+      const height = roadHeight(wx, wz, edge);
+      if (Number.isFinite(height)) return height;
+    }
+    return null;
+  };
   const center = heightAt(0, 0);
   if (!Number.isFinite(center)) return false;
   const { halfTrack, halfWheelbase } = model;
@@ -408,9 +494,18 @@ function playerBodies(entities) {
   });
 }
 
-export function createSzTraffic(scene, graph, { roadHeight, colliders = [], signals = null, detailedRoadIds = [], canTurn } = {}) {
+export function createSzTraffic(scene, graph, { roadHeight, elevated = null, colliders = [], signals = null, detailedRoadIds = [], canTurn } = {}) {
   if (typeof roadHeight !== 'function') throw new Error('Traffic requires rendered road height');
-  const network = createTrafficGraph(graph, { canTurn });
+  const network = createTrafficGraph(graph, { canTurn, elevated });
+  // 桥面高度只按边的表面身份取渲染桥面顶面三角面；地面边继续用地面沥青，桥下车辆不会吸到桥面。
+  const heightAtDeck = typeof elevated?.heightAt === 'function' ? elevated.heightAt : null;
+  const heightFor = (x, z, edge) => {
+    if (edge?.surfaceId && heightAtDeck) {
+      const height = heightAtDeck(x, z, edge.surfaceId);
+      if (Number.isFinite(height)) return height;
+    }
+    return roadHeight(x, z);
+  };
   const detailedRoads = new Set(detailedRoadIds);
   const blockedByBuilding = makeObstacleIndex(colliders);
   const group = new THREE.Group();
@@ -480,6 +575,7 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
   let refill = 0;
   let spawnKey = null;
   let candidates = [];
+  let approachCandidates = [];
   let players = [];
   let clock = 0;
   let simulationTime = 0;
@@ -562,7 +658,7 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
   }
 
   function blockerOnRoute(actor, route, s, includeTraffic) {
-    if (!poseOnRoute(route, s, actor.model, roadHeight, scratch)) return { kind: 'road-contact', atS: s };
+    if (!poseOnRoute(route, s, actor.model, heightFor, scratch)) return { kind: 'road-contact', atS: s };
     const body = writeTrafficCollider(probe, actor.model, scratch);
     const blocker = blockedByBuilding(body) || (includeTraffic ? collides(body, actor) : null);
     return blocker ? { kind: blocker.type ?? 'static', id: blocker.id ?? blocker.sourceId ?? blocker.name ?? null,
@@ -585,19 +681,23 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
 
   function startRoute(actor, focus) {
     const { model, random } = actor;
-    for (let attempt = 0; attempt < 5 && candidates.length > 0; attempt++) {
-      const marker = candidates[Math.floor(random() * candidates.length)];
+    // 高架链路不在桥面中途凭空生成车辆：约一半环境车从已核实高架的落地引道出发，
+    // 让桥面车流有真实的地面来源，其余仍按普通路网随机，避免车辆只在桥上概率性出现。
+    const approachOnly = actor.id % 2 === 0 && approachCandidates.length > 0;
+    const pool = approachOnly ? approachCandidates : candidates;
+    for (let attempt = 0; attempt < 5 && pool.length > 0; attempt++) {
+      const marker = pool[Math.floor(random() * pool.length)];
       const distance = squareDistance(marker.x, marker.z, focus);
       if (distance < 44 ** 2 || distance > SEARCH_RADIUS ** 2 || !usableWidth(marker.edge, model.hx)) continue;
       const laneChoice = detailedRoads.size ? random() : 0.5;
       const samples = laneRoute(routeSegments(marker, model, random, detailedRoads, laneChoice));
-      if (samples.at(-1)?.edge.travelWidth) {
+      if (samples.at(-1)?.edge.travelWidth || samples.at(-1)?.edge.surfaceId) {
         statistics.mainlineEndRejects++;
         continue;
       }
       const first = Math.max(6, model.hz + 1);
       const limit = (samples.at(-1)?.s ?? 0) - model.hz - 1;
-      if (limit < first + 42 || !poseOnRoute(samples, first, model, roadHeight, actor.pose)) continue;
+      if (limit < first + 42 || !poseOnRoute(samples, first, model, heightFor, actor.pose)) continue;
       if (signals?.contains(actor.pose.x, actor.pose.z, model.hz + 0.5)) continue;
       writeTrafficCollider(actor.collider, model, actor.pose);
       if (blockedByBuilding(actor.collider) || collides(actor.collider, actor)) continue;
@@ -613,8 +713,9 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
       if (last - first < 42) continue;
       const stops = routeStops.filter(stop => stop.s <= last + model.z + model.hz);
       const exitsBlocked = stops.some(stop => stop.clearS + SIGNAL_EXIT_BUFFER > last);
-      if (!poseOnRoute(samples, last, model, roadHeight, scratch)) continue;
-      if (scratch.edge.travelWidth) {
+      if (!poseOnRoute(samples, last, model, heightFor, scratch)) continue;
+      // 行程必须驶离桥面回到地面，避免环境车停在桥面上形成永久队尾。
+      if (scratch.edge.travelWidth || scratch.edge.surfaceId) {
         statistics.mainlineEndRejects++;
         continue;
       }
@@ -738,9 +839,15 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
         const reach = Math.ceil(SEARCH_RADIUS / SPAWN_CELL);
         spawnKey = key;
         candidates = [];
+        approachCandidates = [];
         for (let x = ix - reach; x <= ix + reach; x++) {
           for (let z = iz - reach; z <= iz + reach; z++) {
-            candidates.push(...(network.cells.get(cellKey(x, z)) ?? []));
+            for (const marker of network.cells.get(cellKey(x, z)) ?? []) {
+              // 桥面中途不生成车辆，避免车在桥上凭空出现；桥面车流只从落地引道驶入。
+              if (marker.edge.elevated) continue;
+              candidates.push(marker);
+              if (marker.edge.next.some(next => next.elevated)) approachCandidates.push(marker);
+            }
           }
         }
       }
@@ -800,7 +907,7 @@ export function createSzTraffic(scene, graph, { roadHeight, colliders = [], sign
     return result;
   }
 
-  return { group, update, nearColliders, vehicles, statistics, network,
+  return { group, update, nearColliders, vehicles, statistics, network, roadHeight: heightFor,
     dispose() {
       for (const actor of vehicles) dropRoute(actor);
       scene.remove(group);

@@ -8,10 +8,20 @@ const LOOK_AHEAD = 32;
 const headingError = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-export function hasRoadFootprint(roadHeight, model, x, z, heading) {
-  if (!Number.isFinite(roadHeight(x, z))) return false;
+// 接触面身份随每个采样点下传：高架段只查桥面，桥下地面段不会被桥面高度串走。
+// edges 可为单条边、边数组或 null；数组用于地面/高架衔接处按附近段表面逐点回退。
+export function hasRoadFootprint(roadHeight, model, x, z, heading, edges = null) {
+  const list = edges == null || (Array.isArray(edges) && edges.length === 0) ? [null] : Array.isArray(edges) ? edges : [edges];
+  const heightAt = (px, pz) => {
+    for (const edge of list) {
+      const height = roadHeight(px, pz, edge);
+      if (Number.isFinite(height)) return height;
+    }
+    return null;
+  };
+  if (!Number.isFinite(heightAt(x, z))) return false;
   const sin = Math.sin(heading), cos = Math.cos(heading);
-  return model.corners.every(([px, pz]) => Number.isFinite(roadHeight(x + px * cos + pz * sin, z - px * sin + pz * cos)));
+  return model.corners.every(([px, pz]) => Number.isFinite(heightAt(x + px * cos + pz * sin, z - px * sin + pz * cos)));
 }
 
 function project(samples, x, z, from, to) {
@@ -64,6 +74,20 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   const intersectionMargin = Math.hypot(model.hx, model.hz) + 0.35;
   const candidate = {}, contact = {};
 
+  // 取当前进度前后 ±8 m 内的路段表面，与 poseOnRoute 在衔接处的取边窗口一致；
+  // 地面与高架端头各自只覆盖到自己的端头，四角需要能回退到相邻段的表面。
+  function routeEdges(route, index) {
+    const list = [];
+    const center = route.samples[index]?.s ?? 0;
+    for (let i = Math.max(0, index - 6); i <= Math.min(route.samples.length - 1, index + 6); i++) {
+      const sample = route.samples[i];
+      if (!sample || Math.abs(sample.s - center) > 8) continue;
+      const edge = sample.edge;
+      if (edge && !list.includes(edge)) list.push(edge);
+    }
+    return list;
+  }
+
   function release() {
     if (reservation) control.release(reservation, ACTOR);
     reservation = null;
@@ -74,7 +98,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
       && Math.hypot(car.position.x - route.from.x, car.position.z - route.from.z) <= 1.25
       && Math.abs(headingError(car.heading, Math.atan2(route.from.dx, route.from.dz))) <= 0.28
       && !control?.contains(car.position.x, car.position.z, intersectionMargin)
-      && hasRoadFootprint(roadHeight, model, car.position.x, car.position.z, car.heading));
+      && hasRoadFootprint(roadHeight, model, car.position.x, car.position.z, car.heading, route.from.edge));
   }
 
   function start(route, car, mode) {
@@ -144,12 +168,14 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     if (run.stalled > 7) { stop('blocked'); return null; }
 
     const demand = targetSpeed - speed;
+    // 许可检查沿用当前路线采样点及其相邻段的表面身份：地面/高架衔接处四角逐点回退，避免误判无路面。
+    const contactEdges = routeEdges(route, run.index);
     return {
       throttle: clamp(demand * 0.52, 0, 1),
       brake: car.speed < -0.05 ? 1 : clamp(-demand * 0.5, 0, 1),
       steerAngle: desiredSteer,
       permitMove(x, z, heading) {
-        if (!hasRoadFootprint(roadHeight, model, x, z, heading)) {
+        if (!hasRoadFootprint(roadHeight, model, x, z, heading, contactEdges)) {
           run.unsafe = true;
           return false;
         }

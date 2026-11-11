@@ -86,7 +86,7 @@ const trafficVehicles = {
     };
   }
 };
-const { createTrafficGraph, createSzTraffic, laneOffsets, laneRoute, routeSegments, trafficModelBounds, writeTrafficCollider } = load('sz-traffic.js', {
+const { createTrafficGraph, createSzTraffic, laneOffsets, laneRoute, poseOnRoute, routeSegments, trafficModelBounds, writeTrafficCollider } = load('sz-traffic.js', {
   'three/webgpu': three,
   './sz-intersection-control.js': signalModule,
   './sz-roads.js': roads,
@@ -306,4 +306,150 @@ test('traffic holds at a green stop line while a physical vehicle occupies the e
   assert.ok(traffic.vehicles.some(actor => actor.waitingForSignal && actor.blocker?.atExit));
   for (let i = 0; i < 80; i++) traffic.update(0.05, focus, [], 0.7);
   assert.ok(traffic.statistics.signalEntries > 0);
+});
+
+// 高架车流夹具：字段与 planElevatedRoads 的链路记录同构，直接喂给 createTrafficGraph。
+// index 必须唯一且不与手工地面链路的 sourceIndex 冲突，否则同源边会被“不串联”过滤掉。
+function elevatedEdgeRecord({ osmId, index, surfaceId, startNode, endNode, points, direction = 1,
+  sharedStart = false, sharedEnd = false, startDeckY = 20, endDeckY = 20 }) {
+  return {
+    index, osmId, surfaceId, name: 'Elevated', width: 8, lanes: 2, direction,
+    startNode, endNode, sharedStart, sharedEnd, startDeckY, endDeckY, lengthM: 100,
+    points: points.map(([x, z]) => ({ x, z }))
+  };
+}
+
+test('traffic graph adds signed elevated edges on the record centerline', () => {
+  const graph = { nodes: [0, 0, 100, 0], names: ['Elevated'], links: [], metadata: [] };
+  const records = [
+    elevatedEdgeRecord({ osmId: 'way/d0', index: 200, surfaceId: 'sz-elevated-road:200',
+      startNode: 0, endNode: 1, points: [[0, 0], [100, 0]], direction: 0, startDeckY: 12, endDeckY: 13 }),
+    elevatedEdgeRecord({ osmId: 'way/d1', index: 201, surfaceId: 'sz-elevated-road:201',
+      startNode: 0, endNode: 1, points: [[0, 10], [100, 10]], direction: 1, startDeckY: 14, endDeckY: 15 }),
+    elevatedEdgeRecord({ osmId: 'way/dm1', index: 202, surfaceId: 'sz-elevated-road:202',
+      startNode: 0, endNode: 1, points: [[0, 20], [100, 20]], direction: -1, sharedEnd: true,
+      startDeckY: 20, endDeckY: 18 })
+  ];
+  const { edges } = createTrafficGraph(graph, { elevated: { links: records } });
+  const byOsmId = id => edges.filter(edge => edge.osmId === id);
+  const [forward, backward] = byOsmId('way/d0').sort((a, b) => b.sign - a.sign);
+  assert.deepEqual([forward.from, forward.to, forward.sign], [0, 1, 1]);
+  assert.deepEqual([backward.from, backward.to, backward.sign], [1, 0, -1]);
+  assert.deepEqual([forward.segments[0].x, forward.segments[0].z, forward.segments[0].dx], [0, 0, 1]);
+  assert.deepEqual([backward.segments[0].x, backward.segments[0].z, backward.segments[0].dx], [100, 0, -1]);
+  for (const edge of byOsmId('way/d0')) {
+    assert.equal(edge.elevated, true);
+    assert.equal(edge.surfaceId, 'sz-elevated-road:200');
+  }
+  const [oneWay] = byOsmId('way/d1');
+  assert.deepEqual([oneWay.from, oneWay.to, oneWay.sign], [0, 1, 1]);
+  assert.deepEqual([oneWay.segments[0].x, oneWay.segments[0].z], [0, 10]);
+  assert.equal(oneWay.surfaceId, 'sz-elevated-road:201');
+  const [reverse] = byOsmId('way/dm1');
+  assert.deepEqual([reverse.from, reverse.to, reverse.sign], [1, 0, -1]);
+  assert.deepEqual([reverse.segments[0].x, reverse.segments[0].dx, reverse.segments[0].dz], [100, -1, 0]);
+  assert.deepEqual([reverse.startDeckY, reverse.endDeckY], [18, 20]);
+  assert.deepEqual([reverse.sharedStart, reverse.sharedEnd], [true, false]);
+  assert.equal(reverse.surfaceId, 'sz-elevated-road:202');
+});
+
+test('traffic graph connects layers only through shared ground ends and matching deck heights', () => {
+  const graph = {
+    nodes: [0, 0, 100, 0, 200, 0, 300, 0, 400, 0, 500, 0, 600, 0, 700, 0, 800, 0, 900, 0, 1000, 0],
+    names: ['Ground'],
+    links: [[0, 1, 0, 9, 2, 1, []], [2, 3, 0, 9, 2, 1, []], [4, 5, 0, 9, 2, 1, []], [8, 9, 0, 9, 2, 1, []]],
+    metadata: [{ ...groundRoad(1), osmId: 'way/g1' }, { ...groundRoad(2), osmId: 'way/g2' },
+      { ...groundRoad(3), osmId: 'way/g3' }, { ...groundRoad(4), osmId: 'way/g5' }]
+  };
+  const records = [
+    elevatedEdgeRecord({ osmId: 'way/e1', index: 101, surfaceId: 'sz-elevated-road:101',
+      startNode: 1, endNode: 2, points: [[100, 0], [200, 0]], sharedStart: true, startDeckY: 10, endDeckY: 14 }),
+    elevatedEdgeRecord({ osmId: 'way/e2', index: 102, surfaceId: 'sz-elevated-road:102',
+      startNode: 2, endNode: 4, points: [[200, 0], [400, 0]], startDeckY: 14, endDeckY: 15 }),
+    elevatedEdgeRecord({ osmId: 'way/e3', index: 103, surfaceId: 'sz-elevated-road:103',
+      startNode: 4, endNode: 6, points: [[400, 0], [600, 0]], startDeckY: 15.2, endDeckY: 16 }),
+    elevatedEdgeRecord({ osmId: 'way/e4', index: 104, surfaceId: 'sz-elevated-road:104',
+      startNode: 4, endNode: 7, points: [[400, 0], [700, 0]], startDeckY: 16, endDeckY: 17 }),
+    elevatedEdgeRecord({ osmId: 'way/e5', index: 105, surfaceId: 'sz-elevated-road:105',
+      startNode: 5, endNode: 8, points: [[500, 0], [800, 0]], sharedStart: true, sharedEnd: true,
+      startDeckY: 18, endDeckY: 10 }),
+    elevatedEdgeRecord({ osmId: 'way/e6', index: 106, surfaceId: 'sz-elevated-road:106',
+      startNode: 5, endNode: 10, points: [[500, 0], [1000, 0]], startDeckY: 19, endDeckY: 19 })
+  ];
+  const network = createTrafficGraph(graph, { elevated: { links: records } });
+  const edgeOf = osmId => network.edges.find(edge => edge.osmId === osmId);
+  const nextIds = edge => Array.from(edge.next, next => next.osmId).sort();
+  // 地面→高架：只在链路落地端（sharedStart）连接。
+  assert.deepEqual(nextIds(edgeOf('way/g1')), ['way/e1']);
+  // 高架→高架：共享节点处估计桥面高差 ≤ 0.35 m 才连接，地面边不在这里接。
+  assert.deepEqual(nextIds(edgeOf('way/e1')), ['way/e2']);
+  assert.deepEqual(nextIds(edgeOf('way/e2')), ['way/e3']);
+  // 地面→高架：悬空起点即使节点编号与地面边相同也不连接。
+  assert.deepEqual(nextIds(edgeOf('way/g3')), ['way/e5']);
+  // 高架→地面：只在链路落地端（sharedEnd）连接。
+  assert.deepEqual(nextIds(edgeOf('way/e5')), ['way/g5']);
+  assert.equal(edgeOf('way/e1').elevated, true);
+  assert.equal(edgeOf('way/e1').segments[0].x, 100);
+  assert.ok(!edgeOf('way/g1').elevated);
+});
+
+test('poseOnRoute follows the deck for elevated edges and keeps ground height underneath', () => {
+  const box = { min: { x: -0.95, y: 0, z: -2.4 }, max: { x: 0.95, y: 1.8, z: 2.4 } };
+  const model = trafficModelBounds(box, vehicleSpecs.taxi);
+  const deckEdge = { osmId: 'way/e1', elevated: true, surfaceId: 'sz-elevated-road:300' };
+  const groundEdge = { osmId: 'way/g1', elevated: false };
+  // 高度函数按边的表面身份取高度：高架边只能拿到桥面，地面边只能拿到地面。
+  const height = (x, z, edge) => edge?.surfaceId ? 12.5 : 6;
+  const line = edge => Array.from({ length: 101 }, (_, i) => ({ x: i * 2, z: 0, dx: 1, dz: 0, s: i * 2, edge }));
+  const pose = {};
+  assert.equal(poseOnRoute(line(deckEdge), 100, model, height, pose), true);
+  assert.equal(pose.edge, deckEdge);
+  assert.ok(Math.abs(pose.y - 12.5) < 1e-9, `elevated pose y ${pose.y}`);
+  assert.equal(poseOnRoute(line(groundEdge), 100, model, height, pose), true);
+  assert.equal(pose.edge, groundEdge);
+  assert.ok(Math.abs(pose.y - 6) < 1e-9, `ground pose keeps its own height ${pose.y}`);
+  assert.equal(poseOnRoute(line(deckEdge), 100, model, () => null, pose), false);
+});
+
+test('traffic road height uses the deck for elevated edges and ground height for ground edges', () => {
+  const deckSurfaceId = 'sz-elevated-road:300';
+  const deckHeight = (x, z, surfaceId) => surfaceId === deckSurfaceId
+    && x >= 200 && x <= 300 && Math.abs(z) <= 4 ? 12.5 : null;
+  const groundHeight = (x, z) => x >= 0 && x <= 400 && Math.abs(z) <= 5 ? 6 : null;
+  const graph = {
+    nodes: [0, 0, 200, 0, 300, 0, 400, 0], names: ['Ground'],
+    links: [[0, 1, 0, 9, 2, 1, []], [1, 3, 0, 9, 2, 1, []]],
+    metadata: [groundRoad(1), groundRoad(2)]
+  };
+  const records = [elevatedEdgeRecord({ osmId: 'way/e1', index: 300, surfaceId: deckSurfaceId,
+    startNode: 1, endNode: 2, points: [[200, 0], [300, 0]], startDeckY: 12.5, endDeckY: 12.5,
+    sharedStart: true, sharedEnd: false })];
+  const traffic = createSzTraffic(new Group(), graph, {
+    roadHeight: groundHeight, elevated: { links: records, heightAt: deckHeight }
+  });
+  const elevatedEdge = traffic.network.edges.find(edge => edge.elevated);
+  const groundEdge = traffic.network.edges.find(edge => edge.osmId === 'way/2');
+  assert.equal(elevatedEdge.surfaceId, deckSurfaceId);
+  assert.equal(traffic.roadHeight(250, 0, elevatedEdge), 12.5);
+  assert.equal(traffic.roadHeight(250, 0, groundEdge), 6);
+  assert.equal(traffic.network.edges.filter(edge => edge.elevated).length, 1);
+  assert.equal(traffic.statistics.directedEdges, traffic.network.edges.length);
+  assert.equal(traffic.statistics.directedEdges, 3);
+});
+
+test('traffic refuses ambient routes that would end on an elevated deck', () => {
+  const deckSurfaceId = 'sz-elevated-road:300';
+  const graph = {
+    nodes: [0, 0, 200, 0, 300, 0], names: ['Ground'],
+    links: [[0, 1, 0, 9, 2, 1, []]], metadata: [groundRoad(1)]
+  };
+  const records = [elevatedEdgeRecord({ osmId: 'way/e1', index: 300, surfaceId: deckSurfaceId,
+    startNode: 1, endNode: 2, points: [[200, 0], [300, 0]], startDeckY: 12.5, endDeckY: 12.5,
+    sharedStart: true })];
+  const traffic = createSzTraffic(new Group(), graph, {
+    roadHeight: () => 6, elevated: { links: records, heightAt: (x, z, surfaceId) => surfaceId === deckSurfaceId ? 12.5 : null }
+  });
+  for (let frame = 0; frame < 30; frame++) traffic.update(0.05, { x: 100, z: 0 });
+  assert.equal(traffic.statistics.active, 0);
+  assert.ok(traffic.statistics.mainlineEndRejects > 0, 'routes ending on a deck are rejected');
 });

@@ -115,6 +115,10 @@ function laneSegments({ path, start, end }, roads) {
   });
 }
 
+// 高架段的车轮接触已由 poseOnRoute 按桥面三角面逐轮复核；isClear 依赖地面支撑和建筑净空，
+// 对桥面高度会误判为“无支撑”。桥面只跳过这一项，运行时碰撞仍由车辆控制器执行。
+const elevatedPose = pose => Boolean(pose.edge?.surfaceId);
+
 function validateSamples(samples, model, roadHeight, isClear, stops) {
   const limits = samples.map(() => CRUISE);
   for (let i = 1; i < samples.length; i++) {
@@ -126,6 +130,11 @@ function validateSamples(samples, model, roadHeight, isClear, stops) {
     limits[i - 1] = Math.min(limits[i - 1], limit);
     limits[i] = Math.min(limits[i], limit);
   }
+  // 窄车道按路宽再压一档限速：车身几乎占满铺装，只有慢速才能让四轮保持在同一块路面上。
+  for (let i = 0; i < samples.length; i++) {
+    const width = samples[i].edge?.travelWidth ?? samples[i].edge?.width ?? 0;
+    if (width > 0 && width < 6.5) limits[i] = Math.min(limits[i], width < 4.5 ? 4 : 5.5);
+  }
   const pose = {};
   const length = samples.at(-1).s;
   // 冲突区的弯道出口按更小步距复核，避免预约后才碰到很窄的路缘缺口。
@@ -134,7 +143,8 @@ function validateSamples(samples, model, roadHeight, isClear, stops) {
     const steps = Math.ceil((last - first) / spacing);
     for (let i = 0; i <= steps; i++) {
       const s = first + (last - first) * i / steps;
-      if (!poseOnRoute(samples, s, model, roadHeight, pose) || !isClear(pose)) return { failedAt: s };
+      if (!poseOnRoute(samples, s, model, roadHeight, pose)
+        || (!elevatedPose(pose) && !isClear(pose))) return { failedAt: s };
     }
   }
   limits[limits.length - 1] = 0;
@@ -199,7 +209,7 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
     const pose = {};
     const near = candidates.filter(item => item.error <= candidates[0].error + SNAP_ALTERNATIVES).filter(p => {
       const ahead = { ...p, x: p.x + p.dx, z: p.z + p.dz, s: p.s + 1 };
-      return poseOnRoute([p, ahead], p.s, model, roadHeight, pose) && isClear(pose);
+      return poseOnRoute([p, ahead], p.s, model, roadHeight, pose) && (elevatedPose(pose) || isClear(pose));
     }).slice(0, 4);
     return near.length ? { x: near[0].x, z: near[0].z, candidates: near } : null;
   }
@@ -220,8 +230,10 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
         excludeNearFailure(samples, failedAt, blockedEdges, blockedTurns);
         continue;
       }
+      // surfaces 供 QA 核对规划路线确实走过高架桥面，而不是只能看边对象猜。
       return { samples, limits, stops, length: samples.at(-1).s,
-        from: samples[0], to: samples.at(-1), edges: result.path };
+        from: samples[0], to: samples.at(-1), edges: result.path,
+        surfaces: [...new Set(result.path.map(edge => edge.surfaceId).filter(Boolean))] };
     }
     return null;
   }
