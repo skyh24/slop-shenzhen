@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { color, uniform } from 'three/tsl';
 import { roadLinkPoints } from './sz-roads.js';
+import { sceneUniforms } from './sz-materials.js';
 
 // 主干道路灯：点位按源路网中心线等距派生，属外观还原参数，不代表逐杆实测位置。
 const LAMP_CLASSES = new Set(['trunk', 'trunk_link', 'primary', 'primary_link']);
@@ -288,8 +289,10 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
     group,
     sites,
     statistics,
-    update(cameraPosition, nightFactor) {
-      const night = Number.isFinite(nightFactor) ? Math.min(1, Math.max(0, nightFactor)) : 0;
+    update(cameraPosition) {
+      // 日夜系数直接读全局 uniform，入口不再逐个模块转抄。
+      const nightValue = sceneUniforms.night.value;
+      const night = Number.isFinite(nightValue) ? Math.min(1, Math.max(0, nightValue)) : 0;
       glow.value = night;
       materials.pool.opacity = night * 0.72;
       materials.halo.opacity = night * 0.9;

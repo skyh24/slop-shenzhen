@@ -10,9 +10,11 @@ const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const roads = loadModule(read('sz-roads.js'), { imports: {
   'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
 } });
+const nightUniform = { value: 0 };
+const materialsStub = { sceneUniforms: { night: nightUniform } };
 const lamps = loadModule(read('sz-street-lamps.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': { color: () => ({}), uniform: () => ({ value: 0 }) },
-  './sz-roads.js': roads, './sz-polygon.js': polygonModule
+  './sz-roads.js': roads, './sz-polygon.js': polygonModule, './sz-materials.js': materialsStub
 } });
 
 function graph(links, metadata) {
@@ -81,7 +83,7 @@ test('real Three street lamps cull halo points per chunk and dispose their group
     import(new URL('build/three.tsl.js', packageUrl))
   ]);
   const runtime = loadModule(read('sz-street-lamps.js'), { imports: {
-    'three/webgpu': THREE, 'three/tsl': tsl, './sz-roads.js': roads
+    'three/webgpu': THREE, 'three/tsl': tsl, './sz-roads.js': roads, './sz-materials.js': materialsStub
   } });
   const scene = new THREE.Scene();
   const model = runtime.buildSzStreetLamps(scene, graph([[0, 1, 0, 12, 3, 0, []]], [ground()]), {
@@ -123,6 +125,21 @@ test('real Three street lamps cull halo points per chunk and dispose their group
   assert.equal(haloCount, chunked.size);
   assert.equal(model.group.children.reduce((sum, child) => sum + child.children.filter(part => part.isPoints).length, 0),
     chunked.size);
+  // 日夜系数直接读全局 uniform：0 时灯光全灭，1 时达到原来的透明度。
+  const opacities = () => {
+    const result = { pool: null, halo: null };
+    model.group.traverse((object) => {
+      if (object.material?.isMeshBasicMaterial) result.pool = object.material.opacity;
+      if (object.material?.isPointsMaterial) result.halo = object.material.opacity;
+    });
+    return result;
+  };
+  nightUniform.value = 0;
+  model.update(new THREE.Vector3(0, 0, 0));
+  assert.deepEqual(opacities(), { pool: 0, halo: 0 });
+  nightUniform.value = 1;
+  model.update(new THREE.Vector3(0, 0, 0));
+  assert.deepEqual(opacities(), { pool: 0.72, halo: 0.9 });
   model.dispose();
   assert.equal(model.group.parent, null);
   assert.ok(!scene.children.includes(model.group));

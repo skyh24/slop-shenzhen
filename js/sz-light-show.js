@@ -181,8 +181,10 @@ export function buildSzLightShow(scene, { buildings = [], terrain = null, exclud
   const statistics = { ...plan.totals, landmarkBands: bandRows.length,
     drawCallsEstimate: (plan.totals.towers > 0 ? SHOW_BUCKETS * 2 : 0) + (bandRows.length > 0 ? 1 : 0),
     visible: false, colorSource: 'display-estimate', heightSource: 'estimate' };
+  // 夜景显隐由本模块按全局日夜 uniform 自己判断，入口只调用 update()，不再逐帧改 group.visible。
+  const updateVisibility = () => { group.visible = sceneUniforms.night.value > 0.25; };
   if (plan.towers.length === 0 && bandRows.length === 0) {
-    return { group, statistics, towers: [], update() {}, dispose() { scene.remove(group); } };
+    return { group, statistics, towers: [], update: updateVisibility, dispose() { scene.remove(group); } };
   }
   const geometry = new THREE.BoxGeometry(1, 1, 1);
   const materials = Array.from({ length: SHOW_BUCKETS }, (_, bucket) => createShowMaterial(bucket));
@@ -250,7 +252,7 @@ export function buildSzLightShow(scene, { buildings = [], terrain = null, exclud
     group,
     statistics,
     towers: plan.towers,
-    update() {},
+    update: updateVisibility,
     dispose() {
       scene.remove(group);
       geometry.dispose();

@@ -4,6 +4,7 @@ import * as THREE from 'three/webgpu';
 import { STR } from './sz-strings.js';
 import { terrainHeight } from './sz-terrain.js';
 import { landmarkCenter } from './sz-polygon.js';
+import { sceneUniforms } from './sz-materials.js';
 
 export { landmarkCenter };
 
@@ -710,11 +711,13 @@ export function buildApecTheme(scene, {
       group.visible = enabled;
       return enabled;
     },
-    update(dt, nightFactor = 0) {
+    update(dt) {
       if (!enabled) return;
       elapsed += Math.min(Math.max(Number.isFinite(dt) ? dt : 0, 0), 0.05);
       if (banners) banners.update(elapsed);
-      const night = Number.isFinite(nightFactor) ? Math.min(Math.max(nightFactor, 0), 1) : 0;
+      // 日夜系数直接读全局 uniform，入口不再逐个模块转抄。
+      const nightValue = sceneUniforms.night.value;
+      const night = Number.isFinite(nightValue) ? Math.min(Math.max(nightValue, 0), 1) : 0;
       for (const [material, day, nightIntensity] of lit) {
         material.emissiveIntensity = day + night * nightIntensity;
       }

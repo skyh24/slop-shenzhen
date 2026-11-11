@@ -544,7 +544,6 @@ async function initApp() {
   function selectTime(timeId) {
     lightingSystem.applyPreset(timeId);
     colorGrade.applyPreset(lightingSystem.activePresetId);
-    sceneUniforms.night.value = lightingSystem.uNightFactor.value;
     timeButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-time') === timeId);
     });
@@ -902,12 +901,12 @@ async function initApp() {
     cameraSystem.update(dt, elapsed);
     qa.applyCamera(cameraSystem.camera);
     streetscape.update(cameraSystem.camera.position);
-    streetLamps.update(cameraSystem.camera.position, lightingSystem.uNightFactor.value);
+    streetLamps.update(cameraSystem.camera.position);
     trees.update(cameraSystem.camera.position);
-    apecTheme.update(dt, lightingSystem.uNightFactor.value);
-    apecCity.update(dt, lightingSystem.uNightFactor.value);
+    apecTheme.update(dt);
+    apecCity.update(dt);
     drones.update(dt);
-    lightShow.group.visible = lightingSystem.uNightFactor.value > 0.25;
+    lightShow.update();
     metroEntrances.update(cameraSystem.currentPos);
     futianStation?.update(cameraSystem.currentPos);
     xiliConstruction?.update();
