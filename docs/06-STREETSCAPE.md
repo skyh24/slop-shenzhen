@@ -37,7 +37,7 @@
 
 风在着色器里算：整棵树随高度倾斜，树枝晃，每张叶子各自扑动。CPU 不逐帧改树的顶点。
 
-深圳的接法（以下是规划；2026-11-10 的正式入口用的是 `js/sz-trees.js`：树干加 icosahedron 近冠和远冠两档 LOD、纯色材质，纽约 `trees.js` 没有接入。移植近景叶卡的计划见 [22 号 V4](22-OPTIMIZATION-REVIEW.md#4-画面)）：
+深圳的接法（以下是规划；2026-11-10 的正式入口用 `js/sz-trees.js`：树干加近冠和远冠两档 LOD。近景六种树已按 [22 号 V4](22-OPTIMIZATION-REVIEW.md#4-画面) 全部换成 `js/sz-tree-crown.js` 的叶卡树冠（固定种子、四格图集、按树种形态、风摆、透光；棕榈类用羽叶卡片）；远景全部保留 icosahedron 低模冠。纽约 `trees.js` 没有整份接入）：
 
 - 渲染沿用纽约 `trees.js` 的生长和实例化做法，以及 `createTreeMaterial()`（参考副本在 `ref/slop-newyork/js/`）。点位不进纽约那份 `tree-geodata.bin.gz`，改由深圳数据包装进 `sz-geodata`，来源是 OSM 单株、有证据的树列和植被面。规则见上文和 [12 号第 5 节](12-URBAN-FABRIC-PLAN.md#5-公园行道树与植被成熟度)。
 - 阔叶树继续用 `growTree()`，改 `SPECIES` 和叶贴图，不沿用悬铃木、皂荚、榆的名字和颜色。榕树冠宽、分枝低；木棉主干高、侧枝少而陡；凤凰木和宫粉紫荆冠较平、花色只作叶色估计。花期不写成实测物候。

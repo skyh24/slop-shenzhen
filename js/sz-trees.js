@@ -1,8 +1,11 @@
 import * as THREE from 'three/webgpu';
 import { polygonContains } from './sz-polygon.js';
+import { CROWN_SPECIES, createCrownLibrary } from './sz-tree-crown.js';
 
-// 树木实例化渲染：按 1000 m 分块，每块树干 + 近冠（5 个叶球）+ 远冠（1 个低模冠），
+// 树木实例化渲染：按 1000 m 分块，每块树干 + 近冠 + 远冠（1 个低模冠），
 // 近/<180 m 切近冠，>900 m 隐藏。所有随机量只由树标识的固定哈希派生，加载结果稳定。
+// 近冠全部换成 sz-tree-crown.js 的叶卡树冠（按树种分几何）；远景一律保留低模 icosahedron 冠，
+// 近/远切换仍按 250 m 子格和 180/198 m 迟滞，三角形预算可控。
 
 const CHUNK_SIZE_M = 1000;
 // 近/远切换以 250 m 子格为单位：只按 1 km 块切换时，市中心一块的 3000 多棵树
@@ -15,38 +18,29 @@ const FAR_EXIT_M = 900;
 const FAR_ENTER_M = 828;
 const PROBE_RADIUS_M = 0.9;
 const TRUNK_SIDES = 8;
-const NEAR_LOBES = 5;
 const TRUNK_TRIANGLES = TRUNK_SIDES * 2; // 无盖圆柱
-const NEAR_LOBE_TRIANGLES = 320; // IcosahedronGeometry detail=2
 const FAR_CROWN_TRIANGLES = 80; // IcosahedronGeometry detail=1
 const COLLIDER_CELL_M = 48;
 const OSM_SOURCE_NAMES = new Set(['osm-node', 'osm-row']);
+// 叶卡树冠覆盖的树种；载荷里出现未知树种名时退回 ficus 形态，颜色仍按该树种的调色板。
+const CROWN_TEMPLATE_NAMES = new Set(Object.keys(CROWN_SPECIES));
 
 // 树种只定义形态比例和颜色；树高、冠幅来自数据，避免运行时再造随机尺寸。
 const SPECIES_STYLE = {
   ficus: { trunkRatio: 0.34, crownColor: 0x3c562f, crownLight: 0x66804d, trunkColor: 0x5f4e3f,
-    lobeSpread: 0.17, lobeRadius: 0.34, lobeHeight: 0.30 },
+    farSpread: 0.17, farHeight: 0.30 },
   camphor: { trunkRatio: 0.44, crownColor: 0x405c33, crownLight: 0x687d45, trunkColor: 0x5b4b3d,
-    lobeSpread: 0.16, lobeRadius: 0.33, lobeHeight: 0.32 },
+    farSpread: 0.16, farHeight: 0.32 },
   phoenix: { trunkRatio: 0.40, crownColor: 0x4b6a32, crownLight: 0x7a9448, trunkColor: 0x655642,
-    lobeSpread: 0.24, lobeRadius: 0.31, lobeHeight: 0.20 },
+    farSpread: 0.24, farHeight: 0.20 },
   bauhinia: { trunkRatio: 0.36, crownColor: 0x54703f, crownLight: 0x7d925c, trunkColor: 0x635343,
-    lobeSpread: 0.18, lobeRadius: 0.32, lobeHeight: 0.32 },
+    farSpread: 0.18, farHeight: 0.32 },
   'royal-palm': { trunkRatio: 0.76, crownColor: 0x36542c, crownLight: 0x5b7738, trunkColor: 0x746a58,
-    lobeSpread: 0.08, lobeRadius: 0.20, lobeHeight: 0.40 },
+    farSpread: 0.08, farHeight: 0.40 },
   kapok: { trunkRatio: 0.52, crownColor: 0x4a5f38, crownLight: 0x6f8049, trunkColor: 0x6a5847,
-    lobeSpread: 0.20, lobeRadius: 0.30, lobeHeight: 0.26 }
+    farSpread: 0.20, farHeight: 0.26 }
 };
 const DEFAULT_SPECIES_STYLE = SPECIES_STYLE.ficus;
-
-// 近冠 5 个叶球的相对布局：dx/dz 是冠幅比例，dy 是冠高比例，rx/ry 是半径比例。
-const NEAR_LOBE_LAYOUT = [
-  [-0.18, 0.30, 0.10, 0.34, 0.30],
-  [0.17, 0.34, -0.09, 0.33, 0.31],
-  [-0.02, 0.44, 0.18, 0.31, 0.29],
-  [-0.03, 0.24, -0.17, 0.30, 0.28],
-  [0.02, 0.54, 0.00, 0.32, 0.30]
-];
 
 function requireTree(condition, field) {
   if (!condition) throw new Error(`Invalid Shenzhen tree data: ${field}`);
@@ -256,10 +250,10 @@ function emptyResult() {
     statistics: {
       version: 1, payloadCount: 0, placed: 0, chunks: 0, lodCells: 0, countsBySource: {},
       skipped: { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0 },
-      instances: { trunks: 0, nearCrowns: 0, farCrowns: 0 },
-      triangles: { trunkPerTree: TRUNK_TRIANGLES, nearPerTree: NEAR_LOBES * NEAR_LOBE_TRIANGLES,
-        farPerTree: FAR_CROWN_TRIANGLES },
-      visible: { chunks: 0, lodCells: 0, nearCells: 0, farCells: 0, hiddenCells: 0, trees: 0, triangles: 0 }
+      instances: { trunks: 0, cards: 0, farCrowns: 0 },
+      triangles: { trunkPerTree: TRUNK_TRIANGLES, cardPerTree: {}, farPerTree: FAR_CROWN_TRIANGLES },
+      visible: { chunks: 0, lodCells: 0, nearCells: 0, farCells: 0, hiddenCells: 0, trees: 0,
+        nearTrees: 0, farTrees: 0, cardTrees: 0, triangles: 0 }
     },
     update() {},
     dispose() { group.removeFromParent(); }
@@ -290,6 +284,7 @@ export function buildSzTrees(scene, payload, options = {}) {
   const probes = [[0, 0], [PROBE_RADIUS_M, 0], [-PROBE_RADIUS_M, 0], [0, PROBE_RADIUS_M], [0, -PROBE_RADIUS_M]];
   const placed = [];
   const treeColliders = [];
+  const crownTemplates = new Set();
   for (let index = 0; index < trees.count; index++) {
     const x = trees.x[index];
     const z = trees.z[index];
@@ -330,8 +325,11 @@ export function buildSzTrees(scene, payload, options = {}) {
     const trunkHeight = trunkHeightFor(style, height);
     const trunkRadius = trunkRadiusFor(style, crown);
     const id = trees.osm.get(index) ?? `tree/${index}`;
+    // 未知树种退回 ficus 叶卡形态，颜色仍用该树种的调色板。
+    const crownTemplate = CROWN_TEMPLATE_NAMES.has(speciesName) ? speciesName : 'ficus';
+    crownTemplates.add(crownTemplate);
     const record = { index, id, x, z, y: baseY, height, crown, speciesName, sourceName,
-      style, trunkHeight, trunkRadius, seed: treeSeed(id) };
+      style, trunkHeight, trunkRadius, seed: treeSeed(id), crownTemplate };
     placed.push(record);
     // 碰撞体略小于树干可视半径：真实行道树树干约 0.4–0.9 m 直径，1.1 倍会把 2.5 m 人行道封死。
     const radius = Math.max(0.18, trunkRadius * 0.8);
@@ -349,18 +347,22 @@ export function buildSzTrees(scene, payload, options = {}) {
     list.push(record);
   }
   const trunkGeometry = new THREE.CylinderGeometry(1, 1, 1, TRUNK_SIDES, 1, true).translate(0, 0.5, 0);
-  const nearGeometry = new THREE.IcosahedronGeometry(1, 2);
   const farGeometry = new THREE.IcosahedronGeometry(1, 1);
   const trunkMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.96 });
   const leafMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.87 });
+  // 叶卡树冠：每个树种一份共享几何，图集和材质全场共用；每个 LOD 子格按树种各一份实例属性和矩阵。
+  const crownLibrary = crownTemplates.size > 0 ? createCrownLibrary([...crownTemplates]) : null;
+  const cardTriangles = crownLibrary ? crownLibrary.statistics.triangles : {};
   const chunks = [];
+  const cardGeometries = [];
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
   const scale = new THREE.Vector3();
   const identity = new THREE.Quaternion();
+  const rotation = new THREE.Quaternion();
+  const upAxis = new THREE.Vector3(0, 1, 0);
   const color = new THREE.Color();
   const tint = new THREE.Color();
-  const shade = new THREE.Color();
   const trunkLight = new THREE.Color(0x77634c);
   // 每个树种只建一次颜色对象，避免为每棵树重复分配 THREE.Color。
   const styleColors = new Map();
@@ -376,32 +378,34 @@ export function buildSzTrees(scene, payload, options = {}) {
   const pose = (mesh, instance, x, y, z, sx, sy, sz) => {
     mesh.setMatrixAt(instance, matrix.compose(position.set(x, y, z), identity, scale.set(sx, sy, sz)));
   };
-  // 冠层矩阵：近冠由 5 个叶球组成，远冠 1 个低模球；树干按 1 km 块单独摆。
-  function poseCrown(record, nearMesh, farMesh, instance) {
-    const { style, seed } = record;
-    const crownHeight = Math.max(0.8, record.height - record.trunkHeight);
-    const angle = seed * Math.PI * 2;
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-    const spreadScale = style.lobeSpread / 0.17;
-    const radiusScale = style.lobeRadius / 0.33;
-    const heightScale = style.lobeHeight / 0.30;
+  // 每棵树的叶色：树种调色板按固定哈希插值，再按树标识微调明度。颜色只是外观估计。
+  function tintFor(record) {
     const palette = colorsFor(record.speciesName);
-    tint.copy(palette.crown).lerp(palette.light, treeSeed(record.id + ':crown'));
-    NEAR_LOBE_LAYOUT.forEach(([dx, dy, dz, rx, ry], lobe) => {
-      const lobeX = record.x + (cos * dx - sin * dz) * record.crown * spreadScale;
-      const lobeZ = record.z + (sin * dx + cos * dz) * record.crown * spreadScale;
-      const lobeY = record.y + record.trunkHeight + dy * crownHeight;
-      pose(nearMesh, instance * NEAR_LOBES + lobe, lobeX, lobeY, lobeZ,
-        rx * record.crown * radiusScale, ry * crownHeight * heightScale, rx * record.crown * radiusScale);
-      shade.copy(tint).multiplyScalar(0.92 + lobe * 0.045);
-      nearMesh.setColorAt(instance * NEAR_LOBES + lobe, shade);
-    });
+    return tint.copy(palette.crown).lerp(palette.light, treeSeed(record.id + ':crown'));
+  }
+  // 远冠：所有树种共用 1 个低模球，近景换叶卡后远景不动。
+  function poseFar(record, farMesh, instance) {
+    const { style } = record;
+    const crownHeight = Math.max(0.8, record.height - record.trunkHeight);
     pose(farMesh, instance, record.x, record.y + record.trunkHeight + crownHeight * 0.42, record.z,
-      record.crown * (0.36 + style.lobeSpread * 0.6),
-      crownHeight * (0.35 + style.lobeHeight * 0.3),
-      record.crown * (0.36 + style.lobeSpread * 0.6));
-    farMesh.setColorAt(instance, tint);
+      record.crown * (0.36 + style.farSpread * 0.6),
+      crownHeight * (0.35 + style.farHeight * 0.3),
+      record.crown * (0.36 + style.farSpread * 0.6));
+    farMesh.setColorAt(instance, tintFor(record));
+  }
+  // 近冠叶卡：几何已归一化（冠底 y=0、冠顶 y≈1、水平半宽 0.5）。
+  function poseCard(record, cardMesh, instance, data, sway) {
+    const crownHeight = Math.max(0.8, record.height - record.trunkHeight);
+    rotation.setFromAxisAngle(upAxis, record.seed * Math.PI * 2);
+    cardMesh.setMatrixAt(instance, matrix.compose(
+      position.set(record.x, record.y + record.trunkHeight - 0.15, record.z),
+      rotation, scale.set(record.crown, crownHeight, record.crown)));
+    const leafTint = tintFor(record);
+    data.setXYZW(instance, leafTint.r, leafTint.g, leafTint.b, treeSeed(record.id + ':leaf'));
+    // 整树摆幅按树高给（世界米）：11 m 树约 0.2 m，和纽约参考同一量级，只是外观估计。
+    const amplitude = Math.min(0.4, Math.max(0.08, record.height * 0.018));
+    sway.setXY(instance, amplitude, treeSeed(record.id + ':wind'));
+    return amplitude;
   }
   for (const key of [...grouped.keys()].sort(compareChunkKeys)) {
     const records = grouped.get(key);
@@ -435,20 +439,65 @@ export function buildSzTrees(scene, payload, options = {}) {
     const chunkCells = [];
     for (const cellKey of [...cells.keys()].sort(compareChunkKeys)) {
       const cell = cells.get(cellKey);
-      const near = new THREE.InstancedMesh(nearGeometry, leafMaterial, cell.records.length * NEAR_LOBES);
       const far = new THREE.InstancedMesh(farGeometry, leafMaterial, cell.records.length);
-      near.name = `tree-crowns-near:${key}/${cellKey}`;
       far.name = `tree-crowns-far:${key}/${cellKey}`;
-      cell.records.forEach((record, instance) => poseCrown(record, near, far, instance));
-      for (const mesh of [near, far]) {
-        mesh.instanceMatrix.needsUpdate = true;
-        mesh.castShadow = mesh === near;
-        mesh.receiveShadow = true;
-        mesh.frustumCulled = true;
-        mesh.computeBoundingSphere();
-        group.add(mesh);
+      cell.records.forEach((record, instance) => poseFar(record, far, instance));
+      far.instanceMatrix.needsUpdate = true;
+      far.castShadow = false;
+      far.receiveShadow = true;
+      far.frustumCulled = true;
+      far.computeBoundingSphere();
+      far.instanceColor.needsUpdate = true;
+      group.add(far);
+      // 近冠按树种分实例网格：几何不同，但材质、图集共用。
+      const byTemplate = new Map();
+      for (const record of cell.records) {
+        let list = byTemplate.get(record.crownTemplate);
+        if (!list) byTemplate.set(record.crownTemplate, (list = []));
+        list.push(record);
       }
-      chunkCells.push({ key: cellKey, near, far, trees: cell.records.length, box: cell.box, mode: 'far' });
+      const cards = [];
+      let cardTrees = 0;
+      let cellCardTriangles = 0;
+      let maxSway = 0;
+      for (const template of [...byTemplate.keys()].sort()) {
+        const groupRecords = byTemplate.get(template);
+        const geometry = crownLibrary.geometryFor(template);
+        // 几何属性共享库里的缓冲，只有实例属性和矩阵按子格各一份。
+        const cardGeometry = new THREE.BufferGeometry();
+        for (const name of Object.keys(geometry.attributes)) {
+          cardGeometry.setAttribute(name, geometry.attributes[name]);
+        }
+        cardGeometry.setIndex(geometry.index);
+        cardGeometry.boundingSphere = geometry.boundingSphere;
+        cardGeometry.boundingBox = geometry.boundingBox;
+        const data = new THREE.InstancedBufferAttribute(new Float32Array(groupRecords.length * 4), 4);
+        const sway = new THREE.InstancedBufferAttribute(new Float32Array(groupRecords.length * 2), 2);
+        cardGeometry.setAttribute('aTreeData', data);
+        cardGeometry.setAttribute('aTreeSway', sway);
+        const cardMesh = new THREE.InstancedMesh(cardGeometry, crownLibrary.material, groupRecords.length);
+        cardMesh.name = `tree-crowns-near:${key}/${cellKey}:${template}`;
+        groupRecords.forEach((record, instance) => {
+          maxSway = Math.max(maxSway, poseCard(record, cardMesh, instance, data, sway));
+        });
+        cardMesh.instanceMatrix.needsUpdate = true;
+        cardMesh.geometry.attributes.aTreeData.needsUpdate = true;
+        cardMesh.geometry.attributes.aTreeSway.needsUpdate = true;
+        cardMesh.castShadow = true;
+        cardMesh.receiveShadow = true;
+        cardMesh.frustumCulled = true;
+        cardMesh.computeBoundingSphere();
+        // 风摆在着色器里做，包围球留出摆幅，避免近处树被视锥提前剔掉。
+        cardMesh.boundingSphere.radius += maxSway + 0.12;
+        group.add(cardMesh);
+        cardGeometries.push(cardGeometry);
+        const triangles = groupRecords.length * (cardTriangles[template] ?? 0);
+        cards.push({ template, mesh: cardMesh, trees: groupRecords.length, triangles });
+        cardTrees += groupRecords.length;
+        cellCardTriangles += triangles;
+      }
+      chunkCells.push({ key: cellKey, cards, far, trees: cell.records.length,
+        cardTrees, cardTriangles: cellCardTriangles, box: cell.box, mode: 'far' });
     }
     chunks.push({ key, trunks, cells: chunkCells, trees: records.length });
   }
@@ -463,17 +512,16 @@ export function buildSzTrees(scene, payload, options = {}) {
     lodCells,
     countsBySource,
     skipped,
-    instances: {
-      trunks: placed.length,
-      nearCrowns: placed.length * NEAR_LOBES,
-      farCrowns: placed.length
-    },
+    cardCrownSpecies: crownLibrary ? crownLibrary.statistics.species.map(item => item.name) : [],
+    instances: { trunks: placed.length, cards: placed.length, farCrowns: placed.length },
     triangles: {
       trunkPerTree: TRUNK_TRIANGLES,
-      nearPerTree: NEAR_LOBES * NEAR_LOBE_TRIANGLES,
+      cardPerTree: { ...cardTriangles },
       farPerTree: FAR_CROWN_TRIANGLES
     },
-    visible: { chunks: 0, lodCells: 0, nearCells: 0, farCells: 0, hiddenCells: 0, trees: 0, triangles: 0 }
+    crown: crownLibrary ? { ...crownLibrary.statistics } : null,
+    visible: { chunks: 0, lodCells: 0, nearCells: 0, farCells: 0, hiddenCells: 0, trees: 0,
+      nearTrees: 0, farTrees: 0, cardTrees: 0, triangles: 0 }
   };
 
   // 相机到子格包围盒的水平距离；子格内可能有树，按最近边缘算比按质心更符合“近处高模”的意图。
@@ -492,6 +540,8 @@ export function buildSzTrees(scene, payload, options = {}) {
     let hiddenCells = 0;
     let nearTrees = 0;
     let farTrees = 0;
+    let cardTrees = 0;
+    let nearCardTriangles = 0;
     let trunkTrees = 0;
     const x = cameraPosition.x;
     const z = cameraPosition.z;
@@ -502,7 +552,7 @@ export function buildSzTrees(scene, payload, options = {}) {
         const canBeNear = distance < (cell.mode === 'near' ? NEAR_EXIT_M : NEAR_ENTER_M);
         const visible = cell.mode === 'hidden' ? distance <= FAR_ENTER_M : distance <= FAR_EXIT_M;
         cell.mode = visible ? (canBeNear ? 'near' : 'far') : 'hidden';
-        cell.near.visible = cell.mode === 'near';
+        for (const card of cell.cards) card.mesh.visible = cell.mode === 'near';
         cell.far.visible = cell.mode === 'far';
         if (!visible) {
           hiddenCells += 1;
@@ -513,6 +563,8 @@ export function buildSzTrees(scene, payload, options = {}) {
         if (cell.mode === 'near') {
           nearCells += 1;
           nearTrees += cell.trees;
+          cardTrees += cell.cardTrees;
+          nearCardTriangles += cell.cardTriangles;
         } else {
           farCells += 1;
           farTrees += cell.trees;
@@ -531,15 +583,19 @@ export function buildSzTrees(scene, payload, options = {}) {
       farCells,
       hiddenCells,
       trees: nearTrees + farTrees,
-      triangles: trunkTrees * TRUNK_TRIANGLES + nearTrees * NEAR_LOBES * NEAR_LOBE_TRIANGLES
-        + farTrees * FAR_CROWN_TRIANGLES
+      nearTrees,
+      farTrees,
+      cardTrees,
+      triangles: trunkTrees * TRUNK_TRIANGLES + nearCardTriangles + farTrees * FAR_CROWN_TRIANGLES
     };
   }
 
   function dispose() {
     group.removeFromParent();
+    for (const geometry of cardGeometries) geometry.dispose();
+    cardGeometries.length = 0;
+    crownLibrary?.dispose();
     trunkGeometry.dispose();
-    nearGeometry.dispose();
     farGeometry.dispose();
     trunkMaterial.dispose();
     leafMaterial.dispose();
@@ -548,5 +604,15 @@ export function buildSzTrees(scene, payload, options = {}) {
   }
 
   update(new THREE.Vector3());
+  // 叶卡树冠材质只有一个管线：每个子格网格的几何布局相同，指定一个可见代表让预编译只编一次，
+  // 否则每个子格各编一次，冷启动 compile 阶段会从几秒涨到几十秒。
+  const cardMeshes = [];
+  for (const chunk of chunks) {
+    for (const cell of chunk.cells) for (const card of cell.cards) cardMeshes.push(card.mesh);
+  }
+  const representative = cardMeshes.find(mesh => mesh.visible) ?? cardMeshes[0];
+  if (representative) {
+    for (const mesh of cardMeshes) if (mesh !== representative) mesh.userData.sharesPipelineWith = representative;
+  }
   return { group, colliders: treeColliders, statistics, update, dispose };
 }
