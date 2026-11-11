@@ -55,6 +55,7 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [21-FOOTPRINT-AND-STREET-AUDIT.md](21-FOOTPRINT-AND-STREET-AUDIT.md) | 普通楼来源统计、遥感误检过滤、纯 OSM 模式、街景照片对照（原 17 号） |
 | [24-VALIDATED-FAST-DATA.md](24-VALIDATED-FAST-DATA.md) | 近期公开数据核验、SZC1 快读候选与合并复核 |
 | [25-FAST-CHECKS.md](25-FAST-CHECKS.md) | 日常按模块测试、一次审查与提交；大版本全量，含流程经验 |
+| [26-MODULE-INVENTORY.md](26-MODULE-INVENTORY.md) | 85 个运行时模块的职责、导出、调用方；重复实现与拆分候选 |
 | [RESEARCH.md](RESEARCH.md) | 前期调研：参考仓库、武汉教训、数据源、APEC、地标核实、检索服务状况 |
 
 2026-11-10 删除的过期文档：`15-IMPROVEMENT-PLAN.md`（规则并入 02、03 号）、`CODE-REVIEW-2026-11-10.md`（模块说明并入 01 号）、`SLIM-REVIEW-2026-11-10.md`（并入 22 号）、`NEXT-SESSION-PROMPT.md`（接续提示并入 NEXT-AGENT-PLAN）。
