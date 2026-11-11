@@ -1,5 +1,7 @@
-// 深圳地面道路标线：实线边线、白虚线、双黄中心线、停止线和断头端线。
+// 深圳地面道路标线：按 [23 号文档](../../docs/23-BUILDING-AND-STREET-PLAN.md) 第 7 节收束线型。
+// 车道数只用来推断线型，不冒充实测；估算车道数与 OSM lanes 分开标记（laneSource）。
 const LANE_WIDTH_M = 3.25;
+const NARROW_WIDTH_M = 7;
 const MAX_LANES = 8;
 const LINE_WIDTH = 0.18;
 const YELLOW_WIDTH = 0.15;
@@ -7,6 +9,15 @@ const STOP_WIDTH = 0.45;
 const CROSSWALK_DEPTH = 3.0;
 const CROSSWALK_PITCH = 0.82;
 const CROSSWALK_STRIPE = 0.45;
+// 进向标线的收尾顺序（从路口向外）：斑马线 0.7–3.7 m，停止线约 4.3 m，纵向标线再退 0.6 m。
+const CROSSWALK_SETBACK = 0.7;
+const STOP_BAR_GAP = 0.35;
+const LINE_STOP_GAP = 0.6;
+const STOP_CLEARANCE = CROSSWALK_SETBACK + CROSSWALK_DEPTH + STOP_BAR_GAP + STOP_WIDTH + LINE_STOP_GAP;
+// 斜接长度上限：超过后改用斜切，急弯处宁可切角也不让偏移线伸出路面或自交。
+const MAX_MITER_SCALE = 4;
+const PAVEMENT_TOLERANCE = 0.02;
+const SAMPLE_STEP = 20;
 
 function linkPoints(graph, link) {
   const [a, b, , , , , inner] = link;
@@ -16,31 +27,132 @@ function linkPoints(graph, link) {
   return points.filter((point, i) => !i || point.x !== points[i - 1].x || point.z !== points[i - 1].z);
 }
 
+// 把 OSM 车道数或按路宽估算的车道数翻成线型。双向用中心线分向，单向不画黄线。
 export function createLanePlan(link, metadata = {}) {
   const width = Number(link[3]);
-  const sourceLanes = Number.isInteger(link[4]) ? link[4] : 0;
+  const osmLanes = Number.isInteger(link[4]) && link[4] > 0 ? link[4] : 0;
   const direction = link[5];
   const highway = metadata.highway ?? '';
   if (!Number.isFinite(width) || width < 3 || highway === 'pedestrian') return null;
-  const laneCount = Math.min(MAX_LANES, sourceLanes > 0 ? sourceLanes : Math.max(1, Math.floor(width / LANE_WIDTH_M)));
-  const travelWidth = width;
-  const forward = direction === 0 ? Math.max(1, Math.round(laneCount / 2)) : laneCount;
-  const backward = direction === 0 ? Math.max(1, laneCount - forward) : 0;
-  const total = forward + backward;
-  if (!total) return null;
+  const twoWay = direction === 0;
+  const estimate = Math.max(1, Math.floor(width / LANE_WIDTH_M));
+  // 双向至少要有来去各一条；OSM lanes 为奇数时多出的一条算作 a→b 方向。
+  const laneCount = Math.min(MAX_LANES, twoWay ? Math.max(2, osmLanes || estimate) : Math.max(1, osmLanes || estimate));
+  const narrow = width < NARROW_WIDTH_M || (twoWay && laneCount <= 2);
+  const forward = twoWay ? Math.max(1, Math.ceil(laneCount / 2)) : laneCount;
+  const backward = twoWay ? Math.max(1, laneCount - forward) : 0;
+  const laneWidth = width / laneCount;
+  // 双向双黄线落在道路中心线上（第 7 节要求车道、停止线、斑马线共用同一条中心线），
+  // 两个方向各占半幅；奇数车道时多出的一条分在本侧半幅内。
+  const half = width / 2;
+  const forwardWidth = twoWay ? half / forward : width / laneCount;
+  const backwardWidth = twoWay ? half / backward : 0;
   const internal = [];
-  const simple = width < 7 && total <= 2;
-  if (simple) {
-    internal.push(direction === 0 ? { offset: 0, kind: 'double-yellow' } : { offset: 0, kind: 'dashed-white' });
-  } else {
-    const step = travelWidth / total;
-    for (let i = 1; i < total; i++) {
-      const offset = -travelWidth / 2 + i * step;
-      internal.push({ offset, kind: Math.abs(offset) < 0.05 && direction === 0 ? 'double-yellow' : 'dashed-white' });
+  if (!narrow) {
+    if (twoWay) {
+      internal.push({ offset: 0, kind: 'double-yellow' });
+      for (let i = 1; i < forward; i++) internal.push({ offset: -half + i * forwardWidth, kind: 'dashed-white' });
+      for (let i = 1; i < backward; i++) internal.push({ offset: half - i * backwardWidth, kind: 'dashed-white' });
+    } else {
+      for (let i = 1; i < laneCount; i++) internal.push({ offset: -half + i * laneWidth, kind: 'dashed-white' });
     }
+  } else if (twoWay) {
+    // 窄路不再按估算车道数拆线，只保留中心线和边线。
+    internal.push({ offset: 0, kind: 'double-yellow' });
   }
-  return { width, travelWidth, laneCount, forward, backward, edge: width >= 3.2, internal,
-    laneSource: sourceLanes > 0 ? 'osm-lanes' : 'width-estimate', simple, highway };
+  return { width, travelWidth: width, laneCount, forward, backward, laneWidth, forwardWidth, backwardWidth, edge: width >= 3.2,
+    internal, laneSource: osmLanes > 0 ? 'osm-lanes' : 'width-estimate', estimated: osmLanes === 0,
+    narrow, twoWay, highway };
+}
+
+function distanceToSegment(point, a, b) {
+  const dx = b.x - a.x, dz = b.z - a.z;
+  const length = Math.hypot(dx, dz);
+  if (length < 1e-9) return Math.hypot(point.x - a.x, point.z - a.z);
+  const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.z - a.z) * dz) / (length * length)));
+  return Math.hypot(point.x - (a.x + dx * t), point.z - (a.z + dz * t));
+}
+
+// 逐段求偏移点：每个顶点用相邻两段的法线平分线做斜接，整段不再共用首尾弦方向。
+// 斜接点会伸出斜切路缘时改用斜切（两段各自法线偏移），保证线在路面内。
+function offsetPoints(points, offset, halfWidth) {
+  const count = points.length;
+  if (count < 2 || !Number.isFinite(offset)) return [];
+  const segments = [];
+  for (let i = 0; i < count - 1; i++) {
+    const dx = points[i + 1].x - points[i].x;
+    const dz = points[i + 1].z - points[i].z;
+    const length = Math.hypot(dx, dz);
+    segments.push(length < 1e-6 ? null : { ux: dx / length, uz: dz / length });
+  }
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const previous = segments[i - 1] ?? null;
+    const next = segments[i] ?? null;
+    if (!previous && !next) continue;
+    if (!previous || !next) {
+      const only = previous ?? next;
+      out.push({ x: points[i].x - only.uz * offset, z: points[i].z + only.ux * offset });
+      continue;
+    }
+    let bx = -previous.uz - next.uz;
+    let bz = previous.ux + next.ux;
+    let length = Math.hypot(bx, bz);
+    if (length < 1e-6) {
+      // 180° 折返没有唯一平分线，退回本段法线。
+      out.push({ x: points[i].x - next.uz * offset, z: points[i].z + next.ux * offset });
+      continue;
+    }
+    bx /= length; bz /= length;
+    const cosine = bx * -next.uz + bz * next.ux;
+    const scale = cosine < 1 / MAX_MITER_SCALE ? MAX_MITER_SCALE : 1 / cosine;
+    const miter = { x: points[i].x + bx * offset * scale, z: points[i].z + bz * offset * scale };
+    let bevel = false;
+    if (Math.abs(offset) > 1e-6 && scale > 1.0001) {
+      // 凸侧斜接点的垂足落到路段之外：只有斜接长度不超过斜切路缘（到平分线与路缘交点）时才算在路面内。
+      const distance = Math.min(distanceToSegment(miter, points[i - 1], points[i]), distanceToSegment(miter, points[i], points[i + 1]));
+      const inside = distance <= Math.abs(offset) + 1e-6;
+      const limit = halfWidth * cosine / Math.max(Math.abs(offset), 1e-9);
+      bevel = !inside && scale > limit - PAVEMENT_TOLERANCE;
+    }
+    if (bevel) {
+      // 斜接会伸出斜切路缘，改画斜切：两段法线偏移点连一条斜线。
+      out.push({ x: points[i].x - previous.uz * offset, z: points[i].z + previous.ux * offset });
+      out.push({ x: points[i].x - next.uz * offset, z: points[i].z + next.ux * offset });
+    } else out.push(miter);
+  }
+  return out;
+}
+
+function properlyCrosses(a, b, c, d) {
+  const cross = (p, q, r) => (q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x);
+  const d1 = cross(c, d, a), d2 = cross(c, d, b), d3 = cross(a, b, c), d4 = cross(a, b, d);
+  return ((d1 > 1e-9 && d2 < -1e-9) || (d1 < -1e-9 && d2 > 1e-9))
+    && ((d3 > 1e-9 && d4 < -1e-9) || (d3 < -1e-9 && d4 > 1e-9));
+}
+
+// 偏移折线：丢掉塌缩点，再按非相邻段交叉切分，弯道内侧形成的回环不画。
+function offsetRuns(points, offset, halfWidth) {
+  const raw = offsetPoints(points, offset, halfWidth);
+  const line = [];
+  for (const point of raw) {
+    const last = line.at(-1);
+    if (!last || Math.hypot(point.x - last.x, point.z - last.z) > 0.05) line.push(point);
+  }
+  if (line.length < 2) return [];
+  const runs = [];
+  let start = 0;
+  for (let j = 2; j < line.length; j++) {
+    let cut = -1;
+    for (let k = start; k + 1 < j - 1; k++) {
+      if (properlyCrosses(line[k], line[k + 1], line[j - 1], line[j])) { cut = k; break; }
+    }
+    if (cut < 0) continue;
+    if (cut + 1 - start > 1) runs.push(line.slice(start, cut + 1));
+    start = j;
+  }
+  if (line.length - start > 1) runs.push(line.slice(start));
+  return runs;
 }
 
 function sample(points, step) {
@@ -58,38 +170,117 @@ function sample(points, step) {
   return out;
 }
 
-function line(points, offset, color, period, duty, phase, strips) {
-  const dx = points.at(-1).x - points[0].x, dz = points.at(-1).z - points[0].z;
-  const length = Math.hypot(dx, dz) || 1;
-  const ux = dx / length, uz = dz / length;
-  for (const piece of sample(points, 20)) {
-    strips.push({ ax: piece.ax - uz * offset, az: piece.az + ux * offset,
-      bx: piece.bx - uz * offset, bz: piece.bz + ux * offset,
-      width: color === 'yellow' ? YELLOW_WIDTH : LINE_WIDTH, color, period, duty, phase, flow: 1 });
-    phase += Math.hypot(piece.bx - piece.ax, piece.bz - piece.az);
+function line(points, offset, color, period, duty, phase, strips, kind, halfWidth) {
+  const width = color === 'yellow' ? YELLOW_WIDTH : LINE_WIDTH;
+  for (const run of offsetRuns(points, offset, halfWidth)) {
+    for (const piece of sample(run, SAMPLE_STEP)) {
+      strips.push({ ax: piece.ax, az: piece.az, bx: piece.bx, bz: piece.bz,
+        width, color, period, duty, phase, flow: 1, offset, kind });
+      phase += Math.hypot(piece.bx - piece.ax, piece.bz - piece.az);
+    }
   }
 }
 
-function stopBar(approach, strips) {
+// 进向到停止点的投影距离；找不到或偏离本路段太远时返回 null，避免误剪整条线。
+function projectStop(points, stopX, stopZ, width) {
+  if (!Number.isFinite(stopX) || !Number.isFinite(stopZ)) return null;
+  let best = Infinity;
+  let stop = 0;
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i];
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const length = Math.hypot(dx, dz);
+    if (length < 1e-9) continue;
+    const t = Math.max(0, Math.min(1, ((stopX - a.x) * dx + (stopZ - a.z) * dz) / (length * length)));
+    const distance = Math.hypot(stopX - (a.x + dx * t), stopZ - (a.z + dz * t));
+    if (distance < best) { best = distance; stop = total + length * t; }
+    total += length;
+  }
+  return best <= Math.max(4, width) ? stop : null;
+}
+
+function subline(points, startS, endS) {
+  const total = points.reduce((sum, point, i) => i ? sum + Math.hypot(point.x - points[i - 1].x, point.z - points[i - 1].z) : 0, 0);
+  const from = Math.max(0, startS);
+  const to = Math.min(total, endS);
+  if (to - from < 0.5) return [];
+  const out = [];
+  let s = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i];
+    const length = Math.hypot(b.x - a.x, b.z - a.z);
+    if (length < 1e-9) continue;
+    const segmentFrom = Math.max(from, s), segmentTo = Math.min(to, s + length);
+    if (segmentTo > segmentFrom + 1e-9) {
+      const insert = (distance) => {
+        const t = (distance - s) / length;
+        const point = { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
+        const last = out.at(-1);
+        if (!last || Math.hypot(last.x - point.x, last.z - point.z) > 1e-6) out.push(point);
+      };
+      insert(segmentFrom);
+      insert(segmentTo);
+    }
+    s += length;
+  }
+  return out;
+}
+
+function stopLine(approach, strips) {
   const { stopX, stopZ, dx, dz, widthM } = approach;
-  if (![stopX, stopZ, dx, dz, widthM].every(Number.isFinite) || widthM < 3) return;
+  if (![stopX, stopZ, dx, dz, widthM].every(Number.isFinite) || widthM < 3) return null;
   const length = Math.hypot(dx, dz) || 1;
   const ux = dx / length, uz = dz / length, rx = -uz, rz = ux, half = widthM / 2 - 0.15;
-  const cx = stopX - ux * 0.35, cz = stopZ - uz * 0.35;
+  const up = CROSSWALK_SETBACK + CROSSWALK_DEPTH + STOP_BAR_GAP + STOP_WIDTH / 2;
+  const cx = stopX - ux * up, cz = stopZ - uz * up;
   strips.push({ ax: cx + rx * half, az: cz + rz * half, bx: cx - rx * half, bz: cz - rz * half,
-    width: STOP_WIDTH, color: 'white', period: 1, duty: 1, phase: 0, flow: 1 });
+    width: STOP_WIDTH, color: 'white', period: 1, duty: 1, phase: 0, flow: 1, offset: 0, kind: 'stop' });
+  return 'stop';
+}
+
+function crosswalk(approach, strips) {
+  const { stopX, stopZ, dx, dz, widthM } = approach;
+  if (![stopX, stopZ, dx, dz, widthM].every(Number.isFinite) || widthM < 3) return null;
+  const length = Math.hypot(dx, dz) || 1;
+  const ux = dx / length, uz = dz / length, rx = -uz, rz = ux, half = widthM / 2 - 0.15;
   for (let lateral = -half; lateral <= half + 1e-6; lateral += CROSSWALK_PITCH) {
-    strips.push({ ax: stopX - ux * (CROSSWALK_DEPTH + 0.7) + rx * lateral,
-      az: stopZ - uz * (CROSSWALK_DEPTH + 0.7) + rz * lateral,
-      bx: stopX - ux * 0.7 + rx * lateral, bz: stopZ - uz * 0.7 + rz * lateral,
-      width: CROSSWALK_STRIPE, color: 'white', period: 1, duty: 1, phase: 0, flow: 1 });
+    strips.push({ ax: stopX - ux * (CROSSWALK_SETBACK + CROSSWALK_DEPTH) + rx * lateral,
+      az: stopZ - uz * (CROSSWALK_SETBACK + CROSSWALK_DEPTH) + rz * lateral,
+      bx: stopX - ux * CROSSWALK_SETBACK + rx * lateral, bz: stopZ - uz * CROSSWALK_SETBACK + rz * lateral,
+      width: CROSSWALK_STRIPE, color: 'white', period: 1, duty: 1, phase: 0, flow: 1, offset: 0, kind: 'crosswalk' });
   }
+  return 'crosswalk';
+}
+
+function deadEndBar(points, end, width, strips) {
+  const p = end === 0 ? points[0] : points.at(-1);
+  const q = end === 0 ? points[1] : points.at(-2);
+  const dx = p.x - q.x, dz = p.z - q.z, length = Math.hypot(dx, dz);
+  if (length < 1e-6) return false;
+  const ux = dx / length, uz = dz / length, rx = -uz, rz = ux, half = Math.max(1.2, width / 2 - 0.18);
+  strips.push({ ax: p.x - ux * 1.3 + rx * half, az: p.z - uz * 1.3 + rz * half,
+    bx: p.x - ux * 1.3 - rx * half, bz: p.z - uz * 1.3 - rz * half,
+    width: STOP_WIDTH, color: 'white', period: 1, duty: 1, phase: 0, flow: 1, offset: 0, kind: 'end' });
+  return true;
 }
 
 export function createMarkingLayout(graph, { intersections = [] } = {}) {
   if (!graph?.links || !graph.metadata || graph.links.length !== graph.metadata.length) throw new Error('Matched road graph required');
   const strips = [];
-  const statistics = { links: 0, paintedLinks: 0, skippedLinks: 0, deadEnds: 0, strips: 0, intersections: 0, laneSources: {} };
+  const statistics = { links: 0, paintedLinks: 0, skippedLinks: 0, deadEnds: 0, strips: 0, intersections: 0,
+    laneSources: {}, estimatedLaneLinks: 0, osmLaneLinks: 0, narrowLinks: 0, oneWayLinks: 0, twoWayLinks: 0,
+    stopLines: 0, crosswalks: 0, breakLinks: 0 };
+  // 路口进向按源路段索引挂到 link 上，只有信号或已核实过街才画进向设施。
+  const approachesByLink = new Map();
+  for (const junction of intersections) {
+    for (const approach of junction.approaches ?? []) {
+      if (!Number.isInteger(approach.sourceIndex)) continue;
+      const list = approachesByLink.get(approach.sourceIndex) ?? [];
+      list.push(approach);
+      approachesByLink.set(approach.sourceIndex, list);
+    }
+  }
   const degree = new Map();
   for (let i = 0; i < graph.links.length; i++) {
     const m = graph.metadata[i];
@@ -105,34 +296,55 @@ export function createMarkingLayout(graph, { intersections = [] } = {}) {
     if (!plan) { statistics.skippedLinks++; continue; }
     statistics.paintedLinks++;
     statistics.laneSources[plan.laneSource] = (statistics.laneSources[plan.laneSource] ?? 0) + 1;
+    if (plan.estimated) statistics.estimatedLaneLinks++;
+    else statistics.osmLaneLinks++;
+    if (plan.narrow) statistics.narrowLinks++;
+    if (plan.twoWay) statistics.twoWayLinks++;
+    else statistics.oneWayLinks++;
     const points = linkPoints(graph, link);
     if (points.length < 2) continue;
-    if (plan.edge) {
-      line(points, plan.travelWidth / 2 - 0.38, 'white', 1, 1, 0, strips);
-      line(points, -plan.travelWidth / 2 + 0.38, 'white', 1, 1, 0, strips);
+    // 信号进向的纵向标线在停止线前断开；停止线、斑马线由 stopLine/crosswalk 单独画。
+    let startS = 0, endS = Infinity;
+    for (const approach of approachesByLink.get(i) ?? []) {
+      // 只有信号进向才有停止线；已核实过街（无信号）不剪纵向标线。
+      if (!Number.isInteger(approach.group)) continue;
+      const stop = projectStop(points, approach.stopX, approach.stopZ, plan.width);
+      if (stop === null) continue;
+      const length = points.reduce((sum, point, index) => index ? sum + Math.hypot(point.x - points[index - 1].x, point.z - points[index - 1].z) : 0, 0);
+      if (length - stop <= stop) endS = Math.min(endS, stop - STOP_CLEARANCE);
+      else startS = Math.max(startS, stop + STOP_CLEARANCE);
     }
-    for (const divider of plan.internal) {
-      if (divider.kind === 'double-yellow') {
-        line(points, divider.offset - 0.12, 'yellow', 1, 1, 0, strips);
-        line(points, divider.offset + 0.12, 'yellow', 1, 1, 0, strips);
-      } else line(points, divider.offset, 'white', 12, 0.25, 0, strips);
+    const clipped = startS > 0 || endS < Infinity ? subline(points, startS, endS) : points;
+    if (clipped.length >= 2) {
+      if (startS > 0 || endS < Infinity) statistics.breakLinks++;
+      const half = plan.width / 2;
+      if (plan.edge) {
+        line(clipped, half - 0.38, 'white', 1, 1, 0, strips, 'edge-left', half);
+        line(clipped, -half + 0.38, 'white', 1, 1, 0, strips, 'edge-right', half);
+      }
+      for (const divider of plan.internal) {
+        if (divider.kind === 'double-yellow') {
+          line(clipped, divider.offset - 0.12, 'yellow', 1, 1, 0, strips, 'center-left', half);
+          line(clipped, divider.offset + 0.12, 'yellow', 1, 1, 0, strips, 'center-right', half);
+        } else line(clipped, divider.offset, 'white', 12, 0.25, 0, strips, 'lane', half);
+      }
     }
     for (const end of [0, 1]) {
       if ((degree.get(link[end]) ?? 0) > 1) continue;
-      const p = end === 0 ? points[0] : points.at(-1);
-      const q = end === 0 ? points[1] : points.at(-2);
-      const dx = p.x - q.x, dz = p.z - q.z, length = Math.hypot(dx, dz);
-      if (length < 1e-6) continue;
-      const ux = dx / length, uz = dz / length, rx = -uz, rz = ux, half = Math.max(1.2, plan.travelWidth / 2 - 0.18);
-      strips.push({ ax: p.x - ux * 1.3 + rx * half, az: p.z - uz * 1.3 + rz * half,
-        bx: p.x - ux * 1.3 - rx * half, bz: p.z - uz * 1.3 - rz * half,
-        width: STOP_WIDTH, color: 'white', period: 1, duty: 1, phase: 0, flow: 1 });
-      statistics.deadEnds++;
+      if (deadEndBar(points, end, plan.width, strips)) statistics.deadEnds++;
     }
   }
-  for (const approach of intersections.flatMap(junction => junction.approaches ?? [])) {
-    const before = strips.length; stopBar(approach, strips);
-    if (strips.length > before) statistics.intersections++;
+  for (const junction of intersections) {
+    const approaches = junction.approaches ?? [];
+    for (const approach of approaches) {
+      const signal = Number.isInteger(approach.group);
+      const verifiedCrossing = approach.crosswalk === true || junction.crosswalk === true;
+      if (signal) {
+        if (stopLine(approach, strips)) statistics.stopLines++;
+        if (crosswalk(approach, strips)) statistics.crosswalks++;
+      } else if (verifiedCrossing && crosswalk(approach, strips)) statistics.crosswalks++;
+    }
+    if (approaches.length) statistics.intersections++;
   }
   statistics.strips = strips.length;
   return { strips, statistics };
