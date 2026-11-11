@@ -477,7 +477,7 @@ test('the real Shenzhen snapshot exposes drivable elevated chains with rendered 
   const plan = elevated.planElevatedRoads(geo.roadGraph, geo.terrainSurface);
   assert.ok(plan.links.length >= 33, `plan links ${plan.links.length}`);
   assert.ok(plan.driveLinks.length >= 30, `drive links ${plan.driveLinks.length}`);
-  assert.equal(plan.interchanges.length, 2);
+  assert.equal(plan.interchanges.length, 3);
   const chegongmiao = plan.interchanges.find(item => item.id === 'chegongmiao');
   assert.ok(chegongmiao, 'the existing Chegongmiao partition stays first');
   assert.equal(plan.interchanges[0].id, 'chegongmiao');
@@ -498,7 +498,7 @@ test('the real Shenzhen snapshot exposes drivable elevated chains with rendered 
   assert.ok(plan.driveLinks.some(link => link.sharedEnd), 'a deck end meets ground on the end side');
 
   // 深南广深立交：OSM 来源是深南广深立交桥匝道与京港澳高速（广深段）桥面，layer 1 只表示上下关系。
-  assert.equal(plan.interchanges.length, 2);
+  assert.equal(plan.interchanges.length, 3);
   const guangshen = plan.interchanges.find(item => item.id === 'shennan-guangshen');
   assert.ok(guangshen, 'the Shennan-GuangShen interchange is planned as its own partition');
   assert.equal(guangshen.name, '深南广深立交');
@@ -524,6 +524,25 @@ test('the real Shenzhen snapshot exposes drivable elevated chains with rendered 
   assert.ok(plan.statistics.tunnelLinks >= 1, `tunnel links ${plan.statistics.tunnelLinks}`);
   assert.ok(plan.links.every(link => link.tunnel === false));
   assert.equal(guangshenLinks.every(link => interchangeIds.has(link.interchangeId)), true);
+
+  // 竹子林立交：滨河大道与京港澳高速（广深段）的喇叭形匝道；OSM 名字是竹子林立交桥。
+  const zhuzilin = plan.interchanges.find(item => item.id === 'zhuzilin');
+  assert.ok(zhuzilin, 'the Zhuzilin interchange is planned as its own partition');
+  assert.equal(zhuzilin.name, '竹子林立交');
+  assert.equal(zhuzilin.heightSource, 'estimate');
+  assert.ok(zhuzilin.links >= 6, `Zhuzilin links ${zhuzilin.links}`);
+  assert.ok(zhuzilin.driveLinks >= 6, `Zhuzilin drive links ${zhuzilin.driveLinks}`);
+  assert.ok(zhuzilin.deckLengthM > 500, `Zhuzilin deck length ${zhuzilin.deckLengthM}`);
+  const zhuzilinLinks = plan.links.filter(link => link.interchangeId === 'zhuzilin');
+  const zhuzilinOsm = new Set(zhuzilinLinks.map(link => link.osmId));
+  for (const osmId of ['way/40932649', 'way/40932651', 'way/40933270', 'way/40933271']) {
+    assert.ok(zhuzilinOsm.has(osmId), `${osmId} is planned in the Zhuzilin partition`);
+  }
+  const zhuzilinDrive = plan.driveLinks.filter(link => link.interchangeId === 'zhuzilin');
+  assert.ok(zhuzilinDrive.some(link => link.sharedStart), 'a Zhuzilin ramp foot meets the ground');
+  assert.ok(zhuzilinDrive.some(link => link.sharedEnd), 'a Zhuzilin exit ramp meets the ground');
+  assert.ok(zhuzilinDrive.every(link => link.maxGrade <= elevated.ELEVATED_DRIVE_MAX_GRADE));
+  assert.ok(zhuzilinLinks.every(link => link.tunnel === false));
 
   // 车公庙目标链路：地面 → 403 上匝道 → 6595 桥面 → 11114 下匝道 → 地面。
   const byOsm = new Map(plan.links.map(link => [link.osmId, link]));

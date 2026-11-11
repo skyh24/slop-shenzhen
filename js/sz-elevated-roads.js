@@ -40,6 +40,14 @@ export const SHENZHEN_INTERCHANGES = Object.freeze([
     source: 'OSM 深南广深立交桥 motorway_link/secondary_link bridge layer 1 与京港澳高速 bridge layer 1',
     area: Object.freeze({ minX: -4992, maxX: -3913, minZ: 543, maxZ: 1412 }),
     heightSource: 'estimate'
+  }),
+  Object.freeze({
+    id: 'zhuzilin',
+    name: '竹子林立交',
+    // 选区取竹子林立交桥 OSM 匝道范围外扩 300 m：滨河大道与京港澳高速（广深段）的喇叭形匝道在此交汇。
+    source: 'OSM 竹子林立交桥 primary_link bridge layer 1 与京港澳高速 bridge layer 1',
+    area: Object.freeze({ minX: -4703, maxX: -3973, minZ: 1368, maxZ: 2096 }),
+    heightSource: 'estimate'
   })
 ]);
 
