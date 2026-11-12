@@ -21,6 +21,7 @@ from geo import (HONG_KONG_BOUNDARY_ID, ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, pha
 from land import _polys, _to_local, build_land
 from landmark_sites import build_landmark_sites
 from osm import read_osm
+from map_regions import build_map_regions
 from parks import build_parks
 from road_frontage import build_road_frontage
 from roads import CLASSES, build_roads
@@ -220,6 +221,10 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
 
 def write_city_packages(payload, report, sources, started):
     payload.pop('roads', None)
+    osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
+    regions = build_map_regions(payload, osm_source, enc_poly)
+    payload['mapRegions'] = regions
+    report['mapRegions'] = {key: regions[key] for key in ('version', 'source', 'pilot', 'coverage')}
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
     compressed = gzip.compress(raw, 9, mtime=0)
@@ -492,6 +497,8 @@ def main():
                     help='validate the snapshot and repack SZC1; migrate legacy road preview out of both packages')
     mode.add_argument('--audit-road-preview', action='store_true',
                       help='write the offline OSM road preview audit as JSON to stdout')
+    mode.add_argument('--rebuild-map-regions', action='store_true',
+                      help='regenerate map regions from the verified city package and OSM snapshot')
     mode.add_argument('--rebuild-ground', action='store_true',
                       help='rebuild the ground pilot from the current verified payload and snapshots')
     mode.add_argument('--rebuild-civic-ground', action='store_true',
@@ -512,14 +519,14 @@ def main():
         export_road_preview(not args.no_cache)
         return
 
-    if args.repack_existing:
+    if args.repack_existing or args.rebuild_map_regions:
         started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
         sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
         report = json.loads(VALIDATION_REPORT.read_text())
         require_matching_snapshot(raw, report, sources)
-        if 'roads' in payload:
+        if 'roads' in payload or args.rebuild_map_regions:
             write_city_packages(payload, json.loads(REPORT.read_text()), sources, started)
         else:
             print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))

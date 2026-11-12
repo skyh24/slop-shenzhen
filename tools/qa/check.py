@@ -31,7 +31,7 @@ SCOPES = {
     'street': ('sz-trees sz-tree-crown sz-streetscape sz-street-lamps sz-pedestrians pedestrians '
                'sz-metro-entrances sz-station-sites sz-drone-routes sz-air-evidence sz-apec sz-apec-city',
                'tools/sz/tests/test_trees.py tools/sz/tests/test_metro.py'),
-    'ui': ('boot sz-geodata-boot sz-main-startup runtime-reachability sz-qa sz-map '
+    'ui': ('boot sz-geodata-boot sz-main-startup runtime-reachability sz-qa sz-map sz-map-regions '
            'sz-city-config teleports cameras touch-controls', ''),
     'data': ('sz-data sz-fastpack sz-geodata-boot sz-ground sz-terrain sz-spatial '
              'sz-city-config sz-buildings sz-elevated-roads sz-auto-drive', 'tools/sz/tests/test_*.py'),

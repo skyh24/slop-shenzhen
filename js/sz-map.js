@@ -1,6 +1,8 @@
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
 import { NYC_LANDMARKS, ISLAND_BOUNDS, getLocationLabel, isTypingInField } from './sz-city-config.js';
 import { STR } from './sz-strings.js';
+import { createMapRegions } from './sz-map-regions.js';
+import { wireMapInspection } from './sz-map-inspection.js';
 import { MAP, ROAD_LABELS, ROAD_NAME_COUNT, MapView, addLine, mapLayers, footprintLayers, drawPlayerArrow, drawWaypoint, overlaps } from './sz-map-layers.js';
 
 // 保留纽约地图控件和缓存机制；地理图层改用深圳同一份真实数据。
@@ -53,10 +55,8 @@ class NYCMapSystem {
     this.viewCenterX = 0;
     this.viewCenterZ = 0;
     this.viewZoom = 0.22;
-    this.isPanning = false;
-    this.panPointerId = null;
-    this.panStart = { x: 0, y: 0, cx: 0, cz: 0 };
-    this.dragMoved = false;
+    this.mapLayersVisible = { landmarks: true, retail: true, regions: true, interchanges: true };
+    this.regions = null;
 
     this.searchHighlight = '';
     this.searchPath = null;
@@ -82,6 +82,7 @@ class NYCMapSystem {
     }
 
     this.initEvents();
+    this.inspection = wireMapInspection(this);
   }
 
   initEvents() {
@@ -103,13 +104,13 @@ class NYCMapSystem {
     if (zoomInBtn) {
       zoomInBtn.addEventListener('click', () => {
         this.viewZoom = Math.min(MAX_ZOOM, this.viewZoom * 1.45);
-        this.renderFullMap();
+        this.refreshView();
       });
     }
     if (zoomOutBtn) {
       zoomOutBtn.addEventListener('click', () => {
         this.viewZoom = Math.max(this.minViewZoom(), this.viewZoom / 1.45);
-        this.renderFullMap();
+        this.refreshView();
       });
     }
     if (centerPlayerBtn) {
@@ -118,7 +119,7 @@ class NYCMapSystem {
         this.viewCenterX = ent.position.x;
         this.viewCenterZ = ent.position.z;
         this.viewZoom = 0.9;
-        this.renderFullMap();
+        this.refreshView();
       });
     }
     if (fullIslandBtn) {
@@ -127,7 +128,7 @@ class NYCMapSystem {
         this.viewCenterX = (b.minX + b.maxX) * 0.5;
         this.viewCenterZ = (b.minZ + b.maxZ) * 0.5;
         this.viewZoom = this.fullExtentZoom();
-        this.renderFullMap();
+        this.refreshView();
       });
     }
 
@@ -168,103 +169,16 @@ class NYCMapSystem {
       });
     }
 
-    if (this.fullCanvas) {
-      this.fullCanvas.style.touchAction = 'none';
-      this.fullCanvas.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0 || !this.isFullMapOpen || this.panPointerId !== null) return;
-        e.preventDefault();
-        this.panPointerId = e.pointerId;
-        this.fullCanvas.setPointerCapture(e.pointerId);
-        this.isPanning = true;
-        this.dragMoved = false;
-        this.panStart.x = e.clientX;
-        this.panStart.y = e.clientY;
-        this.panStart.cx = this.viewCenterX;
-        this.panStart.cz = this.viewCenterZ;
-        if (this.fullCanvasWrap) this.fullCanvasWrap.classList.add('is-panning');
-      });
+  }
 
-      this.fullCanvas.addEventListener('pointermove', (e) => {
-        if (!this.isFullMapOpen || !this.fullCanvas) return;
-        if (this.isPanning ? e.pointerId !== this.panPointerId : e.pointerType !== 'mouse') return;
-        const rect = this.fullCanvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
+  regionLayer() {
+    if (!GEO.mapRegions) return null;
+    return this.regions ??= createMapRegions(GEO.mapRegions.regions);
+  }
 
-        if (this.isPanning) {
-          e.preventDefault();
-          const dx = e.clientX - this.panStart.x;
-          const dy = e.clientY - this.panStart.y;
-          if (Math.hypot(dx, dy) > 5) this.dragMoved = true;
-          this.viewCenterX = this.panStart.cx - dx / this.viewZoom;
-          this.viewCenterZ = this.panStart.cz - dy / this.viewZoom;
-          this.renderFullMap();
-          return;
-        }
-
-        if (mx >= 0 && mx <= rect.width && my >= 0 && my <= rect.height) {
-          const wPos = this.screenToWorld(mx, my, rect.width, rect.height);
-          if (this.elHoverInfo && !this.isPlanningDrive) {
-            this.elHoverInfo.textContent = STR.map.teleportHint(getLocationLabel(wPos.x, wPos.z));
-          }
-        }
-      });
-
-      this.fullCanvas.addEventListener('pointerup', (e) => {
-        if (e.pointerId !== this.panPointerId) return;
-        const clicked = !this.dragMoved && Math.hypot(e.clientX - this.panStart.x, e.clientY - this.panStart.y) <= 5;
-        this.cancelPan();
-        if (clicked && this.isFullMapOpen && this.fullCanvas) {
-          const rect = this.fullCanvas.getBoundingClientRect();
-          const mx = e.clientX - rect.left;
-          const my = e.clientY - rect.top;
-          if (mx >= 0 && mx <= rect.width && my >= 0 && my <= rect.height) {
-            const wPos = this.screenToWorld(mx, my, rect.width, rect.height);
-            if (this.isPlanningDrive) {
-              if (!this.drive.active) this.pickDrivePoint(wPos.x, wPos.z);
-            } else {
-              // 只在点中可见地标图钉时走正面到达，普通地图点仍按原位置处理。
-              let landmarkId;
-              let closest = 7;
-              for (const landmark of NYC_LANDMARKS) {
-                const lx = (landmark.x - this.viewCenterX) * this.viewZoom;
-                const lz = (landmark.z - this.viewCenterZ) * this.viewZoom;
-                if (Math.abs(lx) > rect.width * 0.48 || Math.abs(lz) > rect.height * 0.48) continue;
-                const distance = Math.hypot(lx + rect.width / 2 - mx, lz + rect.height / 2 - my);
-                if (distance > closest) continue;
-                closest = distance;
-                landmarkId = landmark.id;
-              }
-              const destination = this.onTeleport?.(wPos.x, wPos.z, undefined, { landmarkId });
-              if (!destination && this.elHoverInfo) this.elHoverInfo.textContent = STR.map.noArrival;
-            }
-            this.renderFullMap();
-          }
-        }
-      });
-      for (const type of ['pointercancel', 'lostpointercapture']) {
-        this.fullCanvas.addEventListener(type, (e) => {
-          if (e.pointerId === this.panPointerId) this.cancelPan();
-        });
-      }
-      window.addEventListener('blur', () => this.cancelPan());
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) this.cancelPan();
-      });
-
-      this.fullCanvas.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        const rect = this.fullCanvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        const before = this.screenToWorld(mx, my, rect.width, rect.height);
-        const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
-        this.viewZoom = Math.max(this.minViewZoom(), Math.min(MAX_ZOOM, this.viewZoom * factor));
-        this.viewCenterX = before.x - (mx - rect.width * 0.5) / this.viewZoom;
-        this.viewCenterZ = before.z - (my - rect.height * 0.5) / this.viewZoom;
-        this.renderFullMap();
-      }, { passive: false });
-    }
+  refreshView() {
+    this.inspection?.refreshHover();
+    this.renderFullMap();
   }
 
   initDriveEvents() {
@@ -277,6 +191,7 @@ class NYCMapSystem {
       if (this.drive.active) return;
       this.isPlanningDrive = !this.isPlanningDrive;
       this.resetDrivePlan();
+      this.inspection?.reset();
       this.renderPointerHint();
     });
     clear?.addEventListener('click', () => this.resetDrivePlan());
@@ -300,11 +215,13 @@ class NYCMapSystem {
     this.renderDriveUi();
   }
 
-  renderPointerHint() {
+  renderPointerHint(region = '') {
     if (!this.elHoverInfo) return;
-    this.elHoverInfo.textContent = this.isPlanningDrive
+    const hint = this.isPlanningDrive
       ? (this.touchHints ? STR.drive.touchHint : STR.drive.mapHint)
-      : (this.touchHints ? STR.map.touchHint : STR.map.clickHint);
+      : region || (this.touchHints ? STR.map.touchHint : STR.map.clickHint);
+    if (this.elHoverInfo.textContent !== hint) this.elHoverInfo.textContent = hint;
+    this.elHoverInfo.classList?.toggle('has-region', Boolean(region));
   }
 
   pickDrivePoint(x, z) {
@@ -415,22 +332,26 @@ class NYCMapSystem {
         this.viewCenterZ = (b.minZ + b.maxZ) * 0.5;
         const fit = Math.min(w / ((b.maxX - b.minX) * 1.3 + 1), h / ((b.maxZ - b.minZ) * 1.3 + 1));
         this.viewZoom = Math.max(0.05, Math.min(1.2, fit));
+      } else {
+        const region = this.regionLayer()?.regions.find(row => row.name?.toLowerCase() === q)
+          ?? this.regionLayer()?.regions.find(row => row.name?.toLowerCase().includes(q));
+        if (region) {
+          const [x, z] = region.anchors[0];
+          this.viewCenterX = x;
+          this.viewCenterZ = z;
+          this.viewZoom = Math.max(0.8, region.minZoom, this.viewZoom);
+          this.mapLayersVisible[region.type === 'retail' ? 'retail' : 'regions'] = true;
+          document.getElementById(region.type === 'retail' ? 'map-layer-retail' : 'map-layer-regions')
+            ?.setAttribute('aria-pressed', 'true');
+        }
       }
     }
-    this.renderFullMap();
-  }
-
-  cancelPan() {
-    const id = this.panPointerId;
-    this.panPointerId = null;
-    this.isPanning = false;
-    if (this.fullCanvasWrap) this.fullCanvasWrap.classList.remove('is-panning');
-    if (id !== null && this.fullCanvas && this.fullCanvas.hasPointerCapture(id)) this.fullCanvas.releasePointerCapture(id);
+    this.refreshView();
   }
 
   toggleFullMap(open) {
     this.isFullMapOpen = Boolean(open);
-    if (!this.isFullMapOpen) this.cancelPan();
+    if (!this.isFullMapOpen) this.inspection?.reset();
     if (this.onToggle) this.onToggle(this.isFullMapOpen);
     if (!this.modal) return;
     this.modal.classList.toggle('hidden', !this.isFullMapOpen);
@@ -469,6 +390,8 @@ class NYCMapSystem {
     const { w, h } = this.fullSize();
     return Math.min(w / ((maxX - minX) * 1.24), h / ((maxZ - minZ) * 1.06), MAX_ZOOM);
   }
+
+  maxViewZoom() { return MAX_ZOOM; }
 
   minViewZoom() {
     return Math.min(MIN_ZOOM, this.fullExtentZoom());
@@ -514,19 +437,22 @@ class NYCMapSystem {
       ctx.fillStyle = color;
       layers[name].each(v, path => ctx.fill(path));
     }
+    if (!isMinimap) this.regionLayer()?.draw(ctx, v, this.mapLayersVisible);
     if (v.s >= 0.18) {
       footprintLayers().tones.forEach((layer, i) => {
         ctx.fillStyle = MAP.buildings[i];
         layer.each(v, path => ctx.fill(path));
       });
     }
+    if (!isMinimap && v.s >= 1.15) this.regions?.draw(ctx, v, this.mapLayersVisible, true);
     if (v.s >= 0.06) {
       ctx.fillStyle = MAP.gardenPath;
       layers.gardenPaths.each(v, path => ctx.fill(path));
     }
     for (const road of layers.roads) {
-      if (!v.sees(road.bounds) || (v.s < 0.06 && !road.highway && road.w < 15)) continue;
-      ctx.strokeStyle = road.bridge ? MAP.bridge : road.highway ? MAP.highway : MAP.streets;
+      if ((!isMinimap && !this.mapLayersVisible.interchanges && road.elevated)
+        || !v.sees(road.bounds) || (v.s < 0.06 && !road.highway && road.w < 15)) continue;
+      ctx.strokeStyle = road.elevated ? MAP.bridge : road.highway ? MAP.highway : MAP.streets;
       ctx.lineWidth = Math.max(0.7 / v.s, road.w);
       ctx.globalAlpha = road.tunnel ? 0.4 : 1;
       ctx.stroke(road.path);
@@ -622,7 +548,7 @@ class NYCMapSystem {
     ctx.restore();
   }
 
-  drawRoadLabels(ctx, v, { fontPx = 10, maxLabels = 400, sameNameGap = 260, placed = [], majorOnly = false } = {}) {
+  drawRoadLabels(ctx, v, { fontPx = 10, maxLabels = 400, sameNameGap = 260, placed = [], majorOnly = false, mini = false } = {}) {
     const s = v.s;
     const q = this.searchHighlight;
     ctx.font = `600 ${fontPx}px ${FONT}`;
@@ -635,7 +561,8 @@ class NYCMapSystem {
     for (const l of ROAD_LABELS) {
       if (l.maxX < minX || l.minX > maxX || l.maxZ < minZ || l.minZ > maxZ) continue;
       const hit = q.length > 0 && roadMatches(l, q);
-      if (majorOnly && !l.major && !hit) continue;
+      if ((majorOnly && !l.major && !hit)
+        || (!this.mapLayersVisible.interchanges && !hit && l.elevated && !mini)) continue;
       const width = this.textWidth(ctx, l.text);
       const need = (width + 14) / s;
       for (const a of l.anchors) {
@@ -749,7 +676,7 @@ class NYCMapSystem {
       const cv = new MapView(px, pz, scale, w * 2, h * 2, dpr);
       this.drawWorld(c.ctx, cv, true);
       cv.screen(c.ctx);
-      this.drawRoadLabels(c.ctx, cv, { fontPx: 9.5, maxLabels: 28, sameNameGap: 180 });
+      this.drawRoadLabels(c.ctx, cv, { fontPx: 9.5, maxLabels: 28, sameNameGap: 180, mini: true });
     }
 
     const v = new MapView(px, pz, scale, w, h, dpr);
@@ -819,8 +746,11 @@ class NYCMapSystem {
     const v = new MapView(this.viewCenterX, this.viewCenterZ, this.viewZoom, w, h, dpr);
 
     const ent = this.controllerManager.getActiveEntity();
-    if (this.elPlayerInfo) {
-      const text = STR.map.playerLocation(getLocationLabel(ent.position.x, ent.position.z));
+    const { x: playerX, z: playerZ } = ent.position;
+    if (this.elPlayerInfo && (this.mapPlayerX !== playerX || this.mapPlayerZ !== playerZ)) {
+      this.mapPlayerX = playerX;
+      this.mapPlayerZ = playerZ;
+      const text = STR.map.playerLocation(getLocationLabel(playerX, playerZ));
       if (text !== this.playerInfoText) {
         this.playerInfoText = text;
         this.elPlayerInfo.textContent = text;
@@ -843,7 +773,17 @@ class NYCMapSystem {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(this.fullStatic, 0, 0);
+    this.regions?.drawHighlight(ctx, v, this.inspection?.highlight, this.mapLayersVisible);
     v.screen(ctx);
+    const selection = this.inspection?.selection;
+    if (selection) {
+      const x = v.toX(selection.x), z = v.toY(selection.z);
+      ctx.beginPath();
+      ctx.arc(x, z, 8, 0, Math.PI * 2);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = MAP.search;
+      ctx.stroke();
+    }
     this.drawDrivePins(ctx, v);
     const toX = (wx) => v.toX(wx);
     const toY = (wz) => v.toY(wz);
@@ -890,7 +830,7 @@ class NYCMapSystem {
     const toY = (wz) => v.toY(wz);
 
     ctx.font = `700 11px ${FONT}`;
-    const pins = NYC_LANDMARKS.map(lm => ({ lm, lx: toX(lm.x), ly: toY(lm.z) }))
+    const pins = (this.mapLayersVisible.landmarks ? NYC_LANDMARKS : []).map(lm => ({ lm, lx: toX(lm.x), ly: toY(lm.z) }))
       .filter(({ lx, ly }) => Math.abs(lx) <= w * 0.48 && Math.abs(ly) <= h * 0.48)
       .sort((a, b) => Number(Boolean(b.lm.mapPriority)) - Number(Boolean(a.lm.mapPriority)));
     const placed = pins.map(({ lx, ly }) => [lx - 6, ly - 6, lx + 6, ly + 6]);
@@ -907,6 +847,8 @@ class NYCMapSystem {
         break;
       }
     }
+
+    this.regions?.drawLabels(ctx, v, this.mapLayersVisible, placed, FONT, (c, name) => this.textWidth(c, name));
 
     const fontPx = Math.max(9, Math.min(12, Math.round(9.5 * Math.sqrt(Math.max(s, 0.4)))));
     this.drawRoadLabels(ctx, v, { fontPx, maxLabels: 420, sameNameGap: 300, placed, majorOnly: s < 0.3 });

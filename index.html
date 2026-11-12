@@ -281,6 +281,8 @@
   <link rel="modulepreload" href="./js/cameras.js" />
   <link rel="modulepreload" href="./js/lighting.js" />
   <link rel="modulepreload" href="./js/sz-map-layers.js" />
+  <link rel="modulepreload" href="./js/sz-map-regions.js" />
+  <link rel="modulepreload" href="./js/sz-map-inspection.js" />
   <link rel="modulepreload" href="./js/sz-map.js" />
   <link rel="modulepreload" href="./js/scene-culling.js" />
   <link rel="modulepreload" href="./js/audio-synthesis.js" />
@@ -578,6 +580,22 @@
       </button>
     </div>
 
+    <div class="map-layer-tools">
+      <div class="panel map-layer-buttons" role="group" data-label="map.layers">
+        <button id="map-layer-landmarks" class="tool-btn" type="button" data-map-layer="landmarks" aria-pressed="true" data-text="ui.mapLandmark"></button>
+        <button id="map-layer-retail" class="tool-btn" type="button" data-map-layer="retail" aria-pressed="true" data-text="map.retail"></button>
+        <button id="map-layer-regions" class="tool-btn" type="button" data-map-layer="regions" aria-pressed="true" data-text="map.regions"></button>
+        <button id="map-layer-interchanges" class="tool-btn" type="button" data-map-layer="interchanges" aria-pressed="true" data-text="map.interchanges"></button>
+      </div>
+      <details class="map-region-legend">
+        <summary class="panel" data-text="map.regionLegend"></summary>
+        <div class="map-region-key">
+          <ul id="map-region-legend-list"></ul>
+          <p data-text="map.regionCoverage"></p>
+        </div>
+      </details>
+    </div>
+
     <div class="map-controls">
       <div class="panel map-compass" data-tip="ui.trueNorth">
         <svg viewBox="0 0 44 44" aria-hidden="true">
@@ -627,6 +645,11 @@
     <div class="fullmap-footer">
       <div class="panel fullmap-status">
         <span id="fullmap-hover-info" data-text="map.clickHint"></span>
+        <div id="map-selection" hidden>
+          <span id="map-selection-text" role="status"></span>
+          <button id="map-selection-go" class="tool-btn" type="button" data-text="map.go"></button>
+          <button id="map-selection-clear" class="icon-btn" type="button" data-label="ui.close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+        </div>
       </div>
     </div>
 

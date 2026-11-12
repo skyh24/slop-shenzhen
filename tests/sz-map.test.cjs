@@ -31,6 +31,7 @@ function fixture(roads = []) {
   };
   const context = vm.createContext({ Path2D, GEO, REAL_BUILDINGS: [], ROADS: roads, console, performance: { now: () => 0 },
     NYC_LANDMARKS: [{ name:'Landmark',short:'Landmark',x:10,z:15 }], ISLAND_BOUNDS: {minX:0,minZ:0,maxX:100,maxZ:100},
+    wireMapInspection: () => null,
     getLocationLabel: () => 'location', isTypingInField: () => false,
     STR: { map: { counts:()=>'', searchPlaceholder:'',teleportHint:x=>x,playerLocation:x=>x,
       clickHint: 'Click to teleport', touchHint: 'Tap to teleport', roadInitials: { 深南大道: 'sndd' }, landmarkInitials: {} },

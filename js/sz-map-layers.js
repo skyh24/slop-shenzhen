@@ -194,6 +194,7 @@ function drawWaypoint(ctx, x, y, r) {
 
 const overlaps = (boxes, b) => boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
 
+const isElevated = road => !road.tunnel && (road.bridge || road.layer > 0);
 const ROAD_LABELS = [];
 for (const r of ROADS) {
   const text = r.name;
@@ -231,6 +232,7 @@ for (const r of ROADS) {
     lower: text.toLowerCase(),
     raw: r.name.toLowerCase(),
     road: r,
+    elevated: isElevated(r),
     major: r.highway || r.w >= 15,
     highway: r.highway,
     anchors,
@@ -251,7 +253,7 @@ function mapLayers() {
   layers.roads = ROADS.map(road => {
     const path = new Path2D();
     addLine(path, road.pts);
-    return { ...road, path, bounds: boundsOf(road.pts) };
+    return { ...road, elevated: isElevated(road), path, bounds: boundsOf(road.pts) };
   });
   layers.gardenPaths = new TiledLayer();
   for (const { trianglesXZ } of GEO.golfCourse?.surfaces ?? []) {
@@ -307,4 +309,4 @@ function footprintLayers() {
   FOOTPRINTS = { tones, version: 1 };
   return FOOTPRINTS;
 }
-export { MAP, ROAD_LABELS, ROAD_NAME_COUNT, MapView, addLine, mapLayers, footprintLayers, drawPlayerArrow, drawWaypoint, overlaps };
+export { MAP, ROAD_LABELS, ROAD_NAME_COUNT, MapView, addLine, addRing, boundsOf, mapLayers, footprintLayers, drawPlayerArrow, drawWaypoint, overlaps };

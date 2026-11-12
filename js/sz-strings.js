@@ -2,11 +2,28 @@
 export const STR = {
   map: {
     counts: (roads, buildings) => `${roads.toLocaleString('zh-CN')} 个路名 · ${buildings.toLocaleString('zh-CN')} 栋建筑`,
-    searchPlaceholder: '搜索道路、地标或地铁站…',
-    teleportHint: name => `${name} · 点击前往`,
+    searchPlaceholder: '搜索道路、地标、地铁站或区域…',
+    layers: '地图图层',
+    regions: '区域',
+    retail: '商圈',
+    interchanges: '立交',
+    regionLegend: '区域图例',
+    regionCoverage: '区域来自已有地理边界，未标色处暂无分类。',
+    regionGap: type => `${type} · 暂无边界`,
+    regionInfo: (name, type) => `${name} · ${type}`,
+    regionTypes: {
+      retail: '商圈', public: '公共设施', park: '公园', residential: '居住区',
+      office: '写字楼 / 办公园区', village: '城中村', unknown: '类型未明确'
+    },
+    regionUnnamed: {
+      retail: '未命名商业区', public: '未命名公共设施', park: '未命名公园',
+      residential: '未命名居住区', office: '未命名办公区', village: '未命名城中村', unknown: '未命名区域'
+    },
+    selectedPoint: '地图选点',
+    go: '前往',
     playerLocation: name => `当前位置：${name}`,
-    clickHint: '点击传送 · 拖动平移 · 滚轮缩放',
-    touchHint: '点按传送 · 拖动平移 · 用 ＋ / － 缩放',
+    clickHint: '移动鼠标查看区域 · 点击选点 · 滚轮缩放',
+    touchHint: '点按查看区域或选点 · 拖动平移 · 用 ＋ / － 缩放',
     noArrival: '附近找不到安全落点',
     scale: metres => metres >= 1000 ? `${metres / 1000} 公里` : `${metres} 米`,
     roadInitials: {
@@ -55,7 +72,7 @@ export const STR = {
     touchLook: '拖动环视 · 捏合缩放',
     touchActions: '按住执行动作',
     mapTitle: '深圳街道地图',
-    search: '搜索道路、地标或地铁站',
+    search: '搜索道路、地标、地铁站或区域',
     close: '关闭',
     closeMap: '关闭地图 [M / Esc]',
     trueNorth: '正北',

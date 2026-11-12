@@ -409,6 +409,45 @@ export async function readCityPayload(url, fetcher = fetch, metrics = null) {
   return raw;
 }
 
+function validateMapRegions(map, buildings) {
+  if (map === undefined) return;
+  const types = ['retail', 'public', 'park', 'residential', 'office', 'village', 'unknown'];
+  requireData(map?.version === 1 && map.source?.id === 'osm-guangdong'
+    && /^[0-9a-f]{64}$/.test(map.source.sha256) && typeof map.source.snapshotAt === 'string'
+    && Array.isArray(map.regions) && Array.isArray(map.places), 'mapRegions version and source');
+  const places = new Set();
+  for (const place of map.places) {
+    requireData(typeof place?.id === 'string' && !places.has(place.id) && typeof place.name === 'string'
+      && Array.isArray(place.osmIds) && place.osmIds.length > 0, 'mapRegions place');
+    places.add(place.id);
+  }
+  const ids = new Set();
+  const counts = Object.fromEntries(types.map(type => [type, 0]));
+  for (const region of map.regions) {
+    const source = region?.source;
+    const sourced = source?.kind === 'osm-area' && /^(way|relation)\/\d+$/.test(source.osmId)
+      && region.id === `osm:${source.osmId}` && region.level !== 'block';
+    const derived = source?.kind === 'derived-block' && source.roadOsmIds?.length > 0
+      && region.level === 'block' && region.type === 'unknown' && /^block:[a-z0-9-]+$/.test(region.id);
+    requireData((sourced || derived) && !ids.has(region.id) && types.includes(region.type)
+      && ['place', 'building', 'block'].includes(region.level)
+      && (region.name === null || typeof region.name === 'string' && region.name.length > 0)
+      && Number.isFinite(region.areaM2) && region.areaM2 > 0
+      && Array.isArray(region.rings) && region.rings.length > 0 && region.rings.every(poly => Array.isArray(poly) && poly.length > 0
+        && poly.every(ring => Array.isArray(ring) && ring.length >= 6 && ring.length % 2 === 0
+          && ring.every(Number.isSafeInteger)))
+      && Array.isArray(region.anchors) && region.anchors.length > 0
+      && region.anchors.every(point => Array.isArray(point) && point.length === 3
+        && point.every(Number.isFinite) && point[2] > 0)
+      && Array.isArray(region.placeIds) && region.placeIds.every(id => places.has(id))
+      && Array.isArray(region.buildingRefs) && region.buildingRefs.every((ref, i) => Number.isInteger(ref)
+        && ref >= 0 && ref < buildings.id.length && (i === 0 || ref > region.buildingRefs[i - 1])), 'mapRegions region');
+    ids.add(region.id);
+    counts[region.type]++;
+  }
+  requireData(types.every(type => map.coverage?.[type] === counts[type]), 'mapRegions coverage');
+}
+
 export function validateCityPayload(raw) {
   requireData(raw?.version === 2, 'version');
   requireData(raw.origin?.[0] === 114.0545 && raw.origin?.[1] === 22.5463, 'origin');
@@ -419,6 +458,7 @@ export function validateCityPayload(raw) {
   for (const key of ['id', 'rings', 'minH', 'cat', 'facade', 'src', 'lm']) {
     requireData(Array.isArray(buildings[key]) && buildings[key].length === buildings.h.length, `buildings.${key}`);
   }
+  validateMapRegions(raw.mapRegions, buildings);
   // 角色、上游族、分项可信度是新增字段，旧包可能没有；出现时必须和建筑数组一一对应并落在枚举内。
   for (const [field, enumName] of [['role', 'buildingRole'], ['upstream', 'upstreamFamily'],
     ['fpConf', 'confidence'], ['hConf', 'confidence'], ['eraConf', 'confidence']]) {
@@ -592,6 +632,7 @@ export function decodeCityPayload(raw, metrics = null) {
     wetland: raw.wetland.map(polygon), green: raw.green.map(polygon),
     roadGraph: raw.roadGraph, terrain: raw.terrain, terrainSurface: raw.terrainSurface,
     roadFrontage: raw.roadFrontage ?? null,
+    mapRegions: raw.mapRegions ?? null,
     metro: raw.metro, landmarks: raw.landmarks,
     bridges: raw.bridges ?? [], yanjiangExpressway: raw.yanjiangExpressway ?? null,
     seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },

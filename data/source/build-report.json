@@ -79351,17 +79351,17 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 6946,
-    "metadataBytes": 14923189,
-    "numericBytes": 33174416,
-    "uncompressedBytes": 48097656,
+    "columns": 7627,
+    "metadataBytes": 16459312,
+    "numericBytes": 33564304,
+    "uncompressedBytes": 50023664,
     "lossless": true,
-    "compressedBytes": 10683475,
-    "compressedSha256": "c88877dac693bc135f825a161bd3eee8f4bdc214183d6dbe8f2dcda327c92767"
+    "compressedBytes": 11265564,
+    "compressedSha256": "fd077b93e52c02f9def66df344cc6a844c2316e9e0c935b278ca6f5c2429104e"
   },
-  "outputBytes": 10652939,
-  "outputSha256": "1f2fe7610c058a0a0e88ea9c372762158380b1ffb6821cf3f46cc7687ffe75a7",
-  "seconds": 27.4,
+  "outputBytes": 11233608,
+  "outputSha256": "c0a7bf936fa315b71eee040a89f06c4ca37715f9420045484c1d4ee203af4067",
+  "seconds": 174.8,
   "frontageRebuild": {
     "basePayloadSha256": "6357ca9673bd5bbbb1e7532d96314cb3bc4372b97c659466565df89307ca30cb",
     "corridors": [
@@ -82362,5 +82362,33 @@
         "bottomY": 8.96
       }
     ]
+  },
+  "mapRegions": {
+    "version": 1,
+    "source": {
+      "id": "osm-guangdong",
+      "snapshotAt": "2026-11-08T23:59:19Z",
+      "sha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+      "url": "https://download.geofabrik.de/asia/china/guangdong-261108.osm.pbf"
+    },
+    "pilot": {
+      "id": "futian-civic",
+      "name": "市民中心—福中三路与购物公园",
+      "boundsWgs84": [
+        114.044,
+        22.5353,
+        114.061,
+        22.54725
+      ]
+    },
+    "coverage": {
+      "retail": 102,
+      "public": 691,
+      "park": 420,
+      "residential": 2215,
+      "office": 336,
+      "village": 0,
+      "unknown": 2
+    }
   }
 }

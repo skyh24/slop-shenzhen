@@ -4,7 +4,7 @@ import { polygonContainsInclusive } from './sz-polygon.js';
 const CELL = 250;
 const key = (x, z) => `${x},${z}`;
 
-function spatialIndex(items, pointsOf) {
+export function spatialIndex(items, pointsOf) {
   const cells = new Map();
   for (const item of items) {
     const points = pointsOf(item);
