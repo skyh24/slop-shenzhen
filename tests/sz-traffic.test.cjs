@@ -86,7 +86,7 @@ const trafficVehicles = {
     };
   }
 };
-const { createTrafficGraph, createSzTraffic, laneOffsets, laneRoute, poseOnRoute, routeSegments, trafficModelBounds, writeTrafficCollider } = load('sz-traffic.js', {
+const { createTrafficGraph, createSzTraffic, laneOffsets, laneRoute, poseOnRoute, routeSegments, trafficModelBounds, usableWidth, writeTrafficCollider } = load('sz-traffic.js', {
   'three/webgpu': three,
   './sz-intersection-control.js': signalModule,
   './sz-roads.js': roads,
@@ -432,6 +432,12 @@ test('traffic road height uses the deck for elevated edges and ground height for
   assert.equal(elevatedEdge.surfaceId, deckSurfaceId);
   assert.equal(traffic.roadHeight(250, 0, elevatedEdge), 12.5);
   assert.equal(traffic.roadHeight(250, 0, groundEdge), 6);
+  assert.equal(traffic.roadHeight(250, 4.5, elevatedEdge), null);
+  assert.equal(traffic.roadHeight(250, 4.5, groundEdge), 6);
+  const withoutDeckSampler = createSzTraffic(new Group(), graph, {
+    roadHeight: groundHeight, elevated: { links: records }
+  });
+  assert.equal(withoutDeckSampler.roadHeight(250, 0, elevatedEdge), null);
   assert.equal(traffic.network.edges.filter(edge => edge.elevated).length, 1);
   assert.equal(traffic.statistics.directedEdges, traffic.network.edges.length);
   assert.equal(traffic.statistics.directedEdges, 3);
@@ -508,4 +514,84 @@ test('a crossing pedestrian and a cutting-in car constrain the route before over
   assert.equal(lead(upper).limit, Infinity);
   const sweep = contactTime(ego, { ...pedestrian, x: -8, z: 5 }, 1, -20, 12);
   assert.ok(sweep > 0 && sweep < 1);
+});
+
+test('Chegongmiao route clears both junction guardrails and keeps its deck contacts', () => {
+  const { gunzipSync } = require('node:zlib');
+  const { decodeCityPayload } = load('sz-data-format.js');
+  const { geo } = decodeCityPayload(JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz')))));
+  const graph = geo.roadGraph;
+  const surfaces = load('sz-controller-surfaces.js');
+  const { planElevatedRoads } = load('sz-elevated-roads.js', {
+    'three/webgpu': three,
+    'three/tsl': {},
+    './sz-roads.js': roads,
+    './sz-ground-surface.js': load('sz-ground-surface.js'),
+    './sz-controller-surfaces.js': surfaces
+  });
+  const plan = planElevatedRoads(graph, geo.terrainSurface);
+  const { createDrivePlanner, createTurnFilter } = load('sz-drive-route.js', {
+    './sz-intersection-control.js': signalModule,
+    './sz-traffic.js': { laneOffsets, laneRoute, poseOnRoute, usableWidth }
+  });
+  const areaLinks = graph.links.flatMap((link, index) =>
+    roads.roadLinkPoints(graph, link).some(({ x, z }) => x > -3500 && x < -3000 && z > 500 && z < 1200) ? [index] : []);
+  const localGraph = { ...graph, links: areaLinks.map(i => graph.links[i]), metadata: areaLinks.map(i => graph.metadata[i]) };
+  const layout = roads.createRoadSurfaceLayout(localGraph, geo.terrainSurface);
+  const groundHeight = roads.createRoadHeightSampler(layout.chunks, geo.terrainSurface.grid);
+  const deckHeight = surfaces.createSurfaceHeightAt(plan.surfaces);
+  const { network, roadHeight } = createSzTraffic(new Group(), graph, {
+    roadHeight: groundHeight, elevated: { links: plan.driveLinks, heightAt: deckHeight },
+    canTurn: createTurnFilter(graph)
+  });
+  const model = trafficModelBounds(geometryFixture(0.96, 2.4).boundingBox, vehicleSpecs.taxi);
+  const planner = createDrivePlanner(network, graph, { model, roadHeight, isClear: () => true });
+  const route = planner.route(planner.snap(-3311.9624, 730.481), planner.snap(-3179.0028, 975.6674));
+  assert.ok(route, 'the source-directed route can be planned');
+  assert.deepEqual(Array.from(route.edges, edge => edge.osmId),
+    ['way/1077629921', 'way/40955020', 'way/854919717', 'way/1524817657', 'way/1163682877']);
+  const { polygonBoxOverlaps } = load('building-collision.js', { './sz-polygon.js': polygonModule });
+  const pose = {};
+  const at = surfaces.createSurfaceResolver({ groundHeight, surfaces: plan.surfaces });
+  let support = { height: 8, surfaceId: 'terrain' };
+  const visited = new Set([support.surfaceId]);
+  const guardrails = plan.colliders.filter(c => c.type === 'elevated-barrier'
+    && ['way/40955020', 'way/961590249', 'way/854919717', 'way/854919713', 'way/1524817657'].includes(c.sourceId));
+  for (const way of ['way/961590249', 'way/854919713']) {
+    assert.ok(guardrails.some(c => c.sourceId === way), `${way} retains its exterior guardrail`);
+  }
+  for (let s = 0; s < route.length; s += 0.25) {
+    assert.ok(poseOnRoute(route.samples, s, model, roadHeight, pose));
+    support = at.resolve(pose.x, pose.z, { previousY: support.height, previousSurfaceId: support.surfaceId });
+    assert.ok(support && Math.abs(support.height - pose.y) <= 0.26,
+      `surface contact at ${s} m: ${support?.surfaceId} at ${support?.height}, expected wheel pose ${pose.y}`);
+    if (support.surfaceId !== 'terrain') {
+      assert.ok(Math.abs(support.height - deckHeight(pose.x, pose.z, support.surfaceId)) < 1e-6);
+    }
+    visited.add(support.surfaceId);
+    const barrier = guardrails.find(c => c.maxY > support.height && c.minY < support.height + 1.8
+      && polygonBoxOverlaps(c.polygon, pose.x, pose.z, model.hx, model.hz, pose.cos, pose.sin));
+    assert.equal(barrier, undefined, `guardrail conflict at ${s} m: ${barrier?.name}`);
+  }
+  assert.deepEqual([...visited], ['terrain', ...route.surfaces]);
+  assert.equal(support.surfaceId, 'terrain');
+  const [underX, underZ] = [-3212.4811, 810.5833];
+  assert.equal(at.resolve(underX, underZ, { previousY: 8, previousSurfaceId: 'terrain' }).surfaceId, 'terrain');
+  const bridge = route.edges[2];
+  const deckY = deckHeight(underX, underZ, bridge.surfaceId);
+  const groundY = groundHeight(underX, underZ);
+  assert.ok(deckY > groundY + 4);
+  const { createAutoDrive } = load('sz-auto-drive.js', {
+    './sz-intersection-control.js': signalModule,
+    ...driving
+  });
+  const auto = createAutoDrive({ model, roadHeight });
+  const { dx, dz } = bridge.segments.at(-1);
+  const departure = { from: { x: underX, z: underZ, dx, dz, edge: bridge } };
+  const atLevel = (y, surfaceId) => ({
+    speed: 0, heading: Math.atan2(dx, dz), position: { x: underX, y, z: underZ },
+    _support: { height: y, surfaceId }
+  });
+  assert.ok(auto.canStart(departure, atLevel(deckY, bridge.surfaceId), 'car'));
+  assert.equal(auto.canStart(departure, atLevel(groundY, 'terrain'), 'car'), false);
 });

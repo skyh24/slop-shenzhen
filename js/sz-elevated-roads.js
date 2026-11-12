@@ -17,6 +17,15 @@ const BARRIER_HEIGHT_M = 0.95;
 export const ELEVATED_BARRIER_WIDTH_M = 0.35;
 // 桥面离开地面超过这个高度才加护栏；匝道落地段两侧留开口给车辆进出。
 const BARRIER_MIN_SEPARATION_M = 0.75;
+// 已核实的同向合流、分流。共同桥段与两支道均须在源路网节点和估算桥高上相接。
+const CHEGONGMIAO_SPLIT = ['node/8020094690', 'startNode', ['way/854919713', 'way/1524817657'], 'way/854919717'];
+const CHEGONGMIAO_JUNCTIONS = [
+  ['node/498882081', 'endNode', ['way/40955020', 'way/961590249'], 'way/854919717'],
+  CHEGONGMIAO_SPLIT
+];
+const ELEVATED_JOIN_TOLERANCE_M = 0.35;
+// 游戏车身高度余量，用于判断护栏是否侵入相邻支道。
+const JUNCTION_BARRIER_CLEARANCE_M = 2;
 // 车行链路只接受可驾驶的估计纵坡；更陡的派生桥面是未核实断面，不接入车流/自动导航。
 export const ELEVATED_DRIVE_MAX_GRADE = 0.12;
 export const ELEVATED_BARRIER_HEIGHT_M = BARRIER_HEIGHT_M;
@@ -55,7 +64,7 @@ export const SHENZHEN_INTERCHANGES = Object.freeze([
 const LIMITATIONS = [
   '桥面高度按 OSM layer 每层 4.8 m 估算，没有实测纵断面或设计线形校正。',
   '匝道与地面道路共享节点处按地形高程落地，坡度为两端线性插值，不是测量坡度。',
-  '只建 OSM 已有 bridge、layer 和匝道来源的桥面；OSM tunnel 链路交给 sz-tunnels.js 的洞身，不摊成贴地桥面。',
+  '只建 OSM 已有 bridge、layer 和匝道来源的桥面；OSM tunnel 链路只做离线审核，不摊成贴地桥面。',
   '桥墩按约 28 m 间距估计布置，只在净空大于 2 m 时设墩，墩位与基础未做地勘核实。',
   '护栏按 0.95 m 高、0.35 m 宽的混凝土护栏估计，仅桥面离开地面 0.75 m 以上的段落连续设置；不是深圳设计图尺寸。',
   '车行链路只接受非隧道、layer>0 且派生纵坡不超过 12% 的桥面；高程未知或层间不连续的链路不接入车流和自动导航。'
@@ -309,13 +318,10 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
   const geometry = [];
   const topTriangles = [];
   const pierRecords = [];
-  const barrierRecords = [];
-  const barrierColliders = [];
   const pierColliders = [];
   const surfaceId = `sz-elevated-road:${index}`;
   const osmId = metadata.osmId ?? null;
   let areaM2 = 0;
-  let barrierLengthM = 0;
   let maxClearanceM = 0;
 
   for (const frame of frames) {
@@ -340,8 +346,11 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
       left: { x: x + frame.nx * half, z: z + frame.nz * half },
       right: { x: x - frame.nx * half, z: z - frame.nz * half } };
   };
-  const surfaceFrames = [overlapFrame(frames[0], frames[1] ?? frames[0]), ...frames,
-    overlapFrame(frames[frames.length - 1], frames[frames.length - 2] ?? frames[0])];
+  const [splitNode, , , splitApproach] = CHEGONGMIAO_SPLIT;
+  // 分流处由下游桥段向后搭接。同一节点的上游平桥不再向前盖住下坡活动面。
+  const endsAtSplit = metadata.osmId === splitApproach && graph.nodeIds?.[end] === splitNode && link[5] === 1;
+  const surfaceFrames = [overlapFrame(frames[0], frames[1]), ...frames];
+  if (!endsAtSplit) surfaceFrames.push(overlapFrame(frames.at(-1), frames.at(-2)));
   for (let i = 1; i < surfaceFrames.length; i++) {
     const a = surfaceFrames[i - 1];
     const b = surfaceFrames[i];
@@ -353,66 +362,6 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
     areaM2 += triangleArea2D(topA, topB, topC) + triangleArea2D(topA, topC, topD);
     pushVerticalWall(geometry, topA, topB, a.y - GIRDER_DEPTH_M, b.y - GIRDER_DEPTH_M);
     pushVerticalWall(geometry, topC, topD, b.y - GIRDER_DEPTH_M, a.y - GIRDER_DEPTH_M);
-  }
-
-  // 护栏与桥面共用边点：显示三角面和侧向接触体都从同一批顶点生成，桥下不设全高挡墙。
-  const barrierInward = (point, frameA, frameB, mix, side) => {
-    const nx = frameA.nx + (frameB.nx - frameA.nx) * mix;
-    const nz = frameA.nz + (frameB.nz - frameA.nz) * mix;
-    const length = Math.hypot(nx, nz) || 1;
-    const sign = side === 'left' ? -1 : 1;
-    return { x: point.x + (nx / length) * ELEVATED_BARRIER_WIDTH_M * sign,
-      z: point.z + (nz / length) * ELEVATED_BARRIER_WIDTH_M * sign };
-  };
-  for (let i = 1; i < frames.length; i++) {
-    const a = frames[i - 1];
-    const b = frames[i];
-    const run = Math.hypot(b.x - a.x, b.z - a.z) || 1;
-    for (const side of ['left', 'right']) {
-      const edgeA = { x: a[side].x, y: a.y, z: a[side].z };
-      const edgeB = { x: b[side].x, y: b.y, z: b[side].z };
-      const span = barrierSpanOnGround(edgeA, edgeB, groundHeight);
-      if (!span) continue;
-      const [start, end] = span;
-      const ta = Math.hypot(start.x - edgeA.x, start.z - edgeA.z) / run;
-      const tb = Math.hypot(end.x - edgeA.x, end.z - edgeA.z) / run;
-      const insetStart = barrierInward(start, a, b, ta, side);
-      const insetEnd = barrierInward(end, a, b, tb, side);
-      const startTop = { x: start.x, y: start.y + BARRIER_HEIGHT_M, z: start.z };
-      const endTop = { x: end.x, y: end.y + BARRIER_HEIGHT_M, z: end.z };
-      const insetStartTop = { x: insetStart.x, y: start.y + BARRIER_HEIGHT_M, z: insetStart.z };
-      const insetEndTop = { x: insetEnd.x, y: end.y + BARRIER_HEIGHT_M, z: insetEnd.z };
-      const startBottom = { x: start.x, y: start.y, z: start.z };
-      const endBottom = { x: end.x, y: end.y, z: end.z };
-      const insetStartBottom = { x: insetStart.x, y: start.y, z: insetStart.z };
-      const insetEndBottom = { x: insetEnd.x, y: end.y, z: insetEnd.z };
-      // 外侧面、顶面、内侧面；渲染材质是单面，护栏从桥面两侧看都要有面。
-      pushQuad(geometry, startBottom, endBottom, endTop, startTop);
-      pushQuad(geometry, startTop, endTop, insetEndTop, insetStartTop);
-      pushQuad(geometry, insetStartBottom, insetStartTop, insetEndTop, insetEndBottom);
-      const length = Math.hypot(end.x - start.x, end.z - start.z);
-      barrierLengthM += length;
-      barrierRecords.push({ side, length, startY: start.y, endY: end.y });
-      // 侧向接触体只占桥面到护栏顶这一段高度，桥下道路照常通行。
-      const minY = Math.min(start.y, end.y);
-      const maxY = Math.max(startTop.y, endTop.y);
-      barrierColliders.push({
-        type: 'elevated-barrier',
-        name: `${surfaceId}:${side}:${barrierRecords.length}`,
-        sourceId: osmId,
-        minX: Math.min(start.x, end.x, insetStart.x, insetEnd.x),
-        maxX: Math.max(start.x, end.x, insetStart.x, insetEnd.x),
-        minZ: Math.min(start.z, end.z, insetStart.z, insetEnd.z),
-        maxZ: Math.max(start.z, end.z, insetStart.z, insetEnd.z),
-        minY,
-        maxY,
-        polygon: {
-          outer: [{ x: start.x, z: start.z }, { x: end.x, z: end.z },
-            { x: insetEnd.x, z: insetEnd.z }, { x: insetStart.x, z: insetStart.z }],
-          holes: []
-        }
-      });
-    }
   }
 
   // 端部封口让桥面板在起点和终点读成实体，不把顶面悬空。
@@ -481,12 +430,114 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
     geometry,
     topTriangles,
     piers: pierRecords,
-    barriers: barrierRecords,
-    barrierLengthM,
-    barrierColliders,
     pierColliders,
     surfaceId
   };
+}
+
+// 确认同一合流/分流的所有支道；相邻但不同层、不同节点或反向的路不互相开口。
+function reviewedJunctionNeighbors(graph, driveLinks) {
+  const neighbors = new Map();
+  for (const [nodeId, branchEnd, branchIds, commonId] of CHEGONGMIAO_JUNCTIONS) {
+    const node = graph.nodeIds?.indexOf(nodeId) ?? -1;
+    if (node < 0) continue;
+    const branchHeight = branchEnd === 'endNode' ? 'endDeckY' : 'startDeckY';
+    const commonEnd = branchEnd === 'endNode' ? 'startNode' : 'endNode';
+    const commonHeight = commonEnd === 'endNode' ? 'endDeckY' : 'startDeckY';
+    const common = driveLinks.find(link => link.osmId === commonId && link[commonEnd] === node && link.direction === 1);
+    if (!common) continue;
+    const branches = branchIds.map(id => driveLinks.find(link => link.osmId === id && link[branchEnd] === node
+      && link.direction === 1 && Math.abs(link[branchHeight] - common[commonHeight]) <= ELEVATED_JOIN_TOLERANCE_M));
+    if (branches.some(link => !link)) continue;
+    const roads = [...branches, common];
+    for (const road of roads) {
+      const others = neighbors.get(road) ?? new Set();
+      for (const other of roads) if (other !== road) others.add(other);
+      neighbors.set(road, others);
+    }
+  }
+  return neighbors;
+}
+
+function addBarriers(record, groundHeight, neighbors = []) {
+  const { frames, geometry, osmId, surfaceId } = record;
+  const barrierRecords = [];
+  const barrierColliders = [];
+  let barrierLengthM = 0;
+  const adjacent = [...neighbors].map(road => ({ id: road.surfaceId, triangles: road.topTriangles }));
+  const heightAt = adjacent.length ? createSurfaceHeightAt(adjacent) : null;
+  const blocksNeighbor = (a, b) => [0, 0.25, 0.5, 0.75, 1].some(t => {
+    const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
+    const y = a.y + (b.y - a.y) * t;
+    return adjacent.some(({ id }) => {
+      const deck = heightAt(x, z, id);
+      return deck !== null && deck > y - JUNCTION_BARRIER_CLEARANCE_M && deck < y + BARRIER_HEIGHT_M;
+    });
+  });
+  // 护栏与桥面共用边点：显示三角面和侧向接触体都从同一批顶点生成，桥下不设全高挡墙。
+  const barrierInward = (point, frameA, frameB, mix, side) => {
+    const nx = frameA.nx + (frameB.nx - frameA.nx) * mix;
+    const nz = frameA.nz + (frameB.nz - frameA.nz) * mix;
+    const length = Math.hypot(nx, nz) || 1;
+    const sign = side === 'left' ? -1 : 1;
+    return { x: point.x + (nx / length) * ELEVATED_BARRIER_WIDTH_M * sign,
+      z: point.z + (nz / length) * ELEVATED_BARRIER_WIDTH_M * sign };
+  };
+  for (let i = 1; i < frames.length; i++) {
+    const a = frames[i - 1];
+    const b = frames[i];
+    const run = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    for (const side of ['left', 'right']) {
+      const edgeA = { x: a[side].x, y: a.y, z: a[side].z };
+      const edgeB = { x: b[side].x, y: b.y, z: b[side].z };
+      const span = barrierSpanOnGround(edgeA, edgeB, groundHeight);
+      if (!span) continue;
+      const [start, end] = span;
+      const ta = Math.hypot(start.x - edgeA.x, start.z - edgeA.z) / run;
+      const tb = Math.hypot(end.x - edgeA.x, end.z - edgeA.z) / run;
+      const insetStart = barrierInward(start, a, b, ta, side);
+      const insetEnd = barrierInward(end, a, b, tb, side);
+      // 护栏外缘和内缘共用显示/接触开口，按相邻桥面的实际三角面保留合流、分流通行区。
+      if (heightAt && (blocksNeighbor(start, end)
+        || blocksNeighbor({ ...insetStart, y: start.y }, { ...insetEnd, y: end.y }))) continue;
+      const startTop = { x: start.x, y: start.y + BARRIER_HEIGHT_M, z: start.z };
+      const endTop = { x: end.x, y: end.y + BARRIER_HEIGHT_M, z: end.z };
+      const insetStartTop = { x: insetStart.x, y: start.y + BARRIER_HEIGHT_M, z: insetStart.z };
+      const insetEndTop = { x: insetEnd.x, y: end.y + BARRIER_HEIGHT_M, z: insetEnd.z };
+      const startBottom = { x: start.x, y: start.y, z: start.z };
+      const endBottom = { x: end.x, y: end.y, z: end.z };
+      const insetStartBottom = { x: insetStart.x, y: start.y, z: insetStart.z };
+      const insetEndBottom = { x: insetEnd.x, y: end.y, z: insetEnd.z };
+      // 外侧面、顶面、内侧面；渲染材质是单面，护栏从桥面两侧看都要有面。
+      pushQuad(geometry, startBottom, endBottom, endTop, startTop);
+      pushQuad(geometry, startTop, endTop, insetEndTop, insetStartTop);
+      pushQuad(geometry, insetStartBottom, insetStartTop, insetEndTop, insetEndBottom);
+      const length = Math.hypot(end.x - start.x, end.z - start.z);
+      barrierLengthM += length;
+      barrierRecords.push({ side, length, startY: start.y, endY: end.y });
+      // 侧向接触体只占桥面到护栏顶这一段高度，桥下道路照常通行。
+      const minY = Math.min(start.y, end.y);
+      const maxY = Math.max(startTop.y, endTop.y);
+      barrierColliders.push({
+        type: 'elevated-barrier',
+        name: `${surfaceId}:${side}:${barrierRecords.length}`,
+        sourceId: osmId,
+        minX: Math.min(start.x, end.x, insetStart.x, insetEnd.x),
+        maxX: Math.max(start.x, end.x, insetStart.x, insetEnd.x),
+        minZ: Math.min(start.z, end.z, insetStart.z, insetEnd.z),
+        maxZ: Math.max(start.z, end.z, insetStart.z, insetEnd.z),
+        minY,
+        maxY,
+        polygon: {
+          outer: [{ x: start.x, z: start.z }, { x: end.x, z: end.z },
+            { x: insetEnd.x, z: insetEnd.z }, { x: insetStart.x, z: insetStart.z }],
+          holes: []
+        }
+      });
+    }
+  }
+
+  Object.assign(record, { barriers: barrierRecords, barrierColliders, barrierLengthM });
 }
 
 function buildChunks(records) {
@@ -681,7 +732,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     const points = roadLinkPoints(graph, link);
     const owner = interchanges.find(entry => polylineIntersectsArea(points, entry.area));
     if (!owner) continue;
-    // OSM 隧道由 sz-tunnels.js 的洞身负责；这里不再把它摊成贴地桥面，避免隧道口出现假护栏。
+    // OSM 隧道只做离线审核；不摊成贴地桥面，避免隧道口出现假护栏。
     if (metadata.tunnel === true) {
       tunnelLinks++;
       continue;
@@ -704,6 +755,8 @@ export function planElevatedRoads(graph, terrainSurface, options) {
   // 车行链路：高程来自本计划同一批桥面三角面、纵坡可驾驶且非隧道；连接在车流图里再按共享节点高差复核。
   const driveLinks = records.filter(record => !record.tunnel && record.layer > 0
     && record.maxGrade <= ELEVATED_DRIVE_MAX_GRADE);
+  const junctionNeighbors = reviewedJunctionNeighbors(graph, driveLinks);
+  for (const record of records) addBarriers(record, groundHeight, junctionNeighbors.get(record));
   const driveByStart = new Map();
   for (const record of driveLinks) {
     if (!driveByStart.has(record.startNode)) driveByStart.set(record.startNode, []);
@@ -717,8 +770,8 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     const length = Math.hypot(end.x - previous.x, end.z - previous.z) || 1;
     const candidates = [];
     for (const next of driveByStart.get(record.endNode) ?? []) {
-      // 0.35 m 与 sz-traffic.js 的 ELEVATED_HEIGHT_TOLERANCE 是同一接缝容差，两份需同步。
-      if (next === record || Math.abs(record.endDeckY - next.startDeckY) > 0.35) continue;
+      // 与 sz-traffic.js 的 ELEVATED_HEIGHT_TOLERANCE 是同一接缝容差。
+      if (next === record || Math.abs(record.endDeckY - next.startDeckY) > ELEVATED_JOIN_TOLERANCE_M) continue;
       const start = next.points[1];
       const denominator = Math.hypot(start.x - next.points[0].x, start.z - next.points[0].z) || 1;
       const dot = ((end.x - previous.x) / length) * ((start.x - next.points[0].x) / denominator)

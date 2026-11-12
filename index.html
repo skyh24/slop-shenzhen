@@ -144,7 +144,20 @@
         fail(retryKind(reason), reason);
       }
 
+      // 预取和实际读取共用这个选择；发布版本只包含 JSON。
+      const params = new URLSearchParams(location.search);
+      const cityFormat = !document.documentElement.hasAttribute('data-sz-release')
+        && ['127.0.0.1', 'localhost'].includes(location.hostname)
+        && params.get('qa') === '1' && params.get('data') === 'szc' ? 'szc' : 'json';
+      const preload = document.createElement('link');
+      preload.rel = 'preload';
+      preload.as = 'fetch';
+      preload.crossOrigin = 'anonymous';
+      preload.href = `./js/sz-city.${cityFormat}.gz`;
+      document.head.append(preload);
+
       const boot = {
+        cityFormat,
         state: 'loading',
         labels: BOOT_LABELS,
         messages: BOOT_MESSAGES,
@@ -202,6 +215,8 @@
   <link rel="modulepreload" href="./js/sz-road-building-clearance.js" />
   <link rel="modulepreload" href="./js/sz-intersection-control.js" />
   <link rel="modulepreload" href="./js/sz-streetscape.js" />
+  <link rel="modulepreload" href="./js/sz-coco-park-approach.js" />
+  <link rel="modulepreload" href="./js/sz-golf-course.js" />
   <link rel="modulepreload" href="./js/sz-street-lamps.js" />
   <link rel="modulepreload" href="./js/sz-trees.js" />
   <link rel="modulepreload" href="./js/sz-tree-crown.js" />
@@ -211,8 +226,10 @@
   <link rel="modulepreload" href="./js/sz-apec-city.js" />
   <link rel="modulepreload" href="./js/sz-drone-routes.js" />
   <link rel="modulepreload" href="./js/sz-light-show.js" />
+  <link rel="modulepreload" href="./js/sz-cbd-program.js" />
+  <link rel="modulepreload" href="./js/sz-lianhuashan.js" />
+  <link rel="modulepreload" href="./data/source/lianhuashan-summit.json" as="json" />
   <link rel="modulepreload" href="./js/sz-elevated-roads.js" />
-  <link rel="modulepreload" href="./js/sz-tunnels.js" />
   <link rel="modulepreload" href="./js/sz-building-layout.js" />
   <link rel="modulepreload" href="./js/sz-landmarks/parts.js" />
   <link rel="modulepreload" href="./js/sz-landmarks/tencent-binhai.js" />
@@ -253,6 +270,8 @@
   <link rel="modulepreload" href="./js/pedestrians.js" />
   <link rel="modulepreload" href="./js/sz-pedestrians.js" />
   <link rel="modulepreload" href="./js/sz-pedestrian-tracks.js" />
+  <link rel="modulepreload" href="./js/sz-public-walk.js" />
+  <link rel="modulepreload" href="./js/sz-zhongxin-walk.js" />
   <link rel="modulepreload" href="./js/vehicle-lights.js" />
   <link rel="modulepreload" href="./js/controllers.js" />
   <link rel="modulepreload" href="./js/touch-controls.js" />
@@ -270,7 +289,6 @@
   <link rel="modulepreload" href="./js/audio-acoustics.js" />
   <link rel="modulepreload" href="./js/audio-system.js" />
   <link rel="modulepreload" href="./js/main.js" />
-  <link rel="preload" href="./js/sz-city.json.gz" as="fetch" crossorigin />
   <script type="module" src="./js/main.js"></script>
   <!-- 保留原界面字体和街道路牌字形。 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -369,8 +387,8 @@
       <button id="btn-teleport" class="tool-btn" type="button" popovertarget="teleport-popover" data-tip="ui.teleportTitle" data-label="ui.teleportTitle">
         <svg class="icon" aria-hidden="true"><use href="#i-pin"/></svg><span class="tool-label" data-text="ui.teleport"></span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
       </button>
-      <button id="btn-apec" class="tool-btn" type="button" data-tip="apecTheme.hint" data-label="apecTheme.label" aria-pressed="true">
-        <svg class="icon" aria-hidden="true"><use href="#i-apec"/></svg><span class="tool-label" data-text="apecTheme.label"></span>
+      <button id="btn-program" class="tool-btn" type="button" popovertarget="program-popover" data-label="program.label">
+        <svg class="icon" aria-hidden="true"><use href="#i-apec"/></svg><span class="tool-label" data-text="program.label"></span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
       </button>
       <button id="btn-open-map" class="tool-btn" type="button" data-tip="ui.openMap" data-label="ui.map" aria-keyshortcuts="M">
         <svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span class="tool-label" data-text="ui.map"></span><kbd>M</kbd>
@@ -383,6 +401,19 @@
         <svg class="icon icon-hide" aria-hidden="true"><use href="#i-eye"/></svg><svg class="icon icon-show" aria-hidden="true"><use href="#i-eye-off"/></svg>
       </button>
     </div>
+  </div>
+
+  <div id="program-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" data-label="program.label">
+    <button id="btn-apec" class="pop-item" type="button" data-tip="apecTheme.hint" aria-pressed="true">
+      <span class="pop-name" data-text="apecTheme.label"></span>
+    </button>
+    <button id="btn-cbd-show" class="pop-item" type="button">
+      <span class="pop-name" data-text="program.light"></span><span class="pop-sub" data-text="program.location"></span>
+    </button>
+    <button class="pop-item" type="button" disabled>
+      <span class="pop-name" data-text="program.drone"></span><span class="pop-sub" data-text="program.unavailable"></span>
+    </button>
+    <p id="program-feedback" class="pop-title" role="status" data-text="program.noArrival" hidden></p>
   </div>
 
   <!-- Teleport Destinations (native popover: light-dismiss & Esc) -->
@@ -401,6 +432,17 @@
 
   <!-- Bottom-Left: Street-Name Signs & Live GPS Radar Minimap -->
   <div class="hud hud-bottom-left">
+    <section id="program-panel" class="panel program-panel" data-label="program.location" hidden>
+      <div>
+        <strong id="program-cue" role="status"></strong>
+        <div class="program-credit" data-text="program.original"></div>
+      </div>
+      <div class="program-actions">
+        <button id="program-pause" class="tool-btn" type="button" data-text="program.pause" aria-pressed="false"></button>
+        <button id="program-replay" class="tool-btn" type="button" data-text="program.replay"></button>
+        <button id="program-exit" class="tool-btn" type="button" data-text="program.exit"></button>
+      </div>
+    </section>
     <div class="location-controls">
       <div id="hud-location" class="location" aria-live="off"></div>
       <button id="landmark-orbit" class="panel tool-btn" type="button" hidden></button>

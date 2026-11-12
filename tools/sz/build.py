@@ -15,6 +15,7 @@ from beihuan import apply_beihuan_sections
 from bridges import build_bridges
 from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, ROLES,
                        UPSTREAM_FAMILIES, build_buildings, ensure_globfp, load_globfp)
+from commercial_paving import cut_commercial_paving, ground_carriageway_mask
 from geo import (HONG_KONG_BOUNDARY_ID, ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local,
                  project, project_coords)
 from land import _polys, _to_local, build_land
@@ -25,6 +26,7 @@ from road_frontage import build_road_frontage
 from roads import CLASSES, build_roads
 from roadgraph import build_roadgraph
 from sea_surface import build_sea_surface
+from shenzhen_golf import build_shenzhen_golf
 from streetscape import build_streetscape
 from terrain import build_terrain
 from terrain_exclusions import chunjian_exclusions
@@ -133,6 +135,31 @@ def civic_paving(osm, spec):
                                       for item in sources.values()]), 0.1)
 
 
+def apply_commercial_carriageway(surface, manifest, graph, report):
+    masks = []
+    details = {}
+    for row in manifest['commercial']:
+        if not row.get('excludeGroundCarriageway'):
+            continue
+        outer, *holes = row['polygonWgs84']
+        parcel = Polygon(project_coords(outer), [project_coords(ring) for ring in holes])
+        if not parcel.is_valid or parcel.is_empty:
+            raise ValueError(f'Invalid reviewed commercial area: {row["osmId"]}')
+        mask, details[row['osmId']] = ground_carriageway_mask(parcel, graph)
+        masks.append(mask)
+    if not masks:
+        return surface
+
+    surface, removed = cut_commercial_paving(surface, unary_union(masks))
+    paving = report['urbanDatum']['commercialPaving']
+    paving['groundCarriagewayExclusions'] = details
+    summary = report['terrainSurface']
+    summary.update(vertices=sum(len(chunk['kinds']) for chunk in surface['chunks']),
+                   triangles=sum(len(chunk['indices']) // 3 for chunk in surface['chunks']),
+                   groundCarriagewayRemovedPavingM2=round(summary.get('groundCarriagewayRemovedPavingM2', 0) + removed, 3))
+    return surface
+
+
 def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph, sites, osm, osm_source, report,
                    manifest, civic):
     if manifest['version'] != 1 or manifest['osmSnapshotSha256'] != osm_source['sha256']:
@@ -188,10 +215,11 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
     report['urbanDatum']['civicPaving'] = {**manifest['civicPaving'], 'areaM2': round(civic.area, 2)}
     surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland,
                                     exclusions=exclusions, paving=[paving, civic])
-    return terrain, surface
+    return terrain, apply_commercial_carriageway(surface, manifest, graph, report)
 
 
 def write_city_packages(payload, report, sources, started):
+    payload.pop('roads', None)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
     compressed = gzip.compress(raw, 9, mtime=0)
@@ -262,7 +290,8 @@ def remove_civic_paving_trees(trees, report, civic):
     return len(removed)
 
 
-def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, clip, excluded, *, civic_review=False):
+def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, clip, excluded, *,
+                   civic_review=False, commercial_review=False, golf_only=False):
     raw = gzip.decompress(OUT.read_bytes())
     validation = json.loads(VALIDATION_REPORT.read_text())
     require_matching_snapshot(raw, validation, sources)
@@ -272,6 +301,26 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
             or payload['coverage'] != [enc_poly(p) for p in getattr(clip, 'geoms', [clip])]):
         raise ValueError('Ground rebuild requires the current city origin and coverage')
 
+    pbf = ROOT / osm_source['file']
+    if golf_only:
+        previous = report.get('shenzhenGolfCourse', {}).get('terrain', {}).get('gridOriginalHeights', [])
+        build_shenzhen_golf(payload, osm, pbf, report, previous=previous)
+        write_city_packages(payload, report, sources, started)
+        return
+
+    previous = payload['terrainSurface']
+    manifest = json.loads(URBAN_DATUM.read_text())
+    if commercial_review:
+        if manifest['version'] != 1 or manifest['osmSnapshotSha256'] != osm_source['sha256']:
+            raise ValueError('Commercial ground needs the reviewed OSM snapshot')
+        surface = apply_commercial_carriageway(previous, manifest, payload['roadGraph'], report)
+        rebuilt = [chunk['id'] for chunk, old in zip(surface['chunks'], previous['chunks'], strict=True) if chunk is not old]
+        report['groundRebuild'] = {'basePayloadSha256': validation['payloadSha256'],
+                                   'changedSections': ['terrainSurface'], 'rebuiltChunks': rebuilt}
+        payload['terrainSurface'] = surface
+        write_city_packages(payload, report, sources, started)
+        return
+
     def polygon(rings):
         outer, *holes = rings
         shape = Polygon(ring_points(outer), [ring_points(ring) for ring in holes])
@@ -280,12 +329,10 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     def polygons(key):
         return map(polygon, payload[key])
 
-    previous = payload['terrainSurface']
     exclusions = [{**{key: value for key, value in item.items() if key not in ('areaM2', 'boundsXZ', 'polygonXZ')},
                    'poly': Polygon(item['polygonXZ'])} for item in previous.get('exclusions', [])]
     land = list(polygons('land'))
     water, green, wetland = [[{'poly': poly} for poly in polygons(key)] for key in ('water', 'green', 'wetland')]
-    manifest = json.loads(URBAN_DATUM.read_text())
     civic = civic_paving(osm, manifest['civicPaving'])
     changed = ['terrain', 'terrainSurface']
     if civic_review:
@@ -317,6 +364,117 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     report['groundRebuild'] = {'basePayloadSha256': validation['payloadSha256'],
         'changedSections': changed, 'rebuiltChunks': [chunk['id'] for chunk in surface['chunks']]}
     payload['terrain'], payload['terrainSurface'] = terrain, surface
+    build_shenzhen_golf(payload, osm, pbf, report)
+    write_city_packages(payload, report, sources, started)
+
+
+def city_clip(osm):
+    envelope = phase1_clip_local()
+    boundary = osm['hongKongBoundary']
+    if boundary is None or boundary.is_empty or not boundary.is_valid:
+        raise ValueError('The locked OSM snapshot is missing a valid Hong Kong boundary')
+    excluded = _to_local(boundary)
+    # 岸线简化与分米量化可能跨过原边线，留出小于源分辨率的内缩量。
+    boundary_inset = 1.2
+    clip = envelope.difference(excluded.buffer(boundary_inset))
+    coverage = {'excludedOsmId': f'relation/{HONG_KONG_BOUNDARY_ID}',
+                'excludedAreaKm2': round(envelope.difference(clip).area / 1e6, 3),
+                'boundaryInsetM': boundary_inset, 'areaKm2': round(clip.area / 1e6, 3)}
+    return envelope, excluded, clip, coverage
+
+
+def export_road_preview(use_cache):
+    # 离线审核保留旧预览口径，包括非机动车道；运行时只读有向路网。
+    sources = verify_sources(source_ids=('osm-guangdong',))
+    source = sources[0]
+    osm = read_osm(PHASE1_BBOX, use_cache=use_cache, pbf=ROOT / source['file'], source_sha256=source['sha256'])
+    _, _, clip, coverage = city_clip(osm)
+    counts = {}
+    roads = build_roads(osm, clip, counts)
+    encoded = [{**{key: value for key, value in road.items() if key != 'line'},
+                'pts': enc_ring(road['line'].coords, strip_closure=False)} for road in roads]
+    print(json.dumps({'origin': [ORIGIN_LON, ORIGIN_LAT], 'coverage': coverage,
+                      'sourceIntegrity': sources, **counts, 'preview': encoded}, ensure_ascii=False))
+
+
+def rebuild_road_frontage(corridor_ids, *, crossing_axis_ids=(), use_cache=True):
+    """仅替换已核走廊的前场面，锁住信号、路网、地坪及其他样区。"""
+    started = time.time()
+    raw = gzip.decompress(OUT.read_bytes())
+    payload = json.loads(raw)
+    validation = json.loads(VALIDATION_REPORT.read_text())
+    sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+    require_matching_snapshot(raw, validation, sources)
+    report = json.loads(REPORT.read_text())
+    frontage = payload['roadFrontage']
+    ids = set(corridor_ids)
+    axis_ids = set(crossing_axis_ids)
+    if not (ids | axis_ids) <= {row['id'] for row in frontage['corridors']} or ids & axis_ids:
+        raise ValueError('Frontage rebuild requires existing reviewed corridors')
+    osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
+    pbf = ROOT / osm_source['file']
+    osm = read_osm(PHASE1_BBOX, use_cache=use_cache, pbf=pbf, source_sha256=osm_source['sha256'])
+    buildings = []
+    for rings, height in zip(payload['buildings']['rings'], payload['buildings']['minH'], strict=True):
+        outer, *holes = map(ring_points, rings)
+        shape = Polygon(outer, holes)
+        buildings.append({'poly': shape if shape.is_valid else make_valid(shape), 'minHeight': height})
+    compiled_report = {key: report[key] for key in ('beihuanCrossSection',) if key in report}
+    compiled = build_road_frontage(pbf, osm, payload['roadGraph'], buildings, compiled_report)
+    compiled_audit = compiled_report['roadFrontage']
+    audit = report['roadFrontage']
+    if (compiled['version'] != frontage['version'] or compiled['entrances'] != frontage['entrances']
+            or compiled_audit['unresolvedPedestrianWays'] != audit['unresolvedPedestrianWays']):
+        raise ValueError('Frontage source connectivity changed; review before rebuilding')
+
+    by_corridor = {row['id']: row for row in compiled['corridors']}
+    if not (ids | axis_ids) <= by_corridor.keys():
+        raise ValueError('Missing compiled frontage corridor')
+    if any(not by_corridor[identity].get('crossingAxes') for identity in axis_ids):
+        raise ValueError('Missing compiled crossing axes')
+    # 净空只需要源过街轴的走廊，保留已发布的步道、标线和原有局部几何。
+    for index, row in enumerate(frontage['corridors']):
+        identity = row['id']
+        if identity in ids:
+            frontage['corridors'][index] = by_corridor[identity]
+        elif identity in axis_ids:
+            if row['crossingIds'] != by_corridor[identity]['crossingIds']:
+                raise ValueError('Crossing axes no longer match the reviewed crossings')
+            frontage['corridors'][index] = {**row, 'crossingAxes': by_corridor[identity]['crossingAxes']}
+    features = {}
+    for row in compiled['features']:
+        corridor = row['id'].split(':', 1)[0]
+        if corridor in ids:
+            features.setdefault(corridor, []).append(row)
+    merged = []
+    pending = ids.copy()
+    for row in frontage['features']:
+        corridor = row['id'].split(':', 1)[0]
+        if corridor not in ids:
+            merged.append(row)
+        elif corridor in pending:
+            merged.extend(features.get(corridor, ()))
+            pending.remove(corridor)
+    for corridor in sorted(pending):
+        merged.extend(features.get(corridor, ()))
+
+    bounds = [by_corridor[identity]['bounds'] for identity in ids]
+
+    def in_scope(point):
+        x, z = point
+        return any(min_x <= x <= max_x and min_z <= z <= max_z for min_x, min_z, max_x, max_z in bounds)
+
+    old_shrubs = [point for point in frontage['shrubSites'] if in_scope(point)]
+    new_shrubs = [point for point in compiled['shrubSites'] if in_scope(point)]
+    if old_shrubs != new_shrubs:
+        frontage['shrubSites'] = [point for point in frontage['shrubSites'] if not in_scope(point)] + new_shrubs
+    frontage['features'] = merged
+    frontage['source']['evidence'].update(compiled['source']['evidence'])
+    audit.update(corridors=frontage['corridors'], features=len(merged),
+                 planarTriangles=sum(len(row['trianglesXZ']) // 6 for row in merged),
+                 medianShrubsEstimated=len(frontage['shrubSites']))
+    report['frontageRebuild'] = {'basePayloadSha256': validation['payloadSha256'], 'corridors': sorted(ids),
+                                 'crossingAxisCorridors': sorted(axis_ids)}
     write_city_packages(payload, report, sources, started)
 
 
@@ -331,20 +489,45 @@ def main():
                     help='all = OSM + Overture + GloBFP footprints; osm = only map-marked OSM footprints')
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument('--repack-existing', action='store_true',
-                    help='validate the existing shared snapshot and generate lossless SZC1 without rebuilding geometry')
+                    help='validate the snapshot and repack SZC1; migrate legacy road preview out of both packages')
+    mode.add_argument('--audit-road-preview', action='store_true',
+                      help='write the offline OSM road preview audit as JSON to stdout')
     mode.add_argument('--rebuild-ground', action='store_true',
                       help='rebuild the ground pilot from the current verified payload and snapshots')
     mode.add_argument('--rebuild-civic-ground', action='store_true',
                       help='apply the reviewed Civic Square paving and Shennan median to the verified package')
+    mode.add_argument('--rebuild-road-frontage', nargs='+', metavar='CORRIDOR',
+                      help='replace only the selected road frontage corridors in the verified package')
+    ap.add_argument('--refresh-frontage-crossing-axes', nargs='+', metavar='CORRIDOR', default=[],
+                    help='with --rebuild-road-frontage, copy only crossing axes for these additional corridors')
+    mode.add_argument('--rebuild-commercial-ground', action='store_true',
+                      help='rebuild reviewed commercial paving chunks on the verified terrain and road graph')
+    mode.add_argument('--rebuild-golf-course', action='store_true',
+                      help='apply the reviewed Shenzhen Golf Course site to the verified package')
     args = ap.parse_args()
+    if args.refresh_frontage_crossing_axes and not args.rebuild_road_frontage:
+        ap.error('--refresh-frontage-crossing-axes requires --rebuild-road-frontage')
+
+    if args.audit_road_preview:
+        export_road_preview(not args.no_cache)
+        return
 
     if args.repack_existing:
+        started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
         sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
         report = json.loads(VALIDATION_REPORT.read_text())
         require_matching_snapshot(raw, report, sources)
-        print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
+        if 'roads' in payload:
+            write_city_packages(payload, json.loads(REPORT.read_text()), sources, started)
+        else:
+            print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
+        return
+
+    if args.rebuild_road_frontage:
+        rebuild_road_frontage(args.rebuild_road_frontage, crossing_axis_ids=args.refresh_frontage_crossing_axes,
+                              use_cache=not args.no_cache)
         return
 
     terrain_ids = ('copernicus-dem-N22E113', 'copernicus-dem-N22E114') if args.terrain_source == 'copernicus' else ('terrain-N22E113', 'terrain-N22E114')
@@ -355,22 +538,13 @@ def main():
 
     t0 = time.time()
     report = {'formatVersion': FORMAT_VERSION, 'origin': [ORIGIN_LON, ORIGIN_LAT], 'bbox': PHASE1_BBOX}
-    envelope = phase1_clip_local()
     osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=pbf, source_sha256=osm_source['sha256'])
-    boundary = osm['hongKongBoundary']
-    if boundary is None or boundary.is_empty or not boundary.is_valid:
-        raise ValueError('The locked OSM snapshot is missing a valid Hong Kong boundary')
-    excluded = _to_local(boundary)
-    # 岸线简化与分米量化可能跨过原边线，留出小于源分辨率的内缩量。
-    boundary_inset = 1.2
-    clip = envelope.difference(excluded.buffer(boundary_inset))
-    report['coverage'] = {'excludedOsmId': f'relation/{HONG_KONG_BOUNDARY_ID}',
-                          'excludedAreaKm2': round(envelope.difference(clip).area / 1e6, 3),
-                          'boundaryInsetM': boundary_inset,
-                          'areaKm2': round(clip.area / 1e6, 3)}
+    envelope, excluded, clip, report['coverage'] = city_clip(osm)
     print(f'osm loaded in {time.time() - t0:.1f}s', flush=True)
-    if args.rebuild_ground or args.rebuild_civic_ground:
-        rebuild_ground(args.terrain_source, sources, osm, osm_source, report, t0, clip, excluded, civic_review=args.rebuild_civic_ground)
+    if args.rebuild_ground or args.rebuild_civic_ground or args.rebuild_commercial_ground or args.rebuild_golf_course:
+        rebuild_ground(args.terrain_source, sources, osm, osm_source, report, t0, clip, excluded,
+                       civic_review=args.rebuild_civic_ground, commercial_review=args.rebuild_commercial_ground,
+                       golf_only=args.rebuild_golf_course)
         return
 
     datum_manifest = json.loads(URBAN_DATUM.read_text())
@@ -381,7 +555,7 @@ def main():
                                 globfp_path=ensure_globfp(inputs, use_cache=not args.no_cache))
     print(f'buildings: {len(buildings)} in {time.time() - t0:.1f}s', flush=True)
     land, water, wetland, green = build_land(osm, clip, buildings, report, paving=civic)
-    roads = build_roads(osm, clip, report)
+    build_roads(osm, clip, report)  # 保留离线道路数量与公里数。
     terrain = build_terrain(clip, report, source=args.terrain_source, excluded=excluded)
     sea_surface = build_sea_surface(osm, envelope, land, terrain, report)
     road_graph = build_roadgraph(osm, clip, report)
@@ -435,14 +609,6 @@ def main():
         'water': [enc_poly(w['poly']) for w in water],
         'wetland': [enc_poly(w['poly']) for w in wetland],
         'green': [enc_poly(g['poly']) for g in green],
-        'roads': {
-            'cls': [CLASSES.index(r['cls']) for r in roads],
-            'width': [r['width'] for r in roads],
-            'oneway': [1 if r['oneway'] else 0 for r in roads],
-            'elevated': [1 if r['elevated'] else 0 for r in roads],
-            'name': [r['name'] or '' for r in roads],
-            'pts': [enc_ring(r['line'].coords, strip_closure=False) for r in roads],
-        },
         'buildings': {
             'id': [b['id'] for b in buildings],
             'rings': [enc_poly(b['poly']) for b in buildings],
@@ -482,6 +648,7 @@ def main():
         'buildingsWithLevels': sum(1 for b in buildings if b.get('levels', -1) > 0),
     }
 
+    build_shenzhen_golf(payload, osm, pbf, report)
     write_city_packages(payload, report, sources, t0)
 
 

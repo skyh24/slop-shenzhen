@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # 名单是常用起点，不是依赖分析器；跨模块时合并范围，新测试可用参数补入。
 SCOPES = {
     'docs': ('', ''),
-    'tooling': ('', 'tools/qa/tests/test_*.py tools/sz/tests/test_dev_server.py'),
+    'tooling': ('', 'tools/qa/tests/test_*.py tools/sz/tests/test_*server.py'),
     'controls': ('controllers vehicle-physics car-wheels vehicle-lights sz-vehicles sz-auto-drive '
                  'sz-controller-surfaces building-collision teleports touch-controls cameras', ''),
     'roads': ('sz-roads sz-ground sz-terrain sz-road-frontage sz-road-material sz-elevated-roads '

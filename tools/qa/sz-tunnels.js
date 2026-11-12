@@ -1,10 +1,10 @@
 import * as THREE from 'three/webgpu';
-import { isGroundRoad, roadLinkPoints } from './sz-roads.js';
-import { createGroundSurfaceSampler } from './sz-ground-surface.js';
-import { polygonContains } from './sz-polygon.js';
+import { isGroundRoad, roadLinkPoints } from '../../js/sz-roads.js';
+import { createGroundSurfaceSampler } from '../../js/sz-ground-surface.js';
+import { polygonContains } from '../../js/sz-polygon.js';
 // 默认立交选区与桥面共用 sz-elevated-roads.js 导出的 SHENZHEN_INTERCHANGES，隧道和桥面不会各用一套范围。
 // 这里用命名空间导入，只取该导出；条目结构仍是 {id,name,source,area,heightSource}，heightSource 必须是 estimate。
-import * as elevated from './sz-elevated-roads.js';
+import * as elevated from '../../js/sz-elevated-roads.js';
 
 // 隧道埋深没有实测纵断面，按 OSM layer 每层 6 m 估算；layer 只是上下关系，不是米。
 export const TUNNEL_LAYER_DEPTH_M = 6;

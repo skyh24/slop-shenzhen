@@ -1,5 +1,10 @@
+const recordUnpack = typeof location !== 'undefined'
+  && ['127.0.0.1', 'localhost'].includes(location.hostname)
+  && new URLSearchParams(location.search).get('qa') === '1';
+
 // 显示、传送与接触共用派生地面三角形，裁除区不回退到原始 DSM。
 export function unpackSurface(surface) {
+  const started = recordUnpack ? performance.now() : 0;
   if (surface?.version !== 1 || !Number.isFinite(surface.chunkSize) || surface.chunkSize <= 0
     || surface.diagonal !== 'ne-sw' || !surface.grid || !Array.isArray(surface.chunks)) {
     throw new Error('Invalid terrain surface payload');
@@ -31,8 +36,19 @@ export function unpackSurface(surface) {
       lastEnd = start + count;
     }
     if (lastEnd !== source.indices.length) throw new Error(`Incomplete terrain surface cell ranges: ${source.id}`);
-    chunks.set(source.id, { ...source, positions: new Float32Array(source.positions),
-      indices: new Uint32Array(source.indices), cellRanges: new Uint32Array(source.cellRanges) });
+    chunks.set(source.id, { id: source.id, origin: [...source.origin], positions: new Float32Array(source.positions),
+      indices: new Uint32Array(source.indices), cellRanges: new Uint32Array(source.cellRanges),
+      kinds: new Uint8Array(source.kinds) });
+  }
+  if (recordUnpack) {
+    let bytes = 0, buffers = 0;
+    for (const { positions, indices, cellRanges, kinds } of chunks.values()) {
+      bytes += positions.byteLength + indices.byteLength + cellRanges.byteLength + kinds.byteLength;
+      buffers += 4;
+    }
+    performance.measure('sz.surface.unpack', {
+      start: started, end: performance.now(), detail: { chunks: chunks.size, bytes, buffers }
+    });
   }
   return chunks;
 }
@@ -63,7 +79,7 @@ function heightInTriangle(positions, ia, ib, ic, x, z) {
   return u * positions[a + 1] + v * positions[b + 1] + w * positions[c + 1];
 }
 
-export function sampler(surface, chunks) {
+function sampler(surface, chunks) {
   const grid = surface.grid;
   return (x, z) => {
     if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
@@ -93,6 +109,30 @@ export function sampler(surface, chunks) {
   };
 }
 
+// 每个载荷对象代表一次数据读取；只缓存完整校验后的快照。换包/重试使用新对象，
+// WeakMap 不延长旧载荷生命周期；仍持有采样器时，它继续查询自己的快照。
+const surfaceSnapshots = new WeakMap();
+
+function surfaceSnapshot(surface) {
+  let snapshot = surfaceSnapshots.get(surface);
+  if (snapshot) return snapshot;
+  const chunks = unpackSurface(surface);
+  snapshot = { grid: { ...surface.grid }, chunkSize: surface.chunkSize, chunks };
+  surfaceSnapshots.set(surface, snapshot);
+  return snapshot;
+}
+
 export function createGroundSurfaceSampler(surface) {
-  return sampler(surface, unpackSurface(surface));
+  const snapshot = surfaceSnapshot(surface);
+  return sampler(snapshot, snapshot.chunks);
+}
+
+export function copyGroundChunksForRender(surface) {
+  const { chunks } = surfaceSnapshot(surface);
+  // Three 的 BufferAttribute 可写。只复制建模用的列，不把查询索引或共享数组交给渲染资源。
+  return (function* () {
+    for (const { id, origin, positions, indices, kinds } of chunks.values()) {
+      yield { id, origin: [...origin], positions: positions.slice(), indices: indices.slice(), kinds: kinds.slice() };
+    }
+  })();
 }

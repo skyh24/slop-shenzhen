@@ -3,6 +3,8 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
+const { loadModule } = require('./helpers/module.cjs');
+const { createRoadPolygonLayout } = require('./helpers/roads.cjs');
 const root = join(__dirname, '..');
 const modulePromise = import(`data:text/javascript;base64,${readFileSync(join(root, 'js/sz-data-format.js')).toString('base64')}`);
 const bytes = readFileSync(join(root, 'js/sz-city.json.gz'));
@@ -54,6 +56,55 @@ test('city data rejects source loss, invalid topology and incompatible terrain b
   const badGraph = { ...raw.roadGraph, links: [[-1, 0, 0, 7, 1, 0, []]], metadata: [{}] };
   assert.throws(() => validateCityPayload({ ...raw, roadGraph: badGraph }), /graph link/);
   assert.throws(() => validateCityPayload({ ...raw, terrain: { ...raw.terrain, diagonal: 'nw-se' } }), /terrain grid/);
+  const ramp = raw.roadFrontage.features.find(feature => feature.id === 'shennan-hongshulin:ramp');
+  assert.ok(ramp);
+  for (const feature of [{ ...ramp, vertexRisesM: [0] }, { ...ramp, clipToRoadComplement: false }]) {
+    assert.throws(() => validateCityPayload({ ...raw, roadFrontage: { ...raw.roadFrontage, features: [feature] } }),
+      /road frontage clipped surface/);
+  }
+});
+
+test('golf course paving shares sloped ground and keeps private paths out of the car network', async () => {
+  const { decodeCityPayload } = await modulePromise;
+  const { buildings, geo } = decodeCityPayload(raw);
+  const site = geo.golfCourse;
+  const pathIds = new Set(site.paths.map(path => path.osmId));
+  assert.equal(site.publicAccess, 'unverified');
+  assert.ok(site.paths.every(path => path.kind === 'garden-path' && path.publicAccess !== 'public'));
+  assert.ok(geo.roadGraph.metadata.every(meta => !pathIds.has(meta.osmId)));
+  assert.ok(geo.roadGraph.metadata.some(meta => meta.osmId === 'way/25423077' && meta.highway === 'trunk'));
+  const bridge = site.paths.find(path => path.osmId === 'way/1057168056');
+  assert.equal(bridge.heightSource, 'unresolved-structure');
+  assert.ok(site.surfaces.every(surface => !surface.sourceIds.includes(bridge.osmId)));
+
+  const read = name => readFileSync(join(root, 'js', name), 'utf8');
+  const { createGroundSurfaceSampler } = loadModule(read('sz-ground-surface.js'));
+  const ground = createGroundSurfaceSampler(geo.terrainSurface);
+  const paving = createRoadPolygonLayout(site.surfaces.find(surface => surface.material === 'paved'), geo.terrainSurface);
+  let low = Infinity, high = -Infinity;
+  for (const { positions, origin } of paving.chunks) {
+    for (let i = 0; i < positions.length; i += 9) {
+      const x = origin[0] + (positions[i] + positions[i + 3] + positions[i + 6]) / 3;
+      const y = (positions[i + 1] + positions[i + 4] + positions[i + 7]) / 3;
+      const z = origin[1] + (positions[i + 2] + positions[i + 5] + positions[i + 8]) / 3;
+      assert.ok(Number.isFinite(ground(x, z)) && Math.abs(ground(x, z) - y) < 0.001);
+      low = Math.min(low, y);
+      high = Math.max(high, y);
+    }
+  }
+  assert.ok(high - low > 1);
+  const terrain = loadModule(read('sz-terrain.js'));
+  for (const { banks, heightM } of site.ponds) {
+    for (const bank of banks) for (let i = 0; i < bank.length; i += 3) {
+      const [x, y, z] = bank.slice(i, i + 3);
+      assert.ok(y >= heightM && Math.abs(terrain.terrainHeight(geo.terrain, x, z) - y) < 0.001);
+    }
+  }
+  const { buildingPlacement } = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
+  const onSlope = buildings.find(building => building.foundation);
+  const placement = buildingPlacement(onSlope, geo.terrain);
+  assert.equal(placement.colliders[0].minY, onSlope.foundation.bottomY);
+  assert.ok(Math.abs(placement.maxY - placement.baseY - onSlope.height) < 1e-9);
 });
 
 test('coordinate decoder rejects truncated or fractional delta streams', async () => {

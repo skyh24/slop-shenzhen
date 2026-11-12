@@ -391,6 +391,7 @@ export function buildCityBlocks(scene, options = {}) {
   const skipIds = options.skipIds ?? new Set();
   const renderChunkSize = options.renderChunkSize ?? BUILDING_RENDER_CHUNK_SIZE;
   const roadClearance = options.roadClearance;
+  const { programEmission, programParticipant = () => false } = options;
   // 裙房净空输入：地形起伏的地面道路与真实入口点，缺省取共享包里的路侧入口和地铁出入口。
   const roadGraph = options.roadGraph ?? GEO?.roadGraph ?? null;
   const entrances = options.entrances ?? [
@@ -402,10 +403,12 @@ export function buildCityBlocks(scene, options = {}) {
   const group = new THREE.Group();
   group.name = 'ShenzhenCityBlocks';
   const batches = new Map();
+  const foundations = new GeoBuilder();
   const colliders = [];
   const allBlocks = [];
   const roadConflicts = [];
   const roofPlans = new Map();
+  const programIds = [];
   for (let buildingIndex = 0; buildingIndex < buildings.length; buildingIndex++) {
     const building = buildings[buildingIndex];
     if (skipIds.has(building.id)) continue;
@@ -418,7 +421,9 @@ export function buildCityBlocks(scene, options = {}) {
         continue;
       }
     }
-    const key = `${Math.floor(building.cx / renderChunkSize)},${Math.floor(building.cz / renderChunkSize)}`;
+    const participant = programEmission && programParticipant(building);
+    if (participant) programIds.push(building.id);
+    const key = `${Math.floor(building.cx / renderChunkSize)},${Math.floor(building.cz / renderChunkSize)}${participant ? ':program' : ''}`;
     if (!batches.has(key)) batches.set(key, new GeoBuilder(true));
     const batch = batches.get(key);
     const facade = CITY_PAYLOAD.enums.facade.indexOf(building.facade);
@@ -427,6 +432,9 @@ export function buildCityBlocks(scene, options = {}) {
     const meta = [facade, buildingSeed(building.id) * 10, 0, building.height];
     for (const polygon of building.polygons) {
       const rings = [polygon.outer, ...polygon.holes].map(flatRing);
+      if (placement.foundationBottomY !== null) {
+        addWalls(foundations, rings, placement.foundationBottomY, placement.baseY);
+      }
       addWalls(batch, rings, placement.minY, placement.maxY, meta, placement.baseY);
       addFlatPolygon(batch, rings, placement.maxY, meta);
       if (building.minHeight > 0) addFlatPolygon(batch, rings, placement.minY, meta, 1, -1);
@@ -475,20 +483,32 @@ export function buildCityBlocks(scene, options = {}) {
     allBlocks.push({ ...building, baseY: placement.baseY, minY: placement.minY, maxY: placement.maxY });
   }
   const material = createBuildingMaterial();
+  const foundationMaterial = foundations.count
+    ? new THREE.MeshStandardNodeMaterial({ color: 0x969084, roughness: 0.94 }) : null;
+  const programMaterial = programIds.length ? createBuildingMaterial(programEmission) : null;
   for (const [key, batch] of batches) {
-    const mesh = new THREE.Mesh(batch.build(), material);
+    const mesh = new THREE.Mesh(batch.build(), key.endsWith(':program') ? programMaterial : material);
     mesh.name = `ShenzhenBuildings:${key}`;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     group.add(mesh);
   }
+  if (foundationMaterial) {
+    const mesh = new THREE.Mesh(foundations.build(), foundationMaterial);
+    mesh.name = 'shenzhen-golf-foundations';
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
   scene.add(group);
-  return { group, colliders, allBlocks, roadConflicts, roofPlans,
+  return { group, colliders, allBlocks, roadConflicts, roofPlans, programIds,
     roofs: allBlocks.filter(block => !block.isPodium && block.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M).length,
     update() {},
     dispose() {
       group.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
       material.dispose();
+      foundationMaterial?.dispose();
+      programMaterial?.dispose();
       roofPlans.clear();
       scene.remove(group);
     }

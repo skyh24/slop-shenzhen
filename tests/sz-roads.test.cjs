@@ -4,7 +4,8 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { loadModule } = require('./helpers/module.cjs');
 const roadMaterialStub = { createSzRoadSurfaceMaterial: () => ({}) };
-const { createRoadHeightSampler, createRoadSurfaceLayout, planStreetTreeSides } = loadModule(readFileSync(join(__dirname, '../js/sz-roads.js'), 'utf8'),
+const { createRoadHeightSampler, createRoadSurfaceLayout, createRoadPolygonLayout, createRoadsideSurfaceTreatment,
+  planStreetTreeSides } = loadModule(readFileSync(join(__dirname, '../js/sz-roads.js'), 'utf8'),
   { imports: { 'three/webgpu': {}, './sz-road-material.js': roadMaterialStub } });
 
 const grid = { x0: 0, z0: 0, step: 20, nx: 2, nz: 2 };
@@ -18,6 +19,35 @@ function groundRoad(osmId) {
 }
 
 const flat = surface([0, 5, 0, 20, 5, 0, 0, 5, 20, 20, 5, 20], [0, 2, 1, 1, 2, 3]);
+
+test('roadside ramps subtract the shared asphalt and form curbs from the rendered top edge', () => {
+  const graph = { nodes: [0, 10, 20, 10], names: ['Source Road'],
+    links: [[0, 1, 0, 4, 2, 0, []]], metadata: [groundRoad('way/1')] };
+  const feature = { id: 'ramp', sourceIds: ['way/2'], clipToRoadComplement: true,
+    trianglesXZ: [2, 5, 10, 5, 2, 15, 10, 5, 10, 15, 2, 15],
+    vertexRisesM: [0, 0.12, 0, 0.12, 0.12, 0] };
+  const treatment = createRoadsideSurfaceTreatment(graph, grid, [feature]);
+  const layout = createRoadPolygonLayout(feature, flat, treatment);
+  assert.ok(Math.abs(layout.statistics.areaM2 - 48) < 0.000001);
+  const sample = createRoadHeightSampler(layout.chunks, grid);
+  const roadHeight = createRoadHeightSampler(createRoadSurfaceLayout(graph, flat).chunks, grid);
+  assert.equal(sample(6, 10), null);
+  assert.equal(roadHeight(6, 10), 5);
+  assert.ok(Math.abs(sample(6, 7) - 5.06) <= 0.001);
+  assert.ok(Math.abs(sample(6, 13) - 5.06) <= 0.001);
+  const { positions, wallPositions } = layout.chunks[0];
+  const vertices = new Set();
+  for (let i = 0; i < positions.length; i += 3) vertices.add(positions.slice(i, i + 3).join(','));
+  assert.ok(wallPositions.length > 0);
+  for (let i = 0; i < wallPositions.length; i += 3) {
+    if (wallPositions[i + 1] > 5) assert.ok(vertices.has(wallPositions.slice(i, i + 3).join(',')));
+  }
+  for (let i = 0; i < wallPositions.length; i += 9) {
+    const triangle = Array.from({ length: 3 }, (_, j) => wallPositions.slice(i + j * 3, i + j * 3 + 3));
+    assert.ok(triangle.every(p => p[2] === 8) || triangle.every(p => p[2] === 12)
+      || triangle.every(p => p[2] === 5) || triangle.every(p => p[2] === 15) || triangle.every(p => p[0] === 10));
+  }
+});
 
 test('simulated side trees keep one physical curb within the pilot and preserve unmatched points', () => {
   const graph = { nodes: [0, 0, 100, 0, 0, 30, 100, 30], links: [[1, 0, 0, 8, 2, 0, []], [2, 3, 0, 8, 2, 0, []]],

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "checkedAt": "2026-11-12",
+  "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+  "osmId": "way/173622150",
+  "landUse": "former-golf-course",
+  "publicAccess": "unverified",
+  "terrainSource": "fabdem-bristol-v1.2",
+  "terrainComparison": "gedtm30-opentopography-v1.2",
+  "villaWays": ["way/40984303", "way/40984309", "way/40984320", "way/40984329", "way/40984358", "way/40984363", "way/40984371"],
+  "approachWays": ["way/40984260", "way/40984263"],
+  "publicSidewalkWays": ["way/854137908", "way/854903584", "way/854903583"],
+  "sources": [
+    {
+      "url": "https://www.openstreetmap.org/way/173622150",
+      "scope": "锁定快照内的球场边界、内部道路和水体。绿地面北侧的缺口与同一快照的配套别墅道路对应。"
+    },
+    {
+      "url": "https://www.nbd.com.cn/articles/2025-09-21/4068505.html",
+      "scope": "2025-09现场采访记录球场停业、通往前台的道路围挡、西区先行关闭及原配套别墅；无法确认现时逐门逐段通行。"
+    },
+    {
+      "url": "https://www.szft.gov.cn/xxgk/zwgk/qzfgb/2026/1/content/post_12823976.html",
+      "scope": "区划以深南大道、新洲路、新沙路、滨河大道及在建体育公园边界围合香蜜湖绿地。西侧体育公园属于独立建设项目。"
+    },
+    {
+      "url": "https://www.szft.gov.cn/bmxx/qswj/tzgg/content/post_12942776.html",
+      "scope": "深高公园已获取水许可；公告未列水位及逐段通行权限。"
+    },
+    {
+      "url": "https://www.sz.gov.cn/szzt2010/wgkzl/glgk/jgxxgk/gtzy/content/mpost_12959133.html",
+      "scope": "2026年综合赛事训练南馆总平面图属项目公示；未证明既有球场路径开放。"
+    }
+  ],
+  "limitations": [
+    "未获得现状裸地控制点、竣工高程、别墅地坪或门槛和逐塘水尺。高程、基座、水位都是带出处的外观估计。用两套模型对照后的低频起伏与外围现有地坪衔接。逐塘水位独立取中心估值，高出近岸时仅向下校正。",
+    "保留已编译的建筑身份、部件、足迹和相对高度。快照中的旧建筑存在性与单栋身份仍待近期影像复核。",
+    "宽度或铺装材质缺少逐段观测时按源道路类型估计。园路的显示和地表接触不代表对公众开放。",
+    "球场桥way/1057168056缺少桥面高程和通行证据，保留源线审核记录；未以地面路径跨越水面。"
+  ]
+}

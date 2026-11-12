@@ -493,7 +493,8 @@ function teleportHarness(mode, colliders = [], shore = () => ({ westX: -500, eas
     pitchVel: 3, rollVel: 4, heaveY: 0.1, heaveVel: 2, chassisPivot: pivot(),
     lastCollisionSpark: { speed: 5 }, lights: [true, true], wheelSpin: 1,
     setLights(braking, reversing) { this.lights = [braking, reversing]; },
-    wheels: [{ isFront: true, steerPivot: { rotation: { y: 0.4 } }, tire: { rotation: { x: 0 } } }],
+    wheels: [{ isFront: true, restY: 0.36, steerPivot: { position: position(0.82, 0.36, 1.45), rotation: { y: 0.4 } },
+      tire: { rotation: { x: 0 } } }],
     leanAngle: 0.3, leanPivot: pivot(), pedalPhase: 0.7,
     frontWheel: { rotation: { x: 0 } }, rearWheel: { rotation: { x: 0 } },
     crankPivot: { rotation: { x: 0 } }, pedals: [],
@@ -965,6 +966,27 @@ test('controller surface queries retain resolved elevated support and unknown re
   controller.entities = { person: { _support: { height: 7, surfaceId: 'terrain' } } };
   assert.equal(controller.getGroundHeight(0, 0), 7);
   assert.equal(controller.getGroundHeight(20, 0), null);
+});
+
+test('stationary player tires follow the four active contacts on a sloped deck and the road beneath', () => {
+  const { controller } = keyboardHarness();
+  const ground = (x, z) => 0.06 * x + 0.03 * z;
+  const corners = [[-5, -5], [5, -5], [5, 5], [-5, 5]].map(([x, z]) => ({ x, z, y: ground(x, z) + 6 }));
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: ground, surfaces: [{
+    id: 'deck', heightSource: 'estimate', triangles: [[corners[0], corners[1], corners[2]], [corners[0], corners[2], corners[3]]]
+  }] });
+  const car = { heading: Math.PI / 2, position: { x: 0, y: 6, z: 0 },
+    _support: { height: 6, surfaceId: 'deck' }, wheels: [-1, 1].flatMap(side => [-1.45, 1.45].map(z => ({
+      restY: 0.36, steerPivot: { position: { x: 0.82 * side, y: 0.36, z } }
+    }))) };
+  for (const [height, surfaceId] of [[6, 'deck'], [0, 'terrain']]) {
+    car.position.y = height;
+    car._support = { height, surfaceId };
+    controller.updateCarWheelContact(car);
+    for (const { restY, steerPivot: { position: tire } } of car.wheels) {
+      assert.ok(Math.abs(height + tire.y - restY - (height + ground(tire.z, -tire.x))) < 1e-9);
+    }
+  }
 });
 
 function walkingPlatform(name, top, bottom = 0) {

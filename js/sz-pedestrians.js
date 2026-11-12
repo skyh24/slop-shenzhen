@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
-import { buildWalkTracks, createColliderGrid, sampleTrack } from './sz-pedestrian-tracks.js';
+import { buildWalkTracks, createColliderGrid, createPublicWalkTrack, sampleTrack } from './sz-pedestrian-tracks.js';
 import { polygonContains } from './sz-polygon.js';
 import { contactTime, writeEntityCollider, writePedestrianCollider } from './sz-driving-motion.js';
 import { vehicleContact } from './vehicle-physics.js';
@@ -217,10 +217,12 @@ function createPed(id, cfg) {
 }
 
 function processPose(ped, sampled) {
-  const fade = Math.max(0, Math.min(1, ped.s / 2.5, (ped.leg.length - ped.s) / 2.5));
-  const lateral = ped.lateral * fade;
-  ped.x = sampled.x + sampled.dz * lateral;
-  ped.z = sampled.z - sampled.dx * lateral;
+  const isPublic = ped.leg.kind === 'public-walk';
+  const fade = isPublic ? 1
+    : Math.max(0, Math.min(1, ped.s / 2.5, (ped.leg.length - ped.s) / 2.5));
+  const lateral = isPublic ? clamp(ped.lateral, -0.38, 0.38) : ped.lateral * fade;
+  ped.x = sampled.x + (isPublic ? sampled.rightX : sampled.dz) * lateral;
+  ped.z = sampled.z + (isPublic ? sampled.rightZ : -sampled.dx) * lateral;
   ped.y = sampled.y;
   // 坐标系约定与控制器相同：heading = atan2(x 分量, z 分量)，0 为南、π 为北。
   ped.heading = Math.atan2(sampled.dx * ped.dir, sampled.dz * ped.dir);
@@ -272,8 +274,10 @@ export function createSzPedestrians(scene, graph, options = {}) {
 
   const ground = (owner, x, z) => {
     const height = cfg.heightAt(x, z);
-    return Number.isFinite(height) ? height + cfg.surfaceRiseM : cfg.surfaceRiseM;
+    const rise = owner.leg?.kind === 'public-walk' ? 0 : cfg.surfaceRiseM;
+    return Number.isFinite(height) ? height + rise : rise;
   };
+  const publicTrack = cfg.publicRoute ? createPublicWalkTrack(cfg.publicRoute) : null;
   const scratch = { x: 0, y: 0, z: 0, dx: 1, dz: 0 };
   const nearPeds = [];
   const queueSpeeds = new Float64Array(cfg.maxPeds);
@@ -328,6 +332,12 @@ export function createSzPedestrians(scene, graph, options = {}) {
       pavementHalfWidthM: cfg.pavementHalfWidthM,
       walkMarginM: cfg.walkMarginM
     });
+    if (publicTrack && publicTrack.points.some(p =>
+      p.x >= bounds.minX && p.x <= bounds.maxX && p.z >= bounds.minZ && p.z <= bounds.maxZ)) {
+      built.tracks.push(publicTrack);
+      built.legs.push(publicTrack);
+      built.statistics.walkableMeters += publicTrack.length;
+    }
     // 出生权重按“可用轨道长度 × 地点活跃度”加权，CBD/商业街密、公园/支路稀；只统计
     // 出生环（spawnMinM–spawnMaxM）内的轨道长度，避免把远处车流走廊算成本地人流目标。
     const spawnTracks = [];
@@ -432,6 +442,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
       ped.pause = 0;
       ped.restAt = clock + cfg.restMinS + random() * (cfg.restMaxS - cfg.restMinS);
       processPose(ped, scratch);
+      if (ped.leg.kind === 'public-walk') ped.y = ground(ped, ped.x, ped.z);
       ped.rig.placed = false;
       ped.placed = true;
       statistics.spawned++;
@@ -479,6 +490,12 @@ export function createSzPedestrians(scene, graph, options = {}) {
     const fz = Math.cos(ped.heading);
     for (const other of nearPeds) {
       if (other === ped) continue;
+      if (ped.leg.kind === 'public-walk' && other.leg === ped.leg) {
+        if (other.dir !== ped.dir) continue;
+        const gap = (other.s - ped.s) * ped.dir;
+        if (gap > 0 && gap <= 1.6) speed = Math.min(speed, gap < 0.75 ? 0 : 0.45);
+        continue;
+      }
       const dx = other.x - ped.x;
       const dz = other.z - ped.z;
       const forward = dx * fx + dz * fz;
@@ -579,7 +596,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
         Object.assign(ped, previous);
         ped.v = 0;
       } else ped.y = y;
-    }
+    } else if (ped.leg.kind === 'public-walk') ped.y = ground(ped, ped.x, ped.z);
   }
 
   function update(dt, focus, elapsed, isVisible = null, players = null, traffic = []) {

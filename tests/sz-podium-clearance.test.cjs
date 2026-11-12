@@ -261,7 +261,7 @@ const sampleRoads = groundRoadCentrelines(geo.roadGraph).filter(road => road.osm
 test('rendered Chegongmiao ramp clearance removes the phantom footprint and its collider', () => {
   const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
     'three/webgpu': {}, 'three/tsl': {}, './sz-roads.js': roads, './sz-ground-surface.js': loadModule(read('sz-ground-surface.js')),
-    './sz-controller-surfaces.js': {}
+    './sz-controller-surfaces.js': loadModule(read('sz-controller-surfaces.js'))
   } });
   const building = realBuildings.find(item => item.id === 'globfp/5784');
   const deckPlan = elevated.planElevatedRoads(geo.roadGraph, geo.terrainSurface);

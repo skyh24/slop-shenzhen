@@ -171,7 +171,8 @@ function createShowMaterial(bucket) {
  *  输入：REAL_BUILDINGS、地形。
  *  输出：{ group, statistics, towers, update, dispose }；6 个材质桶 → 6 个 InstancedMesh。
  *  约束：只做显示，不加碰撞体、不改建筑体量；白天隐藏、不占 draw call。 */
-export function buildSzLightShow(scene, { buildings = [], terrain = null, excludeIds = null, landmarkBands = null } = {}) {
+export function buildSzLightShow(scene, { buildings = [], terrain = null, excludeIds = null, landmarkBands = null,
+  isProgramActive = () => false } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('Light show requires a scene');
   const plan = planLightShow(buildings, terrain, { excludeIds });
   const group = new THREE.Group();
@@ -182,7 +183,10 @@ export function buildSzLightShow(scene, { buildings = [], terrain = null, exclud
     drawCallsEstimate: (plan.totals.towers > 0 ? SHOW_BUCKETS * 2 : 0) + (bandRows.length > 0 ? 1 : 0),
     visible: false, colorSource: 'display-estimate', heightSource: 'estimate' };
   // 夜景显隐由本模块按全局日夜 uniform 自己判断，入口只调用 update()，不再逐帧改 group.visible。
-  const updateVisibility = () => { group.visible = sceneUniforms.night.value > 0.25; };
+  const updateVisibility = () => {
+    group.visible = sceneUniforms.night.value > 0.25 && !isProgramActive();
+    statistics.visible = group.visible;
+  };
   if (plan.towers.length === 0 && bandRows.length === 0) {
     return { group, statistics, towers: [], update: updateVisibility, dispose() { scene.remove(group); } };
   }

@@ -472,14 +472,13 @@ function makeObstacleIndex(colliders) {
 export function createSzTraffic(scene, graph, { roadHeight, elevated = null, colliders = [], signals = null, detailedRoadIds = [], canTurn } = {}) {
   if (typeof roadHeight !== 'function') throw new Error('Traffic requires rendered road height');
   const network = createTrafficGraph(graph, { canTurn, elevated });
-  // 桥面高度只按边的表面身份取渲染桥面顶面三角面；地面边继续用地面沥青，桥下车辆不会吸到桥面。
+  // 轮胎跨接缝时由调用方依次试相邻路段。单条高架边查不到三角面时保留空值，
+  // 避免用同一 XZ 的桥下沥青截断相邻桥面的查询。
   const heightAtDeck = typeof elevated?.heightAt === 'function' ? elevated.heightAt : null;
   const heightFor = (x, z, edge) => {
-    if (edge?.surfaceId && heightAtDeck) {
-      const height = heightAtDeck(x, z, edge.surfaceId);
-      if (Number.isFinite(height)) return height;
-    }
-    return roadHeight(x, z);
+    if (!edge?.surfaceId) return roadHeight(x, z);
+    const height = heightAtDeck?.(x, z, edge.surfaceId);
+    return Number.isFinite(height) ? height : null;
   };
   const detailedRoads = new Set(detailedRoadIds);
   const blockedByBuilding = makeObstacleIndex(colliders);

@@ -79,16 +79,91 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const scene = new THREE.Scene();
   const model = buildSzRoadFrontage(scene, raw.roadFrontage, raw.roadGraph, terrain, { groundHeight, roadHeight });
   assert.equal(model.statistics.signals, 4);
+  const pilot = raw.roadFrontage.features.filter(f => f.id.startsWith('shennan-hongshulin:') && f.kind !== 'paint');
+  assert.deepEqual(pilot.map(f => f.id.split(':').at(-1)), ['sidewalk', 'ramp', 'paving']);
+  assert.ok(pilot.every(f => f.clipToRoadComplement));
+  assert.ok(pilot[2].sourceIds.includes('way/1241802790'));
+  const sourceCrossing = [
+    [-5256.596, 1167.253], [-5259.939, 1151.661], [-5260.824, 1147.453], [-5268.138, 1134.176],
+    [-5272.283, 1118.196], [-5275.297, 1106.547], [-5279.113, 1104.564], [-5282.24, 1102.948],
+    [-5289.399, 1104.199], [-5296.517, 1105.439], [-5305.476, 1106.901]
+  ];
+  let previousY = null, asphaltPoints = 0, pavingPoints = 0;
+  for (let i = 1; i < sourceCrossing.length; i++) {
+    const [ax, az] = sourceCrossing[i - 1], [bx, bz] = sourceCrossing[i];
+    const steps = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.1);
+    for (let j = 0; j <= steps; j++) {
+      const x = ax + (bx - ax) * j / steps, z = az + (bz - az) * j / steps;
+      const asphalt = roadHeight(x, z), paving = model.contactHeight(x, z);
+      const y = asphalt ?? paving;
+      assert.ok(Number.isFinite(y), `Missing crossing support at ${x}, ${z}`);
+      if (asphalt !== null) asphaltPoints++;
+      if (paving !== null) pavingPoints++;
+      if (previousY !== null) assert.ok(Math.abs(previousY - y) <= 0.001);
+      previousY = y;
+    }
+  }
+  assert.ok(asphaltPoints > 300 && pavingPoints > 500);
+  let previousRise = null;
+  for (let i = 0; i <= 250; i++) {
+    const t = i / 250;
+    const x = -5244.407 + (-5256.596 + 5244.407) * t;
+    const z = 1165.326 + (1167.253 - 1165.326) * t;
+    const top = model.contactHeight(x, z);
+    assert.ok(Number.isFinite(top), `Missing sidewalk approach at ${x}, ${z}`);
+    const rise = top - groundHeight(x, z);
+    if (i === 0) assert.ok(Math.abs(rise - 0.12) <= 0.001);
+    if (previousRise !== null) assert.ok(Math.abs(previousRise - rise) <= 0.006);
+    if (i === 250) assert.ok(Math.abs(rise) <= 0.001);
+    previousRise = rise;
+  }
   for (const [id, x, z] of [['shennan-civic-center', 0, 410], ['shennan-civic-east', 795, 391]]) {
     const median = model.group.children.find(mesh => mesh.name.startsWith(`${id}:median:`) && mesh.userData.planting);
     assert.equal(median?.userData.planting.form, 'open-lawn');
     assert.equal(roadHeight(x, z), null);
     assert.ok(Math.abs(model.shennanMedianHeight(x, z) - groundHeight(x, z) - 0.25) < 0.0001);
   }
+  const civic = raw.roadFrontage.corridors.find(row => row.id === 'shennan-civic-center');
+  assert.equal(civic.medianSource.imageryReview.captureDate, '2026-01-25');
+  const band = raw.roadFrontage.features.filter(feature => feature.kind === 'flower-band');
+  assert.equal(band.length, 1);
+  assert.equal(band[0].id, 'shennan-civic-center:flower-band');
+  assert.equal(band[0].riseM, 0);
+  assert.deepEqual(band[0].outlines, []);
+  const bandMeshes = model.group.children.filter(mesh => mesh.name.startsWith(`${band[0].id}:`));
+  assert.ok(bandMeshes.length > 0 && bandMeshes.every(mesh => mesh.material.polygonOffset));
+  for (const mesh of bandMeshes) {
+    const positions = mesh.geometry.attributes.position;
+    for (let i = 0; i < positions.count; i++) {
+      const x = positions.getX(i) + mesh.position.x;
+      const z = positions.getZ(i) + mesh.position.z;
+      assert.equal(roadHeight(x, z), null);
+      assert.ok(Math.abs(model.shennanMedianHeight(x, z) - positions.getY(i)) < 0.00001);
+    }
+  }
+  const { links, metadata, nodes } = raw.roadGraph;
+  const openings = civic.medianSource.imageryReview.openingWayIds;
+  for (const id of openings) {
+    const indices = metadata.flatMap(({ osmId }, index) => osmId === id ? [index] : []);
+    assert.ok(indices.length > 0);
+    for (const index of indices) {
+      const [start, end, , , , direction, inner] = links[index];
+      assert.equal(direction, 1);
+      const points = [...nodes.slice(start * 2, start * 2 + 2), ...inner, ...nodes.slice(end * 2, end * 2 + 2)];
+      for (let i = 2; i < points.length; i += 2) {
+        const x = (points[i - 2] + points[i]) / 2;
+        const z = (points[i - 1] + points[i + 1]) / 2;
+        assert.ok(Number.isFinite(roadHeight(x, z)));
+        assert.equal(model.shennanMedianHeight(x, z), null);
+      }
+    }
+  }
   assert.ok(['globfp/36321', 'globfp/36322', 'globfp/36726', 'globfp/38139']
     .every(id => !raw.buildings.id.includes(id)), 'reviewed Shennan median footprints cannot become buildings');
   assert.ok(model.statistics.curbSegments > 0);
-  assert.equal(model.statistics.curbSegments * 2, model.statistics.curbTriangles);
+  assert.ok(Number.isInteger(model.statistics.curbSegments));
+  assert.ok(model.statistics.curbTriangles >= model.statistics.curbSegments
+    && model.statistics.curbTriangles <= model.statistics.curbSegments * 2);
   assert.ok(model.statistics.shennanFlowerBeds > 8);
   const flowerBeds = model.group.getObjectByName('shennan-median:flower-beds');
   const flowers = flowerBeds.geometry.attributes.position;

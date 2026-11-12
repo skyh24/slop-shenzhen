@@ -64,6 +64,8 @@ class QaSession {
     // ?skip=landmarks,trees,…：只在 qa 下生效，其它地址下仍然走完整构建。
     this.skipped = new Set((this.enabled ? query.get('skip') ?? '' : '').split(',').map(name => name.trim()).filter(Boolean));
     this.startup = {};
+    this.startupAt = {};
+    this.compilation = {};
     this.frames = [];
     this.gpu = [];
     this.queue = [];
@@ -76,14 +78,42 @@ class QaSession {
 
   // 跳过某个构建阶段时返回占位对象，否则执行构建函数。
   stage(name, build) {
-    if (!this.enabled || !this.skipped.has(name)) return build();
-    const stub = STAGE_STUBS[name];
-    if (!stub) throw new Error(`Unknown skip stage: ${name}`);
-    return stub();
+    return this.measureBuild(name, () => {
+      if (!this.enabled || !this.skipped.has(name)) return build();
+      const stub = STAGE_STUBS[name];
+      if (!stub) throw new Error(`Unknown skip stage: ${name}`);
+      return stub();
+    });
+  }
+
+  measureBuild(name, build) {
+    if (!this.enabled) return build();
+    const started = performance.now();
+    try {
+      return build();
+    } finally {
+      this.markStartup(`build.${name}`, performance.now() - started);
+    }
   }
 
   markStartup(label, ms) {
-    if (this.enabled) this.startup[label] = ms;
+    if (!this.enabled) return;
+    this.startup[label] = ms;
+    if (!label.startsWith('data.')) this.markMilestone(label);
+  }
+
+  markMilestone(label) {
+    if (this.enabled) this.startupAt[label] = performance.now();
+  }
+
+  // 按场景顶层组归因，未命名对象归入未标记组。批次按首个对象归属，调用按各自对象归属。
+  compileEvent(object, event, value = 1) {
+    if (!this.enabled) return;
+    let root = object;
+    while (root.parent && !root.parent.isScene) root = root.parent;
+    const key = root.name || 'unlabelled';
+    const row = this.compilation[key] ??= { jobs: 0, calls: 0, shared: 0, rejected: 0, callMs: 0 };
+    row[event] += value;
   }
 
   // 固定机位在相机系统更新之后覆盖位置，仍然用同一套玩家输入走路。
@@ -224,6 +254,11 @@ class QaSession {
     return {
       chunkSize: this.chunkSize,
       startupMs: { ...this.startup },
+      startupAtMs: { ...this.startupAt },
+      compilation: structuredClone(this.compilation),
+      surfaceUnpacks: performance.getEntriesByName('sz.surface.unpack', 'measure').map(entry => ({
+        at: entry.startTime, ms: entry.duration, ...entry.detail
+      })),
       frames: this.frames.length,
       durationMs,
       fps: durationMs ? this.frames.length * 1000 / durationMs : null,
@@ -238,10 +273,18 @@ class QaSession {
   // window.__szQA()：把启动阶段、场景统计、交通/人群/地图状态汇总成纯数据快照。
   snapshot() {
     const { controllerManager, cameraSystem, lightingSystem, mapSystem, traffic, pedestrians, roadFrontage,
-      autoDrive, laneAssist, sea, streetscape, landmarks, bridge, renderer, buildingSigns, buildingDetails,
-      audioSystem, getElapsed, getRenderedFrames, getGraphicsLoss } = this.runtime;
+      autoDrive, laneAssist, sea, streetscape, landmarks, bridge, publicWalk, renderer, buildingSigns, buildingDetails,
+      audioSystem, getElapsed, getRenderedFrames, getGraphicsLoss, modules } = this.runtime;
     const elapsed = getElapsed();
+    const active = controllerManager.getActiveEntity();
+    const program = modules?.cbdProgram;
     return {
+      summitProgram: program && {
+        active: program.active, paused: program.paused, time: program.time, cue: program.cue,
+        ...program.statistics, participants: modules.programIds,
+        omitted: [...modules.parkOmissions], support: active._support,
+        summitSurfaces: modules.summit.surfaces.length
+      },
       ready: audioSystem.ready,
       mode: controllerManager.activeMode,
       entities: Object.fromEntries(Object.entries(controllerManager.entities).map(([mode, entity]) => [mode, {
@@ -263,6 +306,9 @@ class QaSession {
       pedestrians: { ...pedestrians.statistics },
       assists: laneAssist && { lane: laneAssist.status, changing: laneAssist.active, enabled: laneAssist.enabled,
         emergencyBrake: controllerManager.emergencyBrakeEnabled },
+      publicWalk: publicWalk && { ...publicWalk.statistics, actors: (pedestrians.peds ?? [])
+        .filter(actor => actor.leg?.kind === 'public-walk')
+        .map(({ id, x, y, z, s, dir, v }) => ({ id, x, y, z, s, dir, v })) },
       roadFrontage: { ...roadFrontage.statistics, intersections: roadFrontage.control.intersections.map(intersection => ({
         id: intersection.id, approaches: intersection.approaches.map(({ osmNodeId, group, stopX, stopZ }) => ({ osmNodeId, group, stopX, stopZ }))
       })), clock: elapsed, control: roadFrontage.control.snapshot?.(elapsed) ?? [],

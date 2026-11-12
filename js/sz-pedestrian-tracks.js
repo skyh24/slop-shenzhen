@@ -377,7 +377,7 @@ function walkableRuns(points, cfg, heightAt, colliderIndex, barrier, statistics,
       }
     }
     const y = heightAt(point.x, point.z);
-    let blocked = !Number.isFinite(y) || (raisedOnly && !raised);
+    let blocked = !Number.isFinite(y) || (raisedOnly && !raised) || cfg.excludeWalkAt?.(point.x, point.z);
     if (!blocked && lastY !== null && Math.abs(y - lastY) > cfg.maxStepRiseM) blocked = true;
     if (!blocked && barrier && barrier.contains(point.x, point.z, cfg.carriagewayClearanceM)) {
       blocked = true;
@@ -487,6 +487,7 @@ function connectorPoints(a, b, cfg, heightAt, colliderIndex, barrier) {
     const x = a.x + dx * t;
     const z = a.z + dz * t;
     const y = a.y + (b.y - a.y) * t;
+    if (cfg.excludeWalkAt?.(x, z)) return null;
     if (Math.abs(midY - y) > cfg.maxStepRiseM) return null;
     if (barrier && barrier.contains(x, z, clearance)) return null;
     if (colliderAt(colliderIndex, x, z, y, cfg.colliderRadiusM, cfg.colliderHeightM)) return null;
@@ -640,6 +641,8 @@ export function buildPavementRibbons(legs, options = {}) {
       // 整条带（两边 + 中线）都必须离沥青有正间隙，才把这一排画出来。
       const blocked = onRaisedSidewalk(cfg, point.x, point.z) || onRaisedSidewalk(cfg, leftX, leftZ)
         || onRaisedSidewalk(cfg, rightX, rightZ)
+        || cfg.excludeWalkAt?.(point.x, point.z)
+        || cfg.excludeWalkAt?.(leftX, leftZ) || cfg.excludeWalkAt?.(rightX, rightZ)
         || (barrier && (barrier.contains(leftX, leftZ, clearance) || barrier.contains(rightX, rightZ, clearance)
           || barrier.contains(point.x, point.z, clearance)));
       rows.push({
@@ -719,6 +722,11 @@ export function buildWalkTracks(graph, options = {}) {
   };
 }
 
+export function createPublicWalkTrack(points) {
+  return makeTrack(points, 'public-walk', { id: 'public-walk:zhongxin-2-west', highway: 'unclassified',
+    normals: points.map((_, i) => tangentAt(points, i)) });
+}
+
 export function sampleTrack(track, s, out = {}) {
   const points = track.points;
   const cum = track.cum;
@@ -742,5 +750,18 @@ export function sampleTrack(track, s, out = {}) {
   const length = Math.hypot(dx, dz);
   out.dx = length > EPSILON ? dx / length : 1;
   out.dz = length > EPSILON ? dz / length : 0;
+  if (track.normals) {
+    // 转角附近平滑切换横向方向，避免采样跨顶点时横移跳变。
+    const lead = Math.min(1.5, segment / 2);
+    const fromStart = clamped - cum[lo];
+    const fromEnd = cum[hi] - clamped;
+    const blend = lead > 0 ? Math.max(0, 1 - Math.min(fromStart, fromEnd) / lead) : 0;
+    const tangent = track.normals[fromStart < fromEnd ? lo : hi];
+    const rightX = out.dz + (tangent.dz - out.dz) * blend;
+    const rightZ = -out.dx + (-tangent.dx + out.dx) * blend;
+    const norm = Math.hypot(rightX, rightZ) || 1;
+    out.rightX = rightX / norm;
+    out.rightZ = rightZ / norm;
+  }
   return out;
 }

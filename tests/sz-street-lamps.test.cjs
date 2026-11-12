@@ -7,6 +7,7 @@ const { loadModule } = require('./helpers/module.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
+const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 const roads = loadModule(read('sz-roads.js'), { imports: {
   'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
 } });
@@ -14,7 +15,8 @@ const nightUniform = { value: 0 };
 const materialsStub = { sceneUniforms: { night: nightUniform } };
 const lamps = loadModule(read('sz-street-lamps.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': { color: () => ({}), uniform: () => ({ value: 0 }) },
-  './sz-roads.js': roads, './sz-polygon.js': polygonModule, './sz-materials.js': materialsStub
+  './sz-roads.js': roads, './sz-polygon.js': polygonModule, './sz-materials.js': materialsStub,
+  './building-collision.js': collision
 } });
 
 function graph(links, metadata) {
@@ -111,7 +113,8 @@ test('real Three street lamps cull halo points per chunk and dispose their group
     import(new URL('build/three.tsl.js', packageUrl))
   ]);
   const runtime = loadModule(read('sz-street-lamps.js'), { imports: {
-    'three/webgpu': THREE, 'three/tsl': tsl, './sz-roads.js': roads, './sz-materials.js': materialsStub
+    'three/webgpu': THREE, 'three/tsl': tsl, './sz-roads.js': roads, './sz-materials.js': materialsStub,
+    './building-collision.js': collision
   } });
   const scene = new THREE.Scene();
   const model = runtime.buildSzStreetLamps(scene, graph([[0, 1, 0, 12, 3, 0, []]], [ground()]), {

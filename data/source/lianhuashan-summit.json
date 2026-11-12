@@ -1,0 +1,58 @@
+{
+  "checkedAt": "2026-11-12",
+  "parkId": "way/41281446",
+  "snapshot": {
+    "id": "osm-guangdong",
+    "sha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+    "license": "ODbL-1.0",
+    "url": "https://download.geofabrik.de/asia/china/guangdong-261108.osm.pbf"
+  },
+  "statue": {
+    "id": "node/1722037599",
+    "lonLat": [114.054325, 22.555948],
+    "bearing": 180,
+    "bronzeHeightM": 6,
+    "plinthHeightM": 3.68,
+    "sources": [
+      "https://www.sz.gov.cn/gkmlpt/content/7/7787/post_7787268.html",
+      "https://www.sz.gov.cn/szstoryjp/202303/content/post_10473133.html",
+      "https://cpc.people.com.cn/n/2013/0829/c69687-22737928.html"
+    ],
+    "note": "采用档案馆及人民网分列的铜像和基座尺寸。文物保护通知将6米写作雕像高度，未给基座单列尺寸。雕像轮廓、基座宽深及各自的局部尺度为照片辅助估计。龙柏树位、数量及尺寸为依现场照片取形的展示估计。"
+  },
+  "lookout": {
+    "id": "node/2750494256",
+    "lonLat": [114.0543197, 22.5555987],
+    "plazaWayIds": ["way/269925476", "way/269925471", "way/269925485", "way/269925473"],
+    "stepWayIds": ["way/386491514", "way/488708059"],
+    "sources": [
+      "https://www.shenzhenshizhi.cn/a/47617.html",
+      "https://cgj.sz.gov.cn/zjcg/zh/content/post_11446411.html"
+    ],
+    "note": "南侧栏杆沿观景广场边界取形。铜像区和北广场之间的铺装为步道及照片辅助估计。111.2米为依据项目DSM避让穿插选定的展示标高，保持原山地网格。台阶宽、踏步和平台工程高度未测；实现仅覆盖两条山径的山顶接缝。"
+  },
+  "displayReview": {
+    "rule": "以下对象足迹完整落在已绑定的公园多边形内。当前场景省略普通建筑占位体，原始来源、高度来源及正式数据包均保留。省略为展示选择，不裁定原足迹或建筑用途。",
+    "omit": [
+      "globfp/29990",
+      "overture/46b0817a-5f88-48fe-940a-201bff8e5926",
+      "overture/e29262df-8fe0-4b18-b45a-64841b1fdd08",
+      "way/1431519033",
+      "way/1431519034",
+      "way/1431519049",
+      "way/1431519061",
+      "way/1431519062",
+      "way/1431519067",
+      "way/1431519068",
+      "way/1431519078",
+      "way/1431519079",
+      "way/1431519084",
+      "way/1457916145",
+      "way/386491513"
+    ],
+    "keep": {
+      "way/170144292": "关山月美术馆，已命名公共场馆，远离山顶观景区。",
+      "way/1431501361": "足迹跨界，约8%在园界内，整栋保留。"
+    }
+  }
+}

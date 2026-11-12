@@ -6,6 +6,7 @@ const { pathToFileURL } = require('node:url');
 const { loadModule } = require('./helpers/module.cjs');
 const { fixtureTerrainSurface } = require('./helpers/terrain-surface.cjs');
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
+const auditSource = readFileSync(join(__dirname, '../tools/qa/sz-tunnels.js'), 'utf8');
 
 const roads = loadModule(read('sz-roads.js'), { imports: {
   'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
@@ -37,12 +38,12 @@ const DEEP_INTERCHANGES = [{
 }];
 
 function loadTunnels(three = {}) {
-  return loadModule(read('sz-tunnels.js'), { imports: {
+  return loadModule(auditSource, { imports: {
     'three/webgpu': three,
-    './sz-roads.js': roads,
-    './sz-ground-surface.js': groundSurface,
-    './sz-polygon.js': polygonModule,
-    './sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
+    '../../js/sz-roads.js': roads,
+    '../../js/sz-ground-surface.js': groundSurface,
+    '../../js/sz-polygon.js': polygonModule,
+    '../../js/sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
   } });
 }
 
@@ -379,12 +380,12 @@ test('real THREE build raycasts the tunnel floor from inside the bore',
     const realRoads = loadModule(read('sz-roads.js'), { imports: {
       'three/webgpu': THREE, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
     } });
-    const module = loadModule(read('sz-tunnels.js'), { imports: {
+    const module = loadModule(auditSource, { imports: {
       'three/webgpu': THREE,
-      './sz-roads.js': realRoads,
-      './sz-ground-surface.js': groundSurface,
-      './sz-polygon.js': polygonModule,
-      './sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
+      '../../js/sz-roads.js': realRoads,
+      '../../js/sz-ground-surface.js': groundSurface,
+      '../../js/sz-polygon.js': polygonModule,
+      '../../js/sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
     } });
     const scene = new THREE.Scene();
     const built = module.buildSzTunnels(scene, { graph: fixture(), terrainSurface: SURFACE, interchanges: INTERCHANGES, buildings: buildings() });

@@ -49,7 +49,7 @@ export function siteTakeoverIds(buildings, sites = {}) {
   return ids;
 }
 
-export function planSzLandmarks(buildings, terrain, sites = {}) {
+export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt } = {}) {
   const source = new Map(buildings.map(building => [building.id, building]));
   const skipIds = new Set();
   const plans = [];
@@ -57,8 +57,8 @@ export function planSzLandmarks(buildings, terrain, sites = {}) {
     // 快照缺少部件时保留原通用建筑。只有全套地标几何可生成时才接管源对象。
     const sourceIds = definition.sourceIds ?? [];
     if (!sourceIds.every(id => source.has(id))) continue;
-    // 场地轮廓来自 bucket 里人工核对过的 OSM 对象；模型另有源建筑时两者都传。
-    const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {} };
+    // 已核场地与玩家活动地面一同传入；贴地接驳用显示面，楼体估高仍用原地形。
+    const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {}, heightAt };
     const parts = definition.build(source, terrain, context);
     if (parts.length === 0) continue;
     for (const id of sourceIds) skipIds.add(id);

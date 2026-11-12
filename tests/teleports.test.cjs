@@ -77,7 +77,7 @@ test('park arrivals retain a verified site member and require rendered ground su
   assert.throws(() => decodeCityPayload({ ...CITY_PAYLOAD, parks: [{ ...CITY_PAYLOAD.parks[0], source: '' }] }), /park source/);
 });
 
-test('preset and map teleports share arrival resets and mark only a resolved landing point', () => {
+test('teleports mark resolved landings or the reviewed destination from an exact walk start', () => {
   const main = read('js/main.js');
   const start = main.indexOf('  function teleportTo(');
   const end = main.indexOf('  const openMapBtn', start);
@@ -87,13 +87,16 @@ test('preset and map teleports share arrival resets and mark only a resolved lan
   let arrival = landed;
   let map;
   const feedback = {};
+  const approach = { x: -498.3, z: 1201.7, heading: Math.PI, exact: true,
+    waypoint: { x: -498.3, z: 1177.2, name: 'Entrance forecourt' } };
+  const teleportEntries = { ...TELEPORT_LOCATIONS, approach };
   const environment = {
-    TELEPORT_LOCATIONS,
+    teleportEntries,
     landmarkViews: new Map(),
     bayPark: null,
     controllerManager: {
       teleportActiveTo: (x, z, heading, altitude, options) => {
-        calls.push(['teleport', x, z, heading, altitude, options.requireArrival]);
+        calls.push(['teleport', x, z, heading, altitude, options.requireArrival, options.exact]);
         return arrival;
       }
     },
@@ -112,7 +115,7 @@ test('preset and map teleports share arrival resets and mark only a resolved lan
     GEO,
     STR: { map: { noArrival: 'No arrival' } },
     document: { getElementById: id => id === 'teleport-feedback' ? feedback : null },
-    teleportButtons: Object.keys(TELEPORT_LOCATIONS).map((key) => ({
+    teleportButtons: Object.keys(teleportEntries).map((key) => ({
       dataset: { teleport: key },
       addEventListener: (_event, handler) => handlers.set(key, handler)
     })),
@@ -123,12 +126,16 @@ test('preset and map teleports share arrival resets and mark only a resolved lan
     calls.length = 0;
     handlers.get(name)();
     assert.deepEqual(calls, [
-      ['teleport', point.x, point.z, point.heading, null, true],
+      ['teleport', point.x, point.z, point.heading, null, true, false],
       ['laneCancel'], ['touch'], ['gamepad'], ['camera'], ['selectCamera', 'chase', true]
     ]);
     assert.equal(map.waypoint.x, landed.x);
     assert.equal(map.waypoint.z, landed.z);
   }
+  calls.length = 0;
+  handlers.get('approach')();
+  assert.deepEqual(calls[0], ['teleport', approach.x, approach.z, approach.heading, null, true, true]);
+  assert.equal(map.waypoint, approach.waypoint);
   map.waypoint = { x: 100, z: 200, name: 'inside a building' };
   map.onTeleport(100, 200);
   assert.equal(map.waypoint.x, landed.x);

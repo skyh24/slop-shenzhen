@@ -1186,6 +1186,7 @@
         "landuse": "retail"
       },
       "sourceUrl": "https://www.openstreetmap.org/way/776141699",
+      "excludeGroundCarriageway": true,
       "polygonWgs84": [
         [
           [

@@ -9,7 +9,7 @@ const main = read('js/main.js');
 const qa = loadModule(read('js/sz-qa.js'), { imports: {
   'three/webgpu': { Group: class Group {}, TimestampQuery: { RENDER: 'render' } },
   './sz-geodata.js': { GEO: { roadGraph: { nodes: [] } } }
-}, globals: { URLSearchParams } });
+}, globals: { URLSearchParams, performance, structuredClone } });
 const sessionFor = (search, hostname = '127.0.0.1') =>
   qa.createQaSession({ search, hostname, defaultChunkSize: 1000 });
 
@@ -96,6 +96,7 @@ test('the [init] stage log and its data labels stay in the entry', () => {
 
 test('the landmark site takeover now lives next to the landmark plans', () => {
   assert.ok(!main.includes('polygonContains'), 'the entry no longer imports the polygon test');
-  assert.match(main, /skipIds: landmarks\.skipIds/);
+  assert.match(main, /new Set\(\[\.\.\.landmarks\.skipIds, \.\.\.parkOmissions\]\)/);
+  assert.match(main, /skipIds: sceneSkipIds/);
   assert.match(read('js/sz-landmarks/layout.js'), /export function siteTakeoverIds/);
 });

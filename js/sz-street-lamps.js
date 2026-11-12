@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { color, uniform } from 'three/tsl';
 import { isGroundRoad, roadSectionPoints } from './sz-roads.js';
 import { sceneUniforms } from './sz-materials.js';
+import { polygonBoxOverlaps } from './building-collision.js';
 
 // 灯位按源道路断面和道路等级派生，属外观估计。
 const SPACING_BY_CLASS = {
@@ -317,7 +318,7 @@ function poleCollider(site) {
 }
 
 export function buildSzStreetLamps(scene, roadGraph, options = {}) {
-  const { groundHeight, heightAt = groundHeight, roadHeight, medianHeight, deckOccupied } = options;
+  const { groundHeight, heightAt = groundHeight, roadHeight, medianHeight, deckOccupied, walkPlacement } = options;
   if (typeof groundHeight !== 'function') throw new Error('Street lamps require a ground height sampler');
   const plan = planLampSites(roadGraph, options);
   const glow = uniform(0);
@@ -329,10 +330,13 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
     pool: null,
     halo: null
   };
-  const skipped = { unsupportedGround: 0, roadSurface: 0, deck: 0 };
+  const skipped = { unsupportedGround: 0, roadSurface: 0, deck: 0, reservedWalk: 0 };
   const sites = [];
   const placementRadius = 0.34;
   const edgeProbes = [[0, 0], [placementRadius, 0], [-placementRadius, 0], [0, placementRadius], [0, -placementRadius]];
+  const obstacles = walkPlacement ? (options.placementObstacles ?? []).filter(item =>
+    item.maxX >= walkPlacement.bounds.minX && item.minX <= walkPlacement.bounds.maxX
+    && item.maxZ >= walkPlacement.bounds.minZ && item.minZ <= walkPlacement.bounds.maxZ) : [];
   for (const site of plan.sites) {
     if (!site.median && Number.isFinite(medianHeight?.(site.x, site.z))) continue;
     if (roadHeight && edgeProbes.some(([dx, dz]) => Number.isFinite(roadHeight(site.x + dx, site.z + dz)))) {
@@ -342,6 +346,15 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
     const y = heightAt(site.x, site.z);
     if (!Number.isFinite(y)) {
       skipped.unsupportedGround++;
+      continue;
+    }
+    if (walkPlacement?.inPilot(site.x, site.z) && (
+      walkPlacement.reserves(site.x, site.z, placementRadius)
+      || obstacles.some(item => item.polygon && item.maxY > y && item.minY < y + HEAD_HEIGHT_M
+        && item.minX - placementRadius < site.x && item.maxX + placementRadius > site.x
+        && item.minZ - placementRadius < site.z && item.maxZ + placementRadius > site.z
+        && polygonBoxOverlaps(item.polygon, site.x, site.z, placementRadius, placementRadius)))) {
+      skipped.reservedWalk++;
       continue;
     }
     if (deckOccupied) {

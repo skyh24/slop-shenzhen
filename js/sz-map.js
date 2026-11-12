@@ -520,6 +520,10 @@ class NYCMapSystem {
         layer.each(v, path => ctx.fill(path));
       });
     }
+    if (v.s >= 0.06) {
+      ctx.fillStyle = MAP.gardenPath;
+      layers.gardenPaths.each(v, path => ctx.fill(path));
+    }
     for (const road of layers.roads) {
       if (!v.sees(road.bounds) || (v.s < 0.06 && !road.highway && road.w < 15)) continue;
       ctx.strokeStyle = road.bridge ? MAP.bridge : road.highway ? MAP.highway : MAP.streets;

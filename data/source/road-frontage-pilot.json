@@ -33,7 +33,7 @@
     },
     {
       "id": "shennan-civic-center",
-      "bounds": [114.05125, 22.54197, 114.05777, 22.54324],
+      "bounds": [114.05130, 22.54197, 114.05781, 22.54324],
       "roadNames": [],
       "sidewalks": [],
       "crossings": [],
@@ -44,7 +44,25 @@
         ],
         "edgeInsetEstimateM": 0.6,
         "evidence": "civicMedian",
-        "planting": "open-lawn"
+        "planting": "open-lawn",
+        "imageryReview": {
+          "archiveReleaseDate": "2026-10-29",
+          "captureDate": "2026-01-25",
+          "checkedAt": "2026-11-12",
+          "provider": "Vantor Vivid Advanced",
+          "metadataUrl": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4",
+          "metadataObjectId": 1841,
+          "sourceResolutionM": 0.34,
+          "nominalAccuracyM": 8.47,
+          "terminalSource": "visible-bridge-edge-longitude-estimate",
+          "terminalBridgeWayIds": ["way/25529693", "way/40988598"],
+          "openingWayIds": ["way/25482595", "way/25482589"],
+          "flowerBand": {
+            "islandAnchorLonLat": [114.0545, 22.5426],
+            "edgeSetbackEstimateM": 0.8,
+            "widthEstimateM": 4.2
+          }
+        }
       }
     },
     {

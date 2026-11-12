@@ -1,6 +1,6 @@
 import { STR } from './sz-strings.js';
 import { waitForFirstFrame } from './sz-startup.js';
-import { populateTeleportMenu, wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, renderControlHints, createLocationReadout, createHudTelemetry } from './sz-ui.js';
+import { wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, renderControlHints, wireSummitProgram, wireApecTheme, createLocationReadout, createHudTelemetry, renderSoundButton, wireHudToggle, createModeIndicator } from './sz-ui.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
@@ -16,24 +16,27 @@ import { buildSzRoadPaint } from './sz-road-paint.js';
 import { createRoadBuildingClearance } from './sz-road-building-clearance.js';
 import { createSurfaceResolver } from './sz-controller-surfaces.js';
 import { buildSzStreetscape } from './sz-streetscape.js';
+import { createTeleportMenu } from './sz-coco-park-approach.js';
 import { buildSzStreetLamps } from './sz-street-lamps.js';
 import { buildSzTrees } from './sz-trees.js';
 import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzDroneRoutes } from './sz-drone-routes.js';
 import { buildSzLightShow, planLandmarkBands } from './sz-light-show.js';
+import { createCbdProgram, isCbdProgramBuilding } from './sz-cbd-program.js';
+import { buildLianhuashanSummit, reviewedParkOmissions, SUMMIT_ARRIVAL } from './sz-lianhuashan.js';
 import { gatePoint, gateYaw, gateDeckY, flowerSeaAnchor, flowerSeaDeckY } from './sz-landmarks/iec-xiangmihu.js';
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
 import { buildShenzhenBayBridge, buildYanjiangExpressway } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { buildSzElevatedRoads } from './sz-elevated-roads.js';
-import { planSzTunnels } from './sz-tunnels.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
 import { buildBuildingSigns } from './sz-building-signs.js';
 import { buildBuildingDetails } from './sz-building-details.js';
 import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
 import { createSzPedestrians } from './sz-pedestrians.js';
+import { buildZhongxinWalk } from './sz-zhongxin-walk.js';
 import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
 import { createAutoDrive } from './sz-auto-drive.js';
 import { createLaneAssist } from './sz-lane-assist.js';
@@ -80,6 +83,7 @@ async function initApp() {
   const stageNames = Object.keys(STAGE_MS);
   const totalStageMs = stageNames.reduce((sum, name) => sum + STAGE_MS[name], 0);
   const loadingStartedAt = performance.now();
+  qa.markMilestone('initApp');
   let loadingStage = { from: 0, to: STAGE_MS.data / totalStageMs };
 
   const setLoadingProgress = (p, seconds = 0.3) => {
@@ -176,71 +180,82 @@ async function initApp() {
   markInit('lighting');
 
   await showLoadingStage(STR.startup.ground, 'ground');
-  const ground = buildSzGround(scene, GEO.terrainSurface);
-  const sea = buildSzSea(scene, GEO.seaSurface);
+  const ground = qa.measureBuild('ground', () => buildSzGround(scene, GEO.terrainSurface));
+  const sea = qa.measureBuild('sea', () => buildSzSea(scene, GEO.seaSurface));
   markInit('ground');
   await showLoadingStage(STR.startup.roads, 'roads');
-  const roads = buildSzRoads(scene, GEO.roadGraph, GEO.terrainSurface);
+  const roads = qa.measureBuild('roads', () => buildSzRoads(scene, GEO.roadGraph, GEO.terrainSurface));
   // 场地上下文：地形、路面、路网和各构建函数共用的接触面参数只构造一份，入口里不再重复传同一组闭包。
   const site = {
     buildings: REAL_BUILDINGS, terrain: GEO.terrain, terrainSurface: GEO.terrainSurface, sites: GEO.sites,
     roadGraph: GEO.roadGraph, groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, isWater,
-    colliders: []
+    colliders: [], golfCourse: GEO.golfCourse
   };
   // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
   const elevatedRoads = qa.stage('elevated', () =>
     buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface }));
-  // 隧道只做来源审计和待核清单：洞底在地面三角面之下且没有洞口来源，挂进场景会“看得见开不进去”。
-  site.tunnelReview = planSzTunnels(site.roadGraph, site.terrainSurface, { interchanges: elevatedRoads.interchanges, buildings: site.buildings }).reviewList;
-  const roadFrontage = buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, site);
+  const roadFrontage = qa.measureBuild('frontage', () =>
+    buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, site));
   const roadPaint = qa.stage('paint', () =>
     buildSzRoadPaint(scene, GEO.roadGraph, { ...site, intersections: roadFrontage.control.intersections,
       frontage: GEO.roadFrontage, decks: elevatedRoads.links }));
   // 路缘接触和绘制共用同一份三角面，未覆盖的位置沿用源地形。
-  site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? ground.groundHeight(x, z);
+  const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface);
+  site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? publicWalk.heightAt(x, z) ?? ground.groundHeight(x, z);
   site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
   markInit('roads');
   await showLoadingStage(STR.startup.landmarks, 'landmarks');
-  const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, site));
+  const lianhuashan = GEO.parks.find(park => park.id === 'lianhuashan');
+  const summit = buildLianhuashanSummit(scene, site.groundHeight, lianhuashan);
+  const parkOmissions = reviewedParkOmissions(lianhuashan, site.buildings);
+  const cbdProgram = createCbdProgram({ ...SUMMIT_ARRIVAL, y: SUMMIT_ARRIVAL.y + 1.68 }, sceneUniforms.night);
+  const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, { ...site, programEmission: cbdProgram.emission }));
   const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
   const yanjiang = buildYanjiangExpressway(scene, GEO.yanjiangExpressway);
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
+  const sceneSkipIds = new Set([...landmarks.skipIds, ...parkOmissions]);
   const cityBlocks = qa.stage('blocks', () =>
-    buildCityBlocks(scene, { skipIds: landmarks.skipIds, renderChunkSize: qa.chunkSize,
+    buildCityBlocks(scene, { skipIds: sceneSkipIds, renderChunkSize: qa.chunkSize,
+      programEmission: cbdProgram.emission, programParticipant: isCbdProgramBuilding,
       roadClearance: createRoadBuildingClearance(site.roadGraph, site.roadHeight, elevatedRoads.links) }));
-  const detailSkipIds = new Set([...landmarks.skipIds, ...(cityBlocks.roadConflicts ?? []).map(row => row.buildingId)]);
+  const detailSkipIds = new Set([...sceneSkipIds, ...(cityBlocks.roadConflicts ?? []).map(row => row.buildingId)]);
   // 福田中心区夜景灯光秀：只给已建成普通高层加灯带，颜色/节奏为展示估计；白天隐藏。
   // 地标源对象已由专模打光，排除它们；地标外露钢架（平安 8 根巨柱）单独沿柱轴生成灯带。
   const landmarkBands = planLandmarkBands(landmarks.colliders);
   const lightShow = qa.stage('lightshow', () =>
     buildSzLightShow(scene, { buildings: site.buildings, terrain: site.terrain,
-      excludeIds: detailSkipIds, landmarkBands }));
+      excludeIds: detailSkipIds, landmarkBands, isProgramActive: () => cbdProgram.active }));
   const buildingSigns = qa.stage('signs', () =>
     buildBuildingSigns(scene, { buildings: cityBlocks.allBlocks, roadGraph: site.roadGraph }));
   // 近景补足屋顶和立面细节，避开基础屋顶已绘制的构件。
   const buildingDetails = qa.stage('details', () =>
     buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds, roofPlans: cityBlocks.roofPlans }));
   markInit('blocks');
-  const buildings = [...landmarks.colliders, ...cityBlocks.colliders];
+  const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders];
   site.colliders = buildings;
   const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
-  site.pathAt = streetscape.pathAt;
+  site.pathAt = (x, z) => {
+    const summitPaths = summit.pathAt(x, z);
+    return summitPaths.length ? summitPaths : streetscape.pathAt(x, z);
+  };
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
+  // 源树先保留位置，模拟树灯共用样段预约带。
+  const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
+    ...site, roadFrontage: GEO.roadFrontage, reserveWalk: publicWalk.reserves, pilotTrees: publicWalk.trees,
+    streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
+  }));
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
   const streetLamps = qa.stage('lamps', () => {
     const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: elevatedRoads.surfaces });
     return buildSzStreetLamps(scene, site.roadGraph, {
-      ...site, medianHeight: roadFrontage.medianHeight,
+      ...site, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk,
+      placementObstacles: [...buildings, ...trees.colliders],
       deckOccupied: (x, z, bottom, top) =>
         deck.at(x, z).some(surface => surface.height + 4.5 > bottom && surface.height - 0.35 < top)
     });
   });
-  // 树木：OSM 来源点加带标注的模拟行道树/公园树，接触面与铺装/建筑冲突在运行时复核。
-  const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
-    ...site, streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
-  }));
   // 国际交流中心模型给出的真实门廊/花海台面锚点只构造一次，APEC 主题和城市元素共用。
   const anchors = {
     iecGate: { x: gatePoint.x, z: gatePoint.z, yaw: gateYaw, baseY: gateDeckY },
@@ -271,6 +286,8 @@ async function initApp() {
   const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...(streetLamps.colliders ?? []), ...trees.colliders,
     ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? []),
     ...elevatedRoads.colliders];
+  const planter = publicWalk.placePlanter(colliders, site.heightAt);
+  if (planter) colliders.push(planter);
   site.colliders = colliders;
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = qa.stage('traffic', () => createSzTraffic(scene, GEO.roadGraph, {
@@ -282,12 +299,11 @@ async function initApp() {
   }));
   markInit('traffic');
 
-  // 路缘接触和绘制共用同一份三角面，未覆盖的位置沿用源地形。
   await showLoadingStage(STR.startup.controllers, 'controllers');
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
-    surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces],
+    surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces, ...summit.surfaces],
     nearTraffic: traffic.nearColliders
   });
   let initialTime = 'golden';
@@ -313,6 +329,8 @@ async function initApp() {
   // 环境人群复用纽约 PersonRig；行走位置是沿路侧模拟步行带，非全城实测人行道。
   const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, GEO.roadGraph, {
     ...site,
+    publicRoute: publicWalk.route(colliders),
+    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2),
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
@@ -336,11 +354,12 @@ async function initApp() {
   const drivePlanner = () => planner ??= createDrivePlanner(traffic.network, GEO.roadGraph, { ...driveOptions,
     isClear: pose => controllerManager.isClearCarPose(pose), detailedRoadIds: roadFrontage.detailedRoadIds });
 
+  let showSession;
   function savePlayerState() {
     try {
       const { position, heading } = controllerManager.getActiveEntity();
       localStorage.setItem(PLAYER_STATE_KEY, JSON.stringify({
-        version: 2, activeMode: controllerManager.activeMode, time: lightingSystem.activePresetId,
+        version: 2, activeMode: controllerManager.activeMode, time: showSession?.previousTime ?? lightingSystem.activePresetId,
         position: { x: position.x, y: position.y, z: position.z, heading }
       }));
     } catch { /* Storage may be disabled or full. */ }
@@ -370,14 +389,7 @@ async function initApp() {
     storageKey: 'sz-sound'
   });
   function updateSoundButton() {
-    if (!soundButton) return;
-    soundButton.disabled = !audioSystem.supported;
-    soundButton.setAttribute('aria-pressed', String(audioSystem.enabled));
-    soundButton.setAttribute('aria-label', audioSystem.enabled ? STR.ui.muteSound : STR.ui.enableSound);
-    soundButton.title = audioSystem.supported
-      ? STR.shortcut(audioSystem.enabled ? STR.ui.muteSound : STR.ui.enableSound, 'N')
-      : STR.ui.soundUnavailable;
-    soundButton.querySelector('use').setAttribute('href', audioSystem.enabled ? '#i-sound' : '#i-sound-off');
+    renderSoundButton(soundButton, audioSystem);
   }
   soundButton?.addEventListener('click', () => audioSystem.setEnabled(!audioSystem.enabled));
   updateSoundButton();
@@ -388,15 +400,17 @@ async function initApp() {
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) savePlayerState(); });
   markInit('controllers');
-
   await showLoadingStage(STR.startup.culling, 'culling');
   const cullingRoots = [ground.group, roads.group, elevatedRoads.group, roadPaint.group, cityBlocks.group];
   for (const root of cullingRoots) {
-    const [first, ...chunks] = root.children;
-    // 每类静态分块共用材质和顶点布局，预编译其中一块即可。
-    for (const chunk of chunks) chunk.userData.sharesPipelineWith = first;
+    const firstByMaterial = new Map();
+    for (const chunk of root.children) {
+      const first = firstByMaterial.get(chunk.material);
+      if (first) chunk.userData.sharesPipelineWith = first;
+      else firstByMaterial.set(chunk.material, chunk);
+    }
   }
-  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, yanjiang, streetscape.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
+  setupSceneCulling(scene, [...cullingRoots, landmarks.group, summit.group, bridge.group, yanjiang, streetscape.group, publicWalk.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
     futianStation?.group, xiliConstruction?.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [
@@ -472,11 +486,10 @@ async function initApp() {
     car: bayParkRoad && { ...bayParkRoad, detail: STR.teleport.nearParkRoad(getLocationLabel(bayParkRoad.x, bayParkRoad.z), bayParkRoad.distance) },
     helicopter: bayPark && { ...bayPark, detail: STR.teleport.parkFlight }
   };
-  const teleportEntries = bayPark ? { ...TELEPORT_LOCATIONS, [bayPark.id]: bayPark } : TELEPORT_LOCATIONS;
-  const teleportButtons = populateTeleportMenu(teleportEntries, getLocationLabel);
+  const { entries: teleportEntries, buttons: teleportButtons, syncWalkApproach } = createTeleportMenu(TELEPORT_LOCATIONS, bayPark, getLocationLabel);
   const parkButton = teleportButtons.find(button => button.dataset.teleport === bayPark?.id);
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
-  const modeSwitch = document.getElementById('mode-switch');
+  const placeModeIndicator = createModeIndicator(document.getElementById('mode-switch'));
   touchControls.onAvailabilityChange = placeModeIndicator;
 
   const elFps = document.getElementById('hud-fps');
@@ -497,13 +510,6 @@ async function initApp() {
     onToggleMap: () => mapSystem.toggleFullMap(!mapSystem.isFullMapOpen),
     onCloseMap: () => mapSystem.toggleFullMap(false)
   });
-
-  function placeModeIndicator() {
-    const active = modeSwitch ? modeSwitch.querySelector('.mode-btn.active') : null;
-    if (!active) return;
-    modeSwitch.style.setProperty('--ind-x', `${active.offsetLeft}px`);
-    modeSwitch.style.setProperty('--ind-w', `${active.offsetWidth}px`);
-  }
 
   const modeFeedback = document.getElementById('mode-feedback');
   let modeFeedbackTimer;
@@ -533,6 +539,7 @@ async function initApp() {
     const ent = controllerManager.getActiveEntity();
     if (elMode) elMode.textContent = ent.label;
     renderControlHints(elControlsHint, mode);
+    syncWalkApproach(mode);
     if (parkButton) {
       const entry = parkArrivals[mode];
       const detail = entry?.detail ?? STR.teleport.parkUnavailable[mode];
@@ -574,28 +581,14 @@ async function initApp() {
     });
   }
 
-  // APEC 主题开关：会期内默认打开；玩家手动切换后在本机记住选择。
-  const apecButton = document.getElementById('btn-apec');
-  const APEC_STATE_KEY = 'sz-apec-enabled';
-  function setApecTheme(enabled, { persist = true } = {}) {
-    const active = apecTheme.setEnabled(enabled);
+  wireApecTheme(apecTheme, active => {
     apecCity.group.visible = active;
     sceneUniforms.apec.value = active ? 1 : 0;
-    if (apecButton) {
-      apecButton.classList.toggle('active', active);
-      apecButton.setAttribute('aria-pressed', String(active));
-    }
-    if (persist) {
-      try { localStorage.setItem(APEC_STATE_KEY, active ? '1' : '0'); } catch { /* 存储不可用不影响主题 */ }
-    }
-    return active;
-  }
-  apecButton?.addEventListener('click', () => setApecTheme(!apecTheme.enabled));
-  let savedApec = null;
-  try { savedApec = localStorage.getItem(APEC_STATE_KEY); } catch { /* ignore */ }
-  setApecTheme(savedApec === null ? apecTheme.enabled : savedApec === '1', { persist: false });
+  });
 
   const closePopovers = wirePopovers();
+  showSession = wireSummitProgram({ program: cbdProgram, controllerManager, cameraSystem, lightingSystem,
+    arrival: summit.group ? SUMMIT_ARRIVAL : null, selectMode, selectCamera, selectTime, closePopovers });
   modeButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       selectMode(btn.getAttribute('data-mode'));
@@ -652,7 +645,7 @@ async function initApp() {
     if (landmark && !arrival) return null;
     const destination = arrival
       ? controllerManager.teleportActiveTo(arrival.x, arrival.z, arrival.heading, arrival.y, { exact: true })
-      : controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park });
+      : controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park, exact: options.exact === true });
     if (!destination) return null;
     laneAssist.cancel();
     autoDrive.stop('manual');
@@ -662,7 +655,7 @@ async function initApp() {
     selectCamera('chase', true);
     const name = getLocationLabel(destination.x, destination.z);
     const area = park?.areas.find(item => item.osmId === destination.parkAreaId);
-    mapSystem.waypoint = {
+    mapSystem.waypoint = options.waypoint ?? {
       x: destination.x,
       z: destination.z,
       name: landmark?.name ?? area?.name ?? name
@@ -713,7 +706,7 @@ async function initApp() {
   teleportButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       const key = btn.dataset.teleport;
-      const loc = key === bayPark?.id ? parkArrivals[controllerManager.activeMode] : TELEPORT_LOCATIONS[key];
+      const loc = key === bayPark?.id ? parkArrivals[controllerManager.activeMode] : teleportEntries[key];
       const arrived = loc && teleportTo(loc.x, loc.z, loc.heading, loc);
       if (teleportFeedback) {
         teleportFeedback.textContent = arrived ? '' : STR.map.noArrival;
@@ -726,16 +719,7 @@ async function initApp() {
   const openMapBtn = document.getElementById('btn-open-map');
   if (openMapBtn) openMapBtn.addEventListener('click', () => mapSystem.toggleFullMap(true));
 
-  if (hudToggleBtn) {
-    hudToggleBtn.addEventListener('click', () => {
-      document.body.classList.toggle('hud-minimized');
-      const isMin = document.body.classList.contains('hud-minimized');
-      hudToggleBtn.setAttribute('aria-pressed', String(isMin));
-      hudToggleBtn.setAttribute('aria-label', isMin ? STR.ui.showHud : STR.ui.hideHud);
-      hudToggleBtn.title = STR.shortcut(isMin ? STR.ui.showHud : STR.ui.hideHud, 'H');
-      if (isMin) closePopovers();
-    });
-  }
+  wireHudToggle(hudToggleBtn, closePopovers);
 
   const manualCarAvailable = () => controllerManager.activeMode === 'car' && !mapSystem.isFullMapOpen && !autoDrive.active;
   function requestLane(direction) {
@@ -778,9 +762,11 @@ async function initApp() {
   if (qa.enabled) {
     qa.install({
       renderer, scene, cameraSystem, controllerManager, mapSystem, autoDrive, laneAssist, lightingSystem, audioSystem,
-      buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, sea, bridge,
+      buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, sea, bridge, publicWalk,
+      colliders,
       modules: {
         lamps: streetLamps, trees, apec: apecTheme, apecCity, drones, lightShow,
+        summit, cbdProgram, programIds: cityBlocks.programIds ?? [], parkOmissions,
         elevatedRoads, metroEntrances, futian: futianStation, xili: xiliConstruction
       },
       teleport: teleportTo,
@@ -823,7 +809,7 @@ async function initApp() {
       // only draw in the shadow maps (the warm-up frame compiles those).
       if (o.userData.shadowProxy) return;
       const pipeline = o.userData.sharesPipelineWith || o;
-      if (pipelines.has(pipeline)) return;
+      if (pipelines.has(pipeline)) { qa.compileEvent(o, 'shared'); return; }
       pipelines.add(pipeline);
       if (o.isInstancedMesh || Array.isArray(o.material)) {
         jobs.push([o]);
@@ -838,6 +824,7 @@ async function initApp() {
       job.push(o);
     });
 
+    if (qa.enabled) for (const [object] of jobs) qa.compileEvent(object, 'jobs');
     await showLoadingStage(STR.startup.compiling(0, jobs.length), 'compile', false);
     renderer.setRenderTarget(scenePass.renderTarget);
     renderer.setMRT(sceneMRT);
@@ -845,10 +832,15 @@ async function initApp() {
       // Each compile starts in a task of its own: compileAsync() keeps one precompilation state on the renderer,
       // which must not be mid-step for two of them in the same microtask checkpoint
       await nextTask();
+      const started = qa.enabled ? performance.now() : 0;
+      qa.compileEvent(object, 'calls');
       try {
         await renderer.compileAsync(object, cameraSystem.camera, scene);
       } catch (e) {
+        qa.compileEvent(object, 'rejected');
         console.warn('[compile]', e); // the warm-up frame compiles it instead
+      } finally {
+        if (qa.enabled) qa.compileEvent(object, 'callMs', performance.now() - started);
       }
     };
     let next = 0;
@@ -917,6 +909,7 @@ async function initApp() {
     apecTheme.update(dt);
     apecCity.update(dt);
     drones.update(dt);
+    showSession.update(rawDt);
     lightShow.update();
     metroEntrances.update(cameraSystem.currentPos);
     futianStation?.update(cameraSystem.currentPos);
@@ -984,6 +977,7 @@ async function initApp() {
   loadingOverlay?.classList.add('hidden');
   audioSystem.ready = true;
   boot?.ready?.();
+  qa.markMilestone('ready');
 }
 
 initApp().catch(error => {

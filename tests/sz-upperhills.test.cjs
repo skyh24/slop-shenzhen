@@ -54,7 +54,9 @@ test('UpperHills geometry renders its sourced towers and separated public levels
     './iec-xiangmihu.js': {}, './super-hq.js': {}
   } });
   const { build } = upperhills;
-  const model = build(sources, geo.terrain);
+  const { createGroundSurfaceSampler } = loadModule(read('sz-ground-surface.js'));
+  const groundHeight = createGroundSurfaceSampler(geo.terrainSurface);
+  const model = build(sources, geo.terrain, { heightAt: groundHeight });
   const ground = (x, z) => terrain.terrainHeight(geo.terrain, x, z);
   const named = stem => model.filter(p => p.id.startsWith(`upperhills:${stem}`));
   const [plaza] = named('town-deck');
@@ -225,5 +227,118 @@ test('UpperHills geometry renders its sourced towers and separated public levels
       const triangles = rendered.surfaces.find(row => row.id === surface.surfaceId).triangles;
       assert.ok(triangles.flat().every(p => vertices.has(`${p.x}:${p.y}:${p.z}`)));
     }
+  });
+
+  await t.test('the west bridge meets the park crossfall and town edge within one millimetre', () => {
+    const entries = [[644.21, -1418.32], [677.18, -1419.76]];
+    const dx = entries[1][0] - entries[0][0], dz = entries[1][1] - entries[0][1];
+    const len = Math.hypot(dx, dz);
+    const westDeck = named('park-bridge:west:').filter(part => part.roofContact);
+    const westSurfaces = rendered.surfaces.filter(row => westDeck.some(part => part.id === row.id));
+    const westSupport = createSurfaceResolver({ groundHeight: () => null, surfaces: westSurfaces });
+    for (let across = -3.249; across <= 3.249; across += 0.002) {
+      // 单精度端点可能略向任一侧舍入，在端线东移 0.2 mm 后取桥高。
+      const x = entries[0][0] + (0.0002 * dx - across * dz) / len;
+      const z = entries[0][1] + (0.0002 * dz + across * dx) / len;
+      const deck = westSupport.below(x, z, 50);
+      // 正式前场采样对其走廊范围之外直接回退到同一个地面采样器。
+      assert.ok(geo.roadFrontage.corridors.every(({ bounds: [x0, z0, x1, z1] }) => x < x0 || x > x1 || z < z0 || z > z1));
+      assert.ok(Math.abs(groundHeight(x, z) - ground(x, z)) <= 0.001);
+      assert.ok(deck && Math.abs(deck.height - groundHeight(x, z)) <= 0.001, `Park seam at ${x}, ${z}`);
+    }
+    const end = westDeck.filter(part => part.id === 'upperhills:park-bridge:west:42:0' || part.id === 'upperhills:park-bridge:west:43:1');
+    const seam = end.flatMap(part => part.roofPanel.outer
+      .map((p, i) => ({ ...p, y: part.roofPanel.top[i] })).filter(p => p.x > 880));
+    assert.ok(seam.length >= 2);
+    for (const p of seam) {
+      assert.ok(Math.abs(p.x - (884 + (p.z + 1434) / 24)) <= 0.001);
+      assert.ok(Math.abs(p.y - plaza.maxY) <= 0.001);
+    }
+    const x = 887, z = -1425.3;
+    assert.equal(westSupport.below(x, z, 50), null);
+    assert.equal(support.below(x, z, 50).surfaceId, plaza.id);
+  });
+
+  await t.test('the west bridge leaves the rendered layer-zero ramp below its deck and piers', () => {
+    const { createRoadHeightSampler, createRoadSurfaceLayout } = loadModule(read('sz-roads.js'), { imports: {
+      'three/webgpu': THREE, './sz-road-material.js': {}
+    } });
+    const source = geo.roadGraph;
+    const indexes = source.metadata.map((row, i) => row.osmId === 'way/44380085' && row.layer === 0 ? i : -1).filter(i => i >= 0);
+    assert.ok(indexes.length > 0);
+    const graph = { ...source, metadata: indexes.map(i => source.metadata[i]), links: indexes.map(i => source.links[i]) };
+    const { chunks } = createRoadSurfaceLayout(graph, geo.terrainSurface);
+    const roadHeight = createRoadHeightSampler(chunks, geo.terrainSurface.grid);
+    const floor = createSurfaceResolver({ groundHeight, surfaces: rendered.surfaces });
+    const z = -1422.91034;
+    for (let x = 844.97; x <= 850.58; x += 0.4) {
+      const road = roadHeight(x, z);
+      assert.ok(Number.isFinite(road) && Math.abs(groundHeight(x, z) - road) <= 0.001);
+      assert.equal(floor.resolve(x, z, { previousY: road, previousSurfaceId: 'terrain' }).surfaceId, 'terrain');
+      const deck = floor.below(x, z, 50);
+      const part = model.find(part => part.id === deck.surfaceId);
+      assert.ok(part.id.startsWith('upperhills:park-bridge:west:') && deck.height - 1.18 - road > 15);
+      assert.equal(collision.roofPanelContactPolygon(part.roofPanel, road, road + 4.2), null);
+      assert.ok(named('park-pier:west:').every(part => !contains(part, x, z)));
+    }
+  });
+
+  await t.test('the pedestrian crosses the west bridge in both directions with live contact', () => {
+    const { ThirdPersonControllerManager } = loadModule(read('controllers.js'), { imports: {
+      ...driving,
+      'three/webgpu': THREE, './sz-city-config.js': { ISLAND_BOUNDS: { minX: 600, maxX: 960, minZ: -1455, maxZ: -1390 } },
+      './sz-controller-surfaces.js': { createSurfaceResolver }, './sz-park-arrivals.js': {}, './sz-strings.js': {},
+      './city-lighting-materials.js': {}, './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8 } } },
+      './pedestrians.js': {}, './vehicle-lights.js': {}, './building-collision.js': collision
+    } });
+    const retained = buildings.filter(b => !upperhills.sourceIds.includes(b.id)
+      && b.minX < 960 && b.maxX > 600 && b.minZ < -1390 && b.maxZ > -1455);
+    const controller = Object.create(ThirdPersonControllerManager.prototype);
+    const start = [635.975, -1418.019];
+    const y = groundHeight(...start);
+    const person = { type: 'person', position: new THREE.Vector3(start[0], y, start[1]), heading: 1.61,
+      speed: 0, verticalVel: 0, jumping: false, jumpPrep: 0, _safePosition: { x: start[0], y, z: start[1] },
+      _support: { height: y, surfaceId: 'terrain' } };
+    const surfaceResolver = createSurfaceResolver({ groundHeight, surfaces: rendered.surfaces });
+    Object.assign(controller, { activeMode: 'person', entities: { person }, keys: {}, surfaceResolver,
+      colliders: [...model.map(parts.partCollider), ...retained.flatMap(b => placement.buildingPlacement(b, geo.terrain).colliders)] });
+    function walkTo([x, z, surfaceId]) {
+      for (let frame = 0; frame < 4000; frame++) {
+        const dx = x - person.position.x, dz = z - person.position.z;
+        const distance = Math.hypot(dx, dz);
+        if (distance < 0.12) {
+          controller.keys = {};
+          for (let i = 0; i < 90; i++) controller.updatePerson(1 / 60);
+          const { x: px, y: py, z: pz } = person.position;
+          // 圆形脚印可跨两片三角形。静止时核最高实际接触点及其表面身份。
+          const top = person._support.surfaceId === 'terrain' ? surfaceResolver.below(px, pz, py + 0.02)
+            : surfaceResolver.footing(px, pz, 0.48, py - 0.02, py + 0.38);
+          assert.equal(person._support.surfaceId, top?.surfaceId);
+          if (surfaceId.startsWith('upperhills:park-bridge:west:')) {
+            assert.ok(person._support.surfaceId.startsWith('upperhills:park-bridge:west:'));
+          } else assert.equal(person._support.surfaceId, surfaceId);
+          assert.ok(Math.abs(person.position.y - top.height) <= 0.02);
+          assert.ok(Math.abs(person.position.y - person._support.height) <= 0.02);
+          return;
+        }
+        const yaw = Math.atan2(dx, dz) - person.heading;
+        const difference = Math.atan2(Math.sin(yaw), Math.cos(yaw));
+        const turn = Math.max(-1, Math.min(1, difference * 60 / 2.6));
+        Object.assign(controller.keys, { left: Math.max(0, turn), right: Math.max(0, -turn),
+          forward: Math.abs(difference) < 0.15 ? Math.min(0.7, distance * 0.35) : 0 });
+        const previousY = person.position.y;
+        controller.updatePerson(1 / 60);
+        assert.ok(Math.abs(person.position.y - previousY) <= 0.38 + 1e-5);
+      }
+      assert.fail(`The pedestrian could not reach ${x}, ${z} from ${person.position.toArray()} on ${person._support.surfaceId}`);
+    }
+    const route = [[651, -1418.62], [680, -1419.79], [715, -1420.31], [747, -1421.62], [780, -1421.99],
+      [811, -1422.38], [838, -1422.6], [871, -1423.82], [889.139, -1425.471], [938.317, -1427.542],
+      [937.741, -1445.194]];
+    const waypoints = route.map(p => [...p, surfaceResolver.below(...p, 50).surfaceId]);
+    assert.ok(waypoints.slice(0, 8).every(row => row[2].startsWith('upperhills:park-bridge:west:')));
+    assert.ok(waypoints.slice(8).every(row => row[2] === plaza.id));
+    for (const point of waypoints) walkTo(point);
+    for (const point of [...waypoints.slice(0, -1).reverse(), [...start, 'terrain']]) walkTo(point);
   });
 });

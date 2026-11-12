@@ -40,7 +40,7 @@ test('rendered Shenzhen Bay water keeps the Hong Kong pylon island and the park 
 });
 
 test('contact query reads rendered Float32 triangle positions and excludes missing surfaces', async () => {
-  const { createGroundSurfaceSampler } = await modulePromise;
+  const { createGroundSurfaceSampler, copyGroundChunksForRender } = await modulePromise;
   const surface = { version: 1, chunkSize: 25, diagonal: 'ne-sw',
     grid: { x0: 0, z0: 0, step: 25, nx: 3, nz: 2 }, chunks: [
       { id: '0,0', origin: [0, 0], positions: [0, 0, 0, 0, 20.123456, 25, 25, 10, 0],
@@ -55,8 +55,18 @@ test('contact query reads rendered Float32 triangle positions and excludes missi
   assert.equal(height(25, 0), 10, 'shared chunk border remains continuous');
   assert.equal(height(-1, 0), null);
   assert.equal(height(NaN, 0), null);
-  surface.chunks[1].kinds[0] = 4;
-  assert.throws(() => createGroundSurfaceSampler(surface), /Invalid terrain surface chunk/);
+  const renderInput = copyGroundChunksForRender(surface).next().value;
+  renderInput.positions[1] = 999;
+  renderInput.indices[0] = 2;
+  renderInput.origin[0] = 100;
+  assert.equal(createGroundSurfaceSampler(surface)(5, 10), expected);
+  const replacement = structuredClone(surface);
+  replacement.chunks[1].kinds[0] = 4;
+  assert.throws(() => createGroundSurfaceSampler(replacement), /Invalid terrain surface chunk/);
+  replacement.chunks[1].kinds[0] = 3;
+  replacement.chunks[1].positions[1] = 11;
+  assert.ok(Math.abs(createGroundSurfaceSampler(replacement)(25.5, 0) - 11.38) < 1e-9);
+  assert.equal(height(25, 0), 10);
 });
 
 test('generated clipped ground is queryable without filling a subcell lake or coastline gap', async () => {

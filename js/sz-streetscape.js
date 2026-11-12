@@ -3,6 +3,7 @@ import { color, fract, fwidth, max, min, positionWorld, smoothstep } from 'three
 import { polygonBoxOverlaps } from './building-collision.js';
 import { buildingSeed } from './sz-building-layout.js';
 import { buildSzRoads } from './sz-roads.js';
+import { buildSzGolfCourse } from './sz-golf-course.js';
 
 const PATH_STYLE = {
   footway: { color: 0x989087, jointM: 0.58, depthBias: -2 },
@@ -147,15 +148,21 @@ function findPathArrival(paths, sourceId, layer, obstacles) {
   return null;
 }
 
-export function buildSzStreetscape(scene, source, terrain, { groundHeight, roadHeight, colliders: buildings }) {
-  if (!source) return { group: null, colliders: [], arrival: null, statistics: null, update() {}, pathAt: () => [] };
+export function buildSzStreetscape(scene, source, terrain, { groundHeight, roadHeight, colliders: buildings, golfCourse }) {
+  if (!source) {
+    const golf = buildSzGolfCourse(scene, golfCourse, terrain);
+    return { group: golf?.group ?? null, colliders: [], arrival: null, statistics: null, update() {},
+      pathAt: (x, z) => golf?.pathAt(x, z) ? ['garden-path'] : [], dispose: () => golf?.dispose() };
+  }
   const group = new THREE.Group();
   group.name = 'shenzhen-pilot-streetscape';
   const layers = Object.fromEntries(Object.keys(PATH_STYLE).map(kind => {
     const paths = source.paths.filter(path => path.kind === kind);
     return [kind, paths.length ? buildPaving(group, kind, paths, terrain) : null];
   }));
-  const pathAt = (x, z) => Object.keys(layers).filter(kind => layers[kind]?.roadHeight(x, z) != null);
+  const golf = buildSzGolfCourse(group, golfCourse, terrain);
+  const pathAt = (x, z) => golf?.pathAt(x, z) ? ['garden-path']
+    : Object.keys(layers).filter(kind => layers[kind]?.roadHeight(x, z) != null);
   const trunkGeometry = new THREE.CylinderGeometry(0.19, 0.19, 3.4, TRUNK_SIDES).translate(0, 1.7, 0);
   trunkGeometry.computeBoundingBox();
   const vertices = trunkGeometry.attributes.position;
@@ -187,6 +194,7 @@ export function buildSzStreetscape(scene, source, terrain, { groundHeight, roadH
   scene.add(group);
   return { group, colliders, arrival, statistics, pathAt, update: trees.update,
     dispose() {
+      golf?.dispose();
       group.removeFromParent();
       for (const layer of Object.values(layers)) {
         layer?.dispose();
