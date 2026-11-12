@@ -19,23 +19,23 @@ const stubs = { 'three/webgpu': {}, 'three/tsl': {}, './building-collision.js': 
 const planning = loadModule(metroSource, { imports: stubs });
 const HEX_COLOUR = /^#[0-9A-F]{6}$/i;
 
-test('planMetroEntrances links verified OSM entrances to stations, names and official line colours', () => {
+test('planMetroEntrances links OSM entrances to stations, names and package line colours', () => {
   const plan = planning.planMetroEntrances(geo.metro);
   assert.ok(plan.entrances.length > 250, `linked=${plan.entrances.length}`);
   assert.ok(plan.unresolved.length < 80, `unresolved=${plan.unresolved.length}`);
   assert.deepEqual(plan, planning.planMetroEntrances(geo.metro), 'planning must be deterministic');
-  const official = new Map(geo.metro.lines.map(line => [line.ref, line.colour.toUpperCase()]));
+  const colours = new Map(geo.metro.lines.map(line => [line.ref, line.colour.toUpperCase()]));
   for (const entrance of plan.entrances) {
     assert.ok(Number.isFinite(entrance.x) && Number.isFinite(entrance.z));
     assert.ok(entrance.stationName.length > 0, `station name for ${entrance.id}`);
     assert.deepEqual([...entrance.lineRefs].sort(), [...new Set(entrance.lineRefs)].sort());
     assert.equal(entrance.lineRefs.length, entrance.colours.length);
     entrance.lineRefs.forEach((ref, index) => {
-      assert.ok(official.has(ref), `unknown line ${ref} at ${entrance.id}`);
+      assert.ok(colours.has(ref), `unknown line ${ref} at ${entrance.id}`);
       assert.match(entrance.colours[index], HEX_COLOUR);
-      assert.equal(entrance.colours[index], official.get(ref));
+      assert.equal(entrance.colours[index], colours.get(ref));
     });
-    assert.ok(['line-overlap-nearest-station', 'nearest-station', 'entrance-name']
+    assert.ok(['stop-area-route-membership', 'line-overlap-nearest-station', 'nearest-station', 'entrance-name']
       .includes(entrance.associationSource));
   }
   const ids = plan.entrances.map(entrance => entrance.id);
@@ -43,6 +43,35 @@ test('planMetroEntrances links verified OSM entrances to stations, names and off
   for (const entry of plan.unresolved) {
     assert.ok(entry.id && entry.reason, 'unresolved entry keeps identity and reason');
   }
+});
+
+test('Chegongmiao signs follow the seven packaged entrance memberships and line order', () => {
+  const stationId = 'node/5214901838';
+  const source = geo.metro.entrances.filter(entrance => entrance.stationIds.includes(stationId));
+  const signs = new Map(planning.planMetroEntrances(geo.metro).entrances.map(entrance => [entrance.id, entrance]));
+  assert.deepEqual(source.map(entrance => entrance.ref).sort(), ['A', 'B', 'C', 'D1', 'D2', 'F', 'J1']);
+  for (const entrance of source) {
+    const sign = signs.get(entrance.id);
+    assert.equal(sign.stationId, stationId);
+    assert.equal(sign.stationName, '车公庙');
+    assert.equal(sign.associationSource, 'stop-area-route-membership');
+    assert.deepEqual([sign.x, sign.z, sign.ref], [entrance.x, entrance.z, entrance.ref]);
+    assert.deepEqual([...sign.lineRefs], ['1', '7', '9', '11']);
+  }
+});
+
+test('Futian signs keep numeric exits and use their station membership beyond the distance cutoff', () => {
+  const signs = new Map(planning.planMetroEntrances(geo.metro).entrances.map(entrance => [entrance.id, entrance]));
+  for (const [id, ref] of [['node/7241991849', '2A'], ['node/7241991869', '15'], ['node/7241991867', '16']]) {
+    const source = geo.metro.entrances.find(entrance => entrance.id === id);
+    const sign = signs.get(id);
+    assert.equal(sign.stationId, 'node/6503565380');
+    assert.equal(sign.stationName, '福田');
+    assert.equal(sign.associationSource, 'stop-area-route-membership');
+    assert.deepEqual([sign.x, sign.z, sign.ref], [source.x, source.z, ref]);
+    assert.deepEqual([...sign.lineRefs], [...source.lineRefs]);
+  }
+  assert.ok(signs.get('node/7241991869').stationDistanceM > 300);
 });
 
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;

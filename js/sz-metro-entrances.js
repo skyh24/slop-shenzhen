@@ -1,5 +1,5 @@
-// 全市地铁出入口：用 OSM 已核实的出入口节点生成石基座 + 玻璃雨棚 + 站名牌。
-// 点位是实测 OSM 节点；雨棚形状、朝向和贴图为外观参数，不代表逐口实测。
+// 全市地铁出入口：按 OSM 出入口点位生成石基座、玻璃雨棚和站名牌。
+// 雨棚形状、朝向和贴图为外观估计，点位沿用 OSM。
 import * as THREE from 'three/webgpu';
 import { cameraPosition, distance, float, positionWorld, smoothstep } from 'three/tsl';
 import { polygonBoxOverlaps } from './building-collision.js';
@@ -28,6 +28,8 @@ const GLASS_COLOR = 0xb9d4e2;
 const SIGN_BACKGROUND = '#12352c';
 const SIGN_TEXT = '#f2f5f1';
 const HEX_COLOUR = /^#[0-9a-f]{6}$/i;
+const FUTIAN_METRO_STATION_ID = 'node/6503565380';
+const REVIEWED_STATION_IDS = new Set(['node/5214901838', FUTIAN_METRO_STATION_ID]);
 
 function hashSeed(text) {
   let hash = 2166136261;
@@ -42,9 +44,10 @@ function hashAngle(text) {
   return (hashSeed(text) % 360) * Math.PI / 180;
 }
 
-function exitRef(entrance) {
+function exitRef(entrance, station) {
   const raw = typeof entrance?.ref === 'string' ? entrance.ref.trim().toUpperCase() : '';
   if (raw && /^[A-Z]\d{0,2}$/.test(raw)) return raw;
+  if (station?.id === FUTIAN_METRO_STATION_ID && /^\d{1,2}[A-Z]?$/.test(raw)) return raw;
   const name = typeof entrance?.name === 'string' ? entrance.name.trim() : '';
   const fromName = /([A-Za-z]\d{0,2})\s*(?:出口|口)?\s*$/.exec(name);
   if (fromName) return fromName[1].toUpperCase();
@@ -102,13 +105,9 @@ function resolvedLines(entrance, station, lineLookup) {
   return lines.sort((a, b) => a.ref.localeCompare(b.ref, 'en'));
 }
 
-/**
- * 把 OSM 出入口关联到最近车站，并解析中文站名、出入口编号和线路色。
- * 无坐标、无站名或没有可用官方线路色的入口记为 unresolved，不进入建模。
- */
-/** 解析：把 OSM 地铁出入口关联到最近车站并解析中文站名/出口字母/官方线路色。
- *  输入：metro.entrances/stations/lines；maxStationDistanceM 默认 300 m。
- *  输出：{ entrances, unresolved }；无站名或无官方线路色的入口记 unresolved，不硬配。
+/** 解析：优先使用已复核样区的包内站点关系，其他入口沿用距离匹配。
+ *  输入：metro.entrances/stations/lines；距离匹配上限默认 300 m。
+ *  输出：{ entrances, unresolved }；无站名或无可用线路色的入口记 unresolved。
  *  来源：位置来自 OSM 节点；朝向、雨棚形状为外观估计。 */
 export function planMetroEntrances(metro, options = {}) {
   if (!Array.isArray(metro?.entrances) || !Array.isArray(metro?.stations)) {
@@ -117,6 +116,8 @@ export function planMetroEntrances(metro, options = {}) {
   const maxStationDistanceM = options.maxStationDistanceM ?? 300;
   if (!(maxStationDistanceM > 0)) throw new Error('Metro entrance station distance must be positive');
   const stations = metro.stations.filter(station => station && String(station.id ?? '') !== '');
+  const reviewedStations = new Map(stations.filter(station => REVIEWED_STATION_IDS.has(station.id) && finitePoint(station))
+    .map(station => [station.id, station]));
   const lineLookup = lineTable(metro);
   const entrances = [];
   const unresolved = [];
@@ -126,15 +127,18 @@ export function planMetroEntrances(metro, options = {}) {
       unresolved.push({ id: entrance?.id ?? '', reason: 'missing-coordinates' });
       continue;
     }
-    const match = nearestStation(entrance, stations, maxStationDistanceM);
-    const station = match?.station ?? null;
+    const sourceStation = reviewedStations.get(entrance.stationIds?.find(id => reviewedStations.has(id)));
+    const match = sourceStation ? null : nearestStation(entrance, stations, maxStationDistanceM);
+    const station = sourceStation ?? match?.station ?? null;
+    const distanceM = sourceStation ? stationDistance(entrance, sourceStation) : match?.distance;
     const stationName = station?.name?.trim() || (entrance.stationNames ?? []).find(name => typeof name === 'string' && name.trim())
       || stationNameFromEntrance(entrance);
     if (!stationName) {
       unresolved.push({ id: entrance.id, reason: 'no-station-name', x: entrance.x, z: entrance.z });
       continue;
     }
-    const lines = resolvedLines(entrance, station, lineLookup);
+    const lines = sourceStation ? [...new Set(entrance.lineRefs)].map(ref => lineLookup.get(ref)).filter(Boolean)
+      : resolvedLines(entrance, station, lineLookup);
     if (lines.length === 0) {
       unresolved.push({ id: entrance.id, reason: 'no-line-colour', x: entrance.x, z: entrance.z });
       continue;
@@ -145,10 +149,11 @@ export function planMetroEntrances(metro, options = {}) {
       z: entrance.z,
       stationId: station?.id ?? null,
       stationName,
-      stationDistanceM: match ? Math.round(match.distance * 10) / 10 : null,
-      associationSource: match ? (match.overlap ? 'line-overlap-nearest-station' : 'nearest-station')
+      stationDistanceM: distanceM === undefined ? null : Math.round(distanceM * 10) / 10,
+      associationSource: sourceStation ? 'stop-area-route-membership'
+        : match ? (match.overlap ? 'line-overlap-nearest-station' : 'nearest-station')
         : 'entrance-name',
-      ref: exitRef(entrance),
+      ref: exitRef(entrance, sourceStation),
       lineRefs: lines.map(line => line.ref),
       colours: lines.map(line => line.colour),
       positionSource: entrance.positionSource ?? 'osm-node',
@@ -421,7 +426,8 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
     const yaw = station && Number.isFinite(station.x) && Number.isFinite(station.z)
       ? Math.atan2(station.x - entrance.x, station.z - entrance.z)
       : hashAngle(entrance.id);
-    const facingSource = station ? 'nearest-station-estimate' : 'id-hash-estimate';
+    const facingSource = entrance.associationSource === 'stop-area-route-membership'
+      ? 'associated-station-estimate' : station ? 'nearest-station-estimate' : 'id-hash-estimate';
     const probes = [[0, 0], [PROBE_HALF_X_M, PROBE_HALF_Z_M], [-PROBE_HALF_X_M, PROBE_HALF_Z_M],
       [PROBE_HALF_X_M, -PROBE_HALF_Z_M], [-PROBE_HALF_X_M, -PROBE_HALF_Z_M]]
       .map(([lx, lz]) => rotatePoint(entrance.x, entrance.z, yaw, lx, lz));
@@ -461,7 +467,7 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
     heightSource: 'estimate',
     limitations: [
       'entrance positions are OSM nodes; canopy shape and facing are display estimates, not surveyed',
-      'station signs are generated from OSM station names and official route colours; no operator logo is used',
+      'station signs use station names and route colours from the city package; no operator logo is used',
       'canopy style is a generic Shenzhen-metro exit prototype, not a per-entrance surveyed design'
     ]
   };
