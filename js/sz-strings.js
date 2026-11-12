@@ -119,6 +119,10 @@ export const STR = {
   touchActions: { jump: '跳跃', ascend: '上升', descend: '下降' },
   vehicleLabels: { taxi: '深圳出租', available: '空车', taxiMark: '深圳', taxiSign: 'TAXI' },
   teleport: {
+    cocoParkApproach: 'COCO Park 一期东南门前场',
+    cocoParkApproachDetail: '福华三路北侧步行起点',
+    cocoParkEntrance: '一期东南门前场',
+    walkOnly: '仅步行模式可用',
     parkWalk: '前往有来源的园内步行区',
     parkPath: '步行抵达日出剧场步道',
     parkFlight: '飞至公园上空',

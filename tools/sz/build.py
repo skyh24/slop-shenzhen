@@ -15,6 +15,7 @@ from beihuan import apply_beihuan_sections
 from bridges import build_bridges
 from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, ROLES,
                        UPSTREAM_FAMILIES, build_buildings, ensure_globfp, load_globfp)
+from commercial_paving import cut_commercial_paving, ground_carriageway_mask
 from geo import (HONG_KONG_BOUNDARY_ID, ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local,
                  project, project_coords)
 from land import _polys, _to_local, build_land
@@ -133,6 +134,31 @@ def civic_paving(osm, spec):
                                       for item in sources.values()]), 0.1)
 
 
+def apply_commercial_carriageway(surface, manifest, graph, report):
+    masks = []
+    details = {}
+    for row in manifest['commercial']:
+        if not row.get('excludeGroundCarriageway'):
+            continue
+        outer, *holes = row['polygonWgs84']
+        parcel = Polygon(project_coords(outer), [project_coords(ring) for ring in holes])
+        if not parcel.is_valid or parcel.is_empty:
+            raise ValueError(f'Invalid reviewed commercial area: {row["osmId"]}')
+        mask, details[row['osmId']] = ground_carriageway_mask(parcel, graph)
+        masks.append(mask)
+    if not masks:
+        return surface
+
+    surface, removed = cut_commercial_paving(surface, unary_union(masks))
+    paving = report['urbanDatum']['commercialPaving']
+    paving['groundCarriagewayExclusions'] = details
+    summary = report['terrainSurface']
+    summary.update(vertices=sum(len(chunk['kinds']) for chunk in surface['chunks']),
+                   triangles=sum(len(chunk['indices']) // 3 for chunk in surface['chunks']),
+                   groundCarriagewayRemovedPavingM2=round(summary.get('groundCarriagewayRemovedPavingM2', 0) + removed, 3))
+    return surface
+
+
 def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph, sites, osm, osm_source, report,
                    manifest, civic):
     if manifest['version'] != 1 or manifest['osmSnapshotSha256'] != osm_source['sha256']:
@@ -188,7 +214,7 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
     report['urbanDatum']['civicPaving'] = {**manifest['civicPaving'], 'areaM2': round(civic.area, 2)}
     surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland,
                                     exclusions=exclusions, paving=[paving, civic])
-    return terrain, surface
+    return terrain, apply_commercial_carriageway(surface, manifest, graph, report)
 
 
 def write_city_packages(payload, report, sources, started):
@@ -262,7 +288,8 @@ def remove_civic_paving_trees(trees, report, civic):
     return len(removed)
 
 
-def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, clip, excluded, *, civic_review=False):
+def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, clip, excluded, *,
+                   civic_review=False, commercial_review=False):
     raw = gzip.decompress(OUT.read_bytes())
     validation = json.loads(VALIDATION_REPORT.read_text())
     require_matching_snapshot(raw, validation, sources)
@@ -272,6 +299,19 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
             or payload['coverage'] != [enc_poly(p) for p in getattr(clip, 'geoms', [clip])]):
         raise ValueError('Ground rebuild requires the current city origin and coverage')
 
+    previous = payload['terrainSurface']
+    manifest = json.loads(URBAN_DATUM.read_text())
+    if commercial_review:
+        if manifest['version'] != 1 or manifest['osmSnapshotSha256'] != osm_source['sha256']:
+            raise ValueError('Commercial ground needs the reviewed OSM snapshot')
+        surface = apply_commercial_carriageway(previous, manifest, payload['roadGraph'], report)
+        rebuilt = [chunk['id'] for chunk, old in zip(surface['chunks'], previous['chunks'], strict=True) if chunk is not old]
+        report['groundRebuild'] = {'basePayloadSha256': validation['payloadSha256'],
+                                   'changedSections': ['terrainSurface'], 'rebuiltChunks': rebuilt}
+        payload['terrainSurface'] = surface
+        write_city_packages(payload, report, sources, started)
+        return
+
     def polygon(rings):
         outer, *holes = rings
         shape = Polygon(ring_points(outer), [ring_points(ring) for ring in holes])
@@ -280,12 +320,10 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     def polygons(key):
         return map(polygon, payload[key])
 
-    previous = payload['terrainSurface']
     exclusions = [{**{key: value for key, value in item.items() if key not in ('areaM2', 'boundsXZ', 'polygonXZ')},
                    'poly': Polygon(item['polygonXZ'])} for item in previous.get('exclusions', [])]
     land = list(polygons('land'))
     water, green, wetland = [[{'poly': poly} for poly in polygons(key)] for key in ('water', 'green', 'wetland')]
-    manifest = json.loads(URBAN_DATUM.read_text())
     civic = civic_paving(osm, manifest['civicPaving'])
     changed = ['terrain', 'terrainSurface']
     if civic_review:
@@ -336,6 +374,8 @@ def main():
                       help='rebuild the ground pilot from the current verified payload and snapshots')
     mode.add_argument('--rebuild-civic-ground', action='store_true',
                       help='apply the reviewed Civic Square paving and Shennan median to the verified package')
+    mode.add_argument('--rebuild-commercial-ground', action='store_true',
+                      help='rebuild reviewed commercial paving chunks on the verified terrain and road graph')
     args = ap.parse_args()
 
     if args.repack_existing:
@@ -369,8 +409,9 @@ def main():
                           'boundaryInsetM': boundary_inset,
                           'areaKm2': round(clip.area / 1e6, 3)}
     print(f'osm loaded in {time.time() - t0:.1f}s', flush=True)
-    if args.rebuild_ground or args.rebuild_civic_ground:
-        rebuild_ground(args.terrain_source, sources, osm, osm_source, report, t0, clip, excluded, civic_review=args.rebuild_civic_ground)
+    if args.rebuild_ground or args.rebuild_civic_ground or args.rebuild_commercial_ground:
+        rebuild_ground(args.terrain_source, sources, osm, osm_source, report, t0, clip, excluded,
+                       civic_review=args.rebuild_civic_ground, commercial_review=args.rebuild_commercial_ground)
         return
 
     datum_manifest = json.loads(URBAN_DATUM.read_text())

@@ -5,6 +5,7 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
+from struct import pack, unpack
 import subprocess
 
 from shapely import make_valid
@@ -39,17 +40,34 @@ def pilot_core(payload):
     return unary_union([box(*row['boundsXZ']) for row in report.get('pilots', {}).values()])
 
 
-def paving_polygons(surface, extent):
+def intersecting_chunks(surface, extent):
     size = surface['chunkSize']
     for chunk in surface['chunks']:
         ox, oz = chunk['origin']
-        if not extent.intersects(box(ox, oz, ox + size, oz + size)):
-            continue
+        if extent.intersects(box(ox, oz, ox + size, oz + size)):
+            yield chunk
+
+
+def float32(value):
+    return unpack('f', pack('f', value))[0]
+
+
+def paving_polygons(surface, extent, *, batched=False):
+    for chunk in intersecting_chunks(surface, extent):
+        ox, oz = chunk['origin']
         positions, indices, kinds = chunk['positions'], chunk['indices'], chunk['kinds']
         for i in range(0, len(indices), 3):
             triangle = indices[i:i + 3]
             if len(triangle) == 3 and all(kinds[index] == 3 for index in triangle):
-                yield Polygon([(positions[index * 3] + ox, positions[index * 3 + 2] + oz) for index in triangle])
+                if batched:
+                    # ground 和 road 的默认超块网格都先量化局部坐标，再把原点烘焙到 Float32 顶点。
+                    coords = [(float32(float32(positions[index * 3]) + ox),
+                               float32(float32(positions[index * 3 + 2]) + oz)) for index in triangle]
+                else:
+                    coords = [(positions[index * 3] + ox, positions[index * 3 + 2] + oz) for index in triangle]
+                polygon = Polygon(coords)
+                if polygon.area > 0:
+                    yield polygon
 
 
 def building_polygons(buildings, extent):
@@ -71,7 +89,19 @@ def measure(parcel, core, paving, asphalt, buildings):
     }
 
 
-def audit(package, parcels):
+def asphalt_polygons(graph, surface, extent, *, batched=False):
+    relevant_surface = {**surface, 'chunks': list(intersecting_chunks(surface, extent))}
+    road_input = json.dumps({'roadGraph': graph, 'terrainSurface': relevant_surface}, separators=(',', ':'))
+    command = ['node', str(ROAD_AUDIT), json.dumps(extent.bounds)]
+    if batched:
+        command.append('--batched')
+    result = subprocess.run(command, input=road_input, capture_output=True, text=True)
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip())
+    return [polygon for triangle in json.loads(result.stdout) if (polygon := Polygon(triangle)).area > 0]
+
+
+def audit(package, parcels, *, batched=False):
     compressed = package.read_bytes()
     raw = gzip.decompress(compressed)
     payload = json.loads(raw)
@@ -80,17 +110,12 @@ def audit(package, parcels):
     whole = unary_union([parcel for _, parcel in parcels])
     extent = whole.envelope
     core = pilot_core(payload)
-    paving = unary_union(list(paving_polygons(payload['terrainSurface'], extent)))
+    paving = unary_union(list(paving_polygons(payload['terrainSurface'], extent, batched=batched)))
     relevant = paving.intersection(extent).envelope
     if relevant.is_empty:
         asphalt, buildings = Polygon(), Polygon()
     else:
-        road_result = subprocess.run(
-            ['node', str(ROAD_AUDIT), json.dumps(relevant.bounds)], input=raw, capture_output=True,
-        )
-        if road_result.returncode:
-            raise RuntimeError(road_result.stderr.decode().strip())
-        asphalt = unary_union([Polygon(triangle) for triangle in json.loads(road_result.stdout)])
+        asphalt = unary_union(asphalt_polygons(payload['roadGraph'], payload['terrainSurface'], relevant, batched=batched))
         buildings = unary_union(list(building_polygons(payload['buildings'], relevant)))
     return {
         'package': str(package),
@@ -112,19 +137,22 @@ def main():
     parser.add_argument('--package', type=Path, default=PACKAGE)
     parser.add_argument('--baseline', type=Path, help='Compare with another gzip JSON v2 package')
     parser.add_argument('--manifest', type=Path, default=MANIFEST)
+    parser.add_argument('--batched', action='store_true', help='Measure default rendered Float32 world coordinates')
     args = parser.parse_args()
     raw_manifest = args.manifest.read_bytes()
     manifest = json.loads(raw_manifest)
     parcels = source_parcels(manifest)
-    current = audit(args.package, parcels)
+    current = audit(args.package, parcels, batched=args.batched)
     result = {
         'manifestSha256': hashlib.sha256(raw_manifest).hexdigest(),
         'reviewedOsmSnapshotSha256': manifest['osmSnapshotSha256'],
         'sourceObjects': {entry['osmId']: {key: entry[key] for key in ('name', 'tag', 'sourceUrl')} for entry, _ in parcels},
         'current': current,
     }
+    if args.batched:
+        result['coordinateMode'] = 'batchedFloat32'
     if args.baseline:
-        baseline = audit(args.baseline, parcels)
+        baseline = audit(args.baseline, parcels, batched=args.batched)
         result['baseline'] = baseline
         result['deltaM2'] = {
             'parcels': {identity: {metric: area - baseline['parcels'][identity][metric] for metric, area in metrics.items()}

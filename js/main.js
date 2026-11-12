@@ -1,6 +1,6 @@
 import { STR } from './sz-strings.js';
 import { waitForFirstFrame } from './sz-startup.js';
-import { populateTeleportMenu, wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, createLocationReadout, createHudTelemetry } from './sz-ui.js';
+import { wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, createLocationReadout, createHudTelemetry } from './sz-ui.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
@@ -16,6 +16,7 @@ import { buildSzRoadPaint } from './sz-road-paint.js';
 import { createRoadBuildingClearance } from './sz-road-building-clearance.js';
 import { createSurfaceResolver } from './sz-controller-surfaces.js';
 import { buildSzStreetscape } from './sz-streetscape.js';
+import { createTeleportMenu } from './sz-coco-park-approach.js';
 import { buildSzStreetLamps } from './sz-street-lamps.js';
 import { buildSzTrees } from './sz-trees.js';
 import { buildApecTheme } from './sz-apec.js';
@@ -471,8 +472,7 @@ async function initApp() {
     car: bayParkRoad && { ...bayParkRoad, detail: STR.teleport.nearParkRoad(getLocationLabel(bayParkRoad.x, bayParkRoad.z), bayParkRoad.distance) },
     helicopter: bayPark && { ...bayPark, detail: STR.teleport.parkFlight }
   };
-  const teleportEntries = bayPark ? { ...TELEPORT_LOCATIONS, [bayPark.id]: bayPark } : TELEPORT_LOCATIONS;
-  const teleportButtons = populateTeleportMenu(teleportEntries, getLocationLabel);
+  const { entries: teleportEntries, buttons: teleportButtons, syncWalkApproach } = createTeleportMenu(TELEPORT_LOCATIONS, bayPark, getLocationLabel);
   const parkButton = teleportButtons.find(button => button.dataset.teleport === bayPark?.id);
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
   const modeSwitch = document.getElementById('mode-switch');
@@ -551,6 +551,7 @@ async function initApp() {
     const ent = controllerManager.getActiveEntity();
     if (elMode) elMode.textContent = ent.label;
     renderControlHints(mode);
+    syncWalkApproach(mode);
     if (parkButton) {
       const entry = parkArrivals[mode];
       const detail = entry?.detail ?? STR.teleport.parkUnavailable[mode];
@@ -653,7 +654,7 @@ async function initApp() {
   function teleportTo(x, z, heading, options = {}) {
     if (!inBounds(x, z)) return null;
     const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(GEO.parks, x, z) : null);
-    const destination = controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park });
+    const destination = controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park, exact: options.exact === true });
     if (!destination) return null;
     laneAssist.cancel();
     autoDrive.stop('manual');
@@ -663,7 +664,7 @@ async function initApp() {
     selectCamera('chase', true);
     const name = getLocationLabel(destination.x, destination.z);
     const area = park?.areas.find(item => item.osmId === destination.parkAreaId);
-    mapSystem.waypoint = {
+    mapSystem.waypoint = options.waypoint ?? {
       x: destination.x,
       z: destination.z,
       name: area?.name ?? name
@@ -714,7 +715,7 @@ async function initApp() {
   teleportButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       const key = btn.dataset.teleport;
-      const loc = key === bayPark?.id ? parkArrivals[controllerManager.activeMode] : TELEPORT_LOCATIONS[key];
+      const loc = key === bayPark?.id ? parkArrivals[controllerManager.activeMode] : teleportEntries[key];
       const arrived = loc && teleportTo(loc.x, loc.z, loc.heading, loc);
       if (teleportFeedback) {
         teleportFeedback.textContent = arrived ? '' : STR.map.noArrival;
