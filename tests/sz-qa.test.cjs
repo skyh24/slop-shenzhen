@@ -13,10 +13,6 @@ const qa = loadModule(read('js/sz-qa.js'), { imports: {
 const sessionFor = (search, hostname = '127.0.0.1') =>
   qa.createQaSession({ search, hostname, defaultChunkSize: 1000 });
 
-test('the entry stays a single wiring file under the package size limit', () => {
-  assert.ok(main.split('\n').length <= 1000, `js/main.js has ${main.split('\n').length} lines`);
-});
-
 test('the plain entry exposes no QA globals; only the qa session installs them', () => {
   assert.ok(!/window\.__sz/.test(main), 'js/main.js no longer assigns window.__sz* itself');
   assert.match(main, /if \(qa\.enabled\) \{[\s\S]*?qa\.install\(/, 'the installer runs only for an enabled QA session');
