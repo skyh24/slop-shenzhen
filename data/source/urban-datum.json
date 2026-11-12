@@ -115,6 +115,42 @@
   },
   "relief": [
     {
+      "osmId": "relation/10150663",
+      "name": "南山公园（大南山）",
+      "kind": "mountain",
+      "tag": {
+        "leisure": "park"
+      },
+      "sourceUrl": "https://www.openstreetmap.org/relation/10150663"
+    },
+    {
+      "osmId": "way/101317786",
+      "name": "小南山公园",
+      "kind": "mountain",
+      "tag": {
+        "leisure": "park"
+      },
+      "sourceUrl": "https://www.openstreetmap.org/way/101317786"
+    },
+    {
+      "osmId": "relation/10150661",
+      "name": "荔林公园",
+      "kind": "park",
+      "tag": {
+        "landuse": "forest"
+      },
+      "sourceUrl": "https://www.openstreetmap.org/relation/10150661"
+    },
+    {
+      "osmId": "way/742380771",
+      "name": "深圳北站中心公园",
+      "kind": "park",
+      "tag": {
+        "leisure": "park"
+      },
+      "sourceUrl": "https://www.openstreetmap.org/way/742380771"
+    },
+    {
       "osmId": "way/686377686",
       "name": "塘朗山—梅林山山脊灌丛",
       "kind": "mountain",

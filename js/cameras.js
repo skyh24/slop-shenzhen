@@ -27,7 +27,8 @@ const CAMERA_PRESETS = [
   { id: 'nonferrousTower', name: STR.cameraNames.nonferrousTower, category: 'scenic', fov: 58 },
   { id: 'iecXiangmihu', name: STR.cameraNames.iecXiangmihu, category: 'scenic', fov: 58 },
   { id: 'superHq', name: STR.cameraNames.superHq, category: 'scenic', fov: 44 },
-  { id: 'bayBridge',   name: STR.cameraNames.bayBridge, category: 'scenic', fov: 44 }
+  { id: 'bayBridge',   name: STR.cameraNames.bayBridge, category: 'scenic', fov: 44 },
+  { id: 'yanjiang', name: STR.cameraNames.yanjiang, category: 'scenic', fov: 56 }
 ];
 
 class CameraSystem {

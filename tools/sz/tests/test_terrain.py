@@ -49,6 +49,18 @@ class TerrainTests(unittest.TestCase):
         self.assertEqual(grid['processing']['verticalOffsetM'], 0)
         self.assertEqual(report['terrain']['minHeightM'], -12.3)
 
+    def test_boundary_mask_preserves_interpolation_neighbors_and_omits_interior(self):
+        class ConstantSampler:
+            def sample(self, lon, lat):
+                return 5
+        excluded = box(50, 50, 150, 150)
+        clip = box(0, 0, 150, 150).difference(excluded)
+        report = {}
+        grid = build_terrain(clip, report, sampler=ConstantSampler(), excluded=excluded)
+        self.assertEqual(grid['heights'][3 * grid['nx'] + 3], 50)
+        self.assertEqual(grid['heights'][5 * grid['nx'] + 5], 0)
+        self.assertGreater(report['terrain']['excludedSamples'], 0)
+
     def test_peak_is_preserved_and_hash_mismatch_fails(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'N22E114.hgt.gz'

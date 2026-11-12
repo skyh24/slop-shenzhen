@@ -84,3 +84,21 @@ print(json.dumps(s))`;
     }
   }
 });
+
+test('expanded city ground keeps the coastal districts, Nanshan relief and the Hong Kong exclusion', async () => {
+  const { createGroundSurfaceSampler } = await modulePromise;
+  const raw = JSON.parse(gunzipSync(readFileSync(join(root, 'js/sz-city.json.gz'))));
+  const height = createGroundSurfaceSampler(raw.terrainSurface);
+  const places = new Map(raw.landmarks.map(place => [place.id, place]));
+  for (const id of ['huangbeiling', 'shenzhen-north', 'oh-bay', 'taizi-bay']) {
+    const { x, z } = places.get(id);
+    assert.equal(height(x, z), 8, id);
+  }
+  assert.ok(height(-15964.2, 5647.6) > 180, 'Nanshan mountain relief');
+  for (const [x, z] of [[1491.5, 3798.3], [-1285.8, 6234.5], [7457.5, 2690.9]]) {
+    assert.equal(height(x, z), null);
+    const { x0, z0, step, nx, heights } = raw.terrain;
+    const index = Math.round((z - z0) / step) * nx + Math.round((x - x0) / step);
+    assert.equal(heights[index], 0, 'masked samples carry no DSM elevation');
+  }
+});

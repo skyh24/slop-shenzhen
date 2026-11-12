@@ -1,3 +1,4 @@
+import { STR } from './sz-strings.js';
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
 import { ROADS } from './sz-city-config.js';
 
@@ -254,7 +255,8 @@ function mapLayers() {
   // 全图高铁图层：只用 sites 段里已核实的站体/场地轮廓，不画没有来源的线路。
   layers.hsr = [];
   for (const station of [{ id: 'futian-station', role: 'station', name: '福田站', note: '地下高铁', underConstruction: false },
-    { id: 'xili-station', role: 'site', name: '西丽站', note: '在建', underConstruction: true }]) {
+    { id: 'xili-station', role: 'site', name: '西丽站', note: '在建', underConstruction: true },
+    { id: 'shenzhen-north', role: 'station', name: STR.hsr.north, note: STR.hsr.highSpeedRail, underConstruction: false }]) {
     const polygons = GEO.sites?.[station.id]?.[station.role]?.polygons;
     if (!Array.isArray(polygons) || polygons.length === 0) continue;
     const path = new Path2D();

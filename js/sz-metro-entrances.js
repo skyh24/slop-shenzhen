@@ -229,15 +229,16 @@ function signAtlas(entrances) {
       })) });
     }
   }
-  if (stationOrder.length > 96) throw new Error(`Metro sign atlas has ${stationOrder.length} station tiles`);
   const letterKeys = new Map();
   for (const entrance of entrances) if (entrance.ref && !letterKeys.has(entrance.ref)) letterKeys.set(entrance.ref, letterKeys.size + 1);
-  if (letterKeys.size > 128) throw new Error(`Metro sign atlas has ${letterKeys.size} exit badges`);
   const columns = 8;
   const stationRows = Math.max(1, Math.ceil(stationOrder.length / columns));
   const width = 2048;
-  const height = 1024;
   const stationRegionHeight = stationRows * 64;
+  const badgeRows = Math.ceil(letterKeys.size / (width / 64));
+  const height = Math.max(1024, 2 ** Math.ceil(Math.log2(stationRegionHeight + badgeRows * 64)));
+  // WebGPU 的最低纹理维度上限为 8192，按实际行数扩展并保留现有 UV 布局。
+  if (height > 8192) throw new Error(`Metro sign atlas exceeds supported dimensions: ${width} × ${height}`);
   const texture = canvasTexture(width, height, (context) => {
     context.fillStyle = '#000000';
     context.fillRect(0, 0, width, height);

@@ -346,7 +346,8 @@ test('Chunjian site gate stands on the plaza edge and the paving reaches its ope
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 test('Chunjian rendered hall roof shields the exact ground raycast cut', { skip: !threeDir }, async () => {
   const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
-  const imports = { 'three/webgpu': THREE };
+  const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
+  const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
   const { buildSzGround } = loadModule(read('sz-ground.js'), { imports: { ...imports, './sz-ground-surface.js': groundSurface } });
   const { renderLandmark } = loadModule(read('sz-landmarks/render.js'), { imports: {
     ...imports, '../sz-geometry.js': loadModule(read('sz-geometry.js'), { imports })

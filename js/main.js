@@ -24,7 +24,7 @@ import { gatePoint, gateYaw, gateDeckY, flowerSeaAnchor, flowerSeaDeckY } from '
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
-import { buildShenzhenBayBridge } from './sz-landmarks/shenzhen-bay-bridge.js';
+import { buildShenzhenBayBridge, buildYanjiangExpressway } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { buildSzElevatedRoads } from './sz-elevated-roads.js';
 import { planSzTunnels } from './sz-tunnels.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
@@ -199,6 +199,7 @@ async function initApp() {
   await showLoadingStage(STR.startup.landmarks, 'landmarks');
   const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, site));
   const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
+  const yanjiang = buildYanjiangExpressway(scene, GEO.yanjiangExpressway);
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
   const cityBlocks = qa.stage('blocks', () =>
@@ -378,7 +379,7 @@ async function initApp() {
     // 每类静态分块共用材质和顶点布局，预编译其中一块即可。
     for (const chunk of chunks) chunk.userData.sharesPipelineWith = first;
   }
-  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, streetscape.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
+  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, yanjiang, streetscape.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
     futianStation?.group, xiliConstruction?.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [
@@ -439,8 +440,11 @@ async function initApp() {
   // 6. Wire UI Controls (Strictly using safe DOM APIs: textContent, classList, addEventListener)
   const modeButtons = document.querySelectorAll('[data-mode]');
   const cameraButtons = document.querySelectorAll('[data-camera]');
-  const cameraPresets = CAMERA_PRESETS.filter(preset => preset.id !== 'bayBridge' || bridge.group);
-  document.getElementById('cam-bayBridge')?.toggleAttribute('hidden', !bridge.group);
+  const scenicAvailability = { bayBridge: Boolean(bridge.group), yanjiang: Boolean(yanjiang) };
+  const cameraPresets = CAMERA_PRESETS.filter(preset => scenicAvailability[preset.id] !== false);
+  for (const [id, available] of Object.entries(scenicAvailability)) {
+    document.getElementById(`cam-${id}`)?.toggleAttribute('hidden', !available);
+  }
   const timeButtons = document.querySelectorAll('[data-time]');
   const bayPark = LANDMARK_SITES['shenzhen-bay-park'];
   const bayParkSource = GEO.parks.find(park => park.id === bayPark?.id);

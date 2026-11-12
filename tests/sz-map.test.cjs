@@ -25,7 +25,8 @@ function fixture(roads = []) {
     },
     sites: {
       'futian-station': { station: { polygons: [{ outer: [{ x: 10, z: 10 }, { x: 40, z: 10 }, { x: 40, z: 40 }, { x: 10, z: 40 }], holes: [] }] } },
-      'xili-station': { site: { polygons: [{ outer: [{ x: 55, z: 55 }, { x: 90, z: 55 }, { x: 90, z: 90 }, { x: 55, z: 90 }], holes: [] }] } }
+      'xili-station': { site: { polygons: [{ outer: [{ x: 55, z: 55 }, { x: 90, z: 55 }, { x: 90, z: 90 }, { x: 55, z: 90 }], holes: [] }] } },
+      'shenzhen-north': { station: { polygons: [{ outer: [{ x: 25, z: 55 }, { x: 40, z: 55 }, { x: 40, z: 70 }, { x: 25, z: 70 }], holes: [] }] } }
     }
   };
   const context = vm.createContext({ Path2D, GEO, REAL_BUILDINGS: [], ROADS: roads, console, performance: { now: () => 0 },
@@ -33,6 +34,7 @@ function fixture(roads = []) {
     getLocationLabel: () => 'location', isTypingInField: () => false,
     STR: { map: { counts:()=>'', searchPlaceholder:'',teleportHint:x=>x,playerLocation:x=>x,
       clickHint: 'Click to teleport', touchHint: 'Tap to teleport', roadInitials: { 深南大道: 'sndd' }, landmarkInitials: {} },
+      hsr: { north: '深圳北站', highSpeedRail: '高铁' },
       drive: { mapHint: 'Click to pick route endpoints', touchHint: 'Tap to pick route endpoints' } },
     document: { getElementById:()=>null,addEventListener(){} }, window:{ addEventListener(){} } });
   for (const name of ['sz-map-layers.js','sz-map.js']) {
@@ -53,6 +55,16 @@ test('map search and viewport retain source coordinates', () => {
   const point=map.screenToWorld(600,400,1200,800);
   assert.equal(point.x,20); assert.equal(point.z,30);
   map.search('Landmark'); assert.equal(map.viewCenterX,10);
+});
+
+test('the expanded map fits inside a narrow viewport', () => {
+  const { context, map } = fixture();
+  Object.assign(context.ISLAND_BOUNDS, { minX: -19185, maxX: 9001, minZ: -8496, maxZ: 8783 });
+  map.fullCanvas = { width: 390, height: 730 };
+  const fit = map.fullExtentZoom();
+  assert.ok(fit < 0.015);
+  assert.ok(28186 * fit < 390 && 17279 * fit < 730);
+  assert.equal(map.minViewZoom(), fit);
 });
 
 test('a documented pinyin alias highlights source road geometry', () => {
@@ -129,7 +141,8 @@ test('HSR layer draws only verified station footprints and stays off by default'
   map.drawWorld(ctx, view, false);
   assert.ok(strokes.includes('#6f93c9'), 'rail station outlines use the rail colour');
   const layers = vm.runInContext('mapLayers()', context);
-  assert.equal(layers.hsr.length, 2);
+  assert.equal(layers.hsr.length, 3);
+  assert.equal(layers.hsr.find(station => station.id === 'shenzhen-north').name, '深圳北站');
   assert.equal(layers.hsr.find(station => station.id === 'xili-station').underConstruction, true);
   assert.equal(layers.hsr.find(station => station.id === 'futian-station').underConstruction, false);
 });

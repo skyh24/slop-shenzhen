@@ -16,7 +16,7 @@ from shapely.ops import transform, unary_union
 from shapely.validation import make_valid
 
 from building_parent_review import apply_reviewed_building_parent_uses
-from geo import project
+from geo import LEGACY_PHASE1_BOXES, phase1_clip_local, project
 from package_validation import verify_sources
 from roads import CLASS_OF, DEFAULT_WIDTH, LANE_WIDTH
 
@@ -420,7 +420,7 @@ def ensure_globfp(sources, use_cache=True):
     return target
 
 
-def load_globfp(clip_local, report, path=None):
+def load_globfp(clip_local, report, path=None, *, identities=None):
     if path is None:
         path = ensure_globfp({source['id']: source for source in verify_sources(source_ids=GLOBFP_SHP)})
     manifest = json.loads(FOOTPRINT_REVIEWS.read_text())
@@ -428,6 +428,8 @@ def load_globfp(clip_local, report, path=None):
         raise ValueError('Unsupported building footprint review version')
     reviews = [entry for entry in manifest['globfpExclusions']
                if _to_local(box(*entry['bboxWgs84'])).intersects(clip_local)]
+    legacy_clip = phase1_clip_local(LEGACY_PHASE1_BOXES)
+    legacy_index = 0
     polys, heights = [], []
     excluded = set()
     audit = []
@@ -441,6 +443,11 @@ def load_globfp(clip_local, report, path=None):
             g = rec['g']
             geographic = shape(json.loads(g) if isinstance(g, str) else g)
             geom = _to_local(geographic)
+            parts = list(_polygons(geom))
+            legacy = geom.intersects(legacy_clip)
+            legacy_start = legacy_index
+            if legacy:
+                legacy_index += len(parts)
             if not geom.intersects(clip_local):
                 continue
             fid = rec.get('OGC_FID')
@@ -453,17 +460,25 @@ def load_globfp(clip_local, report, path=None):
                 if identity in matched or abs(h - review['rawHeightM']) > 1e-3:
                     raise ValueError(f'Reviewed GloBFP footprint has conflicting source records: {identity}')
                 matched.add(identity)
-            for p in _polygons(geom):
+            for part_index, p in enumerate(parts):
                 index = len(polys)
+                if legacy:
+                    building_id = f'globfp/{legacy_start + part_index}'
+                elif tile is not None and fid is not None:
+                    building_id = f'globfp/{tile}/{fid}/{part_index}'
+                else:
+                    building_id = f'globfp/extension/{index}'
                 polys.append(p)
                 heights.append(float(h))
+                if identities is not None:
+                    identities.append(building_id)
                 # 保留源序号。排除项同时退出补充楼体和其他楼的高度回填。
                 if review:
                     excluded.add(index)
                     match = 'legacy-bounds-and-height' if fid is None else 'source-fid-and-bounds'
                     if tile is not None and fid is not None:
                         match = 'source-tile-fid-and-bounds'
-                    audit.append({**review, 'id': f'globfp/{index}', 'heightSource': 'globfp',
+                    audit.append({**review, 'id': building_id, 'heightSource': 'globfp',
                                   'match': match})
     missing = {(entry['sourceId'], entry['sourceFid']) for entry in reviews} - matched
     if missing:
@@ -768,7 +783,8 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
                     overture_candidates.append(record)
     report['overtureDuplicates'] = duplicates
 
-    gb_polys, gb_heights, gb_excluded = load_globfp(clip_local, report, globfp_path)
+    gb_identities = []
+    gb_polys, gb_heights, gb_excluded = load_globfp(clip_local, report, globfp_path, identities=gb_identities)
     gb_tree = STRtree(gb_polys)
     report['globfpCandidates'] = len(gb_polys)
 
@@ -788,7 +804,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
         if clipped.area < 30:
             continue
         gb_candidates.append({
-            'id': f'globfp/{i}', 'geom': clipped, 'src': 'globfp', 'kind': None,
+            'id': gb_identities[i], 'geom': clipped, 'src': 'globfp', 'kind': None,
             'gbHeight': gb_heights[i], 'minHeight': 0.0, 'name': None, 'isPart': False,
         })
     # 只对 GloBFP 补充路径做误识别过滤；广场设施、车棚等不能生成楼体，全部列进构建报告

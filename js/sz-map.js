@@ -108,7 +108,7 @@ class NYCMapSystem {
     }
     if (zoomOutBtn) {
       zoomOutBtn.addEventListener('click', () => {
-        this.viewZoom = Math.max(MIN_ZOOM, this.viewZoom / 1.45);
+        this.viewZoom = Math.max(this.minViewZoom(), this.viewZoom / 1.45);
         this.renderFullMap();
       });
     }
@@ -123,12 +123,10 @@ class NYCMapSystem {
     }
     if (fullIslandBtn) {
       fullIslandBtn.addEventListener('click', () => {
-
         const b = ISLAND_BOUNDS;
-        const { w, h } = this.fullSize();
         this.viewCenterX = (b.minX + b.maxX) * 0.5;
         this.viewCenterZ = (b.minZ + b.maxZ) * 0.5;
-        this.viewZoom = Math.max(MIN_ZOOM, Math.min(w / ((b.maxX - b.minX) * 1.15), h / ((b.maxZ - b.minZ) * 1.06)));
+        this.viewZoom = this.fullExtentZoom();
         this.renderFullMap();
       });
     }
@@ -249,7 +247,7 @@ class NYCMapSystem {
         const my = e.clientY - rect.top;
         const before = this.screenToWorld(mx, my, rect.width, rect.height);
         const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
-        this.viewZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.viewZoom * factor));
+        this.viewZoom = Math.max(this.minViewZoom(), Math.min(MAX_ZOOM, this.viewZoom * factor));
         this.viewCenterX = before.x - (mx - rect.width * 0.5) / this.viewZoom;
         this.viewCenterZ = before.z - (my - rect.height * 0.5) / this.viewZoom;
         this.renderFullMap();
@@ -452,6 +450,16 @@ class NYCMapSystem {
     const dpr = this.fullDpr || 1;
     if (!this.fullCanvas) return { w: 1200, h: 800 };
     return { w: this.fullCanvas.width / dpr, h: this.fullCanvas.height / dpr };
+  }
+
+  fullExtentZoom() {
+    const { minX, maxX, minZ, maxZ } = ISLAND_BOUNDS;
+    const { w, h } = this.fullSize();
+    return Math.min(w / ((maxX - minX) * 1.24), h / ((maxZ - minZ) * 1.06), MAX_ZOOM);
+  }
+
+  minViewZoom() {
+    return Math.min(MIN_ZOOM, this.fullExtentZoom());
   }
 
   screenToWorld(sx, sy, width, height) {

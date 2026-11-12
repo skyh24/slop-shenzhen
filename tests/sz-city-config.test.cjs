@@ -103,7 +103,7 @@ test('signals keep the original cycle and shortcuts ignore text editors', async 
   assert.throws(() => streetZ(37), /unavailable in Shenzhen/);
 });
 
-test('current real city provides source-derived civic arrival and phase-one teleport candidates', async () => {
+test('expanded city provides source-derived arrivals and rejects Hong Kong ground destinations', async () => {
   const { createCityConfig } = await modulePromise;
   const { decodeCityPayload } = await import(uri(source('js/sz-data-format.js')));
   const raw = JSON.parse(gunzipSync(readFileSync(join(root, 'js/sz-city.json.gz'))));
@@ -116,5 +116,6 @@ test('current real city provides source-derived civic arrival and phase-one tele
   assert.ok(city.TELEPORT_LOCATIONS['ping-an']);
   assert.ok(city.TELEPORT_LOCATIONS['tencent-binhai']);
   assert.equal(city.districtAt(0, 0), null);
-  assert.equal(city.getLocationInfo(0, -3000).kind, 'outside');
+  assert.equal(city.getLocationInfo(0, -3000).kind, 'land');
+  assert.equal(city.getLocationInfo(1491.5, 3798.3).kind, 'outside');
 });

@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 
 import numpy as np
+from shapely import intersects_xy
 
 from geo import KX, KY, ORIGIN_LAT, ORIGIN_LON
 from copernicus import CopernicusSampler
@@ -57,7 +58,7 @@ class HgtSampler:
         return height
 
 
-def build_terrain(clip, report, sampler=None, step=25, source='copernicus'):
+def build_terrain(clip, report, sampler=None, step=25, source='copernicus', *, excluded=None):
     if step <= 0 or not math.isfinite(step):
         raise ValueError('Terrain step must be finite and positive')
     if sampler is None:
@@ -75,10 +76,17 @@ def build_terrain(clip, report, sampler=None, step=25, source='copernicus'):
     x0, z0 = math.floor(minx / step) * step, math.floor(minz / step) * step
     nx, nz = math.ceil((maxx - x0) / step) + 1, math.ceil((maxz - z0) / step) + 1
     values = []
-    # 保留完整包围盒的原始高程，陆地/水体裁切属于渲染，不改高程数据。
+    # 边界内侧保留一个插值单元的邻点。矩形网格其余被排除点以 0 占位，不生成地面。
+    skipped = None
+    if excluded is not None:
+        x, z = np.meshgrid(x0 + np.arange(nx) * step, z0 + np.arange(nz) * step)
+        skipped = intersects_xy(excluded.difference(clip.buffer(math.sqrt(2) * step)), x, z)
     for j in range(nz):
         lat = ORIGIN_LAT - (z0 + j * step) / KY
         for i in range(nx):
+            if skipped is not None and skipped[j, i]:
+                values.append(0)
+                continue
             lon = ORIGIN_LON + (x0 + i * step) / KX
             height = sampler.sample(lon, lat)
             if not math.isfinite(height):
@@ -101,6 +109,8 @@ def build_terrain(clip, report, sampler=None, step=25, source='copernicus'):
                        'voidPolicy': 'fail-build',
                        'coverage': 'full bounding rectangle; render with separate land and water polygons'},
     }
+    if skipped is not None:
+        terrain['processing']['coverage'] = 'bounding grid with Hong Kong interior masked; outside points store zero placeholders'
     report['terrain'] = {
         'stepM': step, 'samples': nx * nz, 'nonzeroSamples': sum(v != 0 for v in values),
         'minHeightM': min(values) / 10, 'maxHeightM': max(values) / 10,
@@ -113,4 +123,6 @@ def build_terrain(clip, report, sampler=None, step=25, source='copernicus'):
                         'Terrain not yet connected to runtime surfaces or controllers',
                         'Water surface and bridge deck elevations require separate source data'],
     }
+    if skipped is not None:
+        report['terrain']['excludedSamples'] = int(skipped.sum())
     return terrain

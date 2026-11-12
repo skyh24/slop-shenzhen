@@ -15,8 +15,9 @@ from beihuan import apply_beihuan_sections
 from bridges import build_bridges
 from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, ROLES,
                        UPSTREAM_FAMILIES, build_buildings, ensure_globfp, load_globfp)
-from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project, project_coords
-from land import _polys, build_land
+from geo import (HONG_KONG_BOUNDARY_ID, ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local,
+                 project, project_coords)
+from land import _polys, _to_local, build_land
 from landmark_sites import build_landmark_sites
 from osm import read_osm
 from parks import build_parks
@@ -32,6 +33,7 @@ from road_surface import build_road_surface
 from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
+from yanjiang import build_yanjiang
 from fastpack import encode_city
 from package_validation import CORE_SOURCES, audit_payload, require_matching_snapshot, ring_points, verify_sources
 
@@ -45,7 +47,6 @@ FAST_OUT = ROOT / 'js/sz-city.szc.gz'
 VALIDATION_REPORT = ROOT / 'data/source/data-validation-report.json'
 
 FORMAT_VERSION = 2
-FAR_PAD = 30000
 
 
 def enc_ring(coords, strip_closure=True):
@@ -257,13 +258,12 @@ def remove_civic_paving_trees(trees, report, civic):
     return len(removed)
 
 
-def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, *, civic_review=False):
+def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, clip, excluded, *, civic_review=False):
     raw = gzip.decompress(OUT.read_bytes())
     validation = json.loads(VALIDATION_REPORT.read_text())
     require_matching_snapshot(raw, validation, sources)
     payload = json.loads(raw)
     report.update(json.loads(REPORT.read_text()))
-    clip = phase1_clip_local()
     if (payload['origin'] != [ORIGIN_LON, ORIGIN_LAT]
             or payload['coverage'] != [enc_poly(p) for p in getattr(clip, 'geoms', [clip])]):
         raise ValueError('Ground rebuild requires the current city origin and coverage')
@@ -305,7 +305,7 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, *,
                                                      frontage_buildings, report)
         changed += ['buildings', 'green', 'roadFrontage', 'trees']
         report['civicRebuild'] = {'removedMedianBuildings': removed_buildings, 'removedPavingTrees': removed_trees}
-    source = build_terrain(clip, report, source=terrain_source)
+    source = build_terrain(clip, report, source=terrain_source, excluded=excluded)
     terrain, surface = compile_ground(source, clip, land, water, green, wetland, exclusions,
                                       payload['roadGraph'], payload['sites'], osm, osm_source, report, manifest, civic)
     if previous['grid'] != surface['grid'] or previous['chunkSize'] != surface['chunkSize']:
@@ -351,11 +351,22 @@ def main():
 
     t0 = time.time()
     report = {'formatVersion': FORMAT_VERSION, 'origin': [ORIGIN_LON, ORIGIN_LAT], 'bbox': PHASE1_BBOX}
-    clip = phase1_clip_local()
+    envelope = phase1_clip_local()
     osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=pbf, source_sha256=osm_source['sha256'])
+    boundary = osm['hongKongBoundary']
+    if boundary is None or boundary.is_empty or not boundary.is_valid:
+        raise ValueError('The locked OSM snapshot is missing a valid Hong Kong boundary')
+    excluded = _to_local(boundary)
+    # 岸线简化与分米量化可能跨过原边线，留出小于源分辨率的内缩量。
+    boundary_inset = 1.2
+    clip = envelope.difference(excluded.buffer(boundary_inset))
+    report['coverage'] = {'excludedOsmId': f'relation/{HONG_KONG_BOUNDARY_ID}',
+                          'excludedAreaKm2': round(envelope.difference(clip).area / 1e6, 3),
+                          'boundaryInsetM': boundary_inset,
+                          'areaKm2': round(clip.area / 1e6, 3)}
     print(f'osm loaded in {time.time() - t0:.1f}s', flush=True)
     if args.rebuild_ground or args.rebuild_civic_ground:
-        rebuild_ground(args.terrain_source, sources, osm, osm_source, report, t0, civic_review=args.rebuild_civic_ground)
+        rebuild_ground(args.terrain_source, sources, osm, osm_source, report, t0, clip, excluded, civic_review=args.rebuild_civic_ground)
         return
 
     datum_manifest = json.loads(URBAN_DATUM.read_text())
@@ -367,13 +378,13 @@ def main():
     print(f'buildings: {len(buildings)} in {time.time() - t0:.1f}s', flush=True)
     land, water, wetland, green = build_land(osm, clip, buildings, report, paving=civic)
     roads = build_roads(osm, clip, report)
-    terrain = build_terrain(clip, report, source=args.terrain_source)
-    sea_surface = build_sea_surface(osm, clip, land, terrain, report)
+    terrain = build_terrain(clip, report, source=args.terrain_source, excluded=excluded)
+    sea_surface = build_sea_surface(osm, envelope, land, terrain, report)
     road_graph = build_roadgraph(osm, clip, report)
     apply_beihuan_sections(road_graph, report)
     road_graph['turnRestrictions'] = build_turn_restrictions(pbf, road_graph, report)
     landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
-    sites = build_landmark_sites(landmark_manifest, report, pbf=pbf)
+    sites = build_landmark_sites(landmark_manifest, report, pbf=pbf, area_entries=osm['buildings'])
     # 春茧两座封闭厅是已核实的地面裁除区：派生路面不得改写馆内格点，先按原始 DSM 求出并复用。
     exclusions = chunjian_exclusions(buildings, terrain, osm['roads'])
     terrain, terrain_surface = compile_ground(terrain, clip, land, water, green, wetland, exclusions,
@@ -390,8 +401,6 @@ def main():
     lm_index = {lm['id']: i for i, lm in enumerate(landmarks)}
 
     minx, minz, maxx, maxz = clip.bounds
-    # 范围外的远景地面：北、东、西三面是陆地，南面（深圳湾）保持海面
-    far_land = box(minx - FAR_PAD, minz - FAR_PAD, maxx + FAR_PAD, maxz).difference(clip)
     # 楼名去重成字符串表，运行时按索引取，避免每条记录重复存中文串。
     name_ids = {}
     names = []
@@ -418,7 +427,7 @@ def main():
                   'buildingRole': ROLES, 'upstreamFamily': UPSTREAM_FAMILIES,
                   'confidence': CONFIDENCE_LEVELS, 'roadClass': CLASSES},
         'land': [enc_poly(p) for p in land],
-        'farLand': [enc_poly(p) for p in getattr(far_land, 'geoms', [far_land])],
+        'farLand': [],
         'water': [enc_poly(w['poly']) for w in water],
         'wetland': [enc_poly(w['poly']) for w in wetland],
         'green': [enc_poly(g['poly']) for g in green],
@@ -452,6 +461,7 @@ def main():
         'parks': [{**park, 'areas': [{**area, 'polygon': enc_poly(area['polygon'])}
                                     for area in park['areas']]} for park in parks],
         'bridges': bridges,
+        'yanjiangExpressway': build_yanjiang(osm, report),
         'sites': sites,
         'air': json.loads(AIR.read_text()),
     }

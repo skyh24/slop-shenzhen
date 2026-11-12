@@ -225,6 +225,24 @@ function validateBridges(bridges, landmarkIds) {
   }
 }
 
+function validateYanjiang(expressway) {
+  if (expressway === undefined) return;
+  requireData(expressway?.source?.osmRelationId === 6371344 && expressway.source.heightSource === 'estimate'
+    && Number.isFinite(expressway.pierSpacingM) && expressway.pierSpacingM > 0
+    && Array.isArray(expressway.segments) && expressway.segments.length > 0, 'Yanjiang source');
+  for (const segment of expressway.segments) {
+    const { osmWayId, widthM, stations } = segment ?? {};
+    requireData(Number.isSafeInteger(osmWayId) && Number.isFinite(widthM) && widthM > 0
+      && Array.isArray(stations) && stations.length >= 2, 'Yanjiang bridge segment');
+    let previous = -Infinity;
+    for (const p of stations) {
+      requireData([p?.x, p?.y, p?.z, p?.stationM].every(Number.isFinite) && p.stationM > previous
+        && Number.isInteger(p.lanes) && p.lanes > 0, 'Yanjiang bridge station');
+      previous = p.stationM;
+    }
+  }
+}
+
 // 加载失败要按阶段区分给启动兜底入口：request 下载、decompress 解压或 UTF-8 解码、invalid 解析或校验。
 export class CityDataError extends Error {
   constructor(code, message) {
@@ -375,6 +393,7 @@ export function validateCityPayload(raw) {
   requireData(raw.parks === undefined || Array.isArray(raw.parks), 'parks');
   const landmarkIds = new Set(raw.landmarks.map(landmark => landmark.id));
   validateBridges(raw.bridges, landmarkIds);
+  validateYanjiang(raw.yanjiangExpressway);
   validateSeaSurface(raw.seaSurface);
   const isOsmId = id => typeof id === 'string' && /^(?:way|relation)\/\d+$/.test(id);
   for (const park of raw.parks ?? []) {
@@ -509,7 +528,7 @@ export function decodeCityPayload(raw, metrics = null) {
     roadGraph: raw.roadGraph, terrain: raw.terrain, terrainSurface: raw.terrainSurface,
     roadFrontage: raw.roadFrontage ?? null,
     metro: raw.metro, landmarks: raw.landmarks,
-    bridges: raw.bridges ?? [],
+    bridges: raw.bridges ?? [], yanjiangExpressway: raw.yanjiangExpressway ?? null,
     seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },
     streetscape: raw.streetscape ?? null,
     trees: raw.trees ?? null,

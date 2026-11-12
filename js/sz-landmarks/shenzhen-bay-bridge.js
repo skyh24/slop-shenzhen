@@ -281,3 +281,33 @@ export function buildShenzhenBayBridge(scene, bridge) {
     }
   };
 }
+
+// 沿江主线按 OSM 双幅分别成形，跨海段只挂远景几何。
+export function buildYanjiangExpressway(scene, expressway) {
+  if (!expressway) return null;
+  const concrete = new GeoBuilder();
+  const pavement = new GeoBuilder();
+  for (const { stations, widthM } of expressway.segments) {
+    const frames = bridgeFrames(stations, 'primary');
+    deckGirder(concrete, frames, widthM, 2.35);
+    addParapets(concrete, frames, widthM);
+    addRoadway(pavement, frames, widthM);
+    const length = frames.at(-1).s;
+    const intervals = Math.ceil(length / expressway.pierSpacingM);
+    for (let i = 0; i < intervals; i++) {
+      const frame = sectionAt(frames, length * (i + 0.5) / intervals);
+      addPier(concrete, frame, frame.y - 2.3, { pierWidthM: 3.8, pierDepthM: 2.7 });
+    }
+  }
+  const group = new THREE.Group();
+  group.name = 'yanjiang-expressway';
+  group.userData.source = expressway.source;
+  for (const [name, builder, color] of [['concrete', concrete, 0xb3bbb8], ['pavement', pavement, 0x3d4345]]) {
+    const material = new THREE.MeshStandardNodeMaterial({ color, roughness: 0.92 });
+    const mesh = new THREE.Mesh(builder.build(), material);
+    mesh.name = `${group.name}:${name}`;
+    group.add(mesh);
+  }
+  scene.add(group);
+  return group;
+}

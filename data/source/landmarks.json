@@ -199,6 +199,26 @@
       "sources": ["https://www.21jingji.com/article/20260602/herald/668f8304ef37b1cb76f27cf3c612ef49.html"]
     },
     {
+      "id": "huangbeiling", "name": "黄贝岭", "phase": 1,
+      "center": [22.548804, 114.131383],
+      "osm": { "metro": "node/5448623264" }, "status": "osm"
+    },
+    {
+      "id": "shenzhen-north", "name": "深圳北站", "phase": 1,
+      "center": [22.612089, 114.023992],
+      "osm": { "station": "way/1212433645" }, "status": "osm"
+    },
+    {
+      "id": "oh-bay", "name": "欢乐港湾", "phase": 1,
+      "center": [22.546311, 113.881011],
+      "osm": { "site": "way/771513760" }, "status": "osm"
+    },
+    {
+      "id": "taizi-bay", "name": "蛇口太子湾", "phase": 1,
+      "center": [22.471891, 113.908843],
+      "osm": { "terminal": "relation/12528133" }, "status": "osm"
+    },
+    {
       "id": "shenzhen-station", "name": "深圳站（罗湖）", "phase": 2,
       "center": [22.53430, 114.11210],
       "status": "todo"

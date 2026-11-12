@@ -66,8 +66,10 @@ test('buildSzMetroEntrances snaps canopies to the rendered ground and maintains 
     assert.equal(model.statistics.planned, planning.planMetroEntrances(geo.metro).entrances.length);
     assert.equal(model.statistics.placed + model.statistics.skippedTotal, model.statistics.planned);
     assert.ok(model.statistics.chunks > 0);
-    assert.ok(model.statistics.drawCallsEstimate < 150, `drawCalls=${model.statistics.drawCallsEstimate}`);
-    assert.ok(model.statistics.signAtlas.stations > 0 && model.statistics.signAtlas.badges > 0);
+    assert.equal(model.statistics.drawCallsEstimate, model.statistics.chunks * 2 + 2);
+    const atlas = model.statistics.signAtlas;
+    assert.ok(atlas.stations > 96 && atlas.badges > 0);
+    assert.ok(atlas.height >= 64 * (Math.ceil(atlas.stations / 8) + Math.ceil(atlas.badges / 32)));
 
     // 每个入口的 y 必须等于中心加四角探针的最低值，和渲染地面同一套采样器。
     for (const entrance of model.entrances) {
@@ -111,6 +113,7 @@ test('buildSzMetroEntrances snaps canopies to the rendered ground and maintains 
     assert.ok(glassChunks.every(chunk => chunk.visible === false), 'far camera hides glass chunks');
     model.update(new THREE.Vector3(0, 0, 0));
     assert.ok(glassChunks.some(chunk => chunk.visible === true), 'near camera shows glass chunks');
+    assert.ok(model.group.children.filter(child => child.visible).length < 150);
 
     const signMeshes = model.group.children.filter(child => child.name.startsWith('metro-entrance-signs-'));
     assert.equal(signMeshes.length, 2);

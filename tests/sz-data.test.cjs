@@ -225,3 +225,34 @@ test('the city payload is validated at exactly one call site', () => {
   assert.ok(calls[0].index > decodeStart,
     'the single validation call belongs to decodeCityPayload, not readCityPayload');
 });
+
+test('expanded districts expose searchable sites and the sourced western bridge segments', async () => {
+  const { decodeCityPayload, validateCityPayload } = await modulePromise;
+  const { geo } = decodeCityPayload(raw);
+  const { polygonContainsInclusive } = await import(
+    `data:text/javascript;base64,${readFileSync(join(root, 'js/sz-polygon.js')).toString('base64')}`);
+  for (const id of ['huangbeiling', 'shenzhen-north', 'oh-bay', 'taizi-bay']) {
+    const place = geo.landmarks.find(item => item.id === id && item.phase === 1);
+    assert.ok(place, id);
+    assert.ok(geo.coverage.some(poly => polygonContainsInclusive(poly, place.x, place.z)), id);
+    assert.ok(geo.land.some(poly => polygonContainsInclusive(poly, place.x, place.z)), id);
+  }
+  assert.equal(geo.sites['shenzhen-north'].station.osmId, 'way/1212433645');
+  assert.equal(geo.sites['oh-bay'].site.osmId, 'way/771513760');
+  assert.equal(geo.sites['taizi-bay'].terminal.osmId, 'relation/12528133');
+  assert.ok(geo.metro.stations.some(station => station.name === '黄贝岭' && station.lineRefs.includes('5')));
+  assert.ok(geo.metro.stations.some(station => station.name === '深圳北站' && station.lineRefs.includes('4')));
+  assert.ok(geo.metro.stations.some(station => station.name === '太子湾' && station.lineRefs.includes('12')));
+  for (const [x, z] of [[1491.5, 3798.3], [-1285.8, 6234.5], [7457.5, 2690.9]]) {
+    assert.ok(!geo.coverage.some(poly => polygonContainsInclusive(poly, x, z)));
+    assert.ok(!geo.land.some(poly => polygonContainsInclusive(poly, x, z)));
+  }
+  const expressway = geo.yanjiangExpressway;
+  assert.equal(expressway.source.osmRelationId, 6371344);
+  assert.equal(expressway.source.heightSource, 'estimate');
+  assert.ok(expressway.segments.some(segment => segment.osmWayId === 311100020));
+  assert.ok(expressway.segments.some(segment => segment.osmWayId === 596950400));
+  assert.ok(expressway.segments.reduce((sum, segment) => sum + segment.stations.at(-1).stationM, 0) > 15000);
+  assert.throws(() => validateCityPayload({ ...raw, yanjiangExpressway: { ...expressway, segments: [null] } }),
+    /Yanjiang bridge segment/);
+});

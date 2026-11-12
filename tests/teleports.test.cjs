@@ -45,9 +45,9 @@ test('teleport destinations bind the retained buttons to Shenzhen roads on the r
 test('every scenic camera exposed by the entry resolves against the Shenzhen snapshot', () => {
   const cameras = [...read('index.html').matchAll(/data-camera="([^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(cameras.slice(0, 3), ['chase', 'action', 'pov']);
-  assert.equal(cameras.length, 23);
-  assert.deepEqual(cameras.slice(-10), ['chunsunTower', 'civicRoof', 'chunjianShell',
-    'cultureSquare', 'conventionCenter', 'upperhills', 'nonferrousTower', 'iecXiangmihu', 'superHq', 'bayBridge']);
+  assert.equal(cameras.length, 24);
+  assert.deepEqual(cameras.slice(-11), ['chunsunTower', 'civicRoof', 'chunjianShell',
+    'cultureSquare', 'conventionCenter', 'upperhills', 'nonferrousTower', 'iecXiangmihu', 'superHq', 'bayBridge', 'yanjiang']);
   for (const id of cameras.slice(3)) {
     for (const elapsed of [0, 40, 120]) {
       const { position, target } = getScenicCamera(id, elapsed);
@@ -61,7 +61,8 @@ test('park arrivals retain a verified site member and require rendered ground su
   const groundHeight = createGroundSurfaceSampler(GEO.terrainSurface);
   const park = GEO.parks.find(item => item.id === 'shenzhen-bay-park');
   assert.equal(park.osmId, 'relation/8133384');
-  assert.equal(park.areas.length, 12);
+  assert.ok(park.areas.length > 12);
+  assert.ok(park.areas.some(area => area.osmId === 'way/571629065'));
   const anchor = LANDMARK_SITES[park.id];
   const supported = ({ x, z }) => Number.isFinite(groundHeight(x, z));
   const point = findParkArrival(anchor, park, 0.58, supported);

@@ -17,15 +17,20 @@ _M = _A * (1 - _E2) / (1 - _E2 * math.sin(_PHI0) ** 2) ** 1.5
 KX = math.pi / 180 * _N * math.cos(_PHI0)
 KY = math.pi / 180 * _M
 
-# 一期范围：主框加留仙洞北向延伸（经纬度）
+# 主城区和深圳北站走廊的包络。实际覆盖还需扣除锁定 OSM 快照里的香港行政范围。
 PHASE1_BOXES = [
-    (113.925, 22.495, 114.085, 22.565),
-    (113.920, 22.565, 113.960, 22.588),
+    (113.868, 22.467, 114.142, 22.574),
+    (113.920, 22.574, 114.042, 22.623),
 ]
-PHASE1_BBOX = (113.920, 22.495, 114.085, 22.588)
+# 旧版 GloBFP 的局部序号以这个范围筛选后编号，保留已有建筑的身份。
+LEGACY_PHASE1_BOXES = [(113.925, 22.495, 114.085, 22.565), (113.920, 22.565, 113.960, 22.588)]
+PHASE1_BBOX = (113.868, 22.467, 114.142, 22.623)
+HONG_KONG_BOUNDARY_ID = 20044132
+YANJIANG_ROUTE_ID = 6371344
 
-# 只用于深圳湾远景的岸线裁切，南界取锁定数据清单的南界。
-BAY_CONTEXT_BBOX = (113.915, 22.455, 114.061, 22.526)
+# 海面岸线补到西部沿江高架和深圳湾大桥视域。
+BAY_CONTEXT_BBOX = (113.840, 22.455, 114.061, 22.574)
+YANJIANG_SCENIC_BBOX = (113.842, 22.505, 113.901, 22.575)
 
 
 def project(lon, lat):
@@ -40,9 +45,9 @@ def phase1_clip_lonlat():
     return unary_union([box(*b) for b in PHASE1_BOXES])
 
 
-def phase1_clip_local():
+def phase1_clip_local(boxes=PHASE1_BOXES):
     parts = []
-    for w, s, e, n in PHASE1_BOXES:
+    for w, s, e, n in boxes:
         x0, z0 = project(w, n)
         x1, z1 = project(e, s)
         parts.append(box(x0, z0, x1, z1))

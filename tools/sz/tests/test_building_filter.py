@@ -183,8 +183,8 @@ class OsmPlazaClassificationTests(unittest.TestCase):
         self.assertFalse(_is_plaza({'highway': 'footway'}))
         self.assertFalse(_is_plaza({}))
 
-    def test_cache_version_and_place_tag_are_bumped_for_the_new_plaza_key(self):
-        self.assertEqual(CACHE_VERSION, 6)
+    def test_cache_version_includes_coverage_and_plaza_sources(self):
+        self.assertGreaterEqual(CACHE_VERSION, 7)
         self.assertIn('place', KEEP_TAGS)
 
 

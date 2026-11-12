@@ -142,7 +142,9 @@ export const STR = {
   hsr: {
     title: '高铁图层',
     futian: '福田站（地下高铁）',
-    xili: '西丽站（在建）'
+    xili: '西丽站（在建）',
+    north: '深圳北站',
+    highSpeedRail: '高铁'
   },
   drive: {
     plan: '规划驾车',
@@ -186,7 +188,8 @@ export const STR = {
     conventionCenter: '西北侧上空看会展中心', upperhills: '莲花山上空看深业上城',
     nonferrousTower: '西南侧看中国有色大厦',
     iecXiangmihu: '香蜜湖看国际交流中心', superHq: '深圳湾看超级总部双塔',
-    bayBridge: '深圳湾公园远眺大桥'
+    bayBridge: '深圳湾公园远眺大桥',
+    yanjiang: '欢乐港湾远眺沿江高速'
   },
   subtitle: 'MVP 预览 · 南山 + 福田 · APEC 2026 深圳',
   loading: '正在载入深圳……',

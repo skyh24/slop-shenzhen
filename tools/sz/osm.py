@@ -9,14 +9,14 @@ from shapely import wkb
 from shapely.geometry import LineString, Polygon, box
 from shapely.ops import unary_union
 
-from geo import BAY_CONTEXT_BBOX
+from geo import BAY_CONTEXT_BBOX, HONG_KONG_BOUNDARY_ID, YANJIANG_ROUTE_ID
 from package_validation import sha256
 
 ROOT = Path(__file__).resolve().parents[2]
 PBF = ROOT / 'data/raw/guangdong-latest.osm.pbf'
 CACHE = ROOT / 'data/raw/cache/osm-phase1.pkl'
-# 6：新增 plaza 键，旧缓存没有该键，必须重新解析，不能静默漏掉广场面。
-CACHE_VERSION = 6
+# 7：记录覆盖裁切来源和沿江高速远景路线。
+CACHE_VERSION = 7
 
 GREEN_LANDUSE = {'grass', 'forest', 'recreation_ground', 'village_green', 'meadow', 'park'}
 GREEN_LEISURE = {'park', 'garden', 'nature_reserve', 'golf_course', 'pitch'}
@@ -74,6 +74,7 @@ def read_osm(bbox, use_cache=True, *, pbf=None, source_sha256=None):
     out = {'cacheVersion': CACHE_VERSION, 'sourceSha256': source_sha256, 'bbox': bbox,
            'bayContextBbox': BAY_CONTEXT_BBOX,
            'roads': [], 'coastline': [], 'bayCoastline': [], 'shoreWetlands': [],
+           'hongKongBoundary': None, 'yanjiangRouteMembers': [], 'yanjiangBridgeWays': [],
            'buildings': [], 'water': [], 'wetland': [], 'green': [], 'plaza': []}
     # 闭合的 highway=pedestrian 面可能同时以 area 和 way 出现，按 OSM id 去重并保留面积更大的面
     plazas = {}
@@ -86,7 +87,7 @@ def read_osm(bbox, use_cache=True, *, pbf=None, source_sha256=None):
             plazas[osm_id] = {'id': osm_id, 'tags': tags, 'geom': geom}
 
     keys = ('building', 'building:part', 'highway', 'natural', 'water', 'leisure', 'landuse', 'waterway',
-            'place')
+            'place', 'boundary', 'route')
 
     fp = (osmium.FileProcessor(str(pbf))
           .with_locations()
@@ -99,6 +100,9 @@ def read_osm(bbox, use_cache=True, *, pbf=None, source_sha256=None):
 
     for obj in fp:
         if obj.is_area():
+            if (not obj.from_way() and obj.orig_id() == HONG_KONG_BOUNDARY_ID
+                    and obj.tags.get('boundary') == 'administrative' and obj.tags.get('admin_level') == '4'):
+                out['hongKongBoundary'] = wkb.loads(wkbf.create_multipolygon(obj), hex=True)
             t = _tags(obj)
             if 'waterway' in obj.tags:
                 t['waterway'] = obj.tags['waterway']
@@ -119,7 +123,10 @@ def read_osm(bbox, use_cache=True, *, pbf=None, source_sha256=None):
                 out['shoreWetlands'].append(entry)
             if kind is not None and geom.intersects(clip):
                 out[kind + 's' if kind == 'building' else kind].append(entry)
-        elif isinstance(obj, osmium.osm.Way):
+        elif obj.is_relation():
+            if obj.id == YANJIANG_ROUTE_ID and obj.tags.get('route') == 'road' and obj.tags.get('ref') == 'S3':
+                out['yanjiangRouteMembers'] = [member.ref for member in obj.members if member.type == 'w']
+        elif obj.is_way():
             hw = obj.tags.get('highway')
             coast = obj.tags.get('natural') == 'coastline'
             if not hw and not coast:
@@ -138,7 +145,11 @@ def read_osm(bbox, use_cache=True, *, pbf=None, source_sha256=None):
                     out['coastline'].append(entry)
                 if line.intersects(bay_context):
                     out['bayCoastline'].append(entry)
-            elif near_phase:
+            elif (hw == 'motorway' and obj.tags.get('ref') == 'S3'
+                  and obj.tags.get('bridge') == 'yes' and obj.tags.get('tunnel') in (None, 'no')):
+                out['yanjiangBridgeWays'].append({'id': obj.id, 'geom': LineString(coords),
+                                                  'lanes': obj.tags.get('lanes')})
+            if not coast and near_phase:
                 out['roads'].append({'id': f'way/{obj.id}', 'tags': _tags(obj), 'geom': LineString(coords),
                                      'nodeRefs': [nd.ref for nd in obj.nodes]})
                 # 部分闭合行人面不会被 osmium 面积装配器识别，这里按闭合 way 兜底收进 plaza

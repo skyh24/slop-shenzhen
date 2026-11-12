@@ -49,7 +49,7 @@ class TerrainSurfaceTests(unittest.TestCase):
             validation.write_text(json.dumps({'payloadSha256': 'stale-hash', 'sourceIntegrity': []}))
             with patch('build.OUT', base), patch('build.VALIDATION_REPORT', validation):
                 with self.assertRaisesRegex(ValueError, 'does not match its validation report'):
-                    rebuild_ground('copernicus', [], {}, {}, {}, 0)
+                    rebuild_ground('copernicus', [], {}, {}, {}, 0, None, None)
 
     def test_commercial_stone_replaces_unverified_green_without_changing_contact(self):
         terrain = grid()

@@ -11,6 +11,7 @@ import osmium
 from shapely.geometry import Polygon
 
 from geo import project
+from land import _to_local
 from osm import PBF
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -104,9 +105,17 @@ def compile_sites(landmarks, areas, requests):
     return sites, missing
 
 
-def build_landmark_sites(manifest, report, pbf=PBF):
+def build_landmark_sites(manifest, report, pbf=PBF, *, area_entries=()):
     requests = collect_requests(manifest)
     areas = read_site_areas(requests, pbf=pbf)
+    # 已经由 PBF 装配器解析的关系面可直接复用，避免重复扫描或用名称猜测。
+    for entry in area_entries:
+        kind, number = entry['id'].split('/')
+        key = (kind, int(number))
+        if key in requests and key not in areas:
+            polygons = _encode_geometry(_to_local(entry['geom']))
+            if polygons:
+                areas[key] = {'osmId': entry['id'], 'polygons': polygons}
     sites, missing = compile_sites(manifest, areas, requests)
     report['landmarkSites'] = {
         'source': SNAPSHOT,

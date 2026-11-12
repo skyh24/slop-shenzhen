@@ -63,6 +63,10 @@ export function getScenicCamera(id, elapsed = 0) {
     case 'iecXiangmihu': return { position: [-2892, 32, -330], target: [-2945, 24, -175] };
     case 'superHq': return { position: anchor('super-hq', 90, 205, 900), target: anchor('super-hq', 0, 175, 0) };
     case 'bayBridge': return bayBridgeShot();
+    case 'yanjiang': {
+      const position = anchor('oh-bay', -60, 34, 145);
+      return { position, target: [position[0] - 900, 15, position[2]] };
+    }
     default: throw new Error(`Unhandled scenic camera: ${id}`);
   }
 }
