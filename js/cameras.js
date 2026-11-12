@@ -54,8 +54,10 @@ class CameraSystem {
     this.currentLookAt = new THREE.Vector3(0, 8, 440);
     this.initialized = false;
 
-    // Follow cameras (chase / action) are smoothed relative to the followed entity, see update()
+    // 追尾和动作机位都相对当前玩家更新，避免移动时因帧间隔波动而前后窜动。
     this.followEntity = null;
+    this.followHeading = 0;
+    this.followZoom = 1;
     this.followOffset = new THREE.Vector3();
     this.followLookOffset = new THREE.Vector3();
     this.followBaseY = 0;
@@ -72,6 +74,7 @@ class CameraSystem {
     canvas.style.touchAction = 'none';
 
     canvas.addEventListener('pointerdown', (e) => {
+      if (this.activePresetId !== 'chase' && this.activePresetId !== 'pov') return;
       if (e.button !== 0 || pointers.size >= 2) return;
       // Only two touch pointers may share a gesture; mouse and pen drags stay independent.
       if (pointers.size && (e.pointerType !== 'touch' || pointers.values().next().value.type !== 'touch')) return;
@@ -95,7 +98,7 @@ class CameraSystem {
 
       if (pair) {
         const distance = Math.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y);
-        if (previousDistance > 1 && distance > 1) {
+        if (this.activePresetId === 'chase' && previousDistance > 1 && distance > 1) {
           this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier * previousDistance / distance));
         }
       } else {
@@ -123,6 +126,7 @@ class CameraSystem {
     });
 
     canvas.addEventListener('wheel', (e) => {
+      if (this.activePresetId !== 'chase') return;
       e.preventDefault();
       this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier + e.deltaY * 0.001));
     }, { passive: false });
@@ -131,6 +135,11 @@ class CameraSystem {
   setCameraPreset(presetId, snapImmediately = false) {
     const preset = CAMERA_PRESETS.find((p) => p.id === presetId);
     if (!preset) return;
+    if (this.activePresetId !== preset.id || snapImmediately) {
+      this._clearPointers();
+      this.followEntity = null;
+      if (preset.id === 'chase') this.resetOrbit();
+    }
     this.activePresetId = preset.id;
     this.camera.fov = preset.fov;
     this.camera.updateProjectionMatrix();
@@ -159,15 +168,8 @@ class CameraSystem {
   }
 
   resetForTeleport() {
-    // Arrive with a fresh chase view, without carrying a previous drive or gesture into the destination.
-    this._clearPointers();
-    this.isDragging = false;
-    this.resetOrbit();
+    // 传送和模式切换都从当前玩家正后方重新取景。
     this.smoothedSpeed = 0;
-    this.followEntity = null;
-    this.followOffset.set(0, 0, 0);
-    this.followLookOffset.set(0, 0, 0);
-    this.followBaseY = 0;
     this.setCameraPreset('chase', true);
   }
 
@@ -199,28 +201,36 @@ class CameraSystem {
     this.smoothedSpeed += (Math.abs(entity.speed) - this.smoothedSpeed) * (1 - Math.exp(-dt * 3.0));
     const speedLag = this.smoothedSpeed * 0.1;
 
-    const totalYaw = entity.heading + this.orbitYawOffset;
-
+    const k = 1 - Math.exp(-dt * 8.5);
     const preset = this.getActivePreset();
     const mode = preset.category === 'scenic' ? 'scenic' : this.activePresetId;
     switch (mode) {
       case 'chase': {
-        const dist = entity.chaseDistance * this.zoomMultiplier * (1 + Math.min(0.25, this.smoothedSpeed * 0.01));
-        const height = entity.chaseHeight * this.zoomMultiplier + Math.sin(this.orbitPitchOffset) * dist * 0.85;
+        if (!this.initialized || this.followEntity !== entity) {
+          this.followHeading = entity.heading;
+          this.followBaseY = entity.position.y;
+          this.followZoom = this.zoomMultiplier;
+        } else {
+          const turn = entity.heading - this.followHeading;
+          this.followHeading += Math.atan2(Math.sin(turn), Math.cos(turn)) * k;
+          this.followBaseY += (entity.position.y - this.followBaseY) * k;
+          this.followZoom += (this.zoomMultiplier - this.followZoom) * k;
+        }
+        const yaw = this.followHeading + this.orbitYawOffset;
+        const sinYaw = Math.sin(yaw);
+        const cosYaw = Math.cos(yaw);
+        const dist = entity.chaseDistance * this.followZoom * (1 + Math.min(0.25, this.smoothedSpeed * 0.01));
+        const height = entity.chaseHeight * this.followZoom + Math.sin(this.orbitPitchOffset) * dist * 0.85;
         const horizDist = Math.cos(this.orbitPitchOffset) * dist + speedLag;
 
+        // 直接沿环绕角度定位，避免快速拖动时插值穿过玩家。视线始终横向经过玩家。
         desiredPos.set(
-          entity.position.x - Math.sin(totalYaw) * horizDist,
-          Math.max(0.65, entity.position.y + height),
-          entity.position.z - Math.cos(totalYaw) * horizDist
+          entity.position.x - sinYaw * horizDist,
+          Math.max(0.65, this.followBaseY + height),
+          entity.position.z - cosYaw * horizDist
         );
 
-        const lookUpBias = entity.type === 'helicopter' ? 0.2 : (entity.type === 'car' ? 0.52 : 1.55);
-        desiredLook.set(
-          entity.position.x + Math.sin(entity.heading) * 5.2,
-          entity.position.y + entity.cameraTargetOffset.y + lookUpBias,
-          entity.position.z + Math.cos(entity.heading) * 5.2
-        );
+        desiredLook.set(entity.position.x, this.followBaseY + entity.cameraTargetOffset.y, entity.position.z);
         break;
       }
 
@@ -243,6 +253,7 @@ class CameraSystem {
       }
 
       case 'pov': {
+        const totalYaw = entity.heading + this.orbitYawOffset;
         let fwdOffset = 0.35;
         let eyeY = 1.68;
         if (entity.type === 'car') {
@@ -279,25 +290,19 @@ class CameraSystem {
         throw new Error(`Unhandled camera preset: ${this.activePresetId}`);
     }
 
-    if (!this.initialized || this.activePresetId === 'pov') {
+    if (!this.initialized || mode === 'pov' || mode === 'chase') {
       this.currentPos.copy(desiredPos);
       this.currentLookAt.copy(desiredLook);
       this.initialized = true;
-      this.followEntity = null; // the follow cameras re-anchor from here
-    } else if (this.activePresetId === 'chase' || this.activePresetId === 'action') {
-      // Smoothed in the followed entity's frame rather than in world space. A world-space follower trails a moving
-      // target by a distance that depends on the frame time (about speed x dt), so with uneven frame times the camera
-      // surged back and forth behind an accelerating or fast car. Relative to the entity a steady drive keeps the
-      // camera steady, while turns, orbit drags, zoom & the speed pull-back are still eased. The entity's height is
-      // eased in world space (curbs, park lawns, jumps, the helicopter climbing).
+      this.followEntity = mode === 'chase' ? entity : null;
+    } else if (mode === 'action') {
       if (this.followEntity !== entity) {
-        // preset or mode switch: start from where the camera is and glide over to the new framing
+        // 动作机位从当前画面过渡到新的侧后方取景。
         this.followEntity = entity;
         this.followBaseY = entity.position.y;
         this.followOffset.subVectors(this.currentPos, entity.position);
         this.followLookOffset.subVectors(this.currentLookAt, entity.position);
       }
-      const k = 1 - Math.exp(-dt * 8.5);
       this.followBaseY += (entity.position.y - this.followBaseY) * k;
       this.followOffset.lerp(desiredPos.sub(entity.position), k);
       this.followLookOffset.lerp(desiredLook.sub(entity.position), k);
@@ -306,7 +311,6 @@ class CameraSystem {
       this.currentPos.y = Math.max(0.55, this.currentPos.y);
     } else {
       this.followEntity = null;
-      const k = 1 - Math.exp(-dt * 8.5);
       this.currentPos.lerp(desiredPos, k);
       this.currentLookAt.lerp(desiredLook, k);
     }

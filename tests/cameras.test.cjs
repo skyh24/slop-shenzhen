@@ -202,6 +202,59 @@ test('mouse orbit and wheel zoom retain their behavior and bounds', () => {
   close(h.camera.zoomMultiplier, 2.4);
 });
 
+test('a fast chase orbit keeps its radius and looks across the player throughout the turn', () => {
+  const h = cameraHarness();
+  const { camera, entity } = h;
+  entity.heading = 1.4;
+  camera.update(1 / 60, 0);
+  const radius = Math.hypot(camera.currentPos.x - entity.position.x, camera.currentPos.z - entity.position.z);
+
+  h.pointer(h.canvas, 'pointerdown', 1, 0, 0, 'mouse');
+  for (const [i, x] of [242, 483, 966, 1208, 0].entries()) {
+    h.pointer(h.canvas, 'pointermove', 1, x, 0, 'mouse');
+    camera.update(1 / 60, (i + 1) / 60);
+    const backX = camera.currentPos.x - entity.position.x;
+    const backZ = camera.currentPos.z - entity.position.z;
+    const yaw = entity.heading - x * 0.0065;
+    close(backX, -Math.sin(yaw) * radius);
+    close(backZ, -Math.cos(yaw) * radius);
+    close(camera.currentLookAt.x, entity.position.x);
+    close(camera.currentLookAt.y, entity.position.y + entity.cameraTargetOffset.y);
+    close(camera.currentLookAt.z, entity.position.z);
+  }
+  h.pointer(h.canvas, 'pointerup', 1, 0, 0, 'mouse');
+});
+
+test('selecting chase recenters on the player and ends the previous gesture', () => {
+  const h = cameraHarness();
+  h.entity.heading = -2.3;
+  h.camera.setCameraPreset('pov', true);
+  h.pointer(h.canvas, 'pointerdown', 1, 0);
+  h.pointer(h.canvas, 'pointermove', 1, 400, 30);
+
+  h.camera.setCameraPreset('chase', true);
+  h.pointer(h.canvas, 'pointermove', 1, 500, 40);
+  h.camera.update(1 / 60, 0);
+  const x = h.camera.currentPos.x - h.entity.position.x;
+  const z = h.camera.currentPos.z - h.entity.position.z;
+  close(x * Math.cos(h.entity.heading) - z * Math.sin(h.entity.heading), 0);
+  assert.ok(x * Math.sin(h.entity.heading) + z * Math.cos(h.entity.heading) < 0);
+  assert.equal(h.captured.size, 0);
+});
+
+test('fixed presets leave canvas drags and wheel zoom inactive', () => {
+  const h = cameraHarness();
+  for (const preset of ['action', 'observatory']) {
+    h.camera.setCameraPreset(preset, true);
+    h.pointer(h.canvas, 'pointerdown', 1, 0);
+    h.pointer(h.canvas, 'pointermove', 1, 400, 30);
+    h.canvas.dispatch('wheel', { deltaY: 100, preventDefault() {} });
+    close(h.camera.orbitYawOffset, 0);
+    close(h.camera.zoomMultiplier, 1);
+    assert.equal(h.captured.size, 0);
+  }
+});
+
 for (const preset of ['chase', 'observatory', 'drone']) {
   test(`teleport after driving, orbiting and ${preset} snaps to a fresh chase view`, () => {
     const h = cameraHarness();

@@ -525,6 +525,7 @@ async function initApp() {
     if (changed) {
       autoDrive.stop('manual');
       cameraSystem.resetForTeleport();
+      selectCamera('chase');
     }
     touchControls.setMode(controllerManager.activeMode);
     gamepadControls.reset();
