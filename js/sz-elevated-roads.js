@@ -11,16 +11,52 @@ const PIER_SPACING_M = 28;
 const PIER_MIN_CLEARANCE_M = 2;
 const MAX_CHUNKS = 12;
 const EPSILON = 1e-8;
+// 护栏尺寸照武汉参考实现（0.95 m 高、0.35 m 宽）估计，不是深圳设计图尺寸。
+const BARRIER_HEIGHT_M = 0.95;
+const BARRIER_WIDTH_M = 0.35;
+// 桥面离开地面超过这个高度才加护栏；匝道落地段两侧留开口给车辆进出。
+const BARRIER_MIN_SEPARATION_M = 0.75;
 // 车行链路只接受可驾驶的估计纵坡；更陡的派生桥面是未核实断面，不接入车流/自动导航。
 export const ELEVATED_DRIVE_MAX_GRADE = 0.12;
+export const ELEVATED_BARRIER_HEIGHT_M = BARRIER_HEIGHT_M;
 
 const DEFAULT_ELEVATED_AREA = Object.freeze({ minX: -3800, maxX: -2500, minZ: 500, maxZ: 1300 });
+
+// 立交分区：只对 OSM 已有 bridge、tunnel、layer 和匝道的对象建。
+// 每个分区是一块矩形选区，用来把同一条匝道稳定归到一处立交；layer 仍只是上下关系，
+// 桥面标高按 estimated 层高派生，任何数值都不能写成实测高程。
+export const SHENZHEN_INTERCHANGES = Object.freeze([
+  Object.freeze({
+    id: 'chegongmiao',
+    name: '车公庙立交',
+    source: 'OSM 车公庙立交 trunk_link 与香蜜湖路 bridge（快照见 data/source/sources.json）',
+    area: Object.freeze({ minX: -3800, maxX: -2500, minZ: 500, maxZ: 1300 }),
+    heightSource: 'estimate'
+  }),
+  Object.freeze({
+    id: 'shennan-guangshen',
+    name: '深南广深立交',
+    // 选区取深南广深立交桥 OSM 匝道范围外扩 300 m：深南大道与京港澳高速（广深段）的喇叭形匝道都在其中。
+    source: 'OSM 深南广深立交桥 motorway_link/secondary_link bridge layer 1 与京港澳高速 bridge layer 1',
+    area: Object.freeze({ minX: -4992, maxX: -3913, minZ: 543, maxZ: 1412 }),
+    heightSource: 'estimate'
+  }),
+  Object.freeze({
+    id: 'zhuzilin',
+    name: '竹子林立交',
+    // 选区取竹子林立交桥 OSM 匝道范围外扩 300 m：滨河大道与京港澳高速（广深段）的喇叭形匝道在此交汇。
+    source: 'OSM 竹子林立交桥 primary_link bridge layer 1 与京港澳高速 bridge layer 1',
+    area: Object.freeze({ minX: -4703, maxX: -3973, minZ: 1368, maxZ: 2096 }),
+    heightSource: 'estimate'
+  })
+]);
 
 const LIMITATIONS = [
   '桥面高度按 OSM layer 每层 4.8 m 估算，没有实测纵断面或设计线形校正。',
   '匝道与地面道路共享节点处按地形高程落地，坡度为两端线性插值，不是测量坡度。',
-  '仅补齐车公庙立交范围（默认 x -3800..-2500、z 500..1300），不代表全市其余桥隧。',
+  '只建 OSM 已有 bridge、layer 和匝道来源的桥面；OSM tunnel 链路交给 sz-tunnels.js 的洞身，不摊成贴地桥面。',
   '桥墩按约 28 m 间距估计布置，只在净空大于 2 m 时设墩，墩位与基础未做地勘核实。',
+  '护栏按 0.95 m 高、0.35 m 宽的混凝土护栏估计，仅桥面离开地面 0.75 m 以上的段落连续设置；不是深圳设计图尺寸。',
   '车行链路只接受非隧道、layer>0 且派生纵坡不超过 12% 的桥面；高程未知或层间不连续的链路不接入车流和自动导航。'
 ];
 
@@ -34,6 +70,33 @@ function normalizeArea(area) {
     throw new Error('Invalid elevated road area');
   }
   return normalized;
+}
+
+// 兼容两种调用：一块矩形（旧接口）或 { interchanges: [...] }（多立交分区）。
+function normalizeInterchanges(options) {
+  if (options && Number.isFinite(options.minX)) {
+    return [{
+      id: 'default',
+      name: '自定义高架范围',
+      source: '调用方传入的矩形范围',
+      area: normalizeArea(options),
+      heightSource: 'estimate'
+    }];
+  }
+  const list = options?.interchanges ?? SHENZHEN_INTERCHANGES;
+  if (!Array.isArray(list) || list.length === 0) throw new Error('At least one interchange area is required');
+  const seen = new Set();
+  return list.map(entry => {
+    if (!entry || typeof entry.id !== 'string' || !entry.id || typeof entry.name !== 'string'
+      || !entry.name || typeof entry.source !== 'string') {
+      throw new Error('An interchange requires id, name and source');
+    }
+    if (seen.has(entry.id)) throw new Error(`Duplicate interchange id: ${entry.id}`);
+    seen.add(entry.id);
+    if (entry.heightSource !== 'estimate') throw new Error(`Interchange ${entry.id} height must stay an estimate`);
+    return { id: entry.id, name: entry.name, source: entry.source,
+      area: normalizeArea(entry.area), heightSource: 'estimate' };
+  });
 }
 
 function validateGraph(graph) {
@@ -173,6 +236,25 @@ function pushEndCap(geometry, leftTop, rightTop, bottomY, forward) {
   }
 }
 
+// 护栏的四边形按给定顺序拆两个三角形；渲染面是单面材质，护栏内外面都从这里来。
+function pushQuad(geometry, a, b, c, d) {
+  pushTriangle(geometry, a, b, c);
+  pushTriangle(geometry, a, c, d);
+}
+
+// 桥面离开地面超过阈值才设护栏，落地段两侧留开口；与武汉参考的 surface-barriers 同一口径。
+function barrierSpanOnGround(a, b, groundHeight) {
+  const separation = point => point.y - (groundHeight(point.x, point.z) ?? point.y);
+  const da = separation(a);
+  const db = separation(b);
+  if (!(Math.max(da, db) > BARRIER_MIN_SEPARATION_M)) return null;
+  const at = t => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t });
+  const crossing = (BARRIER_MIN_SEPARATION_M - da) / (db - da);
+  const from = da <= BARRIER_MIN_SEPARATION_M ? crossing : 0;
+  const to = db <= BARRIER_MIN_SEPARATION_M ? crossing : 1;
+  return [at(Math.max(0, Math.min(1, from))), at(Math.max(0, Math.min(1, to)))];
+}
+
 function pushPier(geometry, pier) {
   const { x, z, baseY, topY, half } = pier;
   const p0 = { x: x - half, z: z - half };
@@ -195,13 +277,14 @@ function pierSpacing(record) {
   return tiles;
 }
 
-/** 解析：单条高架/匝道链路 → 桥面缎带、桥墩、可站立三角面。
+/** 解析：单条高架/匝道链路 → 桥面缎带、护栏、桥墩、可站立三角面。
  *  高度：与地面道路共享的端点落地为地形；其余端点按 `layer×4.8 m` 估计，沿线线性插值，
  *        内部再用中心+两侧地形采样做下限，避免桥面埋入地面。
- *  输出：{ frames, geometry, topTriangles, piers, surfaceId, ... }；测试直接检查这些字段。 */
-function planLink(graph, link, index, metadata, groundHeight, groundNodes, area) {
+ *  显示和接触同源：桥面顶面三角面给控制器当可站立面，护栏与桥墩的接触体从同一批顶点生成。
+ *  输出：{ frames, geometry, topTriangles, barriers, BarrierColliders, PierColliders, surfaceId, ... }。 */
+function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
   const points = roadLinkPoints(graph, link);
-  if (points.length < 2 || !polylineIntersectsArea(points, area)) return null;
+  if (points.length < 2) return null;
   const length = polylineLength(points);
   if (length <= EPSILON) return null;
   const [start, end] = [link[0], link[1]];
@@ -225,7 +308,13 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, area)
   const geometry = [];
   const topTriangles = [];
   const pierRecords = [];
+  const barrierRecords = [];
+  const barrierColliders = [];
+  const pierColliders = [];
+  const surfaceId = `sz-elevated-road:${index}`;
+  const osmId = metadata.osmId ?? null;
   let areaM2 = 0;
+  let barrierLengthM = 0;
   let maxClearanceM = 0;
 
   for (const frame of frames) {
@@ -265,6 +354,66 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, area)
     pushVerticalWall(geometry, topC, topD, b.y - GIRDER_DEPTH_M, a.y - GIRDER_DEPTH_M);
   }
 
+  // 护栏与桥面共用边点：显示三角面和侧向接触体都从同一批顶点生成，桥下不设全高挡墙。
+  const barrierInward = (point, frameA, frameB, mix, side) => {
+    const nx = frameA.nx + (frameB.nx - frameA.nx) * mix;
+    const nz = frameA.nz + (frameB.nz - frameA.nz) * mix;
+    const length = Math.hypot(nx, nz) || 1;
+    const sign = side === 'left' ? -1 : 1;
+    return { x: point.x + (nx / length) * BARRIER_WIDTH_M * sign,
+      z: point.z + (nz / length) * BARRIER_WIDTH_M * sign };
+  };
+  for (let i = 1; i < frames.length; i++) {
+    const a = frames[i - 1];
+    const b = frames[i];
+    const run = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    for (const side of ['left', 'right']) {
+      const edgeA = { x: a[side].x, y: a.y, z: a[side].z };
+      const edgeB = { x: b[side].x, y: b.y, z: b[side].z };
+      const span = barrierSpanOnGround(edgeA, edgeB, groundHeight);
+      if (!span) continue;
+      const [start, end] = span;
+      const ta = Math.hypot(start.x - edgeA.x, start.z - edgeA.z) / run;
+      const tb = Math.hypot(end.x - edgeA.x, end.z - edgeA.z) / run;
+      const insetStart = barrierInward(start, a, b, ta, side);
+      const insetEnd = barrierInward(end, a, b, tb, side);
+      const startTop = { x: start.x, y: start.y + BARRIER_HEIGHT_M, z: start.z };
+      const endTop = { x: end.x, y: end.y + BARRIER_HEIGHT_M, z: end.z };
+      const insetStartTop = { x: insetStart.x, y: start.y + BARRIER_HEIGHT_M, z: insetStart.z };
+      const insetEndTop = { x: insetEnd.x, y: end.y + BARRIER_HEIGHT_M, z: insetEnd.z };
+      const startBottom = { x: start.x, y: start.y, z: start.z };
+      const endBottom = { x: end.x, y: end.y, z: end.z };
+      const insetStartBottom = { x: insetStart.x, y: start.y, z: insetStart.z };
+      const insetEndBottom = { x: insetEnd.x, y: end.y, z: insetEnd.z };
+      // 外侧面、顶面、内侧面；渲染材质是单面，护栏从桥面两侧看都要有面。
+      pushQuad(geometry, startBottom, endBottom, endTop, startTop);
+      pushQuad(geometry, startTop, endTop, insetEndTop, insetStartTop);
+      pushQuad(geometry, insetStartBottom, insetStartTop, insetEndTop, insetEndBottom);
+      const length = Math.hypot(end.x - start.x, end.z - start.z);
+      barrierLengthM += length;
+      barrierRecords.push({ side, length, startY: start.y, endY: end.y });
+      // 侧向接触体只占桥面到护栏顶这一段高度，桥下道路照常通行。
+      const minY = Math.min(start.y, end.y);
+      const maxY = Math.max(startTop.y, endTop.y);
+      barrierColliders.push({
+        type: 'elevated-barrier',
+        name: `${surfaceId}:${side}:${barrierRecords.length}`,
+        sourceId: osmId,
+        minX: Math.min(start.x, end.x, insetStart.x, insetEnd.x),
+        maxX: Math.max(start.x, end.x, insetStart.x, insetEnd.x),
+        minZ: Math.min(start.z, end.z, insetStart.z, insetEnd.z),
+        maxZ: Math.max(start.z, end.z, insetStart.z, insetEnd.z),
+        minY,
+        maxY,
+        polygon: {
+          outer: [{ x: start.x, z: start.z }, { x: end.x, z: end.z },
+            { x: insetEnd.x, z: insetEnd.z }, { x: insetStart.x, z: insetStart.z }],
+          holes: []
+        }
+      });
+    }
+  }
+
   // 端部封口让桥面板在起点和终点读成实体，不把顶面悬空。
   const first = frames[0];
   const last = frames[frames.length - 1];
@@ -285,9 +434,25 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, area)
     const pier = { x: station.x, z: station.z, baseY: terrainY, topY, half };
     pierRecords.push(pier);
     pushPier(geometry, pier);
+    // 桥墩接触体和可见墩身同一尺寸，minY 从地面起，只挡桥墩本身。
+    pierColliders.push({
+      type: 'elevated-pier',
+      name: `${surfaceId}:pier:${pierRecords.length}`,
+      sourceId: osmId,
+      minX: pier.x - half,
+      maxX: pier.x + half,
+      minZ: pier.z - half,
+      maxZ: pier.z + half,
+      minY: terrainY,
+      maxY: topY,
+      polygon: {
+        outer: [{ x: pier.x - half, z: pier.z - half }, { x: pier.x + half, z: pier.z - half },
+          { x: pier.x + half, z: pier.z + half }, { x: pier.x - half, z: pier.z + half }],
+        holes: []
+      }
+    });
   }
 
-  const osmId = metadata.osmId ?? null;
   return {
     index,
     osmId,
@@ -315,7 +480,11 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, area)
     geometry,
     topTriangles,
     piers: pierRecords,
-    surfaceId: `sz-elevated-road:${index}`
+    barriers: barrierRecords,
+    barrierLengthM,
+    barrierColliders,
+    pierColliders,
+    surfaceId
   };
 }
 
@@ -470,13 +639,21 @@ function planConnectorRamps(records) {
   return ramps;
 }
 
-/** 解析：车公庙立交高架/匝道的总计划（纯函数）。
- *  选区：bridge=true 或 |layer|>0 且与默认矩形（x -3800..-2500、z 500..1300）相交的链路；
+/** 解析：按立交分区的桥面、护栏、桥墩总计划（纯函数）。
+ *  选区：bridge=true 或 |layer|>0、与任一分区矩形相交的链路；一条链路只规划一次，
+ *        归给分区列表里第一个命中的立交，避免相邻立交重复出桥面。
  *        与地面道路重合的链路跳过（groundDuplicates）。
- *  输出：{ links, surfaces, chunks, statistics }；surface 供控制器当可站立面，chunk 供渲染。 */
-export function planElevatedRoads(graph, terrainSurface, area = DEFAULT_ELEVATED_AREA) {
+ *  输出：{ links, driveLinks, surfaces, colliders, chunks, interchanges, statistics }；
+ *        surface 供控制器当可站立面，collider 供侧向接触，chunk 供渲染。 */
+export function planElevatedRoads(graph, terrainSurface, options) {
   validateGraph(graph);
-  const bounds = normalizeArea(area);
+  const interchanges = normalizeInterchanges(options);
+  const bounds = {
+    minX: Math.min(...interchanges.map(entry => entry.area.minX)),
+    maxX: Math.max(...interchanges.map(entry => entry.area.maxX)),
+    minZ: Math.min(...interchanges.map(entry => entry.area.minZ)),
+    maxZ: Math.max(...interchanges.map(entry => entry.area.maxZ))
+  };
   const groundHeight = createGroundSurfaceSampler(terrainSurface);
   const groundNodes = new Set();
   const groundSignatures = new Set();
@@ -491,22 +668,35 @@ export function planElevatedRoads(graph, terrainSurface, area = DEFAULT_ELEVATED
   }
 
   const records = [];
+  const recordsByInterchange = new Map(interchanges.map(entry => [entry.id, []]));
   let groundDuplicates = 0;
   let skippedLinks = 0;
+  let tunnelLinks = 0;
   for (let index = 0; index < graph.links.length; index++) {
     const link = graph.links[index];
     const metadata = graph.metadata[index];
     if (!metadata || (metadata.bridge !== true && !(Math.abs(metadata.layer ?? 0) > 0))) continue;
     if (isGroundRoad(metadata)) continue;
     const points = roadLinkPoints(graph, link);
-    if (!polylineIntersectsArea(points, bounds)) continue;
+    const owner = interchanges.find(entry => polylineIntersectsArea(points, entry.area));
+    if (!owner) continue;
+    // OSM 隧道由 sz-tunnels.js 的洞身负责；这里不再把它摊成贴地桥面，避免隧道口出现假护栏。
+    if (metadata.tunnel === true) {
+      tunnelLinks++;
+      continue;
+    }
     if (groundSignatures.has(canonicalSignature(points))) {
       groundDuplicates++;
       continue;
     }
-    const record = planLink(graph, link, index, metadata, groundHeight, groundNodes, bounds);
-    if (record === null) skippedLinks++;
-    else records.push(record);
+    const record = planLink(graph, link, index, metadata, groundHeight, groundNodes);
+    if (record === null) {
+      skippedLinks++;
+      continue;
+    }
+    record.interchangeId = owner.id;
+    records.push(record);
+    recordsByInterchange.get(owner.id).push(record);
   }
 
   const connectors = planConnectorRamps(records);
@@ -547,6 +737,28 @@ export function planElevatedRoads(graph, terrainSurface, area = DEFAULT_ELEVATED
     driveSuccessors: successors.get(record.surfaceId) ?? []
   }));
   const chunks = buildChunks([...records, ...connectors]);
+  // 护栏和桥墩的接触体都来自显示几何同一批顶点；桥面本身仍只登记顶面三角面。
+  const colliders = records.flatMap(record => [...record.barrierColliders, ...record.pierColliders]);
+  const interchangeSummaries = interchanges.map(entry => {
+    const list = recordsByInterchange.get(entry.id);
+    const drive = list.filter(record => driveLinks.includes(record));
+    return {
+      id: entry.id,
+      name: entry.name,
+      source: entry.source,
+      area: entry.area,
+      heightSource: 'estimate',
+      links: list.length,
+      linkIndices: list.map(record => record.index).sort((a, b) => a - b),
+      driveLinks: drive.length,
+      deckLengthM: list.reduce((sum, record) => sum + record.lengthM, 0),
+      driveDeckLengthM: drive.reduce((sum, record) => sum + record.lengthM, 0),
+      areaM2: list.reduce((sum, record) => sum + record.areaM2, 0),
+      barrierLengthM: list.reduce((sum, record) => sum + record.barrierLengthM, 0),
+      piers: list.reduce((sum, record) => sum + record.piers.length, 0),
+      maxDeckHeightM: list.reduce((max, record) => Math.max(max, record.maxClearanceM), 0)
+    };
+  });
   const statistics = {
     links: records.length,
     connectors: connectors.length,
@@ -556,35 +768,46 @@ export function planElevatedRoads(graph, terrainSurface, area = DEFAULT_ELEVATED
     surfaces: surfaces.length,
     triangles: [...records, ...connectors].reduce((sum, record) => sum + record.geometry.length / 9, 0),
     piers: records.reduce((sum, record) => sum + record.piers.length, 0),
+    barriers: records.reduce((sum, record) => sum + record.barriers.length, 0),
+    barrierLengthM: records.reduce((sum, record) => sum + record.barrierLengthM, 0),
+    barrierColliders: colliders.filter(collider => collider.type === 'elevated-barrier').length,
+    pierColliders: colliders.filter(collider => collider.type === 'elevated-pier').length,
+    colliders: colliders.length,
+    interchanges: interchangeSummaries,
     driveLinks: driveLinks.length,
     driveDeckLengthM: driveLinks.reduce((sum, record) => sum + record.lengthM, 0),
     maxDeckHeightM: records.reduce((max, record) => Math.max(max, record.maxClearanceM), 0),
     heightSource: 'estimate',
     groundDuplicates,
     skippedLinks,
+    tunnelLinks,
     limitations: [...LIMITATIONS]
   };
 
-  return { version: 1, heightSource: 'estimate', area: bounds, links: records, driveLinks, surfaces, chunks, statistics };
+  return { version: 1, heightSource: 'estimate', area: bounds, interchanges: interchangeSummaries,
+    links: records, driveLinks, surfaces, colliders, chunks, statistics };
 }
 
-/** 解析：把高架计划建成场景：≤12 个空间分块网格 + 可站立表面。
- *  输入：roadGraph、terrainSurface（GEO 里的派生地形）。
- *  输出：{ group, meshes, surfaces, statistics, links, update, dispose }。
- *  约束：桥面高度、桥墩、连接坡道均为 estimate；不生成车辆可行驶网络。 */
-export function buildSzElevatedRoads(scene, { graph, terrainSurface, area } = {}) {
+/** 解析：把高架计划建成场景：≤12 个空间分块网格 + 可站立表面 + 侧向接触体。
+ *  输入：roadGraph、terrainSurface（GEO 里的派生地形），以及 area（旧接口）或 interchanges（多立交分区）。
+ *  输出：{ group, meshes, surfaces, colliders, interchanges, statistics, links, update, dispose }。
+ *  约束：桥面高度、护栏尺寸、桥墩间距和连接坡道均为 estimate；不导入外部模型。 */
+export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, interchanges } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('A THREE scene is required');
-  const plan = planElevatedRoads(graph, terrainSurface, area);
+  const options = area ? area : interchanges ? { interchanges } : undefined;
+  const plan = planElevatedRoads(graph, terrainSurface, options);
   // 车行网络复用渲染桥面的顶面三角面：车轮接触、自动规划和渲染桥面同源，桥下层不串到上层。
   const driveSurfaceIds = new Set(plan.driveLinks.map(record => record.surfaceId));
   const driveSurfaces = plan.surfaces.filter(surface => driveSurfaceIds.has(surface.id));
   const group = new THREE.Group();
   group.name = 'shenzhen-elevated-roads';
   // 没有纹理，沥青观感只靠颜色和粗糙度；polygonOffset 只处理与地面共面处的绘制顺序。
+  // 双面渲染让护栏的内外侧面都可见，桥面和墩身的三角面不受影响。
   const material = new THREE.MeshStandardNodeMaterial({
     color: 0x303436,
     roughness: 0.95,
     metalness: 0,
+    side: THREE.DoubleSide,
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1
@@ -610,6 +833,8 @@ export function buildSzElevatedRoads(scene, { graph, terrainSurface, area } = {}
     group,
     meshes,
     surfaces: plan.surfaces,
+    colliders: plan.colliders,
+    interchanges: plan.interchanges,
     statistics: plan.statistics,
     links: plan.links,
     drive: {

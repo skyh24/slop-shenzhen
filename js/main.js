@@ -25,6 +25,7 @@ import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js
 import { buildSzLandmarks } from './sz-landmarks/index.js';
 import { buildShenzhenBayBridge } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { buildSzElevatedRoads } from './sz-elevated-roads.js';
+import { planSzTunnels } from './sz-tunnels.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
 import { buildBuildingSigns } from './sz-building-signs.js';
 import { buildBuildingDetails } from './sz-building-details.js';
@@ -64,9 +65,8 @@ async function initApp() {
   const qa = createQaSession({ search: location.search, hostname: location.hostname, defaultChunkSize: BUILDING_RENDER_CHUNK_SIZE });
 
   // One progress bar for the whole start-up. Each stage fills a share of it sized after its typical duration (the
-  // "[init]" timings logged below, on an M1 MacBook Air; `data` is fetching the code and data before this runs, which
-  // the stylesheet animates). The fill glides through a stage as a compositor transition, so it keeps moving while the
-  // stage's synchronous work blocks the main thread, at the pace the earlier stages ran at on this machine.
+  // "[init]" timings logged below, on an M1 MacBook Air. The fill glides through a stage as a compositor transition,
+  // so it keeps moving while the stage's synchronous work blocks the main thread.
   const STAGE_MS = {
     data: 1800, renderer: 50, lighting: 60, ground: 900, roads: 1500, landmarks: 300, blocks: 2100,
     traffic: 300, controllers: 50, culling: 730, ui: 50, postFX: 60,
@@ -180,6 +180,8 @@ async function initApp() {
   // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
   const elevatedRoads = qa.stage('elevated', () =>
     buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface }));
+  // 隧道只做来源审计和待核清单：洞底在地面三角面之下且没有洞口来源，挂进场景会“看得见开不进去”。
+  site.tunnelReview = planSzTunnels(site.roadGraph, site.terrainSurface, { interchanges: elevatedRoads.interchanges, buildings: site.buildings }).reviewList;
   const roadFrontage = buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, site);
   const roadPaint = qa.stage('paint', () =>
     buildSzRoadPaint(scene, GEO.roadGraph, { ...site, intersections: roadFrontage.control.intersections }));
@@ -194,8 +196,7 @@ async function initApp() {
   const cityBlocks = qa.stage('blocks', () =>
     buildCityBlocks(scene, { skipIds: landmarks.skipIds, renderChunkSize: qa.chunkSize }));
   // 福田中心区夜景灯光秀：只给已建成普通高层加灯带，颜色/节奏为展示估计；白天隐藏。
-  // 地标源对象已由专模自己打光，排除它们，避免通高灯带按基地足迹飘出收分塔身之外；
-  // 地标外露钢架（平安 8 根巨柱）单独沿柱轴生成彩色灯带，位置上跟着钢架走。
+  // 地标源对象已由专模打光，排除它们；地标外露钢架（平安 8 根巨柱）单独沿柱轴生成灯带。
   const landmarkBands = planLandmarkBands(landmarks.colliders);
   const lightShow = qa.stage('lightshow', () =>
     buildSzLightShow(scene, { buildings: site.buildings, terrain: site.terrain,
@@ -241,7 +242,8 @@ async function initApp() {
   // 无人机航线：端点来自 air 段公开来源；航迹示意，会期低空管控时停在站点。
   const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, terrain: site.terrain }));
   const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...trees.colliders,
-    ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? [])];
+    ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? []),
+    ...elevatedRoads.colliders];
   site.colliders = colliders;
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = qa.stage('traffic', () => createSzTraffic(scene, GEO.roadGraph, {

@@ -224,7 +224,10 @@ function driveFixture() {
 test('elevated planning exposes only drivable drive links with a derived max grade', () => {
   assert.equal(elevated.ELEVATED_DRIVE_MAX_GRADE, 0.12);
   const result = elevated.planElevatedRoads(driveFixture(), surface, AREA);
-  assert.deepEqual(Array.from(result.links, link => link.index), [3, 4, 6, 7, 8, 9]);
+  assert.deepEqual(Array.from(result.links, link => link.index), [3, 4, 6, 7, 9]);
+  // 隧道链路不摊成桥面，由隧道模块建洞身；这里只记数量。
+  assert.equal(result.statistics.tunnelLinks, 1);
+  assert.ok(result.links.every(link => link.tunnel === false));
   assert.deepEqual(Array.from(result.driveLinks, link => link.index), [3, 4, 6]);
   assert.ok(result.driveLinks.every(link => result.links.includes(link)), 'drive links reuse the planned record objects');
   for (const link of result.links) {
@@ -234,10 +237,6 @@ test('elevated planning exposes only drivable drive links with a derived max gra
   const steep = result.links.find(link => link.index === 7);
   assert.ok(steep.maxGrade > elevated.ELEVATED_DRIVE_MAX_GRADE, `steep grade ${steep.maxGrade}`);
   assert.equal(result.driveLinks.includes(steep), false, 'grades above the cap stay out of the drive network');
-  const tunnel = result.links.find(link => link.index === 8);
-  assert.equal(tunnel.tunnel, true);
-  assert.ok(tunnel.layer > 0);
-  assert.equal(result.driveLinks.includes(tunnel), false, 'tunnels stay out of the drive network');
   const layerZero = result.links.find(link => link.index === 9);
   assert.equal(layerZero.layer, 0);
   assert.equal(result.driveLinks.includes(layerZero), false, 'layer 0 bridges are not drivable decks');
@@ -289,7 +288,7 @@ function fakeElevatedThree() {
     }
   }
   return { Group: FakeGroup, Mesh: FakeMesh, BufferGeometry: FakeBufferGeometry,
-    BufferAttribute: FakeBufferAttribute, MeshStandardNodeMaterial: FakeMaterial };
+    BufferAttribute: FakeBufferAttribute, MeshStandardNodeMaterial: FakeMaterial, DoubleSide: 2 };
 }
 
 test('built elevated roads expose drive surfaces and a deck height sampler on the same triangles', () => {
@@ -314,10 +313,10 @@ test('built elevated roads expose drive surfaces and a deck height sampler on th
     assert.equal(item, rendered.get(item.id), 'drive surfaces are the rendered deck surfaces');
     assert.ok(item.triangles.length > 0);
   }
-  // 隧道、layer 0 桥和陡坡的渲染表面存在，但不进入车行采样器。
-  const excluded = built.surfaces.filter(item => ['sz-elevated-road:7', 'sz-elevated-road:8', 'sz-elevated-road:9']
+  // layer 0 桥和陡坡的渲染表面存在，但不进入车行采样器；隧道交给隧道模块，不在这里出现。
+  const excluded = built.surfaces.filter(item => ['sz-elevated-road:7', 'sz-elevated-road:9']
     .includes(item.id));
-  assert.equal(excluded.length, 3);
+  assert.equal(excluded.length, 2);
   for (const item of excluded) {
     const [point] = item.triangles[0];
     assert.equal(drive.heightAt(point.x, point.z, item.id), null, `${item.id} is not drivable`);
@@ -334,6 +333,142 @@ test('built elevated roads expose drive surfaces and a deck height sampler on th
   }
 });
 
+const FIXTURE_INTERCHANGES = [{
+  id: 'fixture', name: '夹具立交', source: 'test fixture graph',
+  area: AREA, heightSource: 'estimate'
+}];
+const planOver = (graph, interchanges = FIXTURE_INTERCHANGES) =>
+  elevated.planElevatedRoads(graph, surface, { interchanges });
+
+test('interchange partitions label every planned deck with its OSM source and keep heights estimated', () => {
+  const result = planOver(driveFixture());
+  assert.equal(result.heightSource, 'estimate');
+  assert.equal(result.interchanges.length, 1);
+  const [partition] = result.interchanges;
+  assert.equal(partition.id, 'fixture');
+  assert.equal(partition.name, '夹具立交');
+  assert.equal(partition.source, 'test fixture graph');
+  assert.equal(partition.heightSource, 'estimate');
+  assert.equal(partition.links, result.links.length);
+  assert.deepEqual(Array.from(result.interchanges[0].linkIndices), Array.from(result.links, link => link.index));
+  for (const link of result.links) {
+    assert.equal(link.interchangeId, 'fixture');
+    assert.ok(Number.isFinite(link.barrierLengthM));
+  }
+  assert.deepEqual({ minX: result.area.minX, maxX: result.area.maxX, minZ: result.area.minZ, maxZ: result.area.maxZ }, AREA);
+  assert.equal(result.statistics.interchanges.length, 1);
+  assert.equal(result.statistics.heightSource, 'estimate');
+  assert.ok(elevated.SHENZHEN_INTERCHANGES.every(entry => entry.heightSource === 'estimate'));
+  assert.throws(() => elevated.planElevatedRoads(fixture(), surface, { interchanges: [] }), /interchange/i);
+  assert.throws(() => elevated.planElevatedRoads(fixture(), surface, { interchanges: [
+    { id: 'a', name: 'A', source: 's', area: AREA, heightSource: 'measured' }
+  ] }), /estimate/);
+  assert.throws(() => elevated.planElevatedRoads(fixture(), surface, { interchanges: [
+    { id: 'a', name: 'A', source: 's', area: AREA, heightSource: 'estimate' },
+    { id: 'a', name: 'B', source: 's', area: AREA, heightSource: 'estimate' }
+  ] }), /Duplicate interchange id/);
+});
+
+test('overlapping interchange areas plan a shared deck once and attribute it to the first area', () => {
+  const overlapping = [
+    { id: 'first', name: '第一分区', source: 'fixture', area: AREA, heightSource: 'estimate' },
+    { id: 'second', name: '第二分区', source: 'fixture', area: { minX: 0, maxX: 900, minZ: 0, maxZ: 900 }, heightSource: 'estimate' }
+  ];
+  const result = planOver(driveFixture(), overlapping);
+  const indices = result.links.map(link => link.index);
+  assert.equal(new Set(indices).size, indices.length, 'no deck is planned twice');
+  assert.equal(result.links.some(link => link.interchangeId === 'second'), false);
+  assert.equal(result.interchanges[1].links, 0);
+  assert.equal(result.statistics.links, result.links.length);
+});
+
+test('guardrails appear where the deck leaves the ground and the contact wall shares its vertices', () => {
+  const result = planOver(driveFixture());
+  const bridge = result.links.find(link => link.index === 4);
+  assert.ok(bridge.barriers.length > 0, 'a fully elevated deck carries guardrails');
+  assert.equal(bridge.barrierColliders.length, bridge.barriers.length);
+  const hasVertex = (geometry, point, y) => {
+    for (let i = 0; i < geometry.length; i += 3) {
+      if (geometry[i] === point.x && geometry[i + 1] === y && geometry[i + 2] === point.z) return true;
+    }
+    return false;
+  };
+  for (let i = 0; i < bridge.barriers.length; i++) {
+    const barrier = bridge.barriers[i];
+    const collider = bridge.barrierColliders[i];
+    assert.equal(collider.type, 'elevated-barrier');
+    assert.equal(collider.polygon.outer.length, 4);
+    assert.ok(Number.isFinite(collider.minY) && Number.isFinite(collider.maxY));
+    assert.ok(Math.abs(collider.minY - Math.min(barrier.startY, barrier.endY)) < 1e-9);
+    assert.ok(Math.abs(collider.maxY - Math.max(barrier.startY, barrier.endY)
+      - elevated.ELEVATED_BARRIER_HEIGHT_M) < 1e-9);
+    const start = collider.polygon.outer[0];
+    assert.ok(hasVertex(bridge.geometry, start, collider.minY), 'wall bottom is the rendered deck edge');
+    assert.ok(hasVertex(bridge.geometry, start, collider.maxY), 'wall top is the rendered guardrail top');
+    assert.ok(collider.maxX - collider.minX <= 9 && collider.maxZ - collider.minZ <= 9,
+      'each contact wall is a short segment, not a link-wide box');
+  }
+  for (const link of result.links) {
+    for (const collider of link.barrierColliders) {
+      assert.ok(collider.minY >= FLAT_TERRAIN + 0.75 - 1e-6,
+        'guardrail contact starts above the street, so the road under the deck stays open');
+      assert.ok(collider.maxY <= FLAT_TERRAIN + 9.6 + 0.95 + 1e-6);
+    }
+  }
+  const offender = result.colliders.filter(collider => collider.type === 'elevated-barrier'
+    && collider.minY < FLAT_TERRAIN + 0.75 - 1e-6);
+  assert.equal(offender.length, 0, 'ramp feet keep both sides open');
+});
+
+test('piers expose a contact body from the ground to the deck underside', () => {
+  const result = planOver(driveFixture());
+  const bridge = result.links.find(link => link.index === 4);
+  assert.ok(bridge.piers.length > 0);
+  assert.equal(bridge.pierColliders.length, bridge.piers.length);
+  for (let i = 0; i < bridge.piers.length; i++) {
+    const pier = bridge.piers[i];
+    const collider = bridge.pierColliders[i];
+    assert.equal(collider.type, 'elevated-pier');
+    assert.ok(Math.abs(collider.minY - pier.baseY) < 1e-9);
+    assert.ok(Math.abs(collider.maxY - pier.topY) < 1e-9);
+    assert.ok(Math.abs(collider.minX - (pier.x - pier.half)) < 1e-9);
+    assert.ok(Math.abs(collider.maxZ - (pier.z + pier.half)) < 1e-9);
+  }
+  const barriers = result.colliders.filter(collider => collider.type === 'elevated-barrier');
+  const piers = result.colliders.filter(collider => collider.type === 'elevated-pier');
+  assert.equal(result.statistics.barrierColliders, barriers.length);
+  assert.equal(result.statistics.pierColliders, piers.length);
+  assert.equal(result.statistics.colliders, result.colliders.length);
+  assert.equal(result.statistics.colliders, barriers.length + piers.length);
+});
+
+test('built elevated roads expose the guardrail and pier contact bodies', () => {
+  const fake = fakeElevatedThree();
+  const module = loadModule(read('sz-elevated-roads.js'), { imports: {
+    'three/webgpu': fake,
+    './sz-roads.js': roads,
+    './sz-ground-surface.js': groundSurface,
+    './sz-controller-surfaces.js': controllerSurfaces
+  } });
+  const built = module.buildSzElevatedRoads(new fake.Group(), {
+    graph: driveFixture(), terrainSurface: surface, interchanges: FIXTURE_INTERCHANGES
+  });
+  assert.ok(built.colliders.length > 0);
+  assert.equal(built.interchanges.length, 1);
+  assert.equal(built.colliders.length, built.statistics.colliders);
+  assert.equal(built.meshes.length, built.group.children.length);
+  for (const mesh of built.group.children) {
+    assert.equal(mesh.material.side, 2, 'guardrail faces render from both sides');
+  }
+  for (const collider of built.colliders) {
+    assert.equal(collider.polygon.outer.length, 4);
+    assert.equal(collider.polygon.holes.length, 0);
+    for (const point of collider.polygon.outer) {
+      assert.ok(Number.isFinite(point.x) && Number.isFinite(point.z));
+    }
+  }
+});
+
 test('the real Shenzhen snapshot exposes drivable elevated chains with rendered deck contact', () => {
   const { gunzipSync } = require('node:zlib');
   const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
@@ -342,11 +477,72 @@ test('the real Shenzhen snapshot exposes drivable elevated chains with rendered 
   const plan = elevated.planElevatedRoads(geo.roadGraph, geo.terrainSurface);
   assert.ok(plan.links.length >= 33, `plan links ${plan.links.length}`);
   assert.ok(plan.driveLinks.length >= 30, `drive links ${plan.driveLinks.length}`);
+  assert.equal(plan.interchanges.length, 3);
+  const chegongmiao = plan.interchanges.find(item => item.id === 'chegongmiao');
+  assert.ok(chegongmiao, 'the existing Chegongmiao partition stays first');
+  assert.equal(plan.interchanges[0].id, 'chegongmiao');
+  assert.ok(chegongmiao.links >= 33, `Chegongmiao links ${chegongmiao.links}`);
+  assert.equal(chegongmiao.links, plan.links.filter(link => link.interchangeId === 'chegongmiao').length);
+  assert.ok(plan.interchanges.every(item => item.heightSource === 'estimate'));
+  assert.equal(plan.statistics.interchanges.reduce((sum, item) => sum + item.links, 0), plan.links.length);
+  assert.ok(plan.statistics.barriers > 0, 'decks carry guardrails');
+  assert.ok(plan.statistics.barrierLengthM > 1000, 'guardrails run along the decks');
+  assert.ok(plan.statistics.pierColliders > 0, 'piers have contact bodies');
+  assert.equal(plan.colliders.length, plan.statistics.colliders);
+  assert.equal(plan.colliders.length, plan.statistics.barrierColliders + plan.statistics.pierColliders);
+  assert.ok(plan.colliders.every(collider => collider.minY >= 0), 'no contact body dips below the datum');
   const deckLength = plan.driveLinks.reduce((sum, link) => sum + link.lengthM, 0);
   assert.ok(deckLength > 5000, `drivable deck length ${deckLength}`);
   assert.ok(plan.driveLinks.every(link => link.maxGrade <= elevated.ELEVATED_DRIVE_MAX_GRADE), 'steep links stay out of the drive graph');
   assert.ok(plan.driveLinks.some(link => link.sharedStart), 'a deck end meets ground on the start side');
   assert.ok(plan.driveLinks.some(link => link.sharedEnd), 'a deck end meets ground on the end side');
+
+  // 深南广深立交：OSM 来源是深南广深立交桥匝道与京港澳高速（广深段）桥面，layer 1 只表示上下关系。
+  assert.equal(plan.interchanges.length, 3);
+  const guangshen = plan.interchanges.find(item => item.id === 'shennan-guangshen');
+  assert.ok(guangshen, 'the Shennan-GuangShen interchange is planned as its own partition');
+  assert.equal(guangshen.name, '深南广深立交');
+  assert.ok(guangshen.heightSource === 'estimate');
+  assert.ok(guangshen.links >= 10, `Shennan-GuangShen links ${guangshen.links}`);
+  assert.ok(guangshen.driveLinks >= 8, `Shennan-GuangShen drive links ${guangshen.driveLinks}`);
+  assert.ok(guangshen.deckLengthM > 2500, `Shennan-GuangShen deck length ${guangshen.deckLengthM}`);
+  const interchangeIds = new Set(plan.interchanges.map(item => item.id));
+  const guangshenLinks = plan.links.filter(link => link.interchangeId === 'shennan-guangshen');
+  assert.equal(guangshenLinks.length, guangshen.links);
+  const guangshenOsm = new Set(guangshenLinks.map(link => link.osmId));
+  for (const osmId of ['way/40933268', 'way/40933281', 'way/40933456', 'way/40933273']) {
+    assert.ok(guangshenOsm.has(osmId), `${osmId} is planned in the Shennan-GuangShen partition`);
+  }
+  // 京港澳高速（广深段）主线也是 bridge layer 1，匝道要靠它接到地面才成闭环。
+  assert.ok(guangshenOsm.has('way/40933472') && guangshenOsm.has('way/40933474'),
+    'the Guangshen mainline decks share the same plan');
+  const guangshenDrive = plan.driveLinks.filter(link => link.interchangeId === 'shennan-guangshen');
+  assert.ok(guangshenDrive.some(link => link.sharedStart), 'a ramp foot meets the ground on the start side');
+  assert.ok(guangshenDrive.some(link => link.sharedEnd), 'a ramp foot meets the ground on the end side');
+  assert.ok(guangshenDrive.every(link => link.maxGrade <= elevated.ELEVATED_DRIVE_MAX_GRADE));
+  // 隧道链路不摊成贴地桥面：深南广深分区里有紫众道 tunnel（layer -1），只记数量留给隧道模块。
+  assert.ok(plan.statistics.tunnelLinks >= 1, `tunnel links ${plan.statistics.tunnelLinks}`);
+  assert.ok(plan.links.every(link => link.tunnel === false));
+  assert.equal(guangshenLinks.every(link => interchangeIds.has(link.interchangeId)), true);
+
+  // 竹子林立交：滨河大道与京港澳高速（广深段）的喇叭形匝道；OSM 名字是竹子林立交桥。
+  const zhuzilin = plan.interchanges.find(item => item.id === 'zhuzilin');
+  assert.ok(zhuzilin, 'the Zhuzilin interchange is planned as its own partition');
+  assert.equal(zhuzilin.name, '竹子林立交');
+  assert.equal(zhuzilin.heightSource, 'estimate');
+  assert.ok(zhuzilin.links >= 6, `Zhuzilin links ${zhuzilin.links}`);
+  assert.ok(zhuzilin.driveLinks >= 6, `Zhuzilin drive links ${zhuzilin.driveLinks}`);
+  assert.ok(zhuzilin.deckLengthM > 500, `Zhuzilin deck length ${zhuzilin.deckLengthM}`);
+  const zhuzilinLinks = plan.links.filter(link => link.interchangeId === 'zhuzilin');
+  const zhuzilinOsm = new Set(zhuzilinLinks.map(link => link.osmId));
+  for (const osmId of ['way/40932649', 'way/40932651', 'way/40933270', 'way/40933271']) {
+    assert.ok(zhuzilinOsm.has(osmId), `${osmId} is planned in the Zhuzilin partition`);
+  }
+  const zhuzilinDrive = plan.driveLinks.filter(link => link.interchangeId === 'zhuzilin');
+  assert.ok(zhuzilinDrive.some(link => link.sharedStart), 'a Zhuzilin ramp foot meets the ground');
+  assert.ok(zhuzilinDrive.some(link => link.sharedEnd), 'a Zhuzilin exit ramp meets the ground');
+  assert.ok(zhuzilinDrive.every(link => link.maxGrade <= elevated.ELEVATED_DRIVE_MAX_GRADE));
+  assert.ok(zhuzilinLinks.every(link => link.tunnel === false));
 
   // 车公庙目标链路：地面 → 403 上匝道 → 6595 桥面 → 11114 下匝道 → 地面。
   const byOsm = new Map(plan.links.map(link => [link.osmId, link]));
