@@ -5,7 +5,7 @@
 ## 1. 当前状态
 
 - **代码**：在 `main` 以 `4418b2c` 为基线完成第一批优化。正式入口 <http://127.0.0.1:8080/> 由 `index.html` 加载 `js/main.js`。GPU 首帧等待有超时与重试，地铁菜单只有一套选择状态。生成器以已校验的路径消费 OSM、Overture 和 GloBFP，重打包核对原载荷和来源。
-- **共享包**：正式 JSON v2 gzip 6,872,995 字节，SHA-256 `cbc2801ffbf435aaa83f1102a3816ada53b4a48cd9093a58e825da9605ec02ca`。本机对照 SZC1 gzip 6,710,223 字节，SHA-256 `f0312a4f459326244beb57975d12b76948c23ae35472621079e8a7a436b29d5f`。两包由 `tools/sz/build.py` 生成。
+- **共享包**：正式 JSON v2 gzip 6,865,167 字节，SHA-256 `057d242cc9dd74e2fd226c2b8206062d7d08c8f44f2014f441071f220350ac73`。本机对照 SZC1 gzip 6,705,966 字节，SHA-256 `d342eec61e1dc3cbb12f7c5bf58270b4b48a6fdc49c149b250618eecd3058fc3`。两包由同一次 `tools/sz/build.py --rebuild-ground` 生成。
 - **数据**：共享包含 34,118 条建筑记录，来源为 OSM 12,692、Overture 15,936、GloBFP 5,490。13,646 条高度来自 GloBFP，15,280 条为规则估算，4 条按公开资料修正。校验报告仍列 3 条量化无效轮廓、265 条高宽比候选。
 - **测试**：第一批全量自动检查通过，Node 533 项、Python 151 项，0 跳过。浏览器验证了城市包 404、坏 gzip、GPU 队列超时重试、地铁 12 个开关、刷新恢复和真实键盘输入。截图留在本地 `docs/qa/optimization-batch1/`。
 - **验收**：九条硬性要求还没有一条整体通过；M9 性能未通过，所以没有 baseline 标签。逐条证据和缺口见 [ACCEPTANCE-STATUS.md](ACCEPTANCE-STATUS.md)。
@@ -33,7 +33,7 @@
 3. 用现有数据做道路和裙房足迹复用、屋顶设备统一及启动审计拆出。性能从当前版本的可见窗口实测开始，按 [10 号](10-PERF-QA.md) 归因。22 号第 7 节保留已完成和已回滚的历史测量。
 4. 按对象 ID 对比会后 OSM 快照，在已有影像样区核对建筑变化，再决定更新共享包。低空待核实福田航线端点配对和会后运营。
 
-出租车后部曲面、城区水平地坪、道路断面标线、深南绿带和桥隧的实施顺序见 [23 号](23-BUILDING-AND-STREET-PLAN.md#9-交付顺序)。本轮为计划。车公庙植被候选仍在独立提交 `07e6100`，待整合及复核。
+出租车后部曲面、城区水平地坪、道路断面标线、深南绿带和桥隧的实施顺序见 [23 号](23-BUILDING-AND-STREET-PLAN.md#9-交付顺序)。`main` 已整合两处 8 米地坪样区、车公庙绿带和分级树灯、复核走廊标线及抬高人行道上的模拟步行路线。车型、操控和切换代码沿用合入前版本。全量 Node 534 项、Python 152 项通过。两处样区的过渡带仍待实走，竹子林桥面净空对照一致，三处立交共 53 条可车行链接保留。
 
 其余里程碑待办在 [TASKS.md](TASKS.md)；街区、地面 P0 和数据样区的长期规划在 [12](12-URBAN-FABRIC-PLAN.md)、[13](13-DATA-DETAIL-PILOT.md)、[14](14-CITY-EXPLORATION-PLAN.md)、[18](18-ROAD-BUILDING-CLEARANCE-PLAN.md)、[19](19-WEBSITE-OPTIMIZATION-PLAN.md) 号。
 
