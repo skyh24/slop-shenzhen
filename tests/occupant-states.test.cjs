@@ -354,7 +354,7 @@ test('airborne boarding hides the pilot and the seat follows tiltPivot', { skip 
   const h = createHarness(THREE);
   assert.equal(h.controller.setMode('helicopter'), true);
   assert.deepEqual(h.pilotCalls, [false], 'the built-in pilot is hidden through setOccupantVisible(false)');
-  h.advance(0.4);
+  h.advance(1);
   assert.equal(h.controller.occupant.state, 'seated');
   assert.ok(h.person.position.distanceTo(seatWorld(h.helicopter)) < 1e-6);
   // 离地后俯仰/横滚只体现在 tiltPivot 上，坐姿必须跟着倾斜后的座舱走。
@@ -368,6 +368,25 @@ test('airborne boarding hides the pilot and the seat follows tiltPivot', { skip 
   assert.ok(h.person.position.distanceTo(seatWorld(h.helicopter)) < 1e-6,
     'the seated pose follows the tilted cockpit transform');
   assert.ok(h.person.position.y > h.helicopter.position.y + 0.3, 'the seat is not the plain vehicle position');
+});
+
+test('entering the manual aircraft turns for one second before accepting forward thrust', { skip }, async () => {
+  const THREE = await threeReady;
+  const h = createHarness(THREE);
+  assert.equal(h.controller.setMode('helicopter'), true);
+  const aircraft = h.helicopter;
+  const heading = aircraft.heading;
+  const at = aircraft.position.clone();
+  assert.ok(Math.abs(aircraft.mesh.rotation.y - heading - Math.PI / 4) < 1e-8);
+  h.controller.keys.forward = true;
+  h.advance(0.5);
+  assert.ok(Math.abs(aircraft.mesh.rotation.y - heading - Math.PI / 8) < 1e-8);
+  assert.ok(aircraft.position.distanceTo(at) < 1e-8);
+  h.advance(0.5);
+  assert.ok(Math.abs(aircraft.mesh.rotation.y - heading) < 1e-8);
+  assert.ok(Math.abs(aircraft.speed) < 1e-8);
+  h.advance(1);
+  assert.ok(Math.abs(aircraft.speed * 3.6 - 200) < 0.01);
 });
 
 test('repeated mode switching keeps one pedestrian rig and never walks while seated', { skip }, async () => {

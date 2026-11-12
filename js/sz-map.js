@@ -17,13 +17,15 @@ function roadMatches(label, query) {
 }
 
 class NYCMapSystem {
-  constructor({ controllerManager, cameraSystem, allBlocks = [], onTeleport, onToggle, drive = null, touchHints = false }) {
+  constructor({ controllerManager, cameraSystem, allBlocks = [], onTeleport, onToggle, drive = null, airCruise = null, touchHints = false }) {
     this.controllerManager = controllerManager;
     this.cameraSystem = cameraSystem;
     this.allBlocks = allBlocks;
     this.onTeleport = onTeleport;
     this.onToggle = onToggle;
     this.drive = drive;
+    this.airCruise = airCruise;
+    this.cruisePreview = null;
     this.touchHints = touchHints;
 
     this.miniCanvas = document.getElementById('minimap-canvas');
@@ -115,7 +117,7 @@ class NYCMapSystem {
     }
     if (centerPlayerBtn) {
       centerPlayerBtn.addEventListener('click', () => {
-        const ent = this.controllerManager.getActiveEntity();
+        const ent = this.viewEntity();
         this.viewCenterX = ent.position.x;
         this.viewCenterZ = ent.position.z;
         this.viewZoom = 0.9;
@@ -138,6 +140,7 @@ class NYCMapSystem {
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape' && this.isFullMapOpen) {
+        if (this.airCruise?.active) e.preventDefault();
         const metro = document.getElementById('metro-popover');
         if (typeof metro?.hidePopover !== 'function' || !metro.matches(':popover-open')) this.toggleFullMap(false);
       } else if (e.code === 'KeyM' && !isTypingInField(e)) {
@@ -351,7 +354,13 @@ class NYCMapSystem {
 
   toggleFullMap(open) {
     this.isFullMapOpen = Boolean(open);
-    if (!this.isFullMapOpen) this.inspection?.reset();
+    if (!this.isFullMapOpen) {
+      this.inspection?.reset();
+      if (this.cruisePreview) {
+        this.viewZoom = this.cruisePreview.zoom;
+        this.cruisePreview = null;
+      }
+    }
     if (this.onToggle) this.onToggle(this.isFullMapOpen);
     if (!this.modal) return;
     this.modal.classList.toggle('hidden', !this.isFullMapOpen);
@@ -360,12 +369,59 @@ class NYCMapSystem {
       for (const pop of document.querySelectorAll('.popover[popover]')) {
         if (typeof pop.hidePopover === 'function' && pop.matches(':popover-open')) pop.hidePopover();
       }
-      const ent = this.controllerManager.getActiveEntity();
+      const ent = this.viewEntity();
       this.viewCenterX = ent.position.x;
       this.viewCenterZ = ent.position.z;
       this.resizeFullCanvas();
       this.renderFullMap();
     }
+  }
+
+  viewEntity() {
+    return this.airCruise?.entity ?? this.controllerManager.getActiveEntity();
+  }
+
+  showCruiseRoute(route) {
+    this.toggleFullMap(true);
+    this.cruisePreview = { route, zoom: this.viewZoom };
+    const { w, h } = this.fullSize();
+    const xs = route.points.map(p => p.x), zs = route.points.map(p => p.z);
+    const west = Math.min(...xs), east = Math.max(...xs), north = Math.min(...zs), south = Math.max(...zs);
+    this.viewCenterX = (west + east) / 2;
+    this.viewCenterZ = (north + south) / 2;
+    this.viewZoom = Math.max(this.minViewZoom(), Math.min(MAX_ZOOM, w * 0.85 / (east - west), h * 0.7 / (south - north)));
+    this.renderFullMap();
+  }
+
+  drawCruiseRoute(ctx, v) {
+    const route = this.cruisePreview?.route ?? this.airCruise?.route;
+    if (!route) return;
+    let cached = this.cruiseMapPath;
+    if (cached?.route !== route) {
+      const path = new Path2D();
+      addLine(path, route.points);
+      cached = this.cruiseMapPath = { route, path };
+    }
+    ctx.save();
+    v.world(ctx);
+    ctx.lineWidth = 7 / v.s;
+    ctx.strokeStyle = '#081923';
+    ctx.stroke(cached.path);
+    ctx.lineWidth = 3 / v.s;
+    ctx.strokeStyle = '#63e5fa';
+    ctx.stroke(cached.path);
+    v.screen(ctx);
+    for (const [i, point] of [route.points[0], route.points.at(-1)].entries()) {
+      const x = v.toX(point.x), z = v.toY(point.z);
+      ctx.beginPath();
+      ctx.arc(x, z, 5, 0, Math.PI * 2);
+      ctx.fillStyle = i ? '#f8ca69' : '#63e5fa';
+      ctx.fill();
+      ctx.strokeStyle = '#081923';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   resizeFullCanvas() {
@@ -638,7 +694,7 @@ class NYCMapSystem {
       this.miniCache = null;
     }
 
-    const ent = this.controllerManager.getActiveEntity();
+    const ent = this.viewEntity();
     const px = ent.position.x;
     const pz = ent.position.z;
 
@@ -745,12 +801,13 @@ class NYCMapSystem {
     const { w, h } = this.fullSize();
     const v = new MapView(this.viewCenterX, this.viewCenterZ, this.viewZoom, w, h, dpr);
 
-    const ent = this.controllerManager.getActiveEntity();
+    const ent = this.viewEntity();
     const { x: playerX, z: playerZ } = ent.position;
     if (this.elPlayerInfo && (this.mapPlayerX !== playerX || this.mapPlayerZ !== playerZ)) {
       this.mapPlayerX = playerX;
       this.mapPlayerZ = playerZ;
-      const text = STR.map.playerLocation(getLocationLabel(playerX, playerZ));
+      const text = this.airCruise?.active ? STR.cruise.mapLocation(getLocationLabel(playerX, playerZ))
+        : STR.map.playerLocation(getLocationLabel(playerX, playerZ));
       if (text !== this.playerInfoText) {
         this.playerInfoText = text;
         this.elPlayerInfo.textContent = text;
@@ -785,6 +842,7 @@ class NYCMapSystem {
       ctx.stroke();
     }
     this.drawDrivePins(ctx, v);
+    this.drawCruiseRoute(ctx, v);
     const toX = (wx) => v.toX(wx);
     const toY = (wz) => v.toY(wz);
 

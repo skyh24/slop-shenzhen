@@ -448,6 +448,48 @@ function validateMapRegions(map, buildings) {
   requireData(types.every(type => map.coverage?.[type] === counts[type]), 'mapRegions coverage');
 }
 
+function validateAirCruises(data, graph) {
+  if (data === undefined) return;
+  const { flight, routes } = data;
+  requireData(data.version === 1 && data.roadSource === 'osm-guangdong' && /^[0-9a-f]{64}$/.test(data.roadSourceSha256)
+    && flight?.heightReference === 'surface-road-or-ground'
+    && ['targetHeightM', 'speedMps', 'accelerationMps2', 'initialTurnSeconds', 'brakingMps2', 'lateralAccelerationMps2', 'sampleStepM']
+      .every(key => Number.isFinite(flight[key]) && flight[key] > 0)
+    && Array.isArray(routes) && routes.length > 0, 'air cruise configuration');
+  const roadIds = new Set(graph.metadata.map(road => road.osmId));
+  const ids = new Set();
+  for (const route of routes) {
+    requireData(typeof route.id === 'string' && !ids.has(route.id) && route.start?.name && route.end?.name
+      && Array.isArray(route.points) && route.points.length >= 3
+      && route.points.every(p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite))
+      && Array.isArray(route.segments) && route.segments.length > 0, 'air cruise path');
+    ids.add(route.id);
+    let length = 0;
+    for (let i = 1; i < route.points.length; i++) {
+      const [x, z] = route.points[i];
+      const [px, pz] = route.points[i - 1];
+      const step = Math.hypot(x - px, z - pz);
+      requireData(step > 0 && step <= flight.sampleStepM + 0.02, 'air cruise sample interval');
+      length += step;
+    }
+    let station = 0;
+    let previousMain = null;
+    for (const [i, segment] of route.segments.entries()) {
+      requireData(segment.fromM === station && Number.isFinite(segment.toM) && segment.toM > station, 'air cruise chainage');
+      station = segment.toM;
+      if (segment.kind === 'main') {
+        requireData(roadIds.has(segment.osmId) && (segment.direction === 1 || segment.direction === -1)
+          && (!previousMain || previousMain.toNode === segment.fromNode), 'air cruise main road continuity');
+        previousMain = segment;
+      } else {
+        requireData(segment.kind === 'entry' && i === 0
+          || segment.kind === 'departure' && i === route.segments.length - 1, 'air cruise access segment');
+      }
+    }
+    requireData(previousMain && Math.abs(station - length) < 0.011 && station === route.horizontalLengthM, 'air cruise path length');
+  }
+}
+
 export function validateCityPayload(raw) {
   requireData(raw?.version === 2, 'version');
   requireData(raw.origin?.[0] === 114.0545 && raw.origin?.[1] === 22.5463, 'origin');
@@ -556,6 +598,7 @@ export function validateCityPayload(raw) {
         && stations.at(-3) === graph.nodes[b * 2] && stations.at(-2) === graph.nodes[b * 2 + 1], 'road graph cross section');
     }
   }
+  validateAirCruises(raw.airCruises, graph);
   if (graph.turnRestrictions !== undefined) {
     const { version, source, rules } = graph.turnRestrictions ?? {};
     const wayId = id => /^way\/\d+$/.test(id);
@@ -641,7 +684,7 @@ export function decodeCityPayload(raw, metrics = null) {
       ponds: raw.golfCourse.ponds.map(({ rings, ...pond }) => ({ ...pond, polygon: polygon(rings) })) },
     trees: raw.trees ?? null,
     sites: decodeSites(raw.sites),
-    air: raw.air ?? null,
+    air: raw.air ?? null, airCruises: raw.airCruises ?? null,
     parks: (raw.parks ?? []).map(park => ({ ...park, areas: park.areas.map(area => ({ ...area, polygon: polygon(area.polygon) })) }))
   } };
   if (metrics) metrics.decodeMs = nowMs() - validatedAt;

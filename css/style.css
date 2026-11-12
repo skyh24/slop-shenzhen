@@ -1722,6 +1722,8 @@ body.touch-enabled .pop-item { min-height: 44px; }
 }
 
 .program-panel {
+  margin: 8px 0 0 auto;
+  width: min(312px, calc(100vw - 30px));
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1731,7 +1733,8 @@ body.touch-enabled .pop-item { min-height: 44px; }
   pointer-events: auto;
 }
 
-.program-panel[hidden] {
+.program-panel[hidden],
+body.hud-minimized .program-panel {
   display: none;
 }
 
@@ -1752,4 +1755,80 @@ body.touch-enabled .pop-item { min-height: 44px; }
 #program-popover .pop-item:disabled {
   opacity: 0.54;
   cursor: default;
+}
+
+.cruise-panel {
+  margin: 8px 0 0 auto;
+  width: min(312px, calc(100vw - 30px));
+  padding: 9px 11px;
+  display: grid;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.cruise-panel[hidden],
+body.hud-minimized .cruise-panel,
+body[data-cruising] #drive-hud {
+  display: none;
+}
+
+.cruise-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+#air-cruise-state,
+.cruise-panel progress {
+  color: #80e2ed;
+}
+
+.cruise-panel progress {
+  width: 100%;
+  height: 5px;
+  accent-color: currentColor;
+}
+
+.cruise-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+#air-cruise-popover {
+  width: min(330px, calc(100vw - 20px));
+}
+
+.cruise-route {
+  padding: 8px 6px;
+  display: grid;
+  gap: 3px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.cruise-note {
+  margin: 6px;
+  line-height: 1.45;
+}
+
+.cruise-speed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+}
+
+.cruise-speed input {
+  width: 72px;
+  margin-left: auto;
+  color: inherit;
+  background: #172832;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 5px;
+  padding: 4px;
+}
+
+.cruise-presets {
+  padding: 0 6px;
 }

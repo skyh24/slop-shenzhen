@@ -1007,6 +1007,16 @@ export function buildBuildingDetails(scene, options = {}) {
     rebuildAerialLights();
   }
 
+  function readyNear({ x, z }, radius = chunkSize) {
+    for (let ix = Math.floor((x - radius) / chunkSize); ix <= Math.floor((x + radius) / chunkSize); ix++) {
+      for (let iz = Math.floor((z - radius) / chunkSize); iz <= Math.floor((z + radius) / chunkSize); iz++) {
+        const chunk = chunkIndex.get(`${ix},${iz}`);
+        if (chunk && Math.hypot(chunk.x - x, chunk.z - z) <= radius && !active.has(chunk.key)) return false;
+      }
+    }
+    return true;
+  }
+
   function update(position) {
     if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) {
       throw new Error('Building details update requires a finite x/z position');
@@ -1061,5 +1071,5 @@ export function buildBuildingDetails(scene, options = {}) {
     statistics.pending = 0;
   }
 
-  return { group, update, dispose, statistics };
+  return { group, update, dispose, statistics, readyNear };
 }

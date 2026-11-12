@@ -11,6 +11,7 @@ from shapely import make_valid, set_precision, transform
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
+from air_cruises import build_air_cruises
 from beihuan import apply_beihuan_sections
 from bridges import build_bridges
 from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, ROLES,
@@ -225,6 +226,7 @@ def write_city_packages(payload, report, sources, started):
     regions = build_map_regions(payload, osm_source, enc_poly)
     payload['mapRegions'] = regions
     report['mapRegions'] = {key: regions[key] for key in ('version', 'source', 'pilot', 'coverage')}
+    payload['airCruises'], report['airCruises'] = build_air_cruises(payload['roadGraph'], osm_source)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
     compressed = gzip.compress(raw, 9, mtime=0)
@@ -499,6 +501,8 @@ def main():
                       help='write the offline OSM road preview audit as JSON to stdout')
     mode.add_argument('--rebuild-map-regions', action='store_true',
                       help='regenerate map regions from the verified city package and OSM snapshot')
+    mode.add_argument('--rebuild-air-cruises', action='store_true',
+                      help='regenerate air cruises from the verified city road graph')
     mode.add_argument('--rebuild-ground', action='store_true',
                       help='rebuild the ground pilot from the current verified payload and snapshots')
     mode.add_argument('--rebuild-civic-ground', action='store_true',
@@ -519,14 +523,14 @@ def main():
         export_road_preview(not args.no_cache)
         return
 
-    if args.repack_existing or args.rebuild_map_regions:
+    if args.repack_existing or args.rebuild_map_regions or args.rebuild_air_cruises:
         started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
         sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
         report = json.loads(VALIDATION_REPORT.read_text())
         require_matching_snapshot(raw, report, sources)
-        if 'roads' in payload or args.rebuild_map_regions:
+        if 'roads' in payload or args.rebuild_map_regions or args.rebuild_air_cruises:
             write_city_packages(payload, json.loads(REPORT.read_text()), sources, started)
         else:
             print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))

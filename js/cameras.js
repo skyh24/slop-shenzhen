@@ -199,8 +199,8 @@ class CameraSystem {
     this.camera.updateProjectionMatrix();
   }
 
-  update(dt, elapsed, wallTime = elapsed) {
-    const entity = this.controllerManager.getActiveEntity();
+  update(dt, elapsed, wallTime = elapsed, cruiseEntity = null) {
+    const entity = cruiseEntity ?? this.controllerManager.getActiveEntity();
     const desiredPos = this._desiredPos;
     const desiredLook = this._desiredLook;
 
@@ -208,7 +208,7 @@ class CameraSystem {
       this.userOrbitTimer = Math.max(0, this.userOrbitTimer - dt);
     }
 
-    if (!this.isDragging && this.userOrbitTimer <= 0 && Math.abs(entity.speed) > 0.5) {
+    if (!cruiseEntity && !this.isDragging && this.userOrbitTimer <= 0 && Math.abs(entity.speed) > 0.5) {
       this.orbitYawOffset -= Math.round(this.orbitYawOffset / (Math.PI * 2)) * (Math.PI * 2);
       this.orbitYawOffset += (0.0 - this.orbitYawOffset) * (1 - Math.exp(-dt * 2.2));
     }
@@ -234,7 +234,10 @@ class CameraSystem {
           this.followZoom += (this.zoomMultiplier - this.followZoom) * k;
         }
         // 飞行以机体当前航向为基准，手动环绕角叠加在追尾方向上。
-        const yaw = (entity.type === 'helicopter' ? entity.heading : this.followHeading) + this.orbitYawOffset;
+        const flightHeading = entity.entryTurnRemaining > 0 ? entity.mesh.rotation.y : entity.heading;
+        if (entity.entryTurnRemaining > 0) this.followHeading = flightHeading;
+        const yaw = (entity.type === 'helicopter' && (!cruiseEntity || entity.entryTurnRemaining > 0)
+          ? flightHeading : this.followHeading) + this.orbitYawOffset;
         const sinYaw = Math.sin(yaw);
         const cosYaw = Math.cos(yaw);
         const dist = entity.chaseDistance * this.followZoom * (1 + Math.min(0.25, this.smoothedSpeed * 0.01));
@@ -249,6 +252,7 @@ class CameraSystem {
         );
 
         desiredLook.set(entity.position.x, this.followBaseY + entity.cameraTargetOffset.y, entity.position.z);
+        cruiseEntity?.limitCamera(desiredLook, desiredPos);
         break;
       }
 

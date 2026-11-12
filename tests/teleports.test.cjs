@@ -147,6 +147,7 @@ test('map travel resolves a walking pose before closing and leaves the map open 
       toggleFullMap(open) { calls.push(['map', open]); this.open = open; }
     },
     wireMetroMenu: () => {},
+    cruise: { active: false },
     GEO,
     STR: { map: { noArrival: 'No arrival' } },
     document: { getElementById: id => id === 'teleport-feedback' ? feedback : null },

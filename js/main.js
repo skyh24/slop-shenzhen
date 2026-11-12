@@ -22,6 +22,8 @@ import { buildSzTrees } from './sz-trees.js';
 import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzDroneRoutes } from './sz-drone-routes.js';
+import { createSceneAirCruise } from './sz-air-cruise.js';
+import { wireAirCruise } from './sz-air-cruise-ui.js';
 import { buildSzLightShow, planLandmarkBands } from './sz-light-show.js';
 import { createCbdProgram, isCbdProgramBuilding } from './sz-cbd-program.js';
 import { buildLianhuashanSummit, reviewedParkOmissions, SUMMIT_ARRIVAL } from './sz-lianhuashan.js';
@@ -307,8 +309,9 @@ async function initApp() {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
     surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces, ...summit.surfaces],
-    nearTraffic: traffic.nearColliders
+    nearTraffic: traffic.nearColliders, flightSettings: GEO.airCruises?.flight
   });
+  const cruise = qa.measureBuild('airCruises', () => createSceneAirCruise(GEO.airCruises, controllerManager, site, PLAYER_SPEED_LIMITS.helicopter));
   let initialTime = 'golden';
   try {
     const saved = JSON.parse(localStorage.getItem(PLAYER_STATE_KEY));
@@ -517,6 +520,7 @@ async function initApp() {
   const modeFeedback = document.getElementById('mode-feedback');
   let modeFeedbackTimer;
   function selectMode(mode, destination = null) {
+    if (cruise.active) return false;
     const changed = mode !== controllerManager.activeMode;
     clearTimeout(modeFeedbackTimer);
     if (!controllerManager.setMode(mode, destination)) {
@@ -560,6 +564,10 @@ async function initApp() {
   }
 
   function selectCamera(camId, snap = false) {
+    if (cruise.active) {
+      if (camId === 'chase') cameraSystem.resetOrbit();
+      return;
+    }
     cameraSystem.setCameraPreset(camId, snap);
     cameraButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-camera') === camId);
@@ -591,12 +599,9 @@ async function initApp() {
 
   const closePopovers = wirePopovers();
   showSession = wireSummitProgram({ program: cbdProgram, controllerManager, cameraSystem, lightingSystem,
-    arrival: summit.group ? SUMMIT_ARRIVAL : null, selectMode, selectCamera, selectTime, closePopovers });
-  modeButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      selectMode(btn.getAttribute('data-mode'));
-    });
-  });
+    arrival: summit.group ? SUMMIT_ARRIVAL : null, selectMode, selectCamera, selectTime, closePopovers,
+    canStart: () => !cruise.active });
+  for (const button of modeButtons) button.addEventListener('click', () => selectMode(button.dataset.mode));
 
   cameraButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -610,11 +615,7 @@ async function initApp() {
   if (camPrevBtn) camPrevBtn.addEventListener('click', () => cycleCamera(-1));
   if (camNextBtn) camNextBtn.addEventListener('click', () => cycleCamera(1));
 
-  timeButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      selectTime(btn.getAttribute('data-time'));
-    });
-  });
+  for (const button of timeButtons) button.addEventListener('click', () => selectTime(button.dataset.time));
 
   // A mouse click mustn't leave the focus on a HUD button, or Space (jump / ascend) and Enter would press it again
   document.addEventListener('click', (e) => {
@@ -625,6 +626,7 @@ async function initApp() {
   const landmarkOrbit = wireLandmarkOrbit({
     button: document.getElementById('landmark-orbit'), views: landmarkViews, controllerManager, cameraSystem, heightAt: site.heightAt,
     mapOpen: () => mapSystem.isFullMapOpen,
+    available: () => !cruise.active,
     exit: () => selectCamera('chase', true),
     onStart: () => {
       for (const button of cameraButtons) button.classList.remove('active');
@@ -637,7 +639,7 @@ async function initApp() {
   });
   const hud = createHudTelemetry({
     els: { fps: elFps, speed: elSpeed, speedMeter: elSpeedMeter, altitude: elAltitude },
-    controllerManager, cameraSystem, topSpeed: PLAYER_SPEED_LIMITS, renderLocation
+    controllerManager, cameraSystem, topSpeed: PLAYER_SPEED_LIMITS, renderLocation, cruise
   });
   const { teleportTo, teleportFromMap } = createTeleportActions({ controllerManager, landmarkViews, parks: GEO.parks,
     inBounds, isWater, carriagewayOccupied, findGroundArrival, roadHeight: roads.roadHeight, flightStartAltitude: FLIGHT_START_ALTITUDE,
@@ -675,21 +677,22 @@ async function initApp() {
   const mapSystem = new SZMapSystem({
     controllerManager,
     cameraSystem,
+    airCruise: cruise,
     touchHints: touchControls.available,
     onToggle: (open) => {
       closePopovers();
       laneAssist.cancel();
       controllerManager.resetInput();
-      touchControls.setEnabled(!open);
+      touchControls.setEnabled(!open && !cruise.active);
       gamepadControls.setEnabled(!open);
     },
-    onTeleport: teleportFromMap,
+    onTeleport: (...args) => !cruise.active && teleportFromMap(...args),
     drive: {
-      snap: (x, z) => drivePlanner().snap(x, z),
+      snap: (x, z) => cruise.active ? null : drivePlanner().snap(x, z),
       route: (start, end) => drivePlanner().route(start, end),
       goToStart: goToDriveStart,
-      canStart: route => autoDrive.canStart(route, driveCar, controllerManager.activeMode),
-      start: route => autoDrive.start(route, driveCar, controllerManager.activeMode),
+      canStart: route => !cruise.active && autoDrive.canStart(route, driveCar, controllerManager.activeMode),
+      start: route => !cruise.active && autoDrive.start(route, driveCar, controllerManager.activeMode),
       stop: autoDrive.stop,
       get active() { return autoDrive.active; },
       get status() { return autoDrive.status; }
@@ -700,6 +703,7 @@ async function initApp() {
   const teleportFeedback = document.getElementById('teleport-feedback');
   teleportButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
+      if (cruise.active) return;
       const key = btn.dataset.teleport;
       const loc = key === bayPark?.id ? parkArrivals[controllerManager.activeMode] : teleportEntries[key];
       const arrived = loc && teleportTo(loc.x, loc.z, loc.heading, loc);
@@ -714,9 +718,11 @@ async function initApp() {
   const openMapBtn = document.getElementById('btn-open-map');
   if (openMapBtn) openMapBtn.addEventListener('click', () => mapSystem.toggleFullMap(true));
 
+  const cruiseUi = wireAirCruise({ cruise, cameraSystem, controllerManager, mapSystem, touchControls, gamepadControls,
+    laneAssist, canEnter: () => !cbdProgram.active, selectCamera, closePopovers, modeLabel: elMode, cameraLabel: elCamera, buildingDetails });
   wireHudToggle(hudToggleBtn, closePopovers);
 
-  const manualCarAvailable = () => controllerManager.activeMode === 'car' && !mapSystem.isFullMapOpen && !autoDrive.active;
+  const manualCarAvailable = () => !cruise.active && controllerManager.activeMode === 'car' && !mapSystem.isFullMapOpen && !autoDrive.active;
   function requestLane(direction) {
     if (!manualCarAvailable()) return;
     const { forward, backward, left, right, brake, boost } = controllerManager.keys;
@@ -736,6 +742,7 @@ async function initApp() {
     onLane: requestLane,
     onLaneCancel: () => laneAssist.cancel(),
     onExitOrbit: landmarkOrbit.stop,
+    onExitCruise: cruiseUi.close,
     onToggleLane: () => { if (manualCarAvailable()) drivingAssists.toggleLane(); },
     onToggleEmergencyBrake: () => { if (manualCarAvailable()) drivingAssists.toggleEmergencyBrake(); }
   });
@@ -756,7 +763,7 @@ async function initApp() {
   // QA 入口：只在回环地址的 ?qa=1 下调用，普通游玩地址不向 window 暴露任何调试对象。
   if (qa.enabled) {
     qa.install({
-      renderer, scene, cameraSystem, controllerManager, mapSystem, autoDrive, laneAssist, lightingSystem, audioSystem,
+      renderer, scene, cameraSystem, controllerManager, mapSystem, autoDrive, laneAssist, lightingSystem, audioSystem, cruise,
       buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, sea, bridge, publicWalk,
       colliders,
       modules: {
@@ -885,18 +892,22 @@ async function initApp() {
         camera.coordinateSystem, camera.reversedDepth);
     }
     const active = controllerManager.getActiveEntity();
+    const activityFocus = cruise.entity?.position ?? active.position;
     // 车流读取帧首行人；行人读取推进后的车身并验证脚步。玩家最后扫掠两类当前包络。
-    traffic.update(dt, active.position, [active], elapsed, isTrafficVisible, nearPedestrians(active.position.x, active.position.z, 140));
-    pedestrians.update(dt, active.position, elapsed, isPedVisible, [active],
-      traffic.nearColliders(active.position.x, active.position.z, 175));
+    traffic.update(dt, activityFocus, [active], elapsed, isTrafficVisible, nearPedestrians(activityFocus.x, activityFocus.z, 140));
+    pedestrians.update(dt, activityFocus, elapsed, isPedVisible, [active],
+      traffic.nearColliders(activityFocus.x, activityFocus.z, 175));
     const { forward, backward, left, right, brake, boost } = controllerManager.keys;
     const manual = !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right || brake || boost);
-    const autoInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode, manual });
-    const driveInput = autoInput ?? laneAssist.update(driveCar, { manual });
-    controllerManager.update(dt, elapsed, driveInput);
+    if (!cruise.active) {
+      const autoInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode, manual });
+      const driveInput = autoInput ?? laneAssist.update(driveCar, { manual });
+      controllerManager.update(dt, elapsed, driveInput);
+    }
+    const prefetch = cruiseUi.update(now, rawDt);
     drivingAssists.render(manualCarAvailable());
     landmarkOrbit.update(manual);
-    cameraSystem.update(dt, elapsed, now / 1000);
+    cameraSystem.update(dt, elapsed, now / 1000, cruise.entity);
     qa.applyCamera(cameraSystem.camera);
     streetscape.update(cameraSystem.camera.position);
     streetLamps.update(cameraSystem.camera.position);
@@ -911,7 +922,7 @@ async function initApp() {
     xiliConstruction?.update();
     buildingSigns.update(cameraSystem.camera.position);
     buildingSigns.group.updateMatrixWorld(true);
-    buildingDetails.update(cameraSystem.camera.position);
+    buildingDetails.update(prefetch ?? cameraSystem.camera.position);
     buildingDetails.group.updateMatrixWorld(true);
     qa.markSimulation(profile);
     if (!document.hidden && now >= nextPlayerSave) {

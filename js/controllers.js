@@ -10,6 +10,7 @@ import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './veh
 import { loftContactPolygon, polygonContact, roofPanelContactPolygon, spanContactPolygon } from './building-collision.js';
 import { vehicleContact } from './vehicle-physics.js';
 import { constrainContactVelocity, contactTime, emergencyBrake, writeEntityCollider } from './sz-driving-motion.js';
+import { FLIGHT_ENTRY_SECONDS, FLIGHT_FORWARD_ACCELERATION, flightEntryYaw, flightEnvelopeRadius } from './sz-flight-motion.js';
 
 // Player models, animation and movement for walking, driving, cycling and flying.
 
@@ -34,7 +35,7 @@ const BICYCLE_DRIVE = {
 const CAR_AUTO_DRIVE = { ...CAR_DRIVE, speed: 36, forwardAcceleration: null };
 // 2026-11-11 用户指定升降上限 20 m/s、2 秒加速到位，因此垂直加速度取 10 m/s²。
 const EVTOL_DRIVE = {
-  speed: 600 / 3.6, reverseSpeed: 400 / 3.6, accelerationSeconds: 4, braking: 24,
+  speed: 600 / 3.6, reverseSpeed: 400 / 3.6, reverseAcceleration: 400 / 3.6 / 4, braking: 24,
   verticalSpeed: 20, verticalAcceleration: 10, altitude: 400
 };
 export const PLAYER_SPEED_LIMITS = Object.freeze({
@@ -186,6 +187,7 @@ class ThirdPersonControllerManager {
     this.spawnPoint = options.spawnPoint ?? SPAWN_POINT;
     if (!this.spawnPoint) throw new Error('No sourced ground spawn is available');
     this.maxFlightAltitude = options.maxFlightAltitude ?? EVTOL_DRIVE.altitude;
+    this.flightSettings = options.flightSettings;
     this.scene = scene;
     this.colliders = colliders;
     this._colliderCells = null; // built on first use, see nearColliders()
@@ -360,7 +362,7 @@ class ThirdPersonControllerManager {
       : { state: destination ? OCCUPANT_STATES.SEATED : OCCUPANT_STATES.BOARDING,
         mode, timer: destination ? 0 : BOARDING_SECONDS };
     this._applyModeVisibility();
-    this._placeActiveAt(point, point.heading);
+    this._placeActiveAt(point, point.heading, null, mode === 'helicopter' && !destination);
     return true;
   }
 
@@ -549,7 +551,7 @@ class ThirdPersonControllerManager {
     return point;
   }
 
-  _placeActiveAt(point, heading, support = null) {
+  _placeActiveAt(point, heading, support = null, turnOnEntry = false) {
     const ent = this.getActiveEntity();
     const heli = this.activeMode === 'helicopter';
     ent.position.x = point.x;
@@ -592,15 +594,37 @@ class ThirdPersonControllerManager {
     } else if (heli) {
       ent.takeoff = point.takeoff ?? null;
       ent.verticalSpeed = ent.pitchAngle = ent.rollAngle = 0;
+      ent.entryTurnRemaining = turnOnEntry && this.hasFlightTurnClearance(ent)
+        ? this.flightSettings?.initialTurnSeconds ?? FLIGHT_ENTRY_SECONDS : 0;
       ent.tiltPivot.rotation.x = ent.tiltPivot.rotation.z = 0;
       ent.tiltPivot.position.y = 0;
     }
     ent.mesh.position.copy(ent.position);
-    ent.mesh.rotation.y = ent.heading;
+    ent.mesh.rotation.y = ent.heading + (heli ? this.flightEntryOffset(ent) : 0);
     if (this.isOccupantBound()) {
       if (typeof ent.mesh.updateMatrixWorld === 'function') ent.mesh.updateMatrixWorld(true);
       this._syncOccupant();
     }
+  }
+
+  hasFlightTurnClearance(entity) {
+    const { x, y, z } = entity.position;
+    const bounds = entity.collisionBounds;
+    const radius = flightEnvelopeRadius(bounds);
+    const body = collisionBody('helicopter', radius, 0, 0.05);
+    body.bottom = bounds?.min.y ?? body.bottom;
+    body.top = bounds?.max.y ?? body.top;
+    for (const dx of [-radius, 0, radius]) {
+      for (const dz of [-radius, 0, radius]) {
+        const ground = this.groundHeight(x + dx, z + dz);
+        if (Number.isFinite(ground) && y + body.bottom <= ground) return false;
+      }
+    }
+    return !this.arrivalBlocked('helicopter', x, y, z, body);
+  }
+
+  flightEntryOffset(entity) {
+    return flightEntryYaw(entity.entryTurnRemaining ?? 0, this.flightSettings?.initialTurnSeconds ?? FLIGHT_ENTRY_SECONDS);
   }
 
   // Find a fully clear arrival before moving the player. Sequential collision pushes can leave a player trapped
@@ -820,9 +844,9 @@ class ThirdPersonControllerManager {
     };
   }
 
-  createHelicopterEntity() {
+  createHelicopterEntity(name = 'PlayerEvtol') {
     const root = new THREE.Group();
-    root.name = 'PlayerEvtol';
+    root.name = name;
     const model = createEvtolMesh();
     root.add(model.group);
     this.scene.add(root);
@@ -1152,6 +1176,9 @@ class ThirdPersonControllerManager {
   }
 
   update(dt, elapsed, driveInput = null) {
+    const active = this.getActiveEntity();
+    const turnDt = this.activeMode === 'helicopter' ? Math.min(dt, active.entryTurnRemaining ?? 0) : 0;
+    if (turnDt) active.entryTurnRemaining -= turnDt;
     if (this.activeMode === 'person') {
       if (this.occupant.state === OCCUPANT_STATES.ALIGHTING) {
         // 下车过渡：人物已经站到安全落点，短暂停住再交回步行输入。
@@ -1170,16 +1197,15 @@ class ThirdPersonControllerManager {
     } else if (this.activeMode === 'cyclist') {
       this.updateCyclist(dt, elapsed);
     } else if (this.activeMode === 'helicopter') {
-      this.updateHelicopter(dt);
+      this.updateHelicopter(dt - turnDt);
     }
-    const active = this.getActiveEntity();
     if (active.type === 'helicopter') {
       const climb = Math.max(0, active.verticalSpeed) / EVTOL_DRIVE.verticalSpeed;
       const cruise = Math.abs(active.speed) / EVTOL_DRIVE.speed;
       active.updateRotors(dt, 0.57 + 0.32 * climb + 0.11 * cruise);
     }
     active.mesh.position.copy(active.position);
-    active.mesh.rotation.y = active.heading;
+    active.mesh.rotation.y = active.heading + (active.type === 'helicopter' ? this.flightEntryOffset(active) : 0);
     // 载具世界矩阵更新后再把同一角色写到座位上，坐姿因此跟着车身/座舱一起平移、转向和俯仰。
     this._syncOccupant();
 
@@ -1523,7 +1549,8 @@ class ThirdPersonControllerManager {
     else if (this.keys.down) vertInput = -this.keys.down;
 
     // 高速时缩短接触检测间隔，防止跨过窄障碍。
-    const maxTravel = (Math.abs(h.speed) + EVTOL_DRIVE.speed / EVTOL_DRIVE.accelerationSeconds * dt) * dt;
+    const forwardAcceleration = this.flightSettings?.accelerationMps2 ?? FLIGHT_FORWARD_ACCELERATION;
+    const maxTravel = (Math.abs(h.speed) + forwardAcceleration * dt) * dt;
     const steps = Math.max(1, Math.ceil(maxTravel / 1.5));
     const step = dt / steps;
     let floor;
@@ -1543,12 +1570,11 @@ class ThirdPersonControllerManager {
   }
 
   stepHelicopter(h, dt, fwdInput, yawInput, vertInput) {
-    const { speed, reverseSpeed, accelerationSeconds, braking, verticalSpeed: maxVertSpeed } = EVTOL_DRIVE;
+    const { speed, reverseSpeed, reverseAcceleration, braking, verticalSpeed: maxVertSpeed } = EVTOL_DRIVE;
     if (fwdInput !== 0) {
-      const limit = fwdInput > 0 ? speed : reverseSpeed;
       // 反向输入先减速，停稳后用本步剩余时间按新方向加速。
       const brakingTime = h.speed * fwdInput < 0 ? Math.min(dt, -h.speed / (fwdInput * braking)) : 0;
-      const acceleration = limit / accelerationSeconds;
+      const acceleration = fwdInput > 0 ? this.flightSettings?.accelerationMps2 ?? FLIGHT_FORWARD_ACCELERATION : reverseAcceleration;
       h.speed += fwdInput * (braking * brakingTime + acceleration * (dt - brakingTime));
       h.speed = Math.max(-reverseSpeed, Math.min(speed, h.speed));
     } else {

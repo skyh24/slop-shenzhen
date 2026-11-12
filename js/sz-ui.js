@@ -203,7 +203,7 @@ export function wireApecTheme(theme, onChange) {
 }
 
 export function wireSummitProgram({ program, controllerManager, cameraSystem, lightingSystem, arrival,
-  selectMode, selectCamera, selectTime, closePopovers }) {
+  selectMode, selectCamera, selectTime, closePopovers, canStart = () => true }) {
   const panel = document.getElementById('program-panel');
   const menuButton = document.getElementById('btn-program');
   const entry = document.getElementById('btn-cbd-show');
@@ -223,6 +223,7 @@ export function wireSummitProgram({ program, controllerManager, cameraSystem, li
 
   entry.disabled = !arrival;
   entry.addEventListener('click', () => {
+    if (!canStart()) return;
     const destination = controllerManager.findModePosition('person', {
       type: 'person', position: arrival, heading: arrival.heading
     });
@@ -274,6 +275,7 @@ export function wireSummitProgram({ program, controllerManager, cameraSystem, li
   return {
     get previousTime() { return previous?.time; },
     update(dt) {
+      entry.disabled = !arrival || !canStart();
       program.update(dt);
       if (program.active && shownCue !== program.cue) syncControls();
     }
@@ -282,7 +284,7 @@ export function wireSummitProgram({ program, controllerManager, cameraSystem, li
 
 // 全局快捷键：模式 1–4、相机 V 与 5–0、HUD H、声音 N、喇叭 B；输入框内的按键不拦截。
 // 按键码是开放集合，默认分支静默忽略，不按有限取值的 switch 抛错。
-export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, onToggleSound, onHonk, onLane, onLaneCancel, onExitOrbit, onToggleLane, onToggleEmergencyBrake }) {
+export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, onToggleSound, onHonk, onLane, onLaneCancel, onExitOrbit, onExitCruise, onToggleLane, onToggleEmergencyBrake }) {
   window.addEventListener('keydown', (e) => {
     if (isTypingInField(e)) return;
     switch (e.code) {
@@ -341,6 +343,7 @@ export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, on
       case 'Escape':
         onLaneCancel?.();
         onExitOrbit?.();
+        if (!e.defaultPrevented) onExitCruise?.();
         break;
       default:
         break;
@@ -462,7 +465,7 @@ export function createLocationReadout({ el, nearestBuildingName }) {
 }
 
 // HUD 读数每 250 ms 更新一次；帧率按墙钟累计算，慢帧和高刷屏都显示实际值。
-export function createHudTelemetry({ els, controllerManager, cameraSystem, topSpeed, renderLocation }) {
+export function createHudTelemetry({ els, controllerManager, cameraSystem, topSpeed, renderLocation, cruise }) {
   let frameCount = 0;
   let fpsTimer = 0;
   return {
@@ -473,7 +476,8 @@ export function createHudTelemetry({ els, controllerManager, cameraSystem, topSp
       const currentFps = Math.round(frameCount / fpsTimer);
       frameCount = 0;
       fpsTimer = 0;
-      const activeEnt = controllerManager.getActiveEntity();
+      const viewing = cruise?.active;
+      const activeEnt = cruise?.entity ?? controllerManager.getActiveEntity();
       const mode = controllerManager.activeMode;
       const speed = Math.abs(activeEnt.speed);
       if (els.fps) {
@@ -481,8 +485,8 @@ export function createHudTelemetry({ els, controllerManager, cameraSystem, topSp
         els.fps.className = currentFps >= 50 ? 'fps-ok' : currentFps >= 30 ? 'fps-warn' : 'fps-bad';
       }
       if (els.speed) els.speed.textContent = String(Math.round(speed * 3.6));
-      if (els.speedMeter) els.speedMeter.style.transform = `scaleX(${Math.min(1, speed / topSpeed[mode])})`;
-      if (els.altitude) els.altitude.textContent = Math.round(activeEnt.position.y).toLocaleString('zh-CN');
+      if (els.speedMeter) els.speedMeter.style.transform = `scaleX(${Math.min(1, speed / (viewing ? cruise.targetSpeed : topSpeed[mode]))})`;
+      if (els.altitude) els.altitude.textContent = Math.round(viewing ? cruise.altitude : activeEnt.position.y).toLocaleString('zh-CN');
       // 跟随相机显示玩家所在街角，观光相机显示相机所在街角。
       const where = cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos;
       renderLocation(where.x, where.z);

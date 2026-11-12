@@ -36,7 +36,7 @@ const rule = (restriction, from, to, via, viaWays = []) => ({ osmId: 'relation/1
 test('brake and boost inputs cancel automatic driving through the frame wiring', () => {
   const main = read('main.js');
   const start = main.indexOf('    const { forward, backward, left, right', main.indexOf('  function renderFrame'));
-  const end = main.indexOf('    controllerManager.update(', start);
+  const end = main.indexOf('    const prefetch =', start);
   assert.ok(start >= 0 && end > start);
   const wiring = main.slice(start, end);
   const route = { from: { x: 0, z: 0, dx: 1, dz: 0 }, length: 50, stops: [], limits: [9],
@@ -45,13 +45,17 @@ test('brake and boost inputs cancel automatic driving through the frame wiring',
     const car = { position: { x: 0, y: 0, z: 0 }, heading: Math.PI / 2, speed: 0 };
     const autoDrive = createAutoDrive({ model, roadHeight: () => 0, nearTraffic: () => [] });
     assert.equal(autoDrive.start(route, car, 'car'), true);
-    const controllerManager = { activeMode: 'car', keys: { [action]: true } };
+    let appliedInput;
+    const controllerManager = { activeMode: 'car', keys: { [action]: true },
+      update: (_dt, _elapsed, input) => { appliedInput = input; } };
     const context = { controllerManager, autoDrive, laneAssist: { update: () => null }, driveCar: car, dt: 1 / 60, elapsed: 0,
-      mapSystem: { isFullMapOpen: false } };
-    assert.equal(runInNewContext(`${wiring}\ndriveInput;`, context), null);
+      mapSystem: { isFullMapOpen: false }, cruise: { active: false } };
+    runInNewContext(wiring, context);
+    assert.equal(appliedInput, null);
     assert.equal(autoDrive.status, 'manual');
     controllerManager.keys[action] = false;
-    assert.equal(runInNewContext(`${wiring}\ndriveInput;`, { ...context }), null);
+    runInNewContext(wiring, { ...context });
+    assert.equal(appliedInput, null);
     assert.equal(autoDrive.status, 'manual', 'releasing the key does not resume the route');
   }
 });

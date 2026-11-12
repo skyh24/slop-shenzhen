@@ -172,6 +172,33 @@ export const STR = {
     north: '深圳北站',
     highSpeedRail: '高铁'
   },
+  cruise: {
+    short: '巡游',
+    label: '空中巡游',
+    names: { beihuan: '北环巡游', shennan: '深南巡游', binhai: '滨海巡游' },
+    note: '深圳模拟巡游 · 目标高度为地面道路上方约 80 米',
+    speed: '最高速度',
+    scenicSpeed: speed => `观景 · ${speed} km/h`,
+    fullSpeed: speed => `全速 · ${speed} km/h`,
+    progress: '巡游进度',
+    start: '开始巡游',
+    map: '查看路线',
+    pause: '暂停',
+    resume: '继续',
+    replay: '重新开始',
+    exit: '退出巡游',
+    busy: '请先退出当前的演出或地标环绕。',
+    unavailable: '路线净空暂未通过检查',
+    statuses: { aligning: '对准航向', waiting: '等待沿线场景', flying: '自动巡游', paused: '已暂停', complete: '已到站 · 悬停' },
+    endpoints: (from, to) => `${from} → ${to}`,
+    estimate: (length, seconds) => {
+      const rounded = Math.round(seconds);
+      return `${(length / 1000).toFixed(2)} 公里 · 约 ${Math.floor(rounded / 60)} 分 ${rounded % 60} 秒`;
+    },
+    telemetry: (km, total, height, target) =>
+      `${(km / 1000).toFixed(1)} / ${(total / 1000).toFixed(1)} 公里 · 离地 ${Math.round(height)} 米（目标 ${target} 米）`,
+    mapLocation: label => `巡游位置：${label}`,
+  },
   drive: {
     plan: '规划驾车',
     chooseStart: '在地图上选择行车起点。',
