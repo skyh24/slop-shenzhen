@@ -93,8 +93,8 @@ function roadCandidates(road, target, radius, forFlight) {
   return out;
 }
 
-// 正面落点取建筑一侧的路缘，并以实际落点重新对准地标。
-function landmarkRoadCandidates(road, landmark, front, body, radius) {
+// 地标正面取靠建筑的路缘；普通地图点同时检查道路两侧。
+function roadsideCandidates(road, target, front, body, radius) {
   const candidates = [];
   const section = road.crossSection?.points;
   const points = section ? Array.from({ length: section.length / 3 }, (_, i) => ({
@@ -106,19 +106,23 @@ function landmarkRoadCandidates(road, landmark, front, body, radius) {
     const length = Math.hypot(dx, dz);
     if (length < 0.01) continue;
     const nx = -dz / length, nz = dx / length;
-    const side = Math.sign((landmark.x - a.x) * nx + (landmark.z - a.z) * nz) || 1;
-    const projection = ((landmark.x - a.x) * dx + (landmark.z - a.z) * dz) / length;
+    const nearerSide = Math.sign((target.x - a.x) * nx + (target.z - a.z) * nz) || 1;
+    const sides = front ? [nearerSide] : [nearerSide, -nearerSide];
+    const projection = ((target.x - a.x) * dx + (target.z - a.z) * dz) / length;
     const stations = new Set([0, ...ARRIVAL_OFFSETS].map(offset => Math.max(0, Math.min(length, projection + offset))));
     for (const station of stations) {
       const t = station / length;
       const left = section ? a.left + (b.left - a.left) * t : road.w / 2;
-      const width = side < 0 ? left : road.w - left;
-      const offset = side * (width + body.halfLength + 0.15);
-      const x = a.x + dx * t + nx * offset, z = a.z + dz * t + nz * offset;
-      const px = x - landmark.x, pz = z - landmark.z;
-      const distance = Math.hypot(px, pz);
-      if (distance < 1 || distance > radius || px * front.x + pz * front.z < distance * 0.25) continue;
-      candidates.push({ x, z, heading: Math.atan2(-px, -pz), distance, road });
+      for (const side of sides) {
+        const width = side < 0 ? left : road.w - left;
+        const offset = side * (width + body.halfLength + 0.15);
+        const x = a.x + dx * t + nx * offset, z = a.z + dz * t + nz * offset;
+        const px = x - target.x, pz = z - target.z;
+        const distance = Math.hypot(px, pz);
+        if (distance > radius || (front && (distance < 1 || px * front.x + pz * front.z < distance * 0.25))) continue;
+        const heading = front ? Math.atan2(-px, -pz) : Math.atan2(dx, dz);
+        candidates.push({ x, z, heading, distance, road });
+      }
     }
   }
   return candidates;
@@ -220,16 +224,16 @@ export function createCityConfig(geo, buildings = [], labels = STR) {
 
   function findGroundArrival(target, mode = 'car', options = {}) {
     const body = bodyFor(mode);
-    const { forFlight = false, isClear, front } = options;
+    const { forFlight = false, isClear, front, roadside = false } = options;
     const radius = options.radius ?? 600;
     if (!target || !Number.isFinite(target.x) || !Number.isFinite(target.z)
       || (!forFlight && !spatial.inBounds(target.x, target.z))) return null;
     if (!Number.isFinite(radius) || radius < 0 || (!forFlight && radius > 2000)) throw new Error('Invalid arrival search radius');
     // 用实际车道点的距离筛选，先把可能落在搜索圈内的车道对应的中心线都取到。
-    const queryRadius = front ? radius + maxRoadWidth + body.halfLength : forFlight ? radius + maxLaneOffset : radius;
+    const queryRadius = front || roadside ? radius + maxRoadWidth + body.halfLength : forFlight ? radius + maxLaneOffset : radius;
     const candidates = spatial.nearestRoads(target.x, target.z, queryRadius, { allowOutside: forFlight })
       .filter(hit => hit.road.heightSource === 'terrain' && !hit.road.bridge && !hit.road.tunnel && !hit.road.layer)
-      .flatMap(hit => front ? landmarkRoadCandidates(hit.road, target, front, body, radius)
+      .flatMap(hit => front || roadside ? roadsideCandidates(hit.road, target, front, body, radius)
         : roadCandidates(hit.road, target, radius, forFlight))
       .sort((a, b) => a.distance - b.distance || a.road.id - b.road.id || a.x - b.x || a.z - b.z);
     for (const candidate of candidates) {

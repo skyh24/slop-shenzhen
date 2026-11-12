@@ -24,13 +24,12 @@ export function createLandmarkViews(landmarks, heights, heightAt, approaches, ga
   }));
 }
 
-export function findLandmarkArrival(landmark, controller, findGroundArrival, roadHeight, flightStartAltitude) {
+export function findLandmarkArrival(landmark, controller, findGroundArrival, roadHeight, flightStartAltitude, mode = controller.activeMode) {
   const { x, y, z, roof, front } = landmark;
   if (!front) return null;
-  const mode = controller.activeMode;
   if (mode !== 'helicopter') {
     return findGroundArrival(landmark, mode, { front, isClear: point => !Number.isFinite(roadHeight(point.x, point.z))
-      && controller.findTeleportPosition(point.x, point.z, point.heading, 0, true, null, { exact: true }) });
+      && controller.findTeleportPosition(point.x, point.z, point.heading, 0, true, null, { exact: true, mode }) });
   }
   const frontAngle = Math.atan2(front.x, front.z);
   // 优先飞到立面中部高度。正前方受阻时，先提高净空，再沿正面一侧试位。
@@ -42,7 +41,7 @@ export function findLandmarkArrival(landmark, controller, findGroundArrival, roa
     const px = x + Math.sin(angle) * LANDMARK_RADIUS, pz = z + Math.cos(angle) * LANDMARK_RADIUS;
     const heading = Math.atan2(x - px, z - pz);
     for (const altitude of altitudes) {
-      const point = controller.findTeleportPosition(px, pz, heading, altitude, true, null, { exact: true });
+      const point = controller.findTeleportPosition(px, pz, heading, altitude, true, null, { exact: true, mode });
       if (point) return point;
     }
   }

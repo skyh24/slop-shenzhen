@@ -4,6 +4,7 @@ const { readFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
+const { loadModule } = require('./helpers/module.cjs');
 
 const read = (path) => readFileSync(join(__dirname, '..', path), 'utf8');
 let GEO, CITY_PAYLOAD, TELEPORT_LOCATIONS, LANDMARK_SITES, getScenicCamera, createGroundSurfaceSampler, findParkArrival, parkAt, decodeCityPayload;
@@ -16,7 +17,6 @@ test.before(async () => {
     ({ getScenicCamera } = await import('../js/sz-camera-presets.js'));
     ({ findParkArrival, parkAt } = await import('../js/sz-park-arrivals.js'));
     ({ decodeCityPayload } = await import('../js/sz-data-format.js'));
-    const { loadModule } = require('./helpers/module.cjs');
     ({ createGroundSurfaceSampler } = loadModule(read('js/sz-ground-surface.js')));
   } finally {
     globalThis.fetch = fetch;
@@ -77,24 +77,58 @@ test('park arrivals retain a verified site member and require rendered ground su
   assert.throws(() => decodeCityPayload({ ...CITY_PAYLOAD, parks: [{ ...CITY_PAYLOAD.parks[0], source: '' }] }), /park source/);
 });
 
-test('teleports mark resolved landings or the reviewed destination from an exact walk start', () => {
+test('map travel resolves a walking pose before closing and leaves the map open on failure', () => {
   const main = read('js/main.js');
-  const start = main.indexOf('  function teleportTo(');
+  const start = main.indexOf('  const { teleportTo, teleportFromMap }');
   const end = main.indexOf('  const openMapBtn', start);
   const handlers = new Map();
   const calls = [];
   const landed = { x: -305.7, z: 521 };
   let arrival = landed;
   let map;
+  let mode = 'helicopter';
+  const walking = { x: 100, y: 8, z: 200, surfaceId: 'terrain' };
+  const curb = { x: 111, y: 8, z: 200, heading: 1.5 };
   const feedback = {};
   const approach = { x: -498.3, z: 1201.7, heading: Math.PI, exact: true,
     waypoint: { x: -498.3, z: 1177.2, name: 'Entrance forecourt' } };
   const teleportEntries = { ...TELEPORT_LOCATIONS, approach };
   const environment = {
     teleportEntries,
-    landmarkViews: new Map(),
+    landmarkViews: new Map([['landmark', { name: 'Landmark' }]]),
+    createTeleportActions: loadModule(read('js/sz-teleport.js'), { imports: {
+      './sz-landmark-views.js': { findLandmarkArrival: (...args) => {
+        assert.equal(args.at(-1), 'person');
+        return curb;
+      } },
+      './sz-park-arrivals.js': { parkAt: () => null }
+    } }).createTeleportActions,
+    FLIGHT_START_ALTITUDE: 200,
+    roads: { roadHeight: () => null },
+    isWater: x => x === 300,
+    carriagewayOccupied: x => x === 110,
+    findGroundArrival: (point, arrivalMode, options) => {
+      assert.equal(arrivalMode, 'person');
+      assert.equal(options.roadside, true);
+      return point.x === 110 && options.isClear(curb) ? curb : null;
+    },
+    selectMode: (next, destination) => {
+      calls.push(['mode', next, destination.x, destination.y, destination.z, destination.heading]);
+      mode = next;
+      return true;
+    },
     bayPark: null,
     controllerManager: {
+      get activeMode() { return mode; },
+      findTeleportPosition: (x, z, heading, altitude, required, park, options) => {
+        assert.equal(required, true);
+        assert.equal(altitude, 0);
+        assert.equal(options.mode, 'person');
+        assert.equal(options.exact, true);
+        if (x === 100 && z === 200) return walking;
+        if (x === curb.x && z === curb.z) return curb;
+        return null;
+      },
       teleportActiveTo: (x, z, heading, altitude, options) => {
         calls.push(['teleport', x, z, heading, altitude, options.requireArrival, options.exact]);
         return arrival;
@@ -109,7 +143,8 @@ test('teleports mark resolved landings or the reviewed destination from an exact
     getLocationLabel: (x, z) => `${x}, ${z}`,
     inBounds: x => x < 9000,
     SZMapSystem: class {
-      constructor(options) { this.onTeleport = options.onTeleport; map = this; }
+      constructor(options) { this.onTeleport = options.onTeleport; this.open = true; map = this; }
+      toggleFullMap(open) { calls.push(['map', open]); this.open = open; }
     },
     wireMetroMenu: () => {},
     GEO,
@@ -136,10 +171,38 @@ test('teleports mark resolved landings or the reviewed destination from an exact
   handlers.get('approach')();
   assert.deepEqual(calls[0], ['teleport', approach.x, approach.z, approach.heading, null, true, true]);
   assert.equal(map.waypoint, approach.waypoint);
-  map.waypoint = { x: 100, z: 200, name: 'inside a building' };
-  map.onTeleport(100, 200);
-  assert.equal(map.waypoint.x, landed.x);
-  assert.equal(map.waypoint.name, `${landed.x}, ${landed.z}`);
+  assert.equal(mode, 'helicopter');
+  assert.equal(map.open, true);
+  calls.length = 0;
+  assert.equal(map.onTeleport(100, 200), walking);
+  assert.equal(mode, 'person');
+  assert.equal(map.open, false);
+  assert.deepEqual(calls, [['mode', 'person', 100, 8, 200, Math.PI],
+    ['laneCancel'], ['touch'], ['gamepad'], ['camera'], ['selectCamera', 'chase', true], ['map', false]]);
+  assert.equal(map.waypoint.x, 100);
+  assert.equal(map.waypoint.name, '100, 200');
+
+  mode = 'car';
+  map.open = true;
+  calls.length = 0;
+  assert.equal(map.onTeleport(110, 200), curb);
+  assert.equal(map.open, false);
+  assert.equal(map.waypoint.x, curb.x);
+  mode = 'helicopter';
+  map.open = true;
+  assert.equal(map.onTeleport(115, 200, undefined, { landmarkId: 'landmark' }), curb);
+  assert.equal(mode, 'person');
+  assert.equal(map.waypoint.name, 'Landmark');
+
+  mode = 'cyclist';
+  map.open = true;
+  calls.length = 0;
+  assert.equal(map.onTeleport(299, 200), null);
+  assert.equal(map.onTeleport(300, 200), null);
+  assert.equal(mode, 'cyclist');
+  assert.equal(map.open, true);
+  assert.deepEqual(calls, []);
+  assert.equal(map.waypoint.name, 'Landmark');
   arrival = null;
   calls.length = 0;
   handlers.get('ping-an')();
@@ -147,7 +210,7 @@ test('teleports mark resolved landings or the reviewed destination from an exact
   assert.equal(feedback.hidden, false);
   assert.equal(feedback.textContent, 'No arrival');
   assert.equal(map.onTeleport(10000, 10000), null);
-  assert.equal(map.waypoint.x, landed.x);
+  assert.equal(map.waypoint.x, curb.x);
 });
 
 test('landmark flight arrivals search the front arc at exactly 200 metres and face the centre', async () => {

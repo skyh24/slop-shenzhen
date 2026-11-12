@@ -47,10 +47,10 @@ import { ThirdPersonControllerManager, FLIGHT_START_ALTITUDE, PLAYER_SPEED_LIMIT
 import { TouchControls } from './touch-controls.js';
 import { GamepadControls } from './gamepad-controls.js';
 import { CameraSystem, CAMERA_PRESETS } from './cameras.js';
-import { createLandmarkViews, findLandmarkArrival, wireLandmarkOrbit } from './sz-landmark-views.js';
+import { createLandmarkViews, wireLandmarkOrbit } from './sz-landmark-views.js';
 import { LightingSystem } from './lighting.js';
 import { SZMapSystem } from './sz-map.js';
-import { parkAt } from './sz-park-arrivals.js';
+import { createTeleportActions } from './sz-teleport.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 import { createQaSession } from './sz-qa.js';
@@ -639,17 +639,10 @@ async function initApp() {
     els: { fps: elFps, speed: elSpeed, speedMeter: elSpeedMeter, altitude: elAltitude },
     controllerManager, cameraSystem, topSpeed: PLAYER_SPEED_LIMITS, renderLocation
   });
-  function teleportTo(x, z, heading, options = {}) {
-    if (!inBounds(x, z)) return null;
-    const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(GEO.parks, x, z) : null);
-    const landmark = landmarkViews.get(options.landmarkId);
-    const arrival = landmark && findLandmarkArrival(landmark, controllerManager,
-      findGroundArrival, roads.roadHeight, FLIGHT_START_ALTITUDE);
-    if (landmark && !arrival) return null;
-    const destination = arrival
-      ? controllerManager.teleportActiveTo(arrival.x, arrival.z, arrival.heading, arrival.y, { exact: true })
-      : controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park, exact: options.exact === true });
-    if (!destination) return null;
+  const { teleportTo, teleportFromMap } = createTeleportActions({ controllerManager, landmarkViews, parks: GEO.parks,
+    inBounds, isWater, carriagewayOccupied, findGroundArrival, roadHeight: roads.roadHeight, flightStartAltitude: FLIGHT_START_ALTITUDE,
+    selectMode, onArrival: finishTeleport, closeMap: () => mapSystem.toggleFullMap(false) });
+  function finishTeleport(destination, options, park, landmark) {
     laneAssist.cancel();
     autoDrive.stop('manual');
     touchControls.reset();
@@ -663,7 +656,6 @@ async function initApp() {
       z: destination.z,
       name: landmark?.name ?? area?.name ?? name
     };
-    return destination;
   }
 
   function goToDriveStart(route) {
@@ -691,7 +683,7 @@ async function initApp() {
       touchControls.setEnabled(!open);
       gamepadControls.setEnabled(!open);
     },
-    onTeleport: teleportTo,
+    onTeleport: teleportFromMap,
     drive: {
       snap: (x, z) => drivePlanner().snap(x, z),
       route: (start, end) => drivePlanner().route(start, end),

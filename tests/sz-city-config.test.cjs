@@ -143,3 +143,18 @@ test('a landmark arrival uses the near edge of the front road and faces the land
   assert.ok(Math.abs(point.z - (-30 + 3.5 + 2.28 + 0.15)) < 1e-8);
   assert.equal(Math.abs(point.heading), 0);
 });
+
+test('a map point on a road can use either edge of an asymmetric carriageway', async () => {
+  const { createCityConfig } = await modulePromise;
+  const metadata = fixture.roadGraph.metadata.map((row, i) => i ? row : {
+    ...row, crossSection: { points: [-90, 0, 2, 90, 0, 2] }
+  });
+  const city = createCityConfig({ ...fixture, roadGraph: { ...fixture.roadGraph, metadata } });
+  const target = { x: -20, z: 0 };
+  const point = city.findGroundArrival(target, 'person', { roadside: true, radius: 10 });
+  assert.equal(point.x, target.x);
+  assert.ok(Math.abs(point.z - (-2 - 0.58 - 0.15)) < 1e-8);
+  const opposite = city.findGroundArrival(target, 'person', { roadside: true, radius: 10,
+    isClear: point => point.z > 0 });
+  assert.ok(Math.abs(opposite.z - (5 + 0.58 + 0.15)) < 1e-8);
+});
