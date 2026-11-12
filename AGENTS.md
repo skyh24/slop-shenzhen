@@ -7,7 +7,7 @@
 - 开工读 [HANDOFF](docs/HANDOFF.md)、[规范](docs/CONVENTIONS.md)、[开发检查](docs/25-FAST-CHECKS.md)，再读 [TASKS](docs/TASKS.md) 对应条目。
 - 查调用关系读 [架构](docs/01-ARCHITECTURE.md)，再从 [组件索引](docs/README.md) 读任务对应模块；道路、建筑、街景、载具、无人机、界面、商圈和灯光秀各有独立说明。改数据读 [数据管线](docs/02-DATA-PIPELINE.md)，改地标读 [模型参考](docs/05-LANDMARKS.md)。
 - 正式验收或发布读 [验收标准](docs/10-PERF-QA.md)。调研和历史问题按需读，不作为每次开工前置。
-- 只做用户本轮授权的范围。调研/规划任务只改文档，把实施提示词放 TASKS，不启动实现 agent。
+- 只做用户本轮授权的范围。调研/规划任务只改文档，不启动实现 agent。TASKS 只记录正式工作状态、依赖和验收缺口；实施提示词直接在对话中提供。
 
 ## 必须保持
 
