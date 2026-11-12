@@ -68,6 +68,16 @@
       }
     },
     {
+      "id": "press-tower", "name": "深圳特区报业大厦", "phase": 1,
+      "center": [22.543424398, 114.040404834],
+      "osm": { "building": "way/925221216", "parts": { "main": "way/65255027", "crown": "way/774640911", "podium": "way/529086130" } },
+      "heightM": 260, "heights": { "towerRoof": 187, "spireTip": 260 },
+      "heightSource": "reference", "status": "verified",
+      "verifiedAt": "2026-11-12",
+      "sources": ["https://www.skyscrapercenter.com/building/shenzhen-special-zone-daily-tower/726", "https://www.sz.gov.cn/attachment/1/1325/1325477/10741469.pdf"],
+      "note": "260 m is the architectural tip confirmed by CVU. 187 m is the main OSM volume height. Open crown, spire widths and the glass eye profile are visual estimates."
+    },
+    {
       "id": "chegongmiao", "name": "车公庙片区", "phase": 1,
       "center": [22.53849, 114.02254],
       "osm": { "metro": "way/412443234", "interchangeBridge": "way/1210209012" },

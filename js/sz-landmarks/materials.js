@@ -20,6 +20,7 @@ const styles = {
   pingAnMallBase: { metal: 0x706562, glass: 0x6d6462, roof: 0x6c7071, bay: 3.7, floor: 6.8, fin: 0.14, sill: 0.17, lit: 0.12, rough: 0.3, glow: 0xffd5a0, wash: 0.09 },
   pingAnMall: { metal: 0xa4a6a6, glass: 0x535a62, roof: 0x7f8586, bay: 1.8, floor: 2.35, fin: 0.045, sill: 0.26, lit: 0.08, rough: 0.28, glow: 0xeed1aa },
   chunsunGlass: { metal: 0x7d8990, glass: 0x4c697b, roof: 0x7e919d, bay: 1.8, floor: 4.95, fin: 0.045, sill: 0.11, lit: 0.075, rough: 0.16, glow: 0xddefff, wash: 0.064 },
+  pressTowerGlass: { metal: 0x607f89, glass: 0x286178, roof: 0x67767b, bay: 1.64, floor: 3.94, fin: 0.08, sill: 0.045, lit: 0.13, rough: 0.21, glow: 0xe5f2f4 },
   chunsunLobby: { metal: 0x7b8387, glass: 0x6c858e, roof: 0x8b9597, bay: 2.12, floor: 7.0, fin: 0.06, sill: 0.06, lit: 0.085, rough: 0.22, glow: 0xf2d9ae, wash: 0.37 },
   chunsunCrown: { metal: 0xaebfc9, glass: 0x648599, roof: 0xa4b4bd, bay: 1.5, floor: 5.2, fin: 0.06, sill: 0.1, lit: 0.05, rough: 0.18, glow: 0xceeaff, wash: 0.66 },
   civicGlass: { metal: 0x81919a, glass: 0x667d8c, roof: 0x909798, bay: 2.75, floor: 5.1, fin: 0.1, sill: 0.08, lit: 0.08, rough: 0.23, glow: 0xe8d9bf },
@@ -171,6 +172,7 @@ export function createLandmarkMaterial(name) {
     case 'civicTowerRed': return new THREE.MeshStandardMaterial({ color: 0xb83425, metalness: 0.09, roughness: 0.53 });
     case 'civicTowerYellow': return new THREE.MeshStandardMaterial({ color: 0xe3a622, metalness: 0.09, roughness: 0.53 });
     case 'civicStone': return new THREE.MeshStandardMaterial({ color: 0xb5b6b5, roughness: 0.76 });
+    case 'pressEye': return roofMaterial(0x1e5364, 0x25454e, 0.21);
     case 'stadiumRib': return roofMaterial(0xdde4e5, 0xc5cac9, 0.41, 0.05);
     case 'stadiumGlazing': return roofMaterial(0x71919e, 0x4d6871, 0.29);
     case 'stadiumRoof': return new THREE.MeshStandardMaterial({ color: 0xbbc9ce, metalness: 0.21, roughness: 0.45 });

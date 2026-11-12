@@ -36,6 +36,7 @@ const loadUpperhills = THREE => loadModule(readLandmark('upperhills.js'), { impo
 const nonferrous = loadModule(readLandmark('nonferrous-tower.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': {}, '../sz-materials.js': {}, './parts.js': parts
 } });
+const pressTower = loadModule(readLandmark('press-tower.js'), { imports: { './parts.js': parts } });
 const loadIec = (THREE, tsl = {}, materials = {}) => loadModule(readLandmark('iec-xiangmihu.js'), { imports: {
   'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': materials, '../sz-terrain.js': terrain, './parts.js': parts
 } });
@@ -51,7 +52,7 @@ const loadPlan = (cultureModule, upperhillsModule = upperhills, iecModule = iec,
   './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun,
   './civic-center.js': civic, './chunjian.js': stadium, './shenzhen-bay-culture-square.js': cultureModule,
   './convention-center.js': convention, './upperhills.js': upperhillsModule, './nonferrous-tower.js': nonferrous,
-  './iec-xiangmihu.js': iecModule, './super-hq.js': superHqModule, '../building-collision.js': collision
+  './iec-xiangmihu.js': iecModule, './super-hq.js': superHqModule, './press-tower.js': pressTower, '../building-collision.js': collision
 } });
 const { planSzLandmarks } = loadPlan(culture);
 const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
@@ -61,10 +62,24 @@ const plan = planSzLandmarks(fixture, geo.terrain);
 const byId = new Map(buildings.map(building => [building.id, building]));
 const byLandmark = new Map(plan.plans.map(landmark => [landmark.id, landmark.parts]));
 
+test('the Shenzhen press tower renders an open crown and a spire rather than a second glass tower', () => {
+  const shell = byLandmark.get('press-tower');
+  for (const id of pressTower.sourceIds) assert.ok(plan.skipIds.has(id));
+  const roof = shell.find(item => item.id.startsWith('press-tower:core:'));
+  const mast = shell.find(item => item.id === 'press-tower:spire');
+  assert.ok(Math.abs(roof.maxY - roof.minY - 187) < 1e-4);
+  assert.ok(Math.abs(mast.minY - roof.maxY) < 1e-4);
+  assert.ok(Math.abs(mast.maxY - roof.minY - 260) < 1e-4);
+  assert.ok(mast.maxX - mast.minX < 2);
+  assert.ok(shell.some(item => item.id.startsWith('press-tower:news-eye:')));
+  assert.ok(shell.filter(item => item.maxY > roof.maxY).every(item => item.style === 'djiSteel'));
+});
+
+
 test('landmarks retire only the explicit source objects and keep the fallback on incomplete snapshots', () => {
-  const verifiedDuplicates = [...civic.optionalSkipIds, ...nonferrous.optionalSkipIds].filter(id => byId.has(id));
+  const verifiedDuplicates = [...civic.optionalSkipIds, ...nonferrous.optionalSkipIds, ...pressTower.optionalSkipIds].filter(id => byId.has(id));
   assert.deepEqual([...plan.skipIds].sort(), [...tencent.sourceIds, ...dji.sourceIds, ...pingAn.sourceIds, ...chunsun.sourceIds,
-    ...civic.sourceIds, ...verifiedDuplicates, ...stadium.sourceIds, ...convention.sourceIds, ...nonferrous.sourceIds].sort());
+    ...civic.sourceIds, ...verifiedDuplicates, ...stadium.sourceIds, ...convention.sourceIds, ...nonferrous.sourceIds, ...pressTower.sourceIds].sort());
   assert.ok(byLandmark.has('civic-center'));
   assert.ok(byLandmark.has('chunjian'));
   assert.ok(byLandmark.has('convention-center'));

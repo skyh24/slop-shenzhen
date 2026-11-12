@@ -8,6 +8,7 @@ import { sourceIds as cultureIds, build as buildCulture } from './shenzhen-bay-c
 import { sourceIds as conventionIds, build as buildConvention } from './convention-center.js';
 import { sourceIds as upperhillsIds, build as buildUpperhills } from './upperhills.js';
 import { sourceIds as nonferrousIds, optionalSkipIds as nonferrousDuplicates, build as buildNonferrous } from './nonferrous-tower.js';
+import { sourceIds as pressIds, optionalSkipIds as pressDuplicates, build as buildPress } from './press-tower.js';
 import { sourceIds as iecIds, optionalSkipIds as iecDuplicates, build as buildIec } from './iec-xiangmihu.js';
 import { sourceIds as superHqIds, optionalSkipIds as superHqSkips, build as buildSuperHq } from './super-hq.js';
 import { polygonContains } from '../building-collision.js';
@@ -26,6 +27,7 @@ const definitions = [
   { id: 'convention-center', sourceIds: conventionIds, build: buildConvention },
   { id: 'upperhills', sourceIds: upperhillsIds, build: buildUpperhills },
   { id: 'nonferrous-tower', sourceIds: nonferrousIds, optionalSkipIds: nonferrousDuplicates, build: buildNonferrous },
+  { id: 'press-tower', sourceIds: pressIds, optionalSkipIds: pressDuplicates, build: buildPress },
   { id: 'iec-xiangmihu', site: 'iec-xiangmihu', sourceIds: iecIds, optionalSkipIds: iecDuplicates, build: buildIec },
   { id: 'super-hq', site: 'super-hq', sourceIds: superHqIds, optionalSkipIds: superHqSkips, build: buildSuperHq }
 ];
