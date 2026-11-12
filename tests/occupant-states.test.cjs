@@ -38,8 +38,7 @@ function loadControllers(THREE, world) {
         terrainHeight: () => 0,
         findGroundArrival: () => ({ x: 0, y: 0, z: 0, heading: 0 }),
         isTypingInField: () => false,
-        isWater: (x, z) => world.water(x, z),
-        nearestRoads: (x, z, radius) => world.roads(x, z, radius)
+        isWater: (x, z) => world.water(x, z)
       },
       './sz-controller-surfaces.js': {},
       './sz-park-arrivals.js': {},
@@ -82,7 +81,7 @@ function mockRig(THREE, rideCalls) {
 }
 
 function createHarness(THREE, overrides = {}) {
-  const state = { water: () => false, roads: () => [], traffic: () => [], colliders: [], ground: () => 0, ...overrides };
+  const state = { water: () => false, traffic: () => [], colliders: [], ground: () => 0, ...overrides };
   const loaded = loadControllers(THREE, state);
   // 未导出时退回契约字面量，让缺特性版本继续跑到真正的行为断言，而不是在装配期抛 TypeError。
   const OCCUPANT_STATES = loaded.OCCUPANT_STATES ??
@@ -95,7 +94,7 @@ function createHarness(THREE, overrides = {}) {
   const person = {
     type: 'person', position: new THREE.Vector3(0, 0, 0), heading: 0, speed: 0,
     prevX: 0, prevZ: 0, verticalVel: 0, jumping: false, jumpPrep: 0,
-    mesh: new THREE.Group(), rig, crowd: mockCrowd(), _charHidden: false,
+    mesh: new THREE.Group(), rig, crowd: mockCrowd(),
     shadow: { visible: true, position: new THREE.Vector3(0, 0.02, 0), scale: new THREE.Vector3(1, 1, 1) },
     _support: { height: 0, surfaceId: 'terrain' }, _safePosition: { x: 0, y: 0, z: 0 },
     cameraTargetOffset: new THREE.Vector3(0, 1.55, 0), chaseDistance: 4.3, chaseHeight: 1.95
@@ -121,14 +120,14 @@ function createHarness(THREE, overrides = {}) {
   const cyclist = {
     type: 'cyclist', position: new THREE.Vector3(4, 0, 0), heading: 0, speed: 0,
     leanAngle: 0, pedalPhase: 0, mesh: new THREE.Group(), leanPivot: new THREE.Group(),
-    helmet: new THREE.Group(), riderCrowd: mockCrowd(), riderRig: mockRig(THREE, []),
+    helmet: new THREE.Group(),
     bikeFrame: {
       seat: new THREE.Vector3(0, 0.93, -0.235), bars: new THREE.Vector3(0, 1.05, 0.42),
       bracket: new THREE.Vector3(0, 0.28, -0.1), gripHalf: 0.22, crankLength: 0.17 },
     frontWheel: { rotation: { x: 0 } }, rearWheel: { rotation: { x: 0 } },
     crankPivot: { rotation: { x: 0 } }, pedals: [], wheelRadius: 0.335,
     collisionBounds: { min: { x: -0.4, y: 0, z: -0.9 }, max: { x: 0.4, y: 1.4, z: 0.9 } },
-    _brakeHold: 0, _posedX: NaN, _riderHidden: false,
+    _brakeHold: 0,
     _support: { height: 0, surfaceId: 'terrain' }, _safePosition: { x: 4, y: 0, z: 0 }, prevX: 4, prevZ: 0,
     cameraTargetOffset: new THREE.Vector3(0, 1.35, 0), chaseDistance: 4.8, chaseHeight: 2.05
   };
@@ -263,117 +262,58 @@ test('car driving input is ignored while boarding and accepted once seated', { s
   assert.ok(h.car.position.distanceTo(start) > 0.1, 'the accepted input moves the car forward');
 });
 
-test('alighting from a stopped car places the person at a safe point and restores walking', { skip }, async () => {
+test('mode changes share one position and render one player model', { skip }, async () => {
   const THREE = await threeReady;
   const h = createHarness(THREE);
-  h.car.position.set(0, 0, 0);
-  boardAndSit(h, 'car');
-  const safe = h.controller.findAlightPosition(h.car);
-  assert.ok(safe, 'a clear street must offer a safe alight point');
-  h.car.speed = 0;
-  assert.equal(h.controller.setMode('person'), true);
-  assert.equal(h.controller.activeMode, 'person');
-  assert.equal(h.controller.occupant.state, 'alighting');
-  assert.ok(h.person.position.distanceTo(new THREE.Vector3(safe.x, safe.y, safe.z)) < 1e-9,
-    'the person is placed on the searched safe point');
-  h.advance(0.4);
-  assert.equal(h.controller.occupant.state, 'walking');
-  h.controller.keys.forward = true;
-  const from = h.person.position.clone();
-  h.advance(0.5);
-  assert.ok(h.person.position.distanceTo(from) > 0.2, 'walking input works again after alighting');
-});
-
-test('alighting is refused while the car moves or when no safe point exists', { skip }, async () => {
-  const THREE = await threeReady;
-  const h = createHarness(THREE);
-  h.car.position.set(0, 0, 0);
-  boardAndSit(h, 'car');
-  h.car.speed = 3;
-  assert.equal(h.controller.setMode('person'), false);
-  assert.equal(h.controller.activeMode, 'car');
-  assert.equal(h.controller.occupant.state, 'seated');
-  assert.equal(h.controller.occupant.mode, 'car');
-  assert.ok(h.person.position.distanceTo(seatWorld(h.car)) < 1e-6, 'a refused alight keeps the player seated');
-  h.car.speed = 0;
-  h.state.water = () => true;
-  assert.equal(h.controller.findAlightPosition(h.car), null);
-  assert.equal(h.controller.setMode('person'), false);
-  h.controller.update(1 / 60, 2);
-  assert.equal(h.controller.occupant.state, 'seated');
-  assert.equal(h.controller.activeMode, 'car');
-  assert.ok(h.person.position.distanceTo(seatWorld(h.car)) < 1e-6);
-});
-
-test('safe-point search rejects water, buildings, traffic, lane centre and level jumps', { skip }, async () => {
-  const THREE = await threeReady;
-  const water = createHarness(THREE, { water: (x) => x < 0 });
-  assert.equal(typeof water.controller.findAlightPosition, 'function', 'controllers.js must expose findAlightPosition');
-  water.car.position.set(0, 0, 0);
-  let point = water.controller.findAlightPosition(water.car);
-  assert.ok(point, 'a clear opposite side must still be found');
-  assert.equal(water.state.water(point.x, point.z), false, 'the alight point must not be water');
-  assert.ok(point.x > 0.5, 'water on one side pushes the point to the other side');
-  const blocking = { minX: -30, maxX: -0.3, minZ: -30, maxZ: 30, minY: 0, maxY: 6 };
-  const built = createHarness(THREE, { colliders: [blocking] });
-  built.car.position.set(0, 0, 0);
-  point = built.controller.findAlightPosition(built.car);
-  assert.ok(point && point.x > 0.5, 'a building on one side pushes the point to the other side');
-  const trafficBox = { minX: -30, maxX: -0.3, minZ: -30, maxZ: 30, minY: 0, maxY: 2 };
-  const traffic = createHarness(THREE, { traffic: (x) => (x < 0 ? [trafficBox] : []) });
-  traffic.car.position.set(0, 0, 0);
-  point = traffic.controller.findAlightPosition(traffic.car);
-  assert.ok(point && point.x > 0.5, 'a nearby traffic collider must be skipped');
-  const lane = createHarness(THREE, { roads: (x) => (x < 0 ? [{ distance: 0.4, road: { w: 12 } }] : []) });
-  lane.car.position.set(0, 0, 0);
-  point = lane.controller.findAlightPosition(lane.car);
-  assert.ok(point, 'a point away from the lane centre must exist');
-  assert.equal(lane.state.roads(point.x, point.z).length, 0, 'the lane-centre candidate must be rejected');
-  const raised = createHarness(THREE, { ground: (x) => (x < 0 ? 2 : 0) });
-  raised.car.position.set(0, 0, 0);
-  point = raised.controller.findAlightPosition(raised.car);
-  assert.ok(point, 'a level point must exist');
-  assert.ok(Math.abs(point.y) <= 0.6, 'a candidate over 0.6 m above the vehicle support is rejected');
-  const unknown = createHarness(THREE, { ground: (x) => (x < 0 ? null : 0) });
-  unknown.car.position.set(0, 0, 0);
-  point = unknown.controller.findAlightPosition(unknown.car);
-  assert.ok(point, 'a supported point must exist');
-  assert.ok(Number.isFinite(point.y) && point.x > -0.1, 'unsupported ground is not a safe point');
-});
-
-test('cyclist boarding hides the built-in rider and alights at a safe point', { skip }, async () => {
-  const THREE = await threeReady;
-  const h = createHarness(THREE);
-  assert.equal(h.controller.setMode('cyclist'), true);
-  assert.equal(h.controller.occupant.state, 'boarding');
-  assert.equal(h.controller.occupant.mode, 'cyclist');
-  h.controller.update(1 / 60, 0);
-  assert.ok(h.rideCalls.length > 0, 'the player rig must be posed with ride()');
-  const last = h.rideCalls.at(-1);
-  assert.equal(last[0], h.cyclist.leanPivot);
-  assert.equal(typeof last[1], 'number');
-  assert.equal(last[2], h.cyclist.bikeFrame);
-  h.advance(0.4);
-  assert.equal(h.controller.occupant.state, 'seated');
-  assert.equal(h.cyclist.helmet.visible, false, 'the built-in cyclist helmet is hidden');
-  assert.equal(h.cyclist.riderCrowd.adds.length, 0, 'the built-in rider crowd stays empty');
+  h.person.position.set(8, 0, -6);
+  h.person.heading = 0.43;
+  for (const mode of ['car', 'cyclist', 'helicopter', 'person']) {
+    assert.equal(h.controller.setMode(mode), true);
+    const active = h.controller.getActiveEntity();
+    assert.equal(active.position.x, 8);
+    assert.equal(active.position.z, -6);
+    assert.equal(active.heading, 0.43);
+    assert.equal(active.position.y, mode === 'helicopter' ? 200 : 0);
+    assert.deepEqual(Object.entries(h.controller.entities).filter(([, e]) => e.mesh.visible).map(([key]) => key), [mode]);
+    assert.equal(h.cyclist.helmet.visible, mode === 'cyclist');
+  }
+  assert.ok(h.rideCalls.length > 0, 'cycling reuses the player rig');
   assert.equal(h.person.rig, h.rig);
-  assert.ok(h.person.position.distanceTo(h.cyclist.position) < 0.5, 'the same person is aboard the bicycle');
-  h.cyclist.speed = 0;
-  const safe = h.controller.findAlightPosition(h.cyclist);
-  assert.ok(safe);
-  assert.equal(h.controller.setMode('person'), true);
-  assert.equal(h.controller.occupant.state, 'alighting');
-  assert.ok(h.person.position.distanceTo(new THREE.Vector3(safe.x, safe.y, safe.z)) < 1e-9);
-  h.advance(0.4);
-  assert.equal(h.controller.occupant.state, 'walking');
-  h.controller.keys.forward = true;
-  const from = h.person.position.clone();
-  h.advance(0.5);
-  assert.ok(h.person.position.distanceTo(from) > 0.2);
 });
 
-test('helicopter ground boarding hides the pilot and the seat follows tiltPivot', { skip }, async () => {
+test('returning from flight at the same spot preserves the departure surface', { skip }, async () => {
+  const THREE = await threeReady;
+  const h = createHarness(THREE);
+  const ground = h.person._support;
+  h.controller.surfaceResolver.below = (_x, _z, y) => y >= 5 ? { height: 5, surfaceId: 'bridge' } : ground;
+  assert.equal(h.controller.setMode('helicopter'), true);
+  assert.equal(h.helicopter.position.y, 200);
+  assert.equal(h.controller.setMode('person'), true);
+  assert.equal(h.person._support.surfaceId, 'terrain');
+  assert.equal(h.person.position.y, 0);
+});
+
+test('a blocked destination keeps the active mode and position', { skip }, async () => {
+  const THREE = await threeReady;
+  const h = createHarness(THREE);
+  boardAndSit(h, 'helicopter');
+  h.helicopter.position.set(4, 20, -3);
+  const check = () => {
+    assert.equal(h.controller.setMode('person'), false);
+    assert.equal(h.controller.activeMode, 'helicopter');
+    assert.deepEqual(h.helicopter.position.toArray(), [4, 20, -3]);
+  };
+  h.state.water = () => true;
+  check();
+  h.state.water = () => false;
+  h.state.traffic = () => [{ minX: 3, maxX: 5, minY: 0, maxY: 2, minZ: -4, maxZ: -2 }];
+  check();
+  h.state.traffic = () => [];
+  assert.equal(h.controller.setMode('person'), true);
+  assert.deepEqual(h.person.position.toArray(), [4, 0, -3]);
+});
+
+test('airborne boarding hides the pilot and the seat follows tiltPivot', { skip }, async () => {
   const THREE = await threeReady;
   const h = createHarness(THREE);
   assert.equal(h.controller.setMode('helicopter'), true);
@@ -392,47 +332,6 @@ test('helicopter ground boarding hides the pilot and the seat follows tiltPivot'
   assert.ok(h.person.position.distanceTo(seatWorld(h.helicopter)) < 1e-6,
     'the seated pose follows the tilted cockpit transform');
   assert.ok(h.person.position.y > h.helicopter.position.y + 0.3, 'the seat is not the plain vehicle position');
-});
-
-test('airborne helicopter alight needs a verified landing spot', { skip }, async () => {
-  const THREE = await threeReady;
-  const h = createHarness(THREE);
-  boardAndSit(h, 'helicopter');
-  h.helicopter.position.y = 50;
-  h.helicopter.verticalSpeed = 0;
-  h.controller.findTeleportPosition = () => null;
-  assert.equal(h.controller.setMode('person'), false);
-  assert.equal(h.controller.activeMode, 'helicopter');
-  assert.equal(h.controller.occupant.state, 'seated');
-  const landing = { x: 6, y: 0, z: -3, heading: 0.4 };
-  h.controller.findTeleportPosition = () => landing;
-  assert.equal(h.controller.setMode('person'), true);
-  assert.ok(Math.abs(h.helicopter.position.y - landing.y) < 0.4, 'the helicopter must be on its landing support first');
-  assert.equal(h.controller.activeMode, 'person');
-  assert.equal(h.controller.occupant.state, 'alighting');
-  assert.ok(Math.abs(h.person.position.y) < 0.4);
-  h.advance(0.4);
-  assert.equal(h.controller.occupant.state, 'walking');
-});
-
-test('airborne helicopter boarding needs a verified landing spot too', { skip }, async () => {
-  const THREE = await threeReady;
-  const h = createHarness(THREE);
-  h.helicopter.position.y = 60;
-  h.helicopter.verticalSpeed = 0;
-  h.controller.findTeleportPosition = () => null;
-  assert.equal(h.controller.setMode('helicopter'), false);
-  assert.equal(h.controller.activeMode, 'person');
-  assert.equal(h.controller.occupant.state, 'walking');
-  assert.equal(h.controller.occupant.mode, null);
-  h.controller.findTeleportPosition = () => ({ x: 4, y: 0, z: 4, heading: 0.2 });
-  assert.equal(h.controller.setMode('helicopter'), true);
-  assert.equal(h.controller.activeMode, 'helicopter');
-  assert.equal(h.controller.occupant.state, 'boarding');
-  assert.ok(Math.abs(h.helicopter.position.y) < 0.4, 'the quick landing puts the aircraft on its support');
-  h.advance(0.4);
-  assert.equal(h.controller.occupant.state, 'seated');
-  assert.ok(h.pilotCalls.includes(false));
 });
 
 test('repeated mode switching keeps one pedestrian rig and never walks while seated', { skip }, async () => {
@@ -460,5 +359,5 @@ test('repeated mode switching keeps one pedestrian rig and never walks while sea
   assert.equal(h.person.rig, h.rig);
   assert.equal(h.controller.entities.person.rig, h.rig);
   assert.ok(h.person.crowd.adds.every(([added]) => added === h.rig), 'only the single person rig is rendered');
-  assert.equal(h.person._charHidden, false);
+  assert.equal(h.person.mesh.visible, true);
 });

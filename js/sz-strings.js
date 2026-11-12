@@ -170,6 +170,7 @@ export const STR = {
     manual: '已切回手动驾驶',
     blocked: '前方暂无法安全通行，已停止自动驾驶。'
   },
+  modeUnavailable: '当前位置无法安全切换，请稍候或移动到开阔处。',
   modeNames: { person: '步行', car: '深圳蓝色出租车', cyclist: '共享单车', helicopter: '载人飞行器' },
   locationOutside: '数据覆盖范围外',
   locationWater: '水域',

@@ -360,8 +360,9 @@ test('player brake and reverse lamps follow braking and backward travel', () => 
     sim.advance(1 / 60);
     assert.equal(sim.car.lights[0], Boolean(brake), `brake at speed ${speed}, input ${input}`);
     assert.equal(sim.car.lights[1], Boolean(reverse), `reverse at speed ${speed}, input ${input}`);
-    sim.controller.entities.person = {};
-    sim.controller.setMode('person');
+    const onFoot = teleportHarness('person').ent;
+    sim.controller.entities.person = onFoot;
+    sim.controller.setMode('person', { x: 0, y: 0, z: 0, heading: 0 });
     assert.deepEqual(sim.car.lights, [false, false], 'leaving the car resets both lamps');
   }
 });
@@ -782,47 +783,15 @@ test('failed or invalid teleports keep the current position and stop the player 
   assert.deepEqual({ ...controller.teleportActiveTo(NaN, Infinity) }, { x: 400, z: 400 });
 });
 
-test('successive mode teleports keep parked players out of the arrival and default chase view', () => {
-  const { controller, ent: car } = teleportHarness('car');
-  const person = teleportHarness('person').ent;
-  const cyclist = teleportHarness('cyclist').ent;
-  controller.entities = { car, person, cyclist };
-  person.position.x = 300;
-  cyclist.position.x = 200;
-  const heading = Math.PI / 2; // The first radial candidate is +X: its rear camera would sit on the parked car.
-  assert.deepEqual({ ...controller.teleportActiveTo(0, 0, heading) }, { x: 0, z: 0 });
-  const radii = { car: 2.4, person: 0.48, cyclist: 1.0 };
-  // 步行角色与自行车不再各自占一个位置：同一个角色上车后就坐在车里，只检查停着的车。
-  controller.activeMode = 'person';
-  const personArrival = controller.teleportActiveTo(0, 0, heading);
-  assert.notDeepEqual({ ...personArrival }, { x: 0, z: 0 });
-  assert.ok(Math.hypot(car.position.x - personArrival.x, car.position.z - personArrival.z) > radii.car + radii.person,
-    'a walking player must not be placed inside the parked car');
-
-  controller.activeMode = 'cyclist';
-  const cyclistArrival = controller.teleportActiveTo(0, 0, heading);
-  assert.notDeepEqual({ ...cyclistArrival }, { x: 0, z: 0 });
-  const cameraBack = Math.cos(0.09) * cyclist.chaseDistance;
-  const dx = car.position.x - cyclistArrival.x, dz = car.position.z - cyclistArrival.z;
-  const along = Math.max(0, Math.min(cameraBack, -dx));
-  assert.ok(Math.hypot(dx, dz) > radii.car + radii.cyclist, 'the cyclist arrival must not overlap the parked car');
-  assert.ok(Math.hypot(dx + along, dz) > radii.car + 0.5, 'the complete default chase corridor must be clear');
-  assert.deepEqual([car.position.x, car.position.z], [0, 0], 'switching modes leaves the parked car in place');
-  // 同一角色已经坐到自行车上，不会再以步行的形式留在原位置
-  assert.equal(controller.occupant.mode, 'cyclist');
-  assert.deepEqual({ x: person.position.x, z: person.position.z }, { x: cyclist.position.x, z: cyclist.position.z });
-});
-
-test('player clearance respects altitude and permits a ground arrival under an airborne helicopter', () => {
-  const { controller, ent } = teleportHarness('person');
-  const helicopter = teleportHarness('helicopter').ent;
-  helicopter.position.x = helicopter.position.z = 0;
-  helicopter.position.y = 120;
-  controller.entities.helicopter = helicopter;
-  assert.deepEqual({ ...controller.teleportActiveTo(0, 0) }, { x: 0, z: 0 });
-  assert.equal(ent.position.y, 0.22);
-  helicopter.position.y = 1;
-  assert.notDeepEqual({ ...controller.teleportActiveTo(0, 0) }, { x: 0, z: 0 }, 'a helicopter parked at street level must be avoided');
+test('inactive player vehicles do not block explicit teleports', () => {
+  const { controller } = teleportHarness('person');
+  for (const mode of ['car', 'cyclist', 'helicopter']) {
+    const inactive = teleportHarness(mode).ent;
+    inactive.position.x = inactive.position.z = 0;
+    inactive.position.y = 0.22;
+    controller.entities[mode] = inactive;
+  }
+  assert.deepEqual({ ...controller.teleportActiveTo(0, 0, 0, null, { exact: true }) }, { x: 0, z: 0 });
 });
 
 test('walk mode keeps curb step-offs grounded while real jumps arc and pin the contact shadow to the pavement', () => {
@@ -1040,7 +1009,11 @@ test('walking steps onto a low rendered platform and keeps its footing after sto
   controller.entities.car = car;
   const resolver = controller.surfaceResolver;
   controller.surfaceResolver = { ...resolver, footing() { throw new Error('The vehicle must not use pedestrian footing'); } };
-  controller.setMode('car');
+  assert.equal(controller.setMode('car'), true);
+  assert.equal(car.position.x, ent.position.x);
+  assert.equal(car.position.y, 0.24);
+  assert.equal(car._support.surfaceId, 'low');
+  controller.setMode('car', { x: 0.4, y: 0, z: 0, heading: 0 });
   controller.resolveHorizontalCollision(car.position, 1.35, car);
   assert.ok(car.position.x <= 0.15);
   assert.equal(car.position.y, 0);

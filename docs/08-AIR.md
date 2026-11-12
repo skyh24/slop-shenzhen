@@ -11,7 +11,7 @@
 - 滑橇式起落架
 - 机腹一圈蓝色灯带
 
-文件：`js/sz-vehicles.js` 的 `createEvtolMesh()`（早期规划写的 `js/evtol.js` 没有单独建），由 `controllers.js` 的飞行模式使用；座舱里有坐姿飞行员。
+文件：`js/sz-vehicles.js` 的 `createEvtolMesh()`（早期规划写的 `js/evtol.js` 没有单独建），由 `controllers.js` 的飞行模式使用。切入飞行时在当前位置升到 200 m，较高地面额外保留安全净空。同一玩家角色绑定到放低的座位，舱盖为头部留出空间。
 
 ### 飞行手感
 

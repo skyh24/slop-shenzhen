@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { ISLAND_BOUNDS, isTypingInField, SPAWN_POINT, terrainHeight, findGroundArrival, isWater, nearestRoads } from './sz-city-config.js';
+import { ISLAND_BOUNDS, isTypingInField, SPAWN_POINT, terrainHeight, findGroundArrival, isWater } from './sz-city-config.js';
 import { createSurfaceResolver } from './sz-controller-surfaces.js';
 import { findParkArrival } from './sz-park-arrivals.js';
 import { STR } from './sz-strings.js';
@@ -42,9 +42,8 @@ const CONTACT_EPSILON = 1e-5;
 const OCCUPANT_STATES = Object.freeze({ WALKING: 'walking', BOARDING: 'boarding', SEATED: 'seated', ALIGHTING: 'alighting' });
 const BOARDING_SECONDS = 0.35;
 const ALIGHTING_SECONDS = 0.3;
-const ALIGHT_STOP_SPEED = 0.5;
-// 下车点和载具必须在同一支撑面（桥面/高架/地面不跨层）。
-const ALIGHT_LEVEL_TOLERANCE = 0.6;
+const FLIGHT_START_ALTITUDE = 200;
+const FLIGHT_START_CLEARANCE = 12;
 // 坐姿手臂 IK 的下段长度沿用 pedestrians.js ride() 的 FOREARM + 0.07，
 // 让手能落到方向盘/操纵台抓握点，不另造一套骨架常量。
 const SEAT_ARM_LOWER = 0.325;
@@ -332,192 +331,65 @@ class ThirdPersonControllerManager {
       && (this.occupant.state === OCCUPANT_STATES.BOARDING || this.occupant.state === OCCUPANT_STATES.SEATED);
   }
 
-  // 切换模式是唯一的上下车入口：快捷键、按钮、存档恢复和传送都走这里，
-  // 不允许再留下一个以 1.48 m/s 自行走开的步行角色。
-  setMode(mode) {
-    if (!this.entities[mode]) return false;
+  // 模式切换复用当前位置；只有地图传送和存档恢复会传入已核验的目的地。
+  setMode(mode, destination = null) {
+    if (!Object.hasOwn(this.entities, mode)) return false;
     const previous = this.activeMode;
-    if (mode === previous) {
-      this._applyModeVisibility(mode);
+    if (mode === previous && !destination) {
+      this._applyModeVisibility();
       return true;
     }
-    const person = this.entities.person;
-    if (mode === 'person') return this._alightToPerson(previous, person);
-
-    const target = this.entities[mode];
-    if (previous !== 'person') this._stopEntity(this.entities[previous]);
-    // 空中飞行器不能直接登机：先在人物/载具旁找一块核验过的地面稳定落地，再绑定乘员。
-    if (target.type === 'helicopter' && !this._isVehicleAtRest(target)) {
-      const near = previous === 'person' ? person.position : this.entities[previous].position;
-      if (!this._landHelicopterNear(target, near)) return false;
-    }
-    this._stopEntity(target);
-    this._hideBuiltInOccupant(mode);
-    this.occupant = { state: OCCUPANT_STATES.BOARDING, mode, timer: BOARDING_SECONDS };
-    this.activeMode = mode;
-    this._applyModeVisibility(mode);
-    // 立即绑定座位，过渡期间同一角色已经坐在车里，而不是留在原地。
-    this._syncOccupant();
-    return true;
-  }
-
-  // 下车：地面载具必须停稳，飞行器必须先稳定落地；再找一个不落水、不落楼、不落车道中间的安全站立点。
-  _alightToPerson(previous, person) {
-    if (previous === 'person') {
-      this.occupant = { state: OCCUPANT_STATES.WALKING, mode: null, timer: 0 };
-      this._applyModeVisibility('person');
-      return true;
-    }
-    const vehicle = this.entities[previous];
-    if (!vehicle) {
-      // 没有载具可下（存档或测试里从空模式切回步行）：直接恢复步行状态。
-      this.occupant = { state: OCCUPANT_STATES.WALKING, mode: null, timer: 0 };
-      this.activeMode = 'person';
-      this._applyModeVisibility('person');
-      return true;
-    }
-    if (!this._isVehicleAtRest(vehicle) && !(vehicle.type === 'helicopter' && this._landHelicopterNear(vehicle, vehicle.position))) {
-      return false;
-    }
-    const point = this.findAlightPosition(vehicle);
-    if (!point) return false; // 无可用落点：保持乘坐，不把人强行放进障碍物。
-    this._stopEntity(vehicle);
-    this.occupant = { state: OCCUPANT_STATES.ALIGHTING, mode: null, timer: ALIGHTING_SECONDS };
-    this.activeMode = 'person';
-    person.position.set(point.x, point.y, point.z);
-    person.heading = Number.isFinite(point.heading) ? point.heading : vehicle.heading;
-    person._support = { height: point.y, surfaceId: point.surfaceId ?? 'terrain' };
-    person._safePosition = { x: point.x, y: point.y, z: point.z };
-    person.prevX = point.x;
-    person.prevZ = point.z;
-    person.speed = 0;
-    person.verticalVel = 0;
-    person.jumping = false;
-    person.jumpPrep = 0;
-    person._charHidden = false;
-    if (person.mesh) person.mesh.visible = true;
-    if (person.shadow) person.shadow.visible = true;
-    if (person.rig) person.rig.reset(point.x, point.z, person.heading, personGround, this);
-    if (person.crowd) {
-      person.crowd.begin();
-      person.crowd.add(person.rig, 0);
-      person.crowd.end();
-    }
-    this._applyModeVisibility('person');
-    return true;
-  }
-
-  _applyModeVisibility(mode) {
-    const active = this.entities[mode];
-    if (active.mesh) active.mesh.visible = true;
-    if (active.helmet && !active.occupantOwned) active.helmet.visible = true;
-    if (mode === 'person') {
-      active._charHidden = false;
-      if (active.mesh) active.mesh.visible = true;
-    } else if (mode === 'cyclist' && !active.occupantOwned) {
-      active._riderHidden = false;
-      active._posedX = NaN;
-    }
-    const car = this.entities.car;
-    if (mode !== 'car') car?.setLights?.(false, false);
-  }
-
-  // 载具自带的骑手/飞行员只用于空车展示；同一角色登机后隐藏，避免画面里出现两个乘员。
-  _hideBuiltInOccupant(mode) {
-    const vehicle = this.entities[mode];
-    if (!vehicle) return;
-    vehicle.occupantOwned = true;
-    vehicle.setOccupantVisible?.(false);
-  }
-
-  _stopEntity(entity) {
-    if (!entity) return;
-    entity.speed = 0;
-    entity.verticalSpeed = 0;
-    entity.angularVel = 0;
-    entity.steerAngle = 0;
-    entity.vx = 0;
-    entity.vz = 0;
-  }
-
-  // 停稳判定：地面载具看速度，飞行器看起落架是否贴在同一支撑面上。
-  _isVehicleAtRest(entity) {
-    if (!entity) return false;
-    if (entity.type !== 'helicopter') {
-      return Math.abs(entity.speed ?? 0) <= ALIGHT_STOP_SPEED
-        && Math.hypot(entity.vx ?? 0, entity.vz ?? 0) <= ALIGHT_STOP_SPEED;
-    }
-    const skid = entity.collisionBounds?.min.y ?? -0.25;
-    const landing = this.getFlightSupport(entity, entity.position.y + skid + 0.05);
-    if (!Number.isFinite(landing)) return false;
-    const floor = landing - skid;
-    return Math.abs(entity.position.y - floor) <= 0.4 && Math.abs(entity.verticalSpeed ?? 0) <= 1;
-  }
-
-  // 快捷落地：在目标点附近找一块可容纳旋翼包络的平地，把飞行器稳定放上去。
-  // 这是 docs/14 第 10.2 节允许的 1 秒快捷转场，落点仍按悬空/障碍检查。
-  _landHelicopterNear(vehicle, near) {
-    if (!vehicle || !near) return false;
-    const point = this.findTeleportPosition(near.x, near.z, vehicle.heading, vehicle.position.y, true, null, { mode: 'helicopter' });
+    const point = destination ?? this.findModePosition(mode);
     if (!point) return false;
-    const support = this.surfaceResolver?.resolve?.(point.x, point.z, {});
-    const ground = support?.height ?? this.groundHeight?.(point.x, point.z);
-    vehicle.position.set(point.x, Number.isFinite(ground) ? ground : point.y, point.z);
-    vehicle.heading = Number.isFinite(point.heading) ? point.heading : vehicle.heading;
-    this._stopEntity(vehicle);
-    vehicle.pitchAngle = 0;
-    vehicle.rollAngle = 0;
-    if (vehicle.tiltPivot) {
-      vehicle.tiltPivot.rotation.x = 0;
-      vehicle.tiltPivot.rotation.z = 0;
-    }
-    vehicle._safePosition = { x: vehicle.position.x, y: vehicle.position.y, z: vehicle.position.z };
-    vehicle.mesh.position.copy(vehicle.position);
-    vehicle.mesh.rotation.y = vehicle.heading;
-    vehicle.mesh.updateMatrixWorld(true);
+
+    this.activeMode = mode;
+    this.occupant = mode === 'person'
+      ? { state: destination ? OCCUPANT_STATES.WALKING : OCCUPANT_STATES.ALIGHTING,
+        mode: null, timer: destination ? 0 : ALIGHTING_SECONDS }
+      : { state: destination ? OCCUPANT_STATES.SEATED : OCCUPANT_STATES.BOARDING,
+        mode, timer: destination ? 0 : BOARDING_SECONDS };
+    this._applyModeVisibility();
+    this._placeActiveAt(point, point.heading);
     return true;
   }
 
-  // 车道中间（道路中心线两侧的中央带）不能作为下车点；靠边车道和路侧可以。
-  _isLaneCentre(x, z) {
-    const hit = nearestRoads(x, z, 16)[0];
-    if (!hit) return false;
-    const width = Number.isFinite(hit.road?.w) ? hit.road.w : 0;
-    return hit.distance < Math.max(1.2, width * 0.2);
+  findModePosition(mode, active = this.getActiveEntity()) {
+    const { x, y, z } = active.position;
+    const { heading } = active;
+    const flying = mode === 'helicopter';
+    const body = collisionBody(mode, flying ? 4.5 : mode === 'cyclist' ? 1 : 0.48,
+      heading, 0.05, this.entities[mode].collisionBounds);
+    const takeoff = active.takeoff;
+    const sameTakeoffPoint = takeoff && Math.hypot(x - takeoff.x, z - takeoff.z) < 0.001;
+    const previous = (sameTakeoffPoint ? takeoff.support : active._support)
+      ?? this.surfaceResolver.below(x, z, y + (active.type === 'helicopter' ? active.collisionBounds?.min.y ?? 0 : 0) + 0.05);
+    let height;
+    let surfaceId;
+    if (flying) {
+      const altitude = active.type === 'helicopter' ? y : FLIGHT_START_ALTITUDE;
+      const floor = previous?.height;
+      height = Math.min(this.maxFlightAltitude, Number.isFinite(floor) ? Math.max(altitude, floor + FLIGHT_START_CLEARANCE) : altitude);
+      if (height + body.bottom <= (floor ?? -Infinity)) return null;
+    } else {
+      if (!previous || (previous.surfaceId === 'terrain' && isWater(x, z) !== false)) return null;
+      const support = this.supportedFootprint(x, z, body, { _support: previous });
+      if (!support || Math.abs(support.height - previous.height) > CONTACT_EPSILON) return null;
+      height = support.height;
+      surfaceId = support.surfaceId;
+    }
+    const reach = Math.max(body.extX, body.extZ);
+    if (this.nearColliders(x, z, reach).some(c => buildingContact(c, x, height, z, body))) return null;
+    return { x, y: height, z, heading, surfaceId,
+      takeoff: flying && active.type !== 'helicopter' && previous ? { x, z, support: previous } : null };
   }
 
-  // 安全落点：水面、建筑、悬空、车辆、车道中央和跨层都排除；先右后左、由近到远找。
-  findAlightPosition(vehicle = this.getActiveEntity()) {
-    if (!vehicle || !vehicle.position) return null;
-    const body = collisionBody('person', 0.48, vehicle.heading, 0.1);
-    const reach = Math.max(body.extX, body.extZ);
-    const level = vehicle._support?.height ?? vehicle.position.y;
-    const cos = Math.cos(vehicle.heading);
-    const sin = Math.sin(vehicle.heading);
-    const person = this.entities.person;
-    // 落点必须让开工具体的横向包络（后视镜、旋翼扫掠），站在车身边缘外。
-    const bounds = vehicle.collisionBounds;
-    const halfWidth = Math.max(Math.abs(bounds?.min?.x ?? 0.4), bounds?.max?.x ?? 0.4, 0.4);
-    const lateral = halfWidth + 0.48 + 0.12;
-    // side = 1 是车辆右侧（本地 -x，靠路边一侧），side = -1 是左侧。
-    for (const extra of [0, 0.55, 1.1, 1.7]) {
-      const distance = lateral + extra;
-      for (const side of [1, -1]) {
-        for (const along of [0.15, -0.55, 0.85]) {
-          const lx = -side * distance;
-          const x = vehicle.position.x + lx * cos + along * sin;
-          const z = vehicle.position.z - lx * sin + along * cos;
-          if (isWater(x, z) !== false) continue;
-          if (this._isLaneCentre(x, z)) continue;
-          const support = this.supportedFootprint(x, z, body, person);
-          if (!support || Math.abs(support.height - level) > ALIGHT_LEVEL_TOLERANCE) continue;
-          const blockers = this.nearColliders(x, z, reach);
-          if (blockers.some(c => buildingContact(c, x, support.height, z, body))) continue;
-          return { x, y: support.height, z, heading: vehicle.heading, surfaceId: support.surfaceId ?? 'terrain' };
-        }
-      }
+  _applyModeVisibility() {
+    for (const [mode, entity] of Object.entries(this.entities)) {
+      if (entity.mesh) entity.mesh.visible = mode === this.activeMode;
+      if (entity.helmet) entity.helmet.visible = false;
     }
-    return null;
+    if (this.activeMode !== 'car') this.entities.car?.setLights?.(false, false);
+    this.entities.helicopter?.setOccupantVisible?.(false);
   }
 
   _occupantRoot(vehicle) {
@@ -536,14 +408,17 @@ class ThirdPersonControllerManager {
     if (!root) return;
     const rig = person.rig;
     if (typeof root.updateWorldMatrix === 'function') root.updateWorldMatrix(true, false);
-    person._charHidden = false;
-    if (person.mesh) person.mesh.visible = true;
     if (person.shadow) person.shadow.visible = false;
     person.speed = 0;
     person.verticalVel = 0;
     if (this.occupant.mode === 'cyclist' && vehicle.bikeFrame && typeof rig?.ride === 'function') {
       // 自行车复用 PersonRig.ride：同一个玩家角色坐到座垫、双手扶把、双脚随脚踏。
       rig.ride(root, vehicle.pedalPhase ?? 0, vehicle.bikeFrame);
+      if (vehicle.helmet) {
+        vehicle.helmet.visible = true;
+        vehicle.helmet.quaternion.copy(rig.headQuaternion);
+        vehicle.helmet.position.set(0, 0.175, -0.012).applyQuaternion(rig.headQuaternion).add(rig.headPosition);
+      }
       person.position.copy(vehicle.position);
       person.heading = vehicle.heading;
     } else if (vehicle.seat && typeof rig?.writeBone === 'function' && rig.bind) {
@@ -636,14 +511,23 @@ class ThirdPersonControllerManager {
     } else if (this.occupant?.mode !== this.activeMode) {
       this.occupant = { state: OCCUPANT_STATES.SEATED, mode: this.activeMode, timer: 0 };
     }
-    if (destination) {
-      ent.position.x = destination.x;
-      ent.position.z = destination.z;
-      ent.heading = (requireArrival || exact) && Number.isFinite(destination.heading) ? destination.heading : heading;
-      ent.position.y = destination.y;
-      ent._support = heli ? null : { height: destination.y, surfaceId: 'terrain' };
-      ent._safePosition = { x: ent.position.x, y: ent.position.y, z: ent.position.z };
-    }
+    if (destination) this._placeActiveAt(destination,
+      (requireArrival || exact) && Number.isFinite(destination.heading) ? destination.heading : heading);
+    else this._placeActiveAt(ent.position, ent.heading, ent._support);
+    const point = { x: ent.position.x, z: ent.position.z };
+    if (destination?.parkAreaId) point.parkAreaId = destination.parkAreaId;
+    return point;
+  }
+
+  _placeActiveAt(point, heading, support = null) {
+    const ent = this.getActiveEntity();
+    const heli = this.activeMode === 'helicopter';
+    ent.position.x = point.x;
+    ent.position.y = point.y;
+    ent.position.z = point.z;
+    ent.heading = heading;
+    ent._support = heli ? null : support ?? { height: point.y, surfaceId: point.surfaceId ?? 'terrain' };
+    ent._safePosition = { x: point.x, y: point.y, z: point.z };
     ent.speed = 0;
     if (this.activeMode === 'person') {
       ent.verticalVel = 0;
@@ -655,12 +539,13 @@ class ThirdPersonControllerManager {
         ent.shadow.position.y = 0.02;
         ent.shadow.scale.set(1, 1, 1);
       }
-      ent._charHidden = false;
       if (ent.mesh) ent.mesh.visible = true;
-      ent.rig.reset(ent.position.x, ent.position.z, ent.heading, personGround, this);
-      ent.crowd.begin();
-      ent.crowd.add(ent.rig, 0);
-      ent.crowd.end();
+      if (typeof ent.rig?.reset === 'function') {
+        ent.rig.reset(ent.position.x, ent.position.z, ent.heading, personGround, this);
+        ent.crowd.begin();
+        ent.crowd.add(ent.rig, 0);
+        ent.crowd.end();
+      }
     } else if (this.activeMode === 'car') {
       ent.prevX = ent.position.x;
       ent.prevZ = ent.position.z;
@@ -674,10 +559,8 @@ class ThirdPersonControllerManager {
     } else if (this.activeMode === 'cyclist') {
       ent.leanAngle = ent.leanPivot.rotation.z = 0;
       ent._brakeHold = 0;
-      ent._riderHidden = false;
-      ent._posedX = NaN;
-      if (ent.helmet) ent.helmet.visible = true;
     } else if (heli) {
+      ent.takeoff = point.takeoff ?? null;
       ent.verticalSpeed = ent.pitchAngle = ent.rollAngle = 0;
       ent.tiltPivot.rotation.x = ent.tiltPivot.rotation.z = 0;
       ent.tiltPivot.position.y = 0;
@@ -688,9 +571,6 @@ class ThirdPersonControllerManager {
       if (typeof ent.mesh.updateMatrixWorld === 'function') ent.mesh.updateMatrixWorld(true);
       this._syncOccupant();
     }
-    const point = { x: ent.position.x, z: ent.position.z };
-    if (destination?.parkAreaId) point.parkAreaId = destination.parkAreaId;
-    return point;
   }
 
   // Find a fully clear arrival before moving the player. Sequential collision pushes can leave a player trapped
@@ -702,19 +582,6 @@ class ThirdPersonControllerManager {
     const margin = heli && !requireArrival ? 6000 : 0;
     const entity = this.entities[mode];
     const requestedShape = collisionBody(mode, radius, heading, 0.1, entity.collisionBounds);
-    // 追尾视野避让用覆盖实体边界的圆柱，地面/建筑接触仍使用定向脚印。
-    const previewBody = e => {
-      const shape = collisionBody(e.type, e.type === 'helicopter' ? 4.5 : e.type === 'cyclist' ? 1 : 0.48,
-        e.heading, 0, e.collisionBounds);
-      return { radius: shape.car ? Math.hypot(shape.hx, shape.hz) : shape.radius, bottom: shape.bottom, top: shape.top };
-    };
-    const activeBody = previewBody(entity);
-    const others = Object.values(this.entities).filter(e => e !== entity).map(e => {
-      const body = previewBody(e);
-      return { x: e.position.x, z: e.position.z, radius: body.radius, bottom: e.position.y + body.bottom, top: e.position.y + body.top };
-    });
-    const cameraBack = Math.cos(0.09) * entity.chaseDistance;
-    const cameraUp = entity.chaseHeight + Math.sin(0.09) * entity.chaseDistance * 0.85;
     const clampPoint = (px, pz) => ({
       x: Math.max(ISLAND_BOUNDS.minX - margin, Math.min(ISLAND_BOUNDS.maxX + margin, px)),
       z: Math.max(ISLAND_BOUNDS.minZ - margin, Math.min(ISLAND_BOUNDS.maxZ + margin, pz))
@@ -740,15 +607,7 @@ class ThirdPersonControllerManager {
       }
       if (!Number.isFinite(baseY)) return false;
       p.y = baseY;
-      // Keep other player models out of both the arrival and its default chase view. A corridor also prevents a
-      // parked car between camera and character from hiding the character even when the camera itself is outside it.
-      const viewTop = baseY + Math.max(activeBody.top, cameraUp);
-      for (const other of others) {
-        if (other.bottom > viewTop + 0.3 || other.top < baseY + activeBody.bottom - 0.3) continue;
-        const dx = other.x - p.x, dz = other.z - p.z;
-        const back = Math.max(0, Math.min(cameraBack, -dx * shape.sin - dz * shape.cos));
-        if (Math.hypot(dx + shape.sin * back, dz + shape.cos * back) < other.radius + Math.max(activeBody.radius, 0.5) + 0.1) return false;
-      }
+      if (support) p.surfaceId = support.surfaceId;
       for (const c of this.nearColliders(p.x, p.z, reach)) {
         if (buildingContact(c, p.x, baseY, p.z, shape)) return false;
       }
@@ -884,8 +743,6 @@ class ThirdPersonControllerManager {
     const { group: leanPivot, frontWheel, rearWheel, crankPivot, pedals, bikeFrame } = model;
     root.add(leanPivot);
 
-    const riderCrowd = new PersonCrowd(1, { farDistance: Infinity });
-    riderCrowd.meshes.forEach(mesh => this.scene.add(mesh));
     const riderRig = new PersonRig({ seed: 12.8, scale: 1, girth: 0.97, hair: 0.1 });
     const helmetMaterial = new THREE.MeshStandardNodeMaterial({
       color: 0xf4f7fb, emissive: 0x181c22, roughness: 0.22, metalness: 0.25
@@ -924,8 +781,6 @@ class ThirdPersonControllerManager {
       crankPivot,
       pedals,
       bikeFrame,
-      riderCrowd,
-      riderRig,
       helmet,
       headLight,
       position: new THREE.Vector3(this.spawnPoint.x, this.spawnPoint.y, this.spawnPoint.z),
@@ -968,32 +823,10 @@ class ThirdPersonControllerManager {
   }
 
   initializeArrivals() {
-    const placed = [];
-    for (const entity of Object.values(this.entities)) {
-      const flying = entity.type === 'helicopter';
-      const mode = flying ? 'car' : entity.type;
-      const altitudeAt = y => flying ? Math.min(this.maxFlightAltitude, y + 96) : y;
-      const arrival = findGroundArrival(this.spawnPoint, mode, { isClear: point => {
-        const y = this.groundHeight(point.x, point.z);
-        if (!Number.isFinite(y)) return false;
-        const shape = collisionBody(entity.type, mode === 'person' ? 0.48 : 0.65, point.heading, 0.1, entity.collisionBounds);
-        if (!flying && !this.supportedFootprint(point.x, point.z, shape, null)) return false;
-        if (placed.some(other => Math.hypot(other.position.x - point.x, other.position.z - point.z) < 12)) return false;
-        return !this.nearColliders(point.x, point.z, Math.max(shape.extX, shape.extZ))
-          .some(c => buildingContact(c, point.x, altitudeAt(y), point.z, shape));
-      } });
-      if (!arrival) throw new Error(`No clear sourced arrival for ${entity.type}`);
-      const y = this.groundHeight(arrival.x, arrival.z);
-      entity.position.set(arrival.x, altitudeAt(y), arrival.z);
-      entity.heading = arrival.heading;
-      entity.prevX = arrival.x;
-      entity.prevZ = arrival.z;
-      entity._support = { height: y, surfaceId: 'terrain' };
-      entity._safePosition = entity.position.clone();
-      entity.mesh.position.copy(entity.position);
-      entity.mesh.rotation.y = entity.heading;
-      placed.push(entity);
-    }
+    const arrival = this.findTeleportPosition(this.spawnPoint.x, this.spawnPoint.z, this.spawnPoint.heading ?? 0, 0, true);
+    if (!arrival) throw new Error('No clear sourced arrival for the player');
+    this._applyModeVisibility();
+    this._placeActiveAt(arrival, arrival.heading);
   }
 
   isPointOnSidewalk() { return false; }
@@ -1196,106 +1029,26 @@ class ThirdPersonControllerManager {
     if (entity) entity._safePosition = { x: pos.x, y: pos.y, z: pos.z };
   }
 
-  // Pose the skinned characters once every entity has moved: the pedestrian's rig walks (or runs, turns, jumps) it to
-  // where it now is, planting its feet on the ground; the cyclist sits on the bike, hands on the grips, feet on the
-  // pedals, helmet on its head
-  poseCharacters(dt, focusPos = null) {
-    const focus = focusPos || this.getActiveEntity()?.position;
-    const maxDistSq = 320 * 320;
-    const bound = this.isOccupantBound();
-
+  poseCharacters(dt) {
+    if (this.isOccupantBound()) return;
     const p = this.entities.person;
-    if (p) {
-      if (bound) {
-        // 坐姿已由 _syncOccupant 写入骨骼：不再跑步行解算，也不按距离隐藏同一角色。
-        p._charHidden = false;
-        if (p.mesh) p.mesh.visible = true;
-      } else {
-        const dx = focus ? p.position.x - focus.x : 0;
-        const dz = focus ? p.position.z - focus.z : 0;
-        if (this.activeMode === 'person' || dx * dx + dz * dz <= maxDistSq) {
-          p._charHidden = false;
-          if (p.mesh) p.mesh.visible = true;
-          const groundY = this.getGroundHeight(p.position.x, p.position.z, 'person');
-          if (!Number.isFinite(groundY)) return;
-          const air = p.position.y - groundY;
-          const jumpAir = p.jumping ? Math.max(0.006, air) : p.jumpPrep > 0 ? -(1 - p.jumpPrep / 0.085) : air > 0.3 ? air : 0;
-          if (p.shadow) {
-            p.shadow.position.y = groundY - p.position.y + 0.02;
-            const sScale = Math.max(0.45, 1 - Math.max(0, jumpAir) * 0.35);
-            p.shadow.scale.set(sScale, sScale, 1);
-          }
-          p.rig.update(dt, p.position.x, p.position.z, p.heading, personGround, this, jumpAir);
-          p.crowd.begin();
-          p.crowd.add(p.rig, 0);
-          p.crowd.end();
-        } else if (!p._charHidden) {
-          p.rig.placed = false;
-          p.crowd.begin();
-          p.crowd.end();
-          if (p.crowd.updates > 2) {
-            if (p.mesh) p.mesh.visible = false;
-            p._charHidden = true;
-          }
-        }
-      }
+    if (!p) return;
+    const groundY = this.getGroundHeight(p.position.x, p.position.z, 'person');
+    if (!Number.isFinite(groundY)) return;
+    const air = p.position.y - groundY;
+    const jumpAir = p.jumping ? Math.max(0.006, air) : p.jumpPrep > 0 ? -(1 - p.jumpPrep / 0.085) : air > 0.3 ? air : 0;
+    if (p.shadow) {
+      p.shadow.position.y = groundY - p.position.y + 0.02;
+      const scale = Math.max(0.45, 1 - Math.max(0, jumpAir) * 0.35);
+      p.shadow.scale.set(scale, scale, 1);
     }
-
-    const b = this.entities.cyclist;
-    if (b) {
-      if (b.occupantOwned) {
-        // 玩家占用这辆共享单车后，模型自带骑手永久隐藏，避免同一画面出现两个骑手。
-        if (b.helmet) b.helmet.visible = false;
-        b._riderHidden = true;
-        b._posedX = NaN;
-        b.riderCrowd.begin();
-        b.riderCrowd.end();
-        if (b.mesh) b.mesh.visible = true;
-      } else {
-        const dx = focus ? b.position.x - focus.x : 0;
-        const dz = focus ? b.position.z - focus.z : 0;
-        if (this.activeMode === 'cyclist' || dx * dx + dz * dz <= maxDistSq) {
-          if (b.helmet) b.helmet.visible = true;
-          const moved =
-            this.activeMode === 'cyclist' ||
-            b._riderHidden ||
-            b._posedX !== b.position.x ||
-            b._posedY !== b.position.y ||
-            b._posedZ !== b.position.z ||
-            b._posedH !== b.heading ||
-            b._posedLean !== b.leanAngle ||
-            b._posedPedal !== b.pedalPhase;
-          b._riderHidden = false;
-          if (moved) {
-            b.riderRig.ride(b.leanPivot, b.pedalPhase, b.bikeFrame);
-            b.riderCrowd.begin();
-            b.riderCrowd.add(b.riderRig, 0);
-            b.riderCrowd.end();
-            b.helmet.quaternion.copy(b.riderRig.headQuaternion);
-            b.helmet.position.set(0, 0.175, -0.012).applyQuaternion(b.helmet.quaternion).add(b.riderRig.headPosition);
-            b._posedX = b.position.x;
-            b._posedY = b.position.y;
-            b._posedZ = b.position.z;
-            b._posedH = b.heading;
-            b._posedLean = b.leanAngle;
-            b._posedPedal = b.pedalPhase;
-          }
-        } else if (!b._riderHidden) {
-          b.riderCrowd.begin();
-          b.riderCrowd.end();
-          if (b.riderCrowd.updates > 2) {
-            if (b.helmet) b.helmet.visible = false;
-            b._riderHidden = true;
-            b._posedX = NaN;
-          }
-        }
-      }
-    }
+    p.rig.update(dt, p.position.x, p.position.z, p.heading, personGround, this, jumpAir);
+    p.crowd.begin();
+    p.crowd.add(p.rig, 0);
+    p.crowd.end();
   }
 
-  update(dt, elapsed, focusPos = null, driveInput = null) {
-    const heli = this.entities.helicopter;
-
+  update(dt, elapsed, driveInput = null) {
     if (this.activeMode === 'person') {
       if (this.occupant.state === OCCUPANT_STATES.ALIGHTING) {
         // 下车过渡：人物已经站到安全落点，短暂停住再交回步行输入。
@@ -1316,15 +1069,14 @@ class ThirdPersonControllerManager {
     } else if (this.activeMode === 'helicopter') {
       this.updateHelicopter(dt);
     }
-    const climb = Math.max(0, heli.verticalSpeed) / EVTOL_DRIVE.verticalSpeed;
-    const cruise = Math.abs(heli.speed) / EVTOL_DRIVE.speed;
-    heli.updateRotors(dt, this.activeMode === 'helicopter' ? 0.57 + 0.32 * climb + 0.11 * cruise : 0.15);
-
-    for (const key of Object.keys(this.entities)) {
-      const e = this.entities[key];
-      e.mesh.position.copy(e.position);
-      e.mesh.rotation.y = e.heading;
+    const active = this.getActiveEntity();
+    if (active.type === 'helicopter') {
+      const climb = Math.max(0, active.verticalSpeed) / EVTOL_DRIVE.verticalSpeed;
+      const cruise = Math.abs(active.speed) / EVTOL_DRIVE.speed;
+      active.updateRotors(dt, 0.57 + 0.32 * climb + 0.11 * cruise);
     }
+    active.mesh.position.copy(active.position);
+    active.mesh.rotation.y = active.heading;
     // 载具世界矩阵更新后再把同一角色写到座位上，坐姿因此跟着车身/座舱一起平移、转向和俯仰。
     this._syncOccupant();
 
@@ -1332,19 +1084,19 @@ class ThirdPersonControllerManager {
     const glow = cityUniforms && cityUniforms.uInteriorGlow ? cityUniforms.uInteriorGlow.value : 0.48;
     const beamScale = Math.min(1.28, Math.max(0.0, (glow - 0.60) * 1.45));
     const car = this.entities.car;
-    if (car.headLights) {
+    if (car?.headLights) {
       for (const spot of car.headLights) {
         // Accelerating does not change the headlamp output or range.
-        spot.intensity = HEADLIGHTS.intensity * beamScale;
+        spot.intensity = this.activeMode === 'car' ? HEADLIGHTS.intensity * beamScale : 0;
       }
     }
     const bike = this.entities.cyclist;
-    if (bike.headLight) {
+    if (bike?.headLight) {
       const bikeActive = this.activeMode === 'cyclist';
       bike.headLight.intensity = bikeActive ? 115 * beamScale : 0;
     }
 
-    this.poseCharacters(dt, focusPos);
+    this.poseCharacters(dt);
   }
 
   updatePerson(dt) {
@@ -1712,4 +1464,4 @@ class ThirdPersonControllerManager {
   }
 }
 
-export { ThirdPersonControllerManager, OCCUPANT_STATES, BOARDING_SECONDS, ALIGHTING_SECONDS };
+export { ThirdPersonControllerManager, OCCUPANT_STATES, BOARDING_SECONDS, ALIGHTING_SECONDS, FLIGHT_START_ALTITUDE };

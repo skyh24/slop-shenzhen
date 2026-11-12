@@ -36,7 +36,7 @@ import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
 import { createAutoDrive } from './sz-auto-drive.js';
 import { VEHICLE_SPECS } from './sz-vehicles.js';
 import { sceneUniforms } from './sz-materials.js';
-import { ThirdPersonControllerManager } from './controllers.js';
+import { ThirdPersonControllerManager, FLIGHT_START_ALTITUDE } from './controllers.js';
 import { TouchControls } from './touch-controls.js';
 import { GamepadControls } from './gamepad-controls.js';
 import { CameraSystem, CAMERA_PRESETS } from './cameras.js';
@@ -268,30 +268,26 @@ async function initApp() {
     surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces],
     nearTraffic: traffic.nearColliders
   });
-  const initialMode = controllerManager.activeMode;
-  // 首帧在加载阶段预热：把道路空间索引、出生点附近的牌子与近景细节建好，避免进场后长帧。
+  let initialTime = 'golden';
+  try {
+    const saved = JSON.parse(localStorage.getItem(PLAYER_STATE_KEY));
+    if ((saved?.version === 1 || saved?.version === 2) && Object.hasOwn(controllerManager.entities, saved.activeMode)) {
+      if (Object.hasOwn(STR.timeNames, saved.time)) initialTime = saved.time;
+      const mode = saved.activeMode;
+      const p = saved.version === 2 ? saved.position : saved.entities?.[mode];
+      if (p && [p.x, p.y, p.z, p.heading].every(Number.isFinite)) {
+        const reference = saved.version === 1 && mode === 'helicopter' ? { ...p, y: Math.max(FLIGHT_START_ALTITUDE, p.y) } : p;
+        const position = controllerManager.findModePosition(mode, { type: mode, position: reference, heading: p.heading });
+        if (position) controllerManager.setMode(mode, position);
+      }
+    }
+  } catch { /* 无存档或浏览器存储不可用时使用默认出生点。 */ }
+  // 首帧预热已恢复位置附近的道路索引、名牌和细节。
   const loadingFocus = controllerManager.getActiveEntity().position;
   buildingSigns.update(loadingFocus);
   for (let i = 0; i < 24; i++) buildingSigns.update(loadingFocus);
   buildingDetails.update(loadingFocus);
   for (let i = 0; i < 40 && buildingDetails.statistics.pending > 0; i++) buildingDetails.update(loadingFocus);
-  let initialTime = 'golden';
-  // Reuse teleport placement so saved players return at rest, close to their last positions.
-  try {
-    const saved = JSON.parse(localStorage.getItem(PLAYER_STATE_KEY));
-    if (saved?.version === 1) {
-      if (Object.hasOwn(STR.timeNames, saved.time)) initialTime = saved.time;
-      for (const mode of Object.keys(controllerManager.entities)) {
-        const p = saved.entities?.[mode];
-        if (!p || ![p.x, p.y, p.z, p.heading].every(Number.isFinite)) continue;
-        controllerManager.setMode(mode);
-        const park = mode === 'person' ? parkAt(GEO.parks, p.x, p.z) : null;
-        controllerManager.teleportActiveTo(p.x, p.z, p.heading, p.y, { park, requireArrival: Boolean(park) });
-      }
-      controllerManager.setMode(Object.hasOwn(controllerManager.entities, saved.activeMode) ? saved.activeMode : initialMode);
-    }
-  } catch { /* Missing or unavailable storage does not prevent playing. */ }
-  const players = Object.values(controllerManager.entities);
   // 环境人群复用纽约 PersonRig；行走位置是沿路侧模拟步行带，非全城实测人行道。
   const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, GEO.roadGraph, {
     ...site,
@@ -302,7 +298,7 @@ async function initApp() {
     spawnMaxM: 160
   }));
   roadFrontage.update(0);
-  traffic.update(0, controllerManager.getActiveEntity().position, players, 0);
+  traffic.update(0, loadingFocus, [controllerManager.getActiveEntity()], 0);
   pedestrians.update(0, controllerManager.getActiveEntity().position, 0, null, [controllerManager.getActiveEntity()]);
   const driveCar = controllerManager.entities.car;
   const driveModel = trafficModelBounds(driveCar.collisionBounds, VEHICLE_SPECS.taxi);
@@ -315,11 +311,10 @@ async function initApp() {
 
   function savePlayerState() {
     try {
-      const entities = Object.fromEntries(Object.entries(controllerManager.entities).map(([mode, entity]) => [mode, {
-        x: entity.position.x, y: entity.position.y, z: entity.position.z, heading: entity.heading
-      }]));
+      const { position, heading } = controllerManager.getActiveEntity();
       localStorage.setItem(PLAYER_STATE_KEY, JSON.stringify({
-        version: 1, activeMode: controllerManager.activeMode, time: lightingSystem.activePresetId, entities
+        version: 2, activeMode: controllerManager.activeMode, time: lightingSystem.activePresetId,
+        position: { x: position.x, y: position.y, z: position.z, heading }
       }));
     } catch { /* Storage may be disabled or full. */ }
   }
@@ -381,7 +376,7 @@ async function initApp() {
   const dynamicRoots = [
     traffic.group,
     pedestrians.group,
-    ...players.map(entity => entity.mesh),
+    ...Object.values(controllerManager.entities).map(entity => entity.mesh),
     controllerManager.entities.cyclist.helmet
   ].filter(Boolean);
   scene.updateMatrixWorld(true);
@@ -503,9 +498,22 @@ async function initApp() {
     modeSwitch.style.setProperty('--ind-w', `${active.offsetWidth}px`);
   }
 
-  function selectMode(mode) {
-    if (mode !== controllerManager.activeMode) autoDrive.stop('manual');
-    controllerManager.setMode(mode);
+  const modeFeedback = document.getElementById('mode-feedback');
+  let modeFeedbackTimer;
+  function selectMode(mode, destination = null) {
+    const changed = mode !== controllerManager.activeMode;
+    clearTimeout(modeFeedbackTimer);
+    if (!controllerManager.setMode(mode, destination)) {
+      modeFeedback.textContent = STR.modeUnavailable;
+      modeFeedback.hidden = false;
+      modeFeedbackTimer = setTimeout(() => { modeFeedback.hidden = true; }, 2600);
+      return false;
+    }
+    modeFeedback.hidden = true;
+    if (changed) {
+      autoDrive.stop('manual');
+      cameraSystem.resetForTeleport();
+    }
     touchControls.setMode(controllerManager.activeMode);
     gamepadControls.reset();
     modeButtons.forEach((btn) => {
@@ -529,6 +537,7 @@ async function initApp() {
     if (currentCam.category !== 'follow') {
       selectCamera('chase', false);
     }
+    return true;
   }
 
   function selectCamera(camId, snap = false) {
@@ -638,10 +647,9 @@ async function initApp() {
     if (!route || autoDrive.active) return false;
     const { x, z, dx, dz } = route.from;
     const heading = Math.atan2(dx, dz);
-    if (!controllerManager.findTeleportPosition(x, z, heading, 0, true, null, { exact: true, mode: 'car' })) return false;
-    selectMode('car');
-    const destination = controllerManager.teleportActiveTo(x, z, heading, null, { exact: true });
-    if (!destination) return false;
+    const destination = controllerManager.findTeleportPosition(x, z, heading, 0, true, null, { exact: true, mode: 'car' });
+    if (!destination || !selectMode('car', destination)) return false;
+    controllerManager.resetInput();
     touchControls.reset();
     gamepadControls.reset();
     cameraSystem.resetForTeleport();
@@ -847,13 +855,13 @@ async function initApp() {
       trafficFrustum.setFromProjectionMatrix(trafficViewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
         camera.coordinateSystem, camera.reversedDepth);
     }
-    traffic.update(dt, controllerManager.getActiveEntity().position, players, elapsed, isTrafficVisible);
-    pedestrians.update(dt, controllerManager.getActiveEntity().position, elapsed, isPedVisible,
-      [controllerManager.getActiveEntity()]);
+    const active = controllerManager.getActiveEntity();
+    traffic.update(dt, active.position, [active], elapsed, isTrafficVisible);
+    pedestrians.update(dt, active.position, elapsed, isPedVisible, [active]);
     const { forward, backward, left, right, brake, boost } = controllerManager.keys;
     const driveInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode,
       manual: !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right || brake || boost) });
-    controllerManager.update(dt, elapsed, cameraSystem.initialized ? cameraSystem.currentPos : null, driveInput);
+    controllerManager.update(dt, elapsed, driveInput);
     cameraSystem.update(dt, elapsed);
     qa.applyCamera(cameraSystem.camera);
     streetscape.update(cameraSystem.camera.position);

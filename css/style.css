@@ -865,6 +865,14 @@ body.hud-minimized .icon-show {
 /* ------------------------------------------------------------------------------------------------------------------
    Bottom centre: travel mode switcher & keyboard guide
    ------------------------------------------------------------------------------------------------------------------ */
+.mode-feedback {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+
 .controls-hint {
   display: flex;
   flex-wrap: wrap;
