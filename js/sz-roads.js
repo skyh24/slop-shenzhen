@@ -83,6 +83,44 @@ export function roadsideSides(highway, points) {
   return [first.x < last.x || (first.x === last.x && first.z <= last.z) ? 1 : -1];
 }
 
+export function planStreetTreeSides(graph, bounds) {
+  const segments = [];
+  for (let i = 0; i < graph.links.length; i++) {
+    const meta = graph.metadata[i];
+    if (!isGroundRoad(meta) || !/^(trunk|primary|secondary|tertiary)(_link)?$/.test(meta.highway)) continue;
+    const link = graph.links[i];
+    const points = roadLinkPoints(graph, link);
+    if (points.length < 2) continue;
+    const sides = roadsideSides(meta.highway, points);
+    // 旧包的模拟树没有道路 ID，沿用生成器的中心线偏距匹配已有点位。
+    const offset = link[3] / 2 + 2.5;
+    const pad = offset + 1.1;
+    for (let j = 1; j < points.length; j++) {
+      const a = points[j - 1], b = points[j];
+      if (!bounds.some(([x0, z0, x1, z1]) => Math.max(a.x, b.x) + pad >= x0 && Math.min(a.x, b.x) - pad <= x1
+        && Math.max(a.z, b.z) + pad >= z0 && Math.min(a.z, b.z) - pad <= z1)) continue;
+      const length = Math.hypot(b.x - a.x, b.z - a.z);
+      segments.push({ a, dx: (b.x - a.x) / length, dz: (b.z - a.z) / length, length, offset, sides });
+    }
+  }
+  return (x, z) => {
+    if (!bounds.some(([x0, z0, x1, z1]) => x >= x0 && x <= x1 && z >= z0 && z <= z1)) return true;
+    let bestError = 1.1;
+    let allowed = true;
+    for (const { a, dx, dz, length, offset, sides } of segments) {
+      const px = x - a.x, pz = z - a.z;
+      const along = px * dx + pz * dz;
+      if (along < -0.2 || along > length + 0.2) continue;
+      const across = px * dz - pz * dx;
+      const error = Math.abs(Math.abs(across) - offset);
+      if (error >= bestError) continue;
+      bestError = error;
+      allowed = sides.includes(Math.sign(across));
+    }
+    return allowed;
+  };
+}
+
 export function roadTravelPoints(graph, link, metadata) {
   if (!metadata.crossSection) return roadLinkPoints(graph, link);
   const points = roadSectionPoints(graph, link, metadata);

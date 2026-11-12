@@ -10,7 +10,7 @@ import { GEO, REAL_BUILDINGS, DATA_TIMINGS } from './sz-geodata.js';
 import { getLocationLabel, inBounds, isWater, findGroundArrival, LANDMARK_SITES, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { buildSzGround } from './sz-ground.js';
 import { buildSzSea } from './sz-sea.js';
-import { buildSzRoads } from './sz-roads.js';
+import { buildSzRoads, planStreetTreeSides } from './sz-roads.js';
 import { buildSzRoadFrontage } from './sz-road-frontage.js';
 import { buildSzRoadPaint } from './sz-road-paint.js';
 import { buildSzStreetscape } from './sz-streetscape.js';
@@ -219,13 +219,16 @@ async function initApp() {
   site.colliders = buildings;
   const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
   site.pathAt = streetscape.pathAt;
-  // 主干道路灯：点位由源路网中心线派生，夜间发光与地面光池在 update 里随时段切换。
+  const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
+    .map(row => row.bounds);
+  // 路灯从道路断面派生，样区的次干路及支路按单侧放置。
   const streetLamps = qa.stage('lamps', () => buildSzStreetLamps(scene, site.roadGraph, {
-    ...site, minorRoadBounds: (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
-      .map(row => row.bounds)
+    ...site, minorRoadBounds
   }));
   // 树木：OSM 来源点加带标注的模拟行道树/公园树，接触面与铺装/建筑冲突在运行时复核。
-  const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, site));
+  const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
+    ...site, streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
+  }));
   // 国际交流中心模型给出的真实门廊/花海台面锚点只构造一次，APEC 主题和城市元素共用。
   const anchors = {
     iecGate: { x: gatePoint.x, z: gatePoint.z, yaw: gateYaw, baseY: gateDeckY },

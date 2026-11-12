@@ -4,7 +4,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { loadModule } = require('./helpers/module.cjs');
 const roadMaterialStub = { createSzRoadSurfaceMaterial: () => ({}) };
-const { createRoadHeightSampler, createRoadSurfaceLayout } = loadModule(readFileSync(join(__dirname, '../js/sz-roads.js'), 'utf8'),
+const { createRoadHeightSampler, createRoadSurfaceLayout, planStreetTreeSides } = loadModule(readFileSync(join(__dirname, '../js/sz-roads.js'), 'utf8'),
   { imports: { 'three/webgpu': {}, './sz-road-material.js': roadMaterialStub } });
 
 const grid = { x0: 0, z0: 0, step: 20, nx: 2, nz: 2 };
@@ -18,6 +18,18 @@ function groundRoad(osmId) {
 }
 
 const flat = surface([0, 5, 0, 20, 5, 0, 0, 5, 20, 20, 5, 20], [0, 2, 1, 1, 2, 3]);
+
+test('simulated side trees keep one physical curb within the pilot and preserve unmatched points', () => {
+  const graph = { nodes: [0, 0, 100, 0, 0, 30, 100, 30], links: [[1, 0, 0, 8, 2, 0, []], [2, 3, 0, 8, 2, 0, []]],
+    metadata: [{ ...groundRoad('way/1'), highway: 'secondary' }, { ...groundRoad('way/2'), highway: 'primary' }] };
+  const allowed = planStreetTreeSides(graph, [[0, -15, 75, 45]]);
+  assert.equal(allowed(25, -6.5), true);
+  assert.equal(allowed(25, 6.5), false);
+  assert.equal(allowed(25, 23.5), true);
+  assert.equal(allowed(25, 36.5), true);
+  assert.equal(allowed(25, 9), true);
+  assert.equal(allowed(90, 6.5), true);
+});
 
 test('road clipping preserves the rendered terrain plane and its cut boundary', () => {
   const graph = {
