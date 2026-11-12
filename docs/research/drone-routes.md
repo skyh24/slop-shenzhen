@@ -1,6 +1,6 @@
 # 无人机来源摘要
 
-保留原路径供`data/source/air-routes.json`引用。汇总2026-11-09既有取证；本轮未核实实时运营。当前实现见HANDOFF，后续统一在TASKS T12。
+保留原路径供`data/source/air-routes.json`引用。汇总2026-11-09既有取证；本轮未核实实时运营。功能与方法见 [无人机路线](../08-AIR.md)，验收状态见 [HANDOFF](../HANDOFF.md)，后续统一在 [TASKS T12](../TASKS.md#t12-低空apec)。
 
 | 条目 | 可保留事实 | 不能据此推出 |
 | --- | --- | --- |
@@ -10,6 +10,6 @@
 | 历史无人机表演 | 有来源场次可作历史参考；采购公告只证明采购/方案 | 常设演出、真实当前队形或可直接采用配送高度 |
 | 大疆天空之城 | 建筑地标身份 | 无已取得的真实运营航线证据 |
 
-运行包目前使用两条端点示意线、估计100米高度和每线两架连续往返；`trackStatus=schematic`、`altitudeSource=estimate`、`sourceUrls`与`verifiedAt`必须保留。代码按源文件记录的APEC管控窗口停运展示，这不是本轮查询的实时飞行状态。
+`trackStatus=schematic`、`altitudeSource=estimate`、`sourceUrls`与`verifiedAt`必须保留。源文件记录的APEC管控窗口不等于实时飞行状态。
 
 坐标统一WGS84，经`tools/sz/geo.py::project`进入城市米制坐标；GCJ-02地图坐标不得直接填入。场所/柜位/端点配对/轨迹/巡航高度/日期分别取证，资料缺失保留未知。完整链接与日期保留在 [air-routes.json](../../data/source/air-routes.json) 和 [air-evidence.json](../../data/source/air-evidence.json)。

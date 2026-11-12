@@ -17,6 +17,8 @@ index.html → sz-geodata（校验/解码）→ main 的 site 数据与共享表
 
 下列路径相对 `js/`；列主要方法供定位，不复制全量导出或易过期行号。存在文件不等于已挂场景，接入与验收见 HANDOFF。
 
+按功能阅读：[道路](03-ROADS-GROUND.md)、[建筑](04-BUILDINGS.md)、[地标](05-LANDMARKS.md)、[街景](06-STREETSCAPE.md)、[载具](07-VEHICLES.md)、[无人机](08-AIR.md)、[界面](09-UI-GAMEPLAY.md)、[商圈](REGIONS-PLACES.md)、[灯光秀](LIGHT-SHOW.md)。各页保留功能、关键方法、实现边界和相关验证，本表用于全局定位。
+
 | 组件 | 文件与主要入口 | 内容与方法 |
 | --- | --- | --- |
 | 启动装配 | `main.js`、`sz-startup.js::waitForFirstFrame` | 阶段计时、首帧等待/重试、场景/输入/存档/帧循环 |
@@ -79,10 +81,6 @@ index.html → sz-geodata（校验/解码）→ main 的 site 数据与共享表
 | 编码/校验 | `fastpack.py`、`package_validation.py`、`validate-city.mjs` | SZC1、完整性/契约检查与真实性缺口报告 |
 | 开发/QA | `serve.py`、`tools/qa/check.py`（根目录相对路径） | 禁缓存服务器与分范围自动检查 |
 
-## 操控与空间契约
+## 空间契约
 
-- `1/2/3/4` 对应步行/汽车/单车/飞行；`M` 地图，`V` 循环相机，`5` 追尾回中，`N` 声音，`H` 隐藏界面。保留纽约原有ID与快捷键；中文提示以 STR 为准。
-- 玩家游戏参数：单车4秒到60km/h；汽车4秒到80km/h，Shift加力上限120km/h、空格刹车；飞行平飞4秒到前进600/后退400km/h，升降2秒到20m/s。只适用于玩家控制，不是真实交通参数。
-- 四模式交接同一横向位置/朝向和人物；飞行初始200m，高地留净空。返回地面先验原位，受阻再找最近合格道路，失败留在飞行模式。存档键 `sz-player-state`。
-- 车流信号用 `sz-intersection-control` 的模拟8秒周期；`sz-city-config` 仍有另一套旧信号函数，不能混作同一状态。
 - **Surface** 是有身份的活动接触面，同一XZ可有多层。**Block** 是道路围合街块；**Place** 是可跨街块的现实场所；**Region** 是有边界和用途的区域；**Corridor** 是道路/河流走廊；**Profile** 是外观默认规则。区域不等于行政区或加载块，统一区域体系仍是TASKS中的计划。
