@@ -5,13 +5,10 @@ import {
   normalView, positionViewDirection, frontFacing, time, texture
 } from 'three/tsl';
 
-// 深圳近景树冠样板：把 icosahedron 叶球换成程序化叶卡树冠。
-// 只用于 250 m LOD 子格的 near 档；远景仍是 sz-trees.js 的低模冠。
-// 叶卡图集、风摆、透光做法移植自 ref/slop-newyork/js/trees.js 和 tsl-materials.js（createTreeMaterial）。
-// 六个树种的形态、叶色和比例都是外观估计，不是实测物候；树干尺寸和碰撞仍由 sz-trees.js 的数据和圆柱决定。
-// 棕榈类（大王椰/狐尾椰）不用分枝骨架：一根直干（沿用树干实例）加顶部放射状羽叶卡片。
+// 近景整树：主干、分枝和叶卡共用一个实例，图集、风摆和透光参考纽约实现。
 
 const V3 = THREE.Vector3;
+const STEM_SIDES = 8;
 
 // 固定种子：同一次构建和每次加载都长出同一棵树。
 const CROWN_SEED = 20261110;
@@ -430,7 +427,7 @@ function along(b, t) {
 // 各树种的差别只在比例：榕树宽冠低分枝、香樟椭圆冠、凤凰木伞形平冠、宫粉紫荆小圆冠、木棉高直稀疏冠。
 const CROWN_SPECIES = {
   ficus: {
-    kind: 'broadleaf', tile: TILE_FICUS, seedSalt: 0,
+    kind: 'broadleaf', tile: TILE_FICUS, seedSalt: 0, trunkRatio: 0.34, trunkRadiusRatio: 0.03,
     leader: { r: 0.24, top: 2.4, lean: 0.05, segs: 4 },
     limbs: { n: 6, y: [0.15, 2.2], tilt: [1.16, 0.62], len: [3.9, 3.1], r: 0.72,
       up: 0.04, out: 0.05, droop: 0.08, jitter: 0.11, segs: 5 },
@@ -441,7 +438,7 @@ const CROWN_SPECIES = {
     cards: { perTwig: 6, scale: [1.12, 1.45], droop: 0.14 }
   },
   camphor: {
-    kind: 'broadleaf', tile: TILE_BROAD, seedSalt: 7919,
+    kind: 'broadleaf', tile: TILE_BROAD, seedSalt: 7919, trunkRatio: 0.44, trunkRadiusRatio: 0.03,
     leader: { r: 0.2, top: 3.3, lean: 0.04, segs: 4 },
     limbs: { n: 6, y: [0.3, 2.8], tilt: [0.92, 0.45], len: [3.3, 2.7], r: 0.7,
       up: 0.07, out: 0.03, droop: 0.04, jitter: 0.1, segs: 5 },
@@ -452,7 +449,7 @@ const CROWN_SPECIES = {
     cards: { perTwig: 5, scale: [1.0, 1.3], droop: 0.12 }
   },
   phoenix: {
-    kind: 'broadleaf', tile: TILE_FEATHER, seedSalt: 15838,
+    kind: 'broadleaf', tile: TILE_FEATHER, seedSalt: 15838, trunkRatio: 0.40, trunkRadiusRatio: 0.03,
     leader: { r: 0.17, top: 2.2, lean: 0.05, segs: 3 },
     limbs: { n: 7, y: [0.2, 1.9], tilt: [1.32, 0.98], len: [3.9, 3.2], r: 0.66,
       up: 0.02, out: 0.06, droop: 0.02, jitter: 0.12, segs: 5 },
@@ -463,7 +460,7 @@ const CROWN_SPECIES = {
     cards: { perTwig: 5, scale: [1.0, 1.3], droop: 0.2 }
   },
   bauhinia: {
-    kind: 'broadleaf', tile: TILE_BROAD, seedSalt: 23757,
+    kind: 'broadleaf', tile: TILE_BROAD, seedSalt: 23757, trunkRatio: 0.36, trunkRadiusRatio: 0.03,
     leader: { r: 0.16, top: 1.8, lean: 0.06, segs: 3 },
     limbs: { n: 5, y: [0.15, 1.5], tilt: [1.05, 0.7], len: [2.5, 2.1], r: 0.66,
       up: 0.05, out: 0.04, droop: 0.06, jitter: 0.12, segs: 4 },
@@ -474,7 +471,7 @@ const CROWN_SPECIES = {
     cards: { perTwig: 5, scale: [0.85, 1.1], droop: 0.1 }
   },
   kapok: {
-    kind: 'broadleaf', tile: TILE_BROAD, seedSalt: 31676,
+    kind: 'broadleaf', tile: TILE_BROAD, seedSalt: 31676, trunkRatio: 0.52, trunkRadiusRatio: 0.03,
     leader: { r: 0.2, top: 4.5, lean: 0.03, segs: 4 },
     limbs: { n: 5, y: [1.4, 4.0], tilt: [0.62, 0.34], len: [2.7, 2.1], r: 0.6,
       up: 0.08, out: 0.03, droop: 0.02, jitter: 0.09, segs: 4 },
@@ -485,7 +482,7 @@ const CROWN_SPECIES = {
     cards: { perTwig: 4, scale: [1.0, 1.3], droop: 0.1 }
   },
   'royal-palm': {
-    kind: 'palm', tile: TILE_PALM, seedSalt: 39595,
+    kind: 'palm', tile: TILE_PALM, seedSalt: 39595, trunkRatio: 0.76, trunkRadiusRatio: 0.027,
     fronds: 16, length: [2.3, 3.3], tilt: [0.5, 1.62], scale: [1.5, 2.3]
   }
 };
@@ -588,7 +585,6 @@ function addTube(gb, b, radial, stride, aoAt, swayAt) {
   let T = tangent(keep[0]);
   let N = Math.abs(T.y) < 0.9 ? new V3(0, 1, 0).cross(T).normalize() : new V3(1, 0, 0).cross(T).normalize();
   const q = new THREE.Quaternion();
-  const around = 2 * Math.PI * Math.max(b.rad[0], 0.02);
   let vLen = 0;
   const base = gb.pos.length / 3;
   const dir = new V3();
@@ -609,7 +605,7 @@ function addTube(gb, b, radial, stride, aoAt, swayAt) {
       const ang = (j / radial) * Math.PI * 2;
       dir.copy(N).multiplyScalar(Math.cos(ang)).addScaledVector(Bn, Math.sin(ang));
       p.copy(b.pts[index]).addScaledVector(dir, b.rad[index]);
-      gb.vertex(p, dir, (j / radial) * around, vLen, 0, ao, sway, 0);
+      gb.vertex(p, dir, j / radial, vLen, 0, ao, sway, 0);
     }
   });
   for (let k = 0; k < keep.length - 1; k++) {
@@ -625,9 +621,9 @@ function addTube(gb, b, radial, stride, aoAt, swayAt) {
 function addCard(gb, at, up, face, size, tile, mirror, rnd, crown, atlas) {
   const side = new V3().crossVectors(up, face).normalize();
   const nrm = new V3().crossVectors(side, up).normalize();
-  const ox = (tile % atlas.tiles) * TILE;
-  const oy = Math.floor(tile / atlas.tiles) * TILE;
   const tileSize = atlas.atlasSize / atlas.tiles;
+  const ox = (tile % atlas.tiles) * tileSize;
+  const oy = Math.floor(tile / atlas.tiles) * tileSize;
   let u0 = (ox + atlas.gutter) / atlas.atlasSize;
   let u1 = (ox + tileSize - atlas.gutter) / atlas.atlasSize;
   if (mirror) [u0, u1] = [u1, u0];
@@ -725,32 +721,56 @@ function placeCards(habit, branches, rng, crown, tileMeters) {
   return cards;
 }
 
-// 归一化：水平按最大冠幅（半宽 0.5），垂直以枝条起点 y=0 为冠底、冠顶为 1。
-// 不把最低点抬到 0：下垂叶卡可以略低于树干顶，正好和圆柱搭接。
-function normalizeGeometry(geometry) {
-  const pos = geometry.attributes.position;
-  const normal = geometry.attributes.normal;
-  let minX = Infinity; let maxX = -Infinity;
-  let maxY = -Infinity;
-  let minZ = Infinity; let maxZ = -Infinity;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i); const y = pos.getY(i); const z = pos.getZ(i);
+// 冠幅按主干轴心量取，偏冠保留自然方向。阔叶树下段直接接到上段的首圈顶点。
+function buildWholeTree(gb, { kind, trunkRatio, trunkRadiusRatio }) {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, height = 0;
+  for (let i = 0; i < gb.pos.length; i += 3) {
+    const x = gb.pos[i], z = gb.pos[i + 2];
     minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-    maxY = Math.max(maxY, y);
     minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+    height = Math.max(height, gb.pos[i + 1]);
   }
-  const cx = (minX + maxX) / 2;
-  const cz = (minZ + maxZ) / 2;
-  const width = Math.max(maxX - minX, maxZ - minZ, 0.001);
-  const height = Math.max(maxY, 0.001);
-  for (let i = 0; i < pos.count; i++) {
-    pos.setXYZ(i, (pos.getX(i) - cx) / width, pos.getY(i) / height, (pos.getZ(i) - cz) / width);
-    normal.setXYZ(i, normal.getX(i), normal.getY(i), normal.getZ(i));
+  const width = Math.max(maxX - minX, maxZ - minZ);
+  const verticalScale = (1 - trunkRatio) / height;
+  const normal = new V3();
+  for (let i = 0; i < gb.pos.length; i += 3) {
+    gb.pos[i] /= width;
+    gb.pos[i + 1] = gb.pos[i + 1] * verticalScale + trunkRatio;
+    gb.pos[i + 2] /= width;
+    normal.set(gb.nrm[i] * width, gb.nrm[i + 1] / verticalScale, gb.nrm[i + 2] * width).normalize();
+    gb.nrm[i] = normal.x;
+    gb.nrm[i + 1] = normal.y;
+    gb.nrm[i + 2] = normal.z;
   }
-  normal.needsUpdate = true;
-  pos.needsUpdate = true;
-  geometry.computeBoundingSphere();
-  geometry.computeBoundingBox();
+
+  const palm = kind === 'palm';
+  const levels = [[0, 1], [trunkRatio * 0.12, 0.88], [trunkRatio * 0.72, 0.73]];
+  if (palm) levels.push([trunkRatio + 0.012, 0.65]);
+  let below = null;
+  const point = new V3();
+  function connect(lower, upper) {
+    for (let j = 0; j < STEM_SIDES; j++) {
+      gb.idx.push(lower + j, lower + j + 1, upper + j, lower + j + 1, upper + j + 1, upper + j);
+    }
+  }
+  for (const [y, taper] of levels) {
+    const ring = gb.pos.length / 3;
+    for (let j = 0; j <= STEM_SIDES; j++) {
+      const angle = j / STEM_SIDES * 2 * Math.PI;
+      if (palm) normal.set(Math.sin(angle), 0, Math.cos(angle));
+      else normal.set(gb.pos[j * 3], 0, gb.pos[j * 3 + 2]).normalize();
+      point.copy(normal).multiplyScalar(trunkRadiusRatio * taper).setY(y);
+      gb.vertex(point, normal, j / STEM_SIDES, (y - trunkRatio) / verticalScale, 0, 0.86, 0, 0);
+    }
+    if (below !== null) connect(below, ring);
+    below = ring;
+  }
+  if (!palm) connect(below, 0);
+  else {
+    const top = gb.vertex(point.set(0, levels.at(-1)[0], 0), normal.set(0, 1, 0), 0, 0, 0, 0.86, 0, 0);
+    for (let j = 0; j < STEM_SIDES; j++) gb.idx.push(top, below + j, below + j + 1);
+  }
+  return gb.build();
 }
 
 function buildBroadleafGeometry(name, habit, atlas) {
@@ -771,21 +791,20 @@ function buildBroadleafGeometry(name, habit, atlas) {
   const gb = new CrownGeometryBuilder();
   const aoAt = p => crown.barkAO(p);
   for (const b of branches) {
-    if (b.level <= 2) addTube(gb, b, [4, 4, 3][b.level], [2, 3, 4][b.level], aoAt, swayWeight);
+    if (b.level <= 2) addTube(gb, b, [STEM_SIDES, 4, 3][b.level], [2, 3, 4][b.level], aoAt, swayWeight);
   }
-  const barkTriangles = gb.idx.length / 3;
   for (const c of cards0) {
     addCard(gb, c.at, c.up, c.face, c.size, habit.tile, rng() < 0.5, rng(), crown, atlas);
   }
-  const geometry = gb.build();
-  normalizeGeometry(geometry);
+  const geometry = buildWholeTree(gb, habit);
   const triangles = geometry.index.count / 3;
+  const barkTriangles = triangles - cards0.length * 2;
   geometry.userData = { species: name, kind: habit.kind, seed, triangles, cards: cards0.length,
     barkTriangles, tile: habit.tile, tileMeters: atlas.tileMeters[habit.tile], atlasSize: atlas.atlasSize };
   return { geometry, triangles, cards: cards0.length, barkTriangles, seed, tile: habit.tile };
 }
 
-// 棕榈：从树干顶放射出羽叶卡片；没有分枝骨架和树皮管。
+// 棕榈：羽叶从单干顶端放射。
 function buildPalmGeometry(name, habit, atlas) {
   const seed = CROWN_SEED + habit.seedSalt;
   const rng = mulberry32(seed);
@@ -816,17 +835,16 @@ function buildPalmGeometry(name, habit, atlas) {
   const crown = makeCrown(points);
   const gb = new CrownGeometryBuilder();
   for (const c of cards) addCard(gb, c.at, c.up, c.face, c.size, habit.tile, rng() < 0.5, rng(), crown, atlas);
-  const geometry = gb.build();
-  normalizeGeometry(geometry);
+  const geometry = buildWholeTree(gb, habit);
   const triangles = geometry.index.count / 3;
+  const barkTriangles = triangles - cards.length * 2;
   geometry.userData = { species: name, kind: 'palm', seed, triangles, cards: cards.length,
-    barkTriangles: 0, tile: habit.tile, tileMeters: atlas.tileMeters[habit.tile], atlasSize: atlas.atlasSize };
-  return { geometry, triangles, cards: cards.length, barkTriangles: 0, seed, tile: habit.tile };
+    barkTriangles, tile: habit.tile, tileMeters: atlas.tileMeters[habit.tile], atlasSize: atlas.atlasSize };
+  return { geometry, triangles, cards: cards.length, barkTriangles, seed, tile: habit.tile };
 }
 
 /**
- * 构建一个树种的近景叶卡树冠几何。坐标已归一化：冠底 y=0、冠顶 y≈1、水平半宽 0.5；
- * 实例缩放传 (冠幅, 冠高, 冠幅) 就得到数据里的冠幅和树高。
+ * 根部为 (0, 0, 0)，树顶 y=1；实例用 (冠幅, 树高, 冠幅) 缩放整棵树。
  */
 export function buildCrownGeometry(name, atlas = createLeafAtlas()) {
   const habit = CROWN_SPECIES[name];
@@ -873,7 +891,7 @@ class TreeCrownMaterial extends THREE.MeshStandardNodeMaterial {
 
 /**
  * 近景树冠材质：树皮管和 alpha 测试叶卡共用一个 draw。几何属性：
- * - uv：叶卡取图集对应格；树皮按米展开
+ * - uv：叶卡取图集对应格；树皮横向绕一周，纵向沿枝条展开
  * - normal：叶卡用树冠壳法线，正反面同向，整冠像一个被照亮的体积
  * - aTree vec4：x 叶卡=1/树皮=0，y 冠内遮蔽，z 风摆权重，w 每张叶卡的扑动相位
  * - aTreeData vec4（实例）：rgb 每棵树的叶色，w 随机数
@@ -925,10 +943,12 @@ export function createTreeCrownMaterial(leafAtlas) {
     const leafCol = mix(mix(base, base.mul(vec3(1.22, 1.06, 0.55)), warm), base.mul(vec3(0.82, 0.94, 1.06)), cool);
     const foliage = mix(leafCol, color(0x4a3b2c), leaf.b).mul(crownAO.mul(0.45).add(0.55));
 
-    // 树皮：uv 以米展开，做纵向沟槽；深褐，比叶暗。
+    // 树皮沿主干和枝条拉出细纹。
     const bu = uv();
-    const ridge = smoothstep(0.28, 0.78, fract(bu.y.mul(0.55).add(bu.x.mul(0.12))));
-    const bark = mix(color(0x39302a), color(0x6b5946), ridge).mul(crownAO.mul(0.4).add(0.6));
+    const ridge = sin(bu.x.mul(25.1327).add(sin(bu.y.mul(0.75)).mul(0.44)));
+    const grain = sin(bu.x.mul(69.115).add(sin(bu.y.mul(2.3)).mul(0.65)));
+    const barkTone = ridge.mul(0.32).add(grain.mul(0.16)).add(0.5);
+    const bark = mix(color(0x514336), color(0x78644c), barkTone).mul(crownAO.mul(0.4).add(0.6));
 
     return vec4(mix(bark, foliage, isLeaf), alpha);
   })();

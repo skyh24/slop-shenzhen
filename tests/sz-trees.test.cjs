@@ -161,7 +161,7 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
   assert.equal(built.colliders[0].minY, 5);
   assert.ok(built.colliders[0].maxY > 5);
 
-  const trunkMesh = built.group.getObjectByName('tree-trunks:0,0');
+  const trunkMesh = built.group.getObjectByName('tree-trunks-far:0,0/0,0');
   const matrix = new THREE.Matrix4();
   trunkMesh.getMatrixAt(0, matrix);
   assert.equal(matrix.elements[13], 5);
@@ -171,6 +171,10 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
   const farMesh = built.group.getObjectByName('tree-crowns-far:0,0/0,0');
   assert.equal(nearMesh.visible, true);
   assert.equal(farMesh.visible, false);
+  assert.equal(trunkMesh.visible, false);
+  nearMesh.getMatrixAt(0, matrix);
+  assert.equal(matrix.elements[13], 5);
+  assert.equal(matrix.elements[5], 12);
   assert.equal(built.statistics.visible.nearCells, 1);
   assert.equal(built.statistics.visible.hiddenCells, 1);
   assert.equal(built.statistics.lodCells, 2);
@@ -186,11 +190,19 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
   assert.ok(built.statistics.triangles.cardPerTree.ficus > 500);
   assert.equal(built.statistics.crown.headlessAtlas, true);
   assert.equal(built.statistics.visible.cardTrees, 1);
-  assert.equal(built.statistics.visible.triangles, 16 + built.statistics.triangles.cardPerTree.ficus);
+  assert.equal(built.statistics.visible.triangles, built.statistics.triangles.cardPerTree.ficus);
 
   built.update(new THREE.Vector3(0, 5, 700));
   assert.equal(nearMesh.visible, false);
   assert.equal(farMesh.visible, true);
+  assert.equal(trunkMesh.visible, true);
+  trunkMesh.getMatrixAt(0, matrix);
+  const trunkTop = new THREE.Vector3(0, 1, 0).applyMatrix4(matrix).y;
+  farMesh.getMatrixAt(0, matrix);
+  farMesh.geometry.computeBoundingBox();
+  const crownBottom = farMesh.geometry.boundingBox.min.clone().applyMatrix4(matrix).y;
+  assert.ok(crownBottom < trunkTop);
+  assert.equal(built.statistics.visible.triangles, 96);
   assert.equal(built.statistics.visible.farCells, 1);
   assert.equal(built.statistics.visible.hiddenCells, 1);
 
@@ -199,6 +211,7 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
   assert.equal(built.group.getObjectByName('tree-crowns-near:1,0/6,0:ficus').visible, true);
   assert.equal(built.statistics.visible.hiddenCells, 1);
   assert.equal(built.statistics.visible.nearCells, 1);
+  assert.equal(trunkMesh.visible, false);
 
   built.update(new THREE.Vector3(0, 5, 5000));
   assert.equal(built.statistics.visible.chunks, 0);
@@ -247,9 +260,9 @@ test('every species gets its own card-crown mesh in the near LOD', { skip: !thre
     assert.ok(built.group.getObjectByName(`tree-crowns-near:0,0/0,0:${name}`), name);
   }
   assert.equal(built.statistics.visible.cardTrees, 3);
-  const expected = names.length * 16 + names.reduce((sum, name) => sum + built.statistics.triangles.cardPerTree[name], 0);
+  const expected = names.reduce((sum, name) => sum + built.statistics.triangles.cardPerTree[name], 0);
   assert.equal(built.statistics.visible.triangles, expected);
-  assert.ok(built.statistics.triangles.cardPerTree['royal-palm'] < 100, 'palm fronds are cheap');
+  assert.ok(built.statistics.triangles.cardPerTree['royal-palm'] < 100, 'whole palms use fewer than 100 triangles');
   built.dispose();
 });
 

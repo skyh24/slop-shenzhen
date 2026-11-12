@@ -34,7 +34,7 @@ function bounds(geometry) {
   return { minX, maxX, minY, maxY, minZ, maxZ };
 }
 
-test('every crown species is deterministic, normalised and within the triangle budget', { skip: !threeDir }, async () => {
+test('every whole tree is deterministic, rooted and within the triangle budget', { skip: !threeDir }, async () => {
   const { crown } = await loadCrown();
   assert.deepEqual(Object.keys(crown.CROWN_SPECIES).sort(), [...SPECIES].sort());
   for (const name of SPECIES) {
@@ -45,23 +45,18 @@ test('every crown species is deterministic, normalised and within the triangle b
       Array.from(again.geometry.attributes.position.array), `${name} must grow the same tree twice`);
     assert.deepEqual(Array.from(built.geometry.index.array), Array.from(again.geometry.index.array), name);
 
-    // 归一化：冠底 y=0、冠顶 y≈1、水平半宽 0.5；下垂叶卡允许略低于 0。
+    // 整棵树以树脚为原点，树顶 y=1。
     const b = bounds(built.geometry);
     assert.ok(Math.abs(b.maxY - 1) < 1e-4, `${name} crown top ${b.maxY}`);
-    assert.ok(b.minX >= -0.53 && b.maxX <= 0.53, `${name} x range`);
-    assert.ok(b.minZ >= -0.53 && b.maxZ <= 0.53, `${name} z range`);
-    assert.ok(b.minY > -0.5 && b.minY <= 0.02, `${name} crown bottom ${b.minY}`);
+    const width = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
+    assert.ok(Math.abs(width - 1) < 1e-4, `${name} crown width ${width}`);
+    assert.equal(b.minY, 0, name);
 
     // 原近冠 5 个 icosahedron(detail=2) = 5 × 180 = 900 三角形；叶卡样板允许比它高，
     // 但单棵必须远低于每帧 600 万的城市预算，才不压缩叶卡数。
     assert.ok(built.triangles > 20 && built.triangles < 1700, `${name} triangles ${built.triangles}`);
-    if (name === 'royal-palm') {
-      assert.ok(built.cards >= 12 && built.cards <= 24, `palm fronds ${built.cards}`);
-      assert.equal(built.barkTriangles, 0, 'palm uses the trunk cylinder, no bark tubes in the crown');
-    } else {
-      assert.ok(built.cards >= 150, `${name} cards ${built.cards}`);
-      assert.ok(built.barkTriangles > 0, `${name} has branch bark`);
-    }
+    assert.ok(built.barkTriangles > 0, `${name} has a trunk`);
+    assert.ok(name === 'royal-palm' ? built.cards >= 12 && built.cards <= 24 : built.cards >= 150, name);
 
     // 属性：叶卡和树皮共用一份几何，靠 aTree.x 区分。
     assert.equal(built.geometry.attributes.aTree.itemSize, 4);
@@ -75,10 +70,49 @@ test('every crown species is deterministic, normalised and within the triangle b
       else barkVertices += 1;
     }
     assert.ok(leafVertices > 0, `${name} leaf cards`);
-    if (name === 'royal-palm') assert.equal(barkVertices, 0);
-    else assert.ok(barkVertices > 0, `${name} bark tubes`);
+    assert.ok(barkVertices > 0, `${name} bark tubes`);
     assert.equal(built.geometry.userData.species, name);
     assert.equal(built.geometry.userData.kind, name === 'royal-palm' ? 'palm' : 'broadleaf');
+  }
+});
+
+test('the tree stem reaches the leader or frond anchors without a separate transform', { skip: !threeDir }, async () => {
+  const { crown } = await loadCrown();
+  for (const name of SPECIES) {
+    const { geometry } = crown.buildCrownGeometry(name);
+    const { position, aTree } = geometry.attributes;
+    const { trunkRatio, trunkRadiusRatio } = crown.CROWN_SPECIES[name];
+    const root = [];
+    const edges = Array.from({ length: position.count }, () => []);
+    for (let i = 0; i < position.count; i++) {
+      if (position.getY(i) !== 0) continue;
+      assert.equal(aTree.getX(i), 0);
+      assert.ok(Math.abs(Math.hypot(position.getX(i), position.getZ(i)) - trunkRadiusRatio) < 1e-6);
+      root.push(i);
+    }
+    assert.equal(root.length, 9, name);
+    const index = geometry.index.array;
+    for (let i = 0; i < index.length; i += 3) {
+      const [a, b, c] = index.subarray(i, i + 3);
+      if ([a, b, c].some(vertex => aTree.getX(vertex) > 0)) continue;
+      edges[a].push(b, c);
+      edges[b].push(a, c);
+      edges[c].push(a, b);
+    }
+    const connected = new Set(root);
+    for (const vertex of connected) for (const next of edges[vertex]) connected.add(next);
+    assert.ok([...connected].some(vertex => position.getY(vertex) > trunkRatio + 0.005), name);
+    if (name === 'royal-palm') {
+      for (let i = 0; i < 16 * 4; i += 4) {
+        assert.ok(Math.abs(position.getX(i) + position.getX(i + 1)) < 1e-6);
+        assert.ok(Math.abs(position.getZ(i) + position.getZ(i + 1)) < 1e-6);
+        assert.ok(Math.abs((position.getY(i) + position.getY(i + 1)) / 2 - trunkRatio) < 1e-6);
+      }
+    } else {
+      assert.ok(connected.has(0), `${name} lower stem shares the leader ring`);
+      assert.ok(Math.abs(position.getX(0) + position.getX(4)) < 1e-6);
+      assert.ok(Math.abs(position.getZ(0) + position.getZ(4)) < 1e-6);
+    }
   }
 });
 

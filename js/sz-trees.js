@@ -2,10 +2,7 @@ import * as THREE from 'three/webgpu';
 import { polygonContains } from './sz-polygon.js';
 import { CROWN_SPECIES, createCrownLibrary } from './sz-tree-crown.js';
 
-// 树木实例化渲染：按 1000 m 分块，每块树干 + 近冠 + 远冠（1 个低模冠），
-// 近/<180 m 切近冠，>900 m 隐藏。所有随机量只由树标识的固定哈希派生，加载结果稳定。
-// 近冠全部换成 sz-tree-crown.js 的叶卡树冠（按树种分几何）；远景一律保留低模 icosahedron 冠，
-// 近/远切换仍按 250 m 子格和 180/198 m 迟滞，三角形预算可控。
+// 近景按树种实例化整棵树，远景的低模树干和树冠按同一子格切换。
 
 const CHUNK_SIZE_M = 1000;
 // 近/远切换以 250 m 子格为单位：只按 1 km 块切换时，市中心一块的 3000 多棵树
@@ -27,17 +24,17 @@ const CROWN_TEMPLATE_NAMES = new Set(Object.keys(CROWN_SPECIES));
 
 // 树种只定义形态比例和颜色；树高、冠幅来自数据，避免运行时再造随机尺寸。
 const SPECIES_STYLE = {
-  ficus: { trunkRatio: 0.34, crownColor: 0x3c562f, crownLight: 0x66804d, trunkColor: 0x5f4e3f,
+  ficus: { crownColor: 0x3c562f, crownLight: 0x66804d, trunkColor: 0x5f4e3f,
     farSpread: 0.17, farHeight: 0.30 },
-  camphor: { trunkRatio: 0.44, crownColor: 0x405c33, crownLight: 0x687d45, trunkColor: 0x5b4b3d,
+  camphor: { crownColor: 0x405c33, crownLight: 0x687d45, trunkColor: 0x5b4b3d,
     farSpread: 0.16, farHeight: 0.32 },
-  phoenix: { trunkRatio: 0.40, crownColor: 0x4b6a32, crownLight: 0x7a9448, trunkColor: 0x655642,
+  phoenix: { crownColor: 0x4b6a32, crownLight: 0x7a9448, trunkColor: 0x655642,
     farSpread: 0.24, farHeight: 0.20 },
-  bauhinia: { trunkRatio: 0.36, crownColor: 0x54703f, crownLight: 0x7d925c, trunkColor: 0x635343,
+  bauhinia: { crownColor: 0x54703f, crownLight: 0x7d925c, trunkColor: 0x635343,
     farSpread: 0.18, farHeight: 0.32 },
-  'royal-palm': { trunkRatio: 0.76, crownColor: 0x36542c, crownLight: 0x5b7738, trunkColor: 0x746a58,
+  'royal-palm': { crownColor: 0x36542c, crownLight: 0x5b7738, trunkColor: 0x746a58,
     farSpread: 0.08, farHeight: 0.40 },
-  kapok: { trunkRatio: 0.52, crownColor: 0x4a5f38, crownLight: 0x6f8049, trunkColor: 0x6a5847,
+  kapok: { crownColor: 0x4a5f38, crownLight: 0x6f8049, trunkColor: 0x6a5847,
     farSpread: 0.20, farHeight: 0.26 }
 };
 const DEFAULT_SPECIES_STYLE = SPECIES_STYLE.ficus;
@@ -119,15 +116,6 @@ function createColliderIndex(colliders) {
 
 function speciesStyle(name) {
   return SPECIES_STYLE[name] ?? DEFAULT_SPECIES_STYLE;
-}
-
-// 树干半径按冠幅估计，只影响外观和碰撞，不写成实测胸径。
-function trunkRadiusFor(style, crown) {
-  return Math.max(0.10, Math.min(0.55, crown * 0.030)) * (style === SPECIES_STYLE['royal-palm'] ? 0.9 : 1);
-}
-
-function trunkHeightFor(style, height) {
-  return Math.max(1.4, height * style.trunkRatio);
 }
 
 function colliderPolygon(x, z, radius) {
@@ -332,23 +320,24 @@ export function buildSzTrees(scene, payload, options = {}) {
     const speciesName = trees.speciesNames[trees.species[index]] ?? 'ficus';
     countsBySource[sourceName] = (countsBySource[sourceName] ?? 0) + 1;
     const style = speciesStyle(speciesName);
-    const trunkHeight = trunkHeightFor(style, height);
-    const trunkRadius = trunkRadiusFor(style, crown);
     const id = trees.osm.get(index) ?? `tree/${index}`;
     // 未知树种退回 ficus 叶卡形态，颜色仍用该树种的调色板。
     const crownTemplate = CROWN_TEMPLATE_NAMES.has(speciesName) ? speciesName : 'ficus';
+    const habit = CROWN_SPECIES[crownTemplate];
+    const trunkHeight = height * habit.trunkRatio;
+    const trunkRadius = crown * habit.trunkRadiusRatio;
     crownTemplates.add(crownTemplate);
     const record = { index, id, x, z, y: baseY, height, crown, speciesName, sourceName,
       style, trunkHeight, trunkRadius, seed: treeSeed(id), crownTemplate };
     placed.push(record);
     // 碰撞体略小于树干可视半径：真实行道树树干约 0.4–0.9 m 直径，1.1 倍会把 2.5 m 人行道封死。
-    const radius = Math.max(0.18, trunkRadius * 0.8);
+    const radius = Math.max(0.18, Math.min(0.55, trunkRadius) * 0.8);
     treeColliders.push({ type: 'tree', name: id, sourceId: id, polygon: colliderPolygon(x, z, radius),
       minY: baseY, maxY: baseY + Math.max(1.6, trunkHeight),
       minX: x - radius, maxX: x + radius, minZ: z - radius, maxZ: z + radius });
   }
 
-  // 按 1000 m 分块建树干实例；近冠/远冠再按 250 m LOD 子格拆分，切换以子格为单位。
+  // 按 1000 m 分块，树木按 250 m 子格切换细节档。
   const grouped = new Map();
   for (const record of placed) {
     const key = `${Math.floor(record.x / CHUNK_SIZE_M)},${Math.floor(record.z / CHUNK_SIZE_M)}`;
@@ -356,7 +345,7 @@ export function buildSzTrees(scene, payload, options = {}) {
     if (!list) grouped.set(key, (list = []));
     list.push(record);
   }
-  const trunkGeometry = new THREE.CylinderGeometry(1, 1, 1, TRUNK_SIDES, 1, true).translate(0, 0.5, 0);
+  const trunkGeometry = new THREE.CylinderGeometry(0.65, 1, 1, TRUNK_SIDES, 1, true).translate(0, 0.5, 0);
   const farGeometry = new THREE.IcosahedronGeometry(1, 1);
   const trunkMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.96 });
   const leafMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.87 });
@@ -393,23 +382,22 @@ export function buildSzTrees(scene, payload, options = {}) {
     const palette = colorsFor(record.speciesName);
     return tint.copy(palette.crown).lerp(palette.light, treeSeed(record.id + ':crown'));
   }
-  // 远冠：所有树种共用 1 个低模球，近景换叶卡后远景不动。
+  // 远冠底部盖住树干顶端，低模轮廓也能接到主干。
   function poseFar(record, farMesh, instance) {
     const { style } = record;
-    const crownHeight = Math.max(0.8, record.height - record.trunkHeight);
-    pose(farMesh, instance, record.x, record.y + record.trunkHeight + crownHeight * 0.42, record.z,
+    const halfHeight = (record.height - record.trunkHeight) * (0.35 + style.farHeight * 0.3);
+    const overlap = Math.min(0.25, halfHeight * 0.25);
+    pose(farMesh, instance, record.x, record.y + record.trunkHeight + halfHeight - overlap, record.z,
       record.crown * (0.36 + style.farSpread * 0.6),
-      crownHeight * (0.35 + style.farHeight * 0.3),
+      halfHeight,
       record.crown * (0.36 + style.farSpread * 0.6));
     farMesh.setColorAt(instance, tintFor(record));
   }
-  // 近冠叶卡：几何已归一化（冠底 y=0、冠顶 y≈1、水平半宽 0.5）。
+  // 近景整树从地面起，用同一个矩阵放置主干、分枝和叶片。
   function poseCard(record, cardMesh, instance, data, sway) {
-    const crownHeight = Math.max(0.8, record.height - record.trunkHeight);
     rotation.setFromAxisAngle(upAxis, record.seed * Math.PI * 2);
     cardMesh.setMatrixAt(instance, matrix.compose(
-      position.set(record.x, record.y + record.trunkHeight - 0.15, record.z),
-      rotation, scale.set(record.crown, crownHeight, record.crown)));
+      position.set(record.x, record.y, record.z), rotation, scale.set(record.crown, record.height, record.crown)));
     const leafTint = tintFor(record);
     data.setXYZW(instance, leafTint.r, leafTint.g, leafTint.b, treeSeed(record.id + ':leaf'));
     // 整树摆幅按树高给（世界米）：11 m 树约 0.2 m，和纽约参考同一量级，只是外观估计。
@@ -419,21 +407,6 @@ export function buildSzTrees(scene, payload, options = {}) {
   }
   for (const key of [...grouped.keys()].sort(compareChunkKeys)) {
     const records = grouped.get(key);
-    const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, records.length);
-    trunks.name = `tree-trunks:${key}`;
-    trunks.userData.sources = records.map(record => record.id);
-    records.forEach((record, instance) => {
-      pose(trunks, instance, record.x, record.y, record.z,
-        record.trunkRadius, record.trunkHeight, record.trunkRadius);
-      color.setHex(record.style.trunkColor).lerp(trunkLight, treeSeed(record.id + ':trunk'));
-      trunks.setColorAt(instance, color);
-    });
-    trunks.instanceMatrix.needsUpdate = true;
-    trunks.castShadow = true;
-    trunks.receiveShadow = true;
-    trunks.frustumCulled = true;
-    trunks.computeBoundingSphere();
-    group.add(trunks);
     const cells = new Map();
     for (const record of records) {
       const cellKey = `${Math.floor(record.x / LOD_CELL_M)},${Math.floor(record.z / LOD_CELL_M)}`;
@@ -449,16 +422,25 @@ export function buildSzTrees(scene, payload, options = {}) {
     const chunkCells = [];
     for (const cellKey of [...cells.keys()].sort(compareChunkKeys)) {
       const cell = cells.get(cellKey);
+      const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, cell.records.length);
+      trunks.name = `tree-trunks-far:${key}/${cellKey}`;
+      trunks.userData.sources = cell.records.map(record => record.id);
       const far = new THREE.InstancedMesh(farGeometry, leafMaterial, cell.records.length);
       far.name = `tree-crowns-far:${key}/${cellKey}`;
-      cell.records.forEach((record, instance) => poseFar(record, far, instance));
-      far.instanceMatrix.needsUpdate = true;
-      far.castShadow = false;
-      far.receiveShadow = true;
-      far.frustumCulled = true;
-      far.computeBoundingSphere();
-      far.instanceColor.needsUpdate = true;
-      group.add(far);
+      cell.records.forEach((record, instance) => {
+        pose(trunks, instance, record.x, record.y, record.z, record.trunkRadius, record.trunkHeight, record.trunkRadius);
+        color.setHex(record.style.trunkColor).lerp(trunkLight, treeSeed(record.id + ':trunk'));
+        trunks.setColorAt(instance, color);
+        poseFar(record, far, instance);
+      });
+      trunks.castShadow = true;
+      for (const mesh of [trunks, far]) {
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.instanceColor.needsUpdate = true;
+        mesh.receiveShadow = true;
+        mesh.computeBoundingSphere();
+        group.add(mesh);
+      }
       // 近冠按树种分实例网格：几何不同，但材质、图集共用。
       const byTemplate = new Map();
       for (const record of cell.records) {
@@ -506,10 +488,10 @@ export function buildSzTrees(scene, payload, options = {}) {
         cardTrees += groupRecords.length;
         cellCardTriangles += triangles;
       }
-      chunkCells.push({ key: cellKey, cards, far, trees: cell.records.length,
+      chunkCells.push({ key: cellKey, cards, far, trunks, trees: cell.records.length,
         cardTrees, cardTriangles: cellCardTriangles, box: cell.box, mode: 'far' });
     }
-    chunks.push({ key, trunks, cells: chunkCells, trees: records.length });
+    chunks.push({ cells: chunkCells });
   }
   scene.add(group);
 
@@ -552,7 +534,6 @@ export function buildSzTrees(scene, payload, options = {}) {
     let farTrees = 0;
     let cardTrees = 0;
     let nearCardTriangles = 0;
-    let trunkTrees = 0;
     const x = cameraPosition.x;
     const z = cameraPosition.z;
     for (const chunk of chunks) {
@@ -564,6 +545,7 @@ export function buildSzTrees(scene, payload, options = {}) {
         cell.mode = visible ? (canBeNear ? 'near' : 'far') : 'hidden';
         for (const card of cell.cards) card.mesh.visible = cell.mode === 'near';
         cell.far.visible = cell.mode === 'far';
+        cell.trunks.visible = cell.far.visible;
         if (!visible) {
           hiddenCells += 1;
           continue;
@@ -580,11 +562,7 @@ export function buildSzTrees(scene, payload, options = {}) {
           farTrees += cell.trees;
         }
       }
-      chunk.trunks.visible = chunkVisible;
-      if (chunkVisible) {
-        visibleChunks += 1;
-        trunkTrees += chunk.trees;
-      }
+      if (chunkVisible) visibleChunks += 1;
     }
     statistics.visible = {
       chunks: visibleChunks,
@@ -596,7 +574,7 @@ export function buildSzTrees(scene, payload, options = {}) {
       nearTrees,
       farTrees,
       cardTrees,
-      triangles: trunkTrees * TRUNK_TRIANGLES + nearCardTriangles + farTrees * FAR_CROWN_TRIANGLES
+      triangles: nearCardTriangles + farTrees * (TRUNK_TRIANGLES + FAR_CROWN_TRIANGLES)
     };
   }
 
