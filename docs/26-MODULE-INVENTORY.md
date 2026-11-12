@@ -1,7 +1,7 @@
 # 26 深圳运行时模块盘点
 
-盘点日期：2026-11-11。基线：Node 489 项通过、0 跳过；Python 104 项通过。
-对象：`js/` 下 67 个顶层模块 + `js/sz-landmarks/` 下 18 个文件，共 85 个文件、33,491 行。
+盘点日期：2026-11-11。基线：Node 531 项通过、0 跳过；Python 145 项通过（合并 S4/V2、水面与乘员上下车之后）。
+对象：`js/` 下 69 个顶层模块 + `js/sz-landmarks/` 下 18 个文件，共 87 个文件、35,424 行。
 本文按**模块**组织，回答三件事：每个模块做什么、哪些实现重复、哪些该拆。按任务编号组织的结论见 [22 号优化审查](22-OPTIMIZATION-REVIEW.md)。
 
 行数、导出、调用方均由命令生成（`grep -c ''`、`grep -n "^export"`、相对 import 反查），不是凭记忆写。地标模块的“相关测试”按模块名匹配，属近似值。
@@ -10,7 +10,7 @@
 
 | 项 | 说明 |
 | --- | --- |
-| 层级 | 深圳自有 67 个（49 顶层 + 18 地标）；纽约保留引擎 18 个，只登记不改 |
+| 层级 | 深圳自有 69 个（51 顶层 + 18 地标）；纽约保留引擎 18 个，只登记不改 |
 | `three` | 是否在文件顶部 `import ... from 'three/webgpu'`；标 `-` 的可以在 Node 里直接测 |
 | 被谁用 | 只统计 `js/` 内的相对 import；测试与工具脚本不计 |
 | 文件路径 | 表格里的“文件”列相对 `js/`；地标模块写成 `sz-landmarks/xxx.js` |
@@ -55,6 +55,8 @@
 | `sz-road-paint.js` | 71 | ✓ | 把标线布局建成网格 | `buildSzRoadPaint` | `main` |
 | `sz-road-frontage.js` | 255 | ✓ | 路缘、人行道台阶、路口信号外观 | `buildSzRoadFrontage` | `main` |
 | `sz-elevated-roads.js` | 633 | ✓ | 车公庙高架：桥面/匝道/桥墩计划、建场景、车行链路与表面身份 | `planElevatedRoads`、`buildSzElevatedRoads`、`ELEVATED_DRIVE_MAX_GRADE` | `main` |
+| `sz-tunnels.js` | 614 | ✓ | 隧道：按 OSM layer 估算埋深、洞身断面与复核清单；与高架共用立交选区 | `planSzTunnels`、`buildSzTunnels`、`TUNNEL_LAYER_DEPTH_M` 等 6 个 | `main` |
+| `sz-water-material.js` | 370 | ✓ | 水面材质：风浪贴图法线、坡度方差粗糙度、菲涅尔反射、夜间岸线反光 | `getWaterWaveTexture`、`createSzWaterMaterial` 等 3 个 | `sz-sea` |
 | `sz-streetscape.js` | 198 | ✓ | 步行带铺装条带与纹理 | `buildSzStreetscape` | `main` |
 | `sz-ground.js` | 101 | ✓ | 地形地面网格 + 采样器 | `buildSzGround` | `main` |
 | `sz-sea.js` | 26 | ✓ | 海面 | `buildSzSea` | `main` |
@@ -214,3 +216,4 @@
 | 日期 | 变更 |
 | --- | --- |
 | 2026-11-11 | 首次盘点：85 个文件、33,491 行；Node 489 / Python 104 基线。登记 12 组重复实现、6 项拆分候选、10 个死导出 |
+| 2026-11-11 | 合并后复核：补登 `sz-tunnels.js`、`sz-water-material.js`，总数为 87 个文件、35,424 行；Node 531 / Python 145 为新基线 |
