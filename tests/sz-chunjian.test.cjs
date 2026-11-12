@@ -119,7 +119,8 @@ test('Chunjian can decline replacement when a source opening is missing', () => 
 
 test('Chunjian DSM cuts lie strictly inside the enclosed collision hulls and capped roof projections', () => {
   const { exclusions, heightSource } = geo.terrainSurface;
-  assert.equal(heightSource, 'copernicus-glo30-dsm');
+  assert.equal(heightSource, geo.terrain.processing.heightSource);
+  assert.equal(geo.terrain.processing.urbanDatum?.sourceHeightSource ?? heightSource, 'copernicus-glo30-dsm');
   assert.deepEqual(exclusions.map(mask => mask.sourceId), [...chunjian.sourceIds].slice(0, 2));
   for (const mask of exclusions) {
     assert.equal(mask.interiorGround, 'unknown');
@@ -175,13 +176,13 @@ test('Chunjian interior cuts remove ground and road support while keeping the pu
   const { createRoadSurfaceLayout, createRoadHeightSampler } = loadModule(read('sz-roads.js'), { imports: {
     'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
   } });
-  const rawHeight = ({ x, z }) => terrain.terrainHeight(geo.terrain, x, z);
-  const checkGround = ({ x, z }) => assert.ok(Math.abs(groundHeight(x, z) - rawHeight({ x, z })) < 1e-4
+  const gridHeight = ({ x, z }) => terrain.terrainHeight(geo.terrain, x, z);
+  const checkGround = ({ x, z }) => assert.ok(Math.abs(groundHeight(x, z) - gridHeight({ x, z })) < 1e-4
     && Number.isFinite(groundHeight(x, z)));
   for (const mask of surface.exclusions) {
     const center = maskCenter(mask);
     assert.ok(isOnLand(center.x, center.z));
-    assert.ok(rawHeight(center) > 30);
+    assert.ok(mask.dsmGridSamples.maxM > 30, 'the source DSM contains the roof echo');
     assert.equal(groundHeight(center.x, center.z), null);
     for (const [x, z] of mask.polygonXZ) {
       const dx = x - center.x, dz = z - center.z;
@@ -196,8 +197,8 @@ test('Chunjian interior cuts remove ground and road support while keeping the pu
     }, surface);
     const roadHeight = createRoadHeightSampler(chunks, surface.grid);
     assert.equal(roadHeight(center.x, center.z), null);
-    const original = rawHeight({ x: west - 6, z: center.z });
-    assert.ok(Math.abs(roadHeight(west - 6, center.z) - original) < 1e-4 && Number.isFinite(roadHeight(west - 6, center.z)));
+    const outside = gridHeight({ x: west - 6, z: center.z });
+    assert.ok(Math.abs(roadHeight(west - 6, center.z) - outside) < 1e-4 && Number.isFinite(roadHeight(west - 6, center.z)));
   }
   for (const hole of [stadium, concourse].map(source => source.polygons[0].holes[0])) {
     checkGround(hole.reduce((p, q) => ({ x: p.x + q.x / hole.length, z: p.z + q.z / hole.length }), { x: 0, z: 0 }));

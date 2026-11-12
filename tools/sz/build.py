@@ -2,6 +2,7 @@
 
 import argparse
 import gzip
+import hashlib
 import json
 import time
 from pathlib import Path
@@ -82,6 +83,7 @@ def write_fast_package(payload, raw, sources):
     packed, stats = encode_city(payload)
     compressed = gzip.compress(packed, 9, mtime=0)
     stats['compressedBytes'] = len(compressed)
+    stats['compressedSha256'] = hashlib.sha256(compressed).hexdigest()
     validation['output'] = stats
     # 校验和编码全部成功后才替换产物；失败保留上一次可用包。
     temporary = FAST_OUT.with_suffix('.tmp')
@@ -127,14 +129,16 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
 def write_city_packages(payload, report, sources, started):
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
+    compressed = gzip.compress(raw, 9, mtime=0)
     temporary = OUT.with_suffix('.tmp')
-    temporary.write_bytes(gzip.compress(raw, 9, mtime=0))
+    temporary.write_bytes(compressed)
     try:
         report['fastPackage'] = write_fast_package(payload, raw, sources)
         temporary.replace(OUT)
     finally:
         temporary.unlink(missing_ok=True)
-    report['outputBytes'] = OUT.stat().st_size
+    report['outputBytes'] = len(compressed)
+    report['outputSha256'] = hashlib.sha256(compressed).hexdigest()
     report['seconds'] = round(time.time() - started, 1)
     REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
     print(json.dumps(report, ensure_ascii=False, indent=2))

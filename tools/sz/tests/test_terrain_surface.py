@@ -1,15 +1,18 @@
 """显示网格的岸线、水洞、三角面共面和分块接缝测试。"""
 
+import gzip
 import json
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from shapely.geometry import LineString, Polygon, box
 from shapely.ops import unary_union
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from build import rebuild_ground
 from geo import KX, KY, ORIGIN_LAT, ORIGIN_LON
 from terrain_exclusions import SOURCE, _footprint_signature, chunjian_exclusions
 from terrain_surface import apply_urban_datum, build_terrain_surface
@@ -38,6 +41,38 @@ def faces(surface):
 
 
 class TerrainSurfaceTests(unittest.TestCase):
+    def test_scoped_ground_rebuild_rejects_an_unbound_base_package(self):
+        with TemporaryDirectory() as directory:
+            base = Path(directory) / 'city.json.gz'
+            validation = Path(directory) / 'data-validation-report.json'
+            base.write_bytes(gzip.compress(b'{}'))
+            validation.write_text(json.dumps({'payloadSha256': 'stale-hash', 'sourceIntegrity': []}))
+            with patch('build.OUT', base), patch('build.VALIDATION_REPORT', validation):
+                with self.assertRaisesRegex(ValueError, 'does not match its validation report'):
+                    rebuild_ground('copernicus', [], {}, {}, {}, 0)
+
+    def test_commercial_stone_replaces_unverified_green_without_changing_contact(self):
+        terrain = grid()
+        coverage = box(0, 0, 50, 50)
+        stone = box(6, 11, 19, 38).difference(box(8, 21, 12, 29))
+        report = {}
+        surface = build_terrain_surface(terrain, coverage, [coverage], [], report,
+            green=[{'poly': box(-1, -1, 51, 51)}], paving=[stone])
+        paved = []
+        for chunk in surface['chunks']:
+            positions = chunk['positions']
+            for i in range(0, len(chunk['indices']), 3):
+                indices = chunk['indices'][i:i + 3]
+                kinds = {chunk['kinds'][k] for k in indices}
+                self.assertIn(kinds, ({1}, {3}))
+                vertices = [positions[k * 3:k * 3 + 3] for k in indices]
+                for x, y, z in vertices:
+                    self.assertAlmostEqual(y, sample(terrain, x, z), places=8)
+                if kinds == {3}:
+                    paved.append(Polygon([(x, z) for x, y, z in vertices]))
+        self.assertAlmostEqual(unary_union(paved).symmetric_difference(stone).area, 0, places=8)
+        self.assertEqual(report['terrainSurface']['stonePavingAreaM2'], stone.area)
+
     def test_urban_pilot_levels_the_core_and_preserves_protected_and_distant_ground(self):
         source = {**grid(), 'nx': 6, 'nz': 2, 'heights': [200] * 12}
         dry = box(0, 0, 125, 25)
