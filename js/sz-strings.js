@@ -241,8 +241,6 @@ export const STR = {
     light: '灯光展',
     location: '莲花山看灯光秀',
     original: '福田 CBD · 项目原创节目',
-    drone: '无人机展',
-    unavailable: '尚未开放',
     noArrival: '暂时无法安全抵达山顶平台',
     pause: '暂停',
     resume: '继续',
@@ -250,6 +248,16 @@ export const STR = {
     exit: '退出',
     cues: ['花卉绽放', '火箭升空', 'APEC · 开放与合作', '转场'],
     statue: '邓小平同志'
+  },
+  talentShow: {
+    location: '人才公园看无人机表演',
+    entryDetail: '深圳湾内湖南岸 · 前往并开始',
+    original: '后海星潮 · 项目原创模拟节目',
+    noArrival: '暂时无法安全抵达人才公园堤岸',
+    away: '已离开推荐观演区，节目仍在进行',
+    replayPending: '无人机正在准备回收，随后从头播放',
+    cues: ['准备起飞', '星潮汇聚', '花开后海', '海豚跃浪', '火箭升空',
+      '深圳天际线', 'APEC · 开放与合作', '潮光谢幕', '编队返航']
   },
   apecTheme: {
     label: 'APEC 主题',

@@ -74,6 +74,8 @@ class QaSession {
     this.queuePending = false;
     this.sampledFrames = 0;
     this.runtime = null;
+    this.publishTalent = this.enabled && query.get('telemetry') === 'talent';
+    this.nextTalentSample = 0;
   }
 
   // 跳过某个构建阶段时返回占位对象，否则执行构建函数。
@@ -145,6 +147,7 @@ class QaSession {
 
   endFrame(token, now, renderer) {
     if (!token) return;
+    this.sampleTalent(now, renderer);
     if (this.previousFrameAt !== null) {
       this.frames.push({
         at: now, intervalMs: now - this.previousFrameAt, simulationMs: token.simulationEnd - token.start,
@@ -196,6 +199,13 @@ class QaSession {
     window.__szXili = modules.xili;
     this.installDebug(runtime);
     this.installSnapshot(runtime);
+    if (this.publishTalent && modules.waterfront) {
+      const surface = document.createElement('script');
+      surface.type = 'application/json';
+      surface.id = 'qa-talent-telemetry';
+      document.body.append(surface);
+      this.talentSurface = surface;
+    }
   }
 
   // QA 专用传送与碰撞查询：只在本机回环地址的 ?qa=1 下暴露，便于固定机位复测和诊断。
@@ -270,6 +280,34 @@ class QaSession {
     };
   }
 
+  talentSnapshot() {
+    const { modules, controllerManager } = this.runtime;
+    const active = controllerManager.getActiveEntity();
+    const program = modules?.talentProgram;
+    return program && {
+      ...program.statistics, active: program.active, paused: program.paused, time: program.time, cue: program.cue,
+      available: program.available, delivery: modules.drones.statistics,
+      waterfront: modules.waterfront.statistics, arrival: modules.waterfront.arrival,
+      routeDistance: modules.waterfront.route.nearest(active.position.x, active.position.z),
+      support: active._support,
+      actors: modules.talentPeople.actors.map(({ id, x, y, z, heading, mode, s, v }) => ({ id, x, y, z, heading, mode, s, v }))
+    };
+  }
+
+  sampleTalent(now, renderer) {
+    if (!this.talentSurface || now < this.nextTalentSample) return;
+    this.nextTalentSample = now + 160;
+    const { controllerManager, cameraSystem, lightingSystem, modules } = this.runtime;
+    const active = controllerManager.getActiveEntity();
+    this.talentSurface.textContent = JSON.stringify({
+      at: now, ...this.talentSnapshot(), lighting: lightingSystem.activePresetId,
+      mode: active.type, camera: cameraSystem.activePresetId, cameraPosition: cameraSystem.camera.position.toArray(),
+      position: { x: active.position.x, y: active.position.y, z: active.position.z, heading: active.heading, speed: active.speed },
+      summit: modules.cbdProgram.active, frame: renderer.info.frame, memory: renderer.info.memory,
+      perf: this.profileSnapshot()
+    });
+  }
+
   // window.__szQA()：把启动阶段、场景统计、交通/人群/地图状态汇总成纯数据快照。
   snapshot() {
     const { controllerManager, cameraSystem, lightingSystem, mapSystem, traffic, pedestrians, roadFrontage,
@@ -279,6 +317,7 @@ class QaSession {
     const active = controllerManager.getActiveEntity();
     const program = modules?.cbdProgram;
     return {
+      talentShow: this.talentSnapshot(),
       summitProgram: program && {
         active: program.active, paused: program.paused, time: program.time, cue: program.cue,
         ...program.statistics, participants: modules.programIds,

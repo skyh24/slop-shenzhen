@@ -43,6 +43,28 @@ function validateStreetscape(streetscape, parks) {
   }
 }
 
+function validateTalentPark(site, raw) {
+  if (site === undefined) return;
+  const pair = point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite);
+  const line = points => Array.isArray(points) && points.length > 1 && points.every(pair);
+  const data = site?.simulation;
+  requireData(site?.version === 1 && raw.parks?.some(p => p.id === 'talent-park' && p.osmId === site.parkOsmId)
+    && /^relation\/\d+$/.test(site.lakeOsmId) && Number.isInteger(site.lakeWaterIndex)
+    && !!raw.water[site.lakeWaterIndex] && pair(site.view) && Number.isInteger(site.viewNode)
+    && site.lengthM >= 300 && site.lengthM <= 500 && line(site.retainingEdge)
+    && ['x', 'y', 'z'].every(key => Number.isFinite(data?.airspaceCenter?.[key]))
+    && Number.isFinite(data.lakeHeightM) && data.lakeHeightSource === 'estimate', 'Talent Park waterfront source');
+  const paths = [...site.route, ...site.entrances];
+  requireData(paths.every(path => /^way\/\d+$/.test(path.osmId) && line(path.points)
+    && ['greenway', 'promenade', 'steps'].includes(path.kind) && Number.isFinite(path.widthM)
+    && path.widthM >= 1.5 && path.widthM <= 6 && path.nodeIds?.length === path.points.length
+    && path.nodeIds.every(Number.isSafeInteger)) && site.entrances.filter(path => path.kind === 'steps').length === 1
+    && site.route.some(path => path.nodeIds.includes(site.viewNode)), 'Talent Park paths and access');
+  requireData(site.surfaces?.some(row => row.material === 'gravel') && site.surfaces.every(row =>
+    ['greenway', 'promenade', 'gravel'].includes(row.material) && row.trianglesXZ?.length >= 6
+    && row.trianglesXZ.length % 6 === 0 && row.trianglesXZ.every(Number.isFinite)), 'Talent Park paving');
+}
+
 function validateGolfCourse(site, graph, buildings) {
   if (site === undefined) return;
   const wayId = /^way\/\d+$/;
@@ -455,6 +477,7 @@ export function validateCityPayload(raw) {
   }
   validateStreetscape(raw.streetscape, raw.parks ?? []);
   validateGolfCourse(raw.golfCourse, raw.roadGraph, raw.buildings);
+  validateTalentPark(raw.talentPark, raw);
   validateTrees(raw.trees);
   validateSites(raw.sites);
   validateAir(raw.air);
@@ -596,6 +619,7 @@ export function decodeCityPayload(raw, metrics = null) {
     bridges: raw.bridges ?? [], yanjiangExpressway: raw.yanjiangExpressway ?? null,
     seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },
     streetscape: raw.streetscape ?? null,
+    talentPark: raw.talentPark ?? null,
     golfCourse: raw.golfCourse && { ...raw.golfCourse,
       ponds: raw.golfCourse.ponds.map(({ rings, ...pond }) => ({ ...pond, polygon: polygon(rings) })) },
     trees: raw.trees ?? null,

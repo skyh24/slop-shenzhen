@@ -181,6 +181,7 @@ class ThirdPersonControllerManager {
     this.surfaceResolver = createSurfaceResolver({ groundHeight: this.groundHeight, surfaces: options.surfaces ?? [] });
     this.nearTraffic = options.nearTraffic;
     this.nearPedestrians = options.nearPedestrians;
+    this.nearWalkers = options.nearWalkers;
     this.emergencyBrakeEnabled = true;
     this.roadHeight = options.roadHeight;
     this.spawnPoint = options.spawnPoint ?? SPAWN_POINT;
@@ -939,7 +940,8 @@ class ThirdPersonControllerManager {
     const reach = Math.max(body.extX, body.extZ);
     const touching = collider => buildingContact(collider, x, y, z, body);
     return this.nearColliders(x, z, reach).some(touching)
-      || (mode === 'car' && (this.nearPedestrians?.(x, z, reach) ?? []).some(touching));
+      || (mode === 'car' && (this.nearPedestrians?.(x, z, reach) ?? []).some(touching))
+      || (mode === 'person' && (this.nearWalkers?.(x, z, reach + 0.5) ?? []).some(touching));
   }
 
   isClearCarPose({ x, y, z, heading }) {
@@ -1005,6 +1007,7 @@ class ThirdPersonControllerManager {
     let gz = pos.z;
     let near = this.nearColliders(gx, gz, reach, !carEntity);
     if (mode === 'person') {
+      if (this.nearWalkers) near.push(...this.nearWalkers(gx, gz, reach));
       const step = this.personStep(pos, body, entity, near);
       if (step) {
         pos.y = step.height;

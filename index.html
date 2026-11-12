@@ -215,6 +215,12 @@
   <link rel="modulepreload" href="./js/sz-road-building-clearance.js" />
   <link rel="modulepreload" href="./js/sz-intersection-control.js" />
   <link rel="modulepreload" href="./js/sz-streetscape.js" />
+  <link rel="modulepreload" href="./js/sz-talent-park.js" />
+  <link rel="modulepreload" href="./js/sz-talent-waterfront.js" />
+  <link rel="modulepreload" href="./js/sz-talent-pedestrians.js" />
+  <link rel="modulepreload" href="./js/sz-talent-drone-show.js" />
+  <link rel="modulepreload" href="./js/sz-drone-choreography.js" />
+  <link rel="modulepreload" href="./js/sz-drone-formations.js" />
   <link rel="modulepreload" href="./js/sz-coco-park-approach.js" />
   <link rel="modulepreload" href="./js/sz-golf-course.js" />
   <link rel="modulepreload" href="./js/sz-street-lamps.js" />
@@ -410,8 +416,8 @@
     <button id="btn-cbd-show" class="pop-item" type="button">
       <span class="pop-name" data-text="program.light"></span><span class="pop-sub" data-text="program.location"></span>
     </button>
-    <button class="pop-item" type="button" disabled>
-      <span class="pop-name" data-text="program.drone"></span><span class="pop-sub" data-text="program.unavailable"></span>
+    <button id="btn-talent-show" class="pop-item" type="button" disabled>
+      <span class="pop-name" data-text="talentShow.location"></span><span class="pop-sub" data-text="talentShow.entryDetail"></span>
     </button>
     <p id="program-feedback" class="pop-title" role="status" data-text="program.noArrival" hidden></p>
   </div>
@@ -427,6 +433,9 @@
     <button id="tp-flatiron" class="pop-item tp-btn" data-teleport="tencent-binhai" type="button"><span class="pop-name"></span><span class="pop-sub"></span></button>
     <button id="tp-centralpark" class="pop-item tp-btn" data-teleport="lianhuashan" type="button"><span class="pop-name"></span><span class="pop-sub"></span></button>
     <button id="tp-owtc" class="pop-item tp-btn" data-teleport="civic-center" type="button"><span class="pop-name"></span><span class="pop-sub"></span></button>
+    <button id="tp-talent-show" class="pop-item" type="button" disabled>
+      <span class="pop-name" data-text="talentShow.location"></span><span class="pop-sub" data-text="talentShow.entryDetail"></span>
+    </button>
     <p id="teleport-feedback" class="pop-title" role="status" hidden></p>
   </div>
 
@@ -435,7 +444,8 @@
     <section id="program-panel" class="panel program-panel" data-label="program.location" hidden>
       <div>
         <strong id="program-cue" role="status"></strong>
-        <div class="program-credit" data-text="program.original"></div>
+        <div id="program-credit" class="program-credit"></div>
+        <div id="program-status" class="program-credit" role="status" hidden></div>
       </div>
       <div class="program-actions">
         <button id="program-pause" class="tool-btn" type="button" data-text="program.pause" aria-pressed="false"></button>

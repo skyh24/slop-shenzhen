@@ -202,80 +202,148 @@ export function wireApecTheme(theme, onChange) {
   select(saved === null ? theme.enabled : saved === '1', false);
 }
 
-export function wireSummitProgram({ program, controllerManager, cameraSystem, lightingSystem, arrival,
-  selectMode, selectCamera, selectTime, closePopovers }) {
+export function createCityTeleport({ controllerManager, cameraSystem, selectCamera, resetInput, markWaypoint,
+  inBounds, parks, parkAt, landmarkViews, findLandmarkArrival, findGroundArrival, roadHeight, flightStartAltitude, getLocationLabel }) {
+  return function teleportTo(x, z, heading, options = {}) {
+    if (!inBounds(x, z)) return null;
+    const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(parks, x, z) : null);
+    const landmark = landmarkViews.get(options.landmarkId);
+    const arrival = landmark && findLandmarkArrival(landmark, controllerManager,
+      findGroundArrival, roadHeight, flightStartAltitude);
+    if (landmark && !arrival) return null;
+    const destination = arrival
+      ? controllerManager.teleportActiveTo(arrival.x, arrival.z, arrival.heading, arrival.y, { exact: true })
+      : controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park, exact: options.exact === true });
+    if (!destination) return null;
+    resetInput();
+    cameraSystem.resetForTeleport();
+    selectCamera('chase', true);
+    const name = getLocationLabel(destination.x, destination.z);
+    const area = park?.areas.find(item => item.osmId === destination.parkAreaId);
+    markWaypoint(options.waypoint ?? {
+      x: destination.x,
+      z: destination.z,
+      name: landmark?.name ?? area?.name ?? name
+    });
+    return destination;
+  };
+}
+
+// 所有节目共用一个时钟与机位会话。切换节目先验证新落点，保留最早的恢复状态。
+export function wireShowPrograms({ shows, controllerManager, cameraSystem, lightingSystem,
+  selectMode, selectCamera, selectTime, closePopovers, resetInput, markArrival }) {
   const panel = document.getElementById('program-panel');
   const menuButton = document.getElementById('btn-program');
-  const entry = document.getElementById('btn-cbd-show');
   const feedback = document.getElementById('program-feedback');
   const pause = document.getElementById('program-pause');
   const cue = document.getElementById('program-cue');
-  let previous = null;
-  let shownCue = -1;
+  const credit = document.getElementById('program-credit');
+  const status = document.getElementById('program-status');
+  let previous = null, current = null;
 
   function syncControls() {
-    pause.textContent = program.paused ? STR.program.resume : STR.program.pause;
-    pause.setAttribute('aria-pressed', String(program.paused));
-    if (shownCue === program.cue) return;
-    shownCue = program.cue;
-    cue.textContent = STR.program.cues[shownCue];
+    if (!current) return;
+    const { program, labels, arrival, range } = current;
+    const pos = controllerManager.getActiveEntity().position;
+    const away = range && Math.hypot(pos.x - arrival.x, pos.z - arrival.z) > range;
+    const label = labels.cues[program.cue];
+    const notice = away ? labels.away : program.replayPending ? labels.replayPending : '';
+    if (cue.textContent !== label) cue.textContent = label;
+    if (status.textContent !== notice) status.textContent = notice;
+    status.hidden = !notice;
+    const pauseLabel = program.paused ? STR.program.resume : STR.program.pause;
+    if (pause.textContent !== pauseLabel) {
+      pause.textContent = pauseLabel;
+      pause.setAttribute('aria-pressed', String(program.paused));
+    }
   }
 
-  entry.disabled = !arrival;
-  entry.addEventListener('click', () => {
-    const destination = controllerManager.findModePosition('person', {
-      type: 'person', position: arrival, heading: arrival.heading
-    });
-    if (destination?.surfaceId !== arrival.surfaceId) {
-      feedback.hidden = false;
-      return;
-    }
-    const previousState = {
-      time: lightingSystem.activePresetId, camera: cameraSystem.activePresetId,
-      yaw: cameraSystem.orbitYawOffset, pitch: cameraSystem.orbitPitchOffset, zoom: cameraSystem.zoomMultiplier
-    };
-    if (!selectMode('person', destination)) {
-      feedback.hidden = false;
-      return;
-    }
-    previous ??= previousState;
-    feedback.hidden = true;
-    cameraSystem.resetForTeleport();
-    selectCamera('pov', true);
-    selectTime('midnight');
-    program.start();
-    syncControls();
-    panel.hidden = false;
-    menuButton.classList.add('active');
-    closePopovers();
-  });
-
-  pause.addEventListener('click', () => { program.togglePause(); syncControls(); });
-  document.getElementById('program-replay').addEventListener('click', () => {
-    program.replay();
-    syncControls();
-  });
-  document.getElementById('program-exit').addEventListener('click', () => {
-    if (!previous) return;
-    program.stop();
-    selectTime(previous.time);
+  function end(focus = false) {
+    if (!current) return;
+    current.program.stop();
     if (cameraSystem.activePresetId === 'pov') {
       selectCamera(previous.camera, true);
       cameraSystem.orbitYawOffset = previous.yaw;
       cameraSystem.orbitPitchOffset = previous.pitch;
       cameraSystem.zoomMultiplier = previous.zoom;
     }
-    previous = null;
+    selectTime(previous.time);
+    previous = current = null;
     panel.hidden = true;
     menuButton.classList.remove('active');
-    menuButton.focus();
+    if (focus) menuButton.focus();
+  }
+
+  for (const show of shows) {
+    const { program, entryIds, labels, arrival } = show;
+    const unavailable = !arrival || !Number.isFinite(arrival.y) || program?.available === false || !program;
+    function activate(entry) {
+      const destination = controllerManager.findModePosition('person', {
+        type: 'person', position: arrival, heading: arrival.heading,
+        _support: { height: arrival.y, surfaceId: arrival.surfaceId }
+      });
+      const message = entry.closest('#teleport-popover') ? document.getElementById('teleport-feedback') : feedback;
+      if (destination?.surfaceId !== arrival.surfaceId) {
+        message.textContent = labels.noArrival;
+        message.hidden = false;
+        return;
+      }
+      const previousState = {
+        time: lightingSystem.activePresetId,
+        camera: cameraSystem.activePresetId === 'landmarkOrbit' ? 'chase' : cameraSystem.activePresetId,
+        yaw: cameraSystem.orbitYawOffset, pitch: cameraSystem.orbitPitchOffset, zoom: cameraSystem.zoomMultiplier
+      };
+      if (!selectMode('person', destination)) {
+        message.textContent = labels.noArrival;
+        message.hidden = false;
+        return;
+      }
+      previous ??= previousState;
+      current?.program.stop();
+      current = show;
+      feedback.hidden = message.hidden = true;
+      resetInput();
+      cameraSystem.resetForTeleport();
+      selectCamera('pov', true);
+      if (Number.isFinite(show.pitch)) cameraSystem.orbitPitchOffset = show.pitch;
+      selectTime('midnight');
+      program.start();
+      credit.textContent = labels.original;
+      panel.setAttribute('aria-label', labels.location);
+      syncControls();
+      panel.hidden = false;
+      menuButton.classList.add('active');
+      if (show.range) markArrival(destination, labels.location);
+      closePopovers();
+    }
+    for (const id of entryIds) {
+      const entry = document.getElementById(id);
+      entry.disabled = unavailable;
+      entry.addEventListener('click', () => activate(entry));
+    }
+  }
+
+  pause.addEventListener('click', () => { current?.program.togglePause(); syncControls(); });
+  document.getElementById('program-replay').addEventListener('click', () => {
+    current?.program.replay();
+    syncControls();
   });
+  document.getElementById('program-exit').addEventListener('click', () => end(true));
 
   return {
     get previousTime() { return previous?.time; },
+    end,
     update(dt) {
-      program.update(dt);
-      if (program.active && shownCue !== program.cue) syncControls();
+      if (!current) return;
+      const { arrival, range, program } = current;
+      const pos = controllerManager.getActiveEntity().position;
+      if (range && (controllerManager.activeMode !== 'person'
+        || Math.hypot(pos.x - arrival.x, pos.z - arrival.z) > range + 230)) {
+        end();
+        return;
+      }
+      program.update(dt, cameraSystem.camera.position);
+      syncControls();
     }
   };
 }

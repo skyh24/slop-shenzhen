@@ -77,9 +77,10 @@ test('park arrivals retain a verified site member and require rendered ground su
   assert.throws(() => decodeCityPayload({ ...CITY_PAYLOAD, parks: [{ ...CITY_PAYLOAD.parks[0], source: '' }] }), /park source/);
 });
 
-test('teleports mark resolved landings or the reviewed destination from an exact walk start', () => {
+test('teleports mark resolved landings or the reviewed destination from an exact walk start', async () => {
   const main = read('js/main.js');
-  const start = main.indexOf('  function teleportTo(');
+  const { createCityTeleport } = await import('../js/sz-ui.js');
+  const start = main.indexOf('  const teleportTo = createCityTeleport(');
   const end = main.indexOf('  const openMapBtn', start);
   const handlers = new Map();
   const calls = [];
@@ -100,6 +101,14 @@ test('teleports mark resolved landings or the reviewed destination from an exact
         return arrival;
       }
     },
+    createCityTeleport,
+    markWaypoint: waypoint => { map.waypoint = waypoint; },
+    resetTravelInput: () => calls.push(['laneCancel'], ['touch'], ['gamepad']),
+    roads: { roadHeight: () => 0 },
+    FLIGHT_START_ALTITUDE: 200,
+    parkAt,
+    findLandmarkArrival: () => null,
+    findGroundArrival: () => null,
     touchControls: { reset: () => calls.push(['touch']) },
     gamepadControls: { reset: () => calls.push(['gamepad']) },
     cameraSystem: { resetForTeleport: () => calls.push(['camera']) },

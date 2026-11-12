@@ -28,6 +28,7 @@ from roadgraph import build_roadgraph
 from sea_surface import build_sea_surface
 from shenzhen_golf import build_shenzhen_golf
 from streetscape import build_streetscape
+from talent_park import compile_talent_park
 from terrain import build_terrain
 from terrain_exclusions import chunjian_exclusions
 from terrain_surface import apply_city_datum, apply_urban_datum, build_terrain_surface
@@ -504,6 +505,8 @@ def main():
                       help='rebuild reviewed commercial paving chunks on the verified terrain and road graph')
     mode.add_argument('--rebuild-golf-course', action='store_true',
                       help='apply the reviewed Shenzhen Golf Course site to the verified package')
+    mode.add_argument('--rebuild-talent-park', action='store_true',
+                      help='compile the reviewed Talent Park waterfront on the verified package')
     args = ap.parse_args()
     if args.refresh_frontage_crossing_axes and not args.rebuild_road_frontage:
         ap.error('--refresh-frontage-crossing-axes requires --rebuild-road-frontage')
@@ -528,6 +531,20 @@ def main():
     if args.rebuild_road_frontage:
         rebuild_road_frontage(args.rebuild_road_frontage, crossing_axis_ids=args.refresh_frontage_crossing_axes,
                               use_cache=not args.no_cache)
+        return
+
+    if args.rebuild_talent_park:
+        started = time.time()
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        osm_source = next(source for source in sources if source['id'] == 'osm-guangdong')
+        osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=ROOT / osm_source['file'],
+                       source_sha256=osm_source['sha256'])
+        report = json.loads(REPORT.read_text())
+        compile_talent_park(payload, osm, osm_source, report)
+        write_city_packages(payload, report, sources, started)
         return
 
     terrain_ids = ('copernicus-dem-N22E113', 'copernicus-dem-N22E114') if args.terrain_source == 'copernicus' else ('terrain-N22E113', 'terrain-N22E114')
@@ -639,6 +656,7 @@ def main():
         payload['seaSurface'] = {**sea_surface, 'polygons': [enc_poly(p) for p in sea_surface['polygons']]}
     if streetscape:
         payload['streetscape'] = streetscape
+    compile_talent_park(payload, osm, osm_source, report)
     if trees:
         payload['trees'] = trees
 

@@ -108,7 +108,7 @@ class CameraSystem {
         }
       } else {
         this.orbitYawOffset -= dx * 0.0065;
-        this.orbitPitchOffset = Math.max(-0.32, Math.min(0.68, this.orbitPitchOffset + dy * 0.005));
+        this.orbitPitchOffset = Math.max(this.activePresetId === 'pov' ? -1.18 : -0.32, Math.min(0.68, this.orbitPitchOffset + dy * 0.005));
       }
       this.userOrbitTimer = 4.0;
     });
@@ -171,7 +171,7 @@ class CameraSystem {
     if (this.activePresetId !== 'chase') zoom = 0;
     if (!lookX && !lookY && !zoom) return;
     this.orbitYawOffset -= lookX * 2.0 * dt;
-    this.orbitPitchOffset = Math.max(-0.32, Math.min(0.68, this.orbitPitchOffset + lookY * 1.25 * dt));
+    this.orbitPitchOffset = Math.max(this.activePresetId === 'pov' ? -1.18 : -0.32, Math.min(0.68, this.orbitPitchOffset + lookY * 1.25 * dt));
     this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier + zoom * 0.9 * dt));
     this.userOrbitTimer = 4.0;
   }

@@ -1,6 +1,6 @@
 import { STR } from './sz-strings.js';
 import { waitForFirstFrame } from './sz-startup.js';
-import { wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, renderControlHints, wireSummitProgram, wireApecTheme, createLocationReadout, createHudTelemetry, renderSoundButton, wireHudToggle, createModeIndicator } from './sz-ui.js';
+import { wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, renderControlHints, wireShowPrograms, createCityTeleport, wireApecTheme, createLocationReadout, createHudTelemetry, renderSoundButton, wireHudToggle, createModeIndicator } from './sz-ui.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
@@ -16,6 +16,7 @@ import { buildSzRoadPaint } from './sz-road-paint.js';
 import { createRoadBuildingClearance } from './sz-road-building-clearance.js';
 import { createSurfaceResolver } from './sz-controller-surfaces.js';
 import { buildSzStreetscape } from './sz-streetscape.js';
+import { prepareTalentPark } from './sz-talent-park.js';
 import { createTeleportMenu } from './sz-coco-park-approach.js';
 import { buildSzStreetLamps } from './sz-street-lamps.js';
 import { buildSzTrees } from './sz-trees.js';
@@ -236,9 +237,13 @@ async function initApp() {
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders];
   site.colliders = buildings;
   const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
+  const talentPark = prepareTalentPark(qa, scene, GEO, site);
+  const { waterfront } = talentPark;
   site.pathAt = (x, z) => {
     const summitPaths = summit.pathAt(x, z);
-    return summitPaths.length ? summitPaths : streetscape.pathAt(x, z);
+    if (summitPaths.length) return summitPaths;
+    const waterfrontPaths = waterfront?.pathAt(x, z);
+    return waterfrontPaths?.length ? waterfrontPaths : streetscape.pathAt(x, z);
   };
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
@@ -246,7 +251,9 @@ async function initApp() {
   const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
   // 源树先保留位置，模拟树灯共用样段预约带。
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
-    ...site, carriagewayOccupied, roadFrontage: GEO.roadFrontage, reserveWalk: publicWalk.reserves, pilotTrees: publicWalk.trees,
+    ...site, carriagewayOccupied, roadFrontage: GEO.roadFrontage,
+    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r),
+    pilotTrees: [...publicWalk.trees, ...(waterfront?.pilotTrees ?? [])],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
@@ -288,10 +295,11 @@ async function initApp() {
   const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, terrain: site.terrain }));
   const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...(streetLamps.colliders ?? []), ...trees.colliders,
     ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? []),
-    ...elevatedRoads.colliders];
+    ...elevatedRoads.colliders, ...(waterfront?.colliders ?? [])];
   const planter = publicWalk.placePlanter(colliders, site.heightAt);
   if (planter) colliders.push(planter);
   site.colliders = colliders;
+  const { people: talentPeople, program: talentProgram, show: talentShow, update: updateTalentPark } = talentPark.connect(colliders);
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = qa.stage('traffic', () => createSzTraffic(scene, GEO.roadGraph, {
     ...site,
@@ -306,8 +314,8 @@ async function initApp() {
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
-    surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces, ...summit.surfaces],
-    nearTraffic: traffic.nearColliders
+    surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
+    nearTraffic: traffic.nearColliders, nearWalkers: talentPeople?.nearColliders
   });
   let initialTime = 'golden';
   try {
@@ -333,7 +341,7 @@ async function initApp() {
   const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, GEO.roadGraph, {
     ...site,
     publicRoute: publicWalk.route(colliders),
-    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2),
+    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || waterfront?.reserves(x, z, 2),
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
@@ -347,7 +355,9 @@ async function initApp() {
   const driveModel = trafficModelBounds(driveCar.collisionBounds, VEHICLE_SPECS.taxi);
   // 自动驾驶与地图规划使用交通模块的组合高度：地面沥青 + 高架桥面（按边表面身份取样）。
   const driveOptions = { model: driveModel, roadHeight: traffic.roadHeight, control: roadFrontage.control };
-  const nearPedestrians = (x, z, radius) => pedestrians.nearColliders?.(x, z, radius) ?? [];
+  const nearPedestrians = (x, z, radius) => [
+    ...(pedestrians.nearColliders?.(x, z, radius) ?? []), ...(talentPeople?.nearColliders(x, z, radius) ?? [])
+  ];
   const nearRoadUsers = (x, z, radius) => [...traffic.nearColliders(x, z, radius), ...nearPedestrians(x, z, radius)];
   controllerManager.nearPedestrians = nearPedestrians;
   const autoDrive = createAutoDrive({ ...driveOptions, nearTraffic: nearRoadUsers });
@@ -590,8 +600,20 @@ async function initApp() {
   });
 
   const closePopovers = wirePopovers();
-  showSession = wireSummitProgram({ program: cbdProgram, controllerManager, cameraSystem, lightingSystem,
-    arrival: summit.group ? SUMMIT_ARRIVAL : null, selectMode, selectCamera, selectTime, closePopovers });
+  function resetTravelInput() {
+    autoDrive.stop('manual');
+    laneAssist.cancel();
+    controllerManager.resetInput();
+    touchControls.reset();
+    gamepadControls.reset();
+  }
+  function markWaypoint(waypoint) { mapSystem.waypoint = waypoint; }
+  showSession = wireShowPrograms({
+    shows: [{ entryIds: ['btn-cbd-show'], program: cbdProgram, labels: STR.program,
+      arrival: summit.group ? SUMMIT_ARRIVAL : null }, talentShow],
+    controllerManager, cameraSystem, lightingSystem, selectMode, selectCamera, selectTime, closePopovers,
+    resetInput: resetTravelInput, markArrival: ({ x, z }, name) => markWaypoint({ x, z, name })
+  });
   modeButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       selectMode(btn.getAttribute('data-mode'));
@@ -612,6 +634,7 @@ async function initApp() {
 
   timeButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
+      showSession.end();
       selectTime(btn.getAttribute('data-time'));
     });
   });
@@ -639,32 +662,9 @@ async function initApp() {
     els: { fps: elFps, speed: elSpeed, speedMeter: elSpeedMeter, altitude: elAltitude },
     controllerManager, cameraSystem, topSpeed: PLAYER_SPEED_LIMITS, renderLocation
   });
-  function teleportTo(x, z, heading, options = {}) {
-    if (!inBounds(x, z)) return null;
-    const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(GEO.parks, x, z) : null);
-    const landmark = landmarkViews.get(options.landmarkId);
-    const arrival = landmark && findLandmarkArrival(landmark, controllerManager,
-      findGroundArrival, roads.roadHeight, FLIGHT_START_ALTITUDE);
-    if (landmark && !arrival) return null;
-    const destination = arrival
-      ? controllerManager.teleportActiveTo(arrival.x, arrival.z, arrival.heading, arrival.y, { exact: true })
-      : controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park, exact: options.exact === true });
-    if (!destination) return null;
-    laneAssist.cancel();
-    autoDrive.stop('manual');
-    touchControls.reset();
-    gamepadControls.reset();
-    cameraSystem.resetForTeleport();
-    selectCamera('chase', true);
-    const name = getLocationLabel(destination.x, destination.z);
-    const area = park?.areas.find(item => item.osmId === destination.parkAreaId);
-    mapSystem.waypoint = options.waypoint ?? {
-      x: destination.x,
-      z: destination.z,
-      name: landmark?.name ?? area?.name ?? name
-    };
-    return destination;
-  }
+  const teleportTo = createCityTeleport({ controllerManager, cameraSystem, selectCamera, resetInput: resetTravelInput,
+    inBounds, parks: GEO.parks, parkAt, landmarkViews, findLandmarkArrival, findGroundArrival, getLocationLabel,
+    roadHeight: roads.roadHeight, flightStartAltitude: FLIGHT_START_ALTITUDE, markWaypoint });
 
   function goToDriveStart(route) {
     if (!route || autoDrive.active) return false;
@@ -769,7 +769,7 @@ async function initApp() {
       colliders,
       modules: {
         lamps: streetLamps, trees, apec: apecTheme, apecCity, drones, lightShow,
-        summit, cbdProgram, programIds: cityBlocks.programIds ?? [], parkOmissions,
+        summit, cbdProgram, waterfront, talentProgram, talentPeople, programIds: cityBlocks.programIds ?? [], parkOmissions,
         elevatedRoads, metroEntrances, futian: futianStation, xili: xiliConstruction
       },
       teleport: teleportTo,
@@ -897,6 +897,7 @@ async function initApp() {
     traffic.update(dt, active.position, [active], elapsed, isTrafficVisible, nearPedestrians(active.position.x, active.position.z, 140));
     pedestrians.update(dt, active.position, elapsed, isPedVisible, [active],
       traffic.nearColliders(active.position.x, active.position.z, 175));
+    updateTalentPark(dt, active.position, cameraSystem.camera.position, isPedVisible);
     const { forward, backward, left, right, brake, boost } = controllerManager.keys;
     const manual = !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right || brake || boost);
     const autoInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode, manual });

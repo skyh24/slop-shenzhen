@@ -204,7 +204,7 @@ export function getWaterWaveTexture() {
   return tex;
 }
 
-// 按变体缓存：coastal（深圳湾海面）与 inland（内河/水库）各一份。
+// 按水域与夜间岸线反光配置缓存。
 const _waterMaterials = new Map();
 
 /**
@@ -215,8 +215,8 @@ const _waterMaterials = new Map();
  * - 夜间：沿反射射线解析深圳湾北岸楼群带（平面距离与楼高由变体常数给出），用波浪坡度方差做盒滤波，
  *   远处灯光沿竖直方向拉成条纹；白天与朝香港方向权重为 0。
  */
-export function createSzWaterMaterial({ coastal = true } = {}) {
-  const key = coastal ? 'coastal' : 'inland';
+export function createSzWaterMaterial({ coastal = true, cityReflection = true } = {}) {
+  const key = `${coastal ? 'coastal' : 'inland'}:${cityReflection}`;
   const cached = _waterMaterials.get(key);
   if (cached) return cached;
 
@@ -297,7 +297,7 @@ export function createSzWaterMaterial({ coastal = true } = {}) {
   // 时段权重 smoothstep(0.62, 1.28, uInteriorGlow)：midday 0.24、golden 0.48 → 0；twilight 1.25 → 0.92；
   // night 1.55 → 1。黄昏先亮起来，白天严格为 0，也不会在白天白算这些节点。
   const night = smoothstep(0.62, 1.28, cityUniforms.uInteriorGlow);
-  mat.emissiveNode = Fn(() => {
+  mat.emissiveNode = cityReflection ? Fn(() => {
     const emit = vec3(0.0).toVar();
     If(night.greaterThan(0.0005), () => {
       const R = reflect(viewDir.negate(), waterNormal);
@@ -363,7 +363,7 @@ export function createSzWaterMaterial({ coastal = true } = {}) {
       emit.assign(city.mul(fresnel).mul(night).mul(northGate).mul(0.85));
     });
     return emit;
-  })();
+  })() : color(0x132a41).mul(night).mul(fresnel.mul(0.45).add(0.2));
 
   _waterMaterials.set(key, mat);
   return mat;
