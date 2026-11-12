@@ -35,7 +35,7 @@ function plantedSurfaceMaterial(base) {
   const detail = fract(x).mul(fract(z));
   const fade = smoothstep(0.25, 0.9, max(fwidth(x), fwidth(z))).oneMinus();
   const mottling = positionWorld.x.mul(0.43).sin().mul(positionWorld.z.mul(0.59).sin());
-  m.colorNode = color(base).mul(mottling.mul(0.10).add(detail.mul(fade).mul(0.35)).add(0.91));
+  m.colorNode = color(base).mul(mottling.mul(0.055).add(detail.mul(fade).mul(0.35)).add(0.91));
   return m;
 }
 
@@ -222,12 +222,13 @@ function addShennanFlowerBeds(group, sites, medianHeight, material) {
     const halfLength = 6.8 + (count % 4) * 2.1;
     const halfWidth = width * (0.25 + (count % 3) * 0.025);
     const turn = count % 2 === 0 ? 1 : -1;
+    const compact = count % 5 === 2;
     const bed = [];
     // 逐排采样绿带顶面。靠近端头或开口放不下时跳过整块花带。
     for (let j = 0; j <= 14; j++) {
       const t = j / 14;
       const along = (2 * t - 1) * halfLength;
-      const bend = Math.sin(2 * Math.PI * t) * halfWidth * 0.54 * turn;
+      const bend = Math.sin((compact ? 1 : 2) * Math.PI * t) * halfWidth * 0.54 * turn;
       const span = halfWidth * (0.04 + 0.96 * Math.sin(Math.PI * t) ** 0.8)
         * (0.86 + 0.14 * Math.cos(t * Math.PI * 3 + count));
       for (const side of [-1, 1]) {
@@ -263,8 +264,8 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   // 外环和洞沿的源环方向可能相反，双面材料只用于薄路缘侧壁。
   walls.side = THREE.DoubleSide;
   const style = { sidewalk: paving, paving, paint: material(0xf1eee5, -3, 0.84), median: material(0x52673b) };
-  const grass = plantedSurfaceMaterial(0x628939);
-  const flowers = plantedSurfaceMaterial(0x9b5574);
+  const grass = plantedSurfaceMaterial(0x4f762b);
+  const flowers = plantedSurfaceMaterial(0x864359);
   const shennan = source.corridors.find(row => row.id === 'shennan-chegongmiao'
     && row.medianSource?.positionSource === 'documented-median-between-osm-carriageways');
   let sampleMedian = () => null;
