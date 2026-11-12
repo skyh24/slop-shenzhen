@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from shapely import make_valid, transform
-from shapely.geometry import Polygon, box
+from shapely.geometry import LineString, Polygon, box
 from shapely.ops import unary_union
 
 from beihuan import apply_beihuan_sections
@@ -27,7 +27,7 @@ from sea_surface import build_sea_surface
 from streetscape import build_streetscape
 from terrain import build_terrain
 from terrain_exclusions import chunjian_exclusions
-from terrain_surface import apply_urban_datum, build_terrain_surface
+from terrain_surface import apply_city_datum, apply_urban_datum, build_terrain_surface
 from road_surface import build_road_surface
 from trees import build_trees
 from metro import build_metro
@@ -93,20 +93,67 @@ def write_fast_package(payload, raw, sources):
     return stats
 
 
-def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph, osm, osm_source, report):
+def engineering_ground(graph, sites, engineering, step):
+    required = set(engineering['bridgeWayIds'])
+    found = set()
+    anchors = []
+    nodes = graph['nodes']
+    # 保留桥宽、桥头外延和接触采样涉及的整个栅格单元。
+    for link, metadata in zip(graph['links'], graph['metadata'], strict=True):
+        osm_id = metadata['osmId']
+        if osm_id not in required or metadata.get('tunnel') or not (metadata.get('bridge') or metadata.get('layer')):
+            continue
+        start, end, _, width, _, _, inner = link
+        line = LineString([nodes[2 * start:2 * start + 2], *zip(inner[::2], inner[1::2]), nodes[2 * end:2 * end + 2]])
+        anchors.append(line.buffer(max(width / 2, 3.25) + 2 * step + 10))
+        found.add(osm_id)
+    if found != required:
+        raise ValueError(f'Missing ground anchor for bridge ways: {sorted(required - found)}')
+    for entry in engineering['landmarkSites']:
+        source = sites['sites'][entry['id']][entry['role']]
+        if source['osmId'] != entry['osmId']:
+            raise ValueError(f'Unexpected ground anchor for site: {entry["id"]}')
+        for outer, *holes in source['polygons']:
+            polygon = Polygon(ring_points(outer), [ring_points(ring) for ring in holes])
+            anchors.append(make_valid(polygon).buffer(2 * step))
+    return unary_union(anchors)
+
+
+def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph, sites, osm, osm_source, report):
     manifest = json.loads(URBAN_DATUM.read_text())
     if manifest['version'] != 1 or manifest['osmSnapshotSha256'] != osm_source['sha256']:
         raise ValueError('Urban datum needs the reviewed OSM snapshot')
     dry = unary_union(land).difference(unary_union([feature['poly'] for feature in water]))
-    mapped_green = {entry['id']: entry['geom'] for entry in osm['green']}
-    protected = unary_union([transform(mapped_green[entry['osmId']], project, interleaved=False)
-                             for entry in manifest['relief']]
-                            + [entry['poly'] for entry in exclusions])
+    mapped_green = {entry['id']: entry for entry in osm['green']}
+    relief_by_id = {}
+    for entry in manifest['relief']:
+        osm_id = entry['osmId']
+        if 'polygonWgs84' in entry:
+            outer, *holes = entry['polygonWgs84']
+            polygon = Polygon(project_coords(outer), [project_coords(ring) for ring in holes])
+            if not polygon.is_valid or polygon.is_empty:
+                raise ValueError(f'Invalid relief area: {osm_id}')
+        else:
+            source = mapped_green[osm_id]
+            if any(source['tags'].get(key) != value for key, value in entry['tag'].items()):
+                raise ValueError(f'Unexpected tag on relief area: {osm_id}')
+            polygon = transform(source['geom'], project, interleaved=False)
+        relief_by_id[osm_id] = (entry.get('transition', entry['kind']), polygon)
+    exclusions_polys = [entry['poly'] for entry in exclusions]
+    previous_protected = unary_union([relief_by_id[osm_id][1] for osm_id in manifest['structuralBaselineReliefIds']]
+                                    + exclusions_polys)
     pilots = []
-    for row in manifest['pilots']:
+    for row in manifest['structuralBaselinePilots']:
         west, south, east, north = row['boundsWgs84']
         pilots.append((row, box(*project(west, north), *project(east, south))))
-    core = unary_union([polygon for _, polygon in pilots])
+    widths = manifest['transitionsM']
+    parks = unary_union([polygon for kind, polygon in relief_by_id.values() if kind == 'park'])
+    mountains = unary_union([polygon for kind, polygon in relief_by_id.values() if kind == 'mountain'])
+    hills = unary_union([polygon for kind, polygon in relief_by_id.values() if kind == 'hillPark'])
+    # 普通公园在边界内起坡，避免插值延伸到园外车道；已核实的山体和丘陵公园用更长的山脚过渡。
+    relief = [(parks.buffer(-terrain['step']), *widths['park']), (hills, *widths['hillPark']),
+              (mountains, *widths['mountain'])]
+    anchors = engineering_ground(graph, sites, manifest['engineering'], terrain['step'])
     commercial = []
     for row in manifest['commercial']:
         outer, *holes = row['polygonWgs84']
@@ -114,16 +161,18 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
         if not polygon.is_valid:
             raise ValueError(f'Invalid commercial area: {row["osmId"]}')
         commercial.append(polygon)
-    planted = unary_union([entry['poly'] for entry in [*green, *wetland]]).union(protected)
-    paving = unary_union(commercial).intersection(core).difference(planted)
+    planted = unary_union([entry['poly'] for entry in [*green, *wetland]] + [parks, hills, mountains]
+                          + exclusions_polys)
+    paving = unary_union(commercial).intersection(dry).difference(planted)
     terrain = build_road_surface(terrain, graph, report, excluded_polygons=exclusions)
-    terrain = apply_urban_datum(terrain, pilots, manifest['datum'], dry, protected, report)
+    structural_baseline = apply_urban_datum(terrain, pilots, manifest['datum'], dry, previous_protected, {})
+    terrain = apply_city_datum(terrain, manifest['datum'], dry, relief, (anchors, 0, widths['engineering']),
+                               structural_baseline, report)
     report['urbanDatum']['commercialPaving'] = {'osmIds': [row['osmId'] for row in manifest['commercial']],
         'source': manifest['pavingSource'], 'areaM2': round(paving.intersection(dry).area, 2)}
     surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland,
                                     exclusions=exclusions, paving=[paving])
-    affected = unary_union([polygon.buffer(row['transitionM'] + terrain['step']) for row, polygon in pilots])
-    return terrain, surface, affected
+    return terrain, surface
 
 
 def write_city_packages(payload, report, sources, started):
@@ -166,24 +215,12 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started):
     land = list(polygons('land'))
     water, green, wetland = [[{'poly': poly} for poly in polygons(key)] for key in ('water', 'green', 'wetland')]
     source = build_terrain(clip, report, source=terrain_source)
-    terrain, surface, affected = compile_ground(source, clip, land, water, green, wetland, exclusions,
-                                                payload['roadGraph'], osm, osm_source, report)
+    terrain, surface = compile_ground(source, clip, land, water, green, wetland, exclusions,
+                                      payload['roadGraph'], payload['sites'], osm, osm_source, report)
     if previous['grid'] != surface['grid'] or previous['chunkSize'] != surface['chunkSize']:
         raise ValueError('Ground rebuild changed the city terrain grid')
-    size = surface['chunkSize']
-    # 局部重建沿用样区外已发布的三角面，避免重解码岸线引入无关变化。
-    def in_pilot(chunk):
-        x, z = chunk['origin']
-        return affected.intersects(box(x, z, x + size, z + size))
-
-    retained = [chunk for chunk in previous['chunks'] if not in_pilot(chunk)]
-    rebuilt = [chunk for chunk in surface['chunks'] if in_pilot(chunk)]
-    surface['chunks'] = sorted([*retained, *rebuilt], key=lambda chunk: chunk['origin'][::-1])
-    report['terrainSurface'].update(chunks=len(surface['chunks']),
-        vertices=sum(len(chunk['positions']) // 3 for chunk in surface['chunks']),
-        triangles=sum(len(chunk['indices']) // 3 for chunk in surface['chunks']))
     report['groundRebuild'] = {'basePayloadSha256': validation['payloadSha256'],
-        'changedSections': ['terrain', 'terrainSurface'], 'rebuiltChunks': [chunk['id'] for chunk in rebuilt]}
+        'changedSections': ['terrain', 'terrainSurface'], 'rebuiltChunks': [chunk['id'] for chunk in surface['chunks']]}
     payload['terrain'], payload['terrainSurface'] = terrain, surface
     write_city_packages(payload, report, sources, started)
 
@@ -240,21 +277,21 @@ def main():
     road_graph = build_roadgraph(osm, clip, report)
     apply_beihuan_sections(road_graph, report)
     road_graph['turnRestrictions'] = build_turn_restrictions(pbf, road_graph, report)
+    landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
+    sites = build_landmark_sites(landmark_manifest, report, pbf=pbf)
     # 春茧两座封闭厅是已核实的地面裁除区：派生路面不得改写馆内格点，先按原始 DSM 求出并复用。
     exclusions = chunjian_exclusions(buildings, terrain, osm['roads'])
-    terrain, terrain_surface, _ = compile_ground(terrain, clip, land, water, green, wetland, exclusions,
-                                                 road_graph, osm, osm_source, report)
+    terrain, terrain_surface = compile_ground(terrain, clip, land, water, green, wetland, exclusions,
+                                              road_graph, sites, osm, osm_source, report)
     road_frontage = build_road_frontage(pbf, osm, road_graph, buildings, report)
     metro = build_metro(clip, report, use_cache=not args.no_cache, pbf=pbf, verified_source=osm_source)
 
-    landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
     landmarks = landmark_entries(landmark_manifest)
     parks = build_parks(landmark_manifest, green, land, water, report)
     streetscape = build_streetscape(pbf, osm, parks, report)
     trees = build_trees(osm, clip, land, water, wetland, green, parks, streetscape, buildings, report,
                         pbf=pbf, road_graph=road_graph)
     bridges = build_bridges(pbf, landmark_manifest, report)
-    sites = build_landmark_sites(landmark_manifest, report)
     lm_index = {lm['id']: i for i, lm in enumerate(landmarks)}
 
     minx, minz, maxx, maxz = clip.bounds

@@ -10,16 +10,10 @@ from shapely.geometry import Polygon, box
 from shapely.ops import unary_union
 
 
-def apply_urban_datum(terrain, pilots, datum, dry, protected, report):
-    """仅改样区和过渡带格点。显示、道路与落地仍读取同一份三角面。"""
-    step, nx, nz, scale = (terrain[key] for key in ('step', 'nx', 'nz', 'heightScale'))
-    height = datum['heightM']
-    target = round(height / scale)
-    if not math.isclose(height, target * scale, abs_tol=1e-8):
-        raise ValueError('Urban datum must align to the terrain height scale')
+def _datum_grid(terrain, dry):
+    step, nx, nz = (terrain[key] for key in ('step', 'nx', 'nz'))
     original = np.asarray(terrain['heights'], dtype=np.int64).reshape(nz, nx)
     x, z = np.meshgrid(terrain['x0'] + np.arange(nx) * step, terrain['z0'] + np.arange(nz) * step)
-    xy = points(x, z)
     # 裁切到岸边的三角面也用水侧格点插值，覆盖参与岸边三角面的四个角。
     prepare(dry)
     dry_cells = intersects(dry, grid_boxes(x[:-1, :-1], z[:-1, :-1], x[1:, 1:], z[1:, 1:]))
@@ -28,6 +22,19 @@ def apply_urban_datum(terrain, pilots, datum, dry, protected, report):
     coverage[:-1, 1:] |= dry_cells
     coverage[1:, :-1] |= dry_cells
     coverage[1:, 1:] |= dry_cells
+    return original, x, z, dry_cells, coverage
+
+
+def apply_urban_datum(terrain, pilots, datum, dry, protected, report):
+    """复现原样区地坪，用来保留已有桥头和台地的接触标高。"""
+    step, scale = terrain['step'], terrain['heightScale']
+    height = datum['heightM']
+    target = round(height / scale)
+    if not math.isclose(height, target * scale, abs_tol=1e-8):
+        raise ValueError('Urban datum must align to the terrain height scale')
+    original, x, z, _, coverage = _datum_grid(terrain, dry)
+    xy = points(x, z)
+    nz, nx = original.shape
     blend = np.zeros((nz, nx), dtype=np.float64)
     by_pilot = {}
     for pilot, polygon in pilots:
@@ -60,6 +67,71 @@ def apply_urban_datum(terrain, pilots, datum, dry, protected, report):
     report['urbanDatum'] = details
     return {**terrain, 'heights': values.ravel().tolist(),
             'processing': {**terrain['processing'], 'urbanDatum': details}}
+
+
+def apply_city_datum(terrain, datum, dry, relief, fixed, fixed_terrain, report):
+    """统一普通城区地坪，保留已核山地、公园核心和既有工程接点。"""
+    step, scale = terrain['step'], terrain['heightScale']
+    height = datum['heightM']
+    target = round(height / scale)
+    if not math.isclose(height, target * scale, abs_tol=1e-8):
+        raise ValueError('Urban datum must align to the terrain height scale')
+    original, x, z, cells, coverage = _datum_grid(terrain, dry)
+    xy = points(x, z)
+
+    def weights(polygon, inside, outside):
+        weight = np.zeros(x.shape)
+        if polygon.is_empty:
+            return weight
+        min_x, min_z, max_x, max_z = polygon.bounds
+        near = coverage & (x >= min_x - outside) & (x <= max_x + outside) & (
+            z >= min_z - outside) & (z <= max_z + outside)
+        local = xy[near]
+        if inside:
+            sign = np.where(contains_xy(polygon, x[near], z[near]), 1, -1)
+            edge = sign * distance(polygon.boundary, local)
+            ratio = np.clip((edge + outside) / (inside + outside), 0, 1)
+        else:
+            ratio = np.clip(1 - distance(polygon, local) / outside, 0, 1)
+        weight[near] = ratio * ratio * (3 - 2 * ratio)
+        return weight
+
+    def smooth_transition(values, band):
+        # 城区与保留区的锚点不动，带内迭代去掉 DSM 屋顶、树冠造成的碎波纹。
+        for _ in range(12):
+            padded = np.pad(values, 1, mode='edge')
+            average = (padded[:-2, 1:-1] + padded[2:, 1:-1] + padded[1:-1, :-2] + padded[1:-1, 2:]) / 4
+            values[band] = (values[band] + average[band]) / 2
+        return values
+
+    natural = np.zeros(x.shape)
+    for polygon, inside, outside in relief:
+        np.maximum(natural, weights(polygon, inside, outside), out=natural)
+    natural_band = (natural > 0) & (natural < 1)
+    base = np.where(coverage, target + (original - target) * natural, original)
+    base = smooth_transition(base, natural_band)
+
+    engineering = weights(*fixed)
+    engineering_band = (engineering > 0) & (engineering < 1)
+    legacy = np.asarray(fixed_terrain['heights']).reshape(original.shape)
+    values = np.rint(smooth_transition(base + (legacy - base) * engineering, engineering_band)).astype(np.int64)
+    urban = coverage & (natural == 0) & (engineering == 0)
+    ramp = (natural_band | engineering_band) & (engineering < 1)
+    dx, dz = np.diff(values, axis=1) * scale / step, np.diff(values, axis=0) * scale / step
+    first = cells & (ramp[:-1, :-1] | ramp[1:, :-1] | ramp[:-1, 1:])
+    last = cells & (ramp[1:, 1:] | ramp[1:, :-1] | ramp[:-1, 1:])
+    slopes = np.concatenate((np.hypot(dx[:-1], dz[:, :-1])[first], np.hypot(dx[1:], dz[:, 1:])[last])) * 100
+    source = terrain['processing']['heightSource']
+    details = {'heightSource': 'urban-datum', 'sourceHeightSource': source, 'heightM': height,
+               'reference': datum['reference'], 'coverage': 'phase1-dry-land',
+               'urbanVertices': int(urban.sum()), 'naturalCoreVertices': int(((natural == 1) & (engineering == 0)).sum()),
+               'engineeringVertices': int((engineering == 1).sum()), 'transitionVertices': int(ramp.sum()),
+               'changedVertices': int((values != legacy).sum()), 'maxDeltaM': round(float(np.abs(values - legacy).max() * scale), 3),
+               'transitionSlopePercent': {'p95': round(float(np.percentile(slopes, 95)), 3) if slopes.size else 0,
+                                          'max': round(float(slopes.max()), 3) if slopes.size else 0}}
+    report['urbanDatum'] = details
+    return {**terrain, 'heights': values.ravel().tolist(),
+            'processing': {**terrain['processing'], 'heightSource': 'urban-datum', 'urbanDatum': details}}
 
 
 def _polygons(geometry):

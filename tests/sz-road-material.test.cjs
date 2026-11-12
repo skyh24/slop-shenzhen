@@ -9,23 +9,18 @@ const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 
 // 材质接线用源码断言覆盖不需要 WebGPU 的部分；节点本身用真实 three 验证构造结果。
-test('road surfaces and markings consume the shared wetness uniform and the new material module', () => {
-  const materialSource = read('sz-road-material.js');
-  assert.match(materialSource, /from '\.\/city-lighting-materials\.js'/, 'city uniforms come from the live lighting module');
-  assert.match(materialSource, /uRoadWetness/, 'the road materials read cityUniforms.uRoadWetness');
+test('road surfaces and markings use the shared material module', () => {
   assert.match(read('sz-roads.js'), /createSzRoadSurfaceMaterial/, 'ground roads use the shared asphalt material');
   assert.match(read('sz-road-paint.js'), /createSzRoadPaintMaterial/, 'markings use the shared paint material');
   assert.match(readFileSync(join(__dirname, '../index.html'), 'utf8'),
     /modulepreload" href="\.\/js\/sz-road-material\.js"/, 'the new module is preloaded by the entry page');
 });
 
-test('road materials keep their own depth offsets and expose the wear, wetness and relief nodes', { skip: !threeDir }, async () => {
+test('road materials keep dry asphalt, clean dash paint and their depth offsets', { skip: !threeDir }, async () => {
   const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));
   const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
   const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
-  const cityLighting = loadModule(read('city-lighting-materials.js'), { imports });
-  const material = loadModule(read('sz-road-material.js'), { imports: { ...imports,
-    './city-lighting-materials.js': cityLighting } });
+  const material = loadModule(read('sz-road-material.js'), { imports });
   const { createSzRoadSurfaceMaterial, createSzRoadPaintMaterial } = material;
 
   const surface = createSzRoadSurfaceMaterial();
@@ -33,8 +28,11 @@ test('road materials keep their own depth offsets and expose the wear, wetness a
   assert.equal(surface.polygonOffset, true);
   assert.equal(surface.polygonOffsetFactor, -1);
   assert.equal(surface.polygonOffsetUnits, -1);
+  assert.equal(surface.color.getHex(), 0x3b3d41);
+  assert.equal(surface.roughness, 0.95);
+  assert.equal(surface.metalness, 0);
   for (const node of ['colorNode', 'roughnessNode', 'metalnessNode', 'normalNode', 'emissiveNode']) {
-    assert.ok(surface[node], `asphalt exposes ${node}`);
+    assert.equal(surface[node], null, `no procedural asphalt layer: ${node}`);
   }
   assert.equal(createSzRoadSurfaceMaterial(), surface, 'one shared asphalt material for every road chunk');
 
@@ -46,11 +44,13 @@ test('road materials keep their own depth offsets and expose the wear, wetness a
   assert.equal(paint.polygonOffset, true);
   assert.equal(paint.polygonOffsetFactor, -2);
   assert.equal(paint.polygonOffsetUnits, -2);
-  for (const node of ['colorNode', 'roughnessNode', 'opacityNode', 'mrtNode']) {
+  for (const node of ['opacityNode', 'mrtNode']) {
     assert.ok(paint[node], `markings expose ${node}`);
   }
+  assert.equal(paint.colorNode, null);
+  assert.equal(paint.roughnessNode, null);
   assert.equal(paint.positionNode, null, 'markings keep their build-time geometry instead of screen-space widening');
-  // 标线是透明叠加层：MRT 必须写零，SSR 才继续看到下面的沥青和水坑。
+  // 标线是透明叠加层：MRT 必须写零，保持下方沥青的表面通道。
   for (const name of ['normal', 'metalRough']) {
     const output = paint.mrtNode.outputNodes[name];
     assert.ok(output, `markings write the ${name} MRT output`);
@@ -66,9 +66,7 @@ test('buildSzRoads draws its chunks with the shared material and the marking dep
   const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));
   const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
   const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
-  const cityLighting = loadModule(read('city-lighting-materials.js'), { imports });
-  const material = loadModule(read('sz-road-material.js'), { imports: { ...imports,
-    './city-lighting-materials.js': cityLighting } });
+  const material = loadModule(read('sz-road-material.js'), { imports });
   const roads = loadModule(read('sz-roads.js'), { imports: { ...imports, './sz-road-material.js': material } });
 
   const grid = { x0: 0, z0: 0, step: 20, nx: 2, nz: 2 };

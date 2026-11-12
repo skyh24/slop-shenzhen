@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from build import rebuild_ground
 from geo import KX, KY, ORIGIN_LAT, ORIGIN_LON
 from terrain_exclusions import SOURCE, _footprint_signature, chunjian_exclusions
-from terrain_surface import apply_urban_datum, build_terrain_surface
+from terrain_surface import apply_city_datum, apply_urban_datum, build_terrain_surface
 
 
 def grid():
@@ -85,6 +85,32 @@ class TerrainSurfaceTests(unittest.TestCase):
         self.assertEqual(derived['processing']['heightSource'], 'fixture-dem')
         self.assertEqual(report['urbanDatum']['heightSource'], 'urban-datum')
         self.assertEqual(report['urbanDatum']['pilots']['test-pilot']['levelVertices'], 2)
+
+    def test_city_datum_levels_ordinary_ground_and_blends_to_relief_and_engineering(self):
+        row = [170, 210, 230, 400, 170, 180, 200, 300, 250, 220, 240, 230, 200, 200, 300, 350, 340, 360, 380]
+        source = {**grid(), 'nx': len(row), 'heights': row * 3}
+        legacy = {**source, 'heights': [160] * (len(row) * 3)}
+        dry = box(0, 0, 450, 50)
+        mountain = box(350, -200, 475, 250)
+        bridge = box(150, -1, 175, 51)
+        report = {}
+        result = apply_city_datum(source, {'heightM': 8, 'reference': {}}, dry, [(mountain, 25, 75)],
+                                  (bridge, 0, 50), legacy, report)
+        middle = result['heights'][len(row):2 * len(row)]
+        self.assertEqual(middle[:4], [80] * 4)
+        self.assertEqual(middle[6:8], [160, 160])
+        self.assertEqual(middle[9:12], [80] * 3)
+        self.assertEqual(middle[15:], row[15:])
+        self.assertGreater(middle[5], 80)
+        self.assertLess(middle[5], 160)
+        self.assertEqual(source['heights'], row * 3)
+        self.assertEqual(result['processing']['heightSource'], 'urban-datum')
+        self.assertEqual(report['urbanDatum']['sourceHeightSource'], 'fixture-dem')
+        surface = build_terrain_surface(result, dry, [dry], [], {}, chunk_size=25)
+        covered = {(x, z): y for face in faces(surface) for x, y, z in face}
+        self.assertEqual(covered[25, 25], 8)
+        self.assertEqual(covered[150, 25], 16)
+        self.assertEqual(covered[425, 25], 36)
 
     def test_exact_l_shaped_coverage_and_subcell_water_channel(self):
         g = grid()

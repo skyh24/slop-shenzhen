@@ -5,7 +5,7 @@
 ## 1. 当前状态
 
 - **代码**：在 `main` 以 `4418b2c` 为基线完成第一批优化。正式入口 <http://127.0.0.1:8080/> 由 `index.html` 加载 `js/main.js`。GPU 首帧等待有超时与重试，地铁菜单只有一套选择状态。生成器以已校验的路径消费 OSM、Overture 和 GloBFP，重打包核对原载荷和来源。
-- **共享包**：正式 JSON v2 gzip 6,865,167 字节，SHA-256 `057d242cc9dd74e2fd226c2b8206062d7d08c8f44f2014f441071f220350ac73`。本机对照 SZC1 gzip 6,705,966 字节，SHA-256 `d342eec61e1dc3cbb12f7c5bf58270b4b48a6fdc49c149b250618eecd3058fc3`。两包由同一次 `tools/sz/build.py --rebuild-ground` 生成。
+- **共享包**：正式 JSON v2 gzip 5,558,514 字节，SHA-256 `8c9dc4c74bcbab209cef63231a2b1c56d94d3c68f6a7c976512b874371be49e6`。本机对照 SZC1 gzip 5,545,994 字节，SHA-256 `003cdce1c5b9f5f1cdc0e7b550f607401054adb88c91a9c921cbfc308b5ccd12`。两包由同一次 `tools/sz/build.py --rebuild-ground` 生成，一期普通城区使用 8 米工程地坪。
 - **数据**：共享包含 34,118 条建筑记录，来源为 OSM 12,692、Overture 15,936、GloBFP 5,490。13,646 条高度来自 GloBFP，15,280 条为规则估算，4 条按公开资料修正。校验报告仍列 3 条量化无效轮廓、265 条高宽比候选。
 - **测试**：第一批全量自动检查通过，Node 533 项、Python 151 项，0 跳过。浏览器验证了城市包 404、坏 gzip、GPU 队列超时重试、地铁 12 个开关、刷新恢复和真实键盘输入。截图留在本地 `docs/qa/optimization-batch1/`。
 - **验收**：九条硬性要求还没有一条整体通过；M9 性能未通过，所以没有 baseline 标签。逐条证据和缺口见 [ACCEPTANCE-STATUS.md](ACCEPTANCE-STATUS.md)。

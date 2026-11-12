@@ -39,7 +39,6 @@ const TIME_PRESETS = {
     fogColor: 0xdcc5ae,
     fogDensity: 0.00024,
     interiorGlow: 0.48,
-    roadWetness: 0.28,
     envIntensity: 0.54,
     canyonBounce: 0.52,
     turbidity: 8.0,
@@ -64,7 +63,6 @@ const TIME_PRESETS = {
     fogColor: 0xc6dcf2,
     fogDensity: 0.00018,
     interiorGlow: 0.24,
-    roadWetness: 0.08,
     envIntensity: 0.58,
     canyonBounce: 0.58,
     turbidity: 6.5,
@@ -89,7 +87,6 @@ const TIME_PRESETS = {
     fogColor: 0x353c58,
     fogDensity: 0.00032,
     interiorGlow: 1.25,
-    roadWetness: 0.55,
     envIntensity: 0.36,
     canyonBounce: 0.32,
     turbidity: 9.5,
@@ -114,7 +111,6 @@ const TIME_PRESETS = {
     fogColor: 0x0c1424,
     fogDensity: 0.00036,
     interiorGlow: 1.55,
-    roadWetness: 0.62,
     envIntensity: 0.30,
     canyonBounce: 0.18,
     turbidity: 4.0,
@@ -302,7 +298,6 @@ class LightingSystem {
     cityUniforms.uSkyHorizonColor.value.setHex(p.skyHorizon);
     cityUniforms.uSkySunDir.value.copy(p.sunDir);
     cityUniforms.uInteriorGlow.value = p.interiorGlow;
-    cityUniforms.uRoadWetness.value = p.roadWetness;
     cityUniforms.uCanyonBounce.value = p.canyonBounce;
 
     this.scene.environmentIntensity = p.envIntensity;
