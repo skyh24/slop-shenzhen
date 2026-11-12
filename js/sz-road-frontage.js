@@ -251,7 +251,7 @@ function addShennanFlowerBeds(group, sites, medianHeight, material) {
 
 export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeight, roadHeight } = {}) {
   const control = createIntersectionControl(source, graph);
-  const statistics = { triangleCount: 0, curbTriangles: 0, signals: 0, shrubs: 0, shennanFlowerBeds: 0 };
+  const statistics = { triangleCount: 0, curbTriangles: 0, curbSegments: 0, signals: 0, shrubs: 0, shennanFlowerBeds: 0 };
   const empty = { group: null, control, contactHeight: () => null, shennanMedianHeight: () => null, colliders: [],
     detailedRoadIds: [], statistics, update() {}, dispose() {} };
   if (!source) return empty;
@@ -271,7 +271,8 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   let sampleMedian = () => null;
   const samplers = [];
   for (const feature of source.features) {
-    const planted = shennan && feature.id === SHENNAN_MEDIAN_ID;
+    const planted = shennan && feature.id === SHENNAN_MEDIAN_ID && feature.kind === 'median'
+      && feature.sourceIds.length >= 2 && feature.sourceIds.every(id => /^way\/\d+$/.test(id));
     const mat = planted ? grass : style[feature.kind];
     if (!mat) throw new Error(`Unknown frontage surface: ${feature.kind}`);
     const layout = createRoadPolygonLayout(feature, terrain);
@@ -292,6 +293,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     }
     statistics.triangleCount += layout.statistics.triangles;
   }
+  statistics.curbSegments = statistics.curbTriangles / 2;
   function shennanMedianHeight(x, z) {
     if (!shennan) return null;
     const [x0, z0, x1, z1] = shennan.bounds;
