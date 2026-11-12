@@ -125,7 +125,7 @@ const aaBand = (x, a, b, fw) => smoothstep(ZERO, fw, x.sub(a)).mul(smoothstep(ZE
 const packV = (fields, fallback = 0) => FACADE_PROFILES.map((p) => vec4(
   num(p[fields[0]]), num(p[fields[1]]), num(p[fields[2]]), fields.length > 3 ? num(p[fields[3]]) : num(fallback)));
 
-export function createBuildingMaterial() {
+export function createBuildingMaterial(program = null) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.68, metalness: 0.06 });
   const pickV = (id, values) => values.reduce((acc, value, i) => acc.add(value.mul(step(abs(id.sub(num(i))), HALF))), vec4(0));
   const pickC = (id, values) => values.reduce((acc, value, i) => acc.add(color(value).mul(step(abs(id.sub(num(i))), HALF))), vec3(0));
@@ -295,7 +295,16 @@ export function createBuildingMaterial() {
   const groundGlow = mix(color(0xd9e6f0), color(0xffd49a), warmth)
     .mul(groundGlass.add(groundDoor.mul(num(0.7)))).mul(num(0.34))
     .mul(occupancy.mul(num(0.45)).add(num(0.55))).mul(glowStrength);
-  m.emissiveNode = windowGlow.add(groundGlow);
+  const showMask = program?.mask;
+  let showGlow = ZERO;
+  if (showMask) {
+    // 普通远景窗格会收敛为平均开窗率；节目保留两层一组的柔和分格，避免图案成为实色墙。
+    const ledRow = aaBand(fract(gridV.mul(HALF)), num(0.06), num(0.91), fwV.mul(HALF));
+    const ledBay = aaBand(fract(gridU.mul(HALF)), num(0.05), num(0.94), fwU.mul(HALF));
+    const grid = mix(ledRow.mul(ledBay).mul(num(0.55)).add(num(0.45)), ONE.sub(mullionMask), detail);
+    showGlow = program.color.mul(glazed).mul(grid).mul(showMask).mul(num(3.4));
+  }
+  m.emissiveNode = (showMask ? windowGlow.mul(ONE.sub(showMask)) : windowGlow).add(groundGlow).add(showGlow);
 
   const hardSurface = max(windowFrameMask, mullionMask);
   // 幕墙玻璃对齐纽约 createCurtainWallMaterial：满玻璃率粗糙度 0.055，窗台附近叠一点积灰；

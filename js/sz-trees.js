@@ -280,6 +280,10 @@ export function buildSzTrees(scene, payload, options = {}) {
     const height = trees.height[index];
     const crown = trees.crown[index];
     const sourceName = trees.sources[trees.source[index]] ?? 'unknown';
+    if (sourceName.startsWith('simulated-') && options.simulatedTreeAllowed?.(x, z) === false) {
+      skipped.pathConflict++;
+      continue;
+    }
     if (sourceName.startsWith('simulated-') && Number.isFinite(shennanMedianHeight(x, z))) {
       skipped.openMedian++;
       continue;

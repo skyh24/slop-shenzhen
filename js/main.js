@@ -22,6 +22,8 @@ import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzDroneRoutes } from './sz-drone-routes.js';
 import { buildSzLightShow, planLandmarkBands } from './sz-light-show.js';
+import { buildLianhuashanSummit, summitBuildingOverrides } from './sz-lianhuashan.js';
+import { createCbdProgram, wireCbdProgram } from './sz-cbd-program.js';
 import { gatePoint, gateYaw, gateDeckY, flowerSeaAnchor, flowerSeaDeckY } from './sz-landmarks/iec-xiangmihu.js';
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
@@ -164,7 +166,6 @@ async function initApp() {
     initTimings.push(`${label} ${ms}ms`);
     qa.markStartup(label, ms);
   }
-
   await renderer.init();
   markInit('renderer');
 
@@ -173,16 +174,18 @@ async function initApp() {
   const scene = new THREE.Scene();
   const lightingSystem = new LightingSystem(scene, renderer);
   markInit('lighting');
-
   await showLoadingStage(STR.startup.ground, 'ground');
   const ground = buildSzGround(scene, GEO.terrainSurface);
+  const summit = buildLianhuashanSummit(scene, ground.groundHeight);
+  const cbdProgram = createCbdProgram({ ...summit.arrival, y: summit.arrival.y + 1.68 });
+  const parkBuildingOverrides = summitBuildingOverrides(REAL_BUILDINGS, GEO.parks);
   const sea = buildSzSea(scene, GEO.seaSurface);
   markInit('ground');
   await showLoadingStage(STR.startup.roads, 'roads');
   const roads = buildSzRoads(scene, GEO.roadGraph, GEO.terrainSurface);
   // 场地上下文：地形、路面、路网和各构建函数共用的接触面参数只构造一份，入口里不再重复传同一组闭包。
   const site = {
-    buildings: REAL_BUILDINGS, terrain: GEO.terrain, terrainSurface: GEO.terrainSurface, sites: GEO.sites,
+    buildings: REAL_BUILDINGS.filter(building => !parkBuildingOverrides.has(building.id)), terrain: GEO.terrain, terrainSurface: GEO.terrainSurface, sites: GEO.sites,
     roadGraph: GEO.roadGraph, groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, isWater,
     colliders: []
   };
@@ -206,10 +209,9 @@ async function initApp() {
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
   const cityBlocks = qa.stage('blocks', () =>
-    buildCityBlocks(scene, { skipIds: landmarks.skipIds, renderChunkSize: qa.chunkSize,
+    buildCityBlocks(scene, { buildings: site.buildings, skipIds: landmarks.skipIds, renderChunkSize: qa.chunkSize, program: cbdProgram,
       roadClearance: createRoadBuildingClearance(site.roadGraph, site.roadHeight, elevatedRoads.links) }));
   const detailSkipIds = new Set([...landmarks.skipIds, ...(cityBlocks.roadConflicts ?? []).map(row => row.buildingId)]);
-  // 福田中心区夜景灯光秀：只给已建成普通高层加灯带，颜色/节奏为展示估计；白天隐藏。
   // 地标源对象已由专模打光，排除它们；地标外露钢架（平安 8 根巨柱）单独沿柱轴生成灯带。
   const landmarkBands = planLandmarkBands(landmarks.colliders);
   const lightShow = qa.stage('lightshow', () =>
@@ -222,9 +224,9 @@ async function initApp() {
     buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds, roofPlans: cityBlocks.roofPlans }));
   markInit('blocks');
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders];
-  site.colliders = buildings;
+  site.colliders = [...buildings, ...summit.colliders];
   const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
-  site.pathAt = streetscape.pathAt;
+  site.pathAt = (x, z) => summit.pathAt(x, z) ? [summit] : streetscape.pathAt(x, z);
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
@@ -238,7 +240,7 @@ async function initApp() {
   });
   // 树木：OSM 来源点加带标注的模拟行道树/公园树，接触面与铺装/建筑冲突在运行时复核。
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
-    ...site, streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
+    ...site, simulatedTreeAllowed: summit.simulatedTreeAllowed, streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
   // 国际交流中心模型给出的真实门廊/花海台面锚点只构造一次，APEC 主题和城市元素共用。
   const anchors = {
@@ -267,7 +269,7 @@ async function initApp() {
   const xiliConstruction = stations?.xili ?? null;
   // 无人机航线：端点来自 air 段公开来源；航迹示意，会期低空管控时停在站点。
   const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, terrain: site.terrain }));
-  const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...(streetLamps.colliders ?? []), ...trees.colliders,
+  const colliders = [...buildings, ...summit.colliders, ...streetscape.colliders, ...roadFrontage.colliders, ...(streetLamps.colliders ?? []), ...trees.colliders,
     ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? []),
     ...elevatedRoads.colliders];
   site.colliders = colliders;
@@ -286,10 +288,11 @@ async function initApp() {
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
-    surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces],
+    surfaces: [...landmarks.surfaces, ...summit.surfaces, ...elevatedRoads.surfaces],
     nearTraffic: traffic.nearColliders
   });
   let initialTime = 'golden';
+  let showVisit;
   try {
     const saved = JSON.parse(localStorage.getItem(PLAYER_STATE_KEY));
     if ((saved?.version === 1 || saved?.version === 2) && Object.hasOwn(controllerManager.entities, saved.activeMode)) {
@@ -339,7 +342,7 @@ async function initApp() {
     try {
       const { position, heading } = controllerManager.getActiveEntity();
       localStorage.setItem(PLAYER_STATE_KEY, JSON.stringify({
-        version: 2, activeMode: controllerManager.activeMode, time: lightingSystem.activePresetId,
+        version: 2, activeMode: controllerManager.activeMode, time: showVisit?.savedTime ?? lightingSystem.activePresetId,
         position: { x: position.x, y: position.y, z: position.z, heading }
       }));
     } catch { /* Storage may be disabled or full. */ }
@@ -471,7 +474,9 @@ async function initApp() {
     car: bayParkRoad && { ...bayParkRoad, detail: STR.teleport.nearParkRoad(getLocationLabel(bayParkRoad.x, bayParkRoad.z), bayParkRoad.distance) },
     helicopter: bayPark && { ...bayPark, detail: STR.teleport.parkFlight }
   };
-  const teleportEntries = bayPark ? { ...TELEPORT_LOCATIONS, [bayPark.id]: bayPark } : TELEPORT_LOCATIONS;
+  const showEntry = { ...summit.arrival, name: STR.lightShow.title };
+  const teleportEntries = { ...TELEPORT_LOCATIONS, ...(bayPark && { [bayPark.id]: bayPark }),
+    'lianhuashan-show': showEntry };
   const teleportButtons = populateTeleportMenu(teleportEntries, getLocationLabel);
   const parkButton = teleportButtons.find(button => button.dataset.teleport === bayPark?.id);
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
@@ -566,7 +571,6 @@ async function initApp() {
     }
     return true;
   }
-
   function selectCamera(camId, snap = false) {
     cameraSystem.setCameraPreset(camId, snap);
     cameraButtons.forEach((btn) => {
@@ -582,7 +586,6 @@ async function initApp() {
     const idx = cameraPresets.findIndex((p) => p.id === cameraSystem.activePresetId);
     selectCamera(cameraPresets[(idx + step + n) % n].id, true);
   }
-
   function selectTime(timeId) {
     lightingSystem.applyPreset(timeId);
     colorGrade.applyPreset(lightingSystem.activePresetId);
@@ -630,7 +633,6 @@ async function initApp() {
   const camNextBtn = document.getElementById('cam-next');
   if (camPrevBtn) camPrevBtn.addEventListener('click', () => cycleCamera(-1));
   if (camNextBtn) camNextBtn.addEventListener('click', () => cycleCamera(1));
-
   timeButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       selectTime(btn.getAttribute('data-time'));
@@ -642,7 +644,6 @@ async function initApp() {
     const btn = e.target instanceof Element ? e.target.closest('button') : null;
     if (btn && e.detail > 0) btn.blur();
   });
-
   const renderLocation = createLocationReadout({
     el: elLocation, nearestBuildingName: (x, z) => buildingSigns.nearestName(x, z)
   });
@@ -650,6 +651,8 @@ async function initApp() {
     els: { fps: elFps, speed: elSpeed, speedMeter: elSpeedMeter, altitude: elAltitude },
     controllerManager, cameraSystem, topSpeed: PLAYER_SPEED_LIMITS, renderLocation
   });
+  showVisit = wireCbdProgram({ program: cbdProgram, arrival: summit.arrival, controller: controllerManager,
+    camera: cameraSystem, lighting: lightingSystem, touchControls, gamepadControls, selectMode, selectCamera, selectTime });
   function teleportTo(x, z, heading, options = {}) {
     if (!inBounds(x, z)) return null;
     const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(GEO.parks, x, z) : null);
@@ -670,7 +673,6 @@ async function initApp() {
     };
     return destination;
   }
-
   function goToDriveStart(route) {
     if (!route || autoDrive.active) return false;
     const { x, z, dx, dz } = route.from;
@@ -684,7 +686,6 @@ async function initApp() {
     selectCamera('chase', true);
     return true;
   }
-
   const mapSystem = new SZMapSystem({
     controllerManager,
     cameraSystem,
@@ -715,7 +716,7 @@ async function initApp() {
     btn.addEventListener('click', () => {
       const key = btn.dataset.teleport;
       const loc = key === bayPark?.id ? parkArrivals[controllerManager.activeMode] : TELEPORT_LOCATIONS[key];
-      const arrived = loc && teleportTo(loc.x, loc.z, loc.heading, loc);
+      const arrived = key === 'lianhuashan-show' ? showVisit.enter() : loc && teleportTo(loc.x, loc.z, loc.heading, loc);
       if (teleportFeedback) {
         teleportFeedback.textContent = arrived ? '' : STR.map.noArrival;
         teleportFeedback.hidden = Boolean(arrived);
@@ -723,10 +724,8 @@ async function initApp() {
       if (arrived) closePopovers();
     });
   });
-
   const openMapBtn = document.getElementById('btn-open-map');
   if (openMapBtn) openMapBtn.addEventListener('click', () => mapSystem.toggleFullMap(true));
-
   if (hudToggleBtn) {
     hudToggleBtn.addEventListener('click', () => {
       document.body.classList.toggle('hud-minimized');
@@ -780,7 +779,7 @@ async function initApp() {
       renderer, scene, cameraSystem, controllerManager, mapSystem, autoDrive, laneAssist, lightingSystem, audioSystem,
       buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, sea, bridge,
       modules: {
-        lamps: streetLamps, trees, apec: apecTheme, apecCity, drones, lightShow,
+        lamps: streetLamps, trees, apec: apecTheme, apecCity, drones, lightShow, cbdProgram, summit, parkBuildingOverrides,
         elevatedRoads, metroEntrances, futian: futianStation, xili: xiliConstruction
       },
       teleport: teleportTo,
@@ -917,6 +916,7 @@ async function initApp() {
     apecCity.update(dt);
     drones.update(dt);
     lightShow.update();
+    cbdProgram.update(document.hidden ? 0 : Math.min(Math.max(rawDt, 0), 1), sceneUniforms.night.value);
     metroEntrances.update(cameraSystem.currentPos);
     futianStation?.update(cameraSystem.currentPos);
     xiliConstruction?.update();

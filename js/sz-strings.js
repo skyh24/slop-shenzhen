@@ -128,6 +128,13 @@ export const STR = {
     nearParkRoad: (road, distance) => `${road} · 距公园标注约 ${Math.round(distance)} 米`,
     entryLabel: (name, detail) => `${name} · ${detail}`
   },
+  lightShow: {
+    title: '莲花山看灯光秀',
+    pause: '暂停',
+    resume: '继续',
+    replay: '重播',
+    exit: '退出灯光秀'
+  },
   metro: {
     title: '地铁',
     all: '全部显示',

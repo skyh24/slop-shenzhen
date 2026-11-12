@@ -160,6 +160,9 @@ class QaSession {
     window.__szApecCity = modules.apecCity;
     window.__szDrones = modules.drones;
     window.__szLightShow = modules.lightShow;
+    window.__szCbdProgram = modules.cbdProgram;
+    window.__szSummit = modules.summit;
+    window.__szSummitBuildingOverrides = modules.parkBuildingOverrides;
     window.__szElevatedRoads = modules.elevatedRoads;
     window.__szMetroEntrances = modules.metroEntrances;
     window.__szFutian = modules.futian;

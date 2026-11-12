@@ -131,3 +131,62 @@ test('real Three builds instanced light-show meshes without touching building co
   show.dispose();
   assert.equal(show.group.parent, null);
 });
+
+test('CBD programme loops through four cues and fades to dark at each transition', () => {
+  const { CBD_PROGRAM_SECONDS, cbdProgramPhase, isCbdProgramTower } = loadModule(read('sz-cbd-program.js'), {
+    imports: { 'three/webgpu': {}, 'three/tsl': {}, './sz-strings.js': {} }
+  });
+  assert.equal(CBD_PROGRAM_SECONDS, 96);
+  for (const [cue, seconds] of [[0, 0], [1, 24], [2, 48], [3, 72]]) {
+    assert.deepEqual({ ...cbdProgramPhase(seconds) }, { cue, phase: 0, fade: 0 });
+    assert.equal(cbdProgramPhase(seconds + 12).fade, 1);
+    assert.equal(cbdProgramPhase(seconds + CBD_PROGRAM_SECONDS).cue, cue);
+  }
+  assert.equal(cbdProgramPhase(96).cue, 0);
+  const participants = buildings.filter(isCbdProgramTower);
+  assert.ok(participants.some(tower => tower.name === '太平金融大厦'));
+  assert.ok(participants.some(tower => tower.name === '大百汇广场'));
+  assert.ok(participants.every(tower => tower.facade !== 'residential_tower'));
+});
+
+test('summit override hides the verified park interiors and keeps the nearby civic centre', () => {
+  const { summitBuildingOverrides } = loadModule(read('sz-lianhuashan.js'), {
+    imports: { 'three/webgpu': {}, 'three/tsl': {}, 'three/addons/utils/BufferGeometryUtils.js': {},
+      './sz-geometry.js': {}, './sz-polygon.js': polygonModule, './sz-controller-surfaces.js': {} }
+  });
+  const hidden = summitBuildingOverrides(buildings, geo.parks);
+  assert.equal(hidden.size, 16);
+  assert.ok(hidden.has('way/386491513'));
+  assert.ok(hidden.has('way/170144292'));
+  assert.ok(!hidden.has('way/41281446'));
+  assert.ok(buildings.some(building => building.landmark === 'civic-center' && !hidden.has(building.id)));
+  assert.equal(summitBuildingOverrides(buildings, []).size, 0);
+});
+
+test('summit spawn and approach use the same above-ground triangles as the model', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+  const packageUrl = pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, '/'));
+  const THREE = await import(new URL('build/three.webgpu.js', packageUrl));
+  const tsl = await import(new URL('build/three.tsl.js', packageUrl));
+  const utils = await import(new URL('examples/jsm/utils/BufferGeometryUtils.js', packageUrl));
+  const surface = loadModule(read('sz-controller-surfaces.js'));
+  const geom = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } });
+  const ground = loadModule(read('sz-ground-surface.js'), { globals: { atob } }).createGroundSurfaceSampler(geo.terrainSurface);
+  const { buildLianhuashanSummit } = loadModule(read('sz-lianhuashan.js'), {
+    imports: { 'three/webgpu': THREE, 'three/tsl': tsl, 'three/addons/utils/BufferGeometryUtils.js': utils,
+      './sz-geometry.js': geom, './sz-polygon.js': polygonModule, './sz-controller-surfaces.js': surface }
+  });
+  const { arrival, surfaces } = buildLianhuashanSummit(new THREE.Scene(), ground);
+  const support = surface.createSurfaceResolver({ groundHeight: ground, surfaces });
+  const hit = support.at(arrival.x, arrival.z).find(row => row.surfaceId === arrival.surfaceId);
+  assert.equal(hit.height, arrival.y);
+  assert.ok(hit.height > ground(arrival.x, arrival.z));
+  const stairs = surfaces.slice(1);
+  assert.ok(stairs.length > 5);
+  for (const step of stairs) for (const triangle of step.triangles) {
+    const x = triangle.reduce((sum, p) => sum + p.x / 3, 0);
+    const z = triangle.reduce((sum, p) => sum + p.z / 3, 0);
+    const y = surface.triangleHeight(triangle, x, z);
+    assert.ok(y > ground(x, z), step.id);
+    assert.equal(support.at(x, z).find(row => row.surfaceId === step.id).height, y);
+  }
+});

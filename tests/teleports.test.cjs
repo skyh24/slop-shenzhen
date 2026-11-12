@@ -28,9 +28,12 @@ test('teleport destinations bind the retained buttons to Shenzhen roads on the r
   const oldButtonIds = ['tp-empire', 'tp-timessq', 'tp-chrysler', 'tp-grandcentral',
     'tp-bryant', 'tp-flatiron', 'tp-centralpark', 'tp-owtc'];
   const buttons = [...read('index.html').matchAll(/id="(tp-[^"]+)"[^>]+data-teleport="([^"]+)"/g)];
-  assert.deepEqual(buttons.map(match => match[1]), oldButtonIds);
-  assert.equal(new Set(buttons.map(match => match[2])).size, oldButtonIds.length);
-  for (const [, , key] of buttons) assert.ok(TELEPORT_LOCATIONS[key], key);
+  const summitButton = buttons.find(match => match[2] === 'lianhuashan-show');
+  assert.equal(summitButton?.[1], 'tp-lianhuashan-show');
+  const roadButtons = buttons.filter(match => match !== summitButton);
+  assert.deepEqual(roadButtons.map(match => match[1]), oldButtonIds);
+  assert.equal(new Set(buttons.map(match => match[2])).size, buttons.length);
+  for (const [, , key] of roadButtons) assert.ok(TELEPORT_LOCATIONS[key], key);
   const roadIds = new Set(GEO.roadGraph.metadata
     .filter(road => road.heightSource === 'terrain' && !road.bridge && !road.tunnel && !road.layer)
     .map(road => road.osmId));
