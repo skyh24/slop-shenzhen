@@ -46,6 +46,20 @@ function longitudinal(strips) {
   return strips.filter(strip => LONGITUDINAL.has(strip.kind));
 }
 
+test('reviewed corridor replaces overlapping paint while generic markings continue past its boundaries', () => {
+  const graph = graphFor([{ x: 0, z: 0 }, { x: 120, z: 0 }], { width: 12, lanes: 3, direction: 1 });
+  const frontage = { features: [{ id: 'pilot:paint', sourceIds: ['way/1'], trianglesXZ: [0, 0, 0, 1, 1, 0] },
+    { id: 'source-signal-stop-lines', sourceIds: ['node/42'], trianglesXZ: [0, 0, 0, 1, 1, 0] }],
+    corridors: [{ id: 'pilot', bounds: [27, -8, 89, 8], roadIds: ['way/1'] }] };
+  const approach = { sourceIndex: 0, osmNodeId: 42, group: 0, stopX: 105, stopZ: 0, dx: 1, dz: 0, widthM: 12 };
+  const { strips, statistics } = createMarkingLayout(graph, { frontage, intersections: [{ approaches: [approach] }] });
+  assert.equal(statistics.reviewedLinks, 1);
+  assert.ok(strips.some(strip => strip.bx === 27));
+  assert.ok(strips.some(strip => strip.ax === 89));
+  assert.ok(strips.every(strip => strip.bx <= 27 || strip.ax >= 89));
+  assert.ok(strips.every(strip => LONGITUDINAL.has(strip.kind)));
+});
+
 test('two-way roads get a double-yellow center, dashed lane dividers and solid edge lines', () => {
   const plan = createLanePlan([0, 1, 0, 13, 4, 0, []], GROUND);
   assert.equal(plan.twoWay, true);

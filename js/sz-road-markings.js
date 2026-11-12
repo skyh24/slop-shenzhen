@@ -253,26 +253,49 @@ function crosswalk(approach, strips) {
   return 'crosswalk';
 }
 
-function deadEndBar(points, end, width, strips) {
-  const p = end === 0 ? points[0] : points.at(-1);
-  const q = end === 0 ? points[1] : points.at(-2);
-  const dx = p.x - q.x, dz = p.z - q.z, length = Math.hypot(dx, dz);
-  if (length < 1e-6) return false;
-  const ux = dx / length, uz = dz / length, rx = -uz, rz = ux, half = Math.max(1.2, width / 2 - 0.18);
-  strips.push({ ax: p.x - ux * 1.3 + rx * half, az: p.z - uz * 1.3 + rz * half,
-    bx: p.x - ux * 1.3 - rx * half, bz: p.z - uz * 1.3 - rz * half,
-    width: STOP_WIDTH, color: 'white', period: 1, duty: 1, phase: 0, flow: 1, offset: 0, kind: 'end' });
-  return true;
+// 让复核走廊接管范围内的通用标线；跨界的一条线保留两端和虚线相位。
+function outsideBounds(strip, bounds) {
+  const dx = strip.bx - strip.ax, dz = strip.bz - strip.az;
+  let start = 0, end = 1;
+  for (const [a, delta, low, high] of [[strip.ax, dx, bounds[0], bounds[2]], [strip.az, dz, bounds[1], bounds[3]]]) {
+    if (Math.abs(delta) < 1e-9) {
+      if (a < low || a > high) return [strip];
+      continue;
+    }
+    const enter = (low - a) / delta, exit = (high - a) / delta;
+    start = Math.max(start, Math.min(enter, exit));
+    end = Math.min(end, Math.max(enter, exit));
+    if (start >= end) return [strip];
+  }
+  const result = [];
+  if (start > 0) result.push({ ...strip, bx: strip.ax + dx * start, bz: strip.az + dz * start });
+  if (end < 1) result.push({ ...strip, ax: strip.ax + dx * end, az: strip.az + dz * end,
+    phase: strip.phase + Math.hypot(dx, dz) * end });
+  return result;
 }
 
-export function createMarkingLayout(graph, { intersections = [] } = {}) {
+export function createMarkingLayout(graph, { intersections = [], frontage } = {}) {
   if (!graph?.links || !graph.metadata || graph.links.length !== graph.metadata.length) throw new Error('Matched road graph required');
   const strips = [];
-  const statistics = { links: 0, paintedLinks: 0, skippedLinks: 0, deadEnds: 0, strips: 0, intersections: 0,
+  const statistics = { links: 0, paintedLinks: 0, skippedLinks: 0, reviewedLinks: 0, strips: 0, intersections: 0,
     laneSources: {}, estimatedLaneLinks: 0, osmLaneLinks: 0, narrowLinks: 0, oneWayLinks: 0, twoWayLinks: 0,
     stopLines: 0, crosswalks: 0, breakLinks: 0 };
   // 路口进向按源路段索引挂到 link 上，只有信号或已核实过街才画进向设施。
   const approachesByLink = new Map();
+  const features = new Map((frontage?.features ?? []).map(feature => [feature.id, feature]));
+  const signalPaint = new Set(features.get('source-signal-stop-lines')?.sourceIds);
+  const reviewedBounds = new Map();
+  for (const corridor of frontage?.corridors ?? []) {
+    const paint = features.get(`${corridor.id}:paint`);
+    if (!paint?.trianglesXZ.length) continue;
+    const ids = new Set(paint.sourceIds);
+    for (const way of corridor.roadIds) {
+      if (!ids.has(way)) continue;
+      const areas = reviewedBounds.get(way) ?? [];
+      areas.push(corridor.bounds);
+      reviewedBounds.set(way, areas);
+    }
+  }
   for (const junction of intersections) {
     for (const approach of junction.approaches ?? []) {
       if (!Number.isInteger(approach.sourceIndex)) continue;
@@ -303,19 +326,22 @@ export function createMarkingLayout(graph, { intersections = [] } = {}) {
     else statistics.oneWayLinks++;
     const points = linkPoints(graph, link);
     if (points.length < 2) continue;
-    // 信号进向的纵向标线在停止线前断开；停止线、斑马线由 stopLine/crosswalk 单独画。
-    let startS = 0, endS = Infinity;
+    const length = points.reduce((sum, point, index) => index ? sum + Math.hypot(point.x - points[index - 1].x, point.z - points[index - 1].z) : 0, 0);
+    const junctionGap = Math.min(plan.width * 0.38, 7, length * 0.30);
+    let startS = (degree.get(link[0]) ?? 0) >= 3 ? junctionGap : 0;
+    let endS = (degree.get(link[1]) ?? 0) >= 3 ? length - junctionGap : Infinity;
     for (const approach of approachesByLink.get(i) ?? []) {
       // 只有信号进向才有停止线；已核实过街（无信号）不剪纵向标线。
       if (!Number.isInteger(approach.group)) continue;
       const stop = projectStop(points, approach.stopX, approach.stopZ, plan.width);
       if (stop === null) continue;
-      const length = points.reduce((sum, point, index) => index ? sum + Math.hypot(point.x - points[index - 1].x, point.z - points[index - 1].z) : 0, 0);
-      if (length - stop <= stop) endS = Math.min(endS, stop - STOP_CLEARANCE);
-      else startS = Math.max(startS, stop + STOP_CLEARANCE);
+      const clearance = signalPaint.has(`node/${approach.osmNodeId}`) ? LINE_STOP_GAP : STOP_CLEARANCE;
+      if (length - stop <= stop) endS = Math.min(endS, stop - clearance);
+      else startS = Math.max(startS, stop + clearance);
     }
     const clipped = startS > 0 || endS < Infinity ? subline(points, startS, endS) : points;
     if (clipped.length >= 2) {
+      const before = strips.length;
       if (startS > 0 || endS < Infinity) statistics.breakLinks++;
       const half = plan.width / 2;
       if (plan.edge) {
@@ -328,15 +354,19 @@ export function createMarkingLayout(graph, { intersections = [] } = {}) {
           line(clipped, divider.offset + 0.12, 'yellow', 1, 1, 0, strips, 'center-right', half);
         } else line(clipped, divider.offset, 'white', 12, 0.25, 0, strips, 'lane', half);
       }
-    }
-    for (const end of [0, 1]) {
-      if ((degree.get(link[end]) ?? 0) > 1) continue;
-      if (deadEndBar(points, end, plan.width, strips)) statistics.deadEnds++;
+      const areas = reviewedBounds.get(metadata.osmId);
+      if (areas) {
+        let generic = strips.splice(before);
+        for (const area of areas) generic = generic.flatMap(strip => outsideBounds(strip, area));
+        for (const strip of generic) strips.push(strip);
+        statistics.reviewedLinks++;
+      }
     }
   }
   for (const junction of intersections) {
     const approaches = junction.approaches ?? [];
     for (const approach of approaches) {
+      if (signalPaint.has(`node/${approach.osmNodeId}`)) continue;
       const signal = Number.isInteger(approach.group);
       const verifiedCrossing = approach.crosswalk === true || junction.crosswalk === true;
       if (signal) {

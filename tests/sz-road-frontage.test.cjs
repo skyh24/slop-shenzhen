@@ -63,6 +63,15 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const scene = new THREE.Scene();
   const model = buildSzRoadFrontage(scene, raw.roadFrontage, raw.roadGraph, terrain, { groundHeight, roadHeight });
   assert.equal(model.statistics.signals, 4);
+  assert.ok(model.statistics.shennanFlowerBeds > 8);
+  const flowerBeds = model.group.getObjectByName('shennan-median:flower-beds');
+  const flowers = flowerBeds.geometry.attributes.position;
+  for (let i = 0; i < flowers.count; i++) {
+    const x = flowers.getX(i) + flowerBeds.position.x;
+    const z = flowers.getZ(i) + flowerBeds.position.z;
+    assert.equal(roadHeight(x, z), null);
+    assert.ok(Math.abs(flowers.getY(i) - model.shennanMedianHeight(x, z) - 0.07) < 0.0002);
+  }
   assert.ok(model.signalOrigins.every(p => p.minClearanceM >= 5.5));
   const arm = model.group.children.find(mesh => mesh.name === 'signals:arms');
   const matrix = new THREE.Matrix4();

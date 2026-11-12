@@ -249,7 +249,7 @@ function emptyResult() {
     colliders: [],
     statistics: {
       version: 1, payloadCount: 0, placed: 0, chunks: 0, lodCells: 0, countsBySource: {},
-      skipped: { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0 },
+      skipped: { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0, openMedian: 0 },
       instances: { trunks: 0, cards: 0, farCrowns: 0 },
       triangles: { trunkPerTree: TRUNK_TRIANGLES, cardPerTree: {}, farPerTree: FAR_CROWN_TRIANGLES },
       visible: { chunks: 0, lodCells: 0, nearCells: 0, farCells: 0, hiddenCells: 0, trees: 0,
@@ -261,7 +261,8 @@ function emptyResult() {
 }
 
 export function buildSzTrees(scene, payload, options = {}) {
-  const { groundHeight, roadHeight, pathAt = () => [], colliders = [] } = options;
+  const { groundHeight, heightAt = groundHeight, roadHeight, shennanMedianHeight = () => null,
+    pathAt = () => [], colliders = [] } = options;
   const trees = decodeTreePayload(payload);
   if (!trees || trees.count === 0) {
     const empty = emptyResult();
@@ -271,7 +272,7 @@ export function buildSzTrees(scene, payload, options = {}) {
   const group = new THREE.Group();
   group.name = 'shenzhen-trees';
   const countsBySource = {};
-  const skipped = { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0 };
+  const skipped = { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0, openMedian: 0 };
   const empty = emptyResult();
   if (typeof groundHeight !== 'function') {
     empty.statistics.payloadCount = trees.count;
@@ -290,6 +291,11 @@ export function buildSzTrees(scene, payload, options = {}) {
     const z = trees.z[index];
     const height = trees.height[index];
     const crown = trees.crown[index];
+    const sourceName = trees.sources[trees.source[index]] ?? 'unknown';
+    if (sourceName.startsWith('simulated-') && Number.isFinite(shennanMedianHeight(x, z))) {
+      skipped.openMedian++;
+      continue;
+    }
     let baseY = Infinity;
     let reason = null;
     for (const [dx, dz] of probes) {
@@ -313,13 +319,13 @@ export function buildSzTrees(scene, payload, options = {}) {
         }
       }
     }
+    if (sourceName === 'simulated-street') baseY = heightAt(x, z) ?? baseY;
     if (!reason && hitsCollider(x, z, crown / 2, baseY, baseY + height)) reason = 'buildingConflict';
     if (reason) {
       skipped[reason] += 1;
       continue;
     }
     const speciesName = trees.speciesNames[trees.species[index]] ?? 'ficus';
-    const sourceName = trees.sources[trees.source[index]] ?? 'unknown';
     countsBySource[sourceName] = (countsBySource[sourceName] ?? 0) + 1;
     const style = speciesStyle(speciesName);
     const trunkHeight = trunkHeightFor(style, height);

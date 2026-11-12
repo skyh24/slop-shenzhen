@@ -190,9 +190,11 @@ async function initApp() {
   site.tunnelReview = planSzTunnels(site.roadGraph, site.terrainSurface, { interchanges: elevatedRoads.interchanges, buildings: site.buildings }).reviewList;
   const roadFrontage = buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, site);
   const roadPaint = qa.stage('paint', () =>
-    buildSzRoadPaint(scene, GEO.roadGraph, { ...site, intersections: roadFrontage.control.intersections }));
+    buildSzRoadPaint(scene, GEO.roadGraph, { ...site, intersections: roadFrontage.control.intersections,
+      frontage: GEO.roadFrontage }));
   // 路缘接触和绘制共用同一份三角面，未覆盖的位置沿用源地形。
   site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? ground.groundHeight(x, z);
+  site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
   markInit('roads');
   await showLoadingStage(STR.startup.landmarks, 'landmarks');
   const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, site));
@@ -218,7 +220,10 @@ async function initApp() {
   const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
   site.pathAt = streetscape.pathAt;
   // 主干道路灯：点位由源路网中心线派生，夜间发光与地面光池在 update 里随时段切换。
-  const streetLamps = qa.stage('lamps', () => buildSzStreetLamps(scene, site.roadGraph, site));
+  const streetLamps = qa.stage('lamps', () => buildSzStreetLamps(scene, site.roadGraph, {
+    ...site, minorRoadBounds: (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
+      .map(row => row.bounds)
+  }));
   // 树木：OSM 来源点加带标注的模拟行道树/公园树，接触面与铺装/建筑冲突在运行时复核。
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, site));
   // 国际交流中心模型给出的真实门廊/花海台面锚点只构造一次，APEC 主题和城市元素共用。

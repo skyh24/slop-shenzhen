@@ -44,18 +44,30 @@ test('street lamps are spaced along both sides of ground primary roads', () => {
   assert.ok(Math.abs(headX - site.x) < 1e-9, 'arm is perpendicular to an east-west link');
 });
 
-test('street lamps skip bridges, tunnels, layered and minor roads', () => {
+test('street lamps skip bridges, tunnels, layered roads and motorways', () => {
   const links = [[0, 1, 0, 12, 3, 0, []], [1, 2, 0, 12, 3, 0, []], [0, 1, 0, 12, 3, 0, []], [1, 2, 0, 12, 3, 0, []]];
   const metadata = [
     { ...ground(), bridge: true },
     { ...ground(), tunnel: true },
     { ...ground(), layer: 1 },
-    { ...ground(), highway: 'residential' }
+    { ...ground(), highway: 'motorway' }
   ];
   const plan = lamps.planLampSites(graph(links, metadata));
   assert.equal(plan.sites.length, 0);
   assert.ok(plan.rejected.bridgeOrTunnelOrLayer >= 3);
   assert.ok(plan.rejected.unsupportedClass >= 1);
+});
+
+test('minor links light one physical curb and use the reviewed asymmetric section', () => {
+  const m = { ...ground(), highway: 'secondary', crossSection: { points: [0, 0, 4, 300, 0, 5] } };
+  const forward = lamps.planLampSites(graph([[0, 1, 0, 12, 2, 0, []]], [m]));
+  const backward = lamps.planLampSites(graph([[1, 0, 0, 12, 2, 0, []]], [{
+    ...m, crossSection: { points: [300, 0, 7, 0, 0, 8] }
+  }]));
+  assert.ok(forward.sites.length > 0 && backward.sites.length > 0);
+  assert.ok(forward.sites.every(site => site.side === 1 && site.z > -5.9 && site.z < -4.9));
+  assert.ok(backward.sites.every(site => site.side === -1 && site.z > -5.9 && site.z < -4.9));
+  assert.equal(forward.sites[1].stationM - forward.sites[0].stationM, 34);
 });
 
 test('street lamp planning is deterministic and chunk grouping keeps every site', () => {

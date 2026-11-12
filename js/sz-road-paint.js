@@ -40,9 +40,9 @@ function buildChunks(strips, roadHeight) {
   return cells;
 }
 
-export function buildSzRoadPaint(scene, graph, { roadHeight, intersections = [] } = {}) {
+export function buildSzRoadPaint(scene, graph, { roadHeight, intersections = [], frontage } = {}) {
   if (typeof roadHeight !== 'function') throw new Error('Road paint requires rendered road height');
-  const layout = createMarkingLayout(graph, { intersections });
+  const layout = createMarkingLayout(graph, { intersections, frontage });
   const cells = buildChunks(layout.strips, roadHeight);
   const group = new THREE.Group();
   group.name = 'shenzhen-road-markings';
