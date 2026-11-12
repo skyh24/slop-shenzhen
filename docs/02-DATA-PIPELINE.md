@@ -1,128 +1,57 @@
-# 02 数据管线
+# 数据管线
 
-## 原则
+## 1. 输入与输出
 
-- 原始快照锁定版本，记录下载地址、日期和 SHA-256，原始大文件不进 Git
-- 运行时不联网拉数据，浏览器只读生成好的压缩包
-- 每栋楼的高度都带来源标签，推断值不冒充实测值
-- 生成文件不手改；要改就改规则或 `data/source/` 下的人工核对表，再重新生成
+权威登记在 [sources.json](../data/source/sources.json)，许可见 [ATTRIBUTION](../data/source/ATTRIBUTION.md)。以下是仓库锁定输入，不是联网核实的最新版本。
 
-## 数据源
+| 来源 | 现用资料与用途 | 限制 |
+| --- | --- | --- |
+| OSM / Geofabrik | 广东 2026-11-08 快照；道路、建筑、地铁、水陆、公园、名称 | 标签完整度不一，编辑日期不等于观测日期 |
+| Overture Buildings | 2026-10-21.0；补充足迹与部分属性 | 现有提取包络未随全图扩区；遥感补集与 GloBFP 有共同上游 |
+| 3D-GloBFP | 参考年2020；补充足迹和预测高度 | 超出2025–2026目标窗口，不能当近期实测 |
+| Copernicus GLO-30 | 当前 DSM 底座，25米重采样、分米编码 | EGM2008；有屋顶/树冠回波，采样密度不等于测绘精度 |
+| FABDEM V1-2 | 道路派生面与城区基准样本 | 派生估计，CC BY-NC-SA 4.0 限制保留 |
+| Terrain Tiles HGT | 旧地形对照 | 通过 `--terrain-source hgt` 对照，不是默认源 |
+| 人工核对表 | 地标、楼高覆盖、道路前场、地坪、出入口与低空证据 | 每个字段保留身份、出处、日期与状态 |
 
-| 数据 | 来源 | 版本 | 用途 |
-| --- | --- | --- | --- |
-| OpenStreetMap | Geofabrik 广东切片 `guangdong-latest.osm.pbf` | 下载时的快照，时间戳和哈希见 `data/source/sources.json` | 道路、海岸线、水系、公园、绿地、地铁出入口、树点、地名、一部分建筑 |
-| Overture Maps Buildings | `s3://overturemaps-us-west-2/release/2026-10-21.0/theme=buildings` | `2026-10-21.0`（下载时的最新版） | 补全建筑轮廓，自带部分高度和层数 |
-| 3D-GloBFP | figshare 文章 28904453（第 IX 部分），网格 `2265`、`2269`（下载地址见 `sources.json`） | 参考年份 2020 | 缺高度时的遥感估算高度 |
-| Copernicus GLO-30 | AWS `copernicus-dem-30m`，N22E113/N22E114 GeoTIFF | AWS 2021 发布，点注册、1 角秒，EGM2008；不是最新实测地面 | 当前默认地形，保留 DSM 局限 |
-| Terrain Tiles | `elevation-tiles-prod/skadi/N22/N22E113.hgt.gz`、`N22E114.hgt.gz` | Mapzen / Tilezen，底图来自 USGS SRTM | 莲花山、塘朗山等山体起伏 |
-| 地标高度 | `data/source/landmarks.json`，人工核对 | 每条附出处 | 地标总高 |
-
-### APEC 时间点
-
-用户要求“APEC 前后最新的数据”。已核实（2026-11-09）：
-
-- 第三十三次领导人非正式会议：**2026 年 11 月 18 日至 19 日**，深圳；工商领导人峰会 11 月 17 日至 18 日
-- 主会场：**深圳国际交流中心**，福田区香蜜湖（OSM way `1080860977`，`amenity=conference_centre`，中心约 `22.5473N, 114.0241E`），在一期范围内
-- 出处：外交部与新华社公告（日期、城市），深圳市政府外事办 2026-09-23《深圳APEC氛围持续升温》（道旗、公交涂装），多家媒体报道会场；官方领导人公告只写城市，没写具体建筑
-
-快照策略：
-
-1. **会前快照（已锁定）**：Geofabrik `guangdong-261108.osm.pbf`（2026-11-08）、Overture `2026-10-21.0`，哈希见 `data/source/sources.json`。M1 到 M9 都用这一套
-2. **会后快照（见 [TASKS.md](TASKS.md) 的 M1 数据）**：11 月 20 日之后重新下载 Geofabrik，跑同一条管线，把建筑、道路、地名数量的差异写进 `data/source/build-report.json`。有实质变化（新开道路、竣工楼、香蜜湖片区改造）才切换
-3. **会期氛围**：深南大道、滨河大道、滨海大道的双语道旗，公交 APEC 主题涂装，平安金融中心、京基100、华润大厦的 APEC 主题灯光秀，都做成可开关的“APEC 周”主题（见 [06-STREETSCAPE.md](06-STREETSCAPE.md)），默认开启
-
-## 处理步骤
-
-```mermaid
-flowchart TD
-  manifest["sources.json 锁定路径和 SHA-256"] --> build["tools/sz/build.py 校验输入"]
-  build --> osm["同一份 OSM PBF：道路、地铁、海岸、街景"]
-  build --> buildings["Overture JSONL 与 GloBFP ZIP"]
-  osm --> buildings
-  build --> dem["Copernicus DSM，路面走廊另用已核 FABDEM"]
-  osm --> payload["共享城市载荷 JSON v2"]
-  buildings --> payload
-  dem --> payload
-  payload --> json["sz-city.json.gz 正式入口"]
-  payload --> fast["sz-city.szc.gz 本机对照"]
-  payload --> reports["构建与校验报告"]
+```text
+sources.json 校验文件 → OSM/建筑/地形处理 → 共享载荷 JSON v2
+  → sz-city.json.gz（默认） + sz-city.szc.gz（本机对照） + 构建/校验报告
+  → sz-geodata.js 单次读取 → GEO / REAL_BUILDINGS → 场景消费者
 ```
 
-`.venv/bin/python tools/sz/build.py` 读取清单中已校验的 OSM、Overture 和 GloBFP 文件。OSM 解析缓存以 PBF SHA-256、范围和版本为键，GloBFP 提取缓存以 ZIP SHA-256 和提取版本为键。`--no-cache` 重新生成 OSM、地铁和 GloBFP 派生缓存。
+## 2. 生成与读取
 
-### 1. 坐标
-
-原点 `114.0545E, 22.5463N`（市民中心主楼）。用和纽约 `geo-base.mjs`、武汉 `build-wuhan.py` 相同的椭球局部切平面公式：
-
-```
-KX = (π/180) · N(φ0) · cos φ0
-KY = (π/180) · M(φ0)
-x =  (lon − lon0) · KX
-z = −(lat − lat0) · KY
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -r tools/sz/requirements.txt
+.venv/bin/python tools/sz/build.py
 ```
 
-### 2. 道路
+原始文件按清单准备到 `data/raw/`；尚无统一 `fetch.py`。PBF 用 osmium，Shapefile 用 pyshp，不依赖 GDAL。OSM/GloBFP 缓存按内容哈希和处理版本失效；`--no-cache` 重解析。`--rebuild-ground` 复用经校验的包重建地面；`--repack-existing` 校验现有 JSON 载荷/来源后仅重编码 SZC1，不能借此更新地理事实。
 
-- 路网道路：`motorway`、`trunk`、`primary`、`secondary`、`tertiary`、`unclassified`、`residential`、`living_street` 和各级 `_link`
-- 不进可驾驶路网：`service`、`footway`、`cycleway`、`path`、`steps`，以及明确禁止车辆通行的道路。桥梁、隧道和非零层路段保留拓扑与来源标签；标高未核实前为 `unresolved`，不能当成已建好的可通行结构。
-- 按 OSM 共享节点连接，不把平面交叉或相近的跨层道路拼接。`oneway=-1`、显式双向和环岛保留方向；按机动车访问标签优先级过滤。已导入适用的 OSM 转向限制，条件通行仍待导入。
-- 实现入口：`tools/sz/roadgraph.py`，输出 nodes/links/names 以及 nodeIds/metadata；构建报告列强连通统计和宽度来源。
-- 宽度：OSM `width`；没有就按 `lanes × 3.25 m`；再没有就按等级估算（trunk 22、primary 16、secondary 12、tertiary 9、residential 7、link 6 米）
-- 输出纽约 `roadGraph` 格式：`nodes [x, z, ...]`、`links [a, b, 名称序号, 宽度, 车道数, 方向, 内部形状点]`、`names`
-- 路口：度数大于等于 3、且至少两条主次干道相交的节点设信号灯
+常规构建同时产出两个包及报告，单执行者串行处理；冲突回到最新代码重建。对比对象属性、几何、数量、源摘要与范围外差异，保留前后哈希。报告并不自动包含全部对象差异。浏览器默认 JSON；仅回环地址 `?qa=1&data=szc` 使用 SZC1。读包检查 gzip 魔数，兼容服务器已解压响应。
 
-### 3. 陆地、海、街区
+## 3. 道路、地形与地铁
 
-- 地形覆盖用两个经纬度框合并，再扣除锁定 OSM 快照的 [香港行政边界](https://www.openstreetmap.org/relation/20044132)。边线内缩 1.2 米，避免简化与分米量化产生跨界碎面。相同覆盖用于陆地、建筑、路网、地铁及接触网格。
-- 海：沿深圳湾及西部沿江高速视域，按 OSM `natural=coastline` 的方向识别海侧面。香港陆地和岛屿留空，跨界海域继续显示。
-- 内陆水体：`natural=water`、`waterway=riverbank`
-- 公园和绿地：`leisure=park`、`landuse=grass`、`natural=wood` 等
-- 路面：可驾驶道路中心线按宽度缓冲后合并
-- 正式地面用陆地和水体轮廓裁切生成三角面，内河水面尚未生成。街区规划见 [27 号](27-REGION-DATA-PLAN.md)。
+- `geo.py` 做固定原点投影与覆盖裁切；按香港 OSM 行政边界排除陆地，覆盖边缘保留采样邻点。准确范围读源码与包的 `coverage`。
+- `roadgraph.py` 以共享 OSM 节点建有向图，保留单行、转向限制、桥隧层级、道路宽度及来源；平面相交不自动连通。条件通行仍需补核。
+- `road_surface.py` 用 FABDEM/DSM 派生道路走廊，`terrain_surface.py` 生成裁切三角面；显示与接触采样同面。`urban-datum.json` 指定8米估计城区地坪、自然保留区、工程面和过渡带；不能宣称全域道路标高真实。
+- 陆地裁出内河不代表已有水面；海面单独由 `sea_surface.py` 生成。桥面由运行时结构模块生成，layer 只提供上下关系。
+- `metro.py` 按 `network=深圳地铁`、relation 成员和出入口归属提取，歧义隔离。关系数、物理线路数、站点数分别统计；颜色和站口另核运营方资料。
 
-### 4. 建筑合并与楼高
+## 4. 建筑来源与过滤
 
-1. 读 OSM 建筑（保留 `height`、`building:levels`、`building`、`name`）。Overture/GloBFP 补充楼只保留可信足迹，OSM 标注楼永远保留。过滤分两轮，丢弃项全部写进构建报告：
-   - 误识别过滤（`filter_misidentified_footprints`，报告段 `globfpMisidentified` / `overtureMisidentified`）：面积 <300 m²、和 OSM 楼没有相交，并且落在 OSM 广场和绿地里的比例 ≥60%，或落在车行道（半宽加 1 m）里的比例 ≥80% 的，丢弃。80% 这一档会放过中心线已经穿过、重叠约 58.5%（加缓冲约 74.6%）的楼；福中三路那栋约 94 m²、估高 7.3 m 的白楼就是这样留下的。中心线穿越和车行道占比改由下一条占道暂缓门槛处理，见 [23 号](23-BUILDING-AND-STREET-PLAN.md)。
-   - 占道暂缓门槛（`filter_road_conflicts`，报告段 `globfpRoadConflicts` / `overtureRoadConflicts`，汇总段 `deferredFootprints`）：只作用于遥感补充轮廓（GloBFP 独有、Overture 独有），OSM 已标注的楼永不自动删，也不缩窄道路来躲楼。道路中心线穿入轮廓超过 0.5 m，或轮廓有 ≥50% 的面积落在按估算宽度生成的车行道（半宽，不再额外加 1 m 缓冲）里，就暂缓出正式场景，逐条写进 `build-report.json`：每条带触发道路的 `roadId` 和 `roadWidthM`，并标明 `roadWidthSource: "estimated"`、`imageryChecked: false`。路宽是估算值，没有用影像否定这个轮廓；存在性确认不了的留待人工核对，不写成“现实中不存在”。
-   - 足迹可信度过滤（`buildingFootprintFilter`）：水面/湿地重叠 >20%、绿地 >60% 且 60m 内无 OSM 楼、面积 <60m² 且 50m 内无 OSM 楼的，丢弃。
-   - `--footprint-source osm` 可只保留地图标注楼。
-2. 读 Overture，和 OSM 轮廓重叠超过 25% 的丢掉
-3. 楼高按顺序取第一个可用值：
-   1. `landmarks.json` 里核实过的值（只对地标）
-   2. OSM `height`
-   3. OSM `building:levels × 3.2 m`
-   4. Overture `height`
-   5. Overture `num_floors × 3.2 m`
-   6. 3D-GloBFP：只看严格同楼匹配——交并比 ≥0.6、面积比 ≥0.65、中心距 ≤12 m，多个候选取交并比最高的一个。没有第二套后备规则，原“盖住一半就按重叠面积加权继承高度”的 `globfp-overlap` 已删除。尺寸不相称的候选保持高度未知，落到第 7 步 `estimate` 或进待核清单。福中三路约 4.6×7.5 m 的底面不再得到 118.5 m，见 [23 号](23-BUILDING-AND-STREET-PLAN.md)
-   7. 按用途和占地估算，标 `estimate`
-   8. `data/source/building-height-overrides.json` 里逐个公开资料核实的值（最后应用，标 `published`；必须带来源链接，构建报告记录原值和未使用项）
-4. 每栋楼记录 `heightSource`、`category`、`facade`
-5. 每条记录再标角色、上游族和分项可信度：`role`（`main` / `podium` / `canopy` / `bridge` / `unknown`，遥感补充轮廓一律 `unknown`；裙房要证明是被替换外框内的低矮部件）、`upstream`（`osm` / `overture-eastasia` / `globfp-eastasia` / `eastasia-shared`，Overture 轮廓借用 GloBFP 高度时记 `eastasia-shared`，不能当两次独立核实）、`footprintConfidence` / `heightConfidence` / `eraConfidence`（`unknown` / `low` / `medium` / `high`；估计值不能写成实测值）。统计写进 `build-report.json` 的 `buildingRecords`；不确定对象按 id 合并去重后写进 `pendingReview`（`rule`、`count`、`byReason`、`objects`、`truncated`），按理由全量计数、样本按固定配额截取。占道暂缓对象只进清单、不进正式场景。
-6. 面积小于 16 平方米或大半在水里的轮廓丢掉
+`buildings.py` 保留真实外环、内院和部件。普通顺序为地标覆盖 → OSM高度 → OSM层数×3.2 → Overture高度/层数 → 严格同楼的GloBFP → 用途/体量估计；最后应用带出处的 `building-height-overrides.json`（`published`），报告原值和未命中项。设计模型高度单独标 `design`，不混入建成实测。
 
-### 5. 地形
+- 每楼保留 `heightSource`、部件角色、上游族及轮廓/高度/年代各自可信度；未知不强配。名称/层数仅供显示参考，不反推替代已知楼高。
+- GloBFP 同楼匹配要求 IoU≥0.6、面积比≥0.65、中心距≤12米；没有宽松重叠回填。
+- 补充轮廓按广场/绿地/水体/道路重叠及面积筛查。OSM 已标楼不因占路自动删除；道路宽度估计只能产生冲突候选。
+- 占道暂缓只用于补充轮廓：中心线穿入超过0.5米或估算车行道占比≥50%；记录道路ID、宽度来源、影像是否核对，不能等同现实中无楼。全部阈值与具体顺序以生成器为准。
+- 地标按已核源 ID / 父子关系替换；补充楼可能与高架存在合法竖向重叠，需另核净空。`--footprint-source osm` 仅作对照。
 
-校验 Copernicus GLO-30 快照后，双线性重采样为 25 米网格并按分米量化。为边界接触三角面保留邻点，香港区域内部的网格位置用 0 占位并排除接触面。普通城区使用 8 米工程地坪，大南山、小南山、塘朗山、莲花山等来源已核实的山体与公园保留起伏。新增片区沿用现有 OSM、Overture 和 GloBFP 快照，其中 Overture 提取包络未扩展。
+## 5. 报告与审计
 
-输出记录源文件哈希、原生角秒间距与处理参数。25 米是输出间距，不代表新增测量精度；DEM/DSM 可能包含树冠或建筑回波，不宣称为最新实测地面。陆地和水体在渲染时按真实面裁切，不通过改写 DEM 高程解决；道路、建筑、控制器接入时共用三角面高度。桥面标高另查来源，OSM layer 只表示上下关系，不当作测量高度。
+[build-report.json](../data/source/build-report.json) 记录数量、来源、隔离项、地形处理与样区审计；[data-validation-report.json](../data/source/data-validation-report.json) 区分编码有效与真实性完成。检索用建筑 ID，不复制易过期的全城数量到各模块说明。
 
-### 6. 打包
-
-- `js/sz-city.json.gz` 是正式共享 JSON v2，包含地形、海面、道路、建筑、地标及地铁等。
-- `js/sz-city.szc.gz` 是同载荷的无损编码。仅本机 `?qa=1&data=szc` 选用。
-- `--repack-existing` 先用校验报告核对正式 JSON 的解压 SHA-256 和来源快照，再生成 SZC1。载荷或输入 SHA 不一致时执行完整构建。
-- 浏览器识别 gzip 魔数，兼容服务器已解压响应。
-
-## 许可
-
-- OSM 及由其派生的合并数据：ODbL 1.0
-- Overture Buildings：ODbL（保留每条的上游数据集标签）
-- 3D-GloBFP：CC BY 4.0，引用 Che, Y. et al., 2024, ESSD 16, 5357–5374
-- Terrain Tiles：Mapzen / Tilezen，地形数据来自 USGS
-- 代码：MIT，沿用纽约原版
-
-### 高程产品切换（2026-11-09）
-
-默认改用 Copernicus GLO-30；`--terrain-source hgt` 可重现旧结果。对照工具为 `.venv/bin/python tools/sz/audit_terrain.py`，输出 `data/source/terrain-audit.json`。原 HGT 的显著负高程尾部未在第二套产品重现；不采用统一偏移修补、不压平负值。Copernicus 仍是 DSM，可包含建筑、树冠和旧 DEM 填补，接入道路时不能宣称为实测裸地。来源与许可见 [高程数据署名](../data/source/ATTRIBUTION.md)。
+现有离线工具可检查道路高程、建筑来源、商圈铺装、购物公园与莲花山入口；方法和取舍见 [RESEARCH](RESEARCH.md)。只在相关来源或生成逻辑变化时重建，文档整理不重建。

@@ -1,101 +1,38 @@
-# 05 地标
+# 地标与场所模型参考
 
-## 做法
+源身份、坐标与高度以 [landmarks.json](../data/source/landmarks.json)、[楼高覆盖](../data/source/building-height-overrides.json) 及当前包为准。以下压缩既有模型卡与资料入口；外部资料未在本轮重新联网核实。当前验收统一在 HANDOFF，后续统一在 TASKS T7/T14。
 
-- 每个地标一个文件 `js/sz-landmarks/<id>.js`，从核实过的源对象生成实体分段
-- `js/sz-landmarks/index.js` 从 `REAL_BUILDINGS` 取源轮廓与标高，用 `GEO.terrain` 放置模型，只让明确替换的源对象退出普通建筑批次
-- 模型用 three.js 基础几何体加 TSL 材质拼出来，不导入外部模型，和纽约原版一致
-- 显示与碰撞从同一份实体分段生成，启用接触的屋面直接使用渲染三角形
-- 高度用 `data/source/landmarks.json` 里核实过的值
+## 装配方法
 
-## 一期（南山、福田）
+`sz-landmarks/layout.js`注册13个建筑专模。每个`build()`输出实体部件，`parts.js/render.js`生成显示与碰撞，成功后才让对应源ID退出普通楼；保留邻楼、内院、架空净空。几何估计与源事实分开，模型可见不表示门内或屋顶开放。
 
-每个地标的 OSM 对象 ID、子部件和楼高来源见 [`data/source/landmarks.json`](../data/source/landmarks.json)。
+## 专模
 
-| 编号 | 地标 | 高度 | 造型要点 |
-| --- | --- | --- | --- |
-| `tencent-binhai` | 腾讯滨海大厦 | 南塔 245.8 m，北塔 194.8 m（OSM） | 双塔、银色竖向遮阳百叶、铜橙色文化／健康／知识连层。见[验收卡](landmarks/tencent-binhai.md) |
-| `chunsun` | 中国华润大厦（春笋） | 392.5 m（OSM） | 圆形平面，上下收分；外表 56 根斜交白色竖肋，顶部收成尖 |
-| `talent-park` | 人才公园 | — | 环湖步道、湖面、名人星光大道，南侧草坡 |
-| `dji-sky-city` | 大疆天空之城 | 东塔 211.6 m、西塔 193.1 m、连桥顶 117 m（OSM 部件） | 每塔六个悬浮玻璃体块、V 形桁架、起拱空中连桥。见[验收卡](landmarks/dji-sky-city.md) |
-| `window-of-world` | 世界之窗 | 埃菲尔铁塔仿建 108 m（OSM 写 170，冲突待核实） | 镂空铁塔、金字塔玻璃入口、园区湖面 |
-| `shenzhen-bay-park` | 深圳湾公园 | — | 滨海步道、红树林、观鸟栈道、春茧体育场在北侧 |
-| `iec-xiangmihu` | 深圳国际交流中心（APEC 2026 主会场） | 低层建筑群，高度待核实 | 湖畔低矮大跨建筑群，主会议厅、宴会厅、两家酒店（洲际、五洲），香蜜湖水面和湖边公园；门前“APEC CHINA 2026”标识和“香蜜湖花海”。工商领导人峰会据报道也在这里。OSM way `1080860977`，湖面 way `25482483` |
-| `press-tower` | 深圳特区报业大厦 | 采用来源建筑高度 | 独立镂空顶冠和尖塔。对象身份见 [地标清单](../data/source/landmarks.json)，模型见 [press-tower.js](../js/sz-landmarks/press-tower.js) |
-| `chegongmiao` | 车公庙片区 | — | 地铁枢纽地面出入口、深南大道两侧的商务楼，按片区处理 |
-| `civic-center` | 市民中心 | 约 84 m | 中部塔楼，两翼覆盖一整片波浪形大屋顶（“大鹏展翅”），前有中轴广场 |
-| `ping-an` | 平安国际金融中心 | 599.1 m（OSM，已核实） | 方形收分平面，四角八根不锈钢巨柱，顶部尖塔 |
-| `convention-center` | 深圳会展中心（福田） | 35 m（OSM） | 长方形大体量，屋顶为波浪钢网架加玻璃；APEC 会期 2 号馆是新闻中心 |
-| `huaqiangbei` | 华强北（电子科技大厦、赛格广场） | 赛格屋顶 291.6 m（OSM），天线顶约 356 m 待核实 | 电子科技大厦群楼和步行街；赛格八角平面塔楼，顶部两根天线；巨幅广告屏。位于一期框内，从二期提前 |
-| `upperhills` | 深业上城 | 1 号塔 388.1 m，2 号塔 299.3 m（OSM） | 主塔加 LOFT 小镇（低层错落小楼）和空中连桥；APEC 国礼展在南区 T2 栋 |
-| `super-hq` | 深圳湾超级总部基地（**按建好形态**） | C 塔东塔 400 m、西塔 336 m（设计值）；招银环球金融中心 387 m（OSM） | C 塔是扎哈·哈迪德设计的双塔，像一对舞者，119 米高处有连廊，下挂倒三角结构，底部“裙摆”；“十字双轴”公共空间；详见 11-MVP 第 3.7 节 |
-| `shenzhen-bay-bridge` | 深圳湾公路大桥（远景） | 全长约 5.5 km | S 形桥面、斜拉主跨，从深圳湾公园远眺 |
-| `yanjiang-expressway` | 广深沿江高速海上高架（远景） | — | 西侧海岸线上的长高架；更远处深中通道主桥做剪影 |
-| `futian-station` | 福田站（广深港高铁，地下） | — | 地面出入口、采光天窗、站名 |
-| `xili-station` | 深圳西丽站（在建，2028 年 12 月竣工） | — | 工地：围挡、塔吊、基坑 |
+| 对象 | 已有内容/方法 | 保留限制与资料 |
+| --- | --- | --- |
+| 腾讯滨海大厦 `tencent-binhai.js` | 源双塔与三组功能连层，银色遮阳与橙铜连廊；源高245.8/194.8米。 | 连桥/首层与周边通行仍需完整核对。 [资料1](https://global.ctbuh.org/resources/papers/3644-Ward_TencentSeafrontTowers.pdf) |
+| 华润春笋 `chunsun.js` | 建成口径392.5米，56竖肋与28组斜交收分，内退玻璃首层；按核实分块替换。 | 首层基底、下沉广场及滨水连接仍需来源。 [资料1](https://www.skyscrapercenter.com/building/china-resources-tower/14589) · [资料2](https://www.arup.com/globalassets/downloads/insights/a/arups-innovation-legacy/arup-innovation-legacy-chinese.pdf) · [资料3](https://www.charlesportelli.com/china-resources-hq) |
+| 大疆天空之城 `dji-sky-city.js` | 双塔、悬挑玻璃体、V形桁架与起拱连桥；源部件高度与设计/报道高度分开。 | 塔高/连桥各口径、地面残留足迹及公共可达边界继续核对。 [资料1](https://www.credaward.com/project/284016/) · [资料2](https://www.arup.com/en-us/projects/dji-headquarters/) · [资料3](https://commons.wikimedia.org/wiki/File:南山_大疆天空之城_01.jpg) |
+| 平安金融中心 `ping-an.js` | 源高599.1米，收分、角柱、尖顶与夜景分区。 | 逐部件比例和周边入口/街区闭环需实景与实走。 [资料1](https://www.skyscrapercenter.com/building/ping-an-finance-center/54) · [资料2](https://www.kpf.com/project/ping-an-finance-centre/) · [资料3](https://global.ctbuh.org/resources/papers/2969-paper41-v2.pdf) |
+| 福田会展中心 `convention-center.js` | 源展馆/连接体与波浪屋面，新闻中心角色与建筑几何分开。 | 展馆入口、屋盖细部和会期用途需分别核实。 [资料1](https://www.szcec.com/szcec/cn-brief/about/index.html) · [资料2](https://www.gmp.de/cn/projects/481/shenzhen-convention-exhibition-center) · [资料3](https://www.sbp.de/en/project/shenzhen-convention-exhibition-center/) |
+| 深业上城 `upperhills.js` | 源双塔388.1/299.3米、裙房/LOFT小镇、南梯与东西连桥；图照拟合小镇细部。 | 南梯已有局部实走；两桥完整接驳/净空、平台与DSM关系待验。 [资料1](https://www.som.com/projects/shen-ye-upperhills-mixed-use-development-class-a-office-luxury-hotel-complex/) · [资料2](https://www.capol.cn/projectdetail.aspx?SCode=101002001001&id=100000069418415) · [资料3](https://www.skyscrapercenter.com/building/shum-yip-upperhills-tower-1/16001) |
+| 春茧体育中心 `chunjian.js` | 两馆实体屋盖、白色网壳、大树广场孔、露天场心与海之门；部分封闭馆内DSM已裁除。 | 工程+6米平台缺绝对基准转换；场馆外围/入口与露天部分不能按同一屋顶回波裁空。 [资料1](https://www.axscom.jp/legacy/en/project/no03341/) · [资料2](https://pnr.sz.gov.cn/attachment/1/1285/1285348/10537364.pdf) · [资料3](https://www.szns.gov.cn/mlns/whns/tycg/content/post_12589347.html) |
+| 深圳湾文化广场 `shenzhen-bay-culture-square.js` | 用户所称人才公园新艺术馆；OSM外廓结合MAD图纸拟合九个石体，约52/32米体量为图上估计。 | 施工图附件未取得，屋顶坡线、绝对标高与公共开放通路待核。 [资料1](https://www.i-mad.com/articles/shenzhen-bay-culture-square-completion) · [资料2](https://cdn.sanity.io/images/2d8zs6ec/production/15d0dbda8602e68f929b40816a8825dc19ff6bd3-2697x707.jpg) · [资料3](https://www.sz.gov.cn/attachment/1/1626/1626489/12402245.pdf) |
+| 中国有色大厦 `nonferrous-tower.js` | 源父/三部件绑定，26/6/6层推高83.2/19.2/19.2米；双翼弧阳台、西南7柱门廊，照片尺寸为估计。 | 南侧柱间已局部实走；北侧真实入口、门厅照片方位与Q1闭环仍缺。 [资料1](https://www.zg-ys.cn/images/0loupantu/2.jpg) · [资料2](https://www.zg-ys.cn/images/0loupantu/3.jpg) · [资料3](https://www.zg-ys.cn/images/0loupantu/4.jpg) |
+| 深圳湾超级总部 `super-hq.js` | 按建好形态；C塔设计400/336米、119.15米连廊与十字公共轴，招银单体采用源记录裁决。 | 平面旋转、双幅连廊和公共通行待核；不同招银高度口径见源覆盖表，不能互相冒充。 [资料1](http://gdstc.gd.gov.cn/kjzx_n/gdkj_n/content/post_4801250.html) · [资料2](https://5bur.cscec.com/5bur/oa/dtxw/202510/3911196.html) · [资料3](https://finance.sina.cn/2025-07-19/detail-inffzcmt0086775.d.html?vt=4) |
+| 国际交流中心 `iec-xiangmihu.js` | 院落/湖面/公园按OSM来源，主厅/酒店/门廊已注册并接APEC锚点。 | 建筑体量与高程仍为estimate，缺设计/竣工资料；会场报道不证明建筑尺寸。 [资料1](https://www.shenzhen-guide.com/guides/apec-2026-shenzhen-visitor-guide) · [资料2](https://hao.cnyes.com/post/277089) · [资料3](https://news.mingpao.com/pns/%E4%B8%AD%E5%9C%8B/article/20261109/s00013/1794155294115/) |
+| 市民中心 `civic-center.js` | 波浪屋盖、双色塔、孔洞、两翼树状柱；参数卡保留供测试使用 | [参数与来源](landmarks/civic-center.md)，曲面/柱位估计不写成实测 |
+| 特区报业大厦 `press-tower.js` | 源楼体加镂空顶冠和尖塔 | 身份/高度见源清单，外形与邻楼关系按同机位核对 |
 
-## 二期（蛇口、罗湖）
+## 独立结构与场所
 
-| 编号 | 地标 | 高度 | 造型要点 |
-| --- | --- | --- | --- |
-| `sea-world` | 海上世界 | 明华轮约 168 m 长 | 退役邮轮（明华轮）停在广场水池中，周边商业街 |
-| `kk100` | 京基 100（京基百纳指此） | 441.8 m（OSM，已核实） | 弧形收顶的长方形塔楼，顶部拱形冠 |
-| `shenzhen-station` | 深圳站（罗湖） | — | 站房、站前广场，和罗湖口岸相邻 |
-
-## 对位规则
-
-1. 优先用 OSM 对象 ID（写在 `data/source/landmarks.json`）
-2. 名称和距离只用于生成待核候选。核实对象身份、轮廓及坐标后才写入地标清单
-3. 与资料坐标显著偏离时登记来源冲突，保留通用建筑直到完成核实
-
-## 验收卡片
-
-每个地标完成后在 `docs/landmarks/<id>.md` 写一张卡片：
-
-- 参考照片或者参考资料来源链接
-- 真实高度和模型高度
-- 两个固定机位截图：白天、夜晚
-- 已知差异
-
-## 地标周边整体还原（2026-11-09 用户补充）
-
-地标的还原范围包括周边街区及主要观察视线。以真实街坊、道路、水岸和公共空间边界确定范围，不能只完成主楼，把近处邻楼、广场和道路留成通用方块或空地。本节为待实施要求，不代表已经在场景中完成。
-
-### 纽约与武汉的借鉴边界
-
-- 纽约：借鉴车身连续曲面、材质分区、行人脚步接地、建筑窗洞与室内纵深、街面入口、环境反射及日夜照明。参考 `ref/slop-newyork/js/cars.js`、`pedestrians.js`、`tsl-materials.js`；模型尺度、立面风格和街区布局必须换成深圳对应对象，不能用纽约外观代替真实深圳。
-- 武汉：借鉴真实建筑轮廓、塔楼和裙房分段、来源高度与显示估算分开记录、数据到模型的对应关系。具体代码复核见 [RESEARCH 第 8 节](RESEARCH.md#8-武汉地形与建筑的可移植经验2026-11-09-代码复核)。不照搬山体掩膜外压平、固定基准扣减或估计桥高作为实测标高。
-- 顺序：先核实空间位置、形态、尺度和高程，再完善材质、细部、车辆行人与光照。程序化细节不能掩盖空间错误；实例化和远近细节分级遵守 [性能预算](10-PERF-QA.md)。
-
-### 每个地标必须同时核对的周边要素
-
-| 对象 | 还原要求 |
+| 对象 | 接入与边界 |
 | --- | --- |
-| 相邻建筑与天际线 | 对照真实轮廓、相对高度、塔裙关系、屋顶轮廓与建筑间距；重要邻楼单独处理，缺失高度标明估计来源，不随机增高填满视野 |
-| 道路与立交 | 还原分向车行道、实际车道数、中央分隔带、辅路、转向连接及桥下空间；深南大道分路段核对，不能整条按统一双车道生成。按 [道路专项验收](03-ROADS-GROUND.md) 执行 |
-| 建筑与地面衔接 | 核对裙房入口、退界、台阶、坡道、路缘和人行道；广场与道路有明确边界。不得靠移动建筑、缩窄道路或任意压平地形掩盖相交问题 |
-| 公共空间 | 按真实范围恢复广场、绿地、树阵、湖岸、滨海步道及可进入路径；没有资料的设施列为缺口，不随意补造 |
-| 高差与架空结构 | 地形、道路纵断面、桥面和建筑基底分别核实。DSM 采样不能直接视为道路实测高程；连桥、架空层、桥墩按实体分段，显示和碰撞保留同样的通行空间 |
-| 交通与生活细节 | 地铁出入口、公交站、过街设施以核实位置为准；车辆沿真实车道运动，行人沿人行空间活动，避免穿墙、穿绿化和脚部悬空 |
-| 日夜观感 | 玻璃、石材、金属和路面有不同反射与粗糙度；灯光对应建筑和街道实际结构。景观灯光与表演效果不得遮盖轮廓、标高及接地错误 |
+| 深圳湾大桥、沿江高速 | `sz-landmarks/shenzhen-bay-bridge.js`的`buildShenzhenBayBridge/buildYanjiangExpressway`由main直接调用；OSM线形，结构标高/墩距含估计，当前为远景，不承诺可驾驶 |
+| 福田站、西丽站 | `sz-station-sites.js`独立装配；站亭/天窗与施工围挡/塔吊/基坑示意。源`way/800275814`、`way/402048868`；公共接驳和真实坑壁另验 |
+| APEC城市元素、福田灯光秀 | `sz-apec*.js`与`sz-light-show.js`独立装配；站点/活动来源与模拟灯效分开，不是逐块实景复刻 |
+| 其他公园、商圈、古城、大学城 | 有地图地点或通用建筑不代表已有独立场所模型；用户指定清单保留在TASKS T14 |
 
-优先建立周边对照样区：市民中心与中轴公共空间；平安与福田会展周边街区；春笋、人才公园及后海水岸；腾讯滨海大厦和大疆天空之城各自街坊；国际交流中心与香蜜湖；车公庙与深南大道沿线。此列表是核查范围，不代替逐处资料核实。
+## 样板验收方法
 
-### 来源与验收
-
-- 对位以 `data/source/landmarks.json` 已核实对象为准；名称近似或距离接近只能产生候选，未经核实不能自动替换源建筑。记录资料日期、坐标基准、来源链接及冲突，避免混用不同坐标系导致街道和建筑错位。
-- 每张验收卡增加周边范围、邻楼与道路清单、实景对照机位、缺失数据、估计值和设计值说明。现状、在建和按设计建成展示分别标明。
-- 至少核对三个尺度：俯瞰街区关系、街道行进中的地标视线、步行抵达入口。保存对应位置、朝向及视场角的截图，并附有日期的实景资料；另检查昼夜表现。
-- 实际走通入口、人行连接及相关道路和匝道，检查接地、遮挡、碰撞、桥下通行；完成状态分别记录“数据具备、生成、挂入场景、画面可见、操作走通”。只精修主楼或只截图不算周边验收通过。
-
-## 新增场所建模清单（2026-11-09）
-
-用户追加万象天地、海岸城、南头古城、海上世界、欢乐海岸、市民中心、会展中心、人才公园（含用户已确认的深圳湾文化广场）、莲花山公园、深圳湾公园、深圳大学城的场所模型与人流要求。逐处对象、周边空间和验收标准见 [商圈、景点与公共空间人流](06-STREETSCAPE.md)。已有条目在原模型上补齐，新增或超出覆盖的地点先核实数据和范围；不因本清单自动视为已生成、已入场景或已完成。
-
-### 深圳湾文化广场身份确认（2026-11-09）
-
-用户明确确认此前所称“人才公园新艺术馆”为深圳湾文化广场。按 MAD 的石头状展馆、屋顶公共空间、东侧下沉道路与人才公园连接关系继续核实建模，不以其他美术馆替代。来源及缺口见 [`cultural-venue-candidates.json`](../data/source/cultural-venue-candidates.json)。当前模型已按来源外廓和体量接入场景，屋顶坡线与公共通行仍待核实。详见[文化广场模型卡](landmarks/shenzhen-bay-culture-square.md)。
-
-## 地标与普通楼的共同真实感（2026-11-09）
-
-地标以专属模型还原独有曲面、收分、支撑、屋顶和立面节奏；普通楼以真实体量和类型模板生成，重要邻楼允许单栋覆盖。两者统一米制尺度、材质/曝光、地面关系和碰撞标准，不能只有地标精细而周边统一成盒子；逐窗精确度依资料而定，不把程序化窗格称为实测。详见[12号规划第9.6节](12-URBAN-FABRIC-PLAN.md#96-地标与普通楼的区别及一致性)。
+每次选一个已核对象，以地块/道路/水岸确定周边边界，保留照片日期/朝向、对应尺寸和未知项。至少对照俯瞰关系、街道视线和入口三个尺度及日夜。用同一实体检查门洞/柱廊/桥下与平台，实走有来源的公共路线。截图/轨迹存本地QA；不再为每一轮追加一份模型交接。

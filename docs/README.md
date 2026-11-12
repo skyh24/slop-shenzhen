@@ -1,108 +1,20 @@
-# Slop Shenzhen 文档索引
+# 文档索引
 
-Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二期加罗湖）的 1:1 城市模拟。代码底座是 [mrdoob 的 Slop New York](https://github.com/mrdoob/slop-newyork)，中国城市数据管线和地标做法参考 [Slop Wuhan](https://github.com/LightYearZh/slop-wuhan)。两个参考仓库的只读副本在 `ref/` 下。
+日常只从 HANDOFF 接手，在 TASKS 选一个任务；其他文件按需查。
 
-## 文档
-
-### 当前状态与执行
-
-| 文件 | 内容 |
+| 文件 | 唯一职责 |
 | --- | --- |
-| [HANDOFF.md](HANDOFF.md) | **从这里开始**：当前状态、已挂进场景的内容、下一步、已知风险 |
-| [REVIEW-FOLLOWUP-2026-11-10.md](REVIEW-FOLLOWUP-2026-11-10.md) | 2026-11-10 缺陷复现、当时的功能缺口和证据 |
-| [22-OPTIMIZATION-REVIEW.md](22-OPTIMIZATION-REVIEW.md) | 纽约和武汉对照的历史审查、实际优化交付和回滚证据 |
-| [TASKS.md](TASKS.md) | 按里程碑的任务清单和勾选状态 |
-| [ACCEPTANCE-STATUS.md](ACCEPTANCE-STATUS.md) | 九条硬性要求逐条的验收等级和证据 |
-| [29-SHENZHEN-REFINEMENT-PLAN.md](29-SHENZHEN-REFINEMENT-PLAN.md) | 深圳专项精细化、首批路线、依赖、所有权和验收 |
-| [30-REFINEMENT-WORKTREE-PROMPTS.md](30-REFINEMENT-WORKTREE-PROMPTS.md) | 八个专项和协调者的可复制提示词 |
-| [CONVENTIONS.md](CONVENTIONS.md) | 开发规范：语言、代码风格、坐标、数据、建模、验收、Git |
-| [GLOSSARY.md](../GLOSSARY.md) | 区域、街区、场所、走廊与通行表面的领域词汇 |
-| [HANDOFF-HISTORY-2026-11-10.md](HANDOFF-HISTORY-2026-11-10.md)、[HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md) | 交接历史，只作证据，不作当前指令 |
+| [HANDOFF](HANDOFF.md) | 当前基线、已完成范围、证据限制 |
+| [TASKS](TASKS.md) | 所有未完成任务、依赖、给 Sol 6.1 的执行提示词 |
+| [架构与组件](01-ARCHITECTURE.md) | 运行数据流、基础组件、主要方法和术语 |
+| [数据管线](02-DATA-PIPELINE.md) | 输入、生成方法、数据契约与重建 |
+| [地标参考](05-LANDMARKS.md) | 专模范围、辨识特征、保留的资料入口 |
+| [规范](CONVENTIONS.md) | 代码、坐标、来源与建模约束 |
+| [开发检查](25-FAST-CHECKS.md) | 开发、相关测试、审查、提交流程 |
+| [验收标准](10-PERF-QA.md) | 九条要求、操作路线与性能门槛 |
+| [调研摘要](RESEARCH.md) | 参考项目取舍、候选数据与样区审计方法 |
+| [踩坑归档](LESSONS.md) | 已解决、已回滚及历史判断的简短记录 |
 
-### 模块规格（00–11）
+市民中心参数卡与无人机证据摘要保留原路径，分别供现有测试和源清单引用；不另设任务表。来源文件在 `data/source/`，截图和测试日志在本地 `docs/qa/`。
 
-| 文件 | 内容 |
-| --- | --- |
-| [00-SCOPE.md](00-SCOPE.md) | 场景简报：分期范围、坐标约定、地标清单、暂缓与待确认事项 |
-| [01-ARCHITECTURE.md](01-ARCHITECTURE.md) | 纽约原版各模块对应的深圳模块、新增模块、运行时数据流 |
-| [02-DATA-PIPELINE.md](02-DATA-PIPELINE.md) | 数据源、锁定的快照、处理步骤、建筑过滤与楼高规则、许可 |
-| [03-ROADS-GROUND.md](03-ROADS-GROUND.md) | 路网、路面、派生路面规则、海岸、地形、高架和天桥 |
-| [04-BUILDINGS.md](04-BUILDINGS.md) | 普通建筑的挤出方式、立面类型和片区规则 |
-| [05-LANDMARKS.md](05-LANDMARKS.md) | 每个地标一张卡片；详细模型卡在 `landmarks/` |
-| [06-STREETSCAPE.md](06-STREETSCAPE.md) | 树种、纽约树木生成管线、地铁、天桥、夜景灯光、海湾、远景、环境人群 |
-| [07-VEHICLES.md](07-VEHICLES.md) | 车身生成、深圳出租车、国产电动车轮廓、绿牌、公交、电单车、声音 |
-| [08-AIR.md](08-AIR.md) | 四旋翼载人飞行器、无人机配送航线；证据在 `research/drone-routes.md` |
-| [09-UI-GAMEPLAY.md](09-UI-GAMEPLAY.md) | 中文界面、地图、传送、出租车接单 |
-| [10-PERF-QA.md](10-PERF-QA.md) | 性能预算、自动检查、浏览器验收路线 |
-| [11-MVP.md](11-MVP.md) | MVP 历史、**正式版九条硬性要求和验收标准** |
-
-### 模块细则和既有专题计划
-
-| 文件 | 内容 |
-| --- | --- |
-| [12-URBAN-FABRIC-PLAN.md](12-URBAN-FABRIC-PLAN.md) | 纽约经验移植：办公/住宅/别墅/高层小区、道路断面、公园与树、模拟行人、地面 P0 |
-| [13-DATA-DETAIL-PILOT.md](13-DATA-DETAIL-PILOT.md) | 新数据源小范围验证：本地测绘/总图、Overture 部件与路网、CMAB、树木公园 |
-| [14-CITY-EXPLORATION-PLAN.md](14-CITY-EXPLORATION-PLAN.md) | 后续探索体验：名称搜索与区域高亮、地铁透视、重点区域建模、导航与快捷上下车 |
-| [18-ROAD-BUILDING-CLEARANCE-PLAN.md](18-ROAD-BUILDING-CLEARANCE-PLAN.md) | 道路与建筑净空治理方案 |
-| [23-BUILDING-AND-STREET-PLAN.md](23-BUILDING-AND-STREET-PLAN.md) | 建筑与占道、城区地坪、深南绿带、路侧、标线、桥隧和出租车曲面计划 |
-| [27-REGION-DATA-PLAN.md](27-REGION-DATA-PLAN.md) | 道路围合区域、地标关联、可扩展风貌基础数据及分阶段接入计划 |
-
-### 审计与参考
-
-| 文件 | 内容 |
-| --- | --- |
-| [16-NY-REFERENCE.md](16-NY-REFERENCE.md) | 纽约原版模块地图：启动顺序、文件、关键函数和行号 |
-| [17-WUHAN-REFERENCE.md](17-WUHAN-REFERENCE.md) | 武汉参考模块地图：现行 `js/runtime/` 入口、旧上海运行时、数据管线和关键函数行号 |
-| [20-BUILDING-HEIGHT-AUDIT.md](20-BUILDING-HEIGHT-AUDIT.md) | 楼高与公开资料核对、4 栋修正、照片对照和已知缺口（原 16 号） |
-| [21-FOOTPRINT-AND-STREET-AUDIT.md](21-FOOTPRINT-AND-STREET-AUDIT.md) | 普通楼来源统计、遥感误检过滤、纯 OSM 模式、街景照片对照（原 17 号） |
-| [24-VALIDATED-FAST-DATA.md](24-VALIDATED-FAST-DATA.md) | 近期公开数据核验、SZC1 快读候选与合并复核 |
-| [25-FAST-CHECKS.md](25-FAST-CHECKS.md) | 日常按模块测试、一次审查与提交；大版本全量，含流程经验 |
-| [26-MODULE-INVENTORY.md](26-MODULE-INVENTORY.md) | 运行时模块职责、导出、调用方、重复实现与拆分候选 |
-| [28-BUILDING-SOURCE-SAMPLES.md](28-BUILDING-SOURCE-SAMPLES.md) | 福田高层、科技园、城中村、立交周边的建筑来源样本对比与引入新源的结论 |
-| [RESEARCH.md](RESEARCH.md) | 前期调研：参考仓库、武汉教训、数据源、APEC、地标核实、检索服务状况 |
-
-2026-11-12 移除旧派工表 `NEXT-AGENT-PLAN.md` 和早期性能计划 `19-WEBSITE-OPTIMIZATION-PLAN.md`。派工以 29、30 号为准，仍适用的加载、分块和发布要求进入 10 号，快包证据保留在 24 号。原稿可由 Git 历史追溯。
-
-文档里指向 `qa/` 的链接是本地证据，`docs/qa/` 不进 Git，克隆的仓库里打不开是预期的。
-
-## 里程碑
-
-```mermaid
-flowchart LR
-  M0[M0_docs_baseline] --> M1[M1_data]
-  M1 --> M2[M2_ground_roads]
-  M2 --> M3[M3_buildings]
-  M2 --> M4[M4_landmarks]
-  M2 --> M5[M5_traffic]
-  M2 --> M6[M6_air]
-  M2 --> M7[M7_streetscape]
-  M3 --> M8[M8_ui_gameplay]
-  M4 --> M8
-  M5 --> M8
-  M6 --> M8
-  M7 --> M8
-  M8 --> M9[M9_perf_qa]
-  M9 --> M10[M10_phase2]
-```
-
-正式入口和局部驾驶已实现，但 M2 的地面真实性与全域通行未完成。当前按 [29 号](29-SHENZHEN-REFINEMENT-PLAN.md) 的专项依赖推进。图示表示正式验收依赖，局部功能完成情况以 [验收状态](ACCEPTANCE-STATUS.md) 为准。
-
-## 运行
-
-```sh
-python3 tools/sz/serve.py --port 8080
-```
-
-打开 <http://127.0.0.1:8080/> 运行正式深圳入口；历史 MVP 预览页（`mvp.html`）已于 2026-11-10 删除。需要支持 WebGPU 的桌面浏览器（新版 Chrome 或 Edge）。
-
-## 重建数据
-
-```sh
-python3 -m venv .venv
-.venv/bin/pip install -r tools/sz/requirements.txt
-.venv/bin/python tools/sz/build.py          # 同时生成 JSON、SZC1 和构建报告
-```
-
-`tools/sz/fetch.py`（下载并校验原始快照）还没写，现在要按 `data/source/sources.json` 手动下载到 `data/raw/`。
-
-原始大文件放在 `data/raw/`，不进 Git；每份快照的地址、日期和 SHA-256 记在 `data/source/sources.json`。
+维护：新增事实更新所属参考文档；最新状态只写 HANDOFF，后续工作只写 TASKS。删除的旧计划、轮次日志与历史数字可从 Git 查阅，不再保留重复交接和派工表。
