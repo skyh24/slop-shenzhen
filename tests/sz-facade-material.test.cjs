@@ -10,6 +10,7 @@ const read = (file) => readFileSync(join(root, 'js', file), 'utf8');
 const geometrySource = read('sz-geometry.js');
 const materialsSource = read('sz-materials.js');
 const cityLightingSource = read('city-lighting-materials.js');
+const layout = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': {} } });
 
 // --- sz-geometry：用最小 THREE 桩读回顶点缓冲，不需要浏览器或真实 three ---
 const geometryThree = {
@@ -217,6 +218,8 @@ function createFacadeEvaluator() {
     meta: new Input([0, 0, 10, 30]),
     uv: new Input([0, 0]),
     normal: new Input([0, 0, 1]),
+    position: new Input([0, 0, 0]),
+    camera: new Input([0, 0, 10]),
     time: new Input([0]),
     pixel: new Input([0.0015])
   };
@@ -263,9 +266,9 @@ function createFacadeEvaluator() {
       return vector.map((component) => component / length);
     }),
     fwidth: () => state.pixel,
-    positionWorld: new Input([0, 0, 0]),
+    positionWorld: state.position,
     normalWorldGeometry: state.normal,
-    cameraPosition: new Input([0, 0, 10]),
+    cameraPosition: state.camera,
     time: state.time
   };
   class MeshStandardNodeMaterial { constructor(options = {}) { Object.assign(this, options); } }
@@ -292,6 +295,31 @@ function createFacadeEvaluator() {
   });
   return { materials, cityUniforms: cityLighting.cityUniforms, state, uniforms, bump };
 }
+
+test('the Houhai lobby affects only the named tower and its north wall', () => {
+  const { materials, state, bump } = createFacadeEvaluator();
+  const material = materials.createBuildingMaterial();
+  for (const [id, profile] of Object.entries(materials.FACADE_SAMPLE_PROFILES)) {
+    assert.equal(profile.materialSeed, Math.fround(layout.buildingSeed(id) * 10));
+  }
+  const sampleSeed = Math.fround(layout.buildingSeed('way/737426464') * 10);
+  const colorAt = (seed, normal, position, y) => {
+    state.meta.current = [0, seed, 43, 232.1];
+    state.uv.current = [13.5, y];
+    state.normal.current = normal;
+    state.position.current = position;
+    state.camera.current = [position[0], position[1], position[2] + 10];
+    bump();
+    return Array.from(material.colorNode.values);
+  };
+  const north = [0, 0, -1];
+  const south = [0, 0, 1];
+  const tower = [-12085, 12, 2571];
+  const outside = [-12115, 12, 2571];
+  assert.notDeepEqual(colorAt(sampleSeed, north, tower, 12), colorAt(sampleSeed, north, outside, 12));
+  assert.notDeepEqual(colorAt(sampleSeed, north, tower, 12), colorAt(sampleSeed + 0.01, north, tower, 12));
+  assert.deepEqual(colorAt(sampleSeed, south, tower, 12), colorAt(sampleSeed, south, outside, 12));
+});
 
 const hexToRgb = (hex) => [(hex >> 16 & 255) / 255, (hex >> 8 & 255) / 255, (hex & 255) / 255];
 const hash21 = (x, y) => {

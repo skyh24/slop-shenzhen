@@ -216,9 +216,9 @@ async function initApp() {
       excludeIds: detailSkipIds, landmarkBands }));
   const buildingSigns = qa.stage('signs', () =>
     buildBuildingSigns(scene, { buildings: cityBlocks.allBlocks, roadGraph: site.roadGraph }));
-  // 屋顶/阳台/空调/雨棚只在近景流式生成，不参与碰撞，也不改楼高和足迹。
+  // 近景补足屋顶和立面细节，避开基础屋顶已绘制的构件。
   const buildingDetails = qa.stage('details', () =>
-    buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds }));
+    buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds, roofPlans: cityBlocks.roofPlans }));
   markInit('blocks');
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders];
   site.colliders = buildings;

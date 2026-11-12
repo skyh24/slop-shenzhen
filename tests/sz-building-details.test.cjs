@@ -3,8 +3,10 @@ const test = require('node:test');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
+const { gunzipSync } = require('node:zlib');
 const { loadModule } = require('./helpers/module.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
+const roads = require('./helpers/roads.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 
@@ -126,7 +128,7 @@ test('streams 200 m detail chunks in and out around the player', () => {
     makeBuilding({ id: 'way/4', x: 2600, z: 0 })
   ];
   const scene = makeScene();
-  const result = details.buildBuildingDetails(scene, { buildings, terrain: FLAT_GRID() });
+  const result = details.buildBuildingDetails(scene, { buildings, terrain: FLAT_GRID(), maxGenerationMs: Infinity });
   const perUpdate = [];
   let guard = 0;
   do {
@@ -221,6 +223,168 @@ test('rooftop equipment stays inside the roof polygon and clear of courtyards', 
   }
   // 同种子同规划，不依赖数据顺序。
   assert.deepEqual(details.planBuildingDetails(building, placement, { playerPosition: { x: 0, z: 0 } }), plan);
+});
+
+test('the rendered roof plan removes duplicate Shenzhen roof equipment while keeping independent roof parts',
+  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+  const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
+  const { geo, buildings } = loadModule(read('sz-data-format.js')).decodeCityPayload(raw);
+  const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
+  const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    'three/webgpu': THREE,
+    './sz-geodata.js': { CITY_PAYLOAD: raw },
+    './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
+    './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshStandardNodeMaterial() },
+    './sz-building-layout.js': layout, './sz-polygon.js': polygonModule, './sz-roads.js': roads
+  } });
+  const details = loadDetails(THREE);
+  const samples = ['way/135961007', 'way/269895565'].map(id => buildings.find(row => row.id === id));
+  const [houhaiTower, houhaiLower] = ['way/737426464', 'way/1190795456'].map(id => buildings.find(row => row.id === id));
+  const scene = new THREE.Scene();
+  const blocks = buildCityBlocks(scene, { buildings: [...samples, houhaiTower, houhaiLower], terrain: geo.terrain });
+  scene.updateMatrixWorld(true);
+  for (const building of samples) {
+    const placement = layout.buildingPlacement(building, geo.terrain);
+    const baseRoof = blocks.roofPlans.get(building.id);
+    const polygon = building.polygons[0];
+    assert.equal(baseRoof.polygon, polygon);
+    assert.equal(baseRoof.roofY, placement.maxY);
+    assert.equal(baseRoof.appearanceSource, 'estimate');
+    assert.ok(baseRoof.equipmentFootprints.length > 0 && baseRoof.parapet > 0);
+    const [a, b] = polygon.outer;
+    const length = Math.hypot(b.x - a.x, b.z - a.z);
+    const x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
+    const nx = (b.z - a.z) / length, nz = (a.x - b.x) / length;
+    for (const side of [-1, 1]) {
+      const ray = new THREE.Raycaster(new THREE.Vector3(x + side * nx * 0.2, placement.maxY + 0.45, z + side * nz * 0.2),
+        new THREE.Vector3(-side * nx, 0, -side * nz), 0, 0.25);
+      assert.equal(ray.intersectObjects(blocks.group.children).length, 1, 'the parapet is visible from both sides');
+    }
+    const playerPosition = { x: building.cx, z: building.cz };
+    const overlap = (part, margin = 0) => baseRoof.equipmentFootprints.some(footprint =>
+      collision.polygonBoxOverlaps(footprint, part.x, part.z, part.w / 2 + margin, part.d / 2 + margin,
+        Math.cos(part.yaw), -Math.sin(part.yaw)));
+    const standalone = details.planBuildingDetails(building, placement, { playerPosition });
+    const duplicate = standalone.roofParts.filter(part => part.kind === 'machine' && overlap(part));
+    assert.equal(duplicate.length, 1, building.id);
+    const shared = details.planBuildingDetails(building, placement, { playerPosition, baseRoof });
+    assert.equal(shared.parapet.parts.length, 0);
+    assert.equal(shared.aerialLights.length, 1);
+    const retained = standalone.roofParts.filter(part => part.kind === 'machine' && !overlap(part, 0.585));
+    assert.ok(retained.length > 0);
+    assert.deepEqual(shared.roofParts.filter(part => part.kind === 'machine'), retained);
+    for (const cheapRoof of [false, true]) {
+      const plan = details.planBuildingDetails(building, placement, { playerPosition, baseRoof, cheapRoof });
+      for (const part of plan.roofParts) {
+        const margin = part.grille ? 0.585 : 0.5;
+        assert.equal(overlap(part, margin), false, building.id);
+        const c = Math.cos(part.yaw), s = Math.sin(part.yaw);
+        for (const u of [-part.w / 2 - margin, part.w / 2 + margin]) {
+          for (const v of [-part.d / 2 - margin, part.d / 2 + margin]) {
+            assert.ok(collision.polygonContains(polygon, part.x + u * c - v * s, part.z + u * s + v * c));
+          }
+        }
+      }
+    }
+    const stream = details.buildBuildingDetails(scene, { buildings: [building], terrain: geo.terrain, roofPlans: blocks.roofPlans });
+    drain(stream, playerPosition);
+    assert.equal(stream.statistics.parapetParts, 0);
+    assert.equal(stream.statistics.roofParts, shared.roofParts.length);
+    stream.dispose();
+  }
+  const top = layout.buildingPlacement(houhaiTower, geo.terrain);
+  const lower = layout.buildingPlacement(houhaiLower, geo.terrain);
+  assert.ok(lower.maxY < top.maxY);
+  const roof = blocks.roofPlans.get(houhaiTower.id);
+  const neighbours = [{ ...houhaiTower, building: houhaiTower, placement: top }];
+  const lowerPlan = details.planBuildingDetails(houhaiLower, lower, { baseRoof: roof, neighbours });
+  assert.ok(lowerPlan.roofParts.length > 0 && roof.equipmentFootprints.length > 0);
+  assert.ok(lowerPlan.roofParts.every(part => part.y === lower.maxY));
+  blocks.dispose();
+});
+
+test('the two facade samples keep source placement and stream their estimated details on approach',
+  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+  const dir = process.env.SZ_THREE_PACKAGE_DIR;
+  const [THREE, TSL] = await Promise.all(['three.webgpu.js', 'three.tsl.js']
+    .map(file => import(pathToFileURL(join(dir, 'build', file)))));
+  const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
+  const materials = loadModule(read('sz-materials.js'), { imports: {
+    ...imports, './city-lighting-materials.js': loadModule(read('city-lighting-materials.js'), { imports })
+  } });
+  const details = loadDetails(THREE, materials);
+  const grid = FLAT_GRID();
+  const office = makeBuilding({ id: 'way/737426464', x: 0, z: 0, half: 20, height: 232.1, facade: 'glass_tower' });
+  const home = makeBuilding({ id: 'way/1352291472', x: 100, z: 0, half: 20, height: 150,
+    facade: 'residential_tower', category: 'residential', levels: 48 });
+  const focus = { x: 50, z: 0 };
+  const lobby = details.planBuildingDetails(office, layout.buildingPlacement(office, grid), { playerPosition: focus });
+  assert.equal(lobby.appearanceSource, 'estimate');
+  assert.equal(lobby.roofY, office.height);
+  assert.equal(lobby.canopy.outZ, -1);
+  assert.equal(lobby.canopy.w, 18);
+  assert.ok(lobby.canopy.y - 0.68 > 5);
+  const placement = layout.buildingPlacement(home, grid);
+  const residence = details.planBuildingDetails(home, placement, { playerPosition: focus });
+  assert.equal(residence.appearanceSource, 'estimate');
+  assert.equal(residence.roofY, home.height);
+  assert.equal(residence.floors, 48);
+  const columns = new Map();
+  for (const balcony of residence.balconies) {
+    const key = `${balcony.x},${balcony.z}`;
+    if (!columns.has(key)) columns.set(key, []);
+    columns.get(key).push(balcony.y);
+  }
+  assert.equal(columns.size, 4);
+  for (const heights of columns.values()) {
+    assert.ok(heights[0] > residence.canopy.y + 1);
+    assert.ok(heights.at(-1) + 1 < home.height);
+    assert.ok(heights.slice(1).every((y, index) => Math.abs(y - heights[index] - 6.2) < 1e-8));
+  }
+  const far = details.planBuildingDetails(home, placement, { playerPosition: { x: 400, z: 0 } });
+  assert.equal(far.balconies.length, 0);
+  assert.equal(far.canopy, null);
+  const scene = new THREE.Scene();
+  const stream = details.buildBuildingDetails(scene, { buildings: [office, home], terrain: grid });
+  drain(stream, focus);
+  let disposed = 0;
+  for (const mesh of stream.group.children.flatMap(group => group.children)) {
+    assert.equal(mesh.castShadow && mesh.receiveShadow, true);
+    mesh.geometry.addEventListener('dispose', () => disposed++);
+  }
+  assert.ok(stream.statistics.balconies > 0 && stream.statistics.canopies > 0);
+  drain(stream, { x: 1200, z: 0 });
+  assert.ok(disposed > 0);
+  assert.equal(stream.group.children.length, 0);
+  stream.dispose();
+});
+
+test('a shared tower plan leaves equipment on the lower podium roof and on other footprints', () => {
+  const details = loadDetails(stubThree());
+  const grid = FLAT_GRID();
+  const podium = makeBuilding({ id: 'way/test-podium', x: 0, z: 0, half: 60, height: 22 });
+  const tower = makeBuilding({ id: 'way/test-tower', x: 0, z: 0, half: 15, height: 132, minHeight: 22 });
+  const podiumPlacement = layout.buildingPlacement(podium, grid);
+  const towerPlacement = layout.buildingPlacement(tower, grid);
+  const baseRoof = {
+    polygon: tower.polygons[0], roofY: towerPlacement.maxY, parapet: 0.9,
+    equipmentFootprints: [{ outer: ring(-9, -9, 2), holes: [] }]
+  };
+  const neighbours = [tower, podium].map(building => ({
+    ...building, building, placement: layout.buildingPlacement(building, grid)
+  }));
+  const lower = details.planBuildingDetails(podium, podiumPlacement, { baseRoof, neighbours });
+  const upper = details.planBuildingDetails(tower, towerPlacement, { baseRoof, neighbours });
+  assert.equal(lower.roofY, towerPlacement.minY);
+  assert.ok(lower.parapet.parts.length > 0);
+  assert.ok(lower.roofParts.length > 0 && upper.roofParts.length > 0);
+  assert.ok(lower.roofParts.every(part => part.y === lower.roofY));
+  assert.ok(upper.roofParts.every(part => part.y === upper.roofY));
+  assert.equal(upper.parapet.parts.length, 0);
+  assert.deepEqual(details.planBuildingDetails(podium, podiumPlacement, { neighbours,
+    baseRoof: { ...baseRoof, polygon: podium.polygons[0] } }), lower);
+  assert.deepEqual(details.planBuildingDetails(podium, podiumPlacement, { neighbours,
+    baseRoof: { ...baseRoof, roofY: podiumPlacement.maxY } }), lower);
 });
 
 test('balconies stay near, never at ground level, and AC units are nearer than balconies', () => {

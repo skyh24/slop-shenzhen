@@ -383,7 +383,7 @@ export function roofPlan(building, polygon) {
 
 /** 解析：普通建筑总入口：按 2.4 km 分块合并墙体/屋顶/裙房/女儿墙/屋顶设备，返回碰撞体。
  *  输入：buildings（默认 REAL_BUILDINGS）、terrain、skipIds（地标/场地接管）、roadGraph、entrances、renderChunkSize。
- *  输出：{ group, colliders, allBlocks, roofs, update, dispose }。
+ *  输出：{ group, colliders, allBlocks, roofs, roofPlans, update, dispose }。
  *  约束：所有体量都由共享包足迹+高度派生；heightSource 保留源数据，新增细节标 estimate。 */
 export function buildCityBlocks(scene, options = {}) {
   const buildings = options.buildings ?? REAL_BUILDINGS;
@@ -405,6 +405,7 @@ export function buildCityBlocks(scene, options = {}) {
   const colliders = [];
   const allBlocks = [];
   const roadConflicts = [];
+  const roofPlans = new Map();
   for (let buildingIndex = 0; buildingIndex < buildings.length; buildingIndex++) {
     const building = buildings[buildingIndex];
     if (skipIds.has(building.id)) continue;
@@ -452,12 +453,24 @@ export function buildCityBlocks(scene, options = {}) {
     const roofPolygon = building.polygons[0];
     const roof = roofPlan(building, roofPolygon);
     if (roof.parapet > 0) {
-      addWalls(batch, [roofPolygon.outer].map(flatRing), placement.maxY, placement.maxY + roof.parapet, meta, placement.baseY);
+      // 同一条女儿墙边界给内外两面，俯视时仍能看到屋面内侧。
+      const boundary = flatRing(roofPolygon.outer);
+      addWalls(batch, [boundary, boundary], placement.maxY, placement.maxY + roof.parapet, meta, placement.baseY);
     }
+    const equipmentFootprints = [];
     for (const unit of roof.equipment) {
-      const base = flatRing(roofUnitRing(unit));
+      const outer = roofUnitRing(unit);
+      const base = flatRing(outer);
       addWalls(batch, [base], placement.maxY, placement.maxY + unit.height, meta, placement.baseY);
       addFlatPolygon(batch, [base], placement.maxY + unit.height, meta);
+      equipmentFootprints.push({ outer, holes: [] });
+    }
+    if (roof.parapet > 0 || equipmentFootprints.length > 0) {
+      // 记录实际绘制的屋面和设备底面；近景层复用这些边界做摆放检查。
+      roofPlans.set(building.id, {
+        polygon: roofPolygon, roofY: placement.maxY, parapet: roof.parapet,
+        equipmentFootprints, appearanceSource: 'estimate'
+      });
     }
     allBlocks.push({ ...building, baseY: placement.baseY, minY: placement.minY, maxY: placement.maxY });
   }
@@ -470,12 +483,13 @@ export function buildCityBlocks(scene, options = {}) {
     group.add(mesh);
   }
   scene.add(group);
-  return { group, colliders, allBlocks, roadConflicts,
+  return { group, colliders, allBlocks, roadConflicts, roofPlans,
     roofs: allBlocks.filter(block => !block.isPodium && block.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M).length,
     update() {},
     dispose() {
       group.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
       material.dispose();
+      roofPlans.clear();
       scene.remove(group);
     }
   };

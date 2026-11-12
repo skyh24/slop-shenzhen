@@ -80,6 +80,23 @@ export const FACADE_PROFILES = [
   }
 ];
 
+// 航天科技广场 A 座与深圳湾公馆的外观样本。大堂高度参考设计方资料，
+// 窗格、阳台和雨棚尺寸取外观估计，坐标为正式包足迹的米制范围。
+// materialSeed 取 Math.fround(buildingSeed(id) * 10)，与合批顶点属性一致。
+const HOUHAI_OFFICE = 'way/737426464';
+const SHENZHEN_BAY_MANSION = 'way/1352291472';
+export const FACADE_SAMPLE_PROFILES = {
+  [HOUHAI_OFFICE]: {
+    appearanceSource: 'estimate', materialSeed: 2.5392842292785645, bounds: [-12104, -12049, 2568, 2626],
+    lobbyHeight: 30, canopy: { width: 18, depth: 4.4, height: 5.8 }
+  },
+  [SHENZHEN_BAY_MANSION]: {
+    appearanceSource: 'estimate', materialSeed: 7.08568000793457, bounds: [-13040, -12999, 4019, 4059],
+    bayWidth: 4.8, floorHeight: 3.1, balconyDepth: 1.45,
+    winRatioW: 0.91, winRatioH: 0.78, sill: 0.15, glazing: 0.9, wallColor: 0x8297a0
+  }
+};
+
 const TINT_A = FACADE_PROFILES.map((p) => p.wallA);
 
 // 常量节点全局复用：重写前 colorNode 里有 329 个重复的 ConstNode，Dawn 编译代价高。
@@ -123,15 +140,25 @@ export function createBuildingMaterial() {
   const p0 = pickV(fid, P0);
   const p1 = pickV(fid, P1);
   const p2 = pickV(fid, P2);
-  const bayNominal = max(p0.x, num(0.6));
-  const floorHeight = max(p0.y, num(2));
-  const winW = p0.z;
-  const winH = p0.w;
-  const sill = p1.x;
-  const glazing = p1.y;
+  const sampleMask = id => {
+    const { materialSeed, bounds: [minX, maxX, minZ, maxZ] } = FACADE_SAMPLE_PROFILES[id];
+    // 合批后的种子为 float32；足迹范围限制样本的影响范围。
+    const seedMask = ONE.sub(step(num(0.00001), abs(seed.sub(num(materialSeed)))));
+    return seedMask.mul(stepBand(positionWorld.x, num(minX), num(maxX)))
+      .mul(stepBand(positionWorld.z, num(minZ), num(maxZ)));
+  };
+  const residence = FACADE_SAMPLE_PROFILES[SHENZHEN_BAY_MANSION];
+  const residentialSample = sampleMask(SHENZHEN_BAY_MANSION);
+  const northLobby = sampleMask(HOUHAI_OFFICE).mul(step(normalWorldGeometry.z, num(-0.85)));
+  const bayNominal = max(mix(p0.x, num(residence.bayWidth), residentialSample), num(0.6));
+  const floorHeight = max(mix(p0.y, num(residence.floorHeight), residentialSample), num(2));
+  const winW = mix(p0.z, num(residence.winRatioW), residentialSample);
+  const winH = mix(p0.w, num(residence.winRatioH), residentialSample);
+  const sill = mix(p1.x, num(residence.sill), residentialSample);
+  const glazing = mix(p1.y, num(residence.glazing), residentialSample);
   const warmth = p1.z;
   const litShare = p1.w;
-  const groundHeight = max(p2.x, num(2.2));
+  const groundHeight = max(mix(p2.x, num(FACADE_SAMPLE_PROFILES[HOUHAI_OFFICE].lobbyHeight), northLobby), num(2.2));
   const groundStyle = p2.y;
   const cornerNominal = p2.z;
   // 宽窗统一在一扇窗中间加竖挺表示成组窗/幕墙分格，不再单独画两扇窗。
@@ -140,7 +167,7 @@ export function createBuildingMaterial() {
   const suiteSpan = ONE.add(step(num(0.9), winW));
 
   const tone = hash21(vec2(seed, seed.mul(num(1.7))));
-  const wallBase = pickC(fid, TINT_A).mul(tone.mul(num(0.22)).add(num(0.86)));
+  const wallBase = mix(pickC(fid, TINT_A), color(residence.wallColor), residentialSample).mul(tone.mul(num(0.22)).add(num(0.86)));
   // 玻璃色由墙色推导：同类型楼的玻璃自然带一点墙色，省掉一次颜色查表。
   const glassTint = mix(color(0x14232c), wallBase.mul(num(0.5)), HALF);
   const trimBase = wallBase.mul(num(1.18));
@@ -218,7 +245,8 @@ export function createBuildingMaterial() {
   const plainStyle = step(num(2.5), groundStyle);
   const lobbyStyle = ONE.sub(shopStyle).sub(plainStyle);
   const groundGlassV = stepBand(v, num(0.3), groundHeight.sub(num(1.1)));
-  const groundGlass = groundGlassV.mul(max(shopStyle, lobbyStyle)).mul(groundZone);
+  const groundGlass = groundGlassV.mul(max(shopStyle, lobbyStyle)).mul(groundZone)
+    .mul(ONE.sub(northLobby.mul(mullion).mul(detail)));
   const doorCenter = wallLength.mul(HALF);
   const centerDoor = stepBand(u, doorCenter.sub(num(1.1)), doorCenter.add(num(1.1)));
   const groundDoorV = stepBand(v, num(0.05), num(2.3));
@@ -237,7 +265,7 @@ export function createBuildingMaterial() {
   const glassColor = mix(glassTint.mul(paneTone), skyReflect, fresnel.mul(num(0.62)).mul(glazing));
   const floorColor = wallColor.mul(mix(num(0.74), num(0.5), curtain));
   const frameColor = trimColor.mul(mix(ONE, num(0.6), glazing));
-  const groundGlassColor = glassTint.mul(num(0.3));
+  const groundGlassColor = mix(glassTint.mul(num(0.3)), glassColor, northLobby.mul(num(0.72)));
   const doorColor = glassTint.mul(num(0.18));
   const roofColor = wallColor.mul(num(0.55));
 

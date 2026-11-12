@@ -96,7 +96,8 @@ function facadeProfile(facade) {
   const floorHeight = Number(sharedProfile?.floorHeight);
   return {
     bayWidth: Number.isFinite(bayWidth) && bayWidth >= 1 ? bayWidth : local.bayWidth,
-    floorHeight: Number.isFinite(floorHeight) && floorHeight >= 2 ? floorHeight : local.floorHeight
+    floorHeight: Number.isFinite(floorHeight) && floorHeight >= 2 ? floorHeight : local.floorHeight,
+    groundHeight: sharedProfile?.groundHeight ?? 4.2
   };
 }
 
@@ -345,14 +346,23 @@ function planRoofParts(building, polygon, placement, rand, facade, options) {
   const roofY = placement.maxY;
   const sampler = roofSampler(polygon, options.polygonEdges ?? ringEdges(polygon));
   const occupied = [];
+  const baseFootprints = options.baseRoof?.equipmentFootprints ?? [];
+  const overlapsBase = (spot, w, d, grille = false) => {
+    // 格栅在盒体一侧外凸 0.085 m，保守地计入两侧净距。
+    const gap = grille ? 0.585 : 0.5;
+    return baseFootprints.some(footprint =>
+      polygonBoxOverlaps(footprint, spot.x, spot.z, w / 2 + gap, d / 2 + gap, spot.cs, spot.sn));
+  };
   const blocked = (x, z, w, d, cs, sn, height) => blockedByNeighbours(neighbours, building,
     x, z, w, d, cs, sn, roofY, roofY + height);
-  function findSpot(w, d, height) {
+  function findSpot(w, d, height, reserveBase = false) {
     for (let attempt = 0; attempt < attempts; attempt++) {
       const spot = sampler(w, d, rand);
       if (!spot) return null;
-      if (!containsBox(polygon, spot.x, spot.z, w + 0.6, d + 0.6, spot.cs, spot.sn)) continue;
+      const inset = options.baseRoof ? 1.2 : 0.6;
+      if (!containsBox(polygon, spot.x, spot.z, w + inset, d + inset, spot.cs, spot.sn)) continue;
       if (blocked(spot.x, spot.z, w, d, spot.cs, spot.sn, height)) continue;
+      if (reserveBase && overlapsBase(spot, w, d)) continue;
       const overlaps = occupied.some(item => {
         const corners = boxCorners(item.x, item.z, item.w, item.d, item.cs, item.sn);
         return polygonBoxOverlaps({ outer: corners, holes: [] }, spot.x, spot.z, w / 2 + 0.4, d / 2 + 0.4, spot.cs, spot.sn);
@@ -368,12 +378,14 @@ function planRoofParts(building, polygon, placement, rand, facade, options) {
   const tankFacade = !cheap && (facade === 'residential_low' || facade === 'village');
   const equipmentCount = building.height >= 12 ? (cheap || rand() < 0.5 ? 1 : 2) : 0;
   const tankFirst = tankFacade && rand() < 0.4;
+  // 保留已合格设备的位置和随机顺序；与基础设备重叠的候选直接省去。
   for (let i = 0; i < equipmentCount; i++) {
     const wantTank = (tankFacade && (tankFirst ? i === 0 : rand() < 0.22));
     if (wantTank) {
       const spot = findSpot(2.4, 2.4, 2.6);
       if (spot) {
-        parts.push({ kind: 'tank', x: spot.x, z: spot.z, y: roofY, radius: 1.2, h: 2.0 + rand() * 0.6, yaw: spot.yaw });
+        const h = 2.0 + rand() * 0.6;
+        if (!overlapsBase(spot, 2.4, 2.4)) parts.push({ kind: 'tank', x: spot.x, z: spot.z, y: roofY, radius: 1.2, h, yaw: spot.yaw });
         continue;
       }
     }
@@ -382,11 +394,12 @@ function planRoofParts(building, polygon, placement, rand, facade, options) {
     const h = 2.4 + rand() * 0.9;
     const spot = findSpot(w, d, h);
     if (!spot) continue;
-    parts.push({ kind: 'machine', x: spot.x, z: spot.z, y: roofY, w, d, h, yaw: spot.yaw, grille: rand() < 0.7 });
+    const grille = rand() < 0.7;
+    if (!overlapsBase(spot, w, d, grille)) parts.push({ kind: 'machine', x: spot.x, z: spot.z, y: roofY, w, d, h, yaw: spot.yaw, grille });
   }
   if (building.height >= 150) {
     const h = 6 + rand() * 3;
-    const spot = findSpot(0.6, 0.6, h);
+    const spot = findSpot(0.6, 0.6, h, true);
     if (spot) {
       parts.push({ kind: 'antenna', x: spot.x, z: spot.z, y: roofY, w: 0.16, d: 0.16, h, yaw: spot.yaw });
       aerialLights.push({ x: spot.x, y: roofY + h + 0.3, z: spot.z });
@@ -415,6 +428,36 @@ function blockedFacade(spans, building, edge, y0, y1) {
   return blockedByNeighbours(spans, building, cx, cz, Math.min(edge.length, 8), 1.8, edge.ux, -edge.uz, y0, y1);
 }
 
+function planDuplexBalconies(building, edges, placement, profile, neighbours) {
+  const balconies = [];
+  const usedEdges = new Set();
+  const groundHeight = facadeProfile(building.facade).groundHeight;
+  const firstY = placement.minY + groundHeight + profile.floorHeight;
+  const lastY = placement.maxY - 1.5;
+  const depth = profile.balconyDepth;
+  for (const edge of edges.slice(0, 2)) {
+    const margin = 0.4;
+    const inner = edge.length - margin * 2;
+    const bays = Math.round(inner / profile.bayWidth);
+    if (bays < 4 || firstY > lastY) continue;
+    const bay = inner / bays;
+    const width = bay * 0.82;
+    for (const index of [Math.floor(bays / 4), Math.floor(bays * 0.75)]) {
+      const offset = margin + (index + 0.5) * bay;
+      const x = edge.ax + edge.ux * offset;
+      const z = edge.az + edge.uz * offset;
+      if (blockedByNeighbours(neighbours, building, x + edge.outX * depth / 2, z + edge.outZ * depth / 2,
+        width, depth, edge.ux, -edge.uz, firstY, lastY + 1)) continue;
+      // 复式两层一组，阳台与幕墙共用开间和层高的外观节奏。
+      for (let y = firstY; y <= lastY; y += profile.floorHeight * 2) {
+        balconies.push({ x, z, y, w: width, d: depth, yaw: edge.yaw, outX: edge.outX, outZ: edge.outZ });
+      }
+      usedEdges.add(edge);
+    }
+  }
+  return { balconies, usedEdges };
+}
+
 function planBalconies(building, edges, placement, rand, facade, floorHeight, floors, options) {
   const balconies = [];
   const usedEdges = new Set();
@@ -423,6 +466,7 @@ function planBalconies(building, edges, placement, rand, facade, floorHeight, fl
   if (!player) return { balconies, usedEdges };
   if (Math.hypot(building.cx - player.x, building.cz - player.z) > BALCONY_RADIUS) return { balconies, usedEdges };
   const wallEdges = edges.filter(edge => edge.length >= 4).sort((a, b) => b.length - a.length);
+  if (options.sample?.balconyDepth) return planDuplexBalconies(building, wallEdges, placement, options.sample, options.neighbours);
   const profile = facadeProfile(facade);
   const step = Math.max(2.2, profile.bayWidth);
   const wallTop = placement.maxY - 0.4;
@@ -497,6 +541,18 @@ function planCanopy(building, wallEdges, placement, rand, facade, floorHeight, o
   const player = options.playerPosition;
   if (!player || building.height < 6) return null;
   if (Math.hypot(building.cx - player.x, building.cz - player.z) > CANOPY_RADIUS) return null;
+  const sample = options.sample?.canopy;
+  if (sample) {
+    // 北侧广场入口用一条连续薄雨棚，宽度按实际墙段限幅。
+    const edge = wallEdges.find(item => item.outZ < -0.85 && item.length >= sample.width + 2);
+    if (!edge) return null;
+    const { mx: x, mz: z, yaw, outX, outZ } = edge;
+    const y = placement.minY + sample.height;
+    const { width: w, depth: d } = sample;
+    if (blockedByNeighbours(options.neighbours, building, x + outX * d / 2, z + outZ * d / 2,
+      w, d, edge.ux, -edge.uz, y - 0.7, y)) return null;
+    return { x, z, y, w, d, yaw, outX, outZ };
+  }
   const allEdges = wallEdges.filter(edge => edge.length >= 5);
   const preferred = allEdges.filter(edge => !usedEdges.has(edge)).sort((a, b) => b.length - a.length);
   const edges = preferred.length ? preferred : allEdges.sort((a, b) => b.length - a.length);
@@ -520,6 +576,9 @@ export function planBuildingDetails(building, placement, options = {}) {
   const polygon = largestPolygon(building.polygons);
   if (!polygon) return null;
   const edges = ringEdges(polygon);
+  // 用足迹对象和绝对标高识别屋面，同一栋楼的其他屋面各自保留细节。
+  const baseRoof = options.baseRoof?.polygon === polygon && options.baseRoof.roofY === placement.maxY
+    ? options.baseRoof : null;
   // 邻楼只查一次；传入索引对象时在这里转成可直接过滤的竖向区间表。
   const spanSource = options.neighbours;
   // 便宜屋顶（名额外的远处楼）只放自己的屋面盒，跳过邻楼索引，避免密排块逐栋建邻楼表。
@@ -528,12 +587,14 @@ export function planBuildingDetails(building, placement, options = {}) {
     : spanSource && typeof spanSource.near === 'function'
       ? collectNeighbourSpans(spanSource, building)
       : (Array.isArray(spanSource) ? spanSource : null);
-  const planOptions = { ...options, neighbours: neighbourSpans, polygonEdges: edges };
+  const sample = szMaterials.FACADE_SAMPLE_PROFILES?.[building.id];
+  const planOptions = { ...options, neighbours: neighbourSpans, polygonEdges: edges, baseRoof, sample };
   const rand = createRandom(buildingSeed(building.id));
   const { floorHeight, floors } = floorMetrics(building, profile);
   const allowFacadeDetails = options.allowFacadeDetails !== false;
   const allowRoofEquipment = options.allowRoofEquipment !== false;
-  const parapet = planParapet(polygon, edges, building, createRandom(buildingSeed(building.id) * 0.71 + 0.13));
+  const parapet = baseRoof?.parapet > 0 ? { height: 0, parts: [] }
+    : planParapet(polygon, edges, building, createRandom(buildingSeed(building.id) * 0.71 + 0.13));
   const roof = allowRoofEquipment
     ? planRoofParts(building, polygon, placement, createRandom(buildingSeed(building.id) * 0.37 + 0.29), facade, planOptions)
     : { parts: [], aerialLights: [] };
@@ -549,7 +610,7 @@ export function planBuildingDetails(building, placement, options = {}) {
   return {
     id: building.id, facade, bucket, roofY: placement.maxY, baseY: placement.minY,
     floorHeight, floors, parapet, roofParts: roof.parts, aerialLights: roof.aerialLights,
-    balconies, acUnits, canopy
+    balconies, acUnits, canopy, ...(sample && { appearanceSource: sample.appearanceSource })
   };
 }
 
@@ -724,6 +785,7 @@ export function buildBuildingDetails(scene, options = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('Missing scene for building details');
   const buildings = options.buildings ?? [];
   const terrain = options.terrain;
+  const roofPlans = options.roofPlans;
   if (!Array.isArray(buildings)) throw new Error('Building details require a building list');
   if (!terrain) throw new Error('Missing terrain for building details');
   const skipIds = options.skipIds instanceof Set ? options.skipIds : new Set(options.skipIds ?? []);
@@ -868,13 +930,13 @@ export function buildBuildingDetails(scene, options = {}) {
     });
     let fullDetailBuildings = 0;
     // 名额以外的楼只保留女儿墙 + 一个便宜屋顶盒（搜索次数少），远处仍看得出屋顶设备。
-    const minimalOptions = { neighbours: index, playerPosition, allowFacadeDetails: false, cheapRoof: true };
     for (const building of ordered) {
       if (building.height < 6) continue;
       if (budget <= 0) break;
       const placement = index.placementOf(building);
       const minimal = fullDetailBuildings >= maxFullDetailBuildings;
-      const planOptions = { neighbours: index, playerPosition };
+      const planOptions = { neighbours: index, playerPosition, baseRoof: roofPlans?.get(building.id) };
+      const minimalOptions = { ...planOptions, allowFacadeDetails: false, cheapRoof: true };
       let plan = minimal ? planBuildingDetails(building, placement, minimalOptions) : planBuildingDetails(building, placement, planOptions);
       if (!plan) continue;
       if (estimatePlanTriangles(plan) > budget) {
