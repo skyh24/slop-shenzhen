@@ -256,3 +256,32 @@ test('expanded districts expose searchable sites and the sourced western bridge 
   assert.throws(() => validateCityPayload({ ...raw, yanjiangExpressway: { ...expressway, segments: [null] } }),
     /Yanjiang bridge segment/);
 });
+
+test('north-east coverage and six map landmarks use the sourced positions and labels', async () => {
+  const { decodeCityPayload, validateCityPayload } = await modulePromise;
+  const { geo } = decodeCityPayload(raw);
+  const { polygonContainsInclusive } = await import(
+    `data:text/javascript;base64,${readFileSync(join(root, 'js/sz-polygon.js')).toString('base64')}`);
+  for (const [x, z] of [[874.3, -7496.9], [2108.7, -4839.2], [3343, -8272.1]]) {
+    assert.ok(geo.coverage.some(poly => polygonContainsInclusive(poly, x, z)));
+    assert.ok(geo.land.some(poly => polygonContainsInclusive(poly, x, z)));
+  }
+  assert.ok(!geo.coverage.some(poly => polygonContainsInclusive(poly, 4783.1, -7054)));
+  const landmarks = new Map(geo.landmarks.map(place => [place.id, place]));
+  for (const [id, name] of [
+    ['oct-loft', '华侨城'], ['sea-world', '海上世界'], ['tencent-towers', '腾讯大厦'],
+    ['nantou-ancient-city', '南头古城'], ['kk100', '京基100'], ['dongmen', '东门']
+  ]) {
+    const place = landmarks.get(id);
+    assert.equal(place.phase, 1, id);
+    assert.equal(place.short ?? place.name, name);
+    assert.equal(place.mapPriority, true);
+    assert.ok(geo.land.some(poly => polygonContainsInclusive(poly, place.x, place.z)), id);
+  }
+  assert.ok(landmarks.get('kk100').aliases.includes('京基一百'));
+  assert.notEqual(landmarks.get('tencent-towers').z, landmarks.get('tencent-binhai').z);
+  assert.equal(geo.sites['tencent-towers'].building.osmId, 'way/600815118');
+  assert.equal(geo.sites['nantou-ancient-city'].site.osmId, 'way/219961346');
+  assert.throws(() => validateCityPayload({ ...raw, landmarks: [{ ...raw.landmarks[0], aliases: 1 }] }),
+    /landmark map labels/);
+});

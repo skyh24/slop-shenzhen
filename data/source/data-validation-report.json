@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "checkedAt": "2026-11-12T06:33:01.248319+00:00",
+  "checkedAt": "2026-11-12T06:53:10.375207+00:00",
   "encodingValidation": "passed",
   "realityValidation": "incomplete",
   "recentObservationWindow": [
     2025,
     2026
   ],
-  "payloadSha256": "2cf7b0d51a4f2e160665ac134def08d49bf10d670af86b224751143d97179924",
+  "payloadSha256": "6357ca9673bd5bbbb1e7532d96314cb3bc4372b97c659466565df89307ca30cb",
   "sourceIntegrity": [
     {
       "id": "osm-guangdong",
@@ -77,8 +77,8 @@
     }
   ],
   "counts": {
-    "buildings": 73473,
-    "terrainChunks": 1164
+    "buildings": 76024,
+    "terrainChunks": 1264
   },
   "multipartSourceIds": {
     "relation/11012305": 2,
@@ -88,15 +88,14 @@
     "relation/11916476": 2,
     "relation/7711099": 2,
     "relation/11916477": 2,
-    "way/727052931": 2,
     "relation/13168926": 2,
     "relation/14579389": 2,
     "relation/16306924": 6,
     "relation/19563311": 2,
     "relation/19025403": 2,
-    "way/1432666118": 3,
     "way/1442726565": 2,
     "relation/19768681": 3,
+    "way/1451008790": 2,
     "relation/20252482": 3,
     "overture/51b6fec2-9afa-4161-bc40-8f04671f7a54": 2,
     "overture/d367d388-60f5-4922-ba52-7345a7c65903": 2,
@@ -131,8 +130,10 @@
     "overture/b178cd9e-ee2c-4f5b-ae5c-fd174f091f0d": 2,
     "overture/246b73a0-f26f-473a-90c3-66ee604fe411": 2,
     "overture/e80033f6-6eb7-44a0-8f6d-261ed834fc2f": 2,
+    "overture/a6d74918-a17f-4975-b632-d2dbd8d23eeb": 2,
     "overture/c0127819-88a5-4034-bff3-3fe0eecec484": 2,
     "overture/02f70523-d210-4ae2-9cf7-6f3d0bf7b915": 2,
+    "overture/d771bcfe-89f7-46b7-8054-e8860045eed9": 2,
     "overture/0d780333-925a-4f32-a89f-2880e5f379b4": 2,
     "overture/19735e49-45fd-4b44-93e7-bf7af773d1d1": 2,
     "overture/81226540-2946-4f5f-a35b-cb36b5453a80": 2,
@@ -140,10 +141,10 @@
     "overture/c59094e9-6f9d-47a3-9ed4-f60b10537eac": 2
   },
   "heightSources": {
-    "osm-height": 1573,
-    "osm-levels": 8096,
-    "globfp": 27923,
-    "estimate": 35865,
+    "osm-height": 1605,
+    "osm-levels": 8575,
+    "globfp": 28443,
+    "estimate": 37385,
     "landmark": 7,
     "published": 4,
     "overture-floors": 3,
@@ -169,7 +170,6 @@
       "relation/10722607",
       "relation/10722606",
       "relation/10722605",
-      "way/727052931",
       "way/773700358",
       "way/774640911",
       "way/776141689",
@@ -295,6 +295,7 @@
       "way/1443942677",
       "way/1443942678",
       "way/1443942679",
+      "way/1451008785",
       "way/1472466043",
       "way/1472466044",
       "way/1472466045",
@@ -521,12 +522,12 @@
   "output": {
     "format": "SZC1",
     "version": 1,
-    "columns": 6713,
-    "metadataBytes": 16092896,
-    "numericBytes": 31023680,
-    "uncompressedBytes": 47116624,
+    "columns": 7226,
+    "metadataBytes": 16702976,
+    "numericBytes": 33423256,
+    "uncompressedBytes": 50126280,
     "lossless": true,
-    "compressedBytes": 10638626,
-    "compressedSha256": "c1e295f71fa13b4c1d51ad16a0f619653d1e13a1cdf8f69ac4deb923a709778a"
+    "compressedBytes": 11337469,
+    "compressedSha256": "00c424a0e094d7d118a9bfc122097d0d711ec4015706dc0ca1a1a7e37a1e787a"
   }
 }

@@ -138,13 +138,41 @@
       "note": "Lies inside the phase-1 box (east edge 114.085), so it can move up from phase 2."
     },
     {
-      "id": "sea-world", "name": "海上世界（明华轮）", "phase": 2,
+      "id": "oct-loft", "name": "华侨城创意文化园", "short": "华侨城", "phase": 1, "mapPriority": true,
+      "center": [22.5412214, 113.9886215],
+      "osm": { "site": "way/741581536" }, "status": "osm",
+      "sources": ["https://www.sz.gov.cn/zfgb/2024/gb1349/content/post_11702444.html"]
+    },
+    {
+      "id": "tencent-towers", "name": "腾讯大厦", "phase": 1, "mapPriority": true,
+      "center": [22.5434550, 113.9296473],
+      "osm": { "building": "way/600815118" }, "status": "osm",
+      "aliases": ["腾讯科技大厦"],
+      "sources": ["https://www.tencent.com/index.php/zh-cn/articles/80116.html"]
+    },
+    {
+      "id": "nantou-ancient-city", "name": "南头古城", "phase": 1, "mapPriority": true,
+      "center": [22.5462391, 113.9158929],
+      "osm": { "site": "way/219961346" }, "status": "osm",
+      "aliases": ["新安故城"],
+      "sources": ["https://wtl.sz.gov.cn/xxgk/qt/lypc/content/post_11078058.html"]
+    },
+    {
+      "id": "dongmen", "name": "东门老街", "short": "东门", "phase": 1, "mapPriority": true,
+      "center": [22.5469725, 114.1153358],
+      "osm": { "point": "node/8630764178" }, "status": "osm",
+      "aliases": ["东门步行街"],
+      "sources": ["https://www.sz.gov.cn/zfgb/2024/gb1349/content/post_11702444.html"]
+    },
+    {
+      "id": "sea-world", "name": "海上世界（明华轮）", "short": "海上世界", "phase": 1, "mapPriority": true,
       "center": [22.48634, 113.91193],
       "osm": { "ship": "way/105683429", "plaza": "way/543176177", "artsCenter": "way/740022007", "nuwa": "node/5250978477", "nuwaPark": "way/733499600" },
       "status": "osm"
     },
     {
-      "id": "kk100", "name": "京基100（京基百纳）", "phase": 2,
+      "id": "kk100", "name": "京基100（京基百纳）", "short": "京基100", "phase": 1, "mapPriority": true,
+      "aliases": ["京基一百", "KK100"],
       "center": [22.54573, 114.10158],
       "osm": { "tower": "way/781166572", "site": "way/164033632" },
       "heightM": 441.8, "heightSource": "osm", "status": "verified"

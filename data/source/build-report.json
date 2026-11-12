@@ -14,12 +14,12 @@
     "excludedOsmId": "relation/20044132",
     "excludedAreaKm2": 102.398,
     "boundaryInsetM": 1.2,
-    "areaKm2": 299.649
+    "areaKm2": 326.44
   },
   "remoteFootprints": {
     "enabled": true
   },
-  "osmBuildings": 27941,
+  "osmBuildings": 29484,
   "excludedUndergroundBuildings": [
     {
       "id": "way/412443234",
@@ -365,6 +365,26 @@
       }
     },
     {
+      "id": "way/1077695700",
+      "reason": "location-underground",
+      "tags": {
+        "name": "翰岭站",
+        "building": "train_station",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1077695720",
+      "reason": "location-underground",
+      "tags": {
+        "name": "梅林关站",
+        "building": "train_station",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
       "id": "way/1081148105",
       "reason": "location-underground",
       "tags": {
@@ -604,6 +624,18 @@
       "reason": "location-underground",
       "tags": {
         "name": "深大站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1240757705",
+      "reason": "location-underground",
+      "tags": {
+        "name": "雅宝站",
         "building": "train_station",
         "building:levels": "0",
         "building:levels:underground": "2",
@@ -1429,6 +1461,30 @@
       }
     },
     {
+      "id": "way/1335902709",
+      "reason": "location-underground",
+      "tags": {
+        "name": "南坑站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "2",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
+      "id": "way/1335902714",
+      "reason": "location-underground",
+      "tags": {
+        "name": "光雅园站",
+        "building": "train_station",
+        "building:levels": "0",
+        "building:levels:underground": "3",
+        "layer": "-1",
+        "location": "underground"
+      }
+    },
+    {
       "id": "way/1338561345",
       "reason": "location-underground",
       "tags": {
@@ -2062,7 +2118,7 @@
       }
     ]
   },
-  "overtureDuplicates": 23979,
+  "overtureDuplicates": 24613,
   "excludedGlobfpFootprints": [
     {
       "sourceId": "globfp-2265",
@@ -2187,11 +2243,11 @@
       "match": "source-tile-fid-and-bounds"
     }
   ],
-  "globfpCandidates": 104391,
+  "globfpCandidates": 106486,
   "globfpMisidentified": {
     "rule": "GloBFP-only, area<300 m2, and (>= 60% inside OSM plaza/green or >= 80% inside ground carriageway buffer 1 m)",
-    "count": 1260,
-    "areaM2": 143250.3,
+    "count": 1287,
+    "areaM2": 146788.4,
     "objects": [
       {
         "id": "globfp/792",
@@ -3514,8 +3570,8 @@
         "areaM2": 167.9,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/358904129",
           "plaza-or-green:way/581532606",
+          "plaza-or-green:way/358904129",
           "road:way/357192510"
         ]
       },
@@ -3585,8 +3641,8 @@
         "areaM2": 47.7,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/236402467",
           "plaza-or-green:way/1361617580",
+          "plaza-or-green:way/236402467",
           "road:way/757864479"
         ]
       },
@@ -3595,8 +3651,8 @@
         "areaM2": 264.1,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/236402467",
           "plaza-or-green:way/1361617580",
+          "plaza-or-green:way/236402467",
           "road:way/669511635"
         ]
       },
@@ -3605,8 +3661,8 @@
         "areaM2": 140.3,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/236402467",
           "plaza-or-green:way/1361617578",
+          "plaza-or-green:way/236402467",
           "road:way/669511635"
         ]
       },
@@ -3615,8 +3671,8 @@
         "areaM2": 199.1,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/236402467",
-          "plaza-or-green:way/1361617578"
+          "plaza-or-green:way/1361617578",
+          "plaza-or-green:way/236402467"
         ]
       },
       {
@@ -3699,8 +3755,8 @@
         "areaM2": 116.2,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/236402467",
           "plaza-or-green:way/1361617579",
+          "plaza-or-green:way/236402467",
           "road:way/694439486"
         ]
       },
@@ -3709,8 +3765,8 @@
         "areaM2": 155.9,
         "reason": "green",
         "inside": [
-          "plaza-or-green:way/236402467",
           "plaza-or-green:way/1361617579",
+          "plaza-or-green:way/236402467",
           "road:way/757864471",
           "road:way/694439486"
         ]
@@ -4255,8 +4311,8 @@
         "areaM2": 50.1,
         "reason": "plaza+green",
         "inside": [
-          "plaza-or-green:way/264353338",
-          "plaza-or-green:way/236402460"
+          "plaza-or-green:way/236402460",
+          "plaza-or-green:way/264353338"
         ]
       },
       {
@@ -4868,16 +4924,16 @@
         ]
       }
     ],
-    "candidates": 16893,
-    "kept": 15633,
+    "candidates": 17165,
+    "kept": 15878,
     "truncated": true
   },
   "globfpRoadConflicts": {
     "rule": "GloBFP-only, supplemental footprints only: defer when a road centerline crosses more than 0.5 m inside the footprint, or when at least 50% of the footprint lies inside the estimated carriageway (road half width, no extra buffer); OSM-mapped buildings are never removed",
     "roadWidthSource": "estimated",
     "imageryChecked": false,
-    "count": 3782,
-    "areaM2": 1644391.8,
+    "count": 3864,
+    "areaM2": 1682025.4,
     "objects": [
       {
         "id": "globfp/5",
@@ -7580,15 +7636,15 @@
         "imageryChecked": false
       }
     ],
-    "candidates": 15633,
-    "kept": 11851,
+    "candidates": 15878,
+    "kept": 12014,
     "truncated": true
   },
-  "globfpAdded": 11851,
+  "globfpAdded": 12014,
   "overtureMisidentified": {
     "rule": "Overture-only (no OSM building), area<300 m2, and (>= 60% inside OSM plaza/green or >= 80% inside ground carriageway buffer 1 m)",
-    "count": 2268,
-    "areaM2": 236252.1,
+    "count": 2433,
+    "areaM2": 257352.9,
     "objects": [
       {
         "id": "overture/6e56856e-dc2e-476e-9cb5-eae85d7bb8e7",
@@ -10055,8 +10111,8 @@
         ]
       }
     ],
-    "candidates": 40542,
-    "kept": 38274,
+    "candidates": 41700,
+    "kept": 39267,
     "truncated": true
   },
   "overtureRoadConflicts": {
@@ -11129,19 +11185,19 @@
         "imageryChecked": false
       }
     ],
-    "candidates": 38274,
-    "kept": 38156,
+    "candidates": 39267,
+    "kept": 39149,
     "truncated": false
   },
-  "overtureAdded": 38156,
+  "overtureAdded": 39149,
   "buildingFootprintFilter": {
     "rule": "remote-added footprints only: water/wetland overlap >20%; green overlap >60% and >60m from OSM; area <60m2 and >50m from OSM",
     "removed": {
-      "waterOverlap": 44,
-      "parkIsolated": 27,
-      "smallIsolated": 4144
+      "waterOverlap": 45,
+      "parkIsolated": 33,
+      "smallIsolated": 4284
     },
-    "removedTotal": 4215,
+    "removedTotal": 4362,
     "examples": {
       "waterOverlap": [
         {
@@ -11325,6 +11381,11 @@
           "overlap": 1.0
         },
         {
+          "id": "globfp/globfp-2265/130514/0",
+          "areaM2": 40.4,
+          "overlap": 1.0
+        },
+        {
           "id": "globfp/globfp-2265/140945/0",
           "areaM2": 175.0,
           "overlap": 0.3
@@ -11503,6 +11564,42 @@
           "areaM2": 196.9,
           "greenOverlap": 0.65,
           "osmDistanceM": 81.3
+        },
+        {
+          "id": "globfp/globfp-2265/130499/0",
+          "areaM2": 217.8,
+          "greenOverlap": 1.0,
+          "osmDistanceM": 176.1
+        },
+        {
+          "id": "globfp/globfp-2265/130500/0",
+          "areaM2": 202.9,
+          "greenOverlap": 1.0,
+          "osmDistanceM": 185.1
+        },
+        {
+          "id": "globfp/globfp-2265/130528/0",
+          "areaM2": 241.7,
+          "greenOverlap": 1.0,
+          "osmDistanceM": 168.2
+        },
+        {
+          "id": "globfp/globfp-2265/130544/0",
+          "areaM2": 230.4,
+          "greenOverlap": 1.0,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "globfp/globfp-2265/143930/0",
+          "areaM2": 221.4,
+          "greenOverlap": 1.0,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "globfp/globfp-2265/143938/0",
+          "areaM2": 160.4,
+          "greenOverlap": 1.0,
+          "osmDistanceM": 999.0
         },
         {
           "id": "globfp/globfp-2265/239366/0",
@@ -25501,6 +25598,31 @@
           "osmDistanceM": 58.7
         },
         {
+          "id": "overture/f6a3f1d4-51d4-476a-867c-22ff0af61871",
+          "areaM2": 57.7,
+          "osmDistanceM": 87.3
+        },
+        {
+          "id": "overture/bc84a1a7-ac86-49ce-a506-8ee886b0a130",
+          "areaM2": 20.2,
+          "osmDistanceM": 78.1
+        },
+        {
+          "id": "overture/1f4afced-b1be-4751-8341-b6dcb9594b0e",
+          "areaM2": 22.5,
+          "osmDistanceM": 74.1
+        },
+        {
+          "id": "overture/90078d9c-c85d-4d7c-9bc0-02152bb487d6",
+          "areaM2": 28.1,
+          "osmDistanceM": 63.9
+        },
+        {
+          "id": "overture/2a720aed-3072-4453-829a-c9469ccb6252",
+          "areaM2": 18.0,
+          "osmDistanceM": 53.1
+        },
+        {
           "id": "overture/1829a6e6-a4d0-45fc-b06f-1113bb40767c",
           "areaM2": 51.4,
           "osmDistanceM": 98.3
@@ -25509,6 +25631,216 @@
           "id": "overture/0da38854-88b0-43d0-9735-9c23ca3c8620",
           "areaM2": 52.7,
           "osmDistanceM": 117.2
+        },
+        {
+          "id": "overture/725c5b43-bc4f-45c7-8908-2436444ab07c",
+          "areaM2": 33.7,
+          "osmDistanceM": 138.9
+        },
+        {
+          "id": "overture/1748fac7-3738-4f8f-b8db-a47fd331cde4",
+          "areaM2": 23.6,
+          "osmDistanceM": 51.2
+        },
+        {
+          "id": "overture/b158aaa0-3047-41e6-b8f1-a18a49a3227a",
+          "areaM2": 22.5,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/4c77257e-1200-462a-a7c3-e251a9ddbf27",
+          "areaM2": 56.2,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/495f04e9-503a-4396-8904-861f35be776a",
+          "areaM2": 20.2,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/bc6b2f45-3c3b-46c4-b980-a01a3b7cc32d",
+          "areaM2": 27.0,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/24f4e73c-775e-4e68-90d5-feb7f37fddd7",
+          "areaM2": 33.8,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/37131171-ea46-46a0-b000-f34896e49af4",
+          "areaM2": 48.5,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/d6b44740-0e05-4235-85d0-534d83df8313",
+          "areaM2": 50.4,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/52d7d426-785b-4100-b214-297cdd303e84",
+          "areaM2": 28.7,
+          "osmDistanceM": 76.9
+        },
+        {
+          "id": "overture/b20c2af1-95b5-4afa-83bd-3e5c5d7d63b7",
+          "areaM2": 53.9,
+          "osmDistanceM": 199.7
+        },
+        {
+          "id": "overture/219cf932-d514-4ed6-83f4-0208be737c60",
+          "areaM2": 53.9,
+          "osmDistanceM": 129.3
+        },
+        {
+          "id": "overture/b0a832b3-a46c-4396-909f-82ff7059b7b4",
+          "areaM2": 53.9,
+          "osmDistanceM": 88.5
+        },
+        {
+          "id": "overture/366ba885-32a0-4067-81b9-cf5096092e5b",
+          "areaM2": 20.2,
+          "osmDistanceM": 177.1
+        },
+        {
+          "id": "overture/3e2e289f-a0ee-462a-a406-9ccfc29480fa",
+          "areaM2": 27.6,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/8af491ea-ca22-4968-93dd-2ae25747fc06",
+          "areaM2": 27.0,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/a3681d3c-065d-49c2-82ef-4fdde543c25e",
+          "areaM2": 31.5,
+          "osmDistanceM": 170.4
+        },
+        {
+          "id": "overture/41e59dde-decf-4cec-9c3f-de4c030c0365",
+          "areaM2": 19.4,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/5c6e3653-52be-4819-bd90-c85d219b0c63",
+          "areaM2": 53.9,
+          "osmDistanceM": 83.9
+        },
+        {
+          "id": "overture/c9c0d2be-2f67-4c76-a641-b83f7f075a50",
+          "areaM2": 36.3,
+          "osmDistanceM": 155.4
+        },
+        {
+          "id": "overture/98e0ffb0-324a-4e54-898c-45448ec9d366",
+          "areaM2": 47.2,
+          "osmDistanceM": 137.4
+        },
+        {
+          "id": "overture/a3a71ddc-cf4b-4302-8875-3842529553c3",
+          "areaM2": 52.9,
+          "osmDistanceM": 144.0
+        },
+        {
+          "id": "overture/8d2ff1ea-9256-4b85-b4d2-2e2617830ed5",
+          "areaM2": 18.0,
+          "osmDistanceM": 107.9
+        },
+        {
+          "id": "overture/89cef762-8411-4832-9351-97dc4729af96",
+          "areaM2": 53.9,
+          "osmDistanceM": 84.9
+        },
+        {
+          "id": "overture/bcf8524b-d4be-4c0e-bea1-f7d2c4fb5f85",
+          "areaM2": 27.0,
+          "osmDistanceM": 87.2
+        },
+        {
+          "id": "overture/b5b94c3a-0388-4dac-9887-37764738b156",
+          "areaM2": 20.2,
+          "osmDistanceM": 85.4
+        },
+        {
+          "id": "overture/ae66517c-de6e-47d8-a9c1-a53e04ce1891",
+          "areaM2": 35.9,
+          "osmDistanceM": 122.7
+        },
+        {
+          "id": "overture/aea59716-517c-483a-8cff-1e0e12f48acc",
+          "areaM2": 26.9,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/89987bce-b0cc-4f3f-921d-76b3c3be114d",
+          "areaM2": 49.5,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/896f8117-4850-495f-b8da-058083959f78",
+          "areaM2": 33.7,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/d8662621-17fe-4275-ae24-17d6178251ba",
+          "areaM2": 46.7,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/26ea0860-c027-4a42-a2c4-44d00ec19dfe",
+          "areaM2": 54.9,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/12e1ab0b-d9bb-4429-84f5-e14e02259ff3",
+          "areaM2": 48.5,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/31edfe6a-0fa3-4aca-a382-44510fd5f40f",
+          "areaM2": 18.0,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/a3df5ad3-645b-4fa3-8827-89adeaa4c237",
+          "areaM2": 40.4,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/f6e30047-aea4-4ecf-a870-5f4426e7f41e",
+          "areaM2": 33.7,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/da919bd3-a984-4938-b172-cd864db1389f",
+          "areaM2": 33.7,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/2272c319-71c8-4b08-b617-185002b2145e",
+          "areaM2": 40.5,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/501e5142-800d-4522-9aa4-6a840dc42f92",
+          "areaM2": 54.8,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/d7f2dede-bd29-4653-8f2f-60eb2383c51d",
+          "areaM2": 16.9,
+          "osmDistanceM": 111.4
+        },
+        {
+          "id": "overture/207f4d47-b9a6-4284-9988-654ab61163ca",
+          "areaM2": 48.9,
+          "osmDistanceM": 83.3
+        },
+        {
+          "id": "overture/7aa20479-7e08-4153-910f-45dfbf85babf",
+          "areaM2": 51.0,
+          "osmDistanceM": 999.0
         },
         {
           "id": "overture/8e224f04-0b74-439c-90e2-ca82fcaaa548",
@@ -25551,11 +25883,6 @@
           "osmDistanceM": 79.1
         },
         {
-          "id": "overture/7ed95780-f3c7-4689-8a68-3222f60a47dd",
-          "areaM2": 46.0,
-          "osmDistanceM": 85.2
-        },
-        {
           "id": "overture/0979538d-76b4-498f-bee1-39da2a362e9c",
           "areaM2": 56.3,
           "osmDistanceM": 64.5
@@ -25569,6 +25896,11 @@
           "id": "overture/05841849-ac01-4bf7-bc10-7cdae7d76a17",
           "areaM2": 53.1,
           "osmDistanceM": 54.3
+        },
+        {
+          "id": "overture/21fc1895-c27c-40ae-b0f3-eded19d03d33",
+          "areaM2": 35.5,
+          "osmDistanceM": 63.7
         },
         {
           "id": "overture/e8515ad5-29b0-479c-b54f-244b8e796f7a",
@@ -26146,6 +26478,156 @@
           "osmDistanceM": 68.2
         },
         {
+          "id": "overture/f938adf1-fd7b-4895-b4ae-1985cf95f62a",
+          "areaM2": 27.0,
+          "osmDistanceM": 77.2
+        },
+        {
+          "id": "overture/0349244e-4a3f-4ca0-b519-0bebbae4334c",
+          "areaM2": 27.0,
+          "osmDistanceM": 85.3
+        },
+        {
+          "id": "overture/77650b79-2072-4368-a99c-67c16b1dfce7",
+          "areaM2": 23.0,
+          "osmDistanceM": 72.1
+        },
+        {
+          "id": "overture/9e17fc40-7271-4488-80a1-729128d9cc3e",
+          "areaM2": 25.9,
+          "osmDistanceM": 54.9
+        },
+        {
+          "id": "overture/2a2d2e3c-7ed8-4ce5-a183-4e08b116d644",
+          "areaM2": 18.0,
+          "osmDistanceM": 151.5
+        },
+        {
+          "id": "overture/2f5ed7f0-64a3-483b-8eb4-4fd3032c72a3",
+          "areaM2": 44.9,
+          "osmDistanceM": 150.8
+        },
+        {
+          "id": "overture/ddea9beb-cf4e-43ed-b6bd-080662f525db",
+          "areaM2": 44.7,
+          "osmDistanceM": 188.4
+        },
+        {
+          "id": "overture/080a2163-7a20-4285-9bd9-19fee1f0e89f",
+          "areaM2": 42.1,
+          "osmDistanceM": 142.1
+        },
+        {
+          "id": "overture/ade0a2ba-616f-4c87-9d6e-2866816cac95",
+          "areaM2": 38.2,
+          "osmDistanceM": 130.2
+        },
+        {
+          "id": "overture/954bd276-2fb0-4d93-80d3-3e9908fd84ba",
+          "areaM2": 18.0,
+          "osmDistanceM": 94.6
+        },
+        {
+          "id": "overture/4a0eecb1-0326-47b6-974a-f91eaae5e731",
+          "areaM2": 56.2,
+          "osmDistanceM": 80.1
+        },
+        {
+          "id": "overture/15d34727-c5c3-498e-b113-e8d2e7930765",
+          "areaM2": 35.9,
+          "osmDistanceM": 114.3
+        },
+        {
+          "id": "overture/6516fdc6-8964-4c5f-bc33-7797e9aafd34",
+          "areaM2": 17.9,
+          "osmDistanceM": 116.1
+        },
+        {
+          "id": "overture/dfe5c69f-7773-4617-8825-5712522fbf66",
+          "areaM2": 22.4,
+          "osmDistanceM": 70.4
+        },
+        {
+          "id": "overture/d0bac2ae-d807-4d7a-a4d1-4ded1fb5d4f8",
+          "areaM2": 53.9,
+          "osmDistanceM": 60.1
+        },
+        {
+          "id": "overture/94177794-6fe0-4a5a-9482-320ee028e9ce",
+          "areaM2": 55.0,
+          "osmDistanceM": 81.6
+        },
+        {
+          "id": "overture/8799f491-3620-4ecd-83d4-f9b2481e8fe3",
+          "areaM2": 27.0,
+          "osmDistanceM": 79.7
+        },
+        {
+          "id": "overture/3d149eaf-928e-499b-80d8-eaa71928255c",
+          "areaM2": 58.4,
+          "osmDistanceM": 171.4
+        },
+        {
+          "id": "overture/cdb1a19d-bed8-4da0-a973-f2601ebef13d",
+          "areaM2": 35.8,
+          "osmDistanceM": 154.5
+        },
+        {
+          "id": "overture/fe04fe55-d9b6-4e8c-be35-9ccebe2fe967",
+          "areaM2": 22.7,
+          "osmDistanceM": 102.2
+        },
+        {
+          "id": "overture/6ca8dfb1-0df9-4c11-8d4a-9f132e6e6d08",
+          "areaM2": 59.4,
+          "osmDistanceM": 106.6
+        },
+        {
+          "id": "overture/15eb9bf8-43a6-4a92-a9c6-49abd9640fbd",
+          "areaM2": 33.6,
+          "osmDistanceM": 144.3
+        },
+        {
+          "id": "overture/fd32b300-a368-4841-96cc-62eddfdbcd45",
+          "areaM2": 29.5,
+          "osmDistanceM": 162.6
+        },
+        {
+          "id": "overture/a9bec1b2-d6b8-4013-8847-82fa95fc63b8",
+          "areaM2": 36.0,
+          "osmDistanceM": 166.3
+        },
+        {
+          "id": "overture/20610f3c-d2a3-41c8-b497-8cdcf22e3a49",
+          "areaM2": 58.4,
+          "osmDistanceM": 133.1
+        },
+        {
+          "id": "overture/9dd57f57-54e2-4a6d-af49-12528bb6d0c3",
+          "areaM2": 58.3,
+          "osmDistanceM": 191.3
+        },
+        {
+          "id": "overture/3531b98d-fae1-4421-9b4e-aaf1b20c4a64",
+          "areaM2": 51.5,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/073d5e85-1adf-48ea-9c2f-701d52d9953f",
+          "areaM2": 45.0,
+          "osmDistanceM": 127.3
+        },
+        {
+          "id": "overture/9ac49aa7-f2ed-4251-a9ff-648a2d893796",
+          "areaM2": 54.3,
+          "osmDistanceM": 54.0
+        },
+        {
+          "id": "overture/2e861bc4-6322-4f58-9c3a-977a8262c955",
+          "areaM2": 38.0,
+          "osmDistanceM": 71.8
+        },
+        {
           "id": "overture/e8d669ad-b836-4716-b899-69f967dc2bea",
           "areaM2": 22.5,
           "osmDistanceM": 127.3
@@ -26196,6 +26678,91 @@
           "osmDistanceM": 999.0
         },
         {
+          "id": "overture/51b30b8a-5fdf-475d-9076-9314e8db3c43",
+          "areaM2": 53.9,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/06eb7876-44a1-43d0-994c-75070e38767d",
+          "areaM2": 40.5,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/eeb1f084-00ad-4e0c-b77a-9e3a237ece04",
+          "areaM2": 20.3,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/bd221524-c588-43e0-84f9-1430c419208a",
+          "areaM2": 56.2,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/539cd678-d9a4-4723-bd08-8125b1b05954",
+          "areaM2": 55.8,
+          "osmDistanceM": 157.6
+        },
+        {
+          "id": "overture/4f565764-76ad-4667-a949-c9afbf257675",
+          "areaM2": 36.1,
+          "osmDistanceM": 160.6
+        },
+        {
+          "id": "overture/de73e241-82d5-473e-af5a-854a63b82596",
+          "areaM2": 44.9,
+          "osmDistanceM": 174.4
+        },
+        {
+          "id": "overture/ef71c1a8-80e0-47f8-aa9c-2f9438f2ea49",
+          "areaM2": 24.0,
+          "osmDistanceM": 168.7
+        },
+        {
+          "id": "overture/c4f9522f-3561-4229-8dbc-6a5c869c7aac",
+          "areaM2": 53.9,
+          "osmDistanceM": 182.6
+        },
+        {
+          "id": "overture/b912a66b-429e-423a-b38a-47cbe9ebf03c",
+          "areaM2": 23.1,
+          "osmDistanceM": 185.5
+        },
+        {
+          "id": "overture/c44061c7-8f2b-40a2-98f8-b8a00506b685",
+          "areaM2": 53.9,
+          "osmDistanceM": 160.6
+        },
+        {
+          "id": "overture/b4e040b3-d650-4ba2-9caf-74dca91a837a",
+          "areaM2": 39.2,
+          "osmDistanceM": 148.5
+        },
+        {
+          "id": "overture/0153593b-fcee-42c6-ad74-8d5cfb8b4cda",
+          "areaM2": 39.3,
+          "osmDistanceM": 157.8
+        },
+        {
+          "id": "overture/d5f3bc7d-8515-4f39-8def-3e438dcaca6a",
+          "areaM2": 53.9,
+          "osmDistanceM": 175.0
+        },
+        {
+          "id": "overture/53b877eb-2bfe-433d-bc27-e9ebd4aa48f2",
+          "areaM2": 22.4,
+          "osmDistanceM": 176.7
+        },
+        {
+          "id": "overture/73d8f00d-10e6-4739-8bcb-c73a81692458",
+          "areaM2": 56.2,
+          "osmDistanceM": 195.0
+        },
+        {
+          "id": "overture/23cfb343-c69c-4b65-8766-08cefb70a44a",
+          "areaM2": 56.2,
+          "osmDistanceM": 192.2
+        },
+        {
           "id": "overture/90c12c99-6bc3-4633-b04c-44880254ded0",
           "areaM2": 56.2,
           "osmDistanceM": 103.0
@@ -26219,6 +26786,171 @@
           "id": "overture/245087f0-e0ec-4139-90e3-56747c3c884d",
           "areaM2": 35.1,
           "osmDistanceM": 70.6
+        },
+        {
+          "id": "overture/809919ff-ae63-44aa-85b2-8930c1b49c93",
+          "areaM2": 28.0,
+          "osmDistanceM": 56.2
+        },
+        {
+          "id": "overture/c10247be-012a-4e8d-bff1-8f4e36ed878d",
+          "areaM2": 20.2,
+          "osmDistanceM": 77.7
+        },
+        {
+          "id": "overture/46927f13-f1c9-421f-9fb6-4164483e2547",
+          "areaM2": 52.6,
+          "osmDistanceM": 68.9
+        },
+        {
+          "id": "overture/c5cb9040-14e2-434f-b769-2952e16fbb09",
+          "areaM2": 59.2,
+          "osmDistanceM": 89.6
+        },
+        {
+          "id": "overture/4957e81a-1ff0-4e7a-9c53-f855bc3e459c",
+          "areaM2": 27.0,
+          "osmDistanceM": 173.3
+        },
+        {
+          "id": "overture/7d312582-2d93-4092-a55d-2ce0c3ef0222",
+          "areaM2": 56.1,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/d0bce772-757f-4d53-8403-8436f636d3dc",
+          "areaM2": 56.2,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/96b214c5-6b9d-4dfc-aa0b-fd46c5bf9b33",
+          "areaM2": 19.3,
+          "osmDistanceM": 134.5
+        },
+        {
+          "id": "overture/8c9ec084-0538-43a6-8885-4e3d68a5bdc2",
+          "areaM2": 45.8,
+          "osmDistanceM": 73.8
+        },
+        {
+          "id": "overture/cd2530e2-fa3b-4aab-afd3-e30dadd9aab4",
+          "areaM2": 53.9,
+          "osmDistanceM": 60.2
+        },
+        {
+          "id": "overture/718bcea1-a8c0-46a9-890c-8f033a7ecddc",
+          "areaM2": 47.2,
+          "osmDistanceM": 62.2
+        },
+        {
+          "id": "overture/6290da68-8b71-44b2-b077-28c93bc8e559",
+          "areaM2": 38.0,
+          "osmDistanceM": 88.0
+        },
+        {
+          "id": "overture/df47fdaa-8cc8-4c98-848d-be8c96764b30",
+          "areaM2": 24.5,
+          "osmDistanceM": 108.4
+        },
+        {
+          "id": "overture/5a2b15aa-77a8-49ae-a870-e21fa4a1a563",
+          "areaM2": 22.5,
+          "osmDistanceM": 56.5
+        },
+        {
+          "id": "overture/a46b894a-7f58-4d79-84bd-54c93fd4348e",
+          "areaM2": 58.5,
+          "osmDistanceM": 161.5
+        },
+        {
+          "id": "overture/29c9fdb0-f2f0-4001-969a-aa55ae59e642",
+          "areaM2": 17.2,
+          "osmDistanceM": 179.7
+        },
+        {
+          "id": "overture/ca29a0e9-920f-4ece-a47f-442a5ff2e3c4",
+          "areaM2": 40.0,
+          "osmDistanceM": 152.7
+        },
+        {
+          "id": "overture/f870fb53-2792-45eb-8cac-465f0ed2de6a",
+          "areaM2": 27.0,
+          "osmDistanceM": 182.9
+        },
+        {
+          "id": "overture/ef444e3f-4674-470a-9261-11f130861d53",
+          "areaM2": 56.3,
+          "osmDistanceM": 106.9
+        },
+        {
+          "id": "overture/61946d63-c6af-47a1-ad63-fc97911f2e02",
+          "areaM2": 30.4,
+          "osmDistanceM": 112.2
+        },
+        {
+          "id": "overture/c17e8f74-3717-4aa8-ab37-0615df3189b0",
+          "areaM2": 33.7,
+          "osmDistanceM": 82.5
+        },
+        {
+          "id": "overture/57693509-311f-4b20-9a34-04b7657b7a0a",
+          "areaM2": 49.4,
+          "osmDistanceM": 74.7
+        },
+        {
+          "id": "overture/0187870b-175e-4842-ab56-1eb4db236957",
+          "areaM2": 49.4,
+          "osmDistanceM": 89.4
+        },
+        {
+          "id": "overture/a25663ff-6448-440d-b48d-021991623479",
+          "areaM2": 31.5,
+          "osmDistanceM": 98.2
+        },
+        {
+          "id": "overture/9a2e7431-8c74-4c0d-99a5-310f59509f2c",
+          "areaM2": 31.5,
+          "osmDistanceM": 127.9
+        },
+        {
+          "id": "overture/52ac6e3d-7ad3-4d7d-9529-1107ff99ffbb",
+          "areaM2": 36.0,
+          "osmDistanceM": 120.4
+        },
+        {
+          "id": "overture/b7cb8ae0-ab99-4ef6-92dd-989d1c19d54a",
+          "areaM2": 58.4,
+          "osmDistanceM": 93.6
+        },
+        {
+          "id": "overture/d1364c58-a25d-4dd2-a466-7318ec576e20",
+          "areaM2": 53.9,
+          "osmDistanceM": 169.7
+        },
+        {
+          "id": "overture/e2ee1e4c-a8fa-4c06-b95d-51f4232f79ad",
+          "areaM2": 52.1,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/bc1b6dc3-e9db-48f6-9380-ed8adbdd516b",
+          "areaM2": 33.7,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/8b473b6b-b157-4d4a-bacb-e94c06d43e23",
+          "areaM2": 53.9,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "overture/4d7ce9dd-6e4f-4139-a72d-7f9c0bfd3c2a",
+          "areaM2": 26.9,
+          "osmDistanceM": 189.4
+        },
+        {
+          "id": "overture/a52cdbae-7908-4e8d-af2a-79594381ec30",
+          "areaM2": 55.2,
+          "osmDistanceM": 999.0
         },
         {
           "id": "overture/370c66b4-be08-46a0-a414-b53bc28efac3",
@@ -31531,9 +32263,49 @@
           "osmDistanceM": 148.6
         },
         {
+          "id": "globfp/globfp-2265/123511/0",
+          "areaM2": 44.8,
+          "osmDistanceM": 150.0
+        },
+        {
+          "id": "globfp/globfp-2265/123516/0",
+          "areaM2": 40.8,
+          "osmDistanceM": 174.3
+        },
+        {
+          "id": "globfp/globfp-2265/123536/0",
+          "areaM2": 30.9,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "globfp/globfp-2265/123537/0",
+          "areaM2": 41.3,
+          "osmDistanceM": 999.0
+        },
+        {
           "id": "globfp/globfp-2265/123584/0",
           "areaM2": 42.0,
           "osmDistanceM": 68.7
+        },
+        {
+          "id": "globfp/globfp-2265/123791/0",
+          "areaM2": 53.9,
+          "osmDistanceM": 100.3
+        },
+        {
+          "id": "globfp/globfp-2265/123807/0",
+          "areaM2": 39.5,
+          "osmDistanceM": 89.9
+        },
+        {
+          "id": "globfp/globfp-2265/123835/0",
+          "areaM2": 48.8,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "globfp/globfp-2265/123848/0",
+          "areaM2": 30.9,
+          "osmDistanceM": 182.8
         },
         {
           "id": "globfp/globfp-2265/123863/0",
@@ -31569,6 +32341,31 @@
           "id": "globfp/globfp-2265/128249/0",
           "areaM2": 43.7,
           "osmDistanceM": 69.1
+        },
+        {
+          "id": "globfp/globfp-2265/129080/0",
+          "areaM2": 44.9,
+          "osmDistanceM": 80.9
+        },
+        {
+          "id": "globfp/globfp-2265/129894/0",
+          "areaM2": 59.5,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "globfp/globfp-2265/129952/0",
+          "areaM2": 37.3,
+          "osmDistanceM": 999.0
+        },
+        {
+          "id": "globfp/globfp-2265/130017/0",
+          "areaM2": 51.5,
+          "osmDistanceM": 137.8
+        },
+        {
+          "id": "globfp/globfp-2265/130371/0",
+          "areaM2": 40.3,
+          "osmDistanceM": 999.0
         },
         {
           "id": "globfp/globfp-2265/141004/0",
@@ -32253,15 +33050,15 @@
       ]
     }
   },
-  "buildings": 73473,
+  "buildings": 76024,
   "heightSources": {
     "landmark": 7,
-    "osm-height": 1573,
-    "osm-levels": 8096,
+    "osm-height": 1605,
+    "osm-levels": 8575,
     "overture-height": 2,
     "overture-floors": 3,
-    "globfp": 27923,
-    "estimate": 35865,
+    "globfp": 28443,
+    "estimate": 37385,
     "published": 4
   },
   "buildingMinHeightCorrections": [
@@ -32368,6 +33165,7 @@
     "super-hq",
     "taizi-bay",
     "tencent-binhai",
+    "tencent-towers",
     "upperhills",
     "window-of-world",
     "xili-station"
@@ -32375,10 +33173,13 @@
   "landmarksWithoutBuilding": [
     "chegongmiao",
     "chunjian",
+    "dongmen",
     "futian-station",
     "huangbeiling",
     "iec-xiangmihu",
     "lianhuashan",
+    "nantou-ancient-city",
+    "oct-loft",
     "oh-bay",
     "shenzhen-bay-bridge",
     "shenzhen-bay-park",
@@ -32389,10 +33190,10 @@
     "rule": "supplemental GloBFP and Overture footprints only: defer when a road centerline crosses more than 0.5 m inside the footprint, or when at least 50% of the footprint lies inside the estimated carriageway (road half width, no extra buffer); OSM-mapped buildings are never auto-removed",
     "roadWidthSource": "estimated",
     "imageryChecked": false,
-    "count": 3900,
-    "areaM2": 1804852.8,
+    "count": 3982,
+    "areaM2": 1842486.4,
     "bySource": {
-      "globfp": 3782,
+      "globfp": 3864,
       "overture": 118
     },
     "objects": [
@@ -59828,6 +60629,106 @@
       },
       {
         "source": "globfp",
+        "id": "globfp/globfp-2265/123607/0",
+        "areaM2": 334.8,
+        "reason": "road-centerline",
+        "roadId": "way/1385237209",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/123629/0",
+        "areaM2": 161.7,
+        "reason": "road-centerline",
+        "roadId": "way/1221211104",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/123633/0",
+        "areaM2": 368.7,
+        "reason": "road-centerline",
+        "roadId": "way/364738233",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/123637/0",
+        "areaM2": 200.9,
+        "reason": "road-centerline",
+        "roadId": "way/1385234051",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/123638/0",
+        "areaM2": 745.9,
+        "reason": "road-centerline",
+        "roadId": "way/364738233",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/123641/0",
+        "areaM2": 292.8,
+        "reason": "road-centerline",
+        "roadId": "way/364738233",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/123645/0",
+        "areaM2": 142.8,
+        "reason": "road-centerline",
+        "roadId": "way/960743153",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/123663/0",
+        "areaM2": 138.9,
+        "reason": "road-centerline",
+        "roadId": "way/1385234051",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/123718/0",
+        "areaM2": 213.4,
+        "reason": "road-centerline",
+        "roadId": "way/996247138",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/123740/0",
+        "areaM2": 392.1,
+        "reason": "road-centerline",
+        "roadId": "way/996247147",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
         "id": "globfp/globfp-2265/123969/0",
         "areaM2": 144.3,
         "reason": "road-centerline",
@@ -60098,10 +60999,120 @@
       },
       {
         "source": "globfp",
-        "id": "globfp/globfp-2265/126262/0",
-        "areaM2": 974.8,
+        "id": "globfp/globfp-2265/126153/0",
+        "areaM2": 402.2,
         "reason": "road-centerline",
-        "roadId": "way/868936123",
+        "roadId": "way/869955072",
+        "roadWidthM": 6.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126192/0",
+        "areaM2": 39.9,
+        "reason": "road-centerline",
+        "roadId": "way/783847324",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126198/0",
+        "areaM2": 128.5,
+        "reason": "road-centerline",
+        "roadId": "way/784080810",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126199/0",
+        "areaM2": 146.3,
+        "reason": "road-centerline",
+        "roadId": "way/783143776",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126208/0",
+        "areaM2": 110.1,
+        "reason": "road-centerline",
+        "roadId": "way/782628546",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126239/0",
+        "areaM2": 135.3,
+        "reason": "road-centerline",
+        "roadId": "way/782628587",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126240/0",
+        "areaM2": 70.0,
+        "reason": "road-centerline",
+        "roadId": "way/782628587",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126245/0",
+        "areaM2": 598.5,
+        "reason": "road-centerline",
+        "roadId": "way/783238518",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126247/0",
+        "areaM2": 139.4,
+        "reason": "road-centerline",
+        "roadId": "way/783018295",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126248/0",
+        "areaM2": 205.3,
+        "reason": "road-centerline",
+        "roadId": "way/783018297",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126251/0",
+        "areaM2": 327.2,
+        "reason": "road-centerline",
+        "roadId": "way/783018295",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126262/0",
+        "areaM2": 1240.2,
+        "reason": "road-centerline",
+        "roadId": "way/535832116",
         "roadWidthM": 6.5,
         "roadWidthSource": "estimated",
         "imageryChecked": false
@@ -60109,10 +61120,60 @@
       {
         "source": "globfp",
         "id": "globfp/globfp-2265/126263/0",
-        "areaM2": 865.0,
+        "areaM2": 1213.2,
         "reason": "road-centerline",
-        "roadId": "way/535832114",
-        "roadWidthM": 6.5,
+        "roadId": "way/1267038553",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126268/0",
+        "areaM2": 190.7,
+        "reason": "road-centerline",
+        "roadId": "way/1267038549",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126332/0",
+        "areaM2": 556.4,
+        "reason": "road-centerline",
+        "roadId": "way/1267038549",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126333/0",
+        "areaM2": 525.6,
+        "reason": "road-centerline",
+        "roadId": "way/1267038549",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126334/0",
+        "areaM2": 1211.0,
+        "reason": "road-centerline",
+        "roadId": "way/222184851",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126350/0",
+        "areaM2": 121.1,
+        "reason": "road-centerline",
+        "roadId": "way/1221027558",
+        "roadWidthM": 3.0,
         "roadWidthSource": "estimated",
         "imageryChecked": false
       },
@@ -60122,6 +61183,116 @@
         "areaM2": 383.1,
         "reason": "road-centerline",
         "roadId": "way/1243089699",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126466/0",
+        "areaM2": 105.2,
+        "reason": "road-centerline",
+        "roadId": "way/807081063",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126469/0",
+        "areaM2": 346.2,
+        "reason": "road-centerline",
+        "roadId": "way/1221027550",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126478/0",
+        "areaM2": 491.6,
+        "reason": "road-centerline",
+        "roadId": "way/1221027558",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126486/0",
+        "areaM2": 89.2,
+        "reason": "road-centerline",
+        "roadId": "way/1221027550",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126487/0",
+        "areaM2": 1604.2,
+        "reason": "road-centerline",
+        "roadId": "way/996247169",
+        "roadWidthM": 6.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126504/0",
+        "areaM2": 1887.3,
+        "reason": "road-centerline",
+        "roadId": "way/1221027553",
+        "roadWidthM": 6.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126558/0",
+        "areaM2": 1101.5,
+        "reason": "road-centerline",
+        "roadId": "way/1153470618",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126605/0",
+        "areaM2": 198.5,
+        "reason": "road-centerline",
+        "roadId": "way/1153470613",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126767/0",
+        "areaM2": 328.8,
+        "reason": "road-centerline",
+        "roadId": "way/783238434",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126769/0",
+        "areaM2": 730.2,
+        "reason": "road-centerline",
+        "roadId": "way/782628542",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/126829/0",
+        "areaM2": 3400.2,
+        "reason": "road-centerline",
+        "roadId": "way/222184852",
         "roadWidthM": 4.5,
         "roadWidthSource": "estimated",
         "imageryChecked": false
@@ -60238,6 +61409,196 @@
       },
       {
         "source": "globfp",
+        "id": "globfp/globfp-2265/129039/0",
+        "areaM2": 207.0,
+        "reason": "road-centerline",
+        "roadId": "way/1451224338",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129085/0",
+        "areaM2": 384.9,
+        "reason": "road-centerline",
+        "roadId": "way/1432669847",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129087/0",
+        "areaM2": 92.5,
+        "reason": "road-centerline",
+        "roadId": "way/1236008841",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129088/0",
+        "areaM2": 153.7,
+        "reason": "road-centerline",
+        "roadId": "way/1236008854",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129119/0",
+        "areaM2": 705.4,
+        "reason": "road-centerline",
+        "roadId": "way/1236008843",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129121/0",
+        "areaM2": 31.5,
+        "reason": "road-centerline",
+        "roadId": "way/1236008897",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129134/0",
+        "areaM2": 258.0,
+        "reason": "road-centerline",
+        "roadId": "way/989451116",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129138/0",
+        "areaM2": 135.3,
+        "reason": "road-centerline",
+        "roadId": "way/1236008896",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129145/0",
+        "areaM2": 110.6,
+        "reason": "road-centerline",
+        "roadId": "way/989451105",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129147/0",
+        "areaM2": 296.8,
+        "reason": "road-centerline",
+        "roadId": "way/1463427735",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129148/0",
+        "areaM2": 144.9,
+        "reason": "road-centerline",
+        "roadId": "way/497326343",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129149/0",
+        "areaM2": 142.7,
+        "reason": "road-centerline",
+        "roadId": "way/1047817281",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129150/0",
+        "areaM2": 480.1,
+        "reason": "road-centerline",
+        "roadId": "way/989451097",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129157/0",
+        "areaM2": 134.8,
+        "reason": "road-centerline",
+        "roadId": "way/1236008893",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129214/0",
+        "areaM2": 352.8,
+        "reason": "road-centerline",
+        "roadId": "way/497325753",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129216/0",
+        "areaM2": 179.8,
+        "reason": "road-centerline",
+        "roadId": "way/497325753",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129220/0",
+        "areaM2": 175.3,
+        "reason": "road-centerline",
+        "roadId": "way/1474317495",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129239/0",
+        "areaM2": 295.6,
+        "reason": "road-centerline",
+        "roadId": "way/1432669847",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129268/0",
+        "areaM2": 611.4,
+        "reason": "road-centerline",
+        "roadId": "way/344198730",
+        "roadWidthM": 16.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
         "id": "globfp/globfp-2265/129347/0",
         "areaM2": 307.2,
         "reason": "road-centerline",
@@ -60253,6 +61614,256 @@
         "reason": "road-centerline",
         "roadId": "way/705362074",
         "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129364/0",
+        "areaM2": 5196.6,
+        "reason": "road-centerline",
+        "roadId": "way/497325759",
+        "roadWidthM": 22.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129365/0",
+        "areaM2": 78.7,
+        "reason": "road-centerline",
+        "roadId": "way/1047817281",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129367/0",
+        "areaM2": 664.9,
+        "reason": "road-centerline",
+        "roadId": "way/246570021",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129368/0",
+        "areaM2": 290.0,
+        "reason": "road-centerline",
+        "roadId": "way/246570446",
+        "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129382/0",
+        "areaM2": 299.7,
+        "reason": "road-centerline",
+        "roadId": "way/1236008871",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129403/0",
+        "areaM2": 481.0,
+        "reason": "road-centerline",
+        "roadId": "way/1236008861",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129441/0",
+        "areaM2": 740.8,
+        "reason": "road-centerline",
+        "roadId": "way/1236008876",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129452/0",
+        "areaM2": 216.9,
+        "reason": "road-centerline",
+        "roadId": "way/1236008876",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129456/0",
+        "areaM2": 424.6,
+        "reason": "road-centerline",
+        "roadId": "way/246570047",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129896/0",
+        "areaM2": 111.8,
+        "reason": "road-centerline",
+        "roadId": "way/222277675",
+        "roadWidthM": 6.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129922/0",
+        "areaM2": 295.3,
+        "reason": "road-centerline",
+        "roadId": "way/1429960727",
+        "roadWidthM": 6.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/129992/0",
+        "areaM2": 292.9,
+        "reason": "road-centerline",
+        "roadId": "way/222277675",
+        "roadWidthM": 6.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/130211/0",
+        "areaM2": 231.2,
+        "reason": "road-centerline",
+        "roadId": "way/993789641",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/130545/0",
+        "areaM2": 161.8,
+        "reason": "road-centerline",
+        "roadId": "way/222273973",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/130553/0",
+        "areaM2": 148.1,
+        "reason": "road-centerline",
+        "roadId": "way/222273959",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/130556/0",
+        "areaM2": 151.0,
+        "reason": "road-centerline",
+        "roadId": "way/222273959",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/130665/0",
+        "areaM2": 1008.4,
+        "reason": "road-centerline",
+        "roadId": "way/222274998",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/130709/0",
+        "areaM2": 1095.4,
+        "reason": "road-centerline",
+        "roadId": "way/739463617",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/130726/0",
+        "areaM2": 711.4,
+        "reason": "road-centerline",
+        "roadId": "way/222273950",
+        "roadWidthM": 4.5,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/130729/0",
+        "areaM2": 348.9,
+        "reason": "road-centerline",
+        "roadId": "way/739463617",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/130780/0",
+        "areaM2": 163.4,
+        "reason": "road-centerline",
+        "roadId": "way/922389529",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/140166/0",
+        "areaM2": 190.8,
+        "reason": "road-centerline",
+        "roadId": "way/1229890610",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/140167/0",
+        "areaM2": 189.1,
+        "reason": "road-centerline",
+        "roadId": "way/1229890610",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/140168/0",
+        "areaM2": 165.4,
+        "reason": "road-centerline",
+        "roadId": "way/1415639398",
+        "roadWidthM": 7.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/140179/0",
+        "areaM2": 101.8,
+        "reason": "road-centerline",
+        "roadId": "way/1229890610",
+        "roadWidthM": 7.0,
         "roadWidthSource": "estimated",
         "imageryChecked": false
       },
@@ -60363,6 +61974,16 @@
         "reason": "road-centerline",
         "roadId": "way/705362087",
         "roadWidthM": 3.0,
+        "roadWidthSource": "estimated",
+        "imageryChecked": false
+      },
+      {
+        "source": "globfp",
+        "id": "globfp/globfp-2265/143937/0",
+        "areaM2": 184.6,
+        "reason": "road-centerline",
+        "roadId": "way/222273973",
+        "roadWidthM": 4.5,
         "roadWidthSource": "estimated",
         "imageryChecked": false
       },
@@ -71401,47 +73022,47 @@
   },
   "buildingRecords": {
     "roles": {
-      "main": 26375,
+      "main": 27873,
       "podium": 20,
-      "canopy": 292,
-      "bridge": 19,
-      "unknown": 46767
+      "canopy": 320,
+      "bridge": 20,
+      "unknown": 47791
     },
     "upstreamFamilies": {
-      "osm": 27683,
-      "overture-eastasia": 19817,
-      "globfp-eastasia": 11187,
-      "eastasia-shared": 14786,
+      "osm": 29225,
+      "overture-eastasia": 20369,
+      "globfp-eastasia": 11330,
+      "eastasia-shared": 15100,
       "unknown": 0
     },
     "confidence": {
       "footprint": {
         "unknown": 0,
-        "low": 45790,
-        "medium": 27683,
+        "low": 46799,
+        "medium": 29225,
         "high": 0
       },
       "height": {
         "unknown": 0,
-        "low": 63788,
-        "medium": 9681,
+        "low": 65828,
+        "medium": 10192,
         "high": 4
       },
       "era": {
-        "unknown": 34603,
-        "low": 11187,
-        "medium": 27683,
+        "unknown": 35469,
+        "low": 11330,
+        "medium": 29225,
         "high": 0
       }
     }
   },
   "pendingReview": {
     "rule": "ambiguous or deferred building records: road-conflict-deferred = supplemental footprints kept out of the scene by the road gate; road-conflict-osm-kept = OSM-mapped buildings overlapping the estimated carriageway that stay in the scene; height-source-size-mismatch = no own height and GloBFP overlap of at least half the footprint, but the strict same-building match failed (former globfp-overlap population); counts are complete, samples use a fixed quota",
-    "count": 24537,
+    "count": 25109,
     "byReason": {
-      "road-conflict-deferred": 3900,
-      "road-conflict-osm-kept": 727,
-      "height-source-size-mismatch": 20051
+      "road-conflict-deferred": 3982,
+      "road-conflict-osm-kept": 748,
+      "height-source-size-mismatch": 20524
     },
     "objects": [
       {
@@ -74076,13 +75697,13 @@
     "truncated": true
   },
   "landPieces": 2,
-  "landAreaKm2": 264.26,
+  "landAreaKm2": 291.05,
   "seaAreaKm2": 35.39,
-  "water": 455,
+  "water": 476,
   "wetland": 28,
-  "green": 3677,
-  "roads": 33758,
-  "roadKm": 5501.2,
+  "green": 3802,
+  "roads": 34938,
+  "roadKm": 5747.9,
   "terrain": {
     "stepM": 25,
     "samples": 783090,
@@ -74304,15 +75925,15 @@
     "holes": 34
   },
   "roadGraph": {
-    "nodes": 16381,
-    "links": 23588,
-    "lengthKm": 3020.26,
-    "bridgeLinks": 1128,
-    "tunnelLinks": 208,
+    "nodes": 16999,
+    "links": 24411,
+    "lengthKm": 3182.05,
+    "bridgeLinks": 1180,
+    "tunnelLinks": 227,
     "widthSources": {
-      "estimate-from-lanes": 7566,
-      "estimate-from-class": 15999,
-      "osm-width": 16,
+      "estimate-from-lanes": 7985,
+      "estimate-from-class": 16400,
+      "osm-width": 19,
       "reviewed-cross-section-estimate": 7
     },
     "skipped": {
@@ -74320,11 +75941,11 @@
       "nonDrivableClass": 44877
     },
     "connectivity": {
-      "components": 730,
-      "largestNodes": 15490,
-      "largestNodeFraction": 0.9456,
-      "largestLinks": 22627,
-      "largestLinkFraction": 0.9593
+      "components": 697,
+      "largestNodes": 16108,
+      "largestNodeFraction": 0.9476,
+      "largestLinks": 23476,
+      "largestLinkFraction": 0.9617
     },
     "limitations": [
       "Conditional access is not yet imported",
@@ -74349,12 +75970,12 @@
   },
   "turnRestrictions": {
     "source": "osm-guangdong",
-    "rules": 134,
+    "rules": 148,
     "relations": {
       "invalidMembers": 26,
       "notApplicableToCar": 2,
-      "viaNode": 128,
-      "withoutGraphApproach": 5,
+      "viaNode": 142,
+      "withoutGraphApproach": 10,
       "viaWayConservative": 6
     },
     "incompleteOsmIds": [
@@ -74392,10 +76013,10 @@
   },
   "landmarkSites": {
     "source": "osm-guangdong",
-    "requestedObjects": 66,
-    "resolvedObjects": 54,
-    "landmarks": 25,
-    "roles": 48,
+    "requestedObjects": 69,
+    "resolvedObjects": 57,
+    "landmarks": 28,
+    "roles": 51,
     "missing": [
       {
         "osmId": "relation/6371344",
@@ -74547,49 +76168,49 @@
       "method": "FABDEM station baseline median-filtered to reject residual building/canopy spikes, then reduced to min(filtered FABDEM, original DSM runtime height) per station with nodata fallbacks; the reference series is median-filtered again; shared nodes pinned to the median incident reference endpoint and relaxed within the class grade allowance; class grade clamp with forward/backward passes; flat cross-section; plateau radius = nearest station half width + 1.5 terrain steps; adaptive smoothstep transition (15 m minimum, widened where the profile differs from the DSM); bounded Laplacian relaxation and an inside-corridor single-cell step limit; derived vertices never exceed the original DSM by more than the raise cap; quantized to terrain heightScale"
     },
     "links": {
-      "total": 23588,
-      "eligible": 21960,
-      "resolved": 21960,
+      "total": 24411,
+      "eligible": 22708,
+      "resolved": 22708,
       "unresolved": 0,
       "gradeInfeasible": 7,
       "excluded": {
-        "bridge": 1128,
-        "layer": 159,
-        "shortLength": 133,
-        "tunnel": 208
+        "bridge": 1180,
+        "layer": 162,
+        "shortLength": 134,
+        "tunnel": 227
       },
       "excludedTerrain": 0,
       "maxAbsDeltaM": 47.381,
-      "p95AbsDeltaM": 10.551,
-      "medianAbsDeltaM": 3.352,
-      "overFiveMetres": 6741,
+      "p95AbsDeltaM": 10.552,
+      "medianAbsDeltaM": 3.356,
+      "overFiveMetres": 6996,
       "reference": {
         "rule": "reference = min(median-filtered FABDEM, original DSM runtime height), then median-filtered",
-        "medianBiasM": -2.09,
-        "p10BiasM": -5.752,
-        "p90BiasM": -0.101,
-        "maxRaiseBiasM": 0.333,
+        "medianBiasM": -2.081,
+        "p10BiasM": -5.709,
+        "p90BiasM": -0.115,
+        "maxRaiseBiasM": 0.367,
         "definition": "biasM = median reference - median original DSM along the centreline; positive means the reference still sits above the DSM"
       }
     },
     "stations": {
-      "count": 300360,
+      "count": 314972,
       "spacingM": 10.0,
       "medianFilterWindow": 7,
       "spikeLimitM": 3.0,
-      "filteredLinks": 20619,
-      "spikeSamplesOverLimit": 44,
-      "maxRejectedSpikeM": 5.475
+      "filteredLinks": 21337,
+      "spikeSamplesOverLimit": 79,
+      "maxRejectedSpikeM": 7.591
     },
     "vertices": {
       "total": 783090,
-      "derived": 141758,
-      "plateau": 113041,
-      "transition": 28717,
-      "changed": 136615,
-      "changedFraction": 0.17446,
+      "derived": 147423,
+      "plateau": 117263,
+      "transition": 30160,
+      "changed": 142071,
+      "changedFraction": 0.18142,
       "maxAbsDeltaM": 8.2,
-      "p95AbsDeltaM": 2.6,
+      "p95AbsDeltaM": 2.5,
       "maxAdjacentDeltaM": 2.0,
       "plateauAdjacentDeltaM": 2.0,
       "rimAdjacentDeltaM": 7.1,
@@ -74598,47 +76219,47 @@
       "adjacentStepsOver2M": 0,
       "adjacentStepsOver5M": 0,
       "plateauStepsOver2M": 0,
-      "raisedCapped": 31040,
+      "raisedCapped": 32627,
       "maxRaiseM": 0.5,
       "excluded": 19,
       "limitM": 0.5
     },
     "classes": {
       "motorway": {
-        "links": 222,
-        "changedVertices": 2747,
+        "links": 258,
+        "changedVertices": 3105,
         "maxAbsDeltaM": 14.589,
-        "p95AbsDeltaM": 8.013
+        "p95AbsDeltaM": 8.35
       },
       "trunk": {
-        "links": 1226,
-        "changedVertices": 6067,
+        "links": 1329,
+        "changedVertices": 6657,
         "maxAbsDeltaM": 24.104,
-        "p95AbsDeltaM": 8.028
+        "p95AbsDeltaM": 8.366
       },
       "primary": {
-        "links": 5335,
-        "changedVertices": 26810,
+        "links": 5507,
+        "changedVertices": 28054,
         "maxAbsDeltaM": 46.545,
-        "p95AbsDeltaM": 7.745
+        "p95AbsDeltaM": 7.789
       },
       "secondary": {
-        "links": 4750,
-        "changedVertices": 23496,
+        "links": 4830,
+        "changedVertices": 23822,
         "maxAbsDeltaM": 17.545,
         "p95AbsDeltaM": 8.238
       },
       "tertiary": {
-        "links": 4546,
-        "changedVertices": 30649,
+        "links": 4629,
+        "changedVertices": 31234,
         "maxAbsDeltaM": 29.302,
-        "p95AbsDeltaM": 10.472
+        "p95AbsDeltaM": 10.465
       },
       "local": {
-        "links": 5881,
-        "changedVertices": 46846,
+        "links": 6155,
+        "changedVertices": 49199,
         "maxAbsDeltaM": 47.381,
-        "p95AbsDeltaM": 13.409
+        "p95AbsDeltaM": 13.412
       },
       "service": {
         "links": 0,
@@ -74855,6 +76476,14 @@
         "maxFabdemSpikeM": 0.493
       },
       {
+        "osmId": "way/949087361",
+        "name": "",
+        "class": "local",
+        "lengthM": 1626.373,
+        "maxAbsDeltaM": 23.863,
+        "maxFabdemSpikeM": 3.795
+      },
+      {
         "osmId": "way/239698144",
         "name": "金塘街",
         "class": "tertiary",
@@ -74917,6 +76546,14 @@
         "lengthM": 11.883,
         "maxAbsDeltaM": 23.311,
         "maxFabdemSpikeM": 0.0
+      },
+      {
+        "osmId": "way/404727857",
+        "name": "",
+        "class": "local",
+        "lengthM": 379.103,
+        "maxAbsDeltaM": 23.164,
+        "maxFabdemSpikeM": 1.213
       },
       {
         "osmId": "way/223456857",
@@ -74997,6 +76634,22 @@
         "lengthM": 193.36,
         "maxAbsDeltaM": 22.576,
         "maxFabdemSpikeM": 1.425
+      },
+      {
+        "osmId": "way/404727857",
+        "name": "",
+        "class": "local",
+        "lengthM": 165.697,
+        "maxAbsDeltaM": 22.542,
+        "maxFabdemSpikeM": 0.054
+      },
+      {
+        "osmId": "way/949087359",
+        "name": "",
+        "class": "local",
+        "lengthM": 224.252,
+        "maxAbsDeltaM": 22.542,
+        "maxFabdemSpikeM": 0.534
       },
       {
         "osmId": "way/1413001689",
@@ -75143,6 +76796,14 @@
         "maxFabdemSpikeM": 0.148
       },
       {
+        "osmId": "way/724737804",
+        "name": "",
+        "class": "trunk",
+        "lengthM": 442.713,
+        "maxAbsDeltaM": 20.137,
+        "maxFabdemSpikeM": 7.591
+      },
+      {
         "osmId": "way/854903606",
         "name": "科技广场路",
         "class": "local",
@@ -75157,6 +76818,14 @@
         "lengthM": 119.718,
         "maxAbsDeltaM": 19.825,
         "maxFabdemSpikeM": 0.16
+      },
+      {
+        "osmId": "way/404727859",
+        "name": "",
+        "class": "local",
+        "lengthM": 478.6,
+        "maxAbsDeltaM": 19.794,
+        "maxFabdemSpikeM": 4.345
       },
       {
         "osmId": "way/1352282132",
@@ -75437,6 +77106,14 @@
         "lengthM": 122.69,
         "maxAbsDeltaM": 18.07,
         "maxFabdemSpikeM": 0.003
+      },
+      {
+        "osmId": "way/285295927",
+        "name": "梅东三路",
+        "class": "tertiary",
+        "lengthM": 121.02,
+        "maxAbsDeltaM": 18.069,
+        "maxFabdemSpikeM": 0.694
       },
       {
         "osmId": "way/892901033",
@@ -76197,71 +77874,15 @@
         "lengthM": 277.209,
         "maxAbsDeltaM": 15.716,
         "maxFabdemSpikeM": 1.392
-      },
-      {
-        "osmId": "way/758944556",
-        "name": "",
-        "class": "local",
-        "lengthM": 141.673,
-        "maxAbsDeltaM": 15.712,
-        "maxFabdemSpikeM": 0.372
-      },
-      {
-        "osmId": "way/1044157158",
-        "name": "西村一路",
-        "class": "local",
-        "lengthM": 258.518,
-        "maxAbsDeltaM": 15.7,
-        "maxFabdemSpikeM": 0.444
-      },
-      {
-        "osmId": "way/870476405",
-        "name": "",
-        "class": "local",
-        "lengthM": 44.674,
-        "maxAbsDeltaM": 15.695,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/303794323",
-        "name": "",
-        "class": "local",
-        "lengthM": 106.95,
-        "maxAbsDeltaM": 15.694,
-        "maxFabdemSpikeM": 0.119
-      },
-      {
-        "osmId": "way/770444489",
-        "name": "",
-        "class": "local",
-        "lengthM": 252.665,
-        "maxAbsDeltaM": 15.694,
-        "maxFabdemSpikeM": 0.634
-      },
-      {
-        "osmId": "way/775651046",
-        "name": "",
-        "class": "local",
-        "lengthM": 79.114,
-        "maxAbsDeltaM": 15.679,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/303439907",
-        "name": "",
-        "class": "local",
-        "lengthM": 134.071,
-        "maxAbsDeltaM": 15.662,
-        "maxFabdemSpikeM": 0.052
       }
     ],
     "unresolvedLinks": [],
     "timing": {
-      "baselineSeconds": 0.121,
-      "stationSeconds": 0.477,
-      "profileSeconds": 2.802,
-      "vertexSeconds": 2.548,
-      "totalSeconds": 6.263
+      "baselineSeconds": 0.088,
+      "stationSeconds": 0.43,
+      "profileSeconds": 2.628,
+      "vertexSeconds": 2.777,
+      "totalSeconds": 6.246
     },
     "limitations": [
       "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
@@ -76381,15 +78002,15 @@
       ]
     },
     "coverage": "phase1-dry-land",
-    "urbanVertices": 306172,
-    "naturalCoreVertices": 43448,
+    "urbanVertices": 312770,
+    "naturalCoreVertices": 62071,
     "engineeringVertices": 1436,
-    "transitionVertices": 68271,
-    "changedVertices": 369270,
+    "transitionVertices": 85569,
+    "changedVertices": 393114,
     "maxDeltaM": 200.5,
     "transitionSlopePercent": {
-      "p95": 42.869,
-      "max": 162.653
+      "p95": 48.013,
+      "max": 217.147
     },
     "commercialPaving": {
       "osmIds": [
@@ -76412,12 +78033,12 @@
     }
   },
   "terrainSurface": {
-    "chunks": 1164,
-    "vertices": 503729,
-    "triangles": 864485,
-    "areaKm2": 253.539438,
-    "areaErrorM2": 4.44e-06,
-    "seconds": 5.55,
+    "chunks": 1264,
+    "vertices": 552632,
+    "triangles": 950594,
+    "areaKm2": 279.61691,
+    "areaErrorM2": -1.97e-06,
+    "seconds": 7.46,
     "waterLevelsGenerated": false,
     "heightSource": "urban-datum",
     "exclusions": [
@@ -76974,9 +78595,9 @@
       "13",
       "14"
     ],
-    "segments": 202,
-    "stations": 170,
-    "entrances": 763,
+    "segments": 204,
+    "stations": 176,
+    "entrances": 788,
     "unassociatedCandidates": 58,
     "missingRouteRefs": [],
     "colourConflicts": [],
@@ -77349,54 +78970,54 @@
   },
   "trees": {
     "status": "generated",
-    "requested": 326561,
+    "requested": 356651,
     "kept": 60000,
     "cap": 60000,
     "countsBySource": {
-      "osm-node": 992,
-      "osm-row": 1308,
+      "osm-node": 1077,
+      "osm-row": 1312,
       "simulated-street": 36000,
-      "simulated-park": 21700
+      "simulated-park": 21611
     },
     "speciesCounts": {
-      "ficus": 18153,
-      "camphor": 13335,
-      "phoenix": 9482,
-      "bauhinia": 6917,
-      "royal-palm": 7314,
-      "kapok": 4799
+      "ficus": 18000,
+      "camphor": 13319,
+      "phoenix": 9566,
+      "bauhinia": 7114,
+      "royal-palm": 7162,
+      "kapok": 4839
     },
     "appearanceSources": {
       "osm-tags": 25,
       "species-estimate": 59975
     },
-    "streetLengthM": 1841257.4,
-    "parkAreaM2": 86257747.5,
+    "streetLengthM": 1913004.9,
+    "parkAreaM2": 101680749.7,
     "dropped": {
       "osm-water": 5,
-      "park-building": 1281,
-      "park-density": 52034,
-      "park-duplicate": 1124,
+      "park-building": 1323,
+      "park-density": 60340,
+      "park-duplicate": 1145,
       "park-plaza": 255,
-      "park-road": 4304,
-      "park-water": 3274,
+      "park-road": 4718,
+      "park-water": 3428,
       "park-wetland": 1229,
-      "street-building": 2250,
-      "street-density": 32875,
-      "street-junction": 49493,
-      "street-outside-clip": 40,
+      "street-building": 2256,
+      "street-density": 34282,
+      "street-junction": 50813,
+      "street-outside-clip": 60,
       "street-plaza": 102,
-      "street-road-corridor": 39150,
+      "street-road-corridor": 40869,
       "street-water": 105,
-      "total-cap": 79040
+      "total-cap": 95721
     },
     "skippedLinks": {
-      "short": 2560
+      "short": 2616
     },
     "skippedAreas": {},
     "parkKept": {
       "destination": 4043,
-      "otherGreen": 17657
+      "otherGreen": 17568
     },
     "rules": {
       "streetClasses": [
@@ -77524,13 +79145,13 @@
     "osmSource": {
       "snapshot": "osm-guangdong",
       "file": "data/raw/guangdong-latest.osm.pbf",
-      "treeNodes": 997,
-      "treeRowWays": 366,
-      "treeRowPositions": 1308,
-      "kept": 2300,
+      "treeNodes": 1082,
+      "treeRowWays": 367,
+      "treeRowPositions": 1312,
+      "kept": 2389,
       "conflicts": {
         "road": 237,
-        "building": 76
+        "building": 85
       }
     },
     "limitations": [
@@ -77619,22 +79240,22 @@
     "playable": false
   },
   "buildingNames": {
-    "uniqueNames": 3837,
-    "namedBuildings": 11638,
-    "buildingsWithLevels": 9212
+    "uniqueNames": 3986,
+    "namedBuildings": 12337,
+    "buildingsWithLevels": 9723
   },
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 6713,
-    "metadataBytes": 16092896,
-    "numericBytes": 31023680,
-    "uncompressedBytes": 47116624,
+    "columns": 7226,
+    "metadataBytes": 16702976,
+    "numericBytes": 33423256,
+    "uncompressedBytes": 50126280,
     "lossless": true,
-    "compressedBytes": 10638626,
-    "compressedSha256": "c1e295f71fa13b4c1d51ad16a0f619653d1e13a1cdf8f69ac4deb923a709778a"
+    "compressedBytes": 11337469,
+    "compressedSha256": "00c424a0e094d7d118a9bfc122097d0d711ec4015706dc0ca1a1a7e37a1e787a"
   },
-  "outputBytes": 10626433,
-  "outputSha256": "da46e044b9ada4a42e549f9efcf4df1bb9b0ad111f930d95f91de382d3fb39e1",
-  "seconds": 104.0
+  "outputBytes": 11304063,
+  "outputSha256": "d65633061a7113df99130b97dd52d720384df685fc4d65b67750b40905c6912d",
+  "seconds": 117.9
 }

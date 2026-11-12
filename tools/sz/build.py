@@ -74,8 +74,12 @@ def landmark_entries(landmarks):
         lat, lon = lm['center']
         x, z = project(lon, lat)
         h = lm.get('heightM') or max(lm.get('heights', {}).values(), default=0)
-        out.append({'id': lm['id'], 'name': lm['name'], 'phase': lm['phase'],
-                    'x': round(x, 1), 'z': round(z, 1), 'height': h})
+        entry = {'id': lm['id'], 'name': lm['name'], 'phase': lm['phase'],
+                 'x': round(x, 1), 'z': round(z, 1), 'height': h}
+        for key in ('short', 'aliases', 'mapPriority'):
+            if key in lm:
+                entry[key] = lm[key]
+        out.append(entry)
     return out
 
 

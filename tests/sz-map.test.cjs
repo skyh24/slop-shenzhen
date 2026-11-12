@@ -57,6 +57,29 @@ test('map search and viewport retain source coordinates', () => {
   map.search('Landmark'); assert.equal(map.viewCenterX,10);
 });
 
+test('map search uses landmark aliases and overview labels avoid neighboring pins', () => {
+  const { context, map } = fixture();
+  context.NYC_LANDMARKS = [
+    { id: 'nearby', name: 'Nearby', short: 'Nearby', x: -18, z: 0 },
+    { id: 'kk100', name: '京基100', short: '京基100', aliases: ['京基一百'], mapPriority: true, x: 0, z: 0 },
+    { id: 'dongmen', name: '东门老街', short: '东门', mapPriority: true, x: 30, z: 0 }
+  ];
+  map.search('京基一百');
+  assert.equal(map.viewCenterX, 0);
+  const labels = [];
+  const ctx = new Proxy({
+    canvas: { width: 250, height: 130 },
+    measureText: text => ({ width: text.length * 8 }),
+    fillText: (label, x, y) => labels.push({ label, x, y })
+  }, { get: (target, key) => target[key] ?? (() => {}) });
+  map.drawWorld = () => {};
+  map.drawRoadLabels = () => {};
+  map.drawScaleBar = () => {};
+  map.renderFullMapStatic(ctx, vm.runInContext('new MapView(0,0,1,250,130)', context));
+  assert.ok(labels.some(row => row.label === '京基100' && row.y !== 4));
+  assert.ok(labels.some(row => row.label === '东门'));
+});
+
 test('the expanded map fits inside a narrow viewport', () => {
   const { context, map } = fixture();
   Object.assign(context.ISLAND_BOUNDS, { minX: -19185, maxX: 9001, minZ: -8496, maxZ: 8783 });

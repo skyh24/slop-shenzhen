@@ -390,6 +390,12 @@ export function validateCityPayload(raw) {
       `building ${enumName}`);
   }
   requireData(Array.isArray(raw.landmarks), 'landmarks');
+  for (const lm of raw.landmarks) {
+    requireData(lm && (lm.short === undefined || typeof lm.short === 'string')
+      && (lm.mapPriority === undefined || typeof lm.mapPriority === 'boolean')
+      && (lm.aliases === undefined || Array.isArray(lm.aliases) && lm.aliases.every(alias => typeof alias === 'string')),
+    'landmark map labels');
+  }
   requireData(raw.parks === undefined || Array.isArray(raw.parks), 'parks');
   const landmarkIds = new Set(raw.landmarks.map(landmark => landmark.id));
   validateBridges(raw.bridges, landmarkIds);

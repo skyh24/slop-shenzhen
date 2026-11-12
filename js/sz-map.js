@@ -377,7 +377,7 @@ class NYCMapSystem {
     this.searchPath = null;
     if (q.length > 0) {
       const lmMatch = [...NYC_LANDMARKS, ...(GEO.metro?.stations || [])].find(place =>
-        [place.name, place.short, place.nameEn, place.id].some(value => value?.toLowerCase().includes(q))
+        [place.name, place.short, place.nameEn, place.id, ...(place.aliases ?? [])].some(value => value?.toLowerCase().includes(q))
         || STR.map.landmarkInitials[place.id]?.startsWith(q));
       const roads = ROAD_LABELS.filter(label => roadMatches(label, q));
       if (roads.length) {
@@ -874,18 +874,22 @@ class NYCMapSystem {
     const toY = (wz) => v.toY(wz);
 
     ctx.font = `700 11px ${FONT}`;
-    const placed = [];
-    const pins = [];
-    for (const lm of NYC_LANDMARKS) {
-      const lx = toX(lm.x);
-      const ly = toY(lm.z);
-      if (Math.abs(lx) > w * 0.48 || Math.abs(ly) > h * 0.48) continue;
-      const labelW = this.textWidth(ctx, lm.short) + 6;
-      const box = [lx + 6, ly - 8, lx + 8 + labelW, ly + 7];
-      const showLabel = !overlaps(placed, box);
-      placed.push([lx - 6, ly - 6, lx + 6, ly + 6]);
-      if (showLabel) placed.push(box);
-      pins.push({ lm, lx, ly, showLabel });
+    const pins = NYC_LANDMARKS.map(lm => ({ lm, lx: toX(lm.x), ly: toY(lm.z) }))
+      .filter(({ lx, ly }) => Math.abs(lx) <= w * 0.48 && Math.abs(ly) <= h * 0.48)
+      .sort((a, b) => Number(Boolean(b.lm.mapPriority)) - Number(Boolean(a.lm.mapPriority)));
+    const placed = pins.map(({ lx, ly }) => [lx - 6, ly - 6, lx + 6, ly + 6]);
+    for (const pin of pins) {
+      const { lx, ly, lm } = pin;
+      const width = this.textWidth(ctx, lm.short);
+      const positions = [[lx + 9, ly + 4], [lx - width - 9, ly + 4],
+        [lx - width / 2, ly - 9], [lx - width / 2, ly + 18]];
+      for (const [x, y] of positions) {
+        const box = [x - 2, y - 11, x + width + 2, y + 3];
+        if (box[0] < -w / 2 || box[2] > w / 2 || box[1] < -h / 2 || box[3] > h / 2 || overlaps(placed, box)) continue;
+        pin.label = { x, y };
+        placed.push(box);
+        break;
+      }
     }
 
     const fontPx = Math.max(9, Math.min(12, Math.round(9.5 * Math.sqrt(Math.max(s, 0.4)))));
@@ -893,7 +897,7 @@ class NYCMapSystem {
 
     ctx.font = `700 11px ${FONT}`;
     ctx.textAlign = 'left';
-    for (const { lm, lx, ly, showLabel } of pins) {
+    for (const { lm, lx, ly, label } of pins) {
       ctx.fillStyle = MAP.halo;
       ctx.beginPath();
       ctx.arc(lx, ly, 6.5, 0, Math.PI * 2);
@@ -902,12 +906,12 @@ class NYCMapSystem {
       ctx.beginPath();
       ctx.arc(lx, ly, 4.2, 0, Math.PI * 2);
       ctx.fill();
-      if (showLabel) {
+      if (label) {
         ctx.lineWidth = 3;
         ctx.strokeStyle = MAP.halo;
-        ctx.strokeText(lm.short, lx + 9, ly + 4);
+        ctx.strokeText(lm.short, label.x, label.y);
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(lm.short, lx + 9, ly + 4);
+        ctx.fillText(lm.short, label.x, label.y);
       }
     }
 
