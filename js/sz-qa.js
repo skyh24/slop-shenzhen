@@ -11,7 +11,7 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost']);
 const STAGE_STUBS = {
   landmarks: () => ({ group: emptyGroup(), colliders: [], surfaces: [], skipIds: new Set(), dispose: () => {} }),
   blocks: () => ({ group: emptyGroup(), colliders: [], allBlocks: [] }),
-  lightshow: () => ({ group: emptyGroup() }),
+  lightshow: () => ({ group: emptyGroup(), update: () => {} }),
   signs: () => ({ group: emptyGroup(), update: () => {}, nearestName: () => null, statistics: {} }),
   details: () => ({ group: emptyGroup(), update: () => {}, statistics: {} }),
   paint: () => ({ group: emptyGroup() }),
@@ -59,10 +59,10 @@ class QaSession {
   constructor(query, hostname, defaultChunkSize) {
     this.enabled = LOOPBACK_HOSTS.has(hostname) && query.get('qa') === '1';
     // chunk 参数改变普通楼的渲染分块，用于对照 draw call 与剔除粒度。
-    this.chunkSize = query.get('chunks') === '500' ? 500 : defaultChunkSize;
-    this.camera = query.get('qa') === '1' ? parseCamera(query.get('cam')) : null;
+    this.chunkSize = this.enabled && query.get('chunks') === '500' ? 500 : defaultChunkSize;
+    this.camera = this.enabled ? parseCamera(query.get('cam')) : null;
     // ?skip=landmarks,trees,…：只在 qa 下生效，其它地址下仍然走完整构建。
-    this.skipped = new Set((query.get('skip') ?? '').split(',').map(name => name.trim()).filter(Boolean));
+    this.skipped = new Set((this.enabled ? query.get('skip') ?? '' : '').split(',').map(name => name.trim()).filter(Boolean));
     this.startup = {};
     this.frames = [];
     this.gpu = [];

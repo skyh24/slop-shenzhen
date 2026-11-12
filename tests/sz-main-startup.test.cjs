@@ -2,8 +2,12 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const test = require('node:test');
+const { loadModule } = require('./helpers/module.cjs');
 
 const main = readFileSync(join(__dirname, '../js/main.js'), 'utf8');
+const { waitForFirstFrame } = loadModule(readFileSync(join(__dirname, '../js/sz-startup.js'), 'utf8'), {
+  globals: { setTimeout, clearTimeout }
+});
 const DATA_LABELS = ['data.download', 'data.decompress', 'data.parse', 'data.validate', 'data.decode'];
 const indexOf = (needle) => {
   const at = main.indexOf(needle);
@@ -54,22 +58,26 @@ test('init failure reaches the boot fallback and keeps the plain console fallbac
   assert.match(tail, /STR\.webgpuMissing/);
 });
 
-test('the renderer and animation loop are created once, and ready is announced after the loop starts', () => {
-  assert.equal([...main.matchAll(/new THREE\.WebGPURenderer\(/g)].length, 1,
-    'a retry must not build a second WebGPU renderer');
-  assert.equal([...main.matchAll(/setAnimationLoop\(/g)].length, 1,
-    'a retry must not register a second animation loop');
+test('the entry waits for the first submitted frame before starting the loop or announcing readiness', () => {
+  assert.equal([...main.matchAll(/new THREE\.WebGPURenderer\(/g)].length, 1);
+  assert.equal([...main.matchAll(/setAnimationLoop\(/g)].length, 1);
+  const frame = indexOf('renderFrame(performance.now());');
+  const fence = indexOf('await waitForFirstFrame(renderer.backend.device);');
   const loop = indexOf('await renderer.setAnimationLoop(renderFrame);');
-  const ready = main.indexOf('globalThis.__szBoot?.ready?.()');
-  assert.ok(ready > loop, '__szBoot.ready() runs only after the animation loop is registered');
-  const between = main.slice(loop, ready);
-  assert.ok(!/new THREE\.WebGPURenderer\(/.test(between));
+  assert.ok(frame < fence && fence < loop);
+  assert.ok(loop < indexOf("loadingOverlay?.classList.add('hidden');"));
+  assert.ok(loop < indexOf('boot?.ready?.();'));
 });
 
-test('first-frame failures inside the loop also reach the boot fallback', () => {
-  const at = indexOf('[first-frame]');
-  const tail = main.slice(Math.max(0, at - 120), at + 520);
-  assert.match(tail, /console\.error\('\[first-frame\]', error\)/);
-  assert.match(tail, /__szBoot[^;]*\bfail\b[^;]*'init'\s*,\s*error/,
-    'first-frame errors report through __szBoot.fail("init", error)');
+test('a completed graphics queue lets startup continue', async () => {
+  await waitForFirstFrame({ queue: { onSubmittedWorkDone: () => Promise.resolve() } });
+});
+
+test('a rejected or stalled graphics queue rejects startup', async () => {
+  await assert.rejects(waitForFirstFrame({
+    queue: { onSubmittedWorkDone: () => Promise.reject(new Error('Device lost')) }
+  }), /Device lost/);
+  await assert.rejects(waitForFirstFrame({
+    queue: { onSubmittedWorkDone: () => new Promise(() => {}) }
+  }, 1), /First graphics frame timed out/);
 });

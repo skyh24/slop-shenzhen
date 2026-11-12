@@ -37,7 +37,7 @@
       const BOOT_LABELS = {
         failed: '载入失败',
         retry: '重试',
-        retryHint: '恢复网络后点“重试”重新载入；如果仍然失败，请刷新页面。',
+        retryHint: '点“重试”重新载入；如果仍然失败，请刷新页面。',
         retrying: '正在重试……',
         detail: '技术细节：'
       };
@@ -47,6 +47,7 @@
         dataDecompress: '城市数据解压失败：文件可能已经损坏。',
         dataInvalid: '城市数据校验失败：版本或内容与当前程序不匹配。',
         init: '场景初始化失败。',
+        deviceLost: '图形设备连接中断，请重试。',
         webgpu: '当前浏览器不支持 WebGPU，请使用新版 Chrome 或 Edge。'
       };
       // retryHandler 由 js/sz-geodata.js 注册：城市包失败可以页内重试，其余失败整页重载（不会留下第二块画布）。
@@ -102,6 +103,7 @@
       }
 
       function fail(kind, error) {
+        boot.state = 'failed';
         const known = Object.hasOwn(BOOT_MESSAGES, kind) ? kind : retryKind(error);
         // 同一时刻只保留一个失败等待：重复报告时新的覆盖旧的，旧等待由调用方丢弃。
         pendingRender = { kind: known, error };
@@ -176,6 +178,7 @@
   </script>
   <!-- Fetch the city modules in parallel before stylesheets; the module graph controls evaluation order. -->
   <link rel="modulepreload" href="./js/sz-strings.js" />
+  <link rel="modulepreload" href="./js/sz-startup.js" />
   <link rel="modulepreload" href="./js/sz-ui.js" />
   <link rel="modulepreload" href="./js/sz-qa.js" />
   <link rel="modulepreload" href="./js/post-processing.js" />

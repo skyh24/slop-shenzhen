@@ -1,4 +1,5 @@
 import { STR } from './sz-strings.js';
+import { waitForFirstFrame } from './sz-startup.js';
 import { populateTeleportMenu, wireMetroMenu, wirePopovers, wireShortcuts, createLocationReadout, createHudTelemetry } from './sz-ui.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, smoothstep } from 'three/tsl';
@@ -126,8 +127,13 @@ async function initApp() {
   renderer.onDeviceLost = ({ api, reason, message, ...details }) => {
     onDeviceLost({ api, reason, message, ...details });
     graphicsLoss = { api, reason, message };
-    loadingOverlay?.classList.remove('hidden');
-    if (loadingStatus) loadingStatus.textContent = STR.startup.deviceLost;
+    const boot = globalThis.__szBoot;
+    if (boot?.fail) {
+      boot.fail('deviceLost', new Error(message || reason || 'Graphics device lost'));
+    } else {
+      loadingOverlay?.classList.remove('hidden');
+      if (loadingStatus) loadingStatus.textContent = STR.startup.deviceLost;
+    }
   };
   renderer.setPixelRatio(1.0);
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -902,36 +908,27 @@ async function initApp() {
     if (!warmedUp) {
       warmedUp = true;
       markInit('firstFrame');
-      // The loading screen stays up until the GPU has got through the first frame (and the pipelines its warm-up
-      // compiled), i.e. until the city is actually on screen
-      const device = renderer.backend.device;
-      beginLoadingStage(STR.startup.gpu, 'gpu');
-      Promise.resolve(device && device.queue.onSubmittedWorkDone()).then(() => {
-        if (graphicsLoss) return;
-        markInit('gpu');
-        console.log(`[init] ${initTimings.join(', ')}`);
-        initTimings = null;
-        setLoadingProgress(1);
-        if (loadingOverlay) loadingOverlay.classList.add('hidden');
-        audioSystem.ready = true;
-      }, error => {
-        console.error('[first-frame]', error);
-        if (graphicsLoss) return;
-        // 首帧之前仍属启动失败：交给兜底入口显示，重试按整页重载处理（避免重复画布和动画循环）。
-        if (globalThis.__szBoot?.fail) globalThis.__szBoot.fail('init', error);
-        else if (loadingStatus) loadingStatus.textContent = STR.loadingFailed;
-      });
     }
 
     // HUD 读数按墙钟时间更新，慢帧和高刷屏都显示实际帧率。
     hud.update(rawDt);
   }
 
-  // 在启动流程里完成首帧，首帧异常可由 initApp 的调用方显示。
+  // 启动只提交首帧。确认图形队列完成后再启动循环，避免等待期间持续提交。
   renderFrame(performance.now());
+  beginLoadingStage(STR.startup.gpu, 'gpu');
+  await waitForFirstFrame(renderer.backend.device);
+  const boot = globalThis.__szBoot;
+  if (graphicsLoss || boot?.state === 'failed') return;
+  markInit('gpu');
+  lastTime = performance.now();
   await renderer.setAnimationLoop(renderFrame);
-  // 场景就绪：启动失败兜底入口此后不再拦截普通运行期错误，只保留显式 fail() 调用。
-  globalThis.__szBoot?.ready?.();
+  if (graphicsLoss || boot?.state === 'failed') return;
+  console.log(`[init] ${initTimings.join(', ')}`);
+  setLoadingProgress(1);
+  loadingOverlay?.classList.add('hidden');
+  audioSystem.ready = true;
+  boot?.ready?.();
 }
 
 initApp().catch(error => {
@@ -939,7 +936,7 @@ initApp().catch(error => {
   // 启动失败统一交给 index.html 的兜底入口（模块求值之前就已建立）；提示和重试都由它负责。
   const boot = globalThis.__szBoot;
   if (boot?.fail) {
-    boot.fail(navigator.gpu ? 'init' : 'webgpu', error);
+    if (boot.state !== 'failed') boot.fail(navigator.gpu ? 'init' : 'webgpu', error);
     return;
   }
   const status = document.getElementById('loading-status');

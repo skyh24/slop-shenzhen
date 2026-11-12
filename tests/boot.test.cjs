@@ -133,7 +133,7 @@ test('STR.boot mirrors the inline boot labels and messages item by item', async 
   const messages = new Function(`return (${messageLiteral});`)();
   assert.deepEqual(Object.keys(labels).sort(), ['detail', 'failed', 'retry', 'retryHint', 'retrying']);
   assert.deepEqual(Object.keys(messages).sort(),
-    ['dataDecompress', 'dataInvalid', 'dataRequest', 'engine', 'init', 'webgpu']);
+    ['dataDecompress', 'dataInvalid', 'dataRequest', 'deviceLost', 'engine', 'init', 'webgpu']);
   const { STR } = await import('../js/sz-strings.js');
   assert.ok(STR.boot, 'js/sz-strings.js exports STR.boot');
   assert.deepEqual(STR.boot.labels, labels);

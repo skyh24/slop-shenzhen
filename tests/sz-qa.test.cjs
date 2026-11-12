@@ -40,6 +40,17 @@ test('the QA camera and chunk options keep their documented parsing', () => {
   assert.throws(() => sessionFor('?qa=1&cam=1,2,3,4,5,x'), /Invalid QA camera/);
 });
 
+test('public URLs and non-QA loopback URLs ignore debug query options', () => {
+  for (const session of [
+    sessionFor('?qa=1&cam=invalid&chunks=500&skip=trees', 'example.test'),
+    sessionFor('?cam=invalid&chunks=500&skip=trees')
+  ]) {
+    assert.equal(session.camera, null);
+    assert.equal(session.chunkSize, 1000);
+    assert.equal(session.stage('trees', () => 'built'), 'built');
+  }
+});
+
 test('skip stages only apply inside QA and return the documented stubs', () => {
   const build = () => ({ built: true });
   assert.equal(sessionFor('?qa=1&skip=landmarks,trees').stage('landmarks', build).colliders.length, 0);
@@ -48,6 +59,7 @@ test('skip stages only apply inside QA and return the documented stubs', () => {
     'stages that are not listed still build');
   assert.equal(sessionFor('', 'example.test').stage('landmarks', build).built, true,
     'skip has no effect outside QA');
+  assert.doesNotThrow(() => sessionFor('?qa=1&skip=lightshow').stage('lightshow', build).update());
   assert.equal(sessionFor('?qa=1&skip=stations').stage('stations', build), null,
     'the station stage stub is the existing optional null');
   assert.throws(() => sessionFor('?qa=1&skip=unknown-stage').stage('unknown-stage', build),

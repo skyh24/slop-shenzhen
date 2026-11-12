@@ -92,7 +92,7 @@ export const STR = {
     labels: {
       failed: '载入失败',
       retry: '重试',
-      retryHint: '恢复网络后点“重试”重新载入；如果仍然失败，请刷新页面。',
+      retryHint: '点“重试”重新载入；如果仍然失败，请刷新页面。',
       retrying: '正在重试……',
       detail: '技术细节：'
     },
@@ -102,6 +102,7 @@ export const STR = {
       dataDecompress: '城市数据解压失败：文件可能已经损坏。',
       dataInvalid: '城市数据校验失败：版本或内容与当前程序不匹配。',
       init: '场景初始化失败。',
+      deviceLost: '图形设备连接中断，请重试。',
       webgpu: '当前浏览器不支持 WebGPU，请使用新版 Chrome 或 Edge。'
     }
   },
