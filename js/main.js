@@ -34,6 +34,7 @@ import { buildBuildingSigns } from './sz-building-signs.js';
 import { buildBuildingDetails } from './sz-building-details.js';
 import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
 import { createSzPedestrians } from './sz-pedestrians.js';
+import { buildZhongxinWalk } from './sz-zhongxin-walk.js';
 import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
 import { createAutoDrive } from './sz-auto-drive.js';
 import { VEHICLE_SPECS } from './sz-vehicles.js';
@@ -195,7 +196,8 @@ async function initApp() {
     buildSzRoadPaint(scene, GEO.roadGraph, { ...site, intersections: roadFrontage.control.intersections,
       frontage: GEO.roadFrontage, decks: elevatedRoads.links }));
   // 路缘接触和绘制共用同一份三角面，未覆盖的位置沿用源地形。
-  site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? ground.groundHeight(x, z);
+  const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface);
+  site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? publicWalk.heightAt(x, z) ?? ground.groundHeight(x, z);
   site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
   markInit('roads');
   await showLoadingStage(STR.startup.landmarks, 'landmarks');
@@ -226,19 +228,21 @@ async function initApp() {
   site.pathAt = streetscape.pathAt;
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
+  // 源树先保留位置，模拟树灯共用样段预约带。
+  const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
+    ...site, reserveWalk: publicWalk.reserves, pilotTrees: publicWalk.trees,
+    streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
+  }));
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
   const streetLamps = qa.stage('lamps', () => {
     const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: elevatedRoads.surfaces });
     return buildSzStreetLamps(scene, site.roadGraph, {
-      ...site, medianHeight: roadFrontage.medianHeight,
+      ...site, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk,
+      placementObstacles: [...buildings, ...trees.colliders],
       deckOccupied: (x, z, bottom, top) =>
         deck.at(x, z).some(surface => surface.height + 4.5 > bottom && surface.height - 0.35 < top)
     });
   });
-  // 树木：OSM 来源点加带标注的模拟行道树/公园树，接触面与铺装/建筑冲突在运行时复核。
-  const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
-    ...site, streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
-  }));
   // 国际交流中心模型给出的真实门廊/花海台面锚点只构造一次，APEC 主题和城市元素共用。
   const anchors = {
     iecGate: { x: gatePoint.x, z: gatePoint.z, yaw: gateYaw, baseY: gateDeckY },
@@ -269,6 +273,8 @@ async function initApp() {
   const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...(streetLamps.colliders ?? []), ...trees.colliders,
     ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? []),
     ...elevatedRoads.colliders];
+  const planter = publicWalk.placePlanter(colliders, site.heightAt);
+  if (planter) colliders.push(planter);
   site.colliders = colliders;
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = qa.stage('traffic', () => createSzTraffic(scene, GEO.roadGraph, {
@@ -311,6 +317,8 @@ async function initApp() {
   // 环境人群复用纽约 PersonRig；行走位置是沿路侧模拟步行带，非全城实测人行道。
   const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, GEO.roadGraph, {
     ...site,
+    publicRoute: publicWalk.route(colliders),
+    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2),
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
@@ -389,7 +397,8 @@ async function initApp() {
     // 每类静态分块共用材质和顶点布局，预编译其中一块即可。
     for (const chunk of chunks) chunk.userData.sharesPipelineWith = first;
   }
-  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, yanjiang, streetscape.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
+  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, yanjiang, streetscape.group, publicWalk.group,
+    roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
     futianStation?.group, xiliConstruction?.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [
@@ -756,7 +765,8 @@ async function initApp() {
   if (qa.enabled) {
     qa.install({
       renderer, scene, cameraSystem, controllerManager, mapSystem, autoDrive, lightingSystem, audioSystem,
-      buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, sea, bridge,
+      buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, sea, bridge, publicWalk,
+      colliders,
       modules: {
         lamps: streetLamps, trees, apec: apecTheme, apecCity, drones, lightShow,
         elevatedRoads, metroEntrances, futian: futianStation, xili: xiliConstruction

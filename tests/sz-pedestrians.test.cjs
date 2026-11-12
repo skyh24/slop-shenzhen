@@ -677,3 +677,29 @@ test('factory target crowd size follows local density: dense blocks vs park gree
   assert.ok(peds.statistics.placed <= parkTarget + 10);
   assert.ok(peds.statistics.placed > 0);
 });
+
+test('public walk keeps the same-frame queue and lets opposing pedestrians pass a bend', () => {
+  const focus = { x: 50, z: 4 };
+  const { peds, rigs } = makeFactory(straightGraph(100), { maxPeds: 3, pavement: false,
+    excludeWalkAt: () => true, heightAt: () => 8,
+    publicRoute: [{ x: 32, y: 8, z: 0 }, { x: 50, y: 8, z: 0 }, { x: 64, y: 8, z: 10 }] });
+  peds.update(0, focus, 0);
+  const [leg] = peds.region.tracks;
+  const [leader, follower, opposing] = peds.peds;
+  for (const [ped, s, dir, speed] of [[leader, 10, 1, 0.95], [follower, 8.9, 1, 1.4], [opposing, 24, -1, 1.1]]) {
+    const p = sampleTrack(leg, s);
+    Object.assign(ped, { leg, s, dir, speed, v: speed, x: p.x + p.rightX * 0.38 * dir,
+      z: p.z + p.rightZ * 0.38 * dir, y: 8, placed: true, lateral: 0.38 * dir, pause: 0, restAt: Infinity });
+  }
+  peds.update(0.05, focus, 0.05);
+  assert.ok(follower.v < follower.speed);
+  let separation = Infinity;
+  for (let frame = 2; frame < 270; frame++) {
+    peds.update(0.05, focus, frame * 0.05);
+    separation = Math.min(separation, ...[leader, follower].map(p => Math.hypot(p.x - opposing.x, p.z - opposing.z)));
+  }
+  assert.ok(leader.s > 20 && follower.s > 19 && opposing.s < 12);
+  assert.ok(separation > 0.68, String(separation));
+  const update = rigs[0].updates.at(-1);
+  assert.equal(update.ground(update.owner, update.x, update.z), 8);
+});

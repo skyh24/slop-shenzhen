@@ -119,11 +119,10 @@ function speciesStyle(name) {
 }
 
 function colliderPolygon(x, z, radius) {
-  const sides = 6;
   const outer = [];
-  for (let i = 0; i < sides; i++) {
-    const angle = (i / sides) * Math.PI * 2;
-    outer.push({ x: x + Math.cos(angle) * radius, z: z + Math.sin(angle) * radius });
+  for (let i = 0; i < TRUNK_SIDES; i++) {
+    const angle = (i / TRUNK_SIDES) * Math.PI * 2;
+    outer.push({ x: x + Math.sin(angle) * radius, z: z + Math.cos(angle) * radius });
   }
   return { outer, holes: [] };
 }
@@ -237,7 +236,8 @@ function emptyResult() {
     colliders: [],
     statistics: {
       version: 1, payloadCount: 0, placed: 0, chunks: 0, lodCells: 0, countsBySource: {},
-      skipped: { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0, openMedian: 0, roadside: 0 },
+      skipped: { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0, openMedian: 0,
+        roadside: 0, reservedWalk: 0 },
       instances: { trunks: 0, cards: 0, farCrowns: 0 },
       triangles: { trunkPerTree: TRUNK_TRIANGLES, cardPerTree: {}, farPerTree: FAR_CROWN_TRIANGLES },
       visible: { chunks: 0, lodCells: 0, nearCells: 0, farCells: 0, hiddenCells: 0, trees: 0,
@@ -250,7 +250,7 @@ function emptyResult() {
 
 export function buildSzTrees(scene, payload, options = {}) {
   const { groundHeight, heightAt = groundHeight, roadHeight, shennanMedianHeight = () => null,
-    streetTreeSideAllowed = () => true, pathAt = () => [], colliders = [] } = options;
+    streetTreeSideAllowed = () => true, pathAt = () => [], reserveWalk = () => false, colliders = [] } = options;
   const trees = decodeTreePayload(payload);
   if (!trees || trees.count === 0) {
     const empty = emptyResult();
@@ -260,7 +260,7 @@ export function buildSzTrees(scene, payload, options = {}) {
   const group = new THREE.Group();
   group.name = 'shenzhen-trees';
   const countsBySource = {};
-  const skipped = { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0, openMedian: 0, roadside: 0 };
+  const skipped = { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0, openMedian: 0, roadside: 0, reservedWalk: 0 };
   const empty = emptyResult();
   if (typeof groundHeight !== 'function') {
     empty.statistics.payloadCount = trees.count;
@@ -274,12 +274,14 @@ export function buildSzTrees(scene, payload, options = {}) {
   const placed = [];
   const treeColliders = [];
   const crownTemplates = new Set();
-  for (let index = 0; index < trees.count; index++) {
-    const x = trees.x[index];
-    const z = trees.z[index];
-    const height = trees.height[index];
-    const crown = trees.crown[index];
-    const sourceName = trees.sources[trees.source[index]] ?? 'unknown';
+  const pilotTrees = options.pilotTrees ?? [];
+  for (let index = 0; index < trees.count + pilotTrees.length; index++) {
+    const pilot = pilotTrees[index - trees.count];
+    const x = pilot?.x ?? trees.x[index];
+    const z = pilot?.z ?? trees.z[index];
+    const height = pilot?.height ?? trees.height[index];
+    const crown = pilot?.crown ?? trees.crown[index];
+    const sourceName = pilot ? 'simulated-street' : trees.sources[trees.source[index]] ?? 'unknown';
     if (sourceName.startsWith('simulated-') && Number.isFinite(shennanMedianHeight(x, z))) {
       skipped.openMedian++;
       continue;
@@ -317,24 +319,29 @@ export function buildSzTrees(scene, payload, options = {}) {
       skipped[reason] += 1;
       continue;
     }
-    const speciesName = trees.speciesNames[trees.species[index]] ?? 'ficus';
-    countsBySource[sourceName] = (countsBySource[sourceName] ?? 0) + 1;
+    const speciesName = pilot?.speciesName ?? trees.speciesNames[trees.species[index]] ?? 'ficus';
     const style = speciesStyle(speciesName);
-    const id = trees.osm.get(index) ?? `tree/${index}`;
+    const id = pilot?.id ?? trees.osm.get(index) ?? `tree/${index}`;
     // 未知树种退回 ficus 叶卡形态，颜色仍用该树种的调色板。
     const crownTemplate = CROWN_TEMPLATE_NAMES.has(speciesName) ? speciesName : 'ficus';
     const habit = CROWN_SPECIES[crownTemplate];
     const trunkHeight = height * habit.trunkRatio;
     const trunkRadius = crown * habit.trunkRadiusRatio;
+    if (sourceName.startsWith('simulated-') && reserveWalk(x, z, trunkRadius + 0.3)) {
+      skipped.reservedWalk++;
+      continue;
+    }
+    countsBySource[sourceName] = (countsBySource[sourceName] ?? 0) + 1;
     crownTemplates.add(crownTemplate);
     const record = { index, id, x, z, y: baseY, height, crown, speciesName, sourceName,
       style, trunkHeight, trunkRadius, seed: treeSeed(id), crownTemplate };
     placed.push(record);
-    // 碰撞体略小于树干可视半径：真实行道树树干约 0.4–0.9 m 直径，1.1 倍会把 2.5 m 人行道封死。
-    const radius = Math.max(0.18, Math.min(0.55, trunkRadius) * 0.8);
-    treeColliders.push({ type: 'tree', name: id, sourceId: id, polygon: colliderPolygon(x, z, radius),
-      minY: baseY, maxY: baseY + Math.max(1.6, trunkHeight),
-      minX: x - radius, maxX: x + radius, minZ: z - radius, maxZ: z + radius });
+    const polygon = colliderPolygon(x, z, trunkRadius);
+    const maxY = baseY + trunkHeight;
+    treeColliders.push({ type: 'tree', name: id, sourceId: id, polygon,
+      loft: { lower: polygon.outer, upper: colliderPolygon(x, z, trunkRadius * 0.65).outer, minY: baseY, maxY },
+      minY: baseY, maxY, minX: x - trunkRadius, maxX: x + trunkRadius,
+      minZ: z - trunkRadius, maxZ: z + trunkRadius });
   }
 
   // 按 1000 m 分块，树木按 250 m 子格切换细节档。

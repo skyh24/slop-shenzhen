@@ -150,7 +150,7 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
   scene.updateMatrixWorld(true);
   assert.equal(built.statistics.placed, 2);
   assert.equal(JSON.stringify(built.statistics.skipped), JSON.stringify({
-    unsupportedGround: 1, roadConflict: 1, pathConflict: 1, buildingConflict: 1, openMedian: 0, roadside: 0
+    unsupportedGround: 1, roadConflict: 1, pathConflict: 1, buildingConflict: 1, openMedian: 0, roadside: 0, reservedWalk: 0
   }));
   assert.equal(built.statistics.payloadCount, 6);
   assert.equal(built.statistics.chunks, 2);
