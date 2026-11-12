@@ -26,6 +26,7 @@ from road_frontage import build_road_frontage
 from roads import CLASSES, build_roads
 from roadgraph import build_roadgraph
 from sea_surface import build_sea_surface
+from shenzhen_bay import build_shenzhen_bay
 from shenzhen_golf import build_shenzhen_golf
 from streetscape import build_streetscape
 from terrain import build_terrain
@@ -365,6 +366,8 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
         'changedSections': changed, 'rebuiltChunks': [chunk['id'] for chunk in surface['chunks']]}
     payload['terrain'], payload['terrainSurface'] = terrain, surface
     build_shenzhen_golf(payload, osm, pbf, report)
+    payload.pop('shenzhenBay', None)
+    build_shenzhen_bay(payload, osm, pbf, report)
     write_city_packages(payload, report, sources, started)
 
 
@@ -488,6 +491,8 @@ def main():
     ap.add_argument('--footprint-source', choices=['all', 'osm'], default='all',
                     help='all = OSM + Overture + GloBFP footprints; osm = only map-marked OSM footprints')
     mode = ap.add_mutually_exclusive_group()
+    mode.add_argument('--build-shenzhen-bay', action='store_true',
+                      help='apply the reviewed Shenzhen Bay waterfront to an unmodified verified city package')
     mode.add_argument('--repack-existing', action='store_true',
                     help='validate the snapshot and repack SZC1; migrate legacy road preview out of both packages')
     mode.add_argument('--audit-road-preview', action='store_true',
@@ -539,6 +544,14 @@ def main():
     t0 = time.time()
     report = {'formatVersion': FORMAT_VERSION, 'origin': [ORIGIN_LON, ORIGIN_LAT], 'bbox': PHASE1_BBOX}
     osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=pbf, source_sha256=osm_source['sha256'])
+    if args.build_shenzhen_bay:
+        raw = gzip.decompress(OUT.read_bytes())
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        payload = json.loads(raw)
+        report = json.loads(REPORT.read_text())
+        build_shenzhen_bay(payload, osm, pbf, report)
+        write_city_packages(payload, report, sources, t0)
+        return
     envelope, excluded, clip, report['coverage'] = city_clip(osm)
     print(f'osm loaded in {time.time() - t0:.1f}s', flush=True)
     if args.rebuild_ground or args.rebuild_civic_ground or args.rebuild_commercial_ground or args.rebuild_golf_course:
@@ -649,6 +662,7 @@ def main():
     }
 
     build_shenzhen_golf(payload, osm, pbf, report)
+    build_shenzhen_bay(payload, osm, pbf, report)
     write_city_packages(payload, report, sources, t0)
 
 

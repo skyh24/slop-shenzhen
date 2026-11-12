@@ -423,7 +423,8 @@ export function buildSzTrees(scene, payload, options = {}) {
       skipped.frontageTrunkConflict++;
       continue;
     }
-    if (sourceName.startsWith('simulated-') && reserveWalk(x, z, trunkRadius + 0.3)) {
+    if (sourceName.startsWith('simulated-') && (reserveWalk(x, z, trunkRadius + 0.3)
+      || options.reserveBayWalk?.(x, z, trunkRadius + 0.3))) {
       skipped.reservedWalk++;
       continue;
     }

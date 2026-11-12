@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "checkedAt": "2026-11-12",
+  "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+  "parkOsmId": "relation/8133384",
+  "areaOsmId": "way/571629098",
+  "sources": {
+    "park": "https://cgj.sz.gov.cn/xsmh/gysz/twf/bhxx/content/post_10841320.html",
+    "layout": "https://cgj.sz.gov.cn/xsmh/szlh/jpld/content/post_2053209.html",
+    "centralBay": "https://www.szns.gov.cn/mlns/stns/gyzq/content/post_3726095.html",
+    "cycling": "https://zjj.sz.gov.cn/gkmlpt/content/12/12942/post_12942113.html",
+    "access": "https://cgj.sz.gov.cn/ydmh/zcg/content/post_12977503.html",
+    "design": "https://www.swagroup.com/projects/shenzhen-bay/"
+  },
+  "paths": [
+    {"id": "way/883827047", "from": 8219895303, "to": 8219895302, "mode": "walk", "widthM": 2.8},
+    {"id": "way/325371421", "from": 8219895302, "to": 2613258417, "mode": "walk", "widthM": 3.2},
+    {"id": "way/246781716", "from": 2613258384, "to": 2613258639, "mode": "walk", "widthM": 4.2},
+    {"id": "way/357765495", "from": 2643549488, "to": 2643549610, "mode": "cycle", "widthM": 3.3},
+    {"id": "way/255653770", "from": 2613258589, "to": 2613258636, "mode": "cycle", "widthM": 3.6}
+  ],
+  "walkRoute": [0, 1, 2],
+  "viewNode": 2613258417,
+  "arrivalReference": "node/5187524604",
+  "shore": [
+    {"id": "way/325015311", "fromIndex": 11, "toIndex": 17, "profile": "rock-slope"},
+    {"id": "way/325015311", "fromIndex": 17, "toIndex": 28, "profile": "retaining-edge"},
+    {"id": "way/1009065155", "fromIndex": 0, "toIndex": 3, "profile": "retaining-edge"}
+  ],
+  "estimates": {
+    "coastalCrestM": 3.8,
+    "gradeBlendM": 92,
+    "endBlendM": 52,
+    "rockSlopeRunM": 5.4,
+    "shoreProfileEvidence": "中湾阅海广场有人工观海和亲水界面。具体挡边/护坡分界、海拔、护栏和断面为模拟估计，待逐段图照或测绘核实。",
+    "accessEvidence": "运行场景区分来源步行和骑行路段，实地开放时间、共享单车时段、临时限流及施工状态以现场告示为准。"
+  }
+}

@@ -107,7 +107,7 @@ function collisionBody(mode, radius, heading, margin = 0, bounds = null) {
   const hx = (bounds ? Math.max(-bounds.min.x, bounds.max.x) : 0.86) + margin;
   const hz = (bounds ? Math.max(-bounds.min.z, bounds.max.z) : 2.18) + margin;
   return {
-    car, sin, cos, hx, hz, radius: radius + margin,
+    mode, car, sin, cos, hx, hz, radius: radius + margin,
     extX: car ? Math.abs(cos) * hx + Math.abs(sin) * hz : radius + margin,
     extZ: car ? Math.abs(sin) * hx + Math.abs(cos) * hz : radius + margin,
     bottom: bounds?.min.y ?? (mode === 'helicopter' ? -0.25 : 0),
@@ -187,6 +187,7 @@ class ThirdPersonControllerManager {
     if (!this.spawnPoint) throw new Error('No sourced ground spawn is available');
     this.maxFlightAltitude = options.maxFlightAltitude ?? EVTOL_DRIVE.altitude;
     this.scene = scene;
+    this.groundAccess = options.groundAccess;
     this.colliders = colliders;
     this._colliderCells = null; // built on first use, see nearColliders()
     this.activeMode = 'person'; // 'person' | 'car' | 'cyclist' | 'helicopter'
@@ -866,6 +867,7 @@ class ThirdPersonControllerManager {
   }
 
   supportedFootprint(x, z, body, entity, landingOnRoad = false) {
+    if (this.groundAccess && !this.groundAccess(body.mode, x, z)) return null;
     const previous = entity?._support;
     const options = { previousY: previous?.height ?? null, previousSurfaceId: previous?.surfaceId ?? null };
     const center = this.surfaceResolver.resolve(x, z, options);

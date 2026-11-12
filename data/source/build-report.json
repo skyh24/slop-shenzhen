@@ -79352,16 +79352,16 @@
     "format": "SZC1",
     "version": 1,
     "columns": 6946,
-    "metadataBytes": 14923189,
-    "numericBytes": 33174416,
-    "uncompressedBytes": 48097656,
+    "metadataBytes": 14942442,
+    "numericBytes": 33225880,
+    "uncompressedBytes": 48168376,
     "lossless": true,
-    "compressedBytes": 10683475,
-    "compressedSha256": "c88877dac693bc135f825a161bd3eee8f4bdc214183d6dbe8f2dcda327c92767"
+    "compressedBytes": 10715868,
+    "compressedSha256": "a42ef9260de2a9fd516b2d8e3c7e99998178490f590d93f974dc08314432abf9"
   },
-  "outputBytes": 10652939,
-  "outputSha256": "1f2fe7610c058a0a0e88ea9c372762158380b1ffb6821cf3f46cc7687ffe75a7",
-  "seconds": 27.4,
+  "outputBytes": 10691658,
+  "outputSha256": "8e8e74cab476d32d0424c80aa8e78a0bb86f4e05e57e108dbdc3bcb810e94215",
+  "seconds": 22.7,
   "frontageRebuild": {
     "basePayloadSha256": "6357ca9673bd5bbbb1e7532d96314cb3bc4372b97c659466565df89307ca30cb",
     "corridors": [
@@ -82362,5 +82362,253 @@
         "bottomY": 8.96
       }
     ]
+  },
+  "shenzhenBayWaterfront": {
+    "status": "pilot-generated",
+    "checkedAt": "2026-11-12",
+    "parkOsmId": "relation/8133384",
+    "areaOsmId": "way/571629098",
+    "sources": {
+      "park": "https://cgj.sz.gov.cn/xsmh/gysz/twf/bhxx/content/post_10841320.html",
+      "layout": "https://cgj.sz.gov.cn/xsmh/szlh/jpld/content/post_2053209.html",
+      "centralBay": "https://www.szns.gov.cn/mlns/stns/gyzq/content/post_3726095.html",
+      "cycling": "https://zjj.sz.gov.cn/gkmlpt/content/12/12942/post_12942113.html",
+      "access": "https://cgj.sz.gov.cn/ydmh/zcg/content/post_12977503.html",
+      "design": "https://www.swagroup.com/projects/shenzhen-bay/"
+    },
+    "estimates": {
+      "coastalCrestM": 3.8,
+      "gradeBlendM": 92,
+      "endBlendM": 52,
+      "rockSlopeRunM": 5.4,
+      "shoreProfileEvidence": "中湾阅海广场有人工观海和亲水界面。具体挡边/护坡分界、海拔、护栏和断面为模拟估计，待逐段图照或测绘核实。",
+      "accessEvidence": "运行场景区分来源步行和骑行路段，实地开放时间、共享单车时段、临时限流及施工状态以现场告示为准。"
+    },
+    "shore": [
+      {
+        "id": "way/325015311",
+        "fromIndex": 11,
+        "toIndex": 17,
+        "profile": "rock-slope",
+        "lengthM": 297.37
+      },
+      {
+        "id": "way/325015311",
+        "fromIndex": 17,
+        "toIndex": 28,
+        "profile": "retaining-edge",
+        "lengthM": 207.19
+      },
+      {
+        "id": "way/1009065155",
+        "fromIndex": 0,
+        "toIndex": 3,
+        "profile": "retaining-edge",
+        "lengthM": 81.32
+      }
+    ],
+    "paths": [
+      {
+        "version": 1,
+        "tags": {
+          "highway": "path",
+          "foot": "designated",
+          "bicycle": "designated"
+        },
+        "osmId": "way/883827047",
+        "mode": "walk",
+        "material": "walk",
+        "nodes": [
+          8219895303,
+          8219895302
+        ],
+        "widthM": 2.8,
+        "widthSource": "visual-estimate",
+        "lengthM": 28.38
+      },
+      {
+        "version": 4,
+        "tags": {
+          "highway": "path",
+          "foot": "designated",
+          "bicycle": "designated"
+        },
+        "osmId": "way/325371421",
+        "mode": "walk",
+        "material": "walk",
+        "nodes": [
+          8219895302,
+          3320396956,
+          11091086698,
+          3320396955,
+          2643549593,
+          8219895301,
+          3762673623,
+          2613258417
+        ],
+        "widthM": 3.2,
+        "widthSource": "visual-estimate",
+        "lengthM": 153.97
+      },
+      {
+        "version": 12,
+        "tags": {
+          "highway": "footway",
+          "surface": "sett",
+          "foot": "designated",
+          "bicycle": "designated",
+          "lit": "yes"
+        },
+        "osmId": "way/246781716",
+        "mode": "walk",
+        "material": "walk",
+        "nodes": [
+          2613258384,
+          2613258398,
+          2613258417,
+          2613258539,
+          2613258545,
+          2613258550,
+          2613258555,
+          2613258561,
+          2613258565,
+          2613258360,
+          2613258588,
+          2613258605,
+          2613258621,
+          2613258613,
+          2613258633,
+          11091086597,
+          5432539256,
+          2613258639
+        ],
+        "widthM": 4.2,
+        "widthSource": "visual-estimate",
+        "lengthM": 450.84
+      },
+      {
+        "version": 9,
+        "tags": {
+          "highway": "cycleway",
+          "surface": "asphalt",
+          "foot": "designated",
+          "bicycle": "designated"
+        },
+        "osmId": "way/357765495",
+        "mode": "cycle",
+        "material": "cycle",
+        "nodes": [
+          2643549488,
+          2643549497,
+          2643549499,
+          2643549490,
+          2643549476,
+          2643549453,
+          2643549428,
+          2643549422,
+          11091086725,
+          2643549418,
+          2643549430,
+          2643549447,
+          2643549456,
+          2643549455,
+          2643549449,
+          2643549442,
+          2643549462,
+          2643549474,
+          2643549501,
+          2643549511,
+          2643549524,
+          2643549528,
+          2643549532,
+          2643549543,
+          2643549561,
+          2643549573,
+          2643549577,
+          2643549565,
+          2643549551,
+          2643549535,
+          2643549545,
+          2643549557,
+          2643549559,
+          2643549569,
+          2643549579,
+          2643549583,
+          2643549585,
+          2643549589,
+          2643549591,
+          2643549593,
+          2643549607,
+          2643549611,
+          2643549613,
+          2643549609,
+          2643549605,
+          2643549603,
+          2643549606,
+          2643549610
+        ],
+        "widthM": 3.3,
+        "widthSource": "visual-estimate",
+        "lengthM": 446.75
+      },
+      {
+        "version": 13,
+        "tags": {
+          "highway": "cycleway",
+          "surface": "paving_stones",
+          "foot": "designated",
+          "bicycle": "designated"
+        },
+        "osmId": "way/255653770",
+        "mode": "cycle",
+        "material": "cycle-stone",
+        "nodes": [
+          2613258589,
+          2613258595,
+          2613258596,
+          2613258609,
+          2613258608,
+          2613258610,
+          2613258612,
+          2613258615,
+          2613258618,
+          2613258630,
+          2613258624,
+          2613258628,
+          2613258629,
+          2613258632,
+          2613258635,
+          11091086596,
+          5432539255,
+          5432539254,
+          2613258636
+        ],
+        "widthM": 3.6,
+        "widthSource": "visual-estimate",
+        "lengthM": 459.62
+      }
+    ],
+    "walkRouteM": 594.62,
+    "arrivalReference": {
+      "osmId": "node/5187524604",
+      "distanceToApproachM": 6.45
+    },
+    "changedTerrainChunks": [
+      "-16,5",
+      "-15,5",
+      "-14,5"
+    ],
+    "pavingM2": {
+      "crossing": 10.69,
+      "walk": 2464.66,
+      "cycle": 1471.93,
+      "cycle-stone": 1664.73
+    },
+    "roadMask": {
+      "source": "visitGroundRoadFootprints",
+      "roadOsmIds": [],
+      "carriagewayMaskAreaM2": 0.0
+    },
+    "sourceHeight": "local-visual-estimate-on-existing-terrain"
   }
 }

@@ -56,7 +56,7 @@ function batchChunks(entries) {
 
 export { createGroundSurfaceSampler };
 
-const COLORS = [0xb5b0a2, 0x6f875a, 0x527858, 0xa7a8a4];
+const COLORS = [0xb5b0a2, 0x6f875a, 0x527858, 0xa7a8a4, 0xb8b1a5, 0x736f68, 0xa79780, 0x938473];
 
 function groundMaterial() {
   const material = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.96 });
@@ -85,7 +85,7 @@ export function buildSzGround(scene, surface, options = {}) {
       const color = palette[kind];
       if (!color) throw new Error(`Unsupported ground kind: ${kind}`);
       color.toArray(colors, i * 3);
-      paved[i] = kind === 3 ? 1 : 0;
+      paved[i] = Number(kind === 3 || kind === 4 || kind === 7);
     });
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(chunk.positions, 3));

@@ -220,7 +220,8 @@ function processPose(ped, sampled) {
   const isPublic = ped.leg.kind === 'public-walk';
   const fade = isPublic ? 1
     : Math.max(0, Math.min(1, ped.s / 2.5, (ped.leg.length - ped.s) / 2.5));
-  const lateral = isPublic ? clamp(ped.lateral, -0.38, 0.38) : ped.lateral * fade;
+  const publicLimit = ped.leg.restSide ? 1.45 : 0.38;
+  const lateral = isPublic ? clamp(ped.lateral, -publicLimit, publicLimit) : ped.lateral * fade;
   ped.x = sampled.x + (isPublic ? sampled.rightX : sampled.dz) * lateral;
   ped.z = sampled.z + (isPublic ? sampled.rightZ : -sampled.dx) * lateral;
   ped.y = sampled.y;
@@ -277,7 +278,8 @@ export function createSzPedestrians(scene, graph, options = {}) {
     const rise = owner.leg?.kind === 'public-walk' ? 0 : cfg.surfaceRiseM;
     return Number.isFinite(height) ? height + rise : rise;
   };
-  const publicTrack = cfg.publicRoute ? createPublicWalkTrack(cfg.publicRoute) : null;
+  const publicTracks = (cfg.publicRoutes ?? []).map(route => createPublicWalkTrack(route.points, route));
+  if (cfg.publicRoute) publicTracks.push(createPublicWalkTrack(cfg.publicRoute));
   const scratch = { x: 0, y: 0, z: 0, dx: 1, dz: 0 };
   const nearPeds = [];
   const queueSpeeds = new Float64Array(cfg.maxPeds);
@@ -327,16 +329,17 @@ export function createSzPedestrians(scene, graph, options = {}) {
       heightAt: cfg.heightAt,
       colliders: cfg.colliders,
       colliderGrid,
+      excludeWalkAt: (x, z) => cfg.excludeWalkAt?.(x, z) || publicTracks.some(track => track.reserve?.(x, z)),
       pavement: cfg.pavement,
       surfaceRiseM: cfg.surfaceRiseM,
       pavementHalfWidthM: cfg.pavementHalfWidthM,
       walkMarginM: cfg.walkMarginM
     });
-    if (publicTrack && publicTrack.points.some(p =>
-      p.x >= bounds.minX && p.x <= bounds.maxX && p.z >= bounds.minZ && p.z <= bounds.maxZ)) {
-      built.tracks.push(publicTrack);
-      built.legs.push(publicTrack);
-      built.statistics.walkableMeters += publicTrack.length;
+    for (const track of publicTracks) {
+      if (!track.points.some(p => p.x >= bounds.minX && p.x <= bounds.maxX && p.z >= bounds.minZ && p.z <= bounds.maxZ)) continue;
+      built.tracks.push(track);
+      built.legs.push(track);
+      built.statistics.walkableMeters += track.length;
     }
     // 出生权重按“可用轨道长度 × 地点活跃度”加权，CBD/商业街密、公园/支路稀；只统计
     // 出生环（spawnMinM–spawnMaxM）内的轨道长度，避免把远处车流走廊算成本地人流目标。
@@ -416,12 +419,13 @@ export function createSzPedestrians(scene, graph, options = {}) {
   }
 
   function fitRoadsidePose(ped, sampled) {
+    const blocked = () => region.carriagewayOccupied(ped.x, ped.z) || ped.leg.walkAt?.(ped.x, ped.z) === false;
     processPose(ped, sampled);
-    if (!region.carriagewayOccupied(ped.x, ped.z)) return true;
+    if (!blocked()) return true;
     // 靠右或让行偏移会越过路缘时，先尝试留在步行带中线。
     ped.lateral = 0;
     processPose(ped, sampled);
-    return !region.carriagewayOccupied(ped.x, ped.z);
+    return !blocked();
   }
 
   function trySpawn(ped, focus, isVisible) {
@@ -439,9 +443,12 @@ export function createSzPedestrians(scene, graph, options = {}) {
       ped.s = s;
       ped.dir = random() < 0.5 ? 1 : -1;
       ped.fromLeg = null;
+      ped.speed = track.jogSpeed && ped.id % 7 === 0 ? track.jogSpeed
+        : cfg.targetSpeedMin + (cfg.targetSpeedMax - cfg.targetSpeedMin) * hash(ped.id, 3);
       ped.lateral = cfg.keepRightM * ped.dir;
       ped.v = ped.speed * (0.5 + random() * 0.5);
       ped.pause = 0;
+      ped.restOffset = null;
       if (!fitRoadsidePose(ped, scratch)) continue;
       if (ped.leg.kind === 'public-walk') ped.y = ground(ped, ped.x, ped.z);
       if (avoidance.some(player => squareDistance(ped.x, ped.z, player.x, player.z) < (player.radius + 1) ** 2)
@@ -517,6 +524,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     const vehicles = nearbyVehicles.filter(body => Math.abs(body.x - ped.x) < 42 && Math.abs(body.z - ped.z) < 42);
     if (ped.pause > 0) {
       ped.pause = Math.max(0, ped.pause - dt);
+      if (ped.pause === 0) ped.restOffset = null;
       ped.v = 0;
     }
     let target = ped.pause > 0 ? 0 : ped.speed;
@@ -531,12 +539,14 @@ export function createSzPedestrians(scene, graph, options = {}) {
       target = Math.min(target, Math.sqrt(2 * 1.8 * Math.max(0, ahead)));
     }
     // 随机短暂停留：看橱窗/等同伴的模拟，不是实测客流行为。
-    if (ped.pause === 0 && clock >= ped.restAt) {
+    const restingSide = ped.leg.restSide?.(ped.s);
+    if (ped.pause === 0 && clock >= ped.restAt && (!ped.leg.restSide || Number.isFinite(restingSide))) {
       ped.pause = cfg.restPauseMinS + random() * (cfg.restPauseMaxS - cfg.restPauseMinS);
       ped.restAt = clock + cfg.restMinS + random() * (cfg.restMaxS - cfg.restMinS);
+      ped.restOffset = restingSide;
       target = 0;
     }
-    let lateralTarget = cfg.keepRightM * ped.dir;
+    let lateralTarget = ped.pause > 0 && Number.isFinite(ped.restOffset) ? ped.restOffset : cfg.keepRightM * ped.dir;
     if (vehicles.length) {
       writePedestrianCollider(walkProbe, ped.x, ped.y, ped.z, ped.heading, Math.max(ped.v, target));
       const threat = vehicles.find(body => {

@@ -84,6 +84,25 @@ function validateGolfCourse(site, graph, buildings) {
   }
 }
 
+function validateShenzhenBay(site, parks, sea) {
+  if (site === undefined) return;
+  const wayId = /^way\/\d+$/;
+  const points = (rows, dimensions) => Array.isArray(rows) && rows.length >= 2
+    && rows.every(row => Array.isArray(row) && row.length === dimensions && row.every(Number.isFinite));
+  const park = parks.find(park => park.id === 'shenzhen-bay-park');
+  requireData(site?.version === 1 && park?.areas.some(area => area.osmId === site.areaOsmId)
+    && site.seaHeightM === sea?.heightM && /^node\/\d+$/.test(site.arrivalReference)
+    && points(site.walkRoute, 3) && Number.isSafeInteger(site.viewNode)
+    && Number.isFinite(site.estimates?.rockSlopeRunM) && site.estimates.rockSlopeRunM > 0
+    && Array.isArray(site.paths) && site.paths.length && Array.isArray(site.shore) && site.shore.length, 'Shenzhen Bay source');
+  requireData(site.paths.every(path => wayId.test(path.osmId) && ['walk', 'cycle'].includes(path.mode)
+    && points(path.points, 2) && Array.isArray(path.nodes) && path.nodes.length === path.points.length
+    && path.nodes.every(Number.isSafeInteger) && Number.isFinite(path.widthM) && path.widthM > 0)
+    && site.paths.some(path => path.mode === 'walk' && path.nodes.includes(site.viewNode)), 'Shenzhen Bay paths');
+  requireData(site.shore.every(shore => wayId.test(shore.id) && points(shore.stations, 3)
+    && ['rock-slope', 'retaining-edge'].includes(shore.profile)), 'Shenzhen Bay shore');
+}
+
 function validateTrees(trees) {
   if (trees === undefined) return;
   requireData(trees?.version === 1 && Number.isSafeInteger(trees.count) && trees.count >= 0, 'trees header');
@@ -458,6 +477,7 @@ export function validateCityPayload(raw) {
   validateTrees(raw.trees);
   validateSites(raw.sites);
   validateAir(raw.air);
+  validateShenzhenBay(raw.shenzhenBay, raw.parks ?? [], raw.seaSurface);
   for (let i = 0; i < buildings.h.length; i++) {
     requireData(typeof buildings.id[i] === 'string' && buildings.id[i].length > 0, 'building identity');
     requireData(Number.isFinite(buildings.h[i]) && Number.isFinite(buildings.minH[i])
@@ -592,6 +612,7 @@ export function decodeCityPayload(raw, metrics = null) {
     wetland: raw.wetland.map(polygon), green: raw.green.map(polygon),
     roadGraph: raw.roadGraph, terrain: raw.terrain, terrainSurface: raw.terrainSurface,
     roadFrontage: raw.roadFrontage ?? null,
+    shenzhenBay: raw.shenzhenBay ?? null,
     metro: raw.metro, landmarks: raw.landmarks,
     bridges: raw.bridges ?? [], yanjiangExpressway: raw.yanjiangExpressway ?? null,
     seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },

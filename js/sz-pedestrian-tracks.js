@@ -722,8 +722,8 @@ export function buildWalkTracks(graph, options = {}) {
   };
 }
 
-export function createPublicWalkTrack(points) {
-  return makeTrack(points, 'public-walk', { id: 'public-walk:zhongxin-2-west', highway: 'unclassified',
+export function createPublicWalkTrack(points, { id = 'public-walk:zhongxin-2-west', walkAt, reserve, restSide, jogSpeed } = {}) {
+  return makeTrack(points, 'public-walk', { id, walkAt, reserve, restSide, jogSpeed, highway: 'unclassified',
     normals: points.map((_, i) => tangentAt(points, i)) });
 }
 

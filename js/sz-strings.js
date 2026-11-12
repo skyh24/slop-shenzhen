@@ -122,6 +122,7 @@ export const STR = {
     start: name => `环绕${name}`,
     stop: '退出环绕'
   },
+  bayWaterfront: { destination: '中湾阅海广场', walk: '观海步道' },
   teleport: {
     cocoParkApproach: 'COCO Park 一期东南门前场',
     cocoParkApproachDetail: '福华三路北侧步行起点',

@@ -9,6 +9,7 @@ import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
 import { GEO, REAL_BUILDINGS, DATA_TIMINGS } from './sz-geodata.js';
 import { getLocationLabel, inBounds, isWater, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { buildSzGround } from './sz-ground.js';
+import { buildSzBayWaterfront, createBayParkArrivals, createBayPathLookup } from './sz-bay-waterfront.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads, planStreetTreeSides } from './sz-roads.js';
 import { buildSzRoadFrontage } from './sz-road-frontage.js';
@@ -200,10 +201,11 @@ async function initApp() {
   const roadPaint = qa.stage('paint', () =>
     buildSzRoadPaint(scene, GEO.roadGraph, { ...site, intersections: roadFrontage.control.intersections,
       frontage: GEO.roadFrontage, decks: elevatedRoads.links }));
-  // 路缘接触和绘制共用同一份三角面，未覆盖的位置沿用源地形。
   const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface);
   site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? publicWalk.heightAt(x, z) ?? ground.groundHeight(x, z);
   site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
+  const bayPaths = createBayPathLookup(GEO.shenzhenBay?.paths);
+  site.reserveBayWalk = (x, z, radius) => bayPaths(x, z, radius).length > 0;
   markInit('roads');
   await showLoadingStage(STR.startup.landmarks, 'landmarks');
   const lianhuashan = GEO.parks.find(park => park.id === 'lianhuashan');
@@ -244,7 +246,6 @@ async function initApp() {
     .map(row => row.bounds);
   // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
   const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
-  // 源树先保留位置，模拟树灯共用样段预约带。
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
     ...site, carriagewayOccupied, roadFrontage: GEO.roadFrontage, reserveWalk: publicWalk.reserves, pilotTrees: publicWalk.trees,
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
@@ -292,6 +293,9 @@ async function initApp() {
   const planter = publicWalk.placePlanter(colliders, site.heightAt);
   if (planter) colliders.push(planter);
   site.colliders = colliders;
+  const bayWaterfront = qa.measureBuild('bayWaterfront', () =>
+    buildSzBayWaterfront(scene, GEO.shenzhenBay, { ...site, pathsNear: bayPaths }));
+  colliders.push(...bayWaterfront.colliders);
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = qa.stage('traffic', () => createSzTraffic(scene, GEO.roadGraph, {
     ...site,
@@ -307,7 +311,8 @@ async function initApp() {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
     surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces, ...summit.surfaces],
-    nearTraffic: traffic.nearColliders
+    nearTraffic: traffic.nearColliders,
+    groundAccess: bayWaterfront.allowsGroundMode
   });
   let initialTime = 'golden';
   try {
@@ -338,7 +343,8 @@ async function initApp() {
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
     spawnMinM: 8,
-    spawnMaxM: 160
+    spawnMaxM: 160,
+    publicRoutes: bayWaterfront.publicRoutes
   }));
   roadFrontage.update(0);
   traffic.update(0, loadingFocus, [controllerManager.getActiveEntity()], 0);
@@ -400,6 +406,7 @@ async function initApp() {
   window.addEventListener('pagehide', (event) => {
     savePlayerState();
     if (!event.persisted) audioSystem.dispose();
+    if (!event.persisted) bayWaterfront.dispose();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) savePlayerState(); });
   markInit('controllers');
@@ -481,14 +488,8 @@ async function initApp() {
   }
   const timeButtons = document.querySelectorAll('[data-time]');
   const bayPark = LANDMARK_SITES['shenzhen-bay-park'];
-  const bayParkSource = GEO.parks.find(park => park.id === bayPark?.id);
-  const bayParkRoad = bayPark && findGroundArrival(bayPark, 'car', { radius: 800 });
-  const parkArrivals = {
-    person: bayParkSource?.areas.some(area => area.arrivals.length) && { ...bayPark, ...streetscape.arrival, park: bayParkSource,
-      detail: streetscape.arrival ? STR.teleport.parkPath : STR.teleport.parkWalk },
-    car: bayParkRoad && { ...bayParkRoad, detail: STR.teleport.nearParkRoad(getLocationLabel(bayParkRoad.x, bayParkRoad.z), bayParkRoad.distance) },
-    helicopter: bayPark && { ...bayPark, detail: STR.teleport.parkFlight }
-  };
+  const parkArrivals = createBayParkArrivals(bayPark, GEO.parks, bayWaterfront.arrival ?? streetscape.arrival,
+    findGroundArrival, getLocationLabel);
   const { entries: teleportEntries, buttons: teleportButtons, syncWalkApproach } = createTeleportMenu(TELEPORT_LOCATIONS, bayPark, getLocationLabel);
   const parkButton = teleportButtons.find(button => button.dataset.teleport === bayPark?.id);
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
@@ -915,6 +916,7 @@ async function initApp() {
     showSession.update(rawDt);
     lightShow.update();
     metroEntrances.update(cameraSystem.currentPos);
+    bayWaterfront.update(cameraSystem.camera.position);
     futianStation?.update(cameraSystem.currentPos);
     xiliConstruction?.update();
     buildingSigns.update(cameraSystem.camera.position);

@@ -1,0 +1,383 @@
+import * as THREE from 'three/webgpu';
+import { color, smoothstep, uv } from 'three/tsl';
+import { polygonBoxOverlaps } from './building-collision.js';
+import { sceneUniforms } from './sz-materials.js';
+import { STR } from './sz-strings.js';
+
+const CELL = 110;
+const AXIS = new THREE.Vector3(1, 0, 0);
+const RETAINING = 0x89857b;
+const RIPRAP = 0x72746d;
+
+export function createBayPathLookup(paths = []) {
+  if (!paths.length) return () => [];
+  const edges = [];
+  for (const path of paths) {
+    for (let i = 1; i < path.points.length; i++) {
+      const [x, z] = path.points[i - 1];
+      const dx = path.points[i][0] - x, dz = path.points[i][1] - z;
+      const length2 = dx * dx + dz * dz;
+      if (length2 > 1e-8) edges.push({ x, z, dx, dz, length2, mode: path.mode, width: path.widthM / 2 });
+    }
+  }
+  const [minX, minZ, maxX, maxZ] = [
+    Math.min(...edges.map(edge => Math.min(edge.x, edge.x + edge.dx))),
+    Math.min(...edges.map(edge => Math.min(edge.z, edge.z + edge.dz))),
+    Math.max(...edges.map(edge => Math.max(edge.x, edge.x + edge.dx))),
+    Math.max(...edges.map(edge => Math.max(edge.z, edge.z + edge.dz)))
+  ];
+  return function near(x, z, pad = 0) {
+    if (x < minX - 3 - pad || x > maxX + 3 + pad || z < minZ - 3 - pad || z > maxZ + 3 + pad) return [];
+    const modes = new Set();
+    for (const edge of edges) {
+      const ox = x - edge.x, oz = z - edge.z;
+      const t = Math.max(0, Math.min(1, (ox * edge.dx + oz * edge.dz) / edge.length2));
+      if ((ox - t * edge.dx) ** 2 + (oz - t * edge.dz) ** 2 <= (edge.width + pad) ** 2) modes.add(edge.mode);
+    }
+    return [...modes];
+  };
+}
+
+export function createBayParkArrivals(anchor, parks, pathArrival, findGroundArrival, getLocationLabel) {
+  const park = parks.find(row => row.id === anchor?.id);
+  const road = anchor && findGroundArrival(anchor, 'car', { radius: 800 });
+  return {
+    person: park?.areas.some(area => area.arrivals.length) && { ...anchor, ...pathArrival, park,
+      detail: pathArrival ? STR.teleport.parkPath : STR.teleport.parkWalk },
+    car: road && { ...road, detail: STR.teleport.nearParkRoad(getLocationLabel(road.x, road.z), road.distance) },
+    helicopter: anchor && { ...anchor, detail: STR.teleport.parkFlight }
+  };
+}
+
+function horizontalNormal(a, b) {
+  const length = Math.hypot(b.x - a.x, b.z - a.z);
+  return length > 1e-4 ? { x: -(b.z - a.z) / length, z: (b.x - a.x) / length } : null;
+}
+
+function offset(point, normal, distance, y = point.y) {
+  return { x: point.x + normal.x * distance, y, z: point.z + normal.z * distance };
+}
+
+function vector({ x, y, z }) {
+  return new THREE.Vector3(x, y, z);
+}
+
+function beamCollider(a, b, height, width, type) {
+  const normal = horizontalNormal(a, b);
+  const outer = normal ? [offset(a, normal, -width / 2), offset(b, normal, -width / 2),
+    offset(b, normal, width / 2), offset(a, normal, width / 2)]
+    : [[-1, -1], [-1, 1], [1, 1], [1, -1]].map(([x, z]) => ({ x: a.x + x * width / 2, z: a.z + z * height / 2 }));
+  return { type, polygon: { outer, holes: [] },
+    minX: Math.min(...outer.map(p => p.x)), maxX: Math.max(...outer.map(p => p.x)),
+    minZ: Math.min(...outer.map(p => p.z)), maxZ: Math.max(...outer.map(p => p.z)),
+    minY: Math.min(a.y, b.y) - (normal ? height / 2 : 0), maxY: Math.max(a.y, b.y) + (normal ? height / 2 : 0) };
+}
+
+function boxInstances(group, rows, geometry, material, name) {
+  if (!rows.length) return null;
+  const mesh = new THREE.InstancedMesh(geometry, material, rows.length);
+  mesh.name = name;
+  mesh.receiveShadow = true;
+  const matrix = new THREE.Matrix4(), rotation = new THREE.Quaternion();
+  rows.forEach(({ a, b, width, height }, i) => {
+    const p = vector(a), q = vector(b), d = q.clone().sub(p);
+    const length = d.length();
+    rotation.setFromUnitVectors(AXIS, d.normalize());
+    mesh.setMatrixAt(i, matrix.compose(p.lerp(q, 0.5), rotation, new THREE.Vector3(length, height, width)));
+  });
+  mesh.computeBoundingSphere();
+  group.add(mesh);
+  return mesh;
+}
+
+function addQuad(bucket, a, b, c, d, tint) {
+  for (const point of [a, b, c, c, b, d]) {
+    bucket.positions.push(point.x, point.y, point.z);
+    bucket.colors.push(tint.r, tint.g, tint.b);
+  }
+}
+
+function rampFactor(distance, length) {
+  return Math.max(0, Math.min(1, distance / 13, (length - distance) / 13));
+}
+
+function safeFootprint(x, z, radius, obstacles) {
+  return !obstacles.some(c => c.minX < x + radius && c.maxX > x - radius
+    && c.minZ < z + radius && c.maxZ > z - radius
+    && (!c.polygon || polygonBoxOverlaps(c.polygon, x, z, radius, radius)));
+}
+
+function addLightPool(batch, center, heightAt) {
+  const vertices = [[0, 0]];
+  for (let i = 0; i < 16; i++) {
+    const angle = i * Math.PI / 8;
+    vertices.push([Math.cos(angle), Math.sin(angle)]);
+  }
+  const rows = vertices.map(([u, v]) => {
+    const x = center.x + 2.35 * u, z = center.z + 2.35 * v;
+    return { x, z, u, v, y: heightAt(x, z) };
+  });
+  if (rows.some(row => !Number.isFinite(row.y))) return;
+  for (let i = 1; i < rows.length; i++) {
+    for (const { x, z, u, v, y } of [rows[0], rows[i % 16 + 1], rows[i]]) {
+      batch.poolPositions.push(x, y + 0.035, z);
+      batch.poolUvs.push(0.5 + 0.5 * u, 0.5 + 0.5 * v);
+    }
+  }
+}
+
+function addWayfinding(group, point, tangent) {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = 480;
+  canvas.height = 168;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.fillStyle = '#314d48';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#f3e8d1';
+  ctx.font = 'bold 47px sans-serif';
+  ctx.fillText(STR.bayWaterfront.destination, 34, 72);
+  ctx.font = '30px sans-serif';
+  ctx.fillText(`${STR.bayWaterfront.walk}  ↑`, 34, 127);
+  const map = new THREE.CanvasTexture(canvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.MeshBasicNodeMaterial({ map });
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.98, 0.343), material);
+  sign.name = 'shenzhen-bay-wayfinding';
+  sign.position.set(point.x - tangent.x * 0.074, point.y + 1.76, point.z - tangent.z * 0.074);
+  sign.rotation.y = Math.atan2(-tangent.x, -tangent.z);
+  group.add(sign);
+  return { map, material };
+}
+
+export function buildSzBayWaterfront(scene, source, { heightAt, isWater, colliders: obstacles, pathsNear }) {
+  const group = new THREE.Group();
+  group.name = 'shenzhen-bay-central-waterfront';
+  const colliders = [];
+  const statistics = { shoreTriangles: 0, rails: 0, lamps: 0, benches: 0, bins: 0, detailChunks: 0 };
+  if (!source) return { group, colliders, statistics, publicRoutes: [], allowsGroundMode: () => true,
+    update() {}, dispose() {} };
+
+  const routePoints = source.walkRoute.map(([x, y, z]) => ({ x, y, z }));
+  const restSpots = [];
+  const publicRoutes = [{ id: 'shenzhen-bay:central-bay', points: routePoints,
+    walkAt: (x, z) => pathsNear(x, z).includes('walk'), reserve: (x, z) => pathsNear(x, z, 1.4).length > 0,
+    restSide: s => restSpots.find(spot => Math.abs(spot.s - s) <= 2.6)?.side, jogSpeed: 2.25 }];
+  const buckets = new Map();
+  function bucket(x, z) {
+    const ix = Math.floor(x / CELL), iz = Math.floor(z / CELL);
+    const id = `${ix},${iz}`;
+    if (!buckets.has(id)) buckets.set(id, {
+      id, x: (ix + 0.5) * CELL, z: (iz + 0.5) * CELL, positions: [], colors: [], rockSites: [],
+      metal: [], wood: [], light: [], poolPositions: [], poolUvs: [], pool: null, details: null
+    });
+    return buckets.get(id);
+  }
+
+  function addBox(rows, a, b, height, width, type) {
+    rows.push({ a, b, height, width });
+    if (type) colliders.push(beamCollider(a, b, height, width, type));
+  }
+
+  const shoreMaterial = new THREE.MeshStandardNodeMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.96 });
+  const steel = new THREE.MeshStandardNodeMaterial({ color: 0x535956, roughness: 0.62 });
+  const timber = new THREE.MeshStandardNodeMaterial({ color: 0x745748, roughness: 0.91 });
+  const lamp = new THREE.MeshStandardNodeMaterial({ color: 0x64605b, roughness: 0.45,
+    emissiveNode: color(0xffdb9f).mul(sceneUniforms.night).mul(2.4) });
+  const poolMaterial = new THREE.MeshBasicNodeMaterial({ color: 0xffd9a1, transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending });
+  poolMaterial.opacityNode = smoothstep(0.06, 0.5, uv().sub(0.5).length()).oneMinus().mul(sceneUniforms.night).mul(0.26);
+  const stone = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.96 });
+  const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+  const rockGeometry = new THREE.IcosahedronGeometry(1, 0);
+
+  for (const shore of source.shore) {
+    const stations = shore.stations.map(([x, y, z]) => ({ x, y, z })).filter((point, i, rows) =>
+      i === 0 || Math.hypot(point.x - rows[i - 1].x, point.z - rows[i - 1].z) >= 0.004);
+    const lengths = [0];
+    for (let i = 1; i < stations.length; i++) {
+      const a = stations[i - 1], b = stations[i];
+      lengths.push(lengths.at(-1) + Math.hypot(a.x - b.x, a.z - b.z));
+    }
+    const rockSlope = shore.profile === 'rock-slope';
+    const sections = stations.map((crest, i) => {
+      const normal = horizontalNormal(stations[Math.max(0, i - 1)], stations[Math.min(stations.length - 1, i + 1)]);
+      if (!normal) throw new Error('Invalid coastal station direction');
+      if (isWater(crest.x + normal.x * 1.4, crest.z + normal.z * 1.4) !== true) {
+        normal.x *= -1;
+        normal.z *= -1;
+      }
+      const toeY = source.seaHeightM - 0.38;
+      const desired = rockSlope ? source.estimates.rockSlopeRunM * rampFactor(lengths[i], lengths.at(-1)) : 0;
+      // 岸脚只伸向同一段海面，遇相邻岸线或出水口收短。
+      let run = desired;
+      while (run > 0.25 && isWater(crest.x + normal.x * run, crest.z + normal.z * run) !== true) run *= 0.5;
+      return { crest, normal, toe: offset(crest, normal, run, toeY), run };
+    });
+
+    for (let i = 1; i < sections.length; i++) {
+      const a = sections[i - 1], b = sections[i];
+      const batch = bucket((a.crest.x + b.crest.x) / 2, (a.crest.z + b.crest.z) / 2);
+      const phase = (i * 53 % 17) / 17;
+      const tint = new THREE.Color(rockSlope ? RIPRAP : RETAINING).multiplyScalar(0.89 + phase * 0.22);
+      if (rockSlope) {
+        addQuad(batch, a.crest, b.crest, a.toe, b.toe, tint);
+        if (Math.min(a.run, b.run) > 1.5) {
+          for (const across of [0.32, 0.61, 0.87]) {
+            const x = (a.crest.x + b.crest.x + (a.toe.x + b.toe.x - a.crest.x - b.crest.x) * across) / 2;
+            const z = (a.crest.z + b.crest.z + (a.toe.z + b.toe.z - a.crest.z - b.crest.z) * across) / 2;
+            const y = (a.crest.y + b.crest.y) * (1 - across) / 2 + a.toe.y * across;
+            batch.rockSites.push({ x, y, z, size: 0.38 + phase * 0.39, phase: phase + across });
+          }
+        }
+      } else {
+        // 挡墙上缘与地面三角形共边，栏杆柱落在陆侧。
+        addQuad(batch, a.crest, b.crest, a.toe, b.toe, tint);
+        const p = offset(a.crest, a.normal, -0.19), q = offset(b.crest, b.normal, -0.19);
+        p.y = heightAt(p.x, p.z) ?? a.crest.y;
+        q.y = heightAt(q.x, q.z) ?? b.crest.y;
+        for (const railY of [0.57, 1.05]) {
+          addBox(batch.metal, { ...p, y: p.y + railY }, { ...q, y: q.y + railY }, 0.075, 0.075, 'bay-rail');
+        }
+        addBox(batch.metal, p, { ...p, y: p.y + 1.1 }, 0.09, 0.09, 'bay-rail-post');
+        statistics.rails++;
+      }
+      statistics.shoreTriangles += 2;
+    }
+  }
+
+  const fixtures = [...obstacles];
+  let wayfinding = null;
+  const coastPath = source.paths.find(path => path.nodes.includes(source.viewNode));
+  const view = coastPath.points[coastPath.nodes.indexOf(source.viewNode)];
+  let distance = 0, nextFixture = 11, station = 0;
+  function restSpot(p, normal, s, side) {
+    const shoulder = offset(p, normal, side * 1.42);
+    if (pathsNear(shoulder.x, shoulder.z, -0.37).includes('walk')
+      && !pathsNear(shoulder.x, shoulder.z, 0.37).includes('cycle')
+      && safeFootprint(shoulder.x, shoulder.z, 0.42, fixtures)) restSpots.push({ s, side: -side * 1.42 });
+  }
+  for (let i = 1; i < routePoints.length; i++) {
+    const a = routePoints[i - 1], b = routePoints[i], normal = horizontalNormal(a, b);
+    if (!normal) continue;
+    distance += Math.hypot(a.x - b.x, a.z - b.z);
+    if (Math.hypot(b.x - view[0], b.z - view[1]) < 0.01) {
+      restSpot(b, normal, distance, 1);
+      restSpot(b, normal, distance, -1);
+    }
+    if (distance < nextFixture) continue;
+    nextFixture += station % 3 === 0 ? 19 : 14;
+    const kind = station++ % 4;
+    const clearance = kind === 1 ? 1.25 : 0.48;
+    const viewpoint = Math.hypot(a.x - view[0], a.z - view[1]) < 15;
+    const options = [3.4, -3.4, 4.8, -4.8].map(d => offset(a, normal, d));
+    const p = options.find(({ x, z }) => isWater(x, z) === false && !pathsNear(x, z, clearance).length
+      && safeFootprint(x, z, clearance, fixtures) && Number.isFinite(heightAt(x, z)));
+    if (!p || (viewpoint && kind === 0)) continue;
+    p.y = heightAt(p.x, p.z);
+    const batch = bucket(p.x, p.z);
+    const tangent = { x: normal.z, z: -normal.x };
+    const before = colliders.length;
+    if (!wayfinding && distance < 50 && (wayfinding = addWayfinding(group, p, tangent))) {
+      addBox(batch.metal, p, { ...p, y: p.y + 1.94 }, 0.10, 0.10, 'bay-sign-post');
+    } else if (kind === 1) {
+      const [left, right] = [-0.92, 0.92].map(d => offset(p, tangent, d, p.y + 0.46));
+      addBox(batch.wood, left, right, 0.12, 0.52, 'bay-bench');
+      for (const end of [left, right]) addBox(batch.metal, { ...end, y: p.y - 0.05 }, end, 0.11, 0.28, 'bay-bench-leg');
+      statistics.benches++;
+      const side = Math.sign((p.x - a.x) * normal.x + (p.z - a.z) * normal.z);
+      restSpot(a, normal, distance, side);
+    } else if (kind === 3) {
+      addBox(batch.metal, p, { ...p, y: p.y + 0.85 }, 0.44, 0.44, 'bay-bin');
+      statistics.bins++;
+    } else {
+      addBox(batch.metal, { ...p, y: p.y - 0.05 }, { ...p, y: p.y + 3.18 }, 0.14, 0.14, 'bay-lamp');
+      addBox(batch.light, { ...p, y: p.y + 3.16 }, { ...p, y: p.y + 3.30 }, 0.27, 0.27);
+      // 光斑顺地形落在路缘，灯头发光，场景不增加实时点光源。
+      const side = Math.sign((p.x - a.x) * normal.x + (p.z - a.z) * normal.z);
+      addLightPool(batch, offset(a, normal, side * 0.88), heightAt);
+      statistics.lamps++;
+    }
+    fixtures.push(...colliders.slice(before));
+  }
+
+  for (const batch of buckets.values()) {
+    if (batch.positions.length) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(batch.positions, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(batch.colors, 3));
+      geometry.computeVertexNormals();
+      geometry.computeBoundingSphere();
+      const mesh = new THREE.Mesh(geometry, shoreMaterial);
+      mesh.name = `shenzhen-bay-shore:${batch.id}`;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    }
+    boxInstances(group, batch.metal, boxGeometry, steel, `shenzhen-bay-steel:${batch.id}`);
+    boxInstances(group, batch.wood, boxGeometry, timber, `shenzhen-bay-timber:${batch.id}`);
+    boxInstances(group, batch.light, boxGeometry, lamp, `shenzhen-bay-lamps:${batch.id}`);
+    if (batch.poolPositions.length) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(batch.poolPositions, 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(batch.poolUvs, 2));
+      batch.pool = new THREE.Mesh(geometry, poolMaterial);
+      batch.pool.name = `shenzhen-bay-path-light:${batch.id}`;
+      batch.pool.visible = false;
+      group.add(batch.pool);
+    }
+  }
+
+  function update({ x, z }) {
+    for (const batch of buckets.values()) {
+      if (batch.pool) batch.pool.visible = sceneUniforms.night.value > 0.025;
+      if (!batch.rockSites.length) continue;
+      const d2 = (x - batch.x) ** 2 + (z - batch.z) ** 2;
+      if (batch.details && d2 > 265 ** 2) {
+        batch.details.removeFromParent();
+        batch.details.dispose();
+        batch.details = null;
+        statistics.detailChunks--;
+      } else if (!batch.details && d2 < 210 ** 2) {
+        const mesh = new THREE.InstancedMesh(rockGeometry, stone, batch.rockSites.length);
+        mesh.name = `shenzhen-bay-riprap:${batch.id}`;
+        const matrix = new THREE.Matrix4();
+        batch.rockSites.forEach(({ x, y, z, size, phase }, i) => {
+          matrix.makeRotationY(phase * 9).scale(new THREE.Vector3(size * 1.32, size * 0.62, size));
+          mesh.setMatrixAt(i, matrix.setPosition(x, y, z));
+          mesh.setColorAt(i, new THREE.Color(RIPRAP).multiplyScalar(0.75 + (phase % 1) * 0.5));
+        });
+        mesh.computeBoundingSphere();
+        mesh.receiveShadow = true;
+        group.add(mesh);
+        batch.details = mesh;
+        statistics.detailChunks++;
+      }
+    }
+  }
+
+  const arrival = { ...routePoints[0], heading: Math.atan2(routePoints[1].x - routePoints[0].x, routePoints[1].z - routePoints[0].z),
+    sourcePathId: source.paths[0].osmId };
+  statistics.restSpots = restSpots.length;
+  scene.add(group);
+  return { group, colliders, publicRoutes, arrival, statistics, update,
+    allowsGroundMode(mode, x, z) {
+      if (mode === 'person') return true;
+      const modes = pathsNear(x, z);
+      if (mode === 'car') return modes.length === 0;
+      return mode !== 'cyclist' || modes.includes('cycle') || !pathsNear(x, z, 6).length;
+    },
+    dispose() {
+      group.removeFromParent();
+      for (const mesh of [...group.children]) {
+        mesh.removeFromParent();
+        if (mesh.isInstancedMesh) mesh.dispose();
+        else mesh.geometry.dispose();
+      }
+      wayfinding?.map.dispose();
+      wayfinding?.material.dispose();
+      for (const resource of [boxGeometry, rockGeometry, shoreMaterial, steel, timber, lamp, stone, poolMaterial]) resource.dispose();
+      statistics.detailChunks = 0;
+    }
+  };
+}
