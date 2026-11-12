@@ -287,24 +287,67 @@ function ribbonPoints(coords, startY, endY, widths, rise = 0) {
   });
 }
 
-function bridgeDeck(id, source, stations, depth, rails = true) {
+function bridgeDeck(id, source, stations, depth, rails = true, entryCuts = []) {
   const parts = [];
-  const add = (a, b, low, high, rise, thickness, style, roofContact = false) => {
+  const entryParts = [];
+  const add = (a, b, low, high, rise, thickness, style, roofContact = false, target = parts, stem = null) => {
     const quad = [a.at(low(a.width), rise), b.at(low(b.width), rise), b.at(high(b.width), rise), a.at(high(a.width), rise)];
     for (const [i, tri] of [[0, [quad[0], quad[1], quad[2]]], [1, [quad[0], quad[2], quad[3]]]]) {
-      parts.push(roofPanelPart(`upperhills:${id}:${parts.length}:${i}`, source, tri, thickness, style,
+      target.push(roofPanelPart(`upperhills:${id}:${stem ?? parts.length}:${i}`, source, tri, thickness, style,
         { roofContact, baseSource: 'dem-south-walkway-point' }));
     }
   };
   for (let i = 1; i < stations.length; i++) {
     const a = stations[i - 1], b = stations[i];
-    add(a, b, w => -w / 2, w => w / 2, 0, depth, 'upperhillsPaving', true);
+    if (i === 1 && entryCuts.length > 0) {
+      const edges = [-0.5, ...entryCuts, 0.5];
+      // 只在公园端增加扇形分片；主跨每片既有的 ID 保持不变。
+      for (let j = 0; j < edges.length - 1; j++) {
+        add(a, b, w => w * edges[j], w => w * edges[j + 1], 0, depth, 'upperhillsPaving', true,
+          j === 0 ? parts : entryParts, j === 0 ? null : `entry:${j}`);
+      }
+    } else add(a, b, w => -w / 2, w => w / 2, 0, depth, 'upperhillsPaving', true);
     if (rails) {
       add(a, b, w => -w / 2, w => -w / 2 + 0.16, 1.06, 1.06, 'upperhillsMetal');
       add(a, b, w => w / 2 - 0.16, w => w / 2, 1.06, 1.06, 'upperhillsMetal');
     }
   }
+  parts.push(...entryParts);
   return parts;
+}
+
+function westParkEntry(station, terrain, heightAt) {
+  const a = station.at(-station.width / 2), b = station.at(station.width / 2);
+  // 此处端口未叠加道路前场，活动地面沿原网格的东北—西南对角线分片，保留横坡转折。
+  const lines = [[a.x - terrain.x0, b.x - terrain.x0], [a.z - terrain.z0, b.z - terrain.z0],
+    [a.x + a.z - terrain.x0 - terrain.z0, b.x + b.z - terrain.x0 - terrain.z0]];
+  const cuts = [];
+  for (const [lo, hi] of lines) {
+    for (let n = Math.floor(Math.min(lo, hi) / terrain.step) + 1; n * terrain.step < Math.max(lo, hi); n++) {
+      const t = (n * terrain.step - lo) / (hi - lo) - 0.5;
+      if (Math.abs(t) < 0.5 - 1e-6 && cuts.every(other => Math.abs(other - t) > 1e-6)) cuts.push(t);
+    }
+  }
+  const sample = (across, rise = 0) => {
+    const p = station.at(across);
+    const y = heightAt(p.x, p.z);
+    return Number.isFinite(y) ? { ...p, y: y + rise } : null;
+  };
+  if ([-0.5, ...cuts, 0.5].some(t => !sample(station.width * t))
+    || [-station.width / 2 + 0.16, station.width / 2 - 0.16].some(t => !sample(t))) return null;
+  return { station: { ...station, at: sample }, cuts: cuts.sort((a, b) => a - b) };
+}
+
+function westTownEntry(station, previous) {
+  // 桥的 OSM 端点在小镇平台内；沿最后一跨的方向把桥板及护栏收在真实平台边线上。
+  const a = point(...TOWN_DECK.at(-1)), b = point(...TOWN_DECK[0]);
+  const dx = b.x - a.x, dz = b.z - a.z;
+  const side = p => dx * (p.z - a.z) - dz * (p.x - a.x);
+  return { ...station, at(across, rise = 0) {
+    const p = station.at(across, rise), q = previous.at(across, rise);
+    const t = side(p) / (side(p) - side(q));
+    return { x: blend(p.x, q.x, t), y: p.y, z: blend(p.z, q.z, t) };
+  } };
 }
 
 function westPergolas(source, stations) {
@@ -326,15 +369,25 @@ function westPergolas(source, stations) {
   return parts;
 }
 
-function parkBridge(bridge, source, terrain, deckY) {
+function parkBridge(bridge, source, terrain, deckY, heightAt) {
   const west = bridge.id === 'west';
   const park = bridge.points[west ? 0 : bridge.points.length - 1];
-  const parkY = terrainHeight(terrain, ...park);
-  if (parkY === null) return [];
+  const parkY = west ? heightAt(...park) : terrainHeight(terrain, ...park);
+  if (!Number.isFinite(parkY)) return [];
   // 西桥跨越彩田路高架及公园边坡，跨中高差是照片和现有地形对照后的拟合值。
   const stations = ribbonPoints(bridge.points, west ? parkY + 0.12 : deckY, west ? deckY : parkY + 0.12, bridge.widths, west ? 3.35 : 0);
+  let entryCuts = [];
+  let pergolas = [];
+  if (west) {
+    const entry = westParkEntry(stations[0], terrain, heightAt);
+    if (!entry) return [];
+    pergolas = westPergolas(source, stations);
+    stations[0] = entry.station;
+    entryCuts = entry.cuts;
+    stations[stations.length - 1] = westTownEntry(stations.at(-1), stations.at(-2));
+  }
   const thickness = west ? 1.18 : 0.88;
-  const pieces = bridgeDeck(`park-bridge:${bridge.id}`, source, stations, thickness);
+  const pieces = bridgeDeck(`park-bridge:${bridge.id}`, source, stations, thickness, true, entryCuts);
   // 只在已核对不占源车行面的站位拟合桥墩，路中主跨留空。
   for (const i of bridge.piers) {
     const { at } = stations[i];
@@ -345,9 +398,11 @@ function parkBridge(bridge, source, terrain, deckY) {
         1.3, 1.3, y - ground + 0.3, 'upperhillsConcrete'));
     }
   }
-  if (west) pieces.push(...westPergolas(source, stations));
+  pieces.push(...pergolas);
   return pieces.map(part => ({ ...part, routeSourceIds: bridge.sourceIds,
-    baseSource: part.id.startsWith('upperhills:park-pier:') ? 'dem-bridge-pier-point' : 'dem-bridge-endpoints-and-photo-profile' }));
+    baseSource: part.id.startsWith('upperhills:park-pier:') ? 'dem-bridge-pier-point'
+      : /^upperhills:park-bridge:west:(entry:|[0-5]:)/.test(part.id) ? 'active-park-ground-and-photo-profile'
+        : 'dem-bridge-endpoints-and-photo-profile' }));
 }
 
 function loftLinks(source, deckY) {
@@ -360,7 +415,7 @@ function loftLinks(source, deckY) {
     ribbonPoints(coords, deckY + 4.25, deckY + 4.25, [2.4, 2.4]), 0.48));
 }
 
-export function build(buildings, terrain) {
+export function build(buildings, terrain, { heightAt = (x, z) => terrainHeight(terrain, x, z) } = {}) {
   if (!sourceIds.every(id => buildings.get(id)?.polygons.length === 1)
     || [T1, T2].some(id => buildings.get(id).polygons[0].outer.length !== 4)) return [];
   const grade = terrainHeight(terrain, ...SOUTH_STEPS[0].a);
@@ -392,7 +447,7 @@ export function build(buildings, terrain) {
       { holes: west.polygons[0].holes, baseSource: 'dem-south-walkway-point' }),
     ...TOWN.flatMap(id => townBlock(buildings.get(id), deckY)),
     ...access, ...loftLinks(mall, deckY),
-    ...parkBridge(WEST_BRIDGE, mall, terrain, deckY), ...parkBridge(EAST_BRIDGE, mall, terrain, deckY)
+    ...parkBridge(WEST_BRIDGE, mall, terrain, deckY, heightAt), ...parkBridge(EAST_BRIDGE, mall, terrain, deckY)
   ];
 }
 
