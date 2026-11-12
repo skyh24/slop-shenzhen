@@ -9,7 +9,7 @@ const main = read('js/main.js');
 const qa = loadModule(read('js/sz-qa.js'), { imports: {
   'three/webgpu': { Group: class Group {}, TimestampQuery: { RENDER: 'render' } },
   './sz-geodata.js': { GEO: { roadGraph: { nodes: [] } } }
-}, globals: { URLSearchParams } });
+}, globals: { URLSearchParams, performance, structuredClone } });
 const sessionFor = (search, hostname = '127.0.0.1') =>
   qa.createQaSession({ search, hostname, defaultChunkSize: 1000 });
 

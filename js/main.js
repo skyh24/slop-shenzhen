@@ -78,6 +78,7 @@ async function initApp() {
   const stageNames = Object.keys(STAGE_MS);
   const totalStageMs = stageNames.reduce((sum, name) => sum + STAGE_MS[name], 0);
   const loadingStartedAt = performance.now();
+  qa.markMilestone('initApp');
   let loadingStage = { from: 0, to: STAGE_MS.data / totalStageMs };
 
   const setLoadingProgress = (p, seconds = 0.3) => {
@@ -174,11 +175,11 @@ async function initApp() {
   markInit('lighting');
 
   await showLoadingStage(STR.startup.ground, 'ground');
-  const ground = buildSzGround(scene, GEO.terrainSurface);
-  const sea = buildSzSea(scene, GEO.seaSurface);
+  const ground = qa.measureBuild('ground', () => buildSzGround(scene, GEO.terrainSurface));
+  const sea = qa.measureBuild('sea', () => buildSzSea(scene, GEO.seaSurface));
   markInit('ground');
   await showLoadingStage(STR.startup.roads, 'roads');
-  const roads = buildSzRoads(scene, GEO.roadGraph, GEO.terrainSurface);
+  const roads = qa.measureBuild('roads', () => buildSzRoads(scene, GEO.roadGraph, GEO.terrainSurface));
   // 场地上下文：地形、路面、路网和各构建函数共用的接触面参数只构造一份，入口里不再重复传同一组闭包。
   const site = {
     buildings: REAL_BUILDINGS, terrain: GEO.terrain, terrainSurface: GEO.terrainSurface, sites: GEO.sites,
@@ -189,8 +190,10 @@ async function initApp() {
   const elevatedRoads = qa.stage('elevated', () =>
     buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface }));
   // 隧道只做来源审计和待核清单：洞底在地面三角面之下且没有洞口来源，挂进场景会“看得见开不进去”。
-  site.tunnelReview = planSzTunnels(site.roadGraph, site.terrainSurface, { interchanges: elevatedRoads.interchanges, buildings: site.buildings }).reviewList;
-  const roadFrontage = buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, site);
+  site.tunnelReview = qa.measureBuild('tunnelReview', () => planSzTunnels(site.roadGraph, site.terrainSurface,
+    { interchanges: elevatedRoads.interchanges, buildings: site.buildings }).reviewList);
+  const roadFrontage = qa.measureBuild('frontage', () =>
+    buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, site));
   const roadPaint = qa.stage('paint', () =>
     buildSzRoadPaint(scene, GEO.roadGraph, { ...site, intersections: roadFrontage.control.intersections,
       frontage: GEO.roadFrontage, decks: elevatedRoads.links }));
@@ -801,7 +804,7 @@ async function initApp() {
       // only draw in the shadow maps (the warm-up frame compiles those).
       if (o.userData.shadowProxy) return;
       const pipeline = o.userData.sharesPipelineWith || o;
-      if (pipelines.has(pipeline)) return;
+      if (pipelines.has(pipeline)) { qa.compileEvent(o, 'shared'); return; }
       pipelines.add(pipeline);
       if (o.isInstancedMesh || Array.isArray(o.material)) {
         jobs.push([o]);
@@ -816,6 +819,7 @@ async function initApp() {
       job.push(o);
     });
 
+    if (qa.enabled) for (const [object] of jobs) qa.compileEvent(object, 'jobs');
     await showLoadingStage(STR.startup.compiling(0, jobs.length), 'compile', false);
     renderer.setRenderTarget(scenePass.renderTarget);
     renderer.setMRT(sceneMRT);
@@ -823,10 +827,15 @@ async function initApp() {
       // Each compile starts in a task of its own: compileAsync() keeps one precompilation state on the renderer,
       // which must not be mid-step for two of them in the same microtask checkpoint
       await nextTask();
+      const started = qa.enabled ? performance.now() : 0;
+      qa.compileEvent(object, 'calls');
       try {
         await renderer.compileAsync(object, cameraSystem.camera, scene);
       } catch (e) {
+        qa.compileEvent(object, 'rejected');
         console.warn('[compile]', e); // the warm-up frame compiles it instead
+      } finally {
+        if (qa.enabled) qa.compileEvent(object, 'callMs', performance.now() - started);
       }
     };
     let next = 0;
@@ -957,6 +966,7 @@ async function initApp() {
   loadingOverlay?.classList.add('hidden');
   audioSystem.ready = true;
   boot?.ready?.();
+  qa.markMilestone('ready');
 }
 
 initApp().catch(error => {

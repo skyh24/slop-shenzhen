@@ -1,5 +1,10 @@
+const recordUnpack = typeof location !== 'undefined'
+  && ['127.0.0.1', 'localhost'].includes(location.hostname)
+  && new URLSearchParams(location.search).get('qa') === '1';
+
 // 显示、传送与接触共用派生地面三角形，裁除区不回退到原始 DSM。
 export function unpackSurface(surface) {
+  const started = recordUnpack ? performance.now() : 0;
   if (surface?.version !== 1 || !Number.isFinite(surface.chunkSize) || surface.chunkSize <= 0
     || surface.diagonal !== 'ne-sw' || !surface.grid || !Array.isArray(surface.chunks)) {
     throw new Error('Invalid terrain surface payload');
@@ -33,6 +38,16 @@ export function unpackSurface(surface) {
     if (lastEnd !== source.indices.length) throw new Error(`Incomplete terrain surface cell ranges: ${source.id}`);
     chunks.set(source.id, { ...source, positions: new Float32Array(source.positions),
       indices: new Uint32Array(source.indices), cellRanges: new Uint32Array(source.cellRanges) });
+  }
+  if (recordUnpack) {
+    let bytes = 0, buffers = 0;
+    for (const { positions, indices, cellRanges } of chunks.values()) {
+      bytes += positions.byteLength + indices.byteLength + cellRanges.byteLength;
+      buffers += 3;
+    }
+    performance.measure('sz.surface.unpack', {
+      start: started, end: performance.now(), detail: { chunks: chunks.size, bytes, buffers }
+    });
   }
   return chunks;
 }
