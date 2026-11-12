@@ -28,7 +28,6 @@ import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js
 import { buildSzLandmarks } from './sz-landmarks/index.js';
 import { buildShenzhenBayBridge, buildYanjiangExpressway } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { buildSzElevatedRoads } from './sz-elevated-roads.js';
-import { planSzTunnels } from './sz-tunnels.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
 import { buildBuildingSigns } from './sz-building-signs.js';
 import { buildBuildingDetails } from './sz-building-details.js';
@@ -189,9 +188,6 @@ async function initApp() {
   // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
   const elevatedRoads = qa.stage('elevated', () =>
     buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface }));
-  // 隧道只做来源审计和待核清单：洞底在地面三角面之下且没有洞口来源，挂进场景会“看得见开不进去”。
-  site.tunnelReview = qa.measureBuild('tunnelReview', () => planSzTunnels(site.roadGraph, site.terrainSurface,
-    { interchanges: elevatedRoads.interchanges, buildings: site.buildings }).reviewList);
   const roadFrontage = qa.measureBuild('frontage', () =>
     buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, site));
   const roadPaint = qa.stage('paint', () =>
