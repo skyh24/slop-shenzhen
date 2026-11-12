@@ -144,7 +144,20 @@
         fail(retryKind(reason), reason);
       }
 
+      // 预取和实际读取共用这个选择；发布版本只包含 JSON。
+      const params = new URLSearchParams(location.search);
+      const cityFormat = !document.documentElement.hasAttribute('data-sz-release')
+        && ['127.0.0.1', 'localhost'].includes(location.hostname)
+        && params.get('qa') === '1' && params.get('data') === 'szc' ? 'szc' : 'json';
+      const preload = document.createElement('link');
+      preload.rel = 'preload';
+      preload.as = 'fetch';
+      preload.crossOrigin = 'anonymous';
+      preload.href = `./js/sz-city.${cityFormat}.gz`;
+      document.head.append(preload);
+
       const boot = {
+        cityFormat,
         state: 'loading',
         labels: BOOT_LABELS,
         messages: BOOT_MESSAGES,
@@ -266,7 +279,6 @@
   <link rel="modulepreload" href="./js/audio-acoustics.js" />
   <link rel="modulepreload" href="./js/audio-system.js" />
   <link rel="modulepreload" href="./js/main.js" />
-  <link rel="preload" href="./js/sz-city.json.gz" as="fetch" crossorigin />
   <script type="module" src="./js/main.js"></script>
   <!-- 保留原界面字体和街道路牌字形。 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />

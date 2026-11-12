@@ -2,10 +2,8 @@ import { readCityPayload, decodeCityPayload } from './sz-data-format.js';
 
 // 正式版与预览共用一次加载，后续模块不得各自请求不同城市快照。
 // 快读包先在本机 QA 对照；来源真实性审核未完成，不自动迁移正式默认包。
-const fastData = typeof location !== 'undefined' && ['127.0.0.1', 'localhost'].includes(location.hostname)
-  && new URLSearchParams(location.search).get('qa') === '1'
-  && new URLSearchParams(location.search).get('data') === 'szc';
-const CITY_URL = new URL(fastData ? './sz-city.szc.gz' : './sz-city.json.gz', import.meta.url);
+const cityFormat = globalThis.__szBoot?.cityFormat === 'szc' ? 'szc' : 'json';
+const CITY_URL = new URL(`./sz-city.${cityFormat}.gz`, import.meta.url);
 
 // 失败阶段映射成启动页兜底入口认识的四个种类之一，界面文字由 sz-strings.js 集中提供。
 function bootKind(error) {
@@ -36,6 +34,7 @@ async function loadCityData(url) {
     pendingRetry = null;
     resolve?.();
   });
+  let retry = false;
   for (;;) {
     const metrics = {};
     // 先建等待器再报告失败，避免玩家在 fail() 返回之前点击重试导致点击丢失。
@@ -43,7 +42,9 @@ async function loadCityData(url) {
     const retried = new Promise(resolve => { resolveRetry = resolve; });
     pendingRetry = resolveRetry;
     try {
-      const raw = await readCityPayload(url, fetch, metrics);
+      // 缓存中的坏响应不能再次喂给重试；仍从同一个不可变版本取包。
+      const fetcher = retry ? input => fetch(input, { cache: 'reload' }) : fetch;
+      const raw = await readCityPayload(url, fetcher, metrics);
       const decoded = decodeCityPayload(raw, metrics);
       pendingRetry = null;
       boot?.clear?.();
@@ -56,6 +57,7 @@ async function loadCityData(url) {
         throw error;
       }
       await retried;
+      retry = true;
     }
   }
 }
