@@ -12,5 +12,34 @@
     { "osmId": "way/1436698493", "kind": "footway", "widthEstimateM": 2.5 },
     { "osmId": "way/1436698490", "kind": "cycleway", "widthEstimateM": 3.0 },
     { "osmId": "way/534815196", "kind": "cycleway", "widthEstimateM": 3.0 }
-  ]
+  ],
+  "parkWalkAudit": {
+    "parkOsmId": "way/41281446",
+    "osmSnapshotId": "osm-guangdong",
+    "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+    "osmSnapshotLastModified": "2026-11-08T23:59:19Z",
+    "osmSnapshotUrl": "https://download.geofabrik.de/asia/china/guangdong-261108.osm.pbf",
+    "checkedAt": "2026-11-12",
+    "parkSourceUrl": "https://www.openstreetmap.org/way/41281446",
+    "publicParkSourceUrl": "https://cgj.sz.gov.cn/xsmh/gysz/csgy/content/post_10775278.html",
+    "approachWayId": "way/173488620",
+    "entranceNode": 7252057733,
+    "gateNode": 7252057732,
+    "coordinates": {
+      "lonLat": "WGS84，经度在前，单位为度",
+      "xzM": "深圳局部坐标，原点 114.0545E, 22.5463N，x 向东、z 向南，单位为米"
+    },
+    "legs": [
+      { "osmId": "way/173489140", "highway": "service", "fromNode": 7961771676, "toNode": 7252057732 },
+      { "osmId": "way/173489140", "highway": "service", "fromNode": 7252057732, "toNode": 1842903132 },
+      { "osmId": "way/269925479", "highway": "footway", "fromNode": 1842903132, "toNode": 2750494174 },
+      { "osmId": "way/386491514", "highway": "steps", "fromNode": 2750494174, "toNode": 3898350410 }
+    ],
+    "evidenceWayIds": ["way/269925502", "way/1563004749", "way/557288291", "way/557288290", "way/557288294"],
+    "openQuestions": [
+      "金桂路入口和闸门的独立开放时间、门净宽及通行规则",
+      "步道纵断面、台阶数和踏步高宽，台阶顶底实测标高",
+      "红荔路人行桥桥面标高和园内楼梯与桥头平台的分层接触"
+    ]
+  }
 }

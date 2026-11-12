@@ -1,4 +1,4 @@
-"""日出剧场两类慢行路径与深圳湾公园树点的来源提取。"""
+"""日出剧场慢行路径、深圳湾公园树点及莲花山入口路线审计。"""
 
 import json
 from pathlib import Path
@@ -8,6 +8,7 @@ from shapely.geometry import LineString, Point
 from shapely.ops import unary_union
 
 from geo import project
+from parks import build_park_walk
 from roads import _num
 
 PILOT = Path(__file__).resolve().parents[2] / 'data/source/streetscape-pilot.json'
@@ -94,6 +95,8 @@ def compile_streetscape(pilot, park, osm_roads, path_tags, trees, report):
 
 def build_streetscape(pbf, osm, parks, report):
     pilot = json.loads(PILOT.read_text())
+    # 莲花山路线先供构建审计，台阶和桥头需要单独解出接触表面。
+    report['parkWalkPilot'] = build_park_walk(pbf, osm, parks, pilot['parkWalkAudit'])
     park = next((park for park in parks if park['id'] == pilot['parkId'] and park['osmId'] == pilot['parkOsmId']), None)
     if not park:
         report['streetscape'] = {'status': 'park-source-unresolved'}
