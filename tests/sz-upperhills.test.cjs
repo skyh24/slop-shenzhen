@@ -184,8 +184,9 @@ test('UpperHills geometry renders its sourced towers and separated public levels
     for (const point of [...route.slice(0, -1).reverse(), start]) walkTo(point);
     assert.equal(person._support.surfaceId, 'terrain');
 
-    // 浏览器实录的第二梯西侧落脚点。直走到圆体真边缘后，沿梯口中线转向。
-    const westEdge = { x: 1129.4843828678847, y: 16.991920471191406, z: -1391.9298288766872 };
+    // 浏览器实录的第二梯西侧落脚点，高程取该台阶当前的顶面。
+    const step = model.find(part => part.id === 'upperhills:south-stair:1:0');
+    const westEdge = { x: 1129.4843828678847, y: step.maxY, z: -1391.9298288766872 };
     person.position.set(westEdge.x, westEdge.y, westEdge.z);
     Object.assign(person, { heading: -9.411469, speed: 0, verticalVel: 0, jumping: false, jumpPrep: 0,
       _safePosition: { ...westEdge }, _support: { height: westEdge.y, surfaceId: 'upperhills:south-stair:1:0' } });

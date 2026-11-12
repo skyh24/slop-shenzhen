@@ -44568,11 +44568,11 @@
     ],
     "unresolvedLinks": [],
     "timing": {
-      "baselineSeconds": 0.069,
-      "stationSeconds": 0.202,
-      "profileSeconds": 0.973,
-      "vertexSeconds": 0.806,
-      "totalSeconds": 2.157
+      "baselineSeconds": 0.056,
+      "stationSeconds": 0.177,
+      "profileSeconds": 0.929,
+      "vertexSeconds": 0.764,
+      "totalSeconds": 2.028
     },
     "limitations": [
       "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
@@ -44703,7 +44703,7 @@
     "triangles": 387171,
     "areaKm2": 105.746514,
     "areaErrorM2": -2.7e-07,
-    "seconds": 3.55,
+    "seconds": 3.65,
     "waterLevelsGenerated": false,
     "heightSource": "copernicus-glo30-dsm",
     "exclusions": [
@@ -45807,10 +45807,11 @@
     "numericBytes": 14681208,
     "uncompressedBytes": 22438256,
     "lossless": true,
-    "compressedBytes": 6705966
+    "compressedBytes": 6705966,
+    "compressedSha256": "d342eec61e1dc3cbb12f7c5bf58270b4b48a6fdc49c149b250618eecd3058fc3"
   },
   "outputBytes": 6865167,
-  "seconds": 15.7,
+  "seconds": 15.3,
   "urbanDatum": {
     "heightSource": "urban-datum",
     "heightM": 8.0,
@@ -45955,7 +45956,7 @@
     }
   },
   "groundRebuild": {
-    "basePayloadSha256": "515854981b5fac23787d40bed06d7514c0d4c0fe9e55d35fa0da662464eec4ec",
+    "basePayloadSha256": "aa57b1f854ca2ebaa9d893b0f2784cc74b942c9cc4da4842e03b4f90bdf7f0cf",
     "changedSections": [
       "terrain",
       "terrainSurface"
@@ -45993,5 +45994,6 @@
       "0,2",
       "1,2"
     ]
-  }
+  },
+  "outputSha256": "057d242cc9dd74e2fd226c2b8206062d7d08c8f44f2014f441071f220350ac73"
 }

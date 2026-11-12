@@ -63,6 +63,8 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const scene = new THREE.Scene();
   const model = buildSzRoadFrontage(scene, raw.roadFrontage, raw.roadGraph, terrain, { groundHeight, roadHeight });
   assert.equal(model.statistics.signals, 4);
+  assert.ok(model.statistics.curbSegments > 0);
+  assert.equal(model.statistics.curbSegments * 2, model.statistics.curbTriangles);
   assert.ok(model.statistics.shennanFlowerBeds > 8);
   const flowerBeds = model.group.getObjectByName('shennan-median:flower-beds');
   const flowers = flowerBeds.geometry.attributes.position;
@@ -112,4 +114,10 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   assert.ok(checkedPaint > 1000 && checkedRaised > 1000);
   model.dispose();
   assert.equal(scene.children.length, 0);
+  const median = raw.roadFrontage.features.find(feature => feature.id === 'shennan-chegongmiao:median');
+  const withoutSources = { ...raw.roadFrontage, features: [{ ...median, sourceIds: [] }] };
+  const unverified = buildSzRoadFrontage(scene, withoutSources, raw.roadGraph, terrain, { groundHeight, roadHeight });
+  assert.equal(unverified.statistics.shennanFlowerBeds, 0);
+  assert.equal(unverified.group.getObjectByName('shennan-median:flower-beds'), undefined);
+  unverified.dispose();
 });

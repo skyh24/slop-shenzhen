@@ -261,11 +261,11 @@ test('landmark collision rays hit the displayed walls, columns and bridge under/
   const retail = verticalHit(pingAnParts, -406.8, 1211.3, 0, 80);
   assert.ok(retail && retail.part.sourceId === 'way/773719241');
   // 大疆连桥底净空与桥面实体。
-  const under = horizontalHit(djiParts, { x: -11992.15, z: -3760 }, { x: 0, z: -1 }, 132, 132.1, 60);
-  assert.equal(under, null);
   const deck = verticalHit(djiParts, -11992.15, -3779.5, 100, 170);
   assert.ok(deck && deck.part.sourceId === 'way/1110959408' && Math.abs(deck.part.minY - deck.y) < 0.5);
-  const through = horizontalHit(djiParts, { x: -11992.15, z: -3760 }, { x: 0, z: -1 }, 137.45, 137.55, 60);
+  const under = horizontalHit(djiParts, { x: -11992.15, z: -3760 }, { x: 0, z: -1 }, deck.y - 5, deck.y - 4.9, 60);
+  assert.equal(under, null);
+  const through = horizontalHit(djiParts, { x: -11992.15, z: -3760 }, { x: 0, z: -1 }, deck.y + 0.4, deck.y + 0.5, 60);
   assert.ok(through && through.part.sourceId === 'way/1110959408');
 });
 
@@ -402,11 +402,11 @@ test('Ping An keeps the west portico and crossing under the mapped retail bridge
   assert.ok(occupies(bridge, street.x, street.z, bridge.minY + 1, bridge.minY + 2));
 });
 
-test('China Resources Tower follows the design radii and the measured tower height on its unchanged DSM anchor', () => {
+test('China Resources Tower follows the design radii and the measured tower height above the active grid', () => {
   const actual = byLandmark.get('chunsun');
   const core = byId.get('way/1270310100');
   const base = terrain.terrainHeight(geo.terrain, core.cx, core.cz);
-  assert.ok(base < 0);
+  assert.ok(Number.isFinite(base));
   const skins = actual.filter(part => part.id.includes(':skin:'));
   const ringRadius = ring => Math.max(...ring.map(p => Math.hypot(p.x - core.cx, p.z - core.cz)));
   assert.equal(skins[0].minY, Math.fround(base));

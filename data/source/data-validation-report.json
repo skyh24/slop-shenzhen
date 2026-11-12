@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "checkedAt": "2026-11-12T04:31:57.210141+00:00",
+  "checkedAt": "2026-11-12T05:33:26.617342+00:00",
   "encodingValidation": "passed",
   "realityValidation": "incomplete",
   "recentObservationWindow": [
@@ -405,6 +405,7 @@
     "numericBytes": 14681208,
     "uncompressedBytes": 22438256,
     "lossless": true,
-    "compressedBytes": 6705966
+    "compressedBytes": 6705966,
+    "compressedSha256": "d342eec61e1dc3cbb12f7c5bf58270b4b48a6fdc49c149b250618eecd3058fc3"
   }
 }
