@@ -597,7 +597,7 @@ test('poseCharacters skips stationary inactive cyclist IK/uploads and culls park
     globals: { window: noopTarget, document: { ...noopTarget, hidden: false } },
     imports: {
       'three/webgpu': {},
-      './sz-city-config.js': { isTypingInField: () => false },
+      './sz-city-config.js': { isTypingInField: () => false, isWater: () => false, nearestRoads: () => [] },
       './sz-controller-surfaces.js': {},
       './sz-park-arrivals.js': {},
       './sz-strings.js': { STR: {} },
@@ -671,17 +671,21 @@ test('poseCharacters skips stationary inactive cyclist IK/uploads and culls park
   assert.equal(personUpdates, 5);
   assert.equal(bikeRides, 1);
 
-  // Switching mode to cyclist immediately restores visibility & poses even when camera has not caught up yet
-  controller.setMode('cyclist');
+  // 同一角色坐在车里时不再跑步行解算，也不按相机距离被剔除
+  controller.occupant = { state: 'seated', mode: 'car', timer: 0 };
+  const updatesBeforeSeat = personUpdates;
   controller.poseCharacters(1 / 60, { x: 0, y: 2, z: 4000 });
-  assert.equal(cyclist.helmet.visible, true);
-  assert.equal(bikeRides, 2);
+  assert.equal(personUpdates, updatesBeforeSeat, 'seated occupant skips walking rig updates');
+  assert.equal(person.mesh.visible, true, 'the occupant is never culled by camera distance');
 
-  // Returning within 320m restores the sidewalk pedestrian immediately
-  controller.setMode('car');
-  controller.poseCharacters(1 / 60, { x: 0, y: 2, z: 10 });
-  assert.equal(person.mesh.visible, true);
-  assert.equal(personUpdates, 6);
+  // 玩家占用共享单车后，模型自带骑手永久隐藏，同一画面里只有一个骑手
+  cyclist.occupantOwned = true;
+  controller.occupant = { state: 'seated', mode: 'cyclist', timer: 0 };
+  const ridesBefore = bikeRides;
+  for (let i = 0; i < 5; i++) controller.poseCharacters(1 / 60, { x: 0, y: 2, z: 0 });
+  assert.equal(bikeRides, ridesBefore, 'built-in rider is not posed once the player owns the bike');
+  assert.equal(cyclist.helmet.visible, false);
+  assert.equal(cyclist.riderCrowd.adds, 1, 'no extra rider instance is uploaded');
 });
 
 function boneWorldPos(rig, bone, localPos = rig.bind[bone]) {

@@ -1,11 +1,11 @@
 import * as THREE from 'three/webgpu';
-import { ISLAND_BOUNDS, isTypingInField, SPAWN_POINT, terrainHeight, findGroundArrival } from './sz-city-config.js';
+import { ISLAND_BOUNDS, isTypingInField, SPAWN_POINT, terrainHeight, findGroundArrival, isWater, nearestRoads } from './sz-city-config.js';
 import { createSurfaceResolver } from './sz-controller-surfaces.js';
 import { findParkArrival } from './sz-park-arrivals.js';
 import { STR } from './sz-strings.js';
 import { cityUniforms, createContactShadowMaterial } from './city-lighting-materials.js';
 import { VEHICLE_SPECS, createShenzhenCarMesh, createSharedCycleMesh, createEvtolMesh } from './sz-vehicles.js';
-import { PersonCrowd, PersonRig } from './pedestrians.js';
+import { PersonCrowd, PersonRig, PERSON_BONES } from './pedestrians.js';
 import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
 import { loftContactPolygon, polygonContact, roofPanelContactPolygon, spanContactPolygon } from './building-collision.js';
 
@@ -37,6 +37,34 @@ const EVTOL_DRIVE = {
 };
 const PERSON_STEP_UP = 0.38;
 const CONTACT_EPSILON = 1e-5;
+
+// 同一角色只有一套上下车状态：步行 → 上车过渡 → 乘坐 → 下车过渡 → 步行。
+const OCCUPANT_STATES = Object.freeze({ WALKING: 'walking', BOARDING: 'boarding', SEATED: 'seated', ALIGHTING: 'alighting' });
+const BOARDING_SECONDS = 0.35;
+const ALIGHTING_SECONDS = 0.3;
+const ALIGHT_STOP_SPEED = 0.5;
+// 下车点和载具必须在同一支撑面（桥面/高架/地面不跨层）。
+const ALIGHT_LEVEL_TOLERANCE = 0.6;
+// 坐姿手臂 IK 的下段长度沿用 pedestrians.js ride() 的 FOREARM + 0.07，
+// 让手能落到方向盘/操纵台抓握点，不另造一套骨架常量。
+const SEAT_ARM_LOWER = 0.325;
+// 坐姿解算的临时向量/四元数按需创建：控制器模块在没有 THREE 的单元测试里也能加载。
+let _seatScratch = null;
+function seatScratch() {
+  if (!_seatScratch) {
+    _seatScratch = {
+      matrix: new THREE.Matrix4(), rootQuat: new THREE.Quaternion(), pelvisQuat: new THREE.Quaternion(),
+      chestQuat: new THREE.Quaternion(), footQuat: new THREE.Quaternion(), tilt: new THREE.Quaternion(),
+      axisX: new THREE.Vector3(1, 0, 0), world: new THREE.Vector3(), pelvis: new THREE.Vector3(),
+      chest: new THREE.Vector3(), head: new THREE.Vector3(), hip: new THREE.Vector3(), ankle: new THREE.Vector3(),
+      shoulder: new THREE.Vector3(), target: new THREE.Vector3(), pole: new THREE.Vector3(), front: new THREE.Vector3()
+    };
+  }
+  return _seatScratch;
+}
+function seatTilt(scratch, angle, out) {
+  return out.setFromAxisAngle(scratch.axisX, angle);
+}
 
 function driveSpeed(speed, throttle, dt, drive, serviceBrake = 0) {
   // Turning can project tiny sideways motion back into speed after braking to zero.
@@ -172,6 +200,8 @@ class ThirdPersonControllerManager {
       cyclist: this.createCyclistEntity(),
       helicopter: this.createHelicopterEntity()
     };
+    // 乘员状态：activeMode 是当前被控制的对象，occupant 记录同一玩家角色坐在哪辆载具里。
+    this.occupant = { state: OCCUPANT_STATES.WALKING, mode: null, timer: 0 };
 
     this.initializeArrivals();
 
@@ -297,19 +327,294 @@ class ThirdPersonControllerManager {
     for (const action of Object.keys(this.keys)) this.keys[action] = false;
   }
 
+  isOccupantBound() {
+    return Boolean(this.occupant?.mode)
+      && (this.occupant.state === OCCUPANT_STATES.BOARDING || this.occupant.state === OCCUPANT_STATES.SEATED);
+  }
+
+  // 切换模式是唯一的上下车入口：快捷键、按钮、存档恢复和传送都走这里，
+  // 不允许再留下一个以 1.48 m/s 自行走开的步行角色。
   setMode(mode) {
-    if (!this.entities[mode]) return;
+    if (!this.entities[mode]) return false;
+    const previous = this.activeMode;
+    if (mode === previous) {
+      this._applyModeVisibility(mode);
+      return true;
+    }
+    const person = this.entities.person;
+    if (mode === 'person') return this._alightToPerson(previous, person);
+
+    const target = this.entities[mode];
+    if (previous !== 'person') this._stopEntity(this.entities[previous]);
+    // 空中飞行器不能直接登机：先在人物/载具旁找一块核验过的地面稳定落地，再绑定乘员。
+    if (target.type === 'helicopter' && !this._isVehicleAtRest(target)) {
+      const near = previous === 'person' ? person.position : this.entities[previous].position;
+      if (!this._landHelicopterNear(target, near)) return false;
+    }
+    this._stopEntity(target);
+    this._hideBuiltInOccupant(mode);
+    this.occupant = { state: OCCUPANT_STATES.BOARDING, mode, timer: BOARDING_SECONDS };
     this.activeMode = mode;
+    this._applyModeVisibility(mode);
+    // 立即绑定座位，过渡期间同一角色已经坐在车里，而不是留在原地。
+    this._syncOccupant();
+    return true;
+  }
+
+  // 下车：地面载具必须停稳，飞行器必须先稳定落地；再找一个不落水、不落楼、不落车道中间的安全站立点。
+  _alightToPerson(previous, person) {
+    if (previous === 'person') {
+      this.occupant = { state: OCCUPANT_STATES.WALKING, mode: null, timer: 0 };
+      this._applyModeVisibility('person');
+      return true;
+    }
+    const vehicle = this.entities[previous];
+    if (!vehicle) {
+      // 没有载具可下（存档或测试里从空模式切回步行）：直接恢复步行状态。
+      this.occupant = { state: OCCUPANT_STATES.WALKING, mode: null, timer: 0 };
+      this.activeMode = 'person';
+      this._applyModeVisibility('person');
+      return true;
+    }
+    if (!this._isVehicleAtRest(vehicle) && !(vehicle.type === 'helicopter' && this._landHelicopterNear(vehicle, vehicle.position))) {
+      return false;
+    }
+    const point = this.findAlightPosition(vehicle);
+    if (!point) return false; // 无可用落点：保持乘坐，不把人强行放进障碍物。
+    this._stopEntity(vehicle);
+    this.occupant = { state: OCCUPANT_STATES.ALIGHTING, mode: null, timer: ALIGHTING_SECONDS };
+    this.activeMode = 'person';
+    person.position.set(point.x, point.y, point.z);
+    person.heading = Number.isFinite(point.heading) ? point.heading : vehicle.heading;
+    person._support = { height: point.y, surfaceId: point.surfaceId ?? 'terrain' };
+    person._safePosition = { x: point.x, y: point.y, z: point.z };
+    person.prevX = point.x;
+    person.prevZ = point.z;
+    person.speed = 0;
+    person.verticalVel = 0;
+    person.jumping = false;
+    person.jumpPrep = 0;
+    person._charHidden = false;
+    if (person.mesh) person.mesh.visible = true;
+    if (person.shadow) person.shadow.visible = true;
+    if (person.rig) person.rig.reset(point.x, point.z, person.heading, personGround, this);
+    if (person.crowd) {
+      person.crowd.begin();
+      person.crowd.add(person.rig, 0);
+      person.crowd.end();
+    }
+    this._applyModeVisibility('person');
+    return true;
+  }
+
+  _applyModeVisibility(mode) {
     const active = this.entities[mode];
     if (active.mesh) active.mesh.visible = true;
-    if (active.helmet) active.helmet.visible = true;
-    if (mode === 'person') active._charHidden = false;
-    else if (mode === 'cyclist') {
+    if (active.helmet && !active.occupantOwned) active.helmet.visible = true;
+    if (mode === 'person') {
+      active._charHidden = false;
+      if (active.mesh) active.mesh.visible = true;
+    } else if (mode === 'cyclist' && !active.occupantOwned) {
       active._riderHidden = false;
       active._posedX = NaN;
     }
     const car = this.entities.car;
     if (mode !== 'car') car?.setLights?.(false, false);
+  }
+
+  // 载具自带的骑手/飞行员只用于空车展示；同一角色登机后隐藏，避免画面里出现两个乘员。
+  _hideBuiltInOccupant(mode) {
+    const vehicle = this.entities[mode];
+    if (!vehicle) return;
+    vehicle.occupantOwned = true;
+    vehicle.setOccupantVisible?.(false);
+  }
+
+  _stopEntity(entity) {
+    if (!entity) return;
+    entity.speed = 0;
+    entity.verticalSpeed = 0;
+    entity.angularVel = 0;
+    entity.steerAngle = 0;
+    entity.vx = 0;
+    entity.vz = 0;
+  }
+
+  // 停稳判定：地面载具看速度，飞行器看起落架是否贴在同一支撑面上。
+  _isVehicleAtRest(entity) {
+    if (!entity) return false;
+    if (entity.type !== 'helicopter') {
+      return Math.abs(entity.speed ?? 0) <= ALIGHT_STOP_SPEED
+        && Math.hypot(entity.vx ?? 0, entity.vz ?? 0) <= ALIGHT_STOP_SPEED;
+    }
+    const skid = entity.collisionBounds?.min.y ?? -0.25;
+    const landing = this.getFlightSupport(entity, entity.position.y + skid + 0.05);
+    if (!Number.isFinite(landing)) return false;
+    const floor = landing - skid;
+    return Math.abs(entity.position.y - floor) <= 0.4 && Math.abs(entity.verticalSpeed ?? 0) <= 1;
+  }
+
+  // 快捷落地：在目标点附近找一块可容纳旋翼包络的平地，把飞行器稳定放上去。
+  // 这是 docs/14 第 10.2 节允许的 1 秒快捷转场，落点仍按悬空/障碍检查。
+  _landHelicopterNear(vehicle, near) {
+    if (!vehicle || !near) return false;
+    const point = this.findTeleportPosition(near.x, near.z, vehicle.heading, vehicle.position.y, true, null, { mode: 'helicopter' });
+    if (!point) return false;
+    const support = this.surfaceResolver?.resolve?.(point.x, point.z, {});
+    const ground = support?.height ?? this.groundHeight?.(point.x, point.z);
+    vehicle.position.set(point.x, Number.isFinite(ground) ? ground : point.y, point.z);
+    vehicle.heading = Number.isFinite(point.heading) ? point.heading : vehicle.heading;
+    this._stopEntity(vehicle);
+    vehicle.pitchAngle = 0;
+    vehicle.rollAngle = 0;
+    if (vehicle.tiltPivot) {
+      vehicle.tiltPivot.rotation.x = 0;
+      vehicle.tiltPivot.rotation.z = 0;
+    }
+    vehicle._safePosition = { x: vehicle.position.x, y: vehicle.position.y, z: vehicle.position.z };
+    vehicle.mesh.position.copy(vehicle.position);
+    vehicle.mesh.rotation.y = vehicle.heading;
+    vehicle.mesh.updateMatrixWorld(true);
+    return true;
+  }
+
+  // 车道中间（道路中心线两侧的中央带）不能作为下车点；靠边车道和路侧可以。
+  _isLaneCentre(x, z) {
+    const hit = nearestRoads(x, z, 16)[0];
+    if (!hit) return false;
+    const width = Number.isFinite(hit.road?.w) ? hit.road.w : 0;
+    return hit.distance < Math.max(1.2, width * 0.2);
+  }
+
+  // 安全落点：水面、建筑、悬空、车辆、车道中央和跨层都排除；先右后左、由近到远找。
+  findAlightPosition(vehicle = this.getActiveEntity()) {
+    if (!vehicle || !vehicle.position) return null;
+    const body = collisionBody('person', 0.48, vehicle.heading, 0.1);
+    const reach = Math.max(body.extX, body.extZ);
+    const level = vehicle._support?.height ?? vehicle.position.y;
+    const cos = Math.cos(vehicle.heading);
+    const sin = Math.sin(vehicle.heading);
+    const person = this.entities.person;
+    // 落点必须让开工具体的横向包络（后视镜、旋翼扫掠），站在车身边缘外。
+    const bounds = vehicle.collisionBounds;
+    const halfWidth = Math.max(Math.abs(bounds?.min?.x ?? 0.4), bounds?.max?.x ?? 0.4, 0.4);
+    const lateral = halfWidth + 0.48 + 0.12;
+    // side = 1 是车辆右侧（本地 -x，靠路边一侧），side = -1 是左侧。
+    for (const extra of [0, 0.55, 1.1, 1.7]) {
+      const distance = lateral + extra;
+      for (const side of [1, -1]) {
+        for (const along of [0.15, -0.55, 0.85]) {
+          const lx = -side * distance;
+          const x = vehicle.position.x + lx * cos + along * sin;
+          const z = vehicle.position.z - lx * sin + along * cos;
+          if (isWater(x, z) !== false) continue;
+          if (this._isLaneCentre(x, z)) continue;
+          const support = this.supportedFootprint(x, z, body, person);
+          if (!support || Math.abs(support.height - level) > ALIGHT_LEVEL_TOLERANCE) continue;
+          const blockers = this.nearColliders(x, z, reach);
+          if (blockers.some(c => buildingContact(c, x, support.height, z, body))) continue;
+          return { x, y: support.height, z, heading: vehicle.heading, surfaceId: support.surfaceId ?? 'terrain' };
+        }
+      }
+    }
+    return null;
+  }
+
+  _occupantRoot(vehicle) {
+    if (vehicle.type === 'car') return vehicle.chassisPivot ?? vehicle.mesh;
+    if (vehicle.type === 'cyclist') return vehicle.leanPivot ?? vehicle.mesh;
+    return vehicle.tiltPivot ?? vehicle.mesh;
+  }
+
+  _syncOccupant() {
+    const person = this.entities.person;
+    if (!person) return;
+    if (!this.isOccupantBound()) return;
+    const vehicle = this.entities[this.occupant.mode];
+    if (!vehicle) return;
+    const root = this._occupantRoot(vehicle);
+    if (!root) return;
+    const rig = person.rig;
+    if (typeof root.updateWorldMatrix === 'function') root.updateWorldMatrix(true, false);
+    person._charHidden = false;
+    if (person.mesh) person.mesh.visible = true;
+    if (person.shadow) person.shadow.visible = false;
+    person.speed = 0;
+    person.verticalVel = 0;
+    if (this.occupant.mode === 'cyclist' && vehicle.bikeFrame && typeof rig?.ride === 'function') {
+      // 自行车复用 PersonRig.ride：同一个玩家角色坐到座垫、双手扶把、双脚随脚踏。
+      rig.ride(root, vehicle.pedalPhase ?? 0, vehicle.bikeFrame);
+      person.position.copy(vehicle.position);
+      person.heading = vehicle.heading;
+    } else if (vehicle.seat && typeof rig?.writeBone === 'function' && rig.bind) {
+      const scratch = seatScratch();
+      scratch.matrix.copy(root.matrixWorld);
+      this._poseSeated(rig, scratch.matrix, vehicle.seat, vehicle.heading);
+      scratch.world.copy(vehicle.seat.pelvis).applyMatrix4(scratch.matrix);
+      person.position.copy(scratch.world);
+      person.heading = vehicle.heading;
+    } else {
+      person.position.copy(vehicle.position);
+      person.heading = vehicle.heading;
+    }
+    if (!rig) return;
+    rig.placed = true;
+    rig.x = person.position.x;
+    rig.z = person.position.z;
+    rig.yaw = person.heading;
+    rig.speed = 0;
+    rig.gait = 0;
+    person._safePosition = { x: person.position.x, y: person.position.y, z: person.position.z };
+    person.crowd.begin();
+    person.crowd.add(rig, 0);
+    person.crowd.end();
+  }
+
+  // 坐姿：骨盆落在座垫上，胸、头、腿、手都按载具世界矩阵解算，因此随车身/座舱俯仰和转向一起动。
+  _poseSeated(rig, matrix, seat, heading) {
+    const s = rig.s ?? 1;
+    const bones = PERSON_BONES;
+    const c = seatScratch();
+    seatTilt(c, -(seat.recline ?? 0.1), c.pelvisQuat);
+    c.rootQuat.setFromRotationMatrix(matrix);
+    c.pelvisQuat.premultiply(c.rootQuat);
+    c.world.copy(seat.pelvis).applyMatrix4(matrix);
+    c.pelvis.copy(c.world);
+    rig.writeBone(bones.PELVIS, c.pelvisQuat, c.pelvis);
+    seatTilt(c, 0.08, c.chestQuat);
+    c.chestQuat.premultiply(c.pelvisQuat);
+    rig.jointFrom(bones.PELVIS, bones.CHEST, c.pelvisQuat, c.pelvis, c.chest);
+    rig.writeBone(bones.CHEST, c.chestQuat, c.chest);
+    seatTilt(c, -0.02, c.tilt);
+    c.tilt.premultiply(c.rootQuat);
+    rig.jointFrom(bones.CHEST, bones.HEAD, c.chestQuat, c.chest, c.head);
+    rig.writeBone(bones.HEAD, c.tilt, c.head);
+    // 腿：脚踝落到脚部空间，膝盖自然向前上方折起。
+    seatTilt(c, 0.12, c.footQuat);
+    c.footQuat.premultiply(c.rootQuat);
+    for (let i = 0; i < 2; i++) {
+      rig.jointFrom(bones.PELVIS, i === 0 ? bones.THIGH_L : bones.THIGH_R, c.pelvisQuat, c.pelvis, c.hip);
+      c.ankle.copy(seat.feet[i]).applyMatrix4(matrix);
+      const ankle = rig.solveLeg(i, c.hip, c.ankle, heading);
+      rig.writeFoot(i, ankle, c.footQuat, 0);
+    }
+    // 手：两段 IK 落到方向盘/操纵台抓握点。上臂长度从 bind 骨架量出，下段见 SEAT_ARM_LOWER。
+    const upper = Math.hypot(
+      rig.bind[bones.FOREARM_L].x - rig.bind[bones.UPPER_ARM_L].x,
+      rig.bind[bones.FOREARM_L].y - rig.bind[bones.UPPER_ARM_L].y,
+      rig.bind[bones.FOREARM_L].z - rig.bind[bones.UPPER_ARM_L].z) * s;
+    const armBind = Math.atan2(Math.abs(rig.bind[bones.FOREARM_L].x - rig.bind[bones.UPPER_ARM_L].x),
+      -(rig.bind[bones.FOREARM_L].y - rig.bind[bones.UPPER_ARM_L].y));
+    c.front.set(0, 0, 1).applyQuaternion(c.rootQuat);
+    for (let i = 0; i < 2; i++) {
+      const side = i === 0 ? 1 : -1;
+      const upperArm = i === 0 ? bones.UPPER_ARM_L : bones.UPPER_ARM_R;
+      const forearm = i === 0 ? bones.FOREARM_L : bones.FOREARM_R;
+      rig.jointFrom(bones.CHEST, upperArm, c.chestQuat, c.chest, c.shoulder);
+      c.target.copy(seat.hands[i]).applyMatrix4(matrix);
+      c.pole.set(side * 0.7, -1, -0.25).applyQuaternion(c.rootQuat).normalize();
+      rig.limb(upperArm, forearm, c.shoulder, c.target, upper, SEAT_ARM_LOWER * s, c.pole, c.front, side * armBind);
+    }
   }
 
   getActiveEntity() {
@@ -324,6 +629,13 @@ class ThirdPersonControllerManager {
     const destination = this.findTeleportPosition(x, z, heading, altitude, requireArrival || exact, park, { exact });
     if ((requireArrival || exact) && !destination) return null;
     this.resetInput();
+    // 传送与正常上下车保持同一乘员状态：传送到人物时就是步行，传送到载具时人仍在座位上。
+    if (this.activeMode === 'person') {
+      this.occupant = { state: OCCUPANT_STATES.WALKING, mode: null, timer: 0 };
+      if (ent.shadow) ent.shadow.visible = true;
+    } else if (this.occupant?.mode !== this.activeMode) {
+      this.occupant = { state: OCCUPANT_STATES.SEATED, mode: this.activeMode, timer: 0 };
+    }
     if (destination) {
       ent.position.x = destination.x;
       ent.position.z = destination.z;
@@ -372,6 +684,10 @@ class ThirdPersonControllerManager {
     }
     ent.mesh.position.copy(ent.position);
     ent.mesh.rotation.y = ent.heading;
+    if (this.isOccupantBound()) {
+      if (typeof ent.mesh.updateMatrixWorld === 'function') ent.mesh.updateMatrixWorld(true);
+      this._syncOccupant();
+    }
     const point = { x: ent.position.x, z: ent.position.z };
     if (destination?.parkAreaId) point.parkAreaId = destination.parkAreaId;
     return point;
@@ -539,6 +855,7 @@ class ThirdPersonControllerManager {
       setLights: model.setLights,
       headLights,
       wheels: model.wheels,
+      seat: model.seat,
       position: new THREE.Vector3(this.spawnPoint.x, this.spawnPoint.y, this.spawnPoint.z),
       prevX: this.spawnPoint.x,
       prevZ: this.spawnPoint.z,
@@ -636,6 +953,8 @@ class ThirdPersonControllerManager {
       collisionBounds: model.bounds,
       tiltPivot: model.group,
       updateRotors: model.update,
+      seat: model.seat,
+      setOccupantVisible: model.setOccupantVisible,
       position: new THREE.Vector3(this.spawnPoint.x, this.spawnPoint.y, this.spawnPoint.z),
       heading: 0.62,
       speed: 0,
@@ -883,75 +1202,92 @@ class ThirdPersonControllerManager {
   poseCharacters(dt, focusPos = null) {
     const focus = focusPos || this.getActiveEntity()?.position;
     const maxDistSq = 320 * 320;
+    const bound = this.isOccupantBound();
 
     const p = this.entities.person;
     if (p) {
-      const dx = focus ? p.position.x - focus.x : 0;
-      const dz = focus ? p.position.z - focus.z : 0;
-      if (this.activeMode === 'person' || dx * dx + dz * dz <= maxDistSq) {
+      if (bound) {
+        // 坐姿已由 _syncOccupant 写入骨骼：不再跑步行解算，也不按距离隐藏同一角色。
         p._charHidden = false;
         if (p.mesh) p.mesh.visible = true;
-        const groundY = this.getGroundHeight(p.position.x, p.position.z, 'person');
-        if (!Number.isFinite(groundY)) return;
-        const air = p.position.y - groundY;
-        const jumpAir = p.jumping ? Math.max(0.006, air) : p.jumpPrep > 0 ? -(1 - p.jumpPrep / 0.085) : air > 0.3 ? air : 0;
-        if (p.shadow) {
-          p.shadow.position.y = groundY - p.position.y + 0.02;
-          const sScale = Math.max(0.45, 1 - Math.max(0, jumpAir) * 0.35);
-          p.shadow.scale.set(sScale, sScale, 1);
-        }
-        p.rig.update(dt, p.position.x, p.position.z, p.heading, personGround, this, jumpAir);
-        p.crowd.begin();
-        p.crowd.add(p.rig, 0);
-        p.crowd.end();
-      } else if (!p._charHidden) {
-        p.rig.placed = false;
-        p.crowd.begin();
-        p.crowd.end();
-        if (p.crowd.updates > 2) {
-          if (p.mesh) p.mesh.visible = false;
-          p._charHidden = true;
+      } else {
+        const dx = focus ? p.position.x - focus.x : 0;
+        const dz = focus ? p.position.z - focus.z : 0;
+        if (this.activeMode === 'person' || dx * dx + dz * dz <= maxDistSq) {
+          p._charHidden = false;
+          if (p.mesh) p.mesh.visible = true;
+          const groundY = this.getGroundHeight(p.position.x, p.position.z, 'person');
+          if (!Number.isFinite(groundY)) return;
+          const air = p.position.y - groundY;
+          const jumpAir = p.jumping ? Math.max(0.006, air) : p.jumpPrep > 0 ? -(1 - p.jumpPrep / 0.085) : air > 0.3 ? air : 0;
+          if (p.shadow) {
+            p.shadow.position.y = groundY - p.position.y + 0.02;
+            const sScale = Math.max(0.45, 1 - Math.max(0, jumpAir) * 0.35);
+            p.shadow.scale.set(sScale, sScale, 1);
+          }
+          p.rig.update(dt, p.position.x, p.position.z, p.heading, personGround, this, jumpAir);
+          p.crowd.begin();
+          p.crowd.add(p.rig, 0);
+          p.crowd.end();
+        } else if (!p._charHidden) {
+          p.rig.placed = false;
+          p.crowd.begin();
+          p.crowd.end();
+          if (p.crowd.updates > 2) {
+            if (p.mesh) p.mesh.visible = false;
+            p._charHidden = true;
+          }
         }
       }
     }
 
     const b = this.entities.cyclist;
     if (b) {
-      const dx = focus ? b.position.x - focus.x : 0;
-      const dz = focus ? b.position.z - focus.z : 0;
-      if (this.activeMode === 'cyclist' || dx * dx + dz * dz <= maxDistSq) {
-        if (b.helmet) b.helmet.visible = true;
-        const moved =
-          this.activeMode === 'cyclist' ||
-          b._riderHidden ||
-          b._posedX !== b.position.x ||
-          b._posedY !== b.position.y ||
-          b._posedZ !== b.position.z ||
-          b._posedH !== b.heading ||
-          b._posedLean !== b.leanAngle ||
-          b._posedPedal !== b.pedalPhase;
-        b._riderHidden = false;
-        if (moved) {
-          b.riderRig.ride(b.leanPivot, b.pedalPhase, b.bikeFrame);
-          b.riderCrowd.begin();
-          b.riderCrowd.add(b.riderRig, 0);
-          b.riderCrowd.end();
-          b.helmet.quaternion.copy(b.riderRig.headQuaternion);
-          b.helmet.position.set(0, 0.175, -0.012).applyQuaternion(b.helmet.quaternion).add(b.riderRig.headPosition);
-          b._posedX = b.position.x;
-          b._posedY = b.position.y;
-          b._posedZ = b.position.z;
-          b._posedH = b.heading;
-          b._posedLean = b.leanAngle;
-          b._posedPedal = b.pedalPhase;
-        }
-      } else if (!b._riderHidden) {
+      if (b.occupantOwned) {
+        // 玩家占用这辆共享单车后，模型自带骑手永久隐藏，避免同一画面出现两个骑手。
+        if (b.helmet) b.helmet.visible = false;
+        b._riderHidden = true;
+        b._posedX = NaN;
         b.riderCrowd.begin();
         b.riderCrowd.end();
-        if (b.riderCrowd.updates > 2) {
-          if (b.helmet) b.helmet.visible = false;
-          b._riderHidden = true;
-          b._posedX = NaN;
+        if (b.mesh) b.mesh.visible = true;
+      } else {
+        const dx = focus ? b.position.x - focus.x : 0;
+        const dz = focus ? b.position.z - focus.z : 0;
+        if (this.activeMode === 'cyclist' || dx * dx + dz * dz <= maxDistSq) {
+          if (b.helmet) b.helmet.visible = true;
+          const moved =
+            this.activeMode === 'cyclist' ||
+            b._riderHidden ||
+            b._posedX !== b.position.x ||
+            b._posedY !== b.position.y ||
+            b._posedZ !== b.position.z ||
+            b._posedH !== b.heading ||
+            b._posedLean !== b.leanAngle ||
+            b._posedPedal !== b.pedalPhase;
+          b._riderHidden = false;
+          if (moved) {
+            b.riderRig.ride(b.leanPivot, b.pedalPhase, b.bikeFrame);
+            b.riderCrowd.begin();
+            b.riderCrowd.add(b.riderRig, 0);
+            b.riderCrowd.end();
+            b.helmet.quaternion.copy(b.riderRig.headQuaternion);
+            b.helmet.position.set(0, 0.175, -0.012).applyQuaternion(b.helmet.quaternion).add(b.riderRig.headPosition);
+            b._posedX = b.position.x;
+            b._posedY = b.position.y;
+            b._posedZ = b.position.z;
+            b._posedH = b.heading;
+            b._posedLean = b.leanAngle;
+            b._posedPedal = b.pedalPhase;
+          }
+        } else if (!b._riderHidden) {
+          b.riderCrowd.begin();
+          b.riderCrowd.end();
+          if (b.riderCrowd.updates > 2) {
+            if (b.helmet) b.helmet.visible = false;
+            b._riderHidden = true;
+            b._posedX = NaN;
+          }
         }
       }
     }
@@ -961,26 +1297,19 @@ class ThirdPersonControllerManager {
     const heli = this.entities.helicopter;
 
     if (this.activeMode === 'person') {
-      this.updatePerson(dt, elapsed);
-    } else {
-      // Keep the sidewalk pedestrian walking naturally on the ground when not actively controlled
-      const p = this.entities.person;
-      const walkSpeed = 1.48;
-      p.prevX = p.position.x;
-      p.prevZ = p.position.z;
-      p.speed = walkSpeed;
-      p.jumping = false;
-      p.jumpPrep = 0;
-      p.verticalVel = 0;
-      p.position.x += Math.sin(p.heading) * walkSpeed * dt;
-      p.position.z += Math.cos(p.heading) * walkSpeed * dt;
-      this.resolveHorizontalCollision(p.position, 0.48, null, p);
-      const nextGroundY = p._support?.height ?? this.getGroundHeight(p.position.x, p.position.z, 'person');
-      if (Number.isFinite(nextGroundY)) p.position.y = nextGroundY;
-      if (!p.speed) p.heading += Math.PI;
-    }
-
-    if (this.activeMode === 'car') {
+      if (this.occupant.state === OCCUPANT_STATES.ALIGHTING) {
+        // 下车过渡：人物已经站到安全落点，短暂停住再交回步行输入。
+        this.occupant.timer = Math.max(0, this.occupant.timer - dt);
+        this.entities.person.speed = 0;
+        if (this.occupant.timer === 0) this.occupant.state = OCCUPANT_STATES.WALKING;
+      } else {
+        this.updatePerson(dt, elapsed);
+      }
+    } else if (this.occupant.state === OCCUPANT_STATES.BOARDING) {
+      // 上车过渡：载具保持静止、不接受驾驶输入；乘员已经绑定在座位上。
+      this.occupant.timer = Math.max(0, this.occupant.timer - dt);
+      if (this.occupant.timer === 0) this.occupant.state = OCCUPANT_STATES.SEATED;
+    } else if (this.activeMode === 'car') {
       this.updateCar(dt, driveInput);
     } else if (this.activeMode === 'cyclist') {
       this.updateCyclist(dt, elapsed);
@@ -996,6 +1325,8 @@ class ThirdPersonControllerManager {
       e.mesh.position.copy(e.position);
       e.mesh.rotation.y = e.heading;
     }
+    // 载具世界矩阵更新后再把同一角色写到座位上，坐姿因此跟着车身/座舱一起平移、转向和俯仰。
+    this._syncOccupant();
 
     // Modulate clustered vehicle & bike lights by time of day (off during Midday & Golden Hour; fade in at Dusk & Night)
     const glow = cityUniforms && cityUniforms.uInteriorGlow ? cityUniforms.uInteriorGlow.value : 0.48;
@@ -1381,4 +1712,4 @@ class ThirdPersonControllerManager {
   }
 }
 
-export { ThirdPersonControllerManager };
+export { ThirdPersonControllerManager, OCCUPANT_STATES, BOARDING_SECONDS, ALIGHTING_SECONDS };

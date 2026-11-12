@@ -376,6 +376,100 @@ function addRoofSignDecals(chassis, body, localMaterials) {
   }
 }
 
+// 玩家出租车驾驶位：环境车与玩家车原本都是封闭车身，车内不可见，同一个玩家角色坐进去也看不见。
+// 为了让乘员真的坐在驾驶位可见，只对玩家车（createShenzhenCarMesh）做三件事，环境车保持原样：
+// 1) 挖掉驾驶位上方车身顶盖，并把前门侧窗玻璃拆成单独一层透明网格；
+// 2) 补一套深色座舱内衬（地板、门内板、顶棚、仪表台、后排隔板），避免从开口看穿车体；
+// 3) 加驾驶座椅、方向盘和踏板，并把座椅锚点交给控制器做坐姿绑定。
+const DRIVER_COCKPIT = Object.freeze({
+  // 车体局部坐标：米，+z 向前，+x 向左
+  // 只挖中央顶盖：保留车门肩线和立柱，座舱开口 1.04 m 宽，刚好容纳驾驶位。
+  cut: { halfWidth: 0.52, rearZ: -0.52, frontZ: 1.0, topY: 0.945 },
+  // 前门与后门侧窗一起换成透明玻璃，侧面看进去不再出现一块黑玻璃和白色车身的硬边。
+  window: { rearZ: -1.86, frontZ: 0.84, sideX: 0.42 },
+  seat: Object.freeze({
+    pelvis: new THREE.Vector3(0, 0.64, 0.0),
+    feet: Object.freeze([new THREE.Vector3(0.19, 0.24, 0.72), new THREE.Vector3(-0.19, 0.24, 0.72)]),
+    hands: Object.freeze([new THREE.Vector3(0.165, 0.90, 0.47), new THREE.Vector3(-0.165, 0.90, 0.47)]),
+    recline: 0.12
+  })
+});
+
+// 把整车几何拆成保留部分与驾驶位前门玻璃：整车顶点带 partId，玻璃房是一整片 WINDOW 面，
+// 按三角形质心挑出前门侧窗那一块，余下（车身、车顶、立柱、后窗）继续用原 TSL 材质。
+function splitDriverWindows(geometry, body) {
+  const layout = carLayout(body);
+  const position = geometry.attributes.position;
+  const partId = geometry.attributes.partId;
+  const index = geometry.index;
+  if (!position || !partId || !index) throw new Error('Player taxi geometry lacks the indexed part ids');
+  const cut = DRIVER_COCKPIT.cut;
+  const window = DRIVER_COCKPIT.window;
+  const bodyTris = [];
+  const glassTris = [];
+  const count = index.count / 3;
+  const ids = [0, 0, 0];
+  for (let t = 0; t < count; t++) {
+    let cx = 0, cy = 0, cz = 0;
+    for (let k = 0; k < 3; k++) {
+      const v = index.getX(t * 3 + k);
+      ids[k] = v;
+      cx += position.getX(v);
+      cy += position.getY(v);
+      cz += position.getZ(v);
+    }
+    cx /= 3; cy /= 3; cz /= 3;
+    const part = Math.round(partId.getX(ids[0]));
+    const side = Math.abs(cx);
+    let target = bodyTris;
+    if (part === 1) {
+      const section = layout.cabin(cz);
+      // B/C 柱保留在车身网格里（材质按位置画成与车身同色），玻璃只取柱间的窗洞。
+      const onPillar = (body.cabin.pillars ?? []).some(pillar => Math.abs(cz - pillar) < 0.06);
+      if (!onPillar && side > window.sideX && cz > window.rearZ && cz < window.frontZ
+        && cy > section.beltY + 0.02 && cy < section.railY - 0.03) target = glassTris;
+    } else if (part === 0) {
+      // 驾驶位上方顶盖：保留外侧肩线和后舱，避免整台车看起来像敞篷。
+      if (cy > cut.topY && side < cut.halfWidth && cz > cut.rearZ && cz < cut.frontZ) target = null;
+    }
+    if (target) for (let k = 0; k < 3; k++) target.push(ids[k]);
+  }
+  geometry.setIndex(bodyTris);
+  return { windowTriangles: glassTris.length / 3 };
+}
+
+function createDriverInterior() {
+  const materials = new Map();
+  const b = builder(materials);
+  const trim = 0x3a424b;
+  const seat = 0x525d68;
+  // 地板、门内板、顶棚、后排隔板和仪表台围出一个封闭的深色座舱，开口处不露出车体背面。
+  // 所有内衬都比玻璃房腰线窄，不能穿出车身：顶棚 1.12 m、门板/隔板 1.24 m。
+  b.box('cabin-floor', [1.24, 0.05, 1.46], 0x333a42, [0, 0.305, 0.2], ZERO, 'trim');
+  // 顶棚只覆盖平顶段（z -0.53..0.23）；再往前的玻璃房是倾斜风挡，不能把顶棚穿出去。
+  b.box('cabin-headliner', [1.12, 0.035, 0.76], 0x363d45, [0, 1.4, -0.15], ZERO, 'trim');
+  b.box('cabin-bulkhead', [1.2, 0.62, 0.06], trim, [0, 0.63, -0.52], ZERO, 'trim');
+  b.box('cabin-dashboard', [1.2, 0.3, 0.24], 0x1e2228, [0, 0.7, 0.9], ZERO, 'trim');
+  for (const side of [-1, 1]) {
+    b.box('cabin-door-panel', [0.04, 0.62, 1.42], trim, [side * 0.62, 0.62, 0.2], ZERO, 'trim');
+    b.box('cabin-pedal', [0.09, 0.03, 0.12], 0x111418, [side * 0.14, 0.34, 0.78], ZERO, 'trim');
+    // 后门窗洞用一块深色内衬封住：后排空舱不再露出黑色三角面。
+    b.box('cabin-rear-window', [0.012, 0.46, 1.0], 0x26343d, [side * 0.645, 1.2, -0.92], ZERO, 'trim');
+  }
+  b.add('driver-seat-cushion', roundedBox(0.48, 0.12, 0.5, 0.04), seat, [0, 0.52, 0.0], ZERO, 'trim');
+  b.add('driver-seat-back', roundedBox(0.48, 0.64, 0.12, 0.04), seat, [0, 0.87, -0.24], [-0.12, 0, 0], 'trim');
+  b.add('driver-headrest', roundedBox(0.3, 0.16, 0.1, 0.04), seat, [0, 1.16, -0.29], [-0.12, 0, 0], 'trim');
+  // 方向盘：圆环面朝后上方，中心在仪表台前方；手部锚点取圆环左右两侧。
+  b.add('driver-steering-wheel', new THREE.TorusGeometry(0.185, 0.022, 8, 24), 0x1a1e23, [0, 0.9, 0.47], [Math.PI + 0.32, 0, 0], 'trim');
+  b.add('driver-steering-column', new THREE.CylinderGeometry(0.032, 0.036, 0.34, 10), 0x1a1e23, [0, 0.82, 0.62], [Math.PI / 2 - 0.36, 0, 0], 'trim');
+  // 顶灯：白天座舱也有一点暖光，否则深色衣着的驾驶员会埋进阴影里看不见。
+  b.box('cabin-dome-light', [0.22, 0.012, 0.09], 0xffe6c0, [0, 1.376, -0.16], ZERO, 'light');
+  const interior = b.finish();
+  interior.name = 'player-taxi-cockpit';
+  interior.traverse((mesh) => { if (mesh.isMesh) { mesh.castShadow = false; mesh.receiveShadow = false; } });
+  return interior;
+}
+
 function createShenzhenCarMesh({ type = 'taxi', color = PALETTE.white, detail = true } = {}) {
   const body = CAR_BODIES[type];
   if (!body) throw new Error(`Unknown Shenzhen car type: ${type}`);
@@ -387,7 +481,21 @@ function createShenzhenCarMesh({ type = 'taxi', color = PALETTE.white, detail = 
   // 车身与轮毂材质来自 cars.js 的全局材质缓存（环境车共用），销毁时只释放本模型独有的贴花材质与几何。
   const localMaterials = [];
 
-  const bodyMesh = new THREE.Mesh(buildCarGeometry(body, false), material);
+  const geometry = buildCarGeometry(body, false);
+  // 只有玩家的出租车挖开驾驶位座舱；其余车型（以及所有环境车）保持封闭车身。
+  const cockpit = type === 'taxi';
+  if (cockpit) {
+    // 前/后门侧窗从车身网格里去掉，形成「车窗摇下」的开口；不再单独铺一层透明玻璃，
+    // 免得低面数玻璃在掠射角反射成一块黑面。车顶、B/C 柱和后窗仍由原车身材质画。
+    splitDriverWindows(geometry, body);
+    chassis.add(createDriverInterior());
+    // 车内小灯只照亮驾驶位，让同一角色在深色座舱里可见；范围 4 m，不影响车外。
+    const cabinLight = new THREE.PointLight(0xffe8c8, 9, 4.5, 2);
+    cabinLight.position.set(0, 1.34, -0.05);
+    cabinLight.castShadow = false;
+    chassis.add(cabinLight);
+  }
+  const bodyMesh = new THREE.Mesh(geometry, material);
   bodyMesh.name = `${type}-lofted-body`;
   bodyMesh.castShadow = true;
   bodyMesh.receiveShadow = true;
@@ -418,7 +526,7 @@ function createShenzhenCarMesh({ type = 'taxi', color = PALETTE.white, detail = 
       decal.dispose();
     }
   };
-  return { group, bounds, dispose, chassis, spec, wheels, setLights };
+  return { group, bounds, dispose, chassis, spec, wheels, setLights, seat: cockpit ? DRIVER_COCKPIT.seat : null };
 }
 
 function createShenzhenBusMesh({ detail = true } = {}) {
@@ -669,7 +777,6 @@ function addPassengerBody(b) {
   const band = new THREE.TorusGeometry(1, 0.026, 8, 40).rotateX(Math.PI / 2).scale(0.844, 1, 1.321);
   b.add('belly-blue-light-band', band, 0x4298ff, [0, 0.774, -0.04], ZERO, 'light');
   b.ball('white-tail-light', [0.055, 0.049, 0.049], PALETTE.light, [0, 1.04, -1.463], 'light');
-  addSeatedPilot(b);
 }
 
 function addCargoBody(b) {
@@ -723,6 +830,15 @@ function rotorSweep(part, bounds) {
   return radius;
 }
 
+// 四旋翼驾驶位锚点（机身局部坐标）：座垫上沿 1.32 m，脚进脚部空间，双手扶操纵台。
+// 同一玩家角色从这里绑定坐姿；内置飞行员模型只作空机展示，玩家登机后隐藏。
+const EVTOL_SEAT = Object.freeze({
+  pelvis: new THREE.Vector3(-0.37, 1.42, -0.3),
+  feet: Object.freeze([new THREE.Vector3(-0.28, 1.31, 0.58), new THREE.Vector3(-0.46, 1.31, 0.58)]),
+  hands: Object.freeze([new THREE.Vector3(-0.25, 1.46, 0.36), new THREE.Vector3(-0.49, 1.46, 0.36)]),
+  recline: 0.1
+});
+
 function createAircraft(cargo) {
   const materials = new Map();
   const b = builder(materials);
@@ -748,6 +864,18 @@ function createAircraft(cargo) {
     mounts.push({ position: [x, y + (cargo ? 0.1 : 0.151), z], direction: side * fore });
   }
   const group = b.finish();
+  // 内置飞行员单独成组，玩家登机后整组隐藏，换成同一个玩家角色的坐姿。
+  let pilot = null;
+  if (!cargo) {
+    const pilotMaterials = new Map();
+    const pilotBuilder = builder(pilotMaterials);
+    addSeatedPilot(pilotBuilder);
+    pilot = pilotBuilder.finish();
+    pilot.name = 'pilot';
+    group.add(pilot);
+    group.userData.parts.push(...pilot.userData.parts);
+    pilot.traverse((mesh) => { if (mesh.isMesh) { mesh.castShadow = false; mesh.receiveShadow = false; } });
+  }
   const bounds = new THREE.Box3().setFromObject(group, true);
   const template = makeRotor(materials, cargo);
   const rotors = mounts.map(({ position, direction }) => {
@@ -758,7 +886,9 @@ function createAircraft(cargo) {
     group.add(part);
     return part;
   });
-  return { ...finalize(group, bounds), rotors, update(dt, throttle = 0) {
+  return { ...finalize(group, bounds), rotors, pilot, seat: cargo ? null : EVTOL_SEAT,
+    setOccupantVisible(visible) { if (pilot) pilot.visible = Boolean(visible); },
+    update(dt, throttle = 0) {
     if (!Number.isFinite(dt) || dt < 0 || !Number.isFinite(throttle)) throw new Error('Invalid rotor update');
     const angularSpeed = THREE.MathUtils.clamp(throttle, 0, 1) * (cargo ? 137 : 73);
     for (const rotor of rotors) rotor.rotation.y = (rotor.rotation.y + dt * angularSpeed * rotor.userData.direction) % TURN;
