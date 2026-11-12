@@ -148,20 +148,17 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
     globals: { document: { createElement: canvas } }
   });
 
-  // 深圳出租是参考图那台长、低、圆润的流线型纯电出租车：低车顶 + 大倾角风挡 + 溜背圆尾，
-  // 不是高顶方盒 MPV，也不是轿车尾箱。
+  // 深圳出租采用高顶两厢轮廓，车轮和车身仍用同一剖面。
   const taxiSpec = models.VEHICLE_SPECS.taxi;
   const taxiBody = cars.BODY_SPECS.taxi;
   const taxiLayout = cars.carLayout(taxiBody);
   const angleFromVertical = (rise, run) => Math.atan2(Math.abs(run), rise) * 180 / Math.PI;
-  // 长 / 低 / 宽比例
   assert.ok(taxiSpec.length > 4.85 && taxiSpec.length < 4.95, `taxi length ${taxiSpec.length}`);
   assert.ok(taxiSpec.width > 1.9 && taxiSpec.width < 1.95, `taxi width ${taxiSpec.width}`);
-  assert.ok(taxiSpec.height > 1.5 && taxiSpec.height < 1.57, `taxi height ${taxiSpec.height}`);
+  assert.ok(taxiSpec.height > 1.68 && taxiSpec.height < 1.77, `taxi height ${taxiSpec.height}`);
   assert.ok(taxiSpec.wheelbase > 2.88 && taxiSpec.wheelbase < 2.92, `taxi wheelbase ${taxiSpec.wheelbase}`);
   assert.ok(taxiSpec.radius > 0.355 && taxiSpec.radius < 0.37, `taxi wheel radius ${taxiSpec.radius}`);
-  assert.ok(taxiSpec.height / taxiSpec.length < 0.33, 'low and long: height/length below 0.33');
-  assert.ok(taxiSpec.width / taxiSpec.height > 1.2, 'wide stance relative to the low roof');
+  assert.ok(taxiBody.cabin.roofRear < -1.9 && taxiBody.cabin.rail[1] > 0.66, 'roof stays high and wide over the hatch');
   // 车身加宽后轮子应完全收进轮拱：轮胎外沿要比轴位车身半宽内收 ≥10 mm
   const halfWidthPeak = Math.max(...taxiBody.halfWidth.map((point) => point[1]));
   assert.ok(halfWidthPeak > 0.94 && halfWidthPeak < 0.96, `wide lower body half width ${halfWidthPeak}`);
@@ -203,45 +200,14 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   assert.ok(taxiBody.cabin.pillars.length >= 2 && taxiBody.pillarWidth <= 0.03, 'slim B/C pillars');
   const glassHeight = taxiLayout.cabin(0).railY - taxiLayout.belt.cowl.y;
   assert.ok(glassHeight > 0.32, `large side glass, ${glassHeight.toFixed(2)} m tall`);
-  // 溜背圆尾：整圈同一条收圆弧 + 随高度单调前倾的 tailRake，后窗大倾角
-  assert.ok(taxiBody.tailRake && taxiBody.tailRake.length >= 0.35, 'tail has a rake, so the rear is rounded, not a vertical hatch');
-  const tailRounding = ['halfWidth', 'edge', 'crown', 'sill', 'shoulder'].map(key => taxiBody.tail[key]);
-  for (const parameter of tailRounding) {
-    assert.ok(parameter[0] >= 0.5, `tail rounding ${parameter[0]} blends the rear face into the sides`);
-    assert.ok(parameter[2] <= 2.2, `tail superellipse exponent ${parameter[2]} keeps the corner round`);
-  }
-  assert.ok(new Set(tailRounding.map(parameter => parameter[0])).size === 1,
-    'every rear parameter uses the same rounding length, so the whole corner is one continuous surface');
-  const rearHeights = [0.27, 0.4, 0.55, 0.7, 0.82, 0.9];
-  const rearTips = rearHeights.map(y => cars.carTipZ(taxiBody, y, false));
-  for (let i = 1; i < rearTips.length; i++) {
-    assert.ok(rearTips[i] >= rearTips[i - 1] - 1e-6,
-      `tail profile moves forward monotonically (${rearHeights[i - 1]}→${rearHeights[i]}: ${rearTips[i - 1].toFixed(3)}→${rearTips[i].toFixed(3)})`);
-  }
-  const tailRake = angleFromVertical(rearHeights.at(-1) - rearHeights[0], rearTips.at(-1) - rearTips[0]);
-  assert.ok(tailRake > 12, `fastback tail leans forward strongly, got ${tailRake.toFixed(1)}°`);
-  // 最后 1.2 m 的侧面断面单调连续（后轮拱影响的 yS 只在拱后取样）
-  const rearSection = [];
-  for (let z = taxiBody.zRear; z <= taxiBody.zRear + 1.2 + 1e-9; z += 0.02) rearSection.push({ z, ...taxiLayout.body(z) });
-  for (const key of ['W', 'yE', 'yT', 'xB', 'xE']) {
-    for (let i = 1; i < rearSection.length; i++) {
-      assert.ok(rearSection[i][key] >= rearSection[i - 1][key] - 0.002,
-        `rear ${key} has no reverse kink at z ${rearSection[i].z.toFixed(2)}`);
-    }
-  }
-  const behindArch = rearSection.filter(section => section.z < -1.9);
-  for (let i = 1; i < behindArch.length; i++) {
-    assert.ok(behindArch[i].yS >= behindArch[i - 1].yS - 0.002, 'shoulder line is continuous behind the rear arch');
-  }
-  assert.ok(rearSection[0].W < rearSection.at(-1).W - 0.08, 'rear plan corner tapers in smoothly');
-  // 后窗下沿接在被尾部斜面推到前的车身上沿，不在车尾外悬空；后窗大倾角（溜背）
+  // 后窗下缘要贴着尾门，不能留下三厢尾箱或悬空的玻璃。
   const capTopZ = cars.carTipZ(taxiBody, taxiLayout.body(taxiBody.zRear).yT - 0.02, false);
-  assert.ok(taxiBody.cabin.deck > capTopZ, `backlight base ${taxiBody.cabin.deck} sits ahead of the raked tail top ${capTopZ.toFixed(2)}`);
-  assert.ok(taxiBody.cabin.deck - capTopZ < 0.4, 'short fastback deck between backlight base and tail top');
+  assert.ok(taxiBody.cabin.deck > capTopZ && taxiBody.cabin.deck - capTopZ < 0.13,
+    `backlight base ${taxiBody.cabin.deck} joins the rear face at ${capTopZ.toFixed(2)}`);
   const backlightRise = taxiLayout.cabin(taxiBody.cabin.roofRear).railY - taxiLayout.cabin(taxiBody.cabin.deck).beltY;
   const backlightRun = Math.abs(taxiBody.cabin.deck - taxiBody.cabin.roofRear);
   const backlightAngle = angleFromVertical(backlightRise, backlightRun);
-  assert.ok(backlightAngle > 35 && backlightAngle < 70, `fastback backlight is strongly raked, got ${backlightAngle.toFixed(1)}°`);
+  assert.ok(backlightAngle > 18 && backlightAngle < 36, `hatchback rear window angle ${backlightAngle.toFixed(1)}°`);
   const tailSection = taxiLayout.body(taxiBody.zRear);
   assert.ok(tailSection.yT - tailSection.yB > 0.45, 'rear face is big enough for lamps and the plate');
   // 尾灯在尾部两侧靠上，位于车牌上方并落在后脸高度范围内
@@ -363,7 +329,7 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   assert.ok(!cargo.group.userData.parts.some(name => name.startsWith('pilot-')), 'cargo drone has no occupant');
   cargo.dispose();
 
-  // 玩家出租车：挖开驾驶位顶盖 + 独立透明前门玻璃 + 座舱内衬 + 座椅/方向盘，供同一角色坐姿绑定。
+  // 玩家出租车保留完整车身和纽约原版深色车窗材质。
   const playerTaxi = models.createShenzhenCarMesh({ type: 'taxi' });
   const seat = playerTaxi.seat;
   assert.ok(seat && seat.pelvis && seat.feet.length === 2 && seat.hands.length === 2, 'player taxi exposes a driver seat');
@@ -374,23 +340,12 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   assert.ok(cockpit, 'player taxi has a visible driver cockpit');
   assert.ok(playerTaxi.chassis.getObjectByName('player-taxi-cockpit'), 'driver cockpit is present');
   const bodyMesh = playerTaxi.chassis.getObjectByName('taxi-lofted-body');
-  const positions = bodyMesh.geometry.attributes.position;
-  const partIds = bodyMesh.geometry.attributes.partId;
-  const indices = bodyMesh.geometry.index;
-  let roofCapTriangles = 0;
-  for (let t = 0; t < indices.count / 3; t++) {
-    const a = indices.getX(t * 3), b = indices.getX(t * 3 + 1), c = indices.getX(t * 3 + 2);
-    if (Math.round(partIds.getX(a)) !== 0) continue; // 玻璃房顶属于 WINDOW，不参与车身顶盖统计
-    const x = Math.abs((positions.getX(a) + positions.getX(b) + positions.getX(c)) / 3);
-    const y = (positions.getY(a) + positions.getY(b) + positions.getY(c)) / 3;
-    const z = (positions.getZ(a) + positions.getZ(b) + positions.getZ(c)) / 3;
-    if (x < 0.52 && y > 0.945 && z > -0.52 && z < 1.0) roofCapTriangles++;
-  }
-  assert.equal(roofCapTriangles, 0, 'the roof cap above the driver is opened for the occupant');
-  // 环境车继续使用封闭整车几何，不能把玩家座舱开口带到 30 辆环境车上。
-  const ambient = models.createTrafficCarBody('taxi');
-  ambient.geometry.computeBoundingBox();
-  assert.ok(ambient.geometry.index.count / 3 > 1500, 'ambient taxi keeps its closed lofted body');
+  const closedBody = cars.buildCarGeometry(cars.BODY_SPECS.taxi, false);
+  assert.deepEqual(bodyMesh.geometry.index.array, closedBody.index.array, 'player taxi keeps the complete lofted body and roof');
+  assert.equal(bodyMesh.material.transparent, false, 'the closed dark glazing hides the shell beneath it');
+  assert.equal(bodyMesh.material, cars.createLoftedCarMaterial(cars.BODY_SPECS.taxi, models.PALETTE.taxiBlue));
+  assert.equal(models.createTrafficCarBody('taxi').material.transparent, false, 'ambient taxi glass stays opaque');
+  closedBody.dispose();
   playerTaxi.dispose();
 
   // 四旋翼：座位锚点 + 内置飞行员可整组隐藏（玩家登机后换成同一角色）。
