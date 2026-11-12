@@ -147,6 +147,9 @@ test('map travel resolves a walking pose before closing and leaves the map open 
       toggleFullMap(open) { calls.push(['map', open]); this.open = open; }
     },
     wireMetroMenu: () => {},
+    wireDroneWatch: () => ({ active: false, map: null }),
+    drones: {},
+    droneWatch: null,
     cruise: { active: false },
     GEO,
     STR: { map: { noArrival: 'No arrival' } },

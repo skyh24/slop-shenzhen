@@ -49,7 +49,7 @@ test('brake and boost inputs cancel automatic driving through the frame wiring',
     const controllerManager = { activeMode: 'car', keys: { [action]: true },
       update: (_dt, _elapsed, input) => { appliedInput = input; } };
     const context = { controllerManager, autoDrive, laneAssist: { update: () => null }, driveCar: car, dt: 1 / 60, elapsed: 0,
-      mapSystem: { isFullMapOpen: false }, cruise: { active: false } };
+      mapSystem: { isFullMapOpen: false }, cruise: { active: false }, droneWatch: { active: false } };
     runInNewContext(wiring, context);
     assert.equal(appliedInput, null);
     assert.equal(autoDrive.status, 'manual');
