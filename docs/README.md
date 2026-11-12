@@ -43,7 +43,7 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [13-DATA-DETAIL-PILOT.md](13-DATA-DETAIL-PILOT.md) | 新数据源小范围验证：本地测绘/总图、Overture 部件与路网、CMAB、树木公园 |
 | [14-CITY-EXPLORATION-PLAN.md](14-CITY-EXPLORATION-PLAN.md) | 后续探索体验：名称搜索与区域高亮、地铁透视、重点区域建模、导航与快捷上下车 |
 | [18-ROAD-BUILDING-CLEARANCE-PLAN.md](18-ROAD-BUILDING-CLEARANCE-PLAN.md) | 道路与建筑净空治理方案 |
-| [23-BUILDING-AND-STREET-PLAN.md](23-BUILDING-AND-STREET-PLAN.md) | 建筑身份与占道、城区平坦地面、深南绿带、路侧和标线标准 |
+| [23-BUILDING-AND-STREET-PLAN.md](23-BUILDING-AND-STREET-PLAN.md) | 建筑与占道、城区地坪、深南绿带、路侧、标线、桥隧和出租车曲面计划 |
 | [27-REGION-DATA-PLAN.md](27-REGION-DATA-PLAN.md) | 道路围合区域、地标关联、可扩展风貌基础数据及分阶段接入计划 |
 | [19-WEBSITE-OPTIMIZATION-PLAN.md](19-WEBSITE-OPTIMIZATION-PLAN.md) | 网站加载、数据格式、分块与发布优化（原 13 号） |
 
