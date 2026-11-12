@@ -43,6 +43,47 @@ function validateStreetscape(streetscape, parks) {
   }
 }
 
+function validateGolfCourse(site, graph, buildings) {
+  if (site === undefined) return;
+  const wayId = /^way\/\d+$/;
+  const materials = ['paved', 'aggregate'];
+  const coordinates = (values, multiple) => Array.isArray(values) && values.length >= multiple
+    && values.length % multiple === 0 && values.every(Number.isFinite);
+  requireData(site?.version === 1 && site.osmId === 'way/173622150' && site.publicAccess === 'unverified'
+    && ['paths', 'surfaces', 'ponds', 'foundations'].every(key => Array.isArray(site[key])), 'golf course source');
+  const paths = new Map();
+  for (const path of site.paths) {
+    requireData(wayId.test(path.osmId) && !paths.has(path.osmId) && path.kind === 'garden-path'
+      && Number.isFinite(path.widthM) && path.widthM > 0 && materials.includes(path.material)
+      && ['terrain', 'unresolved-structure'].includes(path.heightSource)
+      && ['unverified', 'restricted'].includes(path.publicAccess) && typeof path.serviceAccess === 'string'
+      && Array.isArray(path.segments) && path.segments.every(line => line.length >= 4 && coordinates(line, 2)), 'golf course path');
+    paths.set(path.osmId, path);
+  }
+  requireData(graph.metadata.every(meta => !paths.has(meta.osmId)), 'golf course paths excluded from car network');
+  for (const surface of site.surfaces) {
+    requireData(materials.includes(surface.material) && coordinates(surface.trianglesXZ, 6)
+      && Array.isArray(surface.sourceIds) && surface.sourceIds.length > 0 && surface.sourceIds.every(id => {
+        const path = paths.get(id);
+        return path?.heightSource === 'terrain' && path.material === surface.material;
+      }), 'golf course paving');
+  }
+  for (const pond of site.ponds) {
+    requireData(wayId.test(pond.osmId) && Number.isFinite(pond.heightM)
+      && pond.heightSource === 'fabdem-pond-centre-visual-estimate' && Array.isArray(pond.banks)
+      && pond.banks.every(ring => ring.length >= 9 && coordinates(ring, 3)
+        && ring.every((value, i) => i % 3 !== 1 || value >= pond.heightM)), 'golf course pond level');
+    decodePoly(pond.rings);
+  }
+  const ids = new Set(buildings.id);
+  const foundationIds = new Set();
+  for (const { id, baseY, bottomY } of site.foundations) {
+    requireData(ids.has(id) && !foundationIds.has(id) && Number.isFinite(baseY) && Number.isFinite(bottomY)
+      && baseY > bottomY, 'golf course foundation');
+    foundationIds.add(id);
+  }
+}
+
 function validateTrees(trees) {
   if (trees === undefined) return;
   requireData(trees?.version === 1 && Number.isSafeInteger(trees.count) && trees.count >= 0, 'trees header');
@@ -413,6 +454,7 @@ export function validateCityPayload(raw) {
     }
   }
   validateStreetscape(raw.streetscape, raw.parks ?? []);
+  validateGolfCourse(raw.golfCourse, raw.roadGraph, raw.buildings);
   validateTrees(raw.trees);
   validateSites(raw.sites);
   validateAir(raw.air);
@@ -503,6 +545,7 @@ export function decodeCityPayload(raw, metrics = null) {
   const validatedAt = nowMs();
   if (metrics) metrics.validateMs = validatedAt - validateStartedAt;
   const b = raw.buildings;
+  const foundations = new Map(raw.golfCourse?.foundations.map(row => [row.id, row]));
   const buildings = b.h.map((height, i) => {
     const shape = polygon(b.rings[i]);
     let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
@@ -525,7 +568,7 @@ export function decodeCityPayload(raw, metrics = null) {
       levels: Array.isArray(b.lv) ? b.lv[i] : -1,
       role: Array.isArray(b.role) ? raw.enums.buildingRole[b.role[i]] : null,
       upstreamFamily: Array.isArray(b.upstream) ? raw.enums.upstreamFamily[b.upstream[i]] : null,
-      confidence };
+      confidence, ...(foundations.has(b.id[i]) ? { foundation: foundations.get(b.id[i]) } : {}) };
   });
   const decoded = { buildings, geo: { version: raw.version,
     frame: { origin: raw.origin, bearingDeg: 0, units: 'm' }, bounds: raw.bounds,
@@ -537,6 +580,8 @@ export function decodeCityPayload(raw, metrics = null) {
     bridges: raw.bridges ?? [], yanjiangExpressway: raw.yanjiangExpressway ?? null,
     seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },
     streetscape: raw.streetscape ?? null,
+    golfCourse: raw.golfCourse && { ...raw.golfCourse,
+      ponds: raw.golfCourse.ponds.map(({ rings, ...pond }) => ({ ...pond, polygon: polygon(rings) })) },
     trees: raw.trees ?? null,
     sites: decodeSites(raw.sites),
     air: raw.air ?? null,

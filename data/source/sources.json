@@ -1,6 +1,6 @@
 {
   "generated": "2026-11-09",
-  "note": "Pre-APEC snapshot set. Re-fetch OSM after 2026-11-19 (APEC leaders' meeting) and diff counts in build-report.json. FABDEM V1-2 (CC BY-NC-SA, non-commercial) is used only as the labelled baseline for the derived road-surface corridor; it is not a global terrain replacement.",
+  "note": "Pre-APEC snapshot set. Re-fetch OSM after 2026-11-19 (APEC leaders' meeting) and diff counts in build-report.json. FABDEM V1-2 (CC BY-NC-SA, non-commercial) is used for derived road corridors and the former Shenzhen Golf Course visual estimates. The verified FABDEM and comparison raster records are in terrain-candidates.json.",
   "bbox": {
     "west": 113.88,
     "south": 22.455,

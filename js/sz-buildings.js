@@ -402,6 +402,7 @@ export function buildCityBlocks(scene, options = {}) {
   const group = new THREE.Group();
   group.name = 'ShenzhenCityBlocks';
   const batches = new Map();
+  const foundations = new GeoBuilder();
   const colliders = [];
   const allBlocks = [];
   const roadConflicts = [];
@@ -427,6 +428,9 @@ export function buildCityBlocks(scene, options = {}) {
     const meta = [facade, buildingSeed(building.id) * 10, 0, building.height];
     for (const polygon of building.polygons) {
       const rings = [polygon.outer, ...polygon.holes].map(flatRing);
+      if (placement.foundationBottomY !== null) {
+        addWalls(foundations, rings, placement.foundationBottomY, placement.baseY);
+      }
       addWalls(batch, rings, placement.minY, placement.maxY, meta, placement.baseY);
       addFlatPolygon(batch, rings, placement.maxY, meta);
       if (building.minHeight > 0) addFlatPolygon(batch, rings, placement.minY, meta, 1, -1);
@@ -475,9 +479,18 @@ export function buildCityBlocks(scene, options = {}) {
     allBlocks.push({ ...building, baseY: placement.baseY, minY: placement.minY, maxY: placement.maxY });
   }
   const material = createBuildingMaterial();
+  const foundationMaterial = foundations.count
+    ? new THREE.MeshStandardNodeMaterial({ color: 0x969084, roughness: 0.94 }) : null;
   for (const [key, batch] of batches) {
     const mesh = new THREE.Mesh(batch.build(), material);
     mesh.name = `ShenzhenBuildings:${key}`;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  if (foundationMaterial) {
+    const mesh = new THREE.Mesh(foundations.build(), foundationMaterial);
+    mesh.name = 'shenzhen-golf-foundations';
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     group.add(mesh);
@@ -489,6 +502,7 @@ export function buildCityBlocks(scene, options = {}) {
     dispose() {
       group.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
       material.dispose();
+      foundationMaterial?.dispose();
       roofPlans.clear();
       scene.remove(group);
     }

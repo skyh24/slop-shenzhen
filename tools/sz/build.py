@@ -25,6 +25,7 @@ from road_frontage import build_road_frontage
 from roads import CLASSES, build_roads
 from roadgraph import build_roadgraph
 from sea_surface import build_sea_surface
+from shenzhen_golf import build_shenzhen_golf
 from streetscape import build_streetscape
 from terrain import build_terrain
 from terrain_exclusions import chunjian_exclusions
@@ -262,7 +263,8 @@ def remove_civic_paving_trees(trees, report, civic):
     return len(removed)
 
 
-def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, clip, excluded, *, civic_review=False):
+def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, clip, excluded, *,
+                   civic_review=False, golf_only=False):
     raw = gzip.decompress(OUT.read_bytes())
     validation = json.loads(VALIDATION_REPORT.read_text())
     require_matching_snapshot(raw, validation, sources)
@@ -271,6 +273,13 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     if (payload['origin'] != [ORIGIN_LON, ORIGIN_LAT]
             or payload['coverage'] != [enc_poly(p) for p in getattr(clip, 'geoms', [clip])]):
         raise ValueError('Ground rebuild requires the current city origin and coverage')
+
+    pbf = ROOT / osm_source['file']
+    if golf_only:
+        previous = report.get('shenzhenGolfCourse', {}).get('terrain', {}).get('gridOriginalHeights', [])
+        build_shenzhen_golf(payload, osm, pbf, report, previous=previous)
+        write_city_packages(payload, report, sources, started)
+        return
 
     def polygon(rings):
         outer, *holes = rings
@@ -317,6 +326,7 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     report['groundRebuild'] = {'basePayloadSha256': validation['payloadSha256'],
         'changedSections': changed, 'rebuiltChunks': [chunk['id'] for chunk in surface['chunks']]}
     payload['terrain'], payload['terrainSurface'] = terrain, surface
+    build_shenzhen_golf(payload, osm, pbf, report)
     write_city_packages(payload, report, sources, started)
 
 
@@ -336,6 +346,8 @@ def main():
                       help='rebuild the ground pilot from the current verified payload and snapshots')
     mode.add_argument('--rebuild-civic-ground', action='store_true',
                       help='apply the reviewed Civic Square paving and Shennan median to the verified package')
+    mode.add_argument('--rebuild-golf-course', action='store_true',
+                      help='apply the reviewed Shenzhen Golf Course site to the verified package')
     args = ap.parse_args()
 
     if args.repack_existing:
@@ -369,8 +381,9 @@ def main():
                           'boundaryInsetM': boundary_inset,
                           'areaKm2': round(clip.area / 1e6, 3)}
     print(f'osm loaded in {time.time() - t0:.1f}s', flush=True)
-    if args.rebuild_ground or args.rebuild_civic_ground:
-        rebuild_ground(args.terrain_source, sources, osm, osm_source, report, t0, clip, excluded, civic_review=args.rebuild_civic_ground)
+    if args.rebuild_ground or args.rebuild_civic_ground or args.rebuild_golf_course:
+        rebuild_ground(args.terrain_source, sources, osm, osm_source, report, t0, clip, excluded,
+                       civic_review=args.rebuild_civic_ground, golf_only=args.rebuild_golf_course)
         return
 
     datum_manifest = json.loads(URBAN_DATUM.read_text())
@@ -482,6 +495,7 @@ def main():
         'buildingsWithLevels': sum(1 for b in buildings if b.get('levels', -1) > 0),
     }
 
+    build_shenzhen_golf(payload, osm, pbf, report)
     write_city_packages(payload, report, sources, t0)
 
 

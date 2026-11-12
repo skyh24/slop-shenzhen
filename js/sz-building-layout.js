@@ -1,7 +1,8 @@
 import { terrainHeight } from './sz-terrain.js';
 
 export function buildingPlacement(building, grid) {
-  const baseY = terrainHeight(grid, building.cx, building.cz);
+  const foundationBottomY = building.foundation?.bottomY ?? null;
+  const baseY = building.foundation?.baseY ?? terrainHeight(grid, building.cx, building.cz);
   if (baseY === null) throw new Error(`Missing building terrain: ${building.id}`);
   const minY = baseY + building.minHeight;
   const maxY = baseY + building.height;
@@ -12,9 +13,10 @@ export function buildingPlacement(building, grid) {
   const colliders = building.polygons.map(polygon => ({
     type: 'building', name: building.id, sourceId: building.id, polygon,
     minX: building.minX, maxX: building.maxX, minZ: building.minZ, maxZ: building.maxZ,
-    minY, maxY, heightSource: building.heightSource, baseSource: 'dem-footprint-bounds-center'
+    minY: foundationBottomY ?? minY, maxY, heightSource: building.heightSource,
+    baseSource: building.foundation ? 'modelled-footprint-foundation' : 'dem-footprint-bounds-center'
   }));
-  return { baseY, minY, maxY, colliders };
+  return { baseY, minY, maxY, foundationBottomY, colliders };
 }
 
 export function buildingSeed(id) {

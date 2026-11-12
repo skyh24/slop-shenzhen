@@ -184,7 +184,7 @@ async function initApp() {
   const site = {
     buildings: REAL_BUILDINGS, terrain: GEO.terrain, terrainSurface: GEO.terrainSurface, sites: GEO.sites,
     roadGraph: GEO.roadGraph, groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, isWater,
-    colliders: []
+    colliders: [], golfCourse: GEO.golfCourse
   };
   // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
   const elevatedRoads = qa.stage('elevated', () =>
@@ -393,7 +393,8 @@ async function initApp() {
   for (const root of cullingRoots) {
     const [first, ...chunks] = root.children;
     // 每类静态分块共用材质和顶点布局，预编译其中一块即可。
-    for (const chunk of chunks) chunk.userData.sharesPipelineWith = first;
+    const shared = root === cityBlocks.group ? chunks.filter(chunk => chunk.material === first.material) : chunks;
+    for (const chunk of shared) chunk.userData.sharesPipelineWith = first;
   }
   setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, yanjiang, streetscape.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
     futianStation?.group, xiliConstruction?.group].filter(Boolean), lightingSystem.sunLight.shadow);

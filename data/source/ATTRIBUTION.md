@@ -12,7 +12,7 @@
 
 ## 派生路面覆盖层
 
-城市包里的路面走廊高程另外取自 **FABDEM V1-2**（Bristol Research Initiative, 2023；由 Copernicus GLO-30 去除建筑和森林后建模，EGM2008 垂直基准），只作为道路中心线纵剖面和横断面的基线，经 `tools/sz/road_surface.py` 生成、在所有派生点标记为 `derived-road`，并逐路段把前后高差写进 `data/source/build-report.json`。原始 Copernicus DSM 网格在路面走廊外保持不变；这不是把整城替换成 FABDEM，也不是实测路面高程。FABDEM 许可为 **CC BY-NC-SA 4.0**（仅限非商业使用）并附带 Copernicus 署名条款。
+城市包里的路面走廊高程另外取自 **FABDEM V1-2**（Bristol Research Initiative, 2023；由 Copernicus GLO-30 去除建筑和森林后建模，EGM2008 垂直基准）。道路由 `tools/sz/road_surface.py` 派生并标记为 `derived-road`。原深圳高尔夫球场局部另用 FABDEM 派生低频起伏和独立水位外观估计，以 GEDTM30 V1.2 对照。两者的范围、方法和差异写入 `data/source/build-report.json`。FABDEM 许可为 **CC BY-NC-SA 4.0**（仅限非商业使用）并附带 Copernicus 署名条款。
 
 > FABDEM V1-2: Hawker, L., Neal, J., & Bates, P. (2023). FABDEM V1-2. University of Bristol. <https://doi.org/10.5523/bris.s5hqmjcdj8yo2ibzi9b4ew3sn> — Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
 

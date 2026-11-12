@@ -11,6 +11,7 @@ const MAP = {
   islandsEdge: '#26392c',
   piers: '#283039',
   streets: '#363f4b',
+  gardenPath: '#95856d',
   shore: '#4f5b6b',
   park: '#19301f',
   parkEdge: '#24432f',
@@ -252,6 +253,10 @@ function mapLayers() {
     addLine(path, road.pts);
     return { ...road, path, bounds: boundsOf(road.pts) };
   });
+  layers.gardenPaths = new TiledLayer();
+  for (const { trianglesXZ } of GEO.golfCourse?.surfaces ?? []) {
+    for (let i = 0; i < trianglesXZ.length; i += 6) layers.gardenPaths.ring(trianglesXZ.slice(i, i + 6));
+  }
   // 全图高铁图层：只用 sites 段里已核实的站体/场地轮廓，不画没有来源的线路。
   layers.hsr = [];
   for (const station of [{ id: 'futian-station', role: 'station', name: '福田站', note: '地下高铁', underConstruction: false },
