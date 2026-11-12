@@ -19,7 +19,7 @@ def _polys(geom):
     return [g for g in getattr(geom, 'geoms', []) if isinstance(g, Polygon)]
 
 
-def build_land(osm, clip_local, buildings, report):
+def build_land(osm, clip_local, buildings, report, *, paving=None):
     """陆地 = 海岸线切开范围框后，含有建筑的那些面。"""
     lines = [_to_local(c['geom']) for c in osm['coastline']]
     merged = linemerge(unary_union(lines)) if lines else None
@@ -51,6 +51,9 @@ def build_land(osm, clip_local, buildings, report):
     water = layer(osm['water'], 200)
     wetland = layer(osm['wetland'], 200)
     green = layer(osm['green'], 150)
+    if paving is not None:
+        green = [{**item, 'poly': part} for item in green
+                 for part in _polys(item['poly'].difference(paving)) if not part.is_empty]
     report['water'] = len(water)
     report['wetland'] = len(wetland)
     report['green'] = len(green)

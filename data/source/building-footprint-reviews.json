@@ -22,6 +22,62 @@
         "imageSha256": "3d643a7b74a7cccd5a9420d179d3963c561614b06411b8c23372626bfaa4c5db",
         "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.02284%2C22.53886%2C19"
       }
+    },
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 95461,
+      "bboxWgs84": [114.05852300791844, 22.5426861168899, 114.05870977873909, 22.542765482227434],
+      "rawHeightM": 11.842892,
+      "reason": "reviewed-shennan-median-lawn",
+      "checkedAt": "2026-11-12",
+      "description": "金田路以东分隔带，航拍为绿化与低矮构件，按用户要求并入草地。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "release": 43291,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/19/228432/428253"
+      }
+    },
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 95462,
+      "bboxWgs84": [114.0582039205503, 22.54269242708873, 114.0583695965855, 22.54277054693034],
+      "rawHeightM": 17.280892,
+      "reason": "reviewed-shennan-median-lawn",
+      "checkedAt": "2026-11-12",
+      "description": "金田路立交东口分隔带，按航拍和用户要求并入草地。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "release": 43291,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/19/228432/428253"
+      }
+    },
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 95866,
+      "bboxWgs84": [114.06467077336261, 22.542779365580774, 114.06482118732082, 22.542866481217477],
+      "rawHeightM": 29.582492,
+      "reason": "reviewed-shennan-median-lawn",
+      "checkedAt": "2026-11-12",
+      "description": "彩田路以西分隔带的低矮地面构件，按用户要求并入草地。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "release": 43291,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/19/228432/428262"
+      }
+    },
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 100269,
+      "bboxWgs84": [114.06207461535442, 22.542737957372843, 114.06237470627283, 22.54280159301782],
+      "rawHeightM": 19.791392,
+      "reason": "reviewed-shennan-median-lawn",
+      "checkedAt": "2026-11-12",
+      "description": "两幅主路之间的绿带及圆形地面构件，按用户要求并入草地。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "release": 43291,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/19/228432/428259"
+      }
     }
   ]
 }

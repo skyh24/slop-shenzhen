@@ -1034,6 +1034,94 @@
       "id": "globfp/8379",
       "heightSource": "globfp",
       "match": "source-fid-and-bounds"
+    },
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 95461,
+      "bboxWgs84": [
+        114.05852300791844,
+        22.5426861168899,
+        114.05870977873909,
+        22.542765482227434
+      ],
+      "rawHeightM": 11.842892,
+      "reason": "reviewed-shennan-median-lawn",
+      "checkedAt": "2026-11-12",
+      "description": "金田路以东分隔带，航拍为绿化与低矮构件，按用户要求并入草地。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "release": 43291,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/19/228432/428253"
+      },
+      "id": "globfp/36321",
+      "heightSource": "globfp",
+      "match": "source-tile-fid-and-bounds"
+    },
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 95462,
+      "bboxWgs84": [
+        114.0582039205503,
+        22.54269242708873,
+        114.0583695965855,
+        22.54277054693034
+      ],
+      "rawHeightM": 17.280892,
+      "reason": "reviewed-shennan-median-lawn",
+      "checkedAt": "2026-11-12",
+      "description": "金田路立交东口分隔带，按航拍和用户要求并入草地。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "release": 43291,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/19/228432/428253"
+      },
+      "id": "globfp/36322",
+      "heightSource": "globfp",
+      "match": "source-tile-fid-and-bounds"
+    },
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 95866,
+      "bboxWgs84": [
+        114.06467077336261,
+        22.542779365580774,
+        114.06482118732082,
+        22.542866481217477
+      ],
+      "rawHeightM": 29.582492,
+      "reason": "reviewed-shennan-median-lawn",
+      "checkedAt": "2026-11-12",
+      "description": "彩田路以西分隔带的低矮地面构件，按用户要求并入草地。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "release": 43291,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/19/228432/428262"
+      },
+      "id": "globfp/36726",
+      "heightSource": "globfp",
+      "match": "source-tile-fid-and-bounds"
+    },
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 100269,
+      "bboxWgs84": [
+        114.06207461535442,
+        22.542737957372843,
+        114.06237470627283,
+        22.54280159301782
+      ],
+      "rawHeightM": 19.791392,
+      "reason": "reviewed-shennan-median-lawn",
+      "checkedAt": "2026-11-12",
+      "description": "两幅主路之间的绿带及圆形地面构件，按用户要求并入草地。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "release": 43291,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/19/228432/428259"
+      },
+      "id": "globfp/38139",
+      "heightSource": "globfp",
+      "match": "source-tile-fid-and-bounds"
     }
   ],
   "globfpCandidates": 51434,
@@ -6408,7 +6496,7 @@
     "kept": 5859,
     "truncated": true
   },
-  "globfpAdded": 5859,
+  "globfpAdded": 5855,
   "overtureMisidentified": {
     "rule": "Overture-only (no OSM building), area<300 m2, and (>= 60% inside OSM plaza/green or >= 80% inside ground carriageway buffer 1 m)",
     "count": 1269,
@@ -19805,14 +19893,14 @@
       ]
     }
   },
-  "buildings": 34118,
+  "buildings": 34114,
   "heightSources": {
     "landmark": 6,
     "osm-height": 951,
     "osm-levels": 4219,
     "overture-height": 1,
     "overture-floors": 11,
-    "globfp": 13646,
+    "globfp": 13642,
     "estimate": 15280,
     "published": 4
   },
@@ -39851,31 +39939,31 @@
       "podium": 14,
       "canopy": 136,
       "bridge": 12,
-      "unknown": 22098
+      "unknown": 22094
     },
     "upstreamFamilies": {
       "osm": 12692,
       "overture-eastasia": 8629,
-      "globfp-eastasia": 5490,
+      "globfp-eastasia": 5486,
       "eastasia-shared": 7307,
       "unknown": 0
     },
     "confidence": {
       "footprint": {
         "unknown": 0,
-        "low": 21426,
+        "low": 21422,
         "medium": 12692,
         "high": 0
       },
       "height": {
         "unknown": 0,
-        "low": 28926,
+        "low": 28922,
         "medium": 5188,
         "high": 4
       },
       "era": {
         "unknown": 15936,
-        "low": 5490,
+        "low": 5486,
         "medium": 12692,
         "high": 0
       }
@@ -44569,10 +44657,10 @@
     "unresolvedLinks": [],
     "timing": {
       "baselineSeconds": 0.071,
-      "stationSeconds": 0.169,
-      "profileSeconds": 1.023,
-      "vertexSeconds": 0.921,
-      "totalSeconds": 2.298
+      "stationSeconds": 0.16,
+      "profileSeconds": 1.041,
+      "vertexSeconds": 0.84,
+      "totalSeconds": 2.226
     },
     "limitations": [
       "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
@@ -44624,6 +44712,46 @@
           "positionSource": "documented-median-between-osm-carriageways",
           "boundarySource": "derived-estimate",
           "areaM2": 10345.08
+        }
+      },
+      {
+        "id": "shennan-civic-center",
+        "bounds": [
+          -334.30140777279934,
+          338.8574148562681,
+          336.3586472044332,
+          479.4943157936296
+        ],
+        "roadIds": [],
+        "unresolvedVerticalWays": [],
+        "sidewalkIds": [],
+        "crossingIds": [],
+        "medianSource": {
+          "source": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.0545%2C22.5426%2C19",
+          "positionSource": "documented-median-between-osm-carriageways",
+          "boundarySource": "derived-estimate",
+          "areaM2": 38859.45,
+          "planting": "open-lawn"
+        }
+      },
+      {
+        "id": "shennan-civic-east",
+        "bounds": [
+          351.7879429468037,
+          359.8975811381984,
+          1362.921123993199,
+          442.9508690932278
+        ],
+        "roadIds": [],
+        "unresolvedVerticalWays": [],
+        "sidewalkIds": [],
+        "crossingIds": [],
+        "medianSource": {
+          "source": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.0622%2C22.5428%2C19",
+          "positionSource": "documented-median-between-osm-carriageways",
+          "boundarySource": "derived-estimate",
+          "areaM2": 10051.92,
+          "planting": "open-lawn"
         }
       },
       {
@@ -44691,19 +44819,19 @@
         "nearestPavingM": 13.93
       }
     ],
-    "features": 10,
-    "planarTriangles": 6039,
+    "features": 12,
+    "planarTriangles": 6379,
     "medianShrubsEstimated": 276,
     "signalApproaches": 4,
     "signalTimingSource": "user-defined-game-simulation"
   },
   "terrainSurface": {
     "chunks": 534,
-    "vertices": 239318,
-    "triangles": 387341,
+    "vertices": 239480,
+    "triangles": 387483,
     "areaKm2": 105.746514,
-    "areaErrorM2": -1.2e-07,
-    "seconds": 3.8,
+    "areaErrorM2": -3e-08,
+    "seconds": 4.69,
     "waterLevelsGenerated": false,
     "heightSource": "urban-datum",
     "exclusions": [
@@ -45062,7 +45190,7 @@
         ]
       }
     ],
-    "stonePavingAreaM2": 183797.829
+    "stonePavingAreaM2": 206135.5
   },
   "metro": {
     "network": "深圳地铁",
@@ -45485,25 +45613,25 @@
   "trees": {
     "status": "generated",
     "requested": 159225,
-    "kept": 59463,
+    "kept": 59440,
     "cap": 60000,
     "countsBySource": {
       "osm-node": 391,
       "osm-row": 663,
       "simulated-street": 28007,
-      "simulated-park": 30402
+      "simulated-park": 30379
     },
     "speciesCounts": {
-      "ficus": 17784,
-      "camphor": 13137,
-      "phoenix": 9514,
-      "bauhinia": 7046,
+      "ficus": 17777,
+      "camphor": 13131,
+      "phoenix": 9510,
+      "bauhinia": 7042,
       "royal-palm": 7215,
-      "kapok": 4767
+      "kapok": 4765
     },
     "appearanceSources": {
       "osm-tags": 25,
-      "species-estimate": 59438
+      "species-estimate": 59415
     },
     "streetLengthM": 907692.2,
     "parkAreaM2": 40753269.7,
@@ -45521,7 +45649,8 @@
       "street-plaza": 39,
       "street-road-corridor": 18414,
       "street-water": 1,
-      "total-cap": 0
+      "total-cap": 0,
+      "civic-stone-paving": 23
     },
     "skippedLinks": {
       "short": 1186
@@ -45529,7 +45658,7 @@
     "skippedAreas": {},
     "parkKept": {
       "destination": 3620,
-      "otherGreen": 26782
+      "otherGreen": 26759
     },
     "rules": {
       "streetClasses": [
@@ -45802,16 +45931,16 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 3241,
-    "metadataBytes": 7756748,
-    "numericBytes": 14522112,
-    "uncompressedBytes": 22278912,
+    "columns": 3247,
+    "metadataBytes": 7759061,
+    "numericBytes": 14548592,
+    "uncompressedBytes": 22307704,
     "lossless": true,
-    "compressedBytes": 5545994,
-    "compressedSha256": "003cdce1c5b9f5f1cdc0e7b550f607401054adb88c91a9c921cbfc308b5ccd12"
+    "compressedBytes": 5557439,
+    "compressedSha256": "7618a8589595a62f4b62194aebdd6548ad050564f19fab00d310455f4e1cd653"
   },
-  "outputBytes": 5558514,
-  "seconds": 15.9,
+  "outputBytes": 5568465,
+  "seconds": 23.8,
   "urbanDatum": {
     "heightSource": "urban-datum",
     "sourceHeightSource": "copernicus-glo30-dsm",
@@ -45937,13 +46066,26 @@
       ],
       "source": "Neutral hardscape appearance estimated within reviewed retail and commercial outlines, excluding mapped green surfaces. No claim about stone material or public access.",
       "areaM2": 183797.83
+    },
+    "civicPaving": {
+      "osmIds": [
+        "relation/10750347",
+        "way/776182770"
+      ],
+      "surface": "paving_stones",
+      "source": "https://www.szft.gov.cn/bmxx/qcgzfj/gzdt/content/post_12188236.html",
+      "areaM2": 22338.99
     }
   },
   "groundRebuild": {
-    "basePayloadSha256": "090794d1400506d557f0c705175048dcef82c0bb62c8d1f6c6c7f03a8d65afd3",
+    "basePayloadSha256": "34482b9975613a25a80ef286647b8786298c5f2eb204bf1c8d414bdd44d8e16a",
     "changedSections": [
       "terrain",
-      "terrainSurface"
+      "terrainSurface",
+      "buildings",
+      "green",
+      "roadFrontage",
+      "trees"
     ],
     "rebuiltChunks": [
       "-28,-10",
@@ -46482,5 +46624,14 @@
       "6,11"
     ]
   },
-  "outputSha256": "8c9dc4c74bcbab209cef63231a2b1c56d94d3c68f6a7c976512b874371be49e6"
+  "outputSha256": "235fb5e2c98dd429dd7c960d18d8c1c49e73f714ee91d604e8435942d1317419",
+  "civicRebuild": {
+    "removedMedianBuildings": [
+      "globfp/36321",
+      "globfp/36322",
+      "globfp/36726",
+      "globfp/38139"
+    ],
+    "removedPavingTrees": 23
+  }
 }

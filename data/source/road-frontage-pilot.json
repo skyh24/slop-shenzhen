@@ -6,6 +6,8 @@
     "shennanDesign": "https://www.szmedi.com.cn/xmzs/info_26.aspx?itemid=11&lcid=12",
     "chegongmiaoPlan": "https://pnr.sz.gov.cn/ywzy/fdtz/cggbcx/ftq/content/post_5835728.html",
     "centralPlanting": "https://zyeen.com/news/373.html",
+    "civicMedian": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.0545%2C22.5426%2C19",
+    "civicEastMedian": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.0622%2C22.5428%2C19",
     "d1Landscaping": "https://cgj.sz.gov.cn/xsmh/szlh/gggs/content/post_9539774.html",
     "hongshulinIntersection": "https://www.szft.gov.cn/attachment/1/1393/1393860/11025408.pdf",
     "roadDesignGuide": "https://jtys.sz.gov.cn/attachment/0/293/293220/5584680.pdf",
@@ -28,6 +30,38 @@
         "evidence": "centralPlanting"
       },
       "entranceNodeIds": [1491790883]
+    },
+    {
+      "id": "shennan-civic-center",
+      "bounds": [114.05125, 22.54197, 114.05777, 22.54324],
+      "roadNames": [],
+      "sidewalks": [],
+      "crossings": [],
+      "median": {
+        "opposingChains": [
+          ["way/616351220"],
+          ["way/1050725173", "way/1050725174", "way/1132175532"]
+        ],
+        "edgeInsetEstimateM": 0.6,
+        "evidence": "civicMedian",
+        "planting": "open-lawn"
+      }
+    },
+    {
+      "id": "shennan-civic-east",
+      "bounds": [114.05792, 22.5423, 114.06775, 22.54305],
+      "roadNames": [],
+      "sidewalks": [],
+      "crossings": [],
+      "median": {
+        "opposingChains": [
+          ["way/1050725184", "way/1050725158"],
+          ["way/1132175532", "way/42351689", "way/1050532711"]
+        ],
+        "edgeInsetEstimateM": 0.6,
+        "evidence": "civicEastMedian",
+        "planting": "open-lawn"
+      }
     },
     {
       "id": "shennan-hongshulin",

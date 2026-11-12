@@ -3,6 +3,11 @@
   "osmSnapshotId": "osm-guangdong",
   "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
   "checkedAt": "2026-11-12",
+  "civicPaving": {
+    "osmIds": ["relation/10750347", "way/776182770"],
+    "surface": "paving_stones",
+    "source": "https://www.szft.gov.cn/bmxx/qcgzfj/gzdt/content/post_12188236.html"
+  },
   "datum": {
     "heightM": 8.0,
     "heightSource": "urban-datum",

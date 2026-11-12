@@ -25,6 +25,22 @@ test('road frontage resolves its four source approach nodes on ground-only direc
   assert.equal(source.entrances[0].status, 'source-entrance-ground-connection-unresolved');
 });
 
+test('Civic Square has stone on the main axis and keeps planted ground to the east', () => {
+  const chunk = raw.terrainSurface.chunks.find(row => row.id === '0,0');
+  const { positions, kinds, origin } = chunk;
+  const stoneVertices = kinds.flatMap((kind, i) => kind === 3
+    ? [[positions[i * 3] + origin[0], positions[i * 3 + 2] + origin[1]]]
+    : []);
+  assert.ok(stoneVertices.some(([x, z]) => x > 15 && x < 65 && z > 165 && z < 260));
+  assert.ok(!stoneVertices.some(([x, z]) => x > 100 && x < 200 && z > 165 && z < 260));
+  assert.ok(kinds.some((kind, i) => kind === 1
+    && positions[i * 3] + origin[0] > 100 && positions[i * 3] + origin[0] < 200
+    && positions[i * 3 + 2] + origin[1] > 165 && positions[i * 3 + 2] + origin[1] < 260));
+  const trees = raw.trees;
+  assert.ok(!trees.x.some((x, i) => Math.abs(x) < 650 && trees.z[i] > 1560 && trees.z[i] < 2750
+    && trees.sources[trees.source[i]].startsWith('simulated-')));
+});
+
 test('Beihuan markings and the median use only the reviewed directed source links', () => {
   const manifest = JSON.parse(readFileSync(join(__dirname, '../data/source/beihuan-profile.json'), 'utf8'));
   const { links, metadata, nodeIds } = raw.roadGraph;
@@ -63,6 +79,14 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const scene = new THREE.Scene();
   const model = buildSzRoadFrontage(scene, raw.roadFrontage, raw.roadGraph, terrain, { groundHeight, roadHeight });
   assert.equal(model.statistics.signals, 4);
+  for (const [id, x, z] of [['shennan-civic-center', 0, 410], ['shennan-civic-east', 795, 391]]) {
+    const median = model.group.children.find(mesh => mesh.name.startsWith(`${id}:median:`) && mesh.userData.planting);
+    assert.equal(median?.userData.planting.form, 'open-lawn');
+    assert.equal(roadHeight(x, z), null);
+    assert.ok(Math.abs(model.shennanMedianHeight(x, z) - groundHeight(x, z) - 0.25) < 0.0001);
+  }
+  assert.ok(['globfp/36321', 'globfp/36322', 'globfp/36726', 'globfp/38139']
+    .every(id => !raw.buildings.id.includes(id)), 'reviewed Shennan median footprints cannot become buildings');
   assert.ok(model.statistics.curbSegments > 0);
   assert.equal(model.statistics.curbSegments * 2, model.statistics.curbTriangles);
   assert.ok(model.statistics.shennanFlowerBeds > 8);

@@ -10,7 +10,6 @@ const POLE_SIDES = 12;
 const LIGHTS = ['red', 'yellow', 'green'];
 const ACTIVE_COLORS = [0xff3024, 0xffbc35, 0x26e771];
 const IDLE_COLORS = [0x402321, 0x40331e, 0x173827];
-const SHENNAN_MEDIAN_ID = 'shennan-chegongmiao:median';
 
 function material(colorValue, bias = 0, roughness = 0.9) {
   return new THREE.MeshStandardNodeMaterial({ color: colorValue, roughness, polygonOffset: bias !== 0,
@@ -266,12 +265,14 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const style = { sidewalk: paving, paving, paint: material(0xf1eee5, -3, 0.84), median: material(0x52673b) };
   const grass = plantedSurfaceMaterial(0x4f762b);
   const flowers = plantedSurfaceMaterial(0x864359);
-  const shennan = source.corridors.find(row => row.id === 'shennan-chegongmiao'
-    && row.medianSource?.positionSource === 'documented-median-between-osm-carriageways');
-  let sampleMedian = () => null;
+  const shennanMedians = new Map(source.corridors.filter(row => row.id.startsWith('shennan-')
+    && row.medianSource?.positionSource === 'documented-median-between-osm-carriageways')
+    .map(row => [`${row.id}:median`, row]));
+  const medianSamplers = [];
   const samplers = [];
   for (const feature of source.features) {
-    const planted = shennan && feature.id === SHENNAN_MEDIAN_ID && feature.kind === 'median'
+    const corridor = shennanMedians.get(feature.id);
+    const planted = corridor && feature.kind === 'median'
       && feature.sourceIds.length >= 2 && feature.sourceIds.every(id => /^way\/\d+$/.test(id));
     const mat = planted ? grass : style[feature.kind];
     if (!mat) throw new Error(`Unknown frontage surface: ${feature.kind}`);
@@ -281,23 +282,28 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       if (feature.riseM) for (let i = 1; i < positions.length; i += 3) positions[i] += feature.riseM;
       const mesh = polygonMesh(positions, chunk.origin, mat, chunk.id);
       mesh.userData.sourceIds = feature.sourceIds;
-      if (planted) mesh.userData.planting = { form: 'open-lawn-and-low-flower-beds', positionSource: 'visual-estimate' };
+      if (planted) mesh.userData.planting = {
+        form: corridor.medianSource.planting ?? 'open-lawn-and-low-flower-beds', positionSource: 'visual-estimate'
+      };
       mesh.userData.heightSource = feature.riseM ? 'terrain-relative-design-estimate' : 'terrain';
       group.add(mesh);
     }
     if (feature.riseM) {
       const sample = createRoadHeightSampler(layout.chunks, terrain.grid);
       samplers.push(sample);
-      if (planted) sampleMedian = sample;
+      if (planted) medianSamplers.push({ bounds: corridor.bounds, sample });
       statistics.curbTriangles += addCurbWalls(group, feature, groundHeight, walls);
     }
     statistics.triangleCount += layout.statistics.triangles;
   }
   statistics.curbSegments = statistics.curbTriangles / 2;
   function shennanMedianHeight(x, z) {
-    if (!shennan) return null;
-    const [x0, z0, x1, z1] = shennan.bounds;
-    return x >= x0 && x <= x1 && z >= z0 && z <= z1 ? sampleMedian(x, z) : null;
+    for (const { bounds: [x0, z0, x1, z1], sample } of medianSamplers) {
+      if (x < x0 || x > x1 || z < z0 || z > z1) continue;
+      const y = sample(x, z);
+      if (y !== null) return y;
+    }
+    return null;
   }
   function contactHeight(x, z) {
     if (!source.corridors.some(({ bounds }) => x >= bounds[0] && x <= bounds[2] && z >= bounds[1] && z <= bounds[3])) return null;

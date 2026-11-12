@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { attribute, fract, fwidth, max, min, mix, positionWorld, smoothstep, vec3 } from 'three/tsl';
 import { unpackSurface, sampler, createGroundSurfaceSampler } from './sz-ground-surface.js';
 
 // 静态地表按 2.4 km 超块合并（与 sz-roads.js 同款逻辑）：页面只需给每个分块一份带位置/法线/颜色/索引的
@@ -57,23 +58,39 @@ export { createGroundSurfaceSampler };
 
 const COLORS = [0xb5b0a2, 0x6f875a, 0x527858, 0xa7a8a4];
 
+function groundMaterial() {
+  const material = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.96 });
+  // 石材接缝只作用于铺装三角面，远处按像素覆盖渐隐。
+  const grid = positionWorld.xz.div(0.72);
+  const tile = fract(grid);
+  const edge = min(min(tile.x, tile.x.oneMinus()), min(tile.y, tile.y.oneMinus()));
+  const pixel = max(fwidth(grid.x), fwidth(grid.y));
+  const joint = smoothstep(0.009, max(0.026, pixel), edge).oneMinus()
+    .mul(smoothstep(0.09, 0.38, pixel).oneMinus());
+  material.colorNode = vec3(mix(1, joint.mul(-0.20).add(1), attribute('paved', 'float')));
+  return material;
+}
+
 export function buildSzGround(scene, surface, options = {}) {
   const chunks = unpackSurface(surface);
   const palette = COLORS.map(value => new THREE.Color(value));
-  const material = options.material ?? new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.96 });
+  const material = options.material ?? groundMaterial();
   const group = new THREE.Group();
   group.name = 'shenzhen-ground';
   const entries = [];
   for (const chunk of chunks.values()) {
     const colors = new Float32Array(chunk.kinds.length * 3);
+    const paved = new Float32Array(chunk.kinds.length);
     chunk.kinds.forEach((kind, i) => {
       const color = palette[kind];
       if (!color) throw new Error(`Unsupported ground kind: ${kind}`);
       color.toArray(colors, i * 3);
+      paved[i] = kind === 3 ? 1 : 0;
     });
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(chunk.positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('paved', new THREE.BufferAttribute(paved, 1));
     geometry.setIndex(new THREE.BufferAttribute(chunk.indices, 1));
     geometry.computeVertexNormals();
     geometry.computeBoundingBox();

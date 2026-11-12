@@ -225,8 +225,7 @@ def _lane_paint(links, clip, preserve, marking_width):
     return unary_union(paint), source_ids
 
 
-def _median(spec, osm_ways, occupied, ground_links):
-    clip = _local_box(spec['bounds'])
+def _median(spec, clip, osm_ways, occupied, ground_links):
     if 'opposingChains' in spec:
         axes = [linemerge([link['line'] for link in ground_links if link['meta']['osmId'] in chain])
                 for chain in spec['opposingChains']]
@@ -313,13 +312,22 @@ def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, repo
         polygons = [('sidewalk', pavement_ids, raised, style['sidewalkRiseM']), ('paving', pavement_ids, flush, 0),
                     ('paint', road_ids + crossings_ids, marks.union(zebra), 0)]
         if median := spec.get('median'):
-            island = _median(median, osm_ways, asphalt.union(building_mask), ground_links)
+            median_clip = _local_box(median['bounds']) if 'bounds' in median else clip
+            # 只补草地的走廊也按源车道取边界，无需加入标线重绘范围。
+            median_links = ground_links if spec['roadNames'] else [link for link in links if _ground(link['meta'])]
+            island = _median(median, median_clip, osm_ways, asphalt.union(building_mask), median_links)
+            # 去掉路缘处由窄缝形成的零碎孤岛。
+            if median.get('planting') == 'open-lawn':
+                island = unary_union([part for part in _polys(island) if part.area >= 40])
             median_ids = median.get('opposingWayIds') or [identity for chain in median['opposingChains'] for identity in chain]
             polygons.append(('median', median_ids, island, style['medianRiseM']))
-            shrub_sites.extend(_shrub_sites(island))
+            if median.get('planting') != 'open-lawn':
+                shrub_sites.extend(_shrub_sites(island))
             corridor['medianSource'] = {'source': manifest['evidence'][median['evidence']],
                                         'positionSource': 'documented-median-between-osm-carriageways',
                                         'boundarySource': 'derived-estimate', 'areaM2': round(island.area, 2)}
+            if 'planting' in median:
+                corridor['medianSource']['planting'] = median['planting']
         for kind, ids, polygon, rise in polygons:
             feature = _encode_surface(kind, ids, polygon, rise)
             if feature['trianglesXZ']:
