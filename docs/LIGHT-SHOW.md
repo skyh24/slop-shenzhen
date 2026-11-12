@@ -22,4 +22,6 @@
 
 真实楼宇参与范围、灯带位置、节目内容和时段尚需逐项来源核实，不能把程序效果写成现实正在演出。优先复核地标替换是否重复、灯带是否穿模、昼夜显隐及近远画面。
 
+街面夜景需同时看人物、路缘、首层和路灯，已有光池只是加色平面，不能代替人物受光。本次画面依据见 [评估](RESEARCH.md#当前画面与代码优化评估2026-11-12)，可读性优化归 [T15](TASKS.md#t15-街面夜景)，真实节目仍归T12。
+
 定向测试为 `tests/sz-light-show.test.cjs`，可经 `python3 tools/qa/check.py --scope street --node tests/sz-light-show.test.cjs` 执行；共享材质变化按 [开发检查](25-FAST-CHECKS.md) 扩大范围。浏览器看完整颜色周期并采样夜景成本。后续仅在 [TASKS T12](TASKS.md#t12-低空apec) 与 [T10](TASKS.md#t10-性能与发布) 派工。
