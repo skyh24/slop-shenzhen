@@ -66,13 +66,7 @@ T1是正式浏览器验收前置。道路专项承接T2/T5/T6/T7/T8相关接口�
 
 #### T9-A 新旧来源对照
 
-已在 `32beed0` 的 76,024 条建筑记录上实取 Overture 2026-10-21.0 的建筑与部件，再确认 `ba39503` 的建筑字段、字典与裁切边界一致。沿用 [33 号方案](33-SHENZHEN-CITYSCAPE-DATA-PLAN.md#3d-数据替换的量化评估) 四个 500 米见方样区的几何门槛，Overture 与现有 531 条记录严格匹配 481 条（90.6%），均为相同 GERS ID 或相同 OSM 对象。286 条旧预测/通用估高记录中，Overture 无新增高度或楼层候选，CMAB 有 4 条候选。扩展边界内相对旧提取多 11,213 个建筑 ID 和 38 个部件 ID。7,453 个建筑 ID 与现有包的最佳 IoU 小于 0.10、且无包内同一 OSM ID，其中 7,382 个来自东亚遥感足迹。58 个带高度的低重叠对象都能在锁定 OSM 快照中找到，其 Overture 足迹面积均低于构建门槛 16 平方米。边缘唯一严格匹配旧估高且有候选高的 `way/1076283977` 在原 OSM 已标 2.3 米，构建器低于 2.5 米时回退为估计。继续逐栋判读现状与父子对象，再定净增、退役和误配数量。 [Overture 下载与版本](https://docs.overturemaps.org/getting-data/cloud-sources/) · [东亚足迹上游](https://zenodo.org/records/8174931)
-
-两套新增实取栅格都适合离线对照。微软 TEMPO 广东 2023Q2/2025Q2 的五个样区和五座塔楼取样共读取 1,196,032 字节 HTTP 范围响应。后海文化广场样区预测建筑覆盖率从 5.93% 到 12.04%，可用来找变化地块。约 10 米的 Cityscape 深圳 GeoTIFF 为 40,018,856 字节，覆盖到 2023 年。用五座有公开建筑高度的塔楼做量级对照，足迹所触及的最高像元与公开高度差的中位数/P90 为 TEMPO 2025Q2 356.81/483.22 米、Cityscape 2023 374.57/481.01 米。像元和建筑顶点的统计口径不同，此测试衡量用栅格直接替换塔楼高度的偏差。低层区独立逐栋高度、现状足迹及退役验证待完成。 [TEMPO](https://github.com/microsoft/buildings) · [Cityscape 数据](https://dataverse.harvard.edu/api/access/datafile/11989560) · [平安北塔](https://www.skyscrapercenter.com/building/id/54) · [华润大厦](https://www.skyscrapercenter.com/building/china-resources-tower/14589) · [腾讯双塔工程论文](https://global.ctbuh.org/resources/papers/2976-paper34-v2.pdf) · [招银主塔](https://www.skyscrapercenter.com/building/id/42765/)
-
-平安同名 Overture 足迹已由专模用作底轮廓，按正式入口的建筑构建路径复算无第二个通用楼体或碰撞体。招银主塔 393 米有 CVU 的建筑顶点口径。承建方竣工稿给 388 米，稿内未给测量起止点。当前出图用超总专模的 387 米设计值，393 米记录由专模接管。样区测绘或带口径的竣工图仍待核，2024 OBJ/LAS 和 2025 DOM 属依申请资料。 [CVU](https://www.skyscrapercenter.com/building/id/42765/) · [承建方竣工稿](https://www.cscec.com.cn/xwzx_new/zqydt_new/202603/3934746.html)
-
-`ba39503` 同一全城 JSON 无损压缩试算为 gzip 10,652,939 字节、Brotli 质量 6 为 8,392,640 字节，减少 21.2%，已逐字节回解校验。五个 2 公里见方启动区试算，建筑列本身为约 20–79 kB gzip，保留其他全城图层时总计约 7.96–8.02 MB gzip。浏览器交付、远景天际线、跨块通行与碰撞预取尚待实施和验收。对象差分、脚本和取样结果留在本地 `docs/qa/source-efficiency-20261112/`。
+已做 [CMAB 四样区预筛](33-SHENZHEN-CITYSCAPE-DATA-PLAN.md#3d-数据替换的量化评估)，286 条旧预测/通用估高记录中有 4 条匹配到候选楼高，独立真值待核。后海文化广场—人才公园、白石洲南、大冲润玺02-04的正式参考集与对象级对照尚未交付。优先复核平安金融中心的同名 Overture 足迹、招银主塔 393/388 米口径及近期地块变化。Overture 同版补裁切的净增量待测；2024 OBJ/LAS 和 2025 DOM 属依申请资料。交付仍为保留/改高/换足迹/新增/退役/待核清单，逐字段附日期与来源。
 
 #### T9-B 有证据的建筑修订
 
