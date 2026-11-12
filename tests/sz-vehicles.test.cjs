@@ -174,12 +174,15 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   // 上下同步加宽：tumblehome 收小，车顶/玻璃房一起变宽
   assert.ok(taxiLayout.body(-2.35).W - taxiLayout.body(-2.35).xE < 0.09,
     'the hatch shoulder follows the glass without a wide ledge');
-  // 低矮圆润前脸：长收圆 + 大 rake，机舱盖低、风挡大倾角
-  const noseFront = cars.carTipZ(taxiBody, 0.95, true);
+  // 从前轮上方到机盖前缘缓降，前灯和保险杠接近同一立面。
+  const nose = taxiLayout.body(taxiBody.zFront);
+  const noseFront = cars.carTipZ(taxiBody, nose.yT, true);
   const noseBumper = cars.carTipZ(taxiBody, 0.6, true);
-  assert.ok(noseBumper - noseFront > 0.12, `raked nose: bumper ${noseBumper.toFixed(2)} vs hood line ${noseFront.toFixed(2)}`);
-  assert.ok(taxiLayout.body(2.1).yE < 0.95, `low bonnet line ${taxiLayout.body(2.1).yE.toFixed(2)}`);
-  assert.ok(taxiLayout.body(1.8).yE >= 0.93, 'the nose meets the higher hood');
+  const noseSetback = noseBumper - noseFront;
+  assert.ok(noseSetback >= 0.025 && noseSetback < 0.075, `upright front fascia setback ${noseSetback.toFixed(3)} m`);
+  const hoodDrop = taxiLayout.body(1.8).yT - nose.yT;
+  assert.ok(hoodDrop >= 0.035 && hoodDrop < 0.095, `gentle front hood drop ${hoodDrop.toFixed(3)} m`);
+  assert.ok(nose.W > axleHalfWidth * 0.75, 'the front retains width past the wheel arch');
   const sideWindowBase = Array.from({ length: 17 }, (_, i) => taxiLayout.cabin(1.06 - i * 0.20).beltY);
   assert.ok(Math.max(...sideWindowBase) - Math.min(...sideWindowBase) < 0.012,
     'the window belt is level from the front door to the rear quarter');
