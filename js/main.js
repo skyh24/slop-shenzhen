@@ -36,7 +36,7 @@ import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
 import { createAutoDrive } from './sz-auto-drive.js';
 import { VEHICLE_SPECS } from './sz-vehicles.js';
 import { sceneUniforms } from './sz-materials.js';
-import { ThirdPersonControllerManager, FLIGHT_START_ALTITUDE } from './controllers.js';
+import { ThirdPersonControllerManager, FLIGHT_START_ALTITUDE, PLAYER_SPEED_LIMITS } from './controllers.js';
 import { TouchControls } from './touch-controls.js';
 import { GamepadControls } from './gamepad-controls.js';
 import { CameraSystem, CAMERA_PRESETS } from './cameras.js';
@@ -480,9 +480,6 @@ async function initApp() {
     onCloseMap: () => mapSystem.toggleFullMap(false)
   });
 
-  // 速度表满格按各移动方式的最高速度（米/秒）。
-  const topSpeed = { person: 8.2, car: 36, cyclist: 19, helicopter: 36 };
-
   function renderControlHints(mode) {
     if (!elControlsHint) return;
     const items = (STR.controlHints[mode] || []).map(([keys, action]) => {
@@ -634,7 +631,7 @@ async function initApp() {
   });
   const hud = createHudTelemetry({
     els: { fps: elFps, speed: elSpeed, speedMeter: elSpeedMeter, altitude: elAltitude },
-    controllerManager, cameraSystem, topSpeed, renderLocation
+    controllerManager, cameraSystem, topSpeed: PLAYER_SPEED_LIMITS, renderLocation
   });
   function teleportTo(x, z, heading, options = {}) {
     if (!inBounds(x, z)) return null;

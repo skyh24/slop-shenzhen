@@ -43,7 +43,7 @@ function keyboardHarness(nyc = {}) {
     nearestRoads: () => [],
     ...nyc
   };
-  const { ThirdPersonControllerManager } = loadModule(source, {
+  const { ThirdPersonControllerManager, PLAYER_SPEED_LIMITS } = loadModule(source, {
     globals: { window, document },
     imports: {
       'three/webgpu': {},
@@ -74,6 +74,7 @@ function keyboardHarness(nyc = {}) {
   controller.bindKeyboard();
   return {
     controller,
+    PLAYER_SPEED_LIMITS,
     window,
     document,
     key(type, code, tagName = 'BODY') {
@@ -1084,7 +1085,7 @@ test('passenger aircraft caps speed and altitude and brings level skids onto ter
   controller.maxFlightAltitude = 400;
   controller.keys.forward = controller.keys.up = true;
   for (let i = 0; i < 120; i++) controller.updateHelicopter(1 / 60);
-  assert.ok(Math.abs(ent.speed * 3.6 - 250) < 0.01);
+  assert.ok(Math.abs(ent.speed * 3.6 - 300) < 0.01);
   assert.equal(ent.verticalSpeed, 20);
 
   ent.position.y = 399.97;
@@ -1150,9 +1151,9 @@ test('aircraft stops before terrain above its ceiling without compressing skids 
 });
 
 
-test('player vehicles reach their forward speed limits in four seconds across frame rates', () => {
+test('player vehicles reach their requested speed limits in four seconds across frame rates', () => {
   for (const hz of [30, 60, 120, null]) {
-    for (const [mode, target] of [['car', 80], ['cyclist', 60], ['helicopter', 500]]) {
+    for (const [mode, target] of [['car', 80], ['cyclist', 60], ['helicopter', 600], ['helicopter', -400]]) {
       const sim = mode === 'car' ? carDynamicsHarness() : teleportHarness(mode);
       const { controller } = sim;
       const entity = sim.car || sim.ent;
@@ -1160,21 +1161,67 @@ test('player vehicles reach their forward speed limits in four seconds across fr
       Object.assign(entity, { speed: 0, heading: 0, verticalSpeed: 0 });
       controller.getGroundHeight = () => 0;
       controller.resolveHorizontalCollision = () => {};
-      controller.keys.forward = true;
-      const update = () => mode === 'car' ? 'updateCar' : mode === 'cyclist' ? 'updateCyclist' : 'updateHelicopter';
+      const input = target < 0 ? 'backward' : 'forward';
+      controller.keys[input] = true;
+      const update = mode === 'car' ? 'updateCar' : mode === 'cyclist' ? 'updateCyclist' : 'updateHelicopter';
       let elapsed = 0, frame = 0;
       for (const milestone of [2, 4, 6]) {
         while (elapsed < milestone - 1e-10) {
           const dt = Math.min(hz ? 1 / hz : [1 / 30, 1 / 144, 1 / 60][frame++ % 3], milestone - elapsed);
-          controller[update()](dt);
+          controller[update](dt);
           elapsed += dt;
         }
         assert.ok(Math.abs(entity.speed * 3.6 - target * Math.min(1, milestone / 4)) < 0.01,
           `${mode} reaches the expected speed at ${milestone}s with ${hz || 'variable'} FPS`);
       }
-      controller.keys.forward = false;
-      controller[update()](0.1);
-      assert.ok(entity.speed >= 0 && entity.speed * 3.6 < target, 'release slows the vehicle');
+      assert.equal(Math.sign(entity.position.z), Math.sign(target), 'the vehicle moves in the requested direction');
+      controller.keys[input] = false;
+      controller[update](0.1);
+      assert.equal(Math.sign(entity.speed), Math.sign(target));
+      assert.ok(Math.abs(entity.speed * 3.6) < Math.abs(target), 'release slows the vehicle');
     }
+  }
+});
+
+test('aircraft at top speed cannot skip a narrow obstacle during a slow frame', () => {
+  for (const [speed, obstacleZ] of [[600, 4], [-400, -2.8]]) {
+    const { controller, ent } = teleportHarness('helicopter', [
+      { minX: -20, maxX: 20, minY: 99, maxY: 110, minZ: obstacleZ - 0.1, maxZ: obstacleZ + 0.1 }
+    ]);
+    Object.assign(ent.position, { x: 0, y: 100, z: 0 });
+    ent.collisionBounds = { min: { x: -3, y: 0, z: -2 }, max: { x: 3, y: 2.2, z: 2 } };
+    Object.assign(ent, { heading: 0, speed: speed / 3.6, verticalSpeed: 0 });
+    controller.keys[speed > 0 ? 'forward' : 'backward'] = true;
+    controller.updateHelicopter(0.05);
+    assert.ok(Math.abs(ent.position.z) <= Math.abs(obstacleZ) - 2.1 + 1e-6);
+    assert.ok(Math.abs(ent.speed * 3.6) < 1);
+  }
+});
+
+test('speed telemetry uses the physical maximum for each mode and reports speed magnitude', () => {
+  const { PLAYER_SPEED_LIMITS } = keyboardHarness();
+  const ui = readFileSync(join(__dirname, '../js/sz-ui.js'), 'utf8');
+  const { createHudTelemetry } = loadModule(ui, {
+    imports: { './sz-strings.js': {}, './sz-city-config.js': {} }
+  });
+  const entity = { speed: 0, position: { x: 0, y: 200, z: 0 } };
+  const controllerManager = { getActiveEntity: () => entity };
+  const els = { speed: {}, speedMeter: { style: {} } };
+  const hud = createHudTelemetry({
+    els, controllerManager, topSpeed: PLAYER_SPEED_LIMITS, renderLocation() {},
+    cameraSystem: { getActivePreset: () => ({ category: 'follow' }) }
+  });
+  for (const [mode, speedKmh, expectedFill] of [
+    ['person', 0, 0], ['person', 8.2 * 3.6 / 2, 0.5], ['person', 8.2 * 3.6, 1],
+    ['car', 80, 2 / 3], ['car', 120, 1], ['car', 130, 1],
+    ['cyclist', 30, 0.5], ['cyclist', 60, 1],
+    ['helicopter', 300, 0.5], ['helicopter', 600, 1], ['helicopter', -400, 2 / 3]
+  ]) {
+    controllerManager.activeMode = mode;
+    entity.speed = speedKmh / 3.6;
+    hud.update(0.25);
+    assert.equal(els.speed.textContent, String(Math.round(Math.abs(speedKmh))), mode);
+    const fill = Number(els.speedMeter.style.transform.match(/^scaleX\((.+)\)$/)?.[1]);
+    assert.ok(Math.abs(fill - expectedFill) < 1e-9, mode + ' at ' + speedKmh + ' km/h');
   }
 });

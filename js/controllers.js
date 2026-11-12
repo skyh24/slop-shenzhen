@@ -32,9 +32,12 @@ const BICYCLE_DRIVE = {
 const CAR_AUTO_DRIVE = { ...CAR_DRIVE, speed: 36, forwardAcceleration: null };
 // 2026-11-11 用户指定升降上限 20 m/s、2 秒加速到位，因此垂直加速度取 10 m/s²。
 const EVTOL_DRIVE = {
-  speed: 500 / 3.6, acceleration: 500 / 3.6 / 4, reverseSpeed: 21.6,
+  speed: 600 / 3.6, reverseSpeed: 400 / 3.6, accelerationSeconds: 4, braking: 24,
   verticalSpeed: 20, verticalAcceleration: 10, altitude: 400
 };
+export const PLAYER_SPEED_LIMITS = Object.freeze({
+  person: 8.2, car: CAR_DRIVE.boostSpeed, cyclist: BICYCLE_DRIVE.speed, helicopter: EVTOL_DRIVE.speed
+});
 const PERSON_STEP_UP = 0.38;
 const CONTACT_EPSILON = 1e-5;
 
@@ -1102,7 +1105,7 @@ class ThirdPersonControllerManager {
   updatePerson(dt) {
     if (dt <= 0) return;
     const p = this.entities.person;
-    const maxSpeed = 8.2;
+    const maxSpeed = PLAYER_SPEED_LIMITS.person;
     const turnRate = 2.6;
 
     let targetSpeed = 0;
@@ -1386,10 +1389,8 @@ class ThirdPersonControllerManager {
   }
 
   updateHelicopter(dt) {
-    if (dt <= 0) return;
+    if (!(dt > 0) || !Number.isFinite(dt)) return;
     const h = this.entities.helicopter;
-    const { speed: maxHorizSpeed, verticalSpeed: maxVertSpeed } = EVTOL_DRIVE;
-
     let fwdInput = 0;
     if (this.keys.forward) fwdInput = this.keys.forward;
     else if (this.keys.backward) fwdInput = -this.keys.backward;
@@ -1402,9 +1403,35 @@ class ThirdPersonControllerManager {
     if (this.keys.up) vertInput = this.keys.up;
     else if (this.keys.down) vertInput = -this.keys.down;
 
+    // 高速时缩短接触检测间隔，防止跨过窄障碍。
+    const maxTravel = (Math.abs(h.speed) + EVTOL_DRIVE.speed / EVTOL_DRIVE.accelerationSeconds * dt) * dt;
+    const steps = Math.max(1, Math.ceil(maxTravel / 1.5));
+    const step = dt / steps;
+    let floor;
+    for (let i = 0; i < steps; i++) {
+      floor = this.stepHelicopter(h, step, fwdInput, yawInput, vertInput);
+    }
+
+    const targetPitch = h.speed / EVTOL_DRIVE.speed * 0.21;
+    const targetRoll = -yawInput * 0.24;
+    h.pitchAngle += (targetPitch - h.pitchAngle) * Math.min(1, dt * 7);
+    h.rollAngle += (targetRoll - h.rollAngle) * Math.min(1, dt * 7);
+
+    // 落地时滑橇放平，去掉悬停摆动造成的穿地或离地。
+    const airborne = floor === null ? 1 : Math.max(0, Math.min(1, (h.position.y - floor) / 2.2));
+    h.tiltPivot.rotation.x = h.pitchAngle * airborne;
+    h.tiltPivot.rotation.z = h.rollAngle * airborne;
+  }
+
+  stepHelicopter(h, dt, fwdInput, yawInput, vertInput) {
+    const { speed, reverseSpeed, accelerationSeconds, braking, verticalSpeed: maxVertSpeed } = EVTOL_DRIVE;
     if (fwdInput !== 0) {
-      h.speed += fwdInput * (fwdInput > 0 && h.speed >= 0 ? EVTOL_DRIVE.acceleration : 24.0) * dt;
-      h.speed = Math.max(-EVTOL_DRIVE.reverseSpeed, Math.min(maxHorizSpeed, h.speed));
+      const limit = fwdInput > 0 ? speed : reverseSpeed;
+      // 反向输入先减速，停稳后用本步剩余时间按新方向加速。
+      const brakingTime = h.speed * fwdInput < 0 ? Math.min(dt, -h.speed / (fwdInput * braking)) : 0;
+      const acceleration = limit / accelerationSeconds;
+      h.speed += fwdInput * (braking * brakingTime + acceleration * (dt - brakingTime));
+      h.speed = Math.max(-reverseSpeed, Math.min(speed, h.speed));
     } else {
       h.speed *= Math.max(0, 1 - dt * 1.8);
     }
@@ -1421,8 +1448,11 @@ class ThirdPersonControllerManager {
     const skidBase = h.collisionBounds?.min.y ?? -0.25;
     const previousSkidY = h.position.y + skidBase;
     const previousX = h.position.x, previousZ = h.position.z;
-    h.position.x += Math.sin(h.heading) * h.speed * dt;
-    h.position.z += Math.cos(h.heading) * h.speed * dt;
+    const sin = Math.sin(h.heading), cos = Math.cos(h.heading);
+    const nextX = previousX + sin * h.speed * dt;
+    const nextZ = previousZ + cos * h.speed * dt;
+    h.position.x = nextX;
+    h.position.z = nextZ;
     h.position.y += h.verticalSpeed * dt;
 
     let landing = this.getFlightSupport(h, previousSkidY);
@@ -1452,15 +1482,13 @@ class ThirdPersonControllerManager {
     }
     this.resolveHorizontalCollision(h.position, 4.5, null, h);
 
-    const targetPitch = (h.speed / maxHorizSpeed) * 0.21;
-    const targetRoll = -yawInput * 0.24;
-    h.pitchAngle += (targetPitch - h.pitchAngle) * Math.min(1, dt * 7);
-    h.rollAngle += (targetRoll - h.rollAngle) * Math.min(1, dt * 7);
-
-    // 落地时滑橇放平，去掉悬停摆动造成的穿地或离地。
-    const airborne = floor === null ? 1 : Math.max(0, Math.min(1, (h.position.y - floor) / 2.2));
-    h.tiltPivot.rotation.x = h.pitchAngle * airborne;
-    h.tiltPivot.rotation.z = h.rollAngle * airborne;
+    // 碰撞把机身推回时，按前后方向上的实际位移限制读数。
+    if (Math.abs(h.position.x - nextX) > 1e-6 || Math.abs(h.position.z - nextZ) > 1e-6) {
+      const actualSpeed = ((h.position.x - previousX) * sin + (h.position.z - previousZ) * cos) / dt;
+      if (h.speed > 0) h.speed = Math.max(0, Math.min(h.speed, actualSpeed));
+      else if (h.speed < 0) h.speed = Math.min(0, Math.max(h.speed, actualSpeed));
+    }
+    return floor;
   }
 }
 
