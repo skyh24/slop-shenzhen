@@ -32,6 +32,7 @@ class TNode {
   get r() { return this.x; }
   get g() { return this.y; }
   get b() { return this.z; }
+  get a() { return this.w; }
   get rgb() { return new TNode(() => this.eval().slice(0, 3)); }
   add(b) { return new TNode(() => broadcast(this, b, (x, y) => x + y)); }
   sub(b) { return new TNode(() => broadcast(this, b, (x, y) => x - y)); }
@@ -122,7 +123,8 @@ const tslStub = {
   normalView: wrap([0, 0, 1]),
   positionViewDirection: wrap([0, 0, 1]),
   uniform: (val) => wrap(val.isVector4 ? [val.x, val.y, val.z, val.w] : [val]),
-  texture: () => {
+  texture: (value) => {
+    if (value.image.width === 320) return wrap([0, 0, 0, 0]);
     plateTextureCreated++;
     return wrap([0.9, 0.7, 0.1, 1]);
   },
@@ -160,11 +162,12 @@ const canvasContext = () => new Proxy({}, {
 });
 const loadCars = () => loadModule(readFileSync(join(__dirname, '../js/cars.js'), 'utf8'), {
   imports: {
-    'three/webgpu': { MeshStandardNodeMaterial, Vector4, CanvasTexture: class {}, SRGBColorSpace: 'srgb' },
+    'three/webgpu': { MeshStandardNodeMaterial, Vector4, CanvasTexture: class { constructor(image) { this.image = image; } }, SRGBColorSpace: 'srgb' },
     'three/tsl': tslStub,
     'three/addons/utils/BufferGeometryUtils.js': { mergeGeometries: () => ({}) },
     'three/addons/geometries/LoftGeometry.js': { LoftGeometry: class {} },
     './city-lighting-materials.js': { cityUniforms: { uInteriorGlow: wrap([0.48]) } },
+    './sz-strings.js': { STR: { vehicleLabels: { taxiMark: '深圳', taxiSign: 'TAXI' } } },
     './vehicles.js': { part: (g) => g, mirrorSection: (s) => s, roundedRectShape: () => ({}), roundedBox: () => ({}) }
   },
   globals: {
@@ -285,25 +288,29 @@ test('Shenzhen locale paints the blue taxi over a white waistline, a red/blue tw
   const hired = styleCode({ livery: 5, wheel: 0 });     // 载客
   const blue = [0.2, 0.55, 0.88];
   const bodyColor = (y, carState) => {
-    env.attrs = { position: [0.2, y, 0.2], normal: [1, 0, 0], partId: [CAR_PARTS.BODY], paintColor: blue, carState };
+    env.attrs = { position: [0.92, y, -0.67], normal: [1, 0, 0], partId: [CAR_PARTS.BODY], paintColor: blue, carState };
     return material.colorNode.eval();
   };
-  // 腰线（0.585 m）以下为白漆，以上保持天蓝
-  const waist = bodyColor(0.5, [0, 0, 0, available]);
-  const upper = bodyColor(0.8, [0, 0, 0, available]);
-  assert.ok(waist[0] > 0.78 && Math.abs(waist[0] - waist[2]) < 0.08, `white waistline below the belt: ${waist}`);
+  // 白漆覆盖门板至腰线附近，窗下和门槛保留蓝漆。
+  const waist = bodyColor(0.79, [0, 0, 0, available]);
+  const upper = bodyColor(1.01, [0, 0, 0, available]);
+  const rocker = bodyColor(0.28, [0, 0, 0, available]);
+  assert.ok(waist[0] > 0.78 && Math.abs(waist[0] - waist[2]) < 0.08, `white door panel below the window: ${waist}`);
   assert.ok(upper[2] - upper[0] > 0.4, `blue upper body: ${upper}`);
+  assert.ok(rocker[2] - rocker[0] > 0.35, `blue rocker below the white door: ${rocker}`);
 
-  // 深圳顶灯一红一蓝：+x 段红（深圳）、-x 段蓝（TAXI），空车时底部一条绿光/绿条
-  const signColor = (x, y, carState) => {
-    env.attrs = { position: [x, y, signZ], normal: [0, 0, 1], partId: [CAR_PARTS.SIGN], paintColor: blue, carState };
+  // 顶灯两面从各自的阅读方向看都是左红右蓝，空车时底部亮绿。
+  const signColor = (x, y, carState, face = 1) => {
+    env.attrs = { position: [x * face, y, signZ], normal: [0, 0, face], partId: [CAR_PARTS.SIGN], paintColor: blue, carState };
     return material.colorNode.eval();
   };
-  const signYFace = signY + 0.06; // 避开中间字形带，取纯底色
-  const redHalf = signColor(0.15, signYFace, [0, 0, 0, available]);
-  const blueHalf = signColor(-0.15, signYFace, [0, 0, 0, available]);
-  assert.ok(redHalf[0] > redHalf[2] + 0.4, `+x sign half is red: ${redHalf}`);
-  assert.ok(blueHalf[2] > blueHalf[0] + 0.4, `-x sign half is blue: ${blueHalf}`);
+  const signYFace = signY + 0.06;
+  for (const face of [1, -1]) {
+    const redHalf = signColor(-0.15, signYFace, [0, 0, 0, available], face);
+    const blueHalf = signColor(0.15, signYFace, [0, 0, 0, available], face);
+    assert.ok(redHalf[0] > redHalf[2] + 0.4, `left sign half is red on face ${face}: ${redHalf}`);
+    assert.ok(blueHalf[2] > blueHalf[0] + 0.4, `right sign half is blue on face ${face}: ${blueHalf}`);
+  }
   const availStrip = signColor(0, signY - 0.04, [0, 0, 0, available]);
   const hiredStrip = signColor(0, signY - 0.04, [0, 0, 0, hired]);
   assert.ok(availStrip[1] > availStrip[0] + 0.25, `空车 strip reads green: ${availStrip}`);
@@ -314,13 +321,12 @@ test('Shenzhen locale paints the blue taxi over a white waistline, a red/blue tw
     return material.emissiveNode.eval();
   };
   const signEmit = (x, y, carState) => emit({ position: [x, y, signZ], normal: [0, 0, 1], partId: [CAR_PARTS.SIGN], paintColor: blue }, carState);
-  const litSign = signEmit(0.15, signYFace, [0, 0, 0, available]);
+  const litSign = signEmit(-0.15, signYFace, [0, 0, 0, available]);
   assert.ok(litSign[0] > 0.4 && litSign[0] > litSign[2] + 0.2, `backlit red sign half glows: ${litSign}`);
   const availGlow = signEmit(0, signY - 0.04, [0, 0, 0, available]);
   const hiredGlow = signEmit(0, signY - 0.04, [0, 0, 0, hired]);
   assert.ok(availGlow[1] > hiredGlow[1] + 1, `空车 strip glows green: ${availGlow} vs ${hiredGlow}`);
 
-  // 尾灯在尾门两侧靠上，位置直接取 spec，避免改体型后测试硬编码失效
   // 蓝顶白身：白色下半身按参考图绕到后保险杠，分色线是平滑水平线，线上方不再有白色碎片/深色下护板
   const evalBody = (position, normal) => {
     env.attrs = { position, normal, partId: [CAR_PARTS.BODY], paintColor: blue, carState: [0, 0, 0, available] };
@@ -329,13 +335,28 @@ test('Shenzhen locale paints the blue taxi over a white waistline, a red/blue tw
   const waistLine = taxi.szWaist;
   const rearLower = evalBody([0.2, waistLine - 0.12, taxi.zRear + 0.1], [0, 0, -1]);
   assert.ok(Math.min(...rearLower) > 0.7, `lower rear bumper is white body paint, not a dark second tier: ${rearLower}`);
-  const rearUpper = evalBody([0.2, waistLine + 0.2, taxi.zRear + 0.1], [0, 0, -1]);
+  const rearUpper = evalBody([0.2, waistLine + 0.08, taxi.zRear + 0.1], [0, 0, -1]);
   assert.ok(rearUpper[2] > rearUpper[0] + 0.25, `above the waist the rear face stays blue: ${rearUpper}`);
-  const rearCorner = evalBody([0.86, waistLine + 0.2, taxi.zRear + 0.45], [1, 0, 0]);
+  const rearCorner = evalBody([0.86, waistLine + 0.08, taxi.zRear + 0.45], [1, 0, 0]);
   assert.ok(rearCorner[2] > rearCorner[0] + 0.2, `upper rear corner stays blue without a white sliver: ${rearCorner}`);
 
-  const brakeAttrs = { position: [taxi.taillight[0], taxi.taillight[1], taxi.zRear + 0.06], normal: [0, 0, -1], partId: [CAR_PARTS.BODY], paintColor: blue };
-  const litBrake = emit(brakeAttrs, [1, 0, 0, available]);
-  const darkBrake = emit(brakeAttrs, [0, 0, 0, available]);
-  assert.ok(litBrake[0] > 0.4 && litBrake[0] > darkBrake[0] * 2.5, `brake lamp stays red: ${litBrake} vs ${darkBrake}`);
+  const [headX, headY] = taxi.headlight;
+  const headAttrs = { position: [headX, headY, taxi.zFront - 0.04], normal: [0, 0, 1], partId: [CAR_PARTS.BODY], paintColor: blue };
+  const projector = emit(headAttrs, [0, 0, 0, available]);
+  assert.ok(projector[0] > 0.12, `front projector emits light: ${projector}`);
+  const turnFront = emit({ ...headAttrs, position: [headX + 0.157, headY + 0.03, taxi.zFront - 0.04] }, [0, 1, 0, available]);
+  assert.ok(turnFront[0] > 1 && turnFront[1] > turnFront[2] + 0.5, `front indicator blinks amber: ${turnFront}`);
+
+  const [tailX, tailY] = taxi.taillight;
+  const tailAttrs = (y) => ({
+    position: [tailX, tailY + y, taxi.zRear + 0.06],
+    normal: [0, 0, -1], partId: [CAR_PARTS.BODY], paintColor: blue
+  });
+  const litBrake = emit(tailAttrs(0.067), [1, 0, 0, available]);
+  const darkBrake = emit(tailAttrs(0.067), [0, 0, 0, available]);
+  assert.ok(litBrake[0] > 0.4 && litBrake[0] > darkBrake[0] * 2.5, `round brake optic brightens red: ${litBrake} vs ${darkBrake}`);
+  const clearUnderBraking = emit(tailAttrs(-0.066), [1, 0, 0, available]);
+  assert.ok(clearUnderBraking[0] < 0.01, `clear section stays dark under braking: ${clearUnderBraking}`);
+  const turn = emit(tailAttrs(-0.126), [0, 1, 0, available]);
+  assert.ok(turn[0] > 1 && turn[1] > turn[2] + 0.5, `lower section blinks amber: ${turn}`);
 });

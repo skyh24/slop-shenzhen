@@ -131,6 +131,7 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
       'three/addons/utils/BufferGeometryUtils.js': buffers,
       'three/addons/geometries/LoftGeometry.js': loft,
       './city-lighting-materials.js': { cityUniforms: { uInteriorGlow: { value: 0.48 } } },
+      './sz-strings.js': { STR: { vehicleLabels: { taxiMark: '深圳', taxiSign: 'TAXI' } } },
       './vehicles.js': vehicles
     },
     globals: { document: { createElement: canvas } }
@@ -153,7 +154,7 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   const taxiBody = cars.BODY_SPECS.taxi;
   const taxiLayout = cars.carLayout(taxiBody);
   const angleFromVertical = (rise, run) => Math.atan2(Math.abs(run), rise) * 180 / Math.PI;
-  assert.ok(taxiSpec.length > 4.85 && taxiSpec.length < 4.95, `taxi length ${taxiSpec.length}`);
+  assert.ok(taxiSpec.length > 4.67 && taxiSpec.length < 4.73, `taxi length ${taxiSpec.length}`);
   assert.ok(taxiSpec.width > 1.9 && taxiSpec.width < 1.95, `taxi width ${taxiSpec.width}`);
   assert.ok(taxiSpec.height > 1.68 && taxiSpec.height < 1.77, `taxi height ${taxiSpec.height}`);
   assert.ok(taxiSpec.wheelbase > 2.88 && taxiSpec.wheelbase < 2.92, `taxi wheelbase ${taxiSpec.wheelbase}`);
@@ -183,6 +184,8 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   const hoodDrop = taxiLayout.body(1.8).yT - nose.yT;
   assert.ok(hoodDrop >= 0.035 && hoodDrop < 0.095, `gentle front hood drop ${hoodDrop.toFixed(3)} m`);
   assert.ok(nose.W > axleHalfWidth * 0.75, 'the front retains width past the wheel arch');
+  const tireToBumper = noseBumper - taxiBody.wheelZ - taxiSpec.radius;
+  assert.ok(tireToBumper > 0.35 && tireToBumper < 0.43, `front tire to bumper ${tireToBumper.toFixed(3)} m`);
   const sideWindowBase = Array.from({ length: 17 }, (_, i) => taxiLayout.cabin(1.06 - i * 0.20).beltY);
   assert.ok(Math.max(...sideWindowBase) - Math.min(...sideWindowBase) < 0.012,
     'the window belt is level from the front door to the rear quarter');
@@ -278,13 +281,13 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
         'the body does not occupy the tire slot');
     }
 
-    // 出租车有曲面车门字、粤B 绿牌和「空车 TAXI」顶灯贴花。
+    // 车门和车牌贴花保留，顶灯文字由灯罩材质绘制。
     const decals = [];
     model.chassis.traverse(({ name }) => { if (name) decals.push(name); });
     if (type === 'taxi') {
       assert.equal(decals.filter(name => name === 'taxi-door-lettering').length, 2);
       assert.ok(decals.includes('front-plate') && decals.includes('rear-plate'));
-      assert.equal(decals.filter(name => name === 'roof-sign-lettering').length, 2);
+      assert.ok(!decals.includes('roof-sign-lettering'), 'roof sign has no second face mesh');
     } else {
       assert.ok(!decals.includes('front-plate'), `${type} has no taxi plate decal`);
     }

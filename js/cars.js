@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 // 只取时段 uniform：直接依赖 city-lighting-materials.js，避免把纽约 tsl-materials.js（它读 city-config / nyc-geodata）
 // 拉进深圳运行时。
 import { cityUniforms } from './city-lighting-materials.js';
+import { STR } from './sz-strings.js';
 import {
   Fn,
   If,
@@ -190,7 +191,7 @@ const BODY_SPECS = {
 // 深圳出租车按用户参考图做高顶两厢，保留圆润车头、宽后舱和近直立的掀背尾门。
 BODY_SPECS.taxi = {
   name: 'taxi',
-  zFront: 2.42,
+  zFront: 2.22,
   zRear: -2.48,
   wheelRadius: 0.365,
   wheelZ: 1.45,
@@ -203,18 +204,18 @@ BODY_SPECS.taxi = {
   stationStep: 0.22, // 出租车用更密的 loft 站，曲面不起棱
   lowerSamples: [0, 0.25, 0.5, 0.75, 1],
   upperSamples: [0.3, 0.58, 0.8, 1],
-  halfWidth: [[2.42, 0.885], [1.45, 0.94], [0, 0.947], [-1.45, 0.941], [-2.48, 0.90]],
-  sill: [[2.42, 0.26], [1.2, 0.235], [-1.2, 0.235], [-2.48, 0.27]],
-  shoulder: [[2.42, 0.62], [1.8, 0.63], [1.45, 0.66], [0, 0.74], [-1.45, 0.83], [-1.93, 0.76], [-2.48, 0.68]],
-  edge: [[2.3, 0.935], [1.8, 0.97], [1.3, 1.035], [1.06, 1.07], [-2.48, 1.07]],
-  crown: [[2.3, 0.031], [1.5, 0.037], [1.15, 0.004], [-2.48, 0.004]],
-  tumble: [[2.42, 0.12], [0.9, 0.1], [-1.6, 0.10], [-2.48, 0.075]],
+  halfWidth: [[2.22, 0.885], [1.45, 0.94], [0, 0.947], [-1.45, 0.941], [-2.48, 0.90]],
+  sill: [[2.22, 0.26], [1.2, 0.235], [-1.2, 0.235], [-2.48, 0.27]],
+  shoulder: [[2.22, 0.62], [1.8, 0.63], [1.45, 0.66], [0, 0.74], [-1.45, 0.83], [-1.93, 0.76], [-2.48, 0.68]],
+  edge: [[2.12, 0.935], [1.8, 0.97], [1.3, 1.035], [1.06, 1.07], [-2.48, 1.07]],
+  crown: [[2.12, 0.031], [1.5, 0.037], [1.15, 0.004], [-2.48, 0.004]],
+  tumble: [[2.22, 0.12], [0.9, 0.1], [-1.6, 0.10], [-2.48, 0.075]],
   // 机盖前段放平，前脸接近直立，转角和保险杠下沿圆收。
-  nose: { halfWidth: [0.38, 0.735, 2.5], edge: [0.25, 0.91, 2.5], crown: [0.25, 0.017, 2.1],
+  nose: { halfWidth: [0.30, 0.735, 2.5], edge: [0.25, 0.91, 2.5], crown: [0.25, 0.017, 2.1],
     sill: [0.24, 0.26, 2.2], shoulder: [0.33, 0.61, 2.5] },
   tail: { halfWidth: [0.46, 0.81, 2.0], edge: [0.24, 1.07, 2.0], crown: [0.24, 0.006, 2],
     sill: [0.34, 0.28, 2], shoulder: [0.34, 0.67, 2] },
-  noseRake: { length: 0.54, y: [[0.26, 0.14], [0.4, 0.06], [0.55, 0.01], [0.68, 0.01], [0.8, 0.028], [0.95, 0.065]], plan: 0.065 },
+  noseRake: { length: 0.45, y: [[0.26, 0.14], [0.4, 0.06], [0.55, 0.01], [0.68, 0.01], [0.8, 0.028], [0.95, 0.065]], plan: 0.065 },
   // 尾门上缘向前微收，后窗下缘接在尾门上沿。
   tailRake: { length: 0.44, y: [[0.26, 0.045], [0.48, 0], [0.65, 0.01], [0.86, 0.025], [1.1, 0.055]], plan: 0.045 },
   cabin: {
@@ -234,19 +235,19 @@ BODY_SPECS.taxi = {
   pillarWidth: 0.026, // 细柱：材质画的立柱半宽（默认 0.038）
   doors: [1.0, -0.44, -1.53],
   handles: [0.35, -0.95],
-  headlight: [0.62, 0.715, 0.24, 0.04],
-  taillight: [0.65, 0.96, 0.155, 0.05],
-  grille: [0.58, 0.34, 0.05],
-  intake: [0.38, 0.52, 0.08],
+  headlight: [0.59, 0.80, 0.24, 0.063],
+  taillight: [0.705, 0.845, 0.092, 0.175],
+  grille: [0.64, 0.37, 0.13],
+  intake: [0.354, 0.55, 0.042],
   plates: [0.45, 0.55],
-  bumperLine: [0.62, 0.55],
+  bumperLine: [0.85, 0.55],
   bumpers: [[0.42, 0.04], [0.46, 0.05]],
   chrome: true,
   cladding: 0,
   sign: true,
   rails: false,
   rearWiper: true,
-  szWaist: 0.54 // 白色下半身分色线高度：以下白漆、以上天蓝
+  szWaist: 0.925 // 白色门板上缘，保留窗下和门槛的蓝色涂装
 };
 BODY_SPECS.pickup = {
   name: 'pickup',
@@ -1525,6 +1526,25 @@ function carPlateTexture() {
   return _carPlateTexture;
 }
 
+let _shenzhenSignTexture;
+
+function shenzhenSignTexture() {
+  if (_shenzhenSignTexture) return _shenzhenSignTexture;
+  const canvas = document.createElement('canvas');
+  canvas.width = 320;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 38px "PingFang SC", "Microsoft YaHei", sans-serif';
+  ctx.fillText(STR.vehicleLabels.taxiMark, canvas.width / 4, canvas.height / 2);
+  ctx.font = 'bold 32px "PingFang SC", "Microsoft YaHei", sans-serif';
+  ctx.fillText(STR.vehicleLabels.taxiSign, canvas.width * 3 / 4, canvas.height / 2);
+  _shenzhenSignTexture = new THREE.CanvasTexture(canvas);
+  return _shenzhenSignTexture;
+}
+
 /**
  * Creates the TSL material for lofted vehicles.
  * Instanced traffic reads the per-instance `paintColor` (vec3) and `carState` (vec4: brake, left (+x) & right (-x)
@@ -1542,6 +1562,7 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
 
   const shenzhen = _carLocale === 'shenzhen';
   const unifiedShell = spec.name === 'taxi';
+  const shenzhenTaxi = shenzhen && unifiedShell;
   const L = carLayout(spec);
   const cab = spec.cabin;
   const fixed = fixedColorHex !== null;
@@ -1729,6 +1750,30 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
 
   // Lamp, roof-sign & CHMSL masks shared by the colour and emissive graphs (each evaluates them in its own branch)
   const headlightMasks = () => {
+    if (shenzhenTaxi) {
+      // 外端后掠的灯罩包住圆形透镜和沿下缘延伸的日行灯。
+      const u = ax.sub(hlX);
+      const v = p.y.sub(hlY).sub(u.mul(0.19));
+      const lampUV = vec2(u, v);
+      const lampFw = vec2(fwX, fwY.add(fwX.mul(0.19)));
+      const taper = smoothstep(0.035, hlW, u).mul(0.024);
+      const housing = rrectEdge(lampUV, vec2(hlW, float(hlH).sub(taper)), 0.024, lampFw);
+      const headlight = cov(housing.d, housing.w).mul(smoothstep(0.025, 0.32, n.z));
+      const lit = cov(housing.d.add(0.008), housing.w).mul(headlight);
+      const projector = length(lampUV);
+      const projectorFw = max(fwX, fwY);
+      const reflector = rrect(vec2(u.add(0.119), v.sub(0.006)), vec2(0.066, 0.023), 0.014, lampFw);
+      const reflectorGlint = reflector.mul(smoothstep(-0.012, 0.019, v));
+      const upperTrim = band(v.sub(float(0.044).sub(taper)), 0.004, lampFw.y);
+      return {
+        headlight,
+        turnFront: rrect(vec2(u.sub(0.157), v), vec2(0.045, 0.016), 0.009, lampFw).mul(lit),
+        projBucket: lit.mul(0.74),
+        projRing: max(band(projector.sub(0.033), 0.008, projectorFw), max(reflectorGlint, upperTrim)).mul(lit),
+        headlightLens: cov(projector.sub(0.024), projectorFw).mul(lit),
+        drl: band(v.add(float(0.039).sub(taper)), 0.0045, lampFw.y).mul(lit)
+      };
+    }
     const hlUV = vec2(ax.sub(hlX), p.y.sub(hlY).sub(ax.sub(hlX).mul(0.032)));
     const headlight = rrect(hlUV, vec2(hlW, hlH), 0.014, fwXY).mul(smoothstep(0.02, 0.25, n.z));
     const turnFront = smoothstep(hlW * 0.76, hlW * 0.83, hlUV.x).mul(headlight);
@@ -1747,6 +1792,25 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     };
   };
   const taillightMasks = () => {
+    if (shenzhenTaxi) {
+      // 竖灯顺着尾门转角微斜，上方圆形红灯，下方是透明灯组。
+      const v = p.y.sub(tlY);
+      const u = ax.sub(tlX).add(v.mul(0.18));
+      const tlUV = vec2(u, v);
+      const lampFw = vec2(fwX.add(fwY.mul(0.18)), fwY);
+      const housing = rrectEdge(tlUV, vec2(tlW, tlH), 0.034, lampFw);
+      const taillight = cov(housing.d, housing.w).mul(smoothstep(0.025, 0.38, n.z.negate()));
+      const tailLens = cov(housing.d.add(0.009), housing.w).mul(taillight);
+      const optic = length(vec2(u, v.sub(0.067)));
+      const opticFw = max(lampFw.x, fwY);
+      return {
+        tlUV, taillight, tailLens,
+        redRearSection: cov(optic.sub(0.059), opticFw),
+        turnRearSection: band(v.add(0.126), 0.018, fwY).mul(cov(abs(u).sub(0.054), lampFw.x)),
+        reverseRearSection: rrect(vec2(u, v.add(0.066)), vec2(0.054, 0.029), 0.016, lampFw),
+        ledBar: band(optic.sub(0.044), 0.007, opticFw)
+      };
+    }
     const tlUV = vec2(ax.sub(tlX), p.y.sub(tlY));
     const tail = rrectEdge(tlUV, tlSize, 0.018, fwXY);
     const taillight = cov(tail.d, tail.w).mul(smoothstep(0.02, 0.25, n.z.negate()));
@@ -1764,14 +1828,15 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     .mul(band(p.x, 0.17, fwX))
     .mul(band(p.y.sub(signY), 0.042, fwY))
     .mul(fadeFine(fwX));
-  // 深圳顶灯一红一蓝两段，字形要横跨两段，字幅比纽约顶灯更宽
-  const szSignGlyphMask = () => smoothstep(0.25, 0.58, sin(p.x.mul(90.0)))
-    .mul(band(p.x, 0.245, fwX))
-    .mul(band(p.y.sub(signY), 0.04, fwY))
-    .mul(fadeFine(fwX));
-  // 深圳顶灯：-x 段蓝色、+x 段红色（对应照片「深圳」红字 + 蓝字部分），底部一条空车绿条
-  const szSignTone = () => mix(color(0x1f5fbf), color(0xc22a29), smoothstep(-0.02, 0.02, p.x));
-  const szSignAvailableStrip = () => smoothstep(signY - 0.032, signY - 0.044, p.y).mul(isSzAvailable);
+  // 文字、底色与空车绿条共用灯罩的正反面投影。
+  const szSignFace = () => {
+    const faceX = p.x.mul(step(0.0, n.z).mul(2.0).sub(1.0));
+    const signUV = vec2(faceX.div(0.50).add(0.5), p.y.sub(signY + 0.014).div(0.11).add(0.5));
+    const glyph = texture(shenzhenSignTexture(), signUV).a;
+    const tone = mix(color(0xc22a29), color(0x1f5fbf), smoothstep(-0.003, 0.003, faceX));
+    const availableStrip = smoothstep(signY - 0.032, signY - 0.044, p.y).mul(isSzAvailable);
+    return { tone: mix(tone, color(0xf7f9fb), glyph), availableStrip };
+  };
   const chmslMask = (rearGlass) => spec.barnDoors
     ? rrect(vec2(p.x, p.y.sub(spec.barnDoors[1] + 0.055)), vec2(0.16, 0.015), 0.005, fwXY)
         .mul(smoothstep(-0.15, -0.45, n.z))
@@ -1863,10 +1928,17 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
       const grime = smoothstep(sillY + 0.16, sillY - 0.01, p.y).mul(0.2);
       bCol.assign(mix(bCol, color(0x2d2b28), grime));
       if (shenzhen) {
-        // 深圳出租：白色下半身绕车身一圈（含前后保险杠下缘），分色线是车身曲面上的平滑水平曲线
-        const waistSide = isSzTaxi;
-        const waist = smoothstep(szWaistY + 0.008, szWaistY - 0.008, p.y).mul(waistSide);
-        bCol.assign(mix(bCol, color(0xf2f5f7), waist));
+        // 白色门板绕过轮拱接到前后围，低处保留蓝色门槛和保险杠下唇。
+        let waist = cov(p.y.sub(szWaistY), fwY);
+        if (shenzhenTaxi) {
+          const noseFace = smoothstep(spec.zFront - 0.36, spec.zFront - 0.18, p.z).mul(smoothstep(0.05, 0.50, n.z));
+          const hoodEdge = float(spec.bumperLine[0] - 0.024).add(ax.mul(0.05));
+          const paintEdgeY = mix(float(szWaistY), hoodEdge, noseFace);
+          waist = cov(p.y.sub(paintEdgeY), fwY).mul(cov(float(0.311).sub(p.y), fwY));
+          const paintEdge = band(p.y.sub(szWaistY + 0.015), 0.016, fwY).mul(isSide);
+          bCol.assign(mix(bCol, basePaint.mul(0.56), paintEdge.mul(isSzTaxi)));
+        }
+        bCol.assign(mix(bCol, color(0xf2f5f7).mul(ao), waist.mul(isSzTaxi)));
       }
 
       // Side doors, handles & liveries (evaluated only on side-facing body fragments)
@@ -1874,14 +1946,16 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
         const hasLivery = max(isPolice, max(isBoro, float(spec.sign ? 1.0 : 0.0)));
         If(hasLivery.greaterThan(0.5), () => {
           if (shenzhen) {
-            // 车门白字「深圳出租」的合成字块（玩家车另有 canvas 贴字）
-            const letterPattern = mix(float(0.3), smoothstep(0.2, 0.55, sin(p.z.mul(72.0))), fadeFine(fwZ));
-            const lettering = letterPattern
-              .mul(band(p.y.sub(szWaistY + 0.075), 0.034, fwY))
-              .mul(band(p.z.sub(doorMid), 0.23, fwZ))
-              .mul(isSzTaxi)
-              .mul(ao);
-            bCol.assign(mix(bCol, color(0xeef4f8), lettering));
+            // 环境出租车用简化字块，玩家车使用可读的曲面贴字。
+            if (!fixed) {
+              const letterPattern = mix(float(0.3), smoothstep(0.2, 0.55, sin(p.z.mul(72.0))), fadeFine(fwZ));
+              const lettering = letterPattern
+                .mul(band(p.y.sub(szWaistY - 0.14), 0.038, fwY))
+                .mul(band(p.z.sub(doorMid), 0.23, fwZ))
+                .mul(isSzTaxi)
+                .mul(ao);
+              bCol.assign(mix(bCol, color(0x194672), lettering));
+            }
           } else {
             const along = smoothstep(spec.zRear + 0.22, spec.zRear + 0.3, p.z).mul(smoothstep(spec.zFront - 0.28, spec.zFront - 0.36, p.z));
             const stripe = band(p.y.sub(0.57), 0.072, fwY).mul(along);
@@ -1936,33 +2010,53 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
       // Front fascia: headlamps, honeycomb grille, lower intake, air curtains & front NY license plate
       If(p.z.greaterThan(frontZone).and(n.z.greaterThan(0.02)), () => {
         const front = smoothstep(0.12, 0.38, n.z);
-        const hoodSeam = band(p.y.sub(spec.bumperLine[0]), 0.0035, fwY)
-          .mul(cov(ax.sub(hlX - hlW * 0.5), fwX))
-          .mul(front);
-        bCol.assign(bCol.mul(one.sub(hoodSeam.mul(0.52))));
+        if (!shenzhenTaxi) {
+          const hoodSeam = band(p.y.sub(spec.bumperLine[0]), 0.0035, fwY)
+            .mul(cov(ax.sub(hlX - hlW * 0.5), fwX))
+            .mul(front);
+          bCol.assign(bCol.mul(one.sub(hoodSeam.mul(0.52))));
+        }
 
-        const g = rrectEdge(vec2(p.x, p.y.sub(grY)), vec2(grW, grH), 0.015, fwXY);
-        const grille = cov(g.d, g.w).mul(front);
-        const grilleOuter = cov(g.d.sub(0.013), g.w).mul(front);
-        const grilleWing = band(p.y.sub(grY + grH * 0.12), 0.0045, fwY).mul(grille);
-        const grilleFrame = max(grilleOuter.sub(grille), grilleWing.mul(0.75));
-        const emblemFront = rrect(vec2(p.x, p.y.sub(grY + grH * 0.12)), vec2(0.032, 0.015), 0.008, fwXY).mul(grille);
+        if (shenzhenTaxi) {
+          // 两灯之间用细饰条，白色前围仅以浅色错列孔表现纹理。
+          const trimY = p.y.sub(hlY - 0.028).sub(ax.mul(0.028));
+          const trim = rrect(vec2(p.x, trimY), vec2(hlX - hlW + 0.014, 0.022), 0.011, fwXY).mul(front);
+          bCol.assign(mix(bCol, color(0x18212a), trim));
+          bCol.assign(mix(bCol, color(0xaeb8bf), trim.mul(band(trimY.add(0.011), 0.005, fwY))));
+          const panel = rrect(vec2(p.x, p.y.sub(grY)), vec2(grW, grH), 0.085, fwXY).mul(front);
+          const row = p.y.mul(29.0);
+          const column = p.x.mul(26.0).add(fract(floor(row).mul(0.5)));
+          const dotDist = length(fract(vec2(column, row)).sub(0.5));
+          const holes = smoothstep(0.16, 0.07, dotDist).mul(fadeFine(max(fwX, fwY))).mul(panel);
+          bCol.assign(mix(bCol, color(0x9da9ae), holes.mul(0.8)));
+        } else {
+          const g = rrectEdge(vec2(p.x, p.y.sub(grY)), vec2(grW, grH), 0.015, fwXY);
+          const grille = cov(g.d, g.w).mul(front);
+          const grilleOuter = cov(g.d.sub(0.013), g.w).mul(front);
+          const grilleWing = band(p.y.sub(grY + grH * 0.12), 0.0045, fwY).mul(grille);
+          const grilleFrame = max(grilleOuter.sub(grille), grilleWing.mul(0.75));
+          const emblemFront = rrect(vec2(p.x, p.y.sub(grY + grH * 0.12)), vec2(0.032, 0.015), 0.008, fwXY).mul(grille);
+          const meshWave = smoothstep(-0.1, 0.35, sin(p.x.add(p.y).mul(110.0)).mul(sin(p.x.sub(p.y).mul(110.0))));
+          const meshPattern = mix(float(0.68), meshWave.mul(0.38).add(0.52), fadeFine(max(fwX, fwY)));
+          const frameCol = mix(color(0x181b20), color(0xd2d8de), hasChrome);
+          bCol.assign(mix(bCol, frameCol, grilleFrame));
+          bCol.assign(mix(bCol, color(0x101317).mul(meshPattern), grille.mul(one.sub(grilleWing))));
+          bCol.assign(mix(bCol, color(0xd4dbe2), emblemFront));
+        }
         const intake = rrect(vec2(p.x, p.y.sub(inY)), vec2(inW, inH), 0.032, fwXY).mul(front);
         const airCurtain = rrect(vec2(ax.sub(hlX + hlW * 0.42), p.y.sub(inY + 0.03)), vec2(0.042, inH * 0.85), 0.014, fwXY).mul(front);
-        const meshWave = smoothstep(-0.1, 0.35, sin(p.x.add(p.y).mul(110.0)).mul(sin(p.x.sub(p.y).mul(110.0))));
-        const meshPattern = mix(float(0.68), meshWave.mul(0.38).add(0.52), fadeFine(max(fwX, fwY)));
         const slatWave = smoothstep(0.3, 0.6, fract(p.y.mul(52.0)));
         const intakeSlats = mix(float(0.72), slatWave.mul(0.35).add(0.55), fadeFine(fwY));
-        const frameCol = mix(color(0x181b20), color(0xd2d8de), hasChrome);
-        bCol.assign(mix(bCol, frameCol, grilleFrame));
-        bCol.assign(mix(bCol, color(0x101317).mul(meshPattern), grille.mul(one.sub(grilleWing))));
-        bCol.assign(mix(bCol, color(0xd4dbe2), emblemFront));
         bCol.assign(mix(bCol, color(0x0f1216).mul(intakeSlats), max(intake, airCurtain)));
 
         const { headlight, turnFront, projBucket, projRing, headlightLens, drl } = headlightMasks();
         const lampBezel = mix(mix(color(0x13171d), color(0x4a535e), projBucket), color(0x9ea8b2), projRing.mul(0.78));
         const lampColor = mix(mix(lampBezel, color(0xf4f8ff), headlightLens), color(0xffffff), drl);
         bCol.assign(mix(bCol, mix(lampColor, color(0xb85e16), turnFront), headlight));
+        if (shenzhenTaxi) {
+          const projectorGlass = mix(color(0x637c94), color(0xdde8f2), fresnel);
+          bCol.assign(mix(bCol, projectorGlass, headlightLens));
+        }
 
         const frontPlateEdge = rrectEdge(vec2(p.x, p.y.sub(plateF)), vec2(0.155, 0.055), 0.008, fwXY);
         const plateRecessF = cov(frontPlateEdge.d.sub(0.015), frontPlateEdge.w).mul(front);
@@ -1995,7 +2089,7 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
         const pocketShade = smoothstep(plateR - 0.09, plateR + 0.115, p.y).mul(-0.25).add(0.9);
         bCol.assign(mix(bCol, bCol.mul(pocketShade), platePocket));
 
-        const { tlUV, taillight, tailLens, turnRearSection, reverseRearSection, ledBar: ledBarMask } = taillightMasks();
+        const { tlUV, taillight, tailLens, redRearSection, turnRearSection, reverseRearSection, ledBar: ledBarMask } = taillightMasks();
         const tailgateHandle = spec.bedCover
           ? rrect(vec2(p.x, p.y.sub(tlY + tlH * 0.42)), vec2(0.085, 0.016), 0.005, fwXY).mul(rear)
           : spec.barnDoors
@@ -2004,11 +2098,12 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
         const ledBar = ledBarMask.mul(tailLens).mul(one.sub(max(turnRearSection, reverseRearSection)));
         const tailFacet = smoothstep(-tlH, tlH, tlUV.y).mul(0.28).add(0.78);
         const tailRuby = mix(color(0x981018).mul(tailFacet), color(0xff2834), ledBar);
-        const tailColor = mix(mix(tailRuby, color(0xf07818), turnRearSection), color(0xe4edf4), reverseRearSection);
+        const lensBase = redRearSection ? mix(color(0x6d7a84), tailRuby, redRearSection) : tailRuby;
+        const tailColor = mix(mix(lensBase, color(0xf07818), turnRearSection), color(0xe4edf4), reverseRearSection);
 
         const rearValance = smoothstep(rearSill + 0.075, rearSill + 0.02, p.y).mul(rear);
         const reflector = rrect(vec2(ax.sub(0.65), p.y.sub(spec.bumpers[1][0] + 0.04)), vec2(0.075, 0.01), 0.004, fwXY).mul(rear);
-        const emblemRear = spec.barnDoors
+        const emblemRear = spec.barnDoors || shenzhenTaxi
           ? float(0.0)
           : rrect(vec2(p.x, p.y.sub(tlY - tlH * 0.12)), vec2(0.022, 0.01), 0.009, fwXY).mul(rear);
 
@@ -2052,10 +2147,9 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     }).ElseIf(isSign.greaterThan(0.5), () => {
       const signFace = smoothstep(0.55, 0.75, abs(n.z));
       const signGlyph = signGlyphMask();
-      if (shenzhen) {
-        // 深圳顶灯：一红一蓝两段 + 白色字 + 空车绿条，顶面与外缘保持白壳
-        const letters = mix(szSignTone(), color(0xf7f9fb), szSignGlyphMask().mul(0.92));
-        outCol.assign(mix(color(0xf2f5f7), mix(letters, color(0x2fbf71), szSignAvailableStrip()), signFace));
+      if (shenzhen && spec.sign) {
+        const { tone, availableStrip } = szSignFace();
+        outCol.assign(mix(color(0xf2f5f7), mix(tone, color(0x2fbf71), availableStrip), signFace));
       } else {
         outCol.assign(mix(color(0xf3efe2), mix(color(0xfff1b8), color(0x15181b), signGlyph), signFace));
       }
@@ -2120,15 +2214,17 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     If(isBody.greaterThan(0.5), () => {
       If(p.z.greaterThan(frontZone).and(n.z.greaterThan(0.02)), () => {
         const { turnFront, headlightLens, drl } = headlightMasks();
-        const headlamps = color(0xfff8ec)
-          .mul(headlightLens.mul(nightHeadlamp.mul(1.35).add(1.45)).add(drl.mul(nightHeadlamp.mul(0.75).add(1.65))))
+        const beam = nightHeadlamp.mul(shenzhenTaxi ? 2.5 : 1.35).add(shenzhenTaxi ? 0.18 : 1.45);
+        const guide = nightHeadlamp.mul(0.75).add(shenzhenTaxi ? 0.75 : 1.65);
+        const turnMask = shenzhenTaxi ? turnFront : max(turnFront, drl.mul(0.75));
+        const headlamps = color(0xfff8ec).mul(headlightLens.mul(beam).add(drl.mul(guide)))
           .mul(one.sub(max(turnFront, drl).mul(blink)));
-        const turn = color(0xff9812).mul(max(turnFront, drl.mul(0.75)).mul(blink).mul(2.4));
+        const turn = color(0xff9812).mul(turnMask.mul(blink).mul(2.4));
         emit.assign(headlamps.add(turn));
       }).ElseIf(p.z.lessThan(rearZone).and(n.z.lessThan(-0.02)), () => {
-        const { tailLens, turnRearSection, reverseRearSection, ledBar: ledBarMask } = taillightMasks();
+        const { tailLens, redRearSection, turnRearSection, reverseRearSection, ledBar: ledBarMask } = taillightMasks();
         const turnRear = turnRearSection.mul(tailLens);
-        const redArea = tailLens.mul(one.sub(max(turnRearSection, reverseRearSection)));
+        const redArea = tailLens.mul(redRearSection ?? one.sub(max(turnRearSection, reverseRearSection)));
         const ledBar = ledBarMask.mul(redArea);
         const redLens = max(redArea.mul(0.58), ledBar);
         const tail = color(0xff0c16).mul(redLens.mul(brake.mul(2.3).add(nightHeadlamp.mul(0.55)).add(0.24)));
@@ -2144,11 +2240,10 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     }).ElseIf(isSign.greaterThan(0.5), () => {
       const signFace = smoothstep(0.55, 0.75, abs(n.z));
       const signGlyph = signGlyphMask();
-      if (shenzhen) {
-        // 背光顶灯：红蓝两段各自透光、白字更亮，空车时底部绿条发光
-        const lit = mix(szSignTone(), color(0xf7f9fb), szSignGlyphMask().mul(0.85)).mul(signFace).mul(0.75);
-        const availGlow = color(0x3ce081).mul(szSignAvailableStrip().mul(signFace).mul(2.2));
-        emit.assign(lit.add(availGlow));
+      if (shenzhen && spec.sign) {
+        const { tone, availableStrip } = szSignFace();
+        const backlight = mix(tone.mul(0.75), color(0x3ce081).mul(2.2), availableStrip);
+        emit.assign(backlight.mul(signFace));
       } else {
         emit.assign(color(0xffe28a).mul(signFace.mul(one.sub(signGlyph.mul(0.9))).mul(1.65)));
       }

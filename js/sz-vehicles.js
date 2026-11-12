@@ -5,7 +5,7 @@ import { STR } from './sz-strings.js';
 import { mirrorSection, roundedBox } from './vehicles.js';
 import {
   BODY_SPECS, buildCarGeometry, buildCarSidePatch, buildSteerableWheelGeo, carLayout,
-  carStyleCode, carTipZ, createCarWheelMaterial, createLoftedCarMaterial, setCarLocale, taxiSignPlacement
+  carStyleCode, carTipZ, createCarWheelMaterial, createLoftedCarMaterial, setCarLocale
 } from './cars.js';
 
 // 涂装、车牌与出租车语义写在 cars.js 的 locale 分支里；这里在模块初始化时切到深圳，纽约默认行为不动。
@@ -281,32 +281,27 @@ function createCanvasTexture(draw, width, height) {
   return texture;
 }
 
-function decalMaterial(texture, basic = false) {
-  if (basic) return new THREE.MeshBasicMaterial({ map: texture, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  return new THREE.MeshStandardNodeMaterial({
-    map: texture, transparent: true, roughness: 0.28, metalness: 0.12,
-    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
-  });
-}
-
 // 车门上的「深圳出租」：贴在建好车身的曲面侧门外皮上。
 function addTaxiDoorDecals(chassis, body, localMaterials) {
   const texture = createCanvasTexture((ctx, width, height) => {
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#194672';
     ctx.font = 'bold 46px "PingFang SC", "Microsoft YaHei", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(STR.vehicleLabels?.taxi ?? '深圳出租', width / 2, height / 2 + 2);
   }, 280, 88);
   if (!texture) return;
-  const material = decalMaterial(texture);
+  const material = new THREE.MeshStandardNodeMaterial({
+    map: texture, transparent: true, roughness: 0.28, metalness: 0.12,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+  });
   localMaterials.push(material);
   const doorMid = (body.doors[0] + body.doors[1]) / 2;
-  // 字贴在白色腰线以上的蓝色车门上，高度随车体腰线（szWaist）变化
-  const waist = body.szWaist ?? 0.6;
+  // 字贴随白色门板上缘定位。
+  const labelY = body.szWaist - 0.14;
   for (const side of [-1, 1]) {
-    const patch = new THREE.Mesh(buildCarSidePatch(body, side, doorMid - 0.4, doorMid + 0.4, waist + 0.03, waist + 0.28, 0.004), material);
+    const patch = new THREE.Mesh(buildCarSidePatch(body, side, doorMid - 0.4, doorMid + 0.4, labelY - 0.095, labelY + 0.095, 0.004), material);
     patch.name = 'taxi-door-lettering';
     chassis.add(patch);
   }
@@ -342,37 +337,6 @@ function addPlateDecals(chassis, body, localMaterials) {
     plate.rotation.x = Math.atan((carTipZ(body, y + 0.06, front) - carTipZ(body, y - 0.06, front)) / 0.12);
     plate.name = front ? 'front-plate' : 'rear-plate';
     chassis.add(plate);
-  }
-}
-
-// 顶灯正面一红一蓝：「深圳」红底白字 + TAXI 蓝底白字，底部一条空车绿条。
-function addRoofSignDecals(chassis, body, localMaterials) {
-  const texture = createCanvasTexture((ctx, width, height) => {
-    const strip = 10;
-    ctx.fillStyle = '#c22a29';
-    ctx.fillRect(0, 0, width / 2, height - strip);
-    ctx.fillStyle = '#1f5fbf';
-    ctx.fillRect(width / 2, 0, width / 2, height - strip);
-    ctx.fillStyle = '#1f9d55';
-    ctx.fillRect(0, height - strip, width, strip);
-    ctx.fillStyle = '#f7f9fb';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = 'bold 44px "PingFang SC", "Microsoft YaHei", sans-serif';
-    ctx.fillText(STR.vehicleLabels?.taxiMark ?? '深圳', width * 0.25, (height - strip) / 2 + 2);
-    ctx.font = 'bold 38px "PingFang SC", "Microsoft YaHei", sans-serif';
-    ctx.fillText(STR.vehicleLabels?.taxiSign ?? 'TAXI', width * 0.75, (height - strip) / 2 + 2);
-  }, 320, 80);
-  if (!texture) return;
-  const { z, y } = taxiSignPlacement(body);
-  const material = decalMaterial(texture, true);
-  localMaterials.push(material);
-  for (const side of [-1, 1]) {
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.11), material);
-    face.position.set(0, y + 0.105, z + side * 0.09);
-    face.rotation.y = side === 1 ? 0 : Math.PI;
-    face.name = 'roof-sign-lettering';
-    chassis.add(face);
   }
 }
 
@@ -430,7 +394,6 @@ function createShenzhenCarMesh({ type = 'taxi', color = PALETTE.white, detail = 
   if (type === 'taxi' && detail) {
     addTaxiDoorDecals(chassis, body, localMaterials);
     addPlateDecals(chassis, body, localMaterials);
-    addRoofSignDecals(chassis, body, localMaterials);
   }
   group.add(chassis);
 
