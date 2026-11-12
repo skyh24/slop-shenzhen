@@ -315,20 +315,38 @@ test('teleport releases every camera pointer and ignores old gestures before acc
   assert.equal(h.camera.isDragging, true);
 });
 
-test('flight chase stays on the current rear axis through sharp turns and manual look input', () => {
+test('flight chase follows sharp turns, orbits with mouse and gamepad, and recenters', () => {
   const h = cameraHarness({
     position: new Vector3(30, 200, 60), heading: 0, speed: 30, type: 'helicopter',
     chaseDistance: 8.9, chaseHeight: 3.3, cameraTargetOffset: new Vector3(0, 1.2, 0)
   });
   h.camera.update(1 / 60, 0);
   h.entity.heading = Math.PI / 2;
-  h.camera.applyGamepadInput(1, 0, 0, 1 / 60);
-  h.pointer(h.canvas, 'pointerdown', 1, 0);
-  h.pointer(h.canvas, 'pointermove', 1, 300);
   h.camera.update(1 / 60, 1);
   close(h.camera.currentPos.z, h.entity.position.z);
   assert.ok(h.camera.currentPos.x < h.entity.position.x);
-  close(h.camera.orbitYawOffset, 0);
+  const initialY = h.camera.currentPos.y;
+
+  h.pointer(h.canvas, 'pointerdown', 1, 480, 200, 'mouse');
+  h.pointer(h.canvas, 'pointermove', 1, 480 - Math.PI / 0.0065, 230, 'mouse');
+  h.camera.update(1 / 60, 2);
+  assert.ok(h.camera.currentPos.x > h.entity.position.x);
+  assert.ok(h.camera.currentPos.y > initialY);
+  close(h.entity.heading, Math.PI / 2);
+
+  h.pointer(h.canvas, 'pointermove', 1, 480 + (Math.PI / 2) / 0.0065, 170, 'mouse');
+  h.pointer(h.canvas, 'pointerup', 1, 480, 170, 'mouse');
+  h.camera.update(1 / 60, 3);
+  assert.ok(h.camera.currentPos.z < h.entity.position.z);
+  assert.ok(h.camera.currentPos.y < initialY);
+
+  h.camera.applyGamepadInput(1, 0, 0, 0.2);
+  h.camera.update(1 / 60, 4);
+  assert.ok(h.camera.currentPos.x > h.entity.position.x);
+  h.camera.setCameraPreset('chase', true);
+  h.camera.update(1 / 60, 5);
+  close(h.camera.currentPos.z, h.entity.position.z);
+  assert.ok(h.camera.currentPos.x < h.entity.position.x);
 });
 
 test('landmark orbit maintains a 200 metre radius and completes a wall-clock lap in 120 seconds', () => {

@@ -414,6 +414,10 @@ export function buildSzTrees(scene, payload, options = {}) {
     const habit = CROWN_SPECIES[crownTemplate];
     const trunkHeight = height * habit.trunkRatio;
     const trunkRadius = crown * habit.trunkRadiusRatio;
+    if (options.carriagewayOccupied?.(x, z, trunkRadius)) {
+      skipped.roadConflict++;
+      continue;
+    }
     const checkFrontage = sourceName === 'simulated-street' && frontage?.inScope(x, z);
     if (checkFrontage && frontage.hits(x, z, trunkRadius)) {
       skipped.frontageTrunkConflict++;

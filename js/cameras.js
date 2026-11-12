@@ -107,7 +107,7 @@ class CameraSystem {
           this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier * previousDistance / distance));
         }
       } else {
-        if (!this.isFlightChase()) this.orbitYawOffset -= dx * 0.0065;
+        this.orbitYawOffset -= dx * 0.0065;
         this.orbitPitchOffset = Math.max(-0.32, Math.min(0.68, this.orbitPitchOffset + dy * 0.005));
       }
       this.userOrbitTimer = 4.0;
@@ -170,14 +170,10 @@ class CameraSystem {
     // POV uses the orbit angles, but only chase renders a zoomed camera distance.
     if (this.activePresetId !== 'chase') zoom = 0;
     if (!lookX && !lookY && !zoom) return;
-    if (!this.isFlightChase()) this.orbitYawOffset -= lookX * 2.0 * dt;
+    this.orbitYawOffset -= lookX * 2.0 * dt;
     this.orbitPitchOffset = Math.max(-0.32, Math.min(0.68, this.orbitPitchOffset + lookY * 1.25 * dt));
     this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier + zoom * 0.9 * dt));
     this.userOrbitTimer = 4.0;
-  }
-
-  isFlightChase() {
-    return this.activePresetId === 'chase' && this.controllerManager.getActiveEntity().type === 'helicopter';
   }
 
   resetOrbit() {
@@ -237,8 +233,8 @@ class CameraSystem {
           this.followBaseY += (entity.position.y - this.followBaseY) * k;
           this.followZoom += (this.zoomMultiplier - this.followZoom) * k;
         }
-        // 飞行转向很快，追尾按机体当前航向取景，避免转弯时镜头落到侧面。
-        const yaw = entity.type === 'helicopter' ? entity.heading : this.followHeading + this.orbitYawOffset;
+        // 飞行以机体当前航向为基准，手动环绕角叠加在追尾方向上。
+        const yaw = (entity.type === 'helicopter' ? entity.heading : this.followHeading) + this.orbitYawOffset;
         const sinYaw = Math.sin(yaw);
         const cosYaw = Math.cos(yaw);
         const dist = entity.chaseDistance * this.followZoom * (1 + Math.min(0.25, this.smoothedSpeed * 0.01));

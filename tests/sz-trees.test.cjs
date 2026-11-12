@@ -134,6 +134,7 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
     { x: 0, z: 0, height: 120, crown: 100, osm: 'node/1', source: 'osm-node', appearance: 'osm-tags' },
     { x: 15000, z: 0, height: 120, crown: 100, source: 'simulated-park' },
     { x: 5000, z: 5000, height: 120, crown: 100 }, // 车行道上的候选：运行时跳过
+    { x: 7000, z: 5000, height: 120, crown: 100 }, // 树心在车道外，树干伸入车道
     { x: -5000, z: -5000, height: 120, crown: 100 }, // 地形高程未知
     { x: 11000, z: 0, height: 120, crown: 100 }, // 步道冲突
     { x: 21000, z: 0, height: 120, crown: 100 } // 建筑冲突
@@ -146,14 +147,15 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
     polygon: { outer: [{ x: 2050, z: -50 }, { x: 2150, z: -50 }, { x: 2150, z: 50 }, { x: 2050, z: 50 }], holes: [] }
   };
   const scene = new THREE.Scene();
-  const built = model.buildSzTrees(scene, payload, { groundHeight, roadHeight, pathAt, colliders: [building] });
+  const carriagewayOccupied = (x, z, radius) => x === 700 && z === 500 && radius > 0.1;
+  const built = model.buildSzTrees(scene, payload, { groundHeight, roadHeight, pathAt, carriagewayOccupied, colliders: [building] });
   scene.updateMatrixWorld(true);
   assert.equal(built.statistics.placed, 2);
   assert.equal(JSON.stringify(built.statistics.skipped), JSON.stringify({
-    unsupportedGround: 1, roadConflict: 1, pathConflict: 1, buildingConflict: 1,
+    unsupportedGround: 1, roadConflict: 2, pathConflict: 1, buildingConflict: 1,
     openMedian: 0, roadside: 0, frontageTrunkConflict: 0, frontageCrownConflict: 0, reservedWalk: 0
   }));
-  assert.equal(built.statistics.payloadCount, 6);
+  assert.equal(built.statistics.payloadCount, 7);
   assert.equal(built.statistics.chunks, 2);
   assert.equal(built.group.children.length, 6);
   assert.equal(built.colliders.length, 2);

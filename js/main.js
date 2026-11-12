@@ -36,6 +36,7 @@ import { buildBuildingSigns } from './sz-building-signs.js';
 import { buildBuildingDetails } from './sz-building-details.js';
 import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
 import { createSzPedestrians } from './sz-pedestrians.js';
+import { createCarriagewayBarrier } from './sz-pedestrian-tracks.js';
 import { buildZhongxinWalk } from './sz-zhongxin-walk.js';
 import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
 import { createAutoDrive } from './sz-auto-drive.js';
@@ -241,16 +242,18 @@ async function initApp() {
   };
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
+  // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
+  const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
   // 源树先保留位置，模拟树灯共用样段预约带。
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
-    ...site, roadFrontage: GEO.roadFrontage, reserveWalk: publicWalk.reserves, pilotTrees: publicWalk.trees,
+    ...site, carriagewayOccupied, roadFrontage: GEO.roadFrontage, reserveWalk: publicWalk.reserves, pilotTrees: publicWalk.trees,
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
   const streetLamps = qa.stage('lamps', () => {
     const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: elevatedRoads.surfaces });
     return buildSzStreetLamps(scene, site.roadGraph, {
-      ...site, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk,
+      ...site, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk,
       placementObstacles: [...buildings, ...trees.colliders],
       deckOccupied: (x, z, bottom, top) =>
         deck.at(x, z).some(surface => surface.height + 4.5 > bottom && surface.height - 0.35 < top)

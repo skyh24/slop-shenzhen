@@ -536,6 +536,10 @@ test('carriageway barrier is the rendered road geometry plus a positive margin',
   assert.equal(barrier.contains(150, 0, 0), true);
   assert.equal(barrier.contains(150, 4.1, 0), false);
   assert.equal(barrier.contains(150, 4.1, 0.3), true);
+  // 查询中心在相邻格，包络仍可能碰到道路。
+  const split = createCarriagewayBarrier(graph, { cellSize: 4.25 });
+  assert.equal(split.contains(150, 4.26), false);
+  assert.equal(split.contains(150, 4.26, 0.3), true);
   const junction = createCarriagewayBarrier(tJunctionGraph(), { bounds: null });
   // 共用 OSM 节点的路口补面与两条路的断面都来自和路面网格相同的几何。
   assert.equal(junction.contains(150, 0, 0), true);
@@ -708,10 +712,10 @@ test('a pedestrian yields on the walk track for an approaching car and ignores t
 });
 
 test('public walk keeps the same-frame queue and lets opposing pedestrians pass a bend', () => {
-  const focus = { x: 50, z: 4 };
+  const focus = { x: 50, z: 10 };
   const { peds, rigs } = makeFactory(straightGraph(100), { maxPeds: 3, pavement: false,
     excludeWalkAt: () => true, heightAt: () => 8,
-    publicRoute: [{ x: 32, y: 8, z: 0 }, { x: 50, y: 8, z: 0 }, { x: 64, y: 8, z: 10 }] });
+    publicRoute: [{ x: 32, y: 8, z: 6 }, { x: 50, y: 8, z: 6 }, { x: 64, y: 8, z: 16 }] });
   peds.update(0, focus, 0);
   const [leg] = peds.region.tracks;
   const [leader, follower, opposing] = peds.peds;
@@ -731,4 +735,21 @@ test('public walk keeps the same-frame queue and lets opposing pedestrians pass 
   assert.ok(separation > 0.68, String(separation));
   const update = rigs[0].updates.at(-1);
   assert.equal(update.ground(update.owner, update.x, update.z), 8);
+});
+
+test('the walking pose cancels lateral drift into an empty carriageway', () => {
+  const focus = { x: 50, z: 0 };
+  const { peds } = makeFactory(straightGraph(100, 8), { maxPeds: 1, pavement: false, keepRightM: 0.38,
+    excludeWalkAt: () => true, heightAt: () => 8,
+    publicRoute: [{ x: 20, y: 8, z: 4.65 }, { x: 85, y: 8, z: 4.65 }] });
+  peds.update(0, focus, 0);
+  const [leg] = peds.region.tracks;
+  const [ped] = peds.peds;
+  Object.assign(ped, { leg, s: 12, dir: 1, x: 32, y: 8, z: 4.65, heading: Math.PI / 2,
+    placed: true, v: 1.1, speed: 1.1, pause: 0, restAt: Infinity, lateral: 0 });
+  for (let frame = 1; frame <= 40; frame++) {
+    peds.update(0.05, focus, frame * 0.05);
+    assert.equal(peds.region.carriagewayOccupied(ped.x, ped.z), false);
+  }
+  assert.ok(ped.x > 34);
 });

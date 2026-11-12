@@ -324,19 +324,18 @@ export function createCarriagewayBarrier(graph, options = {}) {
   }
   visitGroundRoadFootprints(graph, add, includeLink);
   function contains(x, z, marginM = 0) {
-    const list = cells.get(cellKey(Math.floor(x / cellSize), Math.floor(z / cellSize)));
-    if (!list) return false;
-    for (const polygon of list) {
-      const { minX, minZ, maxX, maxZ } = polygon.bounds;
-      if (x < minX - marginM || x > maxX + marginM || z < minZ - marginM || z > maxZ + marginM) continue;
-      let inside = true;
-      for (const edge of polygon.edges) {
-        if (edge.nx * x + edge.nz * z - edge.c > marginM) {
-          inside = false;
-          break;
+    // 中心可能在相邻格内，但树干、灯杆或人体包络已跨过格线。
+    const radius = Math.max(0, marginM);
+    const lastX = Math.floor((x + radius) / cellSize);
+    const lastZ = Math.floor((z + radius) / cellSize);
+    for (let ix = Math.floor((x - radius) / cellSize); ix <= lastX; ix++) {
+      for (let iz = Math.floor((z - radius) / cellSize); iz <= lastZ; iz++) {
+        for (const polygon of cells.get(cellKey(ix, iz)) ?? []) {
+          const { minX, minZ, maxX, maxZ } = polygon.bounds;
+          if (x < minX - marginM || x > maxX + marginM || z < minZ - marginM || z > maxZ + marginM) continue;
+          if (polygon.edges.every(edge => edge.nx * x + edge.nz * z - edge.c <= marginM)) return true;
         }
       }
-      if (inside) return true;
     }
     return false;
   }
@@ -702,6 +701,7 @@ export function buildWalkTracks(graph, options = {}) {
     connectors: connected.connectors,
     legs,
     pavement,
+    carriagewayOccupied: (x, z) => barrier.contains(x, z, cfg.colliderRadiusM),
     walkableHeight(x, z, referenceY) {
       const y = cfg.heightAt(x, z);
       if (!Number.isFinite(y) || Math.abs(y - referenceY) > cfg.maxStepRiseM

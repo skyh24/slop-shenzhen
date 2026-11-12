@@ -117,11 +117,22 @@ test('real Three street lamps cull halo points per chunk and dispose their group
     './building-collision.js': collision
   } });
   const scene = new THREE.Scene();
-  const model = runtime.buildSzStreetLamps(scene, graph([[0, 1, 0, 12, 3, 0, []]], [ground()]), {
+  const road = graph([[0, 1, 0, 12, 3, 0, []]], [ground()]);
+  const { createCarriagewayBarrier } = loadModule(read('sz-pedestrian-tracks.js'), {
+    imports: { './sz-roads.js': roads, './building-collision.js': collision }
+  });
+  const options = {
     groundHeight: () => 0,
     roadHeight: () => null,
+    carriagewayOccupied: createCarriagewayBarrier(road).contains,
     createGlowTexture: () => ({ isTexture: true, dispose() {} })
-  });
+  };
+  const blocked = runtime.buildSzStreetLamps(scene, road, { ...options, curbOffsetM: 0.1 });
+  assert.equal(blocked.statistics.skipped.roadSurface, blocked.statistics.planned);
+  assert.equal(blocked.sites.length, 0);
+  assert.equal(blocked.colliders.length, 0);
+  blocked.dispose();
+  const model = runtime.buildSzStreetLamps(scene, road, options);
   assert.ok(model.sites.length > 0);
   assert.equal(model.colliders.length, model.sites.length);
   const chunked = runtime.groupLampSites(model.sites);
