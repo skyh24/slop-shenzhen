@@ -239,6 +239,23 @@ def _median(spec, clip, osm_ways, occupied, ground_links):
     return between.difference(occupied.buffer(spec['edgeInsetEstimateM']))
 
 
+def _reviewed_median_flower_band(island, review, ground_links, way_tags):
+    anchor = Point(project(*review['flowerBand']['islandAnchorLonLat']))
+    center, = [part for part in _polys(island) if part.covers(anchor)]
+    for identity in review['openingWayIds']:
+        tags = way_tags.get(identity, {})
+        matches = [link for link in ground_links if link['meta']['osmId'] == identity]
+        if (tags.get('highway') != 'primary_link' or tags.get('oneway') != 'yes'
+                or not matches or any(link['direction'] != 1 or island.intersects(link['line']) for link in matches)
+                or not any(center.distance(link['line']) <= link['width'] / 2 + 1 for link in matches)):
+            raise ValueError(f'Reviewed median opening {identity} no longer bounds the lawn')
+    # 影像显示中部草坪沿边有低花带。按车道断面围成的岛定位，影像只提供形态与估宽。
+    band = review['flowerBand']
+    outer = center.buffer(-band['edgeSetbackEstimateM'])
+    inner = center.buffer(-band['edgeSetbackEstimateM'] - band['widthEstimateM'])
+    return outer.difference(inner)
+
+
 def _shrub_sites(island):
     interior = island.buffer(-1.2)
     if interior.is_empty:
@@ -258,7 +275,7 @@ def _shrub_sites(island):
 
 def _pedestrian_features(spec, osm_ways, way_tags, clip, asphalt, buildings, style):
     paving, crossings, zebra = [], [], []
-    unresolved = []
+    unresolved, crossing_axes = [], []
     for kind, ids in [('sidewalk', spec['sidewalks']), ('crossing', spec['crossings'])]:
         for identity in ids:
             tags = way_tags.get(identity, {})
@@ -276,12 +293,51 @@ def _pedestrian_features(spec, osm_ways, way_tags, clip, asphalt, buildings, sty
                 crossings.append((identity, _buffer(line, width)))
                 for fragment in _lines(line):
                     zebra += [_buffer(stripe, width).intersection(asphalt) for stripe in _dash_parts(fragment, 0.82, 0.45)]
+                    if spec['id'] == 'shennan-chegongmiao':
+                        crossing_axes.append({'osmId': identity, 'widthM': width,
+                                              'points': [[round(x, 3), round(z, 3)] for x, z in fragment.coords]})
     cross_shape = unary_union([poly for _, poly in crossings])
     # 人行路仅来自源步道。过街连接只在源过街线穿出的路缘处降低到地面。
     paved = unary_union([poly for _, poly in paving]).difference(asphalt.buffer(0.09)).difference(buildings)
     flush = paved.intersection(cross_shape.buffer(1.5))
     raised = paved.difference(cross_shape.buffer(1.5))
-    return paving, crossings, raised, flush, unary_union(zebra), cross_shape, unresolved
+    return paving, crossings, raised, flush, unary_union(zebra), cross_shape, unresolved, crossing_axes
+
+
+def _hongshulin_walk_surfaces(paving, crossings, clip, buildings, style):
+    # 过街源线经过的安全岛、中央带与接近段使用推定铺装；运行时由共享车行面精确挖除沥青。
+    # 收圆端点只用来接合已核步道，不将其解释为现状铺装边缘或无障碍坡道。
+    cross_shape = unary_union([poly.buffer(0.25) for _, poly in crossings])
+    walk_shape = unary_union([poly for _, poly in paving]).union(cross_shape).intersection(clip).difference(buildings)
+    flush_limit = cross_shape.buffer(1.25)
+    raised_limit = cross_shape.buffer(3.25)
+    rise = style['sidewalkRiseM']
+    sidewalk_ids = [identity for identity, _ in paving]
+    all_ids = sidewalk_ids + [identity for identity, _ in crossings]
+    for kind, suffix, ids, shape, height in [
+        ('sidewalk', 'sidewalk', sidewalk_ids, walk_shape.difference(raised_limit), rise),
+        ('paving', 'ramp', all_ids, walk_shape.intersection(raised_limit.difference(flush_limit)), 0),
+        ('paving', 'paving', all_ids, walk_shape.intersection(flush_limit), 0),
+    ]:
+        feature = _encode_surface(kind, ids, shape, height)
+        if not feature['trianglesXZ']:
+            continue
+        if suffix == 'ramp':
+            coords = feature['trianglesXZ']
+            # 在边界顶点上用同一标高，确保坡面两端与对应台面相接。
+            offsets = []
+            for x, z in zip(coords[::2], coords[1::2]):
+                point = Point(x, z)
+                if flush_limit.boundary.distance(point) <= 0.001:
+                    value = 0
+                elif raised_limit.boundary.distance(point) <= 0.001:
+                    value = rise
+                else:
+                    value = rise * min(1, max(0, (cross_shape.distance(point) - 1.25) / 2))
+                offsets.append(round(value, 6))
+            feature['vertexRisesM'] = offsets
+        yield {'id': f'shennan-hongshulin:{suffix}', 'surfaceTreatment': 'crossing-approach-design-estimate',
+               'clipToRoadComplement': True, **feature}
 
 
 def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, report):
@@ -300,8 +356,8 @@ def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, repo
         ground_links = [link for link in local_links if _ground(link['meta'])]
         if profile_id := spec.get('profileOnly'):
             ground_links = [link for link in ground_links if link['meta'].get('crossSection', {}).get('id') == profile_id]
-        paving, crossings, raised, flush, zebra, cross_shape, missing = _pedestrian_features(spec, osm_ways, way_tags,
-                                                                                            clip, asphalt, building_mask, style)
+        paving, crossings, raised, flush, zebra, cross_shape, missing, crossing_axes = _pedestrian_features(
+            spec, osm_ways, way_tags, clip, asphalt, building_mask, style)
         unresolved += missing
         pavement_ids = [identity for identity, _ in paving]
         crossings_ids = [identity for identity, _ in crossings]
@@ -309,6 +365,8 @@ def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, repo
         corridor = {'id': spec['id'], 'bounds': list(clip.bounds), 'roadIds': sorted(set(road_ids)),
                     'unresolvedVerticalWays': sorted({link['meta']['osmId'] for link in local_links if not _ground(link['meta'])}),
                     'sidewalkIds': pavement_ids, 'crossingIds': crossings_ids}
+        if crossing_axes:
+            corridor['crossingAxes'] = crossing_axes
         polygons = [('sidewalk', pavement_ids, raised, style['sidewalkRiseM']), ('paving', pavement_ids, flush, 0),
                     ('paint', road_ids + crossings_ids, marks.union(zebra), 0)]
         if median := spec.get('median'):
@@ -328,6 +386,16 @@ def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, repo
                                         'boundarySource': 'derived-estimate', 'areaM2': round(island.area, 2)}
             if 'planting' in median:
                 corridor['medianSource']['planting'] = median['planting']
+            if review := median.get('imageryReview'):
+                band = _reviewed_median_flower_band(island, review, median_links, way_tags)
+                # 花带和草坪共用标高，花带无独立路缘和接触面。
+                flower = _encode_surface('flower-band', median_ids + review['openingWayIds'], band)
+                features.append({'id': f"{spec['id']}:flower-band", 'surfaceOffsetM': style['medianRiseM'], **flower})
+                corridor['medianSource'].update({'boundarySource': 'imagery-reviewed-road-edge-estimate',
+                                                 'imageryReview': review, 'flowerBandAreaM2': round(band.area, 2)})
+        if spec['id'] == 'shennan-hongshulin':
+            features.extend(_hongshulin_walk_surfaces(paving, crossings, clip, building_mask, style))
+            polygons = [row for row in polygons if row[0] not in ('sidewalk', 'paving')]
         for kind, ids, polygon, rise in polygons:
             feature = _encode_surface(kind, ids, polygon, rise)
             if feature['trianglesXZ']:
@@ -361,6 +429,8 @@ def build_road_frontage(pbf, osm, graph, buildings, report):
         manifest['corridors'].append(beihuan['corridor'])
         manifest['evidence'].update(beihuan['evidence'])
     ways = {i for corridor in manifest['corridors'] for key in ('sidewalks', 'crossings') for i in corridor[key]}
+    ways |= {i for corridor in manifest['corridors']
+             for i in corridor.get('median', {}).get('imageryReview', {}).get('openingWayIds', [])}
     nodes = {item['osmNodeId'] for junction in manifest['intersections'] for item in junction['approaches']}
     nodes |= {i for corridor in manifest['corridors'] for i in corridor.get('entranceNodeIds', [])}
     tags, point_data = _read_tags(pbf, ways, nodes)

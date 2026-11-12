@@ -150,7 +150,8 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
   scene.updateMatrixWorld(true);
   assert.equal(built.statistics.placed, 2);
   assert.equal(JSON.stringify(built.statistics.skipped), JSON.stringify({
-    unsupportedGround: 1, roadConflict: 1, pathConflict: 1, buildingConflict: 1, openMedian: 0, roadside: 0
+    unsupportedGround: 1, roadConflict: 1, pathConflict: 1, buildingConflict: 1,
+    openMedian: 0, roadside: 0, frontageTrunkConflict: 0, frontageCrownConflict: 0
   }));
   assert.equal(built.statistics.payloadCount, 6);
   assert.equal(built.statistics.chunks, 2);
@@ -220,6 +221,40 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
 
   built.dispose();
   assert.equal(scene.children.length, 0);
+});
+
+test('Chegongmiao frontage clears only simulated street trunks and their colliders', { skip: !threeDir }, async () => {
+  const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
+  const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
+  const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
+  const model = loadModule(read('sz-trees.js'), {
+    imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule, './sz-tree-crown.js': crown }
+  });
+  const roadFrontage = {
+    corridors: [{ id: 'shennan-chegongmiao', bounds: [-3754, 686, -3137, 930],
+      crossingAxes: [{ osmId: 'way/1416551427', widthM: 3, points: [[-3634.731, 791.863], [-3633.198, 804.111]] }] }],
+    features: [{ id: 'shennan-chegongmiao:sidewalk', kind: 'sidewalk',
+      trianglesXZ: [-3500, 810, -3480, 810, -3500, 825] }],
+    entrances: [{ osmNodeId: 1491790883, x: -3362.815, z: 851.174 }]
+  };
+  const payload = makePayload([
+    { x: -34995, z: 8098 }, // 树心在边外，树干与铺装相交。
+    { x: -34995, z: 8096, species: 'royal-palm' }, // 高冠伸至人行道上方，保留。
+    { x: -36340, z: 7980 },
+    { x: -33628, z: 8512 },
+    { x: -34991, z: 8104, source: 'osm-node', osm: 'node/1' },
+    { x: -34990, z: 8105, source: 'osm-row', osm: 'way/1' },
+    { x: -34989, z: 8106, source: 'simulated-park' },
+    { x: 0, z: 0 },
+    { x: -34995, z: 8090, species: 'ficus', height: 50 } // 树干在外，低冠伸入通行带。
+  ]);
+  const scene = new THREE.Scene();
+  const built = model.buildSzTrees(scene, payload, { groundHeight: () => 5, roadFrontage });
+  assert.equal(built.statistics.skipped.frontageTrunkConflict, 3);
+  assert.equal(built.statistics.skipped.frontageCrownConflict, 1);
+  assert.deepEqual(Array.from(built.colliders, row => row.sourceId), ['tree/1', 'node/1', 'way/1', 'tree/6', 'tree/7']);
+  for (const name of ['trunks', 'farCrowns', 'cards']) assert.equal(built.statistics.instances[name], built.colliders.length);
+  built.dispose();
 });
 
 test('missing or empty tree payload leaves scene untouched apart from an empty group', { skip: !threeDir }, async () => {

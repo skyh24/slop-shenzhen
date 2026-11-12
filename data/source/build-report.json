@@ -78437,14 +78437,74 @@
           "positionSource": "documented-median-between-osm-carriageways",
           "boundarySource": "derived-estimate",
           "areaM2": 10345.08
-        }
+        },
+        "crossingAxes": [
+          {
+            "osmId": "way/1416551427",
+            "widthM": 3,
+            "points": [
+              [
+                -3634.731,
+                791.863
+              ],
+              [
+                -3633.959,
+                797.998
+              ],
+              [
+                -3633.198,
+                804.111
+              ]
+            ]
+          },
+          {
+            "osmId": "way/1416551428",
+            "widthM": 3,
+            "points": [
+              [
+                -3577.642,
+                782.694
+              ],
+              [
+                -3576.912,
+                787.578
+              ],
+              [
+                -3576.027,
+                793.425
+              ]
+            ]
+          },
+          {
+            "osmId": "way/1348679788",
+            "widthM": 3,
+            "points": [
+              [
+                -3747.642,
+                796.68
+              ],
+              [
+                -3738.961,
+                794.754
+              ],
+              [
+                -3730.557,
+                792.882
+              ],
+              [
+                -3724.653,
+                791.575
+              ]
+            ]
+          }
+        ]
       },
       {
         "id": "shennan-civic-center",
         "bounds": [
-          -334.30140777279934,
+          -329.15830919152194,
           338.8574148562681,
-          336.3586472044332,
+          340.4731260691628,
           479.4943157936296
         ],
         "roadIds": [],
@@ -78454,9 +78514,37 @@
         "medianSource": {
           "source": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.0545%2C22.5426%2C19",
           "positionSource": "documented-median-between-osm-carriageways",
-          "boundarySource": "derived-estimate",
-          "areaM2": 38859.45,
-          "planting": "open-lawn"
+          "boundarySource": "imagery-reviewed-road-edge-estimate",
+          "areaM2": 38842.13,
+          "planting": "open-lawn",
+          "imageryReview": {
+            "archiveReleaseDate": "2026-10-29",
+            "captureDate": "2026-01-25",
+            "checkedAt": "2026-11-12",
+            "provider": "Vantor Vivid Advanced",
+            "metadataUrl": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4",
+            "metadataObjectId": 1841,
+            "sourceResolutionM": 0.34,
+            "nominalAccuracyM": 8.47,
+            "terminalSource": "visible-bridge-edge-longitude-estimate",
+            "terminalBridgeWayIds": [
+              "way/25529693",
+              "way/40988598"
+            ],
+            "openingWayIds": [
+              "way/25482595",
+              "way/25482589"
+            ],
+            "flowerBand": {
+              "islandAnchorLonLat": [
+                114.0545,
+                22.5426
+              ],
+              "edgeSetbackEstimateM": 0.8,
+              "widthEstimateM": 4.2
+            }
+          },
+          "flowerBandAreaM2": 3131.18
         }
       },
       {
@@ -78544,8 +78632,8 @@
         "nearestPavingM": 13.93
       }
     ],
-    "features": 12,
-    "planarTriangles": 6379,
+    "features": 14,
+    "planarTriangles": 7210,
     "medianShrubsEstimated": 276,
     "signalApproaches": 4,
     "signalTimingSource": "user-defined-game-simulation"
@@ -79247,15 +79335,25 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7226,
-    "metadataBytes": 16702976,
-    "numericBytes": 33423256,
-    "uncompressedBytes": 50126280,
+    "columns": 7230,
+    "metadataBytes": 16705002,
+    "numericBytes": 33471048,
+    "uncompressedBytes": 50176104,
     "lossless": true,
-    "compressedBytes": 11337469,
-    "compressedSha256": "00c424a0e094d7d118a9bfc122097d0d711ec4015706dc0ca1a1a7e37a1e787a"
+    "compressedBytes": 11348088,
+    "compressedSha256": "dc86aeb212fbd96f8011b508a69dfd8c9d58669610371ce22143fb30b565b854"
   },
-  "outputBytes": 11304063,
-  "outputSha256": "d65633061a7113df99130b97dd52d720384df685fc4d65b67750b40905c6912d",
-  "seconds": 117.9
+  "outputBytes": 11311192,
+  "outputSha256": "0a9cfbc3ba3ebf977211857e40125bf62b125ad45edf9797db97fe189f123e7b",
+  "seconds": 321.1,
+  "frontageRebuild": {
+    "basePayloadSha256": "6357ca9673bd5bbbb1e7532d96314cb3bc4372b97c659466565df89307ca30cb",
+    "corridors": [
+      "shennan-civic-center",
+      "shennan-hongshulin"
+    ],
+    "crossingAxisCorridors": [
+      "shennan-chegongmiao"
+    ]
+  }
 }

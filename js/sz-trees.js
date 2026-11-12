@@ -19,6 +19,10 @@ const TRUNK_TRIANGLES = TRUNK_SIDES * 2; // 无盖圆柱
 const FAR_CROWN_TRIANGLES = 80; // IcosahedronGeometry detail=1
 const COLLIDER_CELL_M = 48;
 const OSM_SOURCE_NAMES = new Set(['osm-node', 'osm-row']);
+const TREE_CLEARANCE_CORRIDOR = 'shennan-chegongmiao';
+const D1_ENTRANCE_NODE = 1491790883;
+const ENTRANCE_CLEAR_RADIUS_M = 1.5; // 模拟树退让值，仅保护源出口点。
+const WALK_CLEAR_HEIGHT_M = 2.5; // 本样区的人行设计净高。
 // 叶卡树冠覆盖的树种；载荷里出现未知树种名时退回 ficus 形态，颜色仍按该树种的调色板。
 const CROWN_TEMPLATE_NAMES = new Set(Object.keys(CROWN_SPECIES));
 
@@ -64,6 +68,88 @@ function pointSegmentDistanceSq(x, z, a, b) {
   const px = a.x + dx * t - x;
   const pz = a.z + dz * t - z;
   return px * px + pz * pz;
+}
+
+function createTreeFrontageClearance(frontage) {
+  const corridor = frontage?.corridors.find(row => row.id === TREE_CLEARANCE_CORRIDOR);
+  if (!corridor) return null;
+  const [minX, minZ, maxX, maxZ] = corridor.bounds;
+  const paving = frontage.features.filter(feature =>
+    feature.id.startsWith(`${corridor.id}:`) && ['sidewalk', 'paving'].includes(feature.kind));
+  const triangles = [];
+  for (const { trianglesXZ } of paving) {
+    for (let i = 0; i < trianglesXZ.length; i += 6) {
+      const [ax, az, bx, bz, cx, cz] = trianglesXZ.slice(i, i + 6);
+      triangles.push({ minX: Math.min(ax, bx, cx), maxX: Math.max(ax, bx, cx),
+        minZ: Math.min(az, bz, cz), maxZ: Math.max(az, bz, cz), minY: 0, maxY: 1,
+        polygon: { outer: [{ x: ax, z: az }, { x: bx, z: bz }, { x: cx, z: cz }], holes: [] } });
+    }
+  }
+  const hitsPaving = createColliderIndex(triangles);
+  // 过街标线是离散条纹，净空使用同来源的连续轴线。
+  const crossings = (corridor.crossingAxes ?? []).flatMap(({ widthM, points }) => {
+    const axis = points.map(([x, z]) => ({ x, z }));
+    return axis.slice(1).map((b, i) => ({ a: axis[i], b, halfWidth: widthM / 2 }));
+  });
+  const entrance = frontage.entrances.find(row => row.osmNodeId === D1_ENTRANCE_NODE);
+  const inScope = (x, z) => x >= minX && x <= maxX && z >= minZ && z <= maxZ;
+  const hits = (x, z, radius) => {
+    if (entrance && Math.hypot(x - entrance.x, z - entrance.z) <= ENTRANCE_CLEAR_RADIUS_M + radius) return true;
+    if (hitsPaving(x, z, radius, 0, 1)) return true;
+    return crossings.some(({ a, b, halfWidth }) => pointSegmentDistanceSq(x, z, a, b) <= (halfWidth + radius) ** 2);
+  };
+  return { inScope, hits };
+}
+
+function treeSwayAmplitude(height) {
+  return Math.min(0.4, Math.max(0.08, height * 0.018));
+}
+
+function crownBlocksFrontage(record, geometry, frontage, heightAt) {
+  const { x, z, y, height, crown, trunkHeight, trunkRadius, style } = record;
+  const sway = treeSwayAmplitude(height);
+  if (!frontage.hits(x, z, crown + sway)) return false;
+  // 以冠幅内采样的最高通行标高判断净高，避免把坡上路面按树根标高处理。
+  let walkY = y;
+  const sampleRadius = crown * 0.6;
+  for (const [dx, dz] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+    const sample = heightAt(x + dx * sampleRadius, z + dz * sampleRadius);
+    if (Number.isFinite(sample)) walkY = Math.max(walkY, sample);
+  }
+  const heightLimit = walkY + WALK_CLEAR_HEIGHT_M - y;
+  const halfHeight = farCrownHalfHeight(record);
+  const farBottom = trunkHeight - Math.min(0.25, halfHeight * 0.25);
+  if (farBottom < heightLimit) {
+    const normalizedY = Math.max(0, 1 - (heightLimit - farBottom) / halfHeight);
+    const farRadius = crown * (0.36 + style.farSpread * 0.6) * Math.sqrt(1 - normalizedY * normalizedY);
+    if (frontage.hits(x, z, farRadius)) return true;
+  }
+
+  // 用实际近景共享网格截取净高以下的外伸部分，旋转后仍适用的径向包络不含主干。
+  const positions = geometry.attributes.position;
+  const indices = geometry.index.array;
+  const limit = (heightLimit + 0.06) / height; // 留出近景风动的少量竖向余量。
+  let radius = 0;
+  for (let i = 0; i < indices.length; i += 3) {
+    for (let edge = 0; edge < 3; edge++) {
+      const a = indices[i + edge];
+      const b = indices[i + ((edge + 1) % 3)];
+      const ay = positions.getY(a);
+      const by = positions.getY(b);
+      if (ay > limit && by > limit) continue;
+      const ax = positions.getX(a), az = positions.getZ(a);
+      if (ay <= limit) radius = Math.max(radius, Math.hypot(ax, az));
+      if ((ay <= limit) === (by <= limit)) continue;
+      const t = (limit - ay) / (by - ay);
+      radius = Math.max(radius, Math.hypot(ax + (positions.getX(b) - ax) * t,
+        az + (positions.getZ(b) - az) * t));
+    }
+  }
+  return radius * crown > trunkRadius + 1e-5 && frontage.hits(x, z, radius * crown + sway);
+}
+
+function farCrownHalfHeight({ height, trunkHeight, style }) {
+  return (height - trunkHeight) * (0.35 + style.farHeight * 0.3);
 }
 
 // 静态碰撞体一次性索引到 48 m 网格，避免每棵树都扫全城建筑。
@@ -237,7 +323,8 @@ function emptyResult() {
     colliders: [],
     statistics: {
       version: 1, payloadCount: 0, placed: 0, chunks: 0, lodCells: 0, countsBySource: {},
-      skipped: { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0, openMedian: 0, roadside: 0 },
+      skipped: { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0,
+        openMedian: 0, roadside: 0, frontageTrunkConflict: 0, frontageCrownConflict: 0 },
       instances: { trunks: 0, cards: 0, farCrowns: 0 },
       triangles: { trunkPerTree: TRUNK_TRIANGLES, cardPerTree: {}, farPerTree: FAR_CROWN_TRIANGLES },
       visible: { chunks: 0, lodCells: 0, nearCells: 0, farCells: 0, hiddenCells: 0, trees: 0,
@@ -250,7 +337,7 @@ function emptyResult() {
 
 export function buildSzTrees(scene, payload, options = {}) {
   const { groundHeight, heightAt = groundHeight, roadHeight, shennanMedianHeight = () => null,
-    streetTreeSideAllowed = () => true, pathAt = () => [], colliders = [] } = options;
+    streetTreeSideAllowed = () => true, pathAt = () => [], colliders = [], roadFrontage } = options;
   const trees = decodeTreePayload(payload);
   if (!trees || trees.count === 0) {
     const empty = emptyResult();
@@ -260,8 +347,8 @@ export function buildSzTrees(scene, payload, options = {}) {
   const group = new THREE.Group();
   group.name = 'shenzhen-trees';
   const countsBySource = {};
-  const skipped = { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0, openMedian: 0, roadside: 0 };
   const empty = emptyResult();
+  const { skipped } = empty.statistics;
   if (typeof groundHeight !== 'function') {
     empty.statistics.payloadCount = trees.count;
     empty.statistics.skipped.unsupportedGround = trees.count;
@@ -270,8 +357,9 @@ export function buildSzTrees(scene, payload, options = {}) {
   }
 
   const hitsCollider = createColliderIndex(colliders);
+  const frontage = createTreeFrontageClearance(roadFrontage);
   const probes = [[0, 0], [PROBE_RADIUS_M, 0], [-PROBE_RADIUS_M, 0], [0, PROBE_RADIUS_M], [0, -PROBE_RADIUS_M]];
-  const placed = [];
+  const candidates = [];
   const treeColliders = [];
   const crownTemplates = new Set();
   for (let index = 0; index < trees.count; index++) {
@@ -318,22 +406,40 @@ export function buildSzTrees(scene, payload, options = {}) {
       continue;
     }
     const speciesName = trees.speciesNames[trees.species[index]] ?? 'ficus';
-    countsBySource[sourceName] = (countsBySource[sourceName] ?? 0) + 1;
-    const style = speciesStyle(speciesName);
-    const id = trees.osm.get(index) ?? `tree/${index}`;
     // 未知树种退回 ficus 叶卡形态，颜色仍用该树种的调色板。
     const crownTemplate = CROWN_TEMPLATE_NAMES.has(speciesName) ? speciesName : 'ficus';
     const habit = CROWN_SPECIES[crownTemplate];
     const trunkHeight = height * habit.trunkRatio;
     const trunkRadius = crown * habit.trunkRadiusRatio;
+    // 模拟落点侵占通行面时直接淘汰，来源树位仍由原始 OSM 记录决定。
+    // 净空同时覆盖可视树干和既有碰撞半径。
+    const radius = Math.max(0.18, Math.min(0.55, trunkRadius) * 0.8);
+    const checkFrontage = sourceName === 'simulated-street' && frontage?.inScope(x, z);
+    if (checkFrontage && frontage.hits(x, z, Math.max(radius, trunkRadius))) {
+      skipped.frontageTrunkConflict++;
+      continue;
+    }
+    const style = speciesStyle(speciesName);
+    const id = trees.osm.get(index) ?? `tree/${index}`;
     crownTemplates.add(crownTemplate);
-    const record = { index, id, x, z, y: baseY, height, crown, speciesName, sourceName,
-      style, trunkHeight, trunkRadius, seed: treeSeed(id), crownTemplate };
+    candidates.push({ index, id, x, z, y: baseY, height, crown, speciesName, sourceName,
+      style, trunkHeight, trunkRadius, radius, checkFrontage, seed: treeSeed(id), crownTemplate });
+  }
+
+  // 近景共用的树种几何也用于低枝净高检查。
+  const crownLibrary = crownTemplates.size > 0 ? createCrownLibrary([...crownTemplates]) : null;
+  const placed = [];
+  for (const record of candidates) {
+    const { id, x, z, y, trunkHeight, radius, sourceName, checkFrontage, crownTemplate } = record;
+    if (checkFrontage && crownBlocksFrontage(record, crownLibrary.geometryFor(crownTemplate), frontage, heightAt)) {
+      skipped.frontageCrownConflict++;
+      continue;
+    }
+    countsBySource[sourceName] = (countsBySource[sourceName] ?? 0) + 1;
     placed.push(record);
     // 碰撞体略小于树干可视半径：真实行道树树干约 0.4–0.9 m 直径，1.1 倍会把 2.5 m 人行道封死。
-    const radius = Math.max(0.18, Math.min(0.55, trunkRadius) * 0.8);
     treeColliders.push({ type: 'tree', name: id, sourceId: id, polygon: colliderPolygon(x, z, radius),
-      minY: baseY, maxY: baseY + Math.max(1.6, trunkHeight),
+      minY: y, maxY: y + Math.max(1.6, trunkHeight),
       minX: x - radius, maxX: x + radius, minZ: z - radius, maxZ: z + radius });
   }
 
@@ -349,8 +455,6 @@ export function buildSzTrees(scene, payload, options = {}) {
   const farGeometry = new THREE.IcosahedronGeometry(1, 1);
   const trunkMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.96 });
   const leafMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.87 });
-  // 叶卡树冠：每个树种一份共享几何，图集和材质全场共用；每个 LOD 子格按树种各一份实例属性和矩阵。
-  const crownLibrary = crownTemplates.size > 0 ? createCrownLibrary([...crownTemplates]) : null;
   const cardTriangles = crownLibrary ? crownLibrary.statistics.triangles : {};
   const chunks = [];
   const cardGeometries = [];
@@ -385,7 +489,7 @@ export function buildSzTrees(scene, payload, options = {}) {
   // 远冠底部盖住树干顶端，低模轮廓也能接到主干。
   function poseFar(record, farMesh, instance) {
     const { style } = record;
-    const halfHeight = (record.height - record.trunkHeight) * (0.35 + style.farHeight * 0.3);
+    const halfHeight = farCrownHalfHeight(record);
     const overlap = Math.min(0.25, halfHeight * 0.25);
     pose(farMesh, instance, record.x, record.y + record.trunkHeight + halfHeight - overlap, record.z,
       record.crown * (0.36 + style.farSpread * 0.6),
@@ -401,7 +505,7 @@ export function buildSzTrees(scene, payload, options = {}) {
     const leafTint = tintFor(record);
     data.setXYZW(instance, leafTint.r, leafTint.g, leafTint.b, treeSeed(record.id + ':leaf'));
     // 整树摆幅按树高给（世界米）：11 m 树约 0.2 m，和纽约参考同一量级，只是外观估计。
-    const amplitude = Math.min(0.4, Math.max(0.08, record.height * 0.018));
+    const amplitude = treeSwayAmplitude(record.height);
     sway.setXY(instance, amplitude, treeSeed(record.id + ':wind'));
     return amplitude;
   }

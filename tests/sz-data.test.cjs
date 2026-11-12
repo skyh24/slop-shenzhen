@@ -54,6 +54,12 @@ test('city data rejects source loss, invalid topology and incompatible terrain b
   const badGraph = { ...raw.roadGraph, links: [[-1, 0, 0, 7, 1, 0, []]], metadata: [{}] };
   assert.throws(() => validateCityPayload({ ...raw, roadGraph: badGraph }), /graph link/);
   assert.throws(() => validateCityPayload({ ...raw, terrain: { ...raw.terrain, diagonal: 'nw-se' } }), /terrain grid/);
+  const ramp = raw.roadFrontage.features.find(feature => feature.id === 'shennan-hongshulin:ramp');
+  assert.ok(ramp);
+  for (const feature of [{ ...ramp, vertexRisesM: [0] }, { ...ramp, clipToRoadComplement: false }]) {
+    assert.throws(() => validateCityPayload({ ...raw, roadFrontage: { ...raw.roadFrontage, features: [feature] } }),
+      /road frontage clipped surface/);
+  }
 });
 
 test('coordinate decoder rejects truncated or fractional delta streams', async () => {

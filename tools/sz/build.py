@@ -320,6 +320,87 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     write_city_packages(payload, report, sources, started)
 
 
+def rebuild_road_frontage(corridor_ids, *, crossing_axis_ids=(), use_cache=True):
+    """仅替换已核走廊的前场面，锁住信号、路网、地坪及其他样区。"""
+    started = time.time()
+    raw = gzip.decompress(OUT.read_bytes())
+    payload = json.loads(raw)
+    validation = json.loads(VALIDATION_REPORT.read_text())
+    sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+    require_matching_snapshot(raw, validation, sources)
+    report = json.loads(REPORT.read_text())
+    frontage = payload['roadFrontage']
+    ids = set(corridor_ids)
+    axis_ids = set(crossing_axis_ids)
+    if not (ids | axis_ids) <= {row['id'] for row in frontage['corridors']} or ids & axis_ids:
+        raise ValueError('Frontage rebuild requires existing reviewed corridors')
+    osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
+    pbf = ROOT / osm_source['file']
+    osm = read_osm(PHASE1_BBOX, use_cache=use_cache, pbf=pbf, source_sha256=osm_source['sha256'])
+    buildings = []
+    for rings, height in zip(payload['buildings']['rings'], payload['buildings']['minH'], strict=True):
+        outer, *holes = map(ring_points, rings)
+        shape = Polygon(outer, holes)
+        buildings.append({'poly': shape if shape.is_valid else make_valid(shape), 'minHeight': height})
+    compiled_report = {key: report[key] for key in ('beihuanCrossSection',) if key in report}
+    compiled = build_road_frontage(pbf, osm, payload['roadGraph'], buildings, compiled_report)
+    compiled_audit = compiled_report['roadFrontage']
+    audit = report['roadFrontage']
+    if (compiled['version'] != frontage['version'] or compiled['entrances'] != frontage['entrances']
+            or compiled_audit['unresolvedPedestrianWays'] != audit['unresolvedPedestrianWays']):
+        raise ValueError('Frontage source connectivity changed; review before rebuilding')
+
+    by_corridor = {row['id']: row for row in compiled['corridors']}
+    if not (ids | axis_ids) <= by_corridor.keys():
+        raise ValueError('Missing compiled frontage corridor')
+    if any(not by_corridor[identity].get('crossingAxes') for identity in axis_ids):
+        raise ValueError('Missing compiled crossing axes')
+    # 净空只需要源过街轴的走廊，保留已发布的步道、标线和原有局部几何。
+    for index, row in enumerate(frontage['corridors']):
+        identity = row['id']
+        if identity in ids:
+            frontage['corridors'][index] = by_corridor[identity]
+        elif identity in axis_ids:
+            if row['crossingIds'] != by_corridor[identity]['crossingIds']:
+                raise ValueError('Crossing axes no longer match the reviewed crossings')
+            frontage['corridors'][index] = {**row, 'crossingAxes': by_corridor[identity]['crossingAxes']}
+    features = {}
+    for row in compiled['features']:
+        corridor = row['id'].split(':', 1)[0]
+        if corridor in ids:
+            features.setdefault(corridor, []).append(row)
+    merged = []
+    pending = ids.copy()
+    for row in frontage['features']:
+        corridor = row['id'].split(':', 1)[0]
+        if corridor not in ids:
+            merged.append(row)
+        elif corridor in pending:
+            merged.extend(features.get(corridor, ()))
+            pending.remove(corridor)
+    for corridor in sorted(pending):
+        merged.extend(features.get(corridor, ()))
+
+    bounds = [by_corridor[identity]['bounds'] for identity in ids]
+
+    def in_scope(point):
+        x, z = point
+        return any(min_x <= x <= max_x and min_z <= z <= max_z for min_x, min_z, max_x, max_z in bounds)
+
+    old_shrubs = [point for point in frontage['shrubSites'] if in_scope(point)]
+    new_shrubs = [point for point in compiled['shrubSites'] if in_scope(point)]
+    if old_shrubs != new_shrubs:
+        frontage['shrubSites'] = [point for point in frontage['shrubSites'] if not in_scope(point)] + new_shrubs
+    frontage['features'] = merged
+    frontage['source']['evidence'].update(compiled['source']['evidence'])
+    audit.update(corridors=frontage['corridors'], features=len(merged),
+                 planarTriangles=sum(len(row['trianglesXZ']) // 6 for row in merged),
+                 medianShrubsEstimated=len(frontage['shrubSites']))
+    report['frontageRebuild'] = {'basePayloadSha256': validation['payloadSha256'], 'corridors': sorted(ids),
+                                 'crossingAxisCorridors': sorted(axis_ids)}
+    write_city_packages(payload, report, sources, started)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-cache', action='store_true', help='rebuild OSM and GloBFP extraction caches from the verified snapshots')
@@ -336,7 +417,13 @@ def main():
                       help='rebuild the ground pilot from the current verified payload and snapshots')
     mode.add_argument('--rebuild-civic-ground', action='store_true',
                       help='apply the reviewed Civic Square paving and Shennan median to the verified package')
+    mode.add_argument('--rebuild-road-frontage', nargs='+', metavar='CORRIDOR',
+                      help='replace only the selected road frontage corridors in the verified package')
+    ap.add_argument('--refresh-frontage-crossing-axes', nargs='+', metavar='CORRIDOR', default=[],
+                    help='with --rebuild-road-frontage, copy only crossing axes for these additional corridors')
     args = ap.parse_args()
+    if args.refresh_frontage_crossing_axes and not args.rebuild_road_frontage:
+        ap.error('--refresh-frontage-crossing-axes requires --rebuild-road-frontage')
 
     if args.repack_existing:
         raw = gzip.decompress(OUT.read_bytes())
@@ -345,6 +432,11 @@ def main():
         report = json.loads(VALIDATION_REPORT.read_text())
         require_matching_snapshot(raw, report, sources)
         print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
+        return
+
+    if args.rebuild_road_frontage:
+        rebuild_road_frontage(args.rebuild_road_frontage, crossing_axis_ids=args.refresh_frontage_crossing_axes,
+                              use_cache=not args.no_cache)
         return
 
     terrain_ids = ('copernicus-dem-N22E113', 'copernicus-dem-N22E114') if args.terrain_source == 'copernicus' else ('terrain-N22E113', 'terrain-N22E114')

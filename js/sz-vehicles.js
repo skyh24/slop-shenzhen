@@ -260,7 +260,7 @@ function attachLoftWheels(group, body, detail) {
       tire.receiveShadow = detail;
       steerPivot.add(tire);
       group.add(steerPivot);
-      wheels.push({ steerPivot, tire, isFront });
+      wheels.push({ steerPivot, tire, isFront, restY: groundOffset });
     }
   }
   return wheels;

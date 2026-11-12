@@ -238,7 +238,7 @@ async function initApp() {
   });
   // 树木：OSM 来源点加带标注的模拟行道树/公园树，接触面与铺装/建筑冲突在运行时复核。
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
-    ...site, streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
+    ...site, roadFrontage: GEO.roadFrontage, streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
   // 国际交流中心模型给出的真实门廊/花海台面锚点只构造一次，APEC 主题和城市元素共用。
   const anchors = {

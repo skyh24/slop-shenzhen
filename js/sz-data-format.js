@@ -488,6 +488,22 @@ export function validateCityPayload(raw) {
     const frontage = raw.roadFrontage;
     requireData(frontage?.version === 1 && frontage.source?.osmSnapshotId === 'osm-guangdong'
       && Array.isArray(frontage.corridors) && Array.isArray(frontage.features) && Array.isArray(frontage.intersections), 'road frontage source');
+    for (const feature of frontage.features) {
+      if (feature.clipToRoadComplement === undefined && feature.vertexRisesM === undefined) continue;
+      const { trianglesXZ, vertexRisesM } = feature;
+      requireData(feature.clipToRoadComplement === true && Array.isArray(trianglesXZ)
+        && trianglesXZ.length > 0 && trianglesXZ.length % 6 === 0 && trianglesXZ.every(Number.isFinite)
+        && (vertexRisesM === undefined || (Array.isArray(vertexRisesM) && vertexRisesM.length === trianglesXZ.length / 2
+          && vertexRisesM.every(rise => Number.isFinite(rise) && rise >= 0))), 'road frontage clipped surface');
+    }
+    for (const corridor of frontage.corridors) {
+      if (corridor.crossingAxes === undefined) continue;
+      requireData(Array.isArray(corridor.crossingAxes) && Array.isArray(corridor.crossingIds)
+        && corridor.crossingAxes.every(axis => corridor.crossingIds.includes(axis.osmId)
+          && Number.isFinite(axis.widthM) && axis.widthM > 0 && Array.isArray(axis.points) && axis.points.length >= 2
+          && axis.points.every(point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite))),
+      'road frontage crossing axes');
+    }
   }
   return raw;
 }

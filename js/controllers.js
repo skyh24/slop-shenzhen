@@ -1282,6 +1282,20 @@ class ThirdPersonControllerManager {
     }
   }
 
+  updateCarWheelContact(car) {
+    const center = car._support;
+    if (!center || !car.wheels?.length) return;
+    const sin = Math.sin(car.heading), cos = Math.cos(car.heading);
+    const previous = { previousY: center.height, previousSurfaceId: center.surfaceId };
+    for (const { steerPivot, restY } of car.wheels) {
+      const { x, z } = steerPivot.position;
+      // 与车身承托使用同一面解析；坡面和桥头不能用车心的单一高度画四个轮胎。
+      const support = this.surfaceResolver.resolve(car.position.x + x * cos + z * sin,
+        car.position.z - x * sin + z * cos, previous);
+      steerPivot.position.y = restY + (support ? support.height - car.position.y : 0);
+    }
+  }
+
   updateCar(dt, driveInput = null) {
     if (dt <= 0) return;
     const c = this.entities.car;
@@ -1392,6 +1406,7 @@ class ThirdPersonControllerManager {
     }
     const nextGroundY = this.getGroundHeight(c.position.x, c.position.z, 'car');
     if (Number.isFinite(nextGroundY)) c.position.y = nextGroundY;
+    this.updateCarWheelContact(c);
     c.chassisPivot.position.y = c.heaveY;
 
     c.setLights?.(braking, c.speed < -0.2);

@@ -167,7 +167,7 @@ function footprintIndex(grid) {
   const rows = grid.nz - 1;
   const cells = new Array(columns * rows);
 
-  function addFootprint(points, sources) {
+  function addFootprint(points, sources, riseAt) {
     if (points.length < 3) return;
     const bounds = boundsOf(points);
     const edges = points.map((a, i) => {
@@ -175,7 +175,7 @@ function footprintIndex(grid) {
       const length = Math.hypot(b.x - a.x, b.z - a.z);
       return { x: a.x, z: a.z, nx: (a.z - b.z) / length, nz: (b.x - a.x) / length };
     });
-    const footprint = { bounds, edges, sources };
+    const footprint = { bounds, edges, sources, riseAt };
     const firstX = Math.max(0, Math.floor((bounds.minX - grid.x0) / grid.step));
     const lastX = Math.min(columns - 1, Math.floor((bounds.maxX - grid.x0) / grid.step));
     const firstZ = Math.max(0, Math.floor((bounds.minZ - grid.z0) / grid.step));
@@ -329,12 +329,13 @@ function subtractFootprint(polygon, footprint, result) {
   result.push(...(hasArea(inside) ? pieces : [polygon]));
 }
 
-function appendTriangles(vertices, polygon, [originX, originZ], plane) {
+function appendTriangles(vertices, polygon, [originX, originZ], plane, treatment) {
   const local = polygon.map(p => {
     const x = Math.fround(p.x - originX);
     const z = Math.fround(p.z - originZ);
     const y = p.y + plane.dx * (x + originX - p.x) + plane.dz * (z + originZ - p.z);
-    return { x, y, z };
+    const rise = treatment?.riseAt?.(x + originX, z + originZ) ?? 0;
+    return { x, y: Math.fround(y + rise), baseY: Math.fround(y), z };
   });
   let area = 0;
   for (let i = 1; i + 1 < local.length; i++) {
@@ -346,10 +347,27 @@ function appendTriangles(vertices, polygon, [originX, originZ], plane) {
     vertices.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
     area += twiceArea / 2;
   }
+  if (area > 0 && treatment?.wallVertices) {
+    for (let i = 0; i < local.length; i++) {
+      const a = local[i], b = local[(i + 1) % local.length];
+      const dx = b.x - a.x, dz = b.z - a.z, length = Math.hypot(dx, dz);
+      if (length < EPSILON || (a.y === a.baseY && b.y === b.baseY)) continue;
+      // 顶面为顺时针，沿边向外检查是否还有连续步行面。侧壁顶边直接复用已量化的顶面顶点。
+      const inset = 0.003 / length;
+      const x = (a.x + b.x) / 2 + originX - dz * inset;
+      const z = (a.z + b.z) / 2 + originZ + dx * inset;
+      if (treatment.hasWalkSurface(x, z)) continue;
+      const aBase = [a.x, a.baseY, a.z], bBase = [b.x, b.baseY, b.z];
+      const aTop = [a.x, a.y, a.z], bTop = [b.x, b.y, b.z];
+      if (b.y !== b.baseY) treatment.wallVertices.push(...aBase, ...bBase, ...bTop);
+      if (a.y !== a.baseY) treatment.wallVertices.push(...aBase, ...bTop, ...aTop);
+      treatment.countWall();
+    }
+  }
   return area;
 }
 
-function appendRoadTriangle(vertices, sources, triangle, footprints, origin, union) {
+function appendRoadTriangle(vertices, sources, triangle, footprints, origin, union, treatment) {
   const [a, b, c] = triangle;
   const determinant = turn(a, b, c);
   if (determinant >= -EPSILON) return 0;
@@ -366,26 +384,27 @@ function appendRoadTriangle(vertices, sources, triangle, footprints, origin, uni
     const polygon = intersectFootprint(triangle, footprint);
     if (!hasArea(polygon)) continue;
     for (const source of footprint.sources) sources.set(source.linkIndex, source);
-    if (!union) {
+    if (!union && !treatment) {
       area += appendTriangles(vertices, polygon, origin, plane);
       continue;
     }
     // 在每个地形三角面内做并集，交叉口和相邻弯道只有一层路面。
     let visible = [polygon];
-    for (const prior of covered) {
+    for (const prior of treatment?.roadCuts ?? covered) {
       if (!overlaps(footprint.bounds, prior.bounds)) continue;
       const remainder = [];
       for (const piece of visible) subtractFootprint(piece, prior, remainder);
       visible = remainder;
       if (visible.length === 0) break;
     }
-    for (const piece of visible) area += appendTriangles(vertices, piece, origin, plane);
-    if (visible.length) covered.push(footprint);
+    const surface = treatment && { ...treatment, riseAt: footprint.riseAt };
+    for (const piece of visible) area += appendTriangles(vertices, piece, origin, plane, surface);
+    if (union && visible.length) covered.push(footprint);
   }
   return area;
 }
 
-function clippedSurface(cells, terrainSurface, id, statistics, union = true) {
+function clippedSurface(cells, terrainSurface, id, statistics, union = true, treatment = null) {
   const chunks = [];
 
   for (const chunk of terrainSurface.chunks) {
@@ -394,6 +413,8 @@ function clippedSurface(cells, terrainSurface, id, statistics, union = true) {
     // 用和实际地形网格相同的 Float32 输入；保留分块局部坐标以避免世界坐标量化。
     let positions;
     const vertices = [];
+    const wallVertices = [];
+    let wallSegments = 0;
     const roadRanges = [];
     const sources = new Map();
     for (let i = 0; i < cellRanges.length; i += 3) {
@@ -403,20 +424,24 @@ function clippedSurface(cells, terrainSurface, id, statistics, union = true) {
       const start = cellRanges[i + 1];
       const end = start + cellRanges[i + 2];
       const firstVertex = vertices.length;
+      const cellTreatment = treatment && { wallVertices, hasWalkSurface: treatment.hasWalkSurface,
+        countWall: () => wallSegments++,
+        roadCuts: treatment.roadCells[cellRanges[i]] ?? [] };
       for (let index = start; index < end; index += 3) {
         const triangle = [];
         for (let j = 0; j < 3; j++) {
           const offset = indices[index + j] * 3;
           triangle.push({ x: positions[offset] + originX, y: positions[offset + 1], z: positions[offset + 2] + originZ });
         }
-        statistics.areaM2 += appendRoadTriangle(vertices, sources, triangle, footprints, chunk.origin, union);
+        statistics.areaM2 += appendRoadTriangle(vertices, sources, triangle, footprints, chunk.origin, union, cellTreatment);
       }
       if (vertices.length > firstVertex) roadRanges.push(cellRanges[i], firstVertex, vertices.length);
     }
     if (vertices.length === 0) continue;
     chunks.push({ id: `${id}:${chunk.id}`, origin: chunk.origin, positions: new Float32Array(vertices),
       cellRanges: new Uint32Array(roadRanges),
-      sources: [...sources.values()], heightSource: 'terrain' });
+      sources: [...sources.values()], heightSource: 'terrain',
+      ...(wallVertices.length ? { wallPositions: new Float32Array(wallVertices), wallSegments } : {}) });
     statistics.triangles += vertices.length / 9;
   }
   return chunks;
@@ -449,22 +474,68 @@ export function createRoadSurfaceLayout(graph, terrainSurface) {
   return { chunks, statistics };
 }
 
-export function createRoadPolygonLayout(feature, terrainSurface) {
-  const { id, trianglesXZ } = feature;
-  if (terrainSurface?.version !== 1 || !terrainSurface.grid || trianglesXZ.length % 6 !== 0) {
+function addFeatureFootprints(feature, index) {
+  const { trianglesXZ, riseM, vertexRisesM } = feature;
+  if (trianglesXZ.length % 6 !== 0 || (vertexRisesM && vertexRisesM.length !== trianglesXZ.length / 2)) {
     throw new Error('Attributed road polygons and rendered terrain surface are required');
   }
-  const { cells, addFootprint } = footprintIndex(terrainSurface.grid);
   const source = [{ linkIndex: 0, osmIds: feature.sourceIds }];
   for (let i = 0; i < trianglesXZ.length; i += 6) {
     const a = { x: trianglesXZ[i], z: trianglesXZ[i + 1] };
     const b = { x: trianglesXZ[i + 2], z: trianglesXZ[i + 3] };
     const c = { x: trianglesXZ[i + 4], z: trianglesXZ[i + 5] };
     const winding = turn(a, b, c);
-    if (Math.abs(winding) > EPSILON) addFootprint(winding > 0 ? [a, b, c] : [a, c, b], source);
+    if (Math.abs(winding) <= EPSILON) continue;
+    let riseAt;
+    if (vertexRisesM) {
+      const [y, bY, cY] = vertexRisesM.slice(i / 2, i / 2 + 3);
+      const dx = ((bY - y) * (c.z - a.z) - (cY - y) * (b.z - a.z)) / winding;
+      const dz = ((b.x - a.x) * (cY - y) - (c.x - a.x) * (bY - y)) / winding;
+      riseAt = (x, z) => Math.max(0, y + dx * (x - a.x) + dz * (z - a.z));
+    } else if (riseM && feature.clipToRoadComplement) {
+      riseAt = () => riseM;
+    }
+    index.addFootprint(winding > 0 ? [a, b, c] : [a, c, b], source, riseAt);
   }
+}
+
+export function createRoadsideSurfaceTreatment(graph, grid, features) {
+  const walk = footprintIndex(grid);
+  const road = footprintIndex(grid);
+  const points = features.flatMap(({ trianglesXZ }) => Array.from({ length: trianglesXZ.length / 2 }, (_, i) =>
+    ({ x: trianglesXZ[i * 2], z: trianglesXZ[i * 2 + 1] })));
+  const bounds = boundsOf(points);
+  for (const feature of features) addFeatureFootprints(feature, walk);
+  visitGroundRoadFootprints(graph, polygon => {
+    if (overlaps(bounds, boundsOf(polygon))) road.addFootprint(polygon, []);
+  }, index => {
+    const metadata = graph.metadata[index];
+    if (!metadata || !isGroundRoad(metadata)) return false;
+    const link = graph.links[index];
+    const { minX, minZ, maxX, maxZ } = boundsOf(roadSectionPoints(graph, link, metadata));
+    const width = link[3];
+    return overlaps(bounds, { minX: minX - width, minZ: minZ - width, maxX: maxX + width, maxZ: maxZ + width });
+  });
+
+  function hasWalkSurface(x, z) {
+    const col = Math.floor((x - grid.x0) / grid.step), row = Math.floor((z - grid.z0) / grid.step);
+    if (col < 0 || col >= grid.nx - 1 || row < 0 || row >= grid.nz - 1) return false;
+    const cell = row * (grid.nx - 1) + col;
+    const point = { x, z };
+    const contains = footprint => footprint.edges.every(edge => edgeDistance(edge, point) >= 0);
+    return !!walk.cells[cell]?.some(contains) && !road.cells[cell]?.some(contains);
+  }
+  return { roadCells: road.cells, hasWalkSurface };
+}
+
+export function createRoadPolygonLayout(feature, terrainSurface, treatment) {
+  if (terrainSurface?.version !== 1 || !terrainSurface.grid) {
+    throw new Error('Attributed road polygons and rendered terrain surface are required');
+  }
+  const index = footprintIndex(terrainSurface.grid);
+  addFeatureFootprints(feature, index);
   const statistics = { triangles: 0, areaM2: 0 };
-  return { chunks: clippedSurface(cells, terrainSurface, id, statistics, false), statistics };
+  return { chunks: clippedSurface(index.cells, terrainSurface, feature.id, statistics, false, treatment), statistics };
 }
 
 function sampleRoadCell({ positions, origin }, start, end, worldX, worldZ) {
