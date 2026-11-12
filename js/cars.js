@@ -203,27 +203,26 @@ BODY_SPECS.taxi = {
   stationStep: 0.22, // 出租车用更密的 loft 站，曲面不起棱
   lowerSamples: [0, 0.25, 0.5, 0.75, 1],
   upperSamples: [0.3, 0.58, 0.8, 1],
-  halfWidth: [[2.42, 0.885], [1.45, 0.94], [0, 0.947], [-1.45, 0.941], [-2.48, 0.92]],
+  halfWidth: [[2.42, 0.885], [1.45, 0.94], [0, 0.947], [-1.45, 0.941], [-2.48, 0.90]],
   sill: [[2.42, 0.26], [1.2, 0.235], [-1.2, 0.235], [-2.48, 0.27]],
-  shoulder: [[2.42, 0.55], [1.8, 0.63], [1.45, 0.66], [0, 0.74], [-1.45, 0.83], [-2.48, 0.84]],
-  edge: [[2.3, 0.78], [1.8, 0.87], [1.3, 0.92], [0.7, 0.955], [0, 0.99], [-1.0, 1.035], [-1.8, 1.08], [-2.3, 1.10], [-2.44, 1.09]],
+  shoulder: [[2.42, 0.55], [1.8, 0.63], [1.45, 0.66], [0, 0.74], [-1.45, 0.83], [-1.93, 0.76], [-2.48, 0.68]],
+  edge: [[2.3, 0.85], [1.8, 0.94], [1.3, 1.035], [1.06, 1.07], [-2.48, 1.07]],
   crown: [[2.3, 0.05], [1.5, 0.045], [1.15, 0.004], [-2.48, 0.004]],
-  tumble: [[2.42, 0.12], [0.9, 0.1], [-1.6, 0.1], [-2.48, 0.12]],
+  tumble: [[2.42, 0.12], [0.9, 0.1], [-1.6, 0.10], [-2.48, 0.075]],
   // 低矮圆润车头：长收圆 + 大 rake，前脸不再是一块竖直板
-  nose: { halfWidth: [0.5, 0.62, 3.0], edge: [0.34, 0.78, 3.0], crown: [0.3, 0.015, 2.2], sill: [0.26, 0.26, 2.2], shoulder: [0.4, 0.48, 3] },
-  tail: { halfWidth: [0.46, 0.83, 2.0], edge: [0.24, 1.07, 2.0], crown: [0.24, 0.006, 2],
-    sill: [0.34, 0.28, 2], shoulder: [0.34, 0.8, 2] },
+  nose: { halfWidth: [0.5, 0.62, 3.0], edge: [0.34, 0.85, 3.0], crown: [0.3, 0.015, 2.2], sill: [0.26, 0.26, 2.2], shoulder: [0.4, 0.48, 3] },
+  tail: { halfWidth: [0.46, 0.81, 2.0], edge: [0.24, 1.07, 2.0], crown: [0.24, 0.006, 2],
+    sill: [0.34, 0.28, 2], shoulder: [0.34, 0.67, 2] },
   noseRake: { length: 0.95, y: [[0.26, 0.22], [0.4, 0.1], [0.55, 0.01], [0.68, 0.01], [0.78, 0.06], [0.9, 0.16]], plan: 0.12 },
   // 尾门上缘向前微收，后窗下缘接在尾门上沿。
   tailRake: { length: 0.44, y: [[0.26, 0.045], [0.48, 0], [0.65, 0.01], [0.86, 0.025], [1.1, 0.055]], plan: 0.045 },
   cabin: {
     cowl: 1.06,
     roofFront: -0.06,
-    roofRear: -2.03,
-    deck: -2.36,
-    roofY: [[-0.06, 1.68], [-0.62, 1.73], [-1.36, 1.73], [-2.03, 1.67]],
+    roofRear: -2.13,
+    deck: -2.48,
+    roofY: [[-0.06, 1.68], [-0.62, 1.73], [-1.36, 1.73], [-2.13, 1.67]],
     rail: [0.685, 0.676],
-    inset: 0.022,
     bulge: 0.02, // 侧窗是外凸曲面
     roofEdge: 0.05,
     roofCrown: 0.03,
@@ -234,7 +233,7 @@ BODY_SPECS.taxi = {
   pillarWidth: 0.026, // 细柱：材质画的立柱半宽（默认 0.038）
   doors: [1.0, -0.44, -1.53],
   handles: [0.35, -0.95],
-  headlight: [0.62, 0.68, 0.24, 0.04],
+  headlight: [0.62, 0.715, 0.24, 0.04],
   taillight: [0.65, 0.96, 0.155, 0.05],
   grille: [0.58, 0.34, 0.05],
   intake: [0.38, 0.52, 0.08],
@@ -539,10 +538,12 @@ function carLayout(spec) {
   const body = bodyProfile(spec);
   const archR = spec.wheelRadius + spec.archGap;
   const cab = spec.cabin;
+  const sharedShoulder = spec.name === 'taxi';
   const roofY = smoothCurve(cab.roofY);
   const H = cab.roofEdge + cab.roofCrown;
   const belt = (z) => {
     const s = body(z);
+    if (sharedShoulder) return { x: s.xE, y: s.yE };
     return { x: s.xE - cab.inset, y: s.yE - 0.004 };
   };
   const bc = belt(cab.cowl);
@@ -576,7 +577,10 @@ function carLayout(spec) {
       railY = roofY(z) - H;
       h = H;
     }
-    return { z, beltX: Math.max(b.x, railX), beltY: Math.min(b.y, railY), railX, railY, h, bulge: cab.bulge };
+    const rise = Math.max(0, railY - b.y);
+    const bulge = sharedShoulder ? cab.bulge * Math.min(1, rise / 0.20) : cab.bulge;
+    return { z, beltX: sharedShoulder ? b.x : Math.max(b.x, railX),
+      beltY: sharedShoulder ? b.y : Math.min(b.y, railY), railX, railY, h, bulge };
   };
 
   // Height of the glasshouse's top surface (roof / windshield crown) at |x| for a cabin section
@@ -597,7 +601,7 @@ const BODY_UPPER_ROUND = 3.2;
 // Right half of a body cross-section: superelliptic lower corner (sill -> widest point), superelliptic upper corner
 // (widest point -> top edge) and a parabolic crown. Specs may sharpen the corners (lowerRound / upperRound) and sample
 // the upper corner more densely (upperSamples).
-function bodyHalfProfile(s, detail, spec = {}) {
+function bodyHalfProfile(s, detail, spec = {}, join = null) {
   const n1 = spec.lowerRound || BODY_LOWER_ROUND;
   const n2 = spec.upperRound || BODY_UPPER_ROUND;
   const right = [];
@@ -616,7 +620,15 @@ function bodyHalfProfile(s, detail, spec = {}) {
   }
   for (const a of up) {
     const th = (a * Math.PI) / 2;
-    right.push([s.xE + (s.W - s.xE) * Math.pow(Math.cos(th), 2 / n2), s.yS + (s.yE - s.yS) * Math.pow(Math.sin(th), 2 / n2)]);
+    const t = Math.pow(Math.sin(th), 2 / n2);
+    let x = s.xE + (s.W - s.xE) * Math.pow(Math.cos(th), 2 / n2);
+    if (join) {
+      // 用侧窗下沿的切向收尾，逐渐过渡回机盖和尾门的原曲面。
+      const m = join.slope * (s.yE - s.yS);
+      const smoothX = s.xE + (s.W - s.xE) * (1 - t) ** 2 * (1 + 2 * t) + m * t * t * (t - 1);
+      x = lerp(x, smoothX, join.weight);
+    }
+    right.push([x, lerp(s.yS, s.yE, t)]);
   }
   for (const f of top) right.push([s.xE * f, s.yE + (s.yT - s.yE) * (1 - f * f)]);
   return right;
@@ -650,14 +662,24 @@ function bodyStations(spec, detail) {
       add(axle - archR - 0.006);
     }
   }
-  if (detail && cab) {
+  const shared = spec.name === 'taxi';
+  if ((detail || shared) && cab) {
     add(cab.cowl);
     add(cab.deck);
+    if (shared) {
+      add(cab.roofFront);
+      add(cab.roofRear);
+      for (const inset of detail ? [0.055, 0.11, 0.18] : [0.15]) {
+        add(cab.cowl - inset);
+        add(cab.deck + inset);
+      }
+    }
   }
   zs.sort((a, b) => b - a);
   const eps = detail ? 0.004 : 0.04;
   const out = [];
   for (const z of zs) {
+    if (shared && z !== cab.cowl && z !== cab.deck && Math.min(Math.abs(z - cab.cowl), Math.abs(z - cab.deck)) <= eps) continue;
     if (!out.length || out[out.length - 1] - z > eps) out.push(z);
   }
   out[0] = spec.zFront;
@@ -668,7 +690,8 @@ function bodyStations(spec, detail) {
     const a = out[i - 1];
     const b = out[i];
     const mid = (a + b) / 2;
-    const gap = !detail ? (spec.proxyStep || 0.75) : mid < cab.cowl - 0.1 && mid > cab.deck + 0.1 ? 0.5 : (spec.stationStep || 0.27);
+    const gap = !detail ? (spec.proxyStep || 0.75)
+      : !shared && mid < cab.cowl - 0.1 && mid > cab.deck + 0.1 ? 0.5 : (spec.stationStep || 0.27);
     const n = Math.ceil((a - b) / gap - 0.15);
     for (let j = 1; j < n; j++) filled.push(lerp(a, b, j / n));
     filled.push(b);
@@ -738,13 +761,40 @@ function buildTipCap(right, top, z, rake, front, columns) {
   return g;
 }
 
+function taxiShoulderSlope(cabin) {
+  return Math.min(-0.06, (cabin.railX - cabin.beltX + 4 * cabin.bulge) / Math.max(0.05, cabin.railY - cabin.beltY));
+}
+
+function taxiExteriorSection(layout, s, detail) {
+  const { spec } = layout;
+  const cab = spec.cabin;
+  const z = Math.max(cab.deck, Math.min(cab.cowl, s.z));
+  const cabin = layout.cabin(z);
+  const t = Math.min(1, (z - cab.deck) / 0.10, (cab.cowl - z) / 0.18);
+  const roofBlend = t * t * (3 - 2 * t);
+  const slope = taxiShoulderSlope(cabin);
+  const right = bodyHalfProfile(s, detail, spec, { slope, weight: roofBlend }).slice(0, detail ? -2 : -1);
+  const roof = cabinHalfProfile(cabin, detail, cab.roofRound).slice(1);
+  for (let i = 0; i < roof.length; i++) {
+    const fraction = 1 - (i + 1) / (roof.length + 1);
+    const panelY = s.yE + (s.yT - s.yE) * (1 - fraction * fraction);
+    right.push([lerp(s.xE * fraction, roof[i][0], roofBlend), lerp(panelY, roof[i][1], roofBlend)]);
+  }
+  return { right, top: lerp(s.yT, cabin.railY + cabin.h, roofBlend) };
+}
+
 function buildBodyLoft(spec, detail = 1) {
   const body = bodyProfile(spec);
   const rake = bodyRake(spec);
   const stations = bodyStations(spec, detail);
-  const sections = stations.map((z) => {
+  const layout = spec.name === 'taxi' ? carLayout(spec) : null;
+  const profiles = stations.map(z => {
     const s = body(z);
-    const section = mirrorSection(bodyHalfProfile(s, detail, spec), [0, s.yT], z);
+    return layout ? taxiExteriorSection(layout, s, detail) : { right: bodyHalfProfile(s, detail, spec), top: s.yT };
+  });
+  const sections = profiles.map(({ right, top }, i) => {
+    const z = stations[i];
+    const section = mirrorSection(right, [0, top], z);
     if (rake) for (const p of section) p.z = rake(p.x, p.y, z);
     return section;
   });
@@ -757,8 +807,8 @@ function buildBodyLoft(spec, detail = 1) {
   const nRight = (ring - 1) / 2;
   const lNorm = loft.attributes.normal;
   const caps = [0, stations.length - 1].map((si) => {
-    const s = body(stations[si]);
-    const cap = buildTipCap(bodyHalfProfile(s, detail, spec), s.yT, stations[si], rake, si === 0, cols);
+    const { right, top } = profiles[si];
+    const cap = buildTipCap(right, top, stations[si], rake, si === 0, cols);
     const cNorm = cap.attributes.normal;
     const base = si * ring;
     const blend = (li, ci) => {
@@ -784,7 +834,7 @@ function buildCarBody(spec, detail = 1) {
   return g.getAttribute('partId') ? g : part(g, CAR_PARTS.BODY);
 }
 
-function cabinSection(c, detail, roundness) {
+function cabinHalfProfile(c, detail, roundness) {
   const right = [[c.beltX, c.beltY]];
   if (detail) {
     for (const s of [1 / 3, 2 / 3]) {
@@ -796,7 +846,11 @@ function cabinSection(c, detail, roundness) {
     const th = (f * Math.PI) / 2;
     right.push([c.railX * Math.pow(Math.cos(th), 2 / roundness), c.railY + c.h * Math.pow(Math.sin(th), 2 / roundness)]);
   }
-  return mirrorSection(right, [0, c.railY + c.h], c.z);
+  return right;
+}
+
+function cabinSection(c, detail, roundness) {
+  return mirrorSection(cabinHalfProfile(c, detail, roundness), [0, c.railY + c.h], c.z);
 }
 
 function cabinStations(spec, detail) {
@@ -1126,7 +1180,9 @@ function buildBedCover(spec) {
 
 // Bumpers are part of the body loft (the raked nose & tail): body-coloured fascias, like modern cars'
 function buildCarGeometry(spec, includeWheels = true) {
-  const parts = [buildCarBody(spec, 1), buildCarCabin(spec, 1), ...buildMirrors(spec)];
+  const parts = [buildCarBody(spec, 1)];
+  if (spec.name !== 'taxi') parts.push(buildCarCabin(spec, 1));
+  parts.push(...buildMirrors(spec));
   for (const side of [-1, 1]) {
     for (const z of [-spec.wheelZ, spec.wheelZ]) {
       if (includeWheels) parts.push(...buildWheelParts(spec, side, true, z));
@@ -1143,7 +1199,8 @@ function buildCarGeometry(spec, includeWheels = true) {
 // coarse sections, dark wheel blocks and the taxi's roof sign. Same attributes (partId, uv, normal) as the full
 // model, so it renders with the same material and per-instance paint.
 function buildCarProxyGeometry(spec) {
-  const parts = [buildCarBody(spec, 0), buildCarCabin(spec, 0)];
+  const parts = [buildCarBody(spec, 0)];
+  if (spec.name !== 'taxi') parts.push(buildCarCabin(spec, 0));
   const r = spec.wheelRadius;
   for (const side of [-1, 1]) {
     for (const z of [-spec.wheelZ, spec.wheelZ]) {
@@ -1483,6 +1540,7 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   }
 
   const shenzhen = _carLocale === 'shenzhen';
+  const unifiedShell = spec.name === 'taxi';
   const L = carLayout(spec);
   const cab = spec.cabin;
   const fixed = fixedColorHex !== null;
@@ -1557,6 +1615,7 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   const belt = mix(float(bd.y), float(bc.y), clamp(p.z.sub(cab.deck).div(cab.cowl - cab.deck), 0.0, 1.0));
   const ndv = clamp(dot(normalView, positionViewDirection), 0.0, 1.0);
   const fresnel = pow(one.sub(ndv), 3.2);
+  const nearGlazing = p.y.greaterThan(Math.min(bc.y, bd.y) - 0.035);
 
   // Per-axis screen footprint of the object-space position, taken outside the branches (derivatives need uniform
   // control flow). Every edge and sub-pixel fade uses the footprint across itself: on a side seen at a grazing angle
@@ -1625,7 +1684,7 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   const ao = smoothstep(0.22, 0.66, p.y).mul(0.2).add(0.8).mul(one.sub(archLip.mul(0.55)));
   const tlSize = vec2(tlW * 1.04, tlH * 1.2);
 
-  // Shared glasshouse polygon evaluation (used by colorNode, roughnessNode & metalnessNode on CAR_PARTS.WINDOW only)
+  // 同一套窗框遮罩供颜色、粗糙度和金属度使用。
   const evalWindowGlass = () => {
     const side = polygonEdge(p.z, p.y, sideGlassPlanes, 0.065, fwZ, fwY);
     let dSideG = side.d;
@@ -1639,11 +1698,23 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     for (const zp of cab.pillars) pillarCut(zp, pillarHalf);
     if (cab.pillars.length === 1) pillarCut(cab.roofRear - 0.04, spec.pillarWidth ? spec.pillarWidth * 0.55 : 0.014);
     const front = polygonEdge(ax, p.z, frontGlassPlanes, 0.085, fwX, fwZ);
-    const sideGlass = cov(dSideG, wSideG);
-    const frontGlass = cov(front.d, front.w);
+    // 出租车上下一体，投影遮罩需要限定在朝向相符的立面，避免玻璃画到尾门或机盖。
+    const sideFace = unifiedShell ? smoothstep(0.28, 0.60, abs(n.x)) : one;
+    const frontFace = unifiedShell
+      ? smoothstep(0.06, 0.18, n.z).mul(cov(float(bc.y + 0.035).sub(p.y), fwY)) : one;
+    const rearFace = unifiedShell
+      ? smoothstep(-0.06, -0.18, n.z).mul(cov(float(bd.y + 0.036).sub(p.y), fwY)) : one;
+    const sideGlass = cov(dSideG, wSideG).mul(sideFace);
+    const frontGlass = cov(front.d, front.w).mul(frontFace);
     const rear = spec.cargo ? null : polygonEdge(ax, p.z, rearGlassPlanes, 0.085, fwX, fwZ);
-    const rearGlass = rear ? cov(rear.d, rear.w) : float(0.0);
+    const rearGlass = rear ? cov(rear.d, rear.w).mul(rearFace) : float(0.0);
     const glass = max(max(sideGlass, frontGlass), rearGlass);
+    if (unifiedShell) {
+      const sideSeal = cov(side.d.sub(0.016), side.w).mul(sideFace);
+      const frontSeal = cov(front.d.sub(0.016), front.w).mul(frontFace);
+      const rearSeal = cov(rear.d.sub(0.016), rear.w).mul(rearFace);
+      return { glass, frontGlass, rearGlass, seal: max(sideSeal, max(frontSeal, rearSeal)) };
+    }
     // The seal follows the nearest outline, filtered across that outline
     let dSeal = side.d;
     let wSeal = side.w;
@@ -1707,6 +1778,55 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     : rrect(vec2(p.x, p.z.sub(cab.roofRear - 0.075)), vec2(0.16, 0.011), 0.005, fwXZ)
         .mul(rearGlass())
         .mul(smoothstep(-0.05, -0.2, n.z));
+
+  const paintGlazing = (baseColor) => {
+    const { glass, frontGlass, rearGlass, seal } = evalWindowGlass();
+    const beltStrip = unifiedShell ? float(0.0) : band(p.y.sub(belt.add(0.01)), 0.007, fwY)
+      .mul(smoothstep(0.5, 0.7, abs(n.x)))
+      .mul(cov(float(glassEndZ + 0.03).sub(p.z), fwZ))
+      .mul(cov(p.z.sub(cab.cowl - 0.07), fwZ));
+    const chromeBelt = beltStrip.mul(hasChrome);
+    const chmsl = chmslMask(() => rearGlass);
+    const rearWiper = spec.rearWiper
+      ? rrect(vec2(p.x.add(0.15), p.z.sub(cab.deck + 0.075)), vec2(0.22, 0.006), 0.003, fwXZ).mul(rearGlass)
+      : float(0.0);
+
+    const glassBase = mix(color(0x0a1016), color(0x1a2632), max(smoothstep(0.2, 0.9, n.y), fresnel.mul(0.55)));
+    const tlcSticker = rrect(vec2(p.x.add(bc.x - 0.16), p.z.sub(cab.cowl - 0.14)), vec2(0.045, 0.03), 0.008, fwXZ)
+      .mul(frontGlass)
+      .mul(isTLC);
+    const glassCol = mix(glassBase, color(0x3a88e8), tlcSticker.mul(0.65));
+    let roofPaint = mix(baseColor, color(0x111418), isTwoTone.mul(cov(float(rf.y - 0.04).sub(p.y), fwY)));
+    if (spec.slidingDoor) {
+      const [sdFront, sdRear, sdTop] = spec.slidingDoor;
+      const sdMidZ = (sdFront + sdRear) * 0.5;
+      const sdHalfZ = (sdFront - sdRear) * 0.5;
+      const slideSide = abs(p.z.sub(sdMidZ)).sub(sdHalfZ);
+      const slideTop = p.y.sub(sdTop);
+      const slideW = maxEdgeW(slideTop, slideSide, fwY, fwZ);
+      const slideSeamW = band(max(slideSide, slideTop), 0.0035, slideW).mul(step(p.x, -0.2)).mul(isSide);
+      const panelRibW = band(p.z.add(1.98), 0.0035, fwZ).mul(cov(slideTop, fwY)).mul(isSide).mul(0.55);
+      roofPaint = roofPaint.mul(one.sub(max(slideSeamW, panelRibW).mul(0.58)));
+    }
+    if (spec.barnDoors) {
+      const [barnW, barnTop] = spec.barnDoors;
+      const rearWall = smoothstep(-0.15, -0.45, n.z).mul(smoothstep(rearZone + 0.05, rearZone - 0.05, p.z));
+      const barnSide = ax.sub(barnW);
+      const barnTopD = p.y.sub(barnTop);
+      const barnEdgeW = maxEdgeW(barnTopD, barnSide, fwY, fwX);
+      const barnOutlineW = band(max(barnSide, barnTopD), 0.0035, barnEdgeW);
+      const barnSplitW = band(p.x, 0.0045, fwX).mul(cov(barnTopD, fwY));
+      const barnSeamW = max(barnOutlineW, barnSplitW).mul(rearWall);
+      const barnHinge = rrect(vec2(ax.sub(barnW), abs(p.y.sub(1.78)).sub(0.34)), vec2(0.022, 0.03), 0.005, fwXY).mul(rearWall);
+      roofPaint = mix(roofPaint.mul(one.sub(barnSeamW.mul(0.58))), color(0x14171b), barnHinge);
+    }
+    const wCol = mix(
+      mix(mix(mix(roofPaint, color(0x111315), max(seal, beltStrip)), glassCol, glass), color(0xd2d8de), chromeBelt),
+      color(0x6a0a0e),
+      chmsl
+    );
+    return mix(wCol, color(0x14171a), rearWiper);
+  };
 
   // ---- Colour (per-part If branches so each fragment only evaluates its own part's masks) ---------------------------
   const colorFn = Fn(() => {
@@ -1914,53 +2034,9 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
 
       const under = smoothstep(-0.25, -0.55, n.y);
       outCol.assign(mix(bCol, color(0x0c0e11), under));
+      if (unifiedShell) If(nearGlazing, () => outCol.assign(paintGlazing(outCol)));
     }).ElseIf(isWindow.greaterThan(0.5), () => {
-      const { glass, frontGlass, rearGlass, seal } = evalWindowGlass();
-      const beltStrip = band(p.y.sub(belt.add(0.01)), 0.007, fwY)
-        .mul(smoothstep(0.5, 0.7, abs(n.x)))
-        .mul(cov(float(glassEndZ + 0.03).sub(p.z), fwZ))
-        .mul(cov(p.z.sub(cab.cowl - 0.07), fwZ));
-      const chromeBelt = beltStrip.mul(hasChrome);
-      const chmsl = chmslMask(() => rearGlass);
-      const rearWiper = spec.rearWiper
-        ? rrect(vec2(p.x.add(0.15), p.z.sub(cab.deck + 0.075)), vec2(0.22, 0.006), 0.003, fwXZ).mul(rearGlass)
-        : float(0.0);
-
-      const glassBase = mix(color(0x0a1016), color(0x1a2632), max(smoothstep(0.2, 0.9, n.y), fresnel.mul(0.55)));
-      const tlcSticker = rrect(vec2(p.x.add(bc.x - 0.16), p.z.sub(cab.cowl - 0.14)), vec2(0.045, 0.03), 0.008, fwXZ)
-        .mul(frontGlass)
-        .mul(isTLC);
-      const glassCol = mix(glassBase, color(0x3a88e8), tlcSticker.mul(0.65));
-      let roofPaint = mix(basePaint.mul(ao), color(0x111418), isTwoTone.mul(cov(float(rf.y - 0.04).sub(p.y), fwY)));
-      if (spec.slidingDoor) {
-        const [sdFront, sdRear, sdTop] = spec.slidingDoor;
-        const sdMidZ = (sdFront + sdRear) * 0.5;
-        const sdHalfZ = (sdFront - sdRear) * 0.5;
-        const slideSide = abs(p.z.sub(sdMidZ)).sub(sdHalfZ);
-        const slideTop = p.y.sub(sdTop);
-        const slideW = maxEdgeW(slideTop, slideSide, fwY, fwZ);
-        const slideSeamW = band(max(slideSide, slideTop), 0.0035, slideW).mul(step(p.x, -0.2)).mul(isSide);
-        const panelRibW = band(p.z.add(1.98), 0.0035, fwZ).mul(cov(slideTop, fwY)).mul(isSide).mul(0.55);
-        roofPaint = roofPaint.mul(one.sub(max(slideSeamW, panelRibW).mul(0.58)));
-      }
-      if (spec.barnDoors) {
-        const [barnW, barnTop] = spec.barnDoors;
-        const rearWall = smoothstep(-0.15, -0.45, n.z).mul(smoothstep(rearZone + 0.05, rearZone - 0.05, p.z));
-        const barnSide = ax.sub(barnW);
-        const barnTopD = p.y.sub(barnTop);
-        const barnEdgeW = maxEdgeW(barnTopD, barnSide, fwY, fwX);
-        const barnOutlineW = band(max(barnSide, barnTopD), 0.0035, barnEdgeW);
-        const barnSplitW = band(p.x, 0.0045, fwX).mul(cov(barnTopD, fwY));
-        const barnSeamW = max(barnOutlineW, barnSplitW).mul(rearWall);
-        const barnHinge = rrect(vec2(ax.sub(barnW), abs(p.y.sub(1.78)).sub(0.34)), vec2(0.022, 0.03), 0.005, fwXY).mul(rearWall);
-        roofPaint = mix(roofPaint.mul(one.sub(barnSeamW.mul(0.58))), color(0x14171b), barnHinge);
-      }
-      const wCol = mix(
-        mix(mix(mix(roofPaint, color(0x111315), max(seal, beltStrip)), glassCol, glass), color(0xd2d8de), chromeBelt),
-        color(0x6a0a0e),
-        chmsl
-      );
-      outCol.assign(mix(wCol, color(0x14171a), rearWiper));
+      outCol.assign(paintGlazing(basePaint.mul(ao)));
     }).ElseIf(isAlloyFace.greaterThan(0.5), () => {
       outCol.assign(evalAlloyColor(wheelVec, rNorm, fwRing, fwSpoke, isPolice, isBlackout, wheelCode));
     }).ElseIf(isTyreRubber.greaterThan(0.5), () => {
@@ -1991,14 +2067,23 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
   const paintRough = mix(float(0.11), float(0.16), isMetallic);
   const paintMetal = mix(float(0.32), float(0.42), isMetallic).add(fresnel.mul(0.14));
 
+  const glazingRoughness = () => {
+    const { glass, seal } = evalWindowGlass();
+    return mix(mix(paintRough, float(0.78), seal), float(0.08), glass);
+  };
+  const glazingMetalness = () => {
+    const { glass, seal } = evalWindowGlass();
+    return mix(mix(paintMetal, float(0.04), seal), mix(float(0.16), float(0.36), fresnel), glass);
+  };
+
   const roughFn = Fn(() => {
     const r = float(0.78).toVar();
     If(isBody.greaterThan(0.5), () => {
       const lowMatte = smoothstep(sillY + 0.10, sillY - 0.01, p.y).mul(0.16);
       r.assign(paintRough.add(lowMatte));
+      if (unifiedShell) If(nearGlazing, () => r.assign(glazingRoughness()));
     }).ElseIf(isWindow.greaterThan(0.5), () => {
-      const { glass, seal } = evalWindowGlass();
-      r.assign(mix(mix(paintRough, float(0.78), seal), float(0.08), glass));
+      r.assign(glazingRoughness());
     }).ElseIf(isAlloyFace.greaterThan(0.5), () => {
       r.assign(mix(float(0.22), float(0.52), isPolice));
     }).ElseIf(isMirror.greaterThan(0.5), () => {
@@ -2013,9 +2098,9 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     const m = float(0.04).toVar();
     If(isBody.greaterThan(0.5), () => {
       m.assign(paintMetal);
+      if (unifiedShell) If(nearGlazing, () => m.assign(glazingMetalness()));
     }).ElseIf(isWindow.greaterThan(0.5), () => {
-      const { glass, seal } = evalWindowGlass();
-      m.assign(mix(mix(paintMetal, float(0.04), seal), mix(float(0.16), float(0.36), fresnel), glass));
+      m.assign(glazingMetalness());
     }).ElseIf(isAlloyFace.greaterThan(0.5), () => {
       m.assign(mix(float(0.84), float(0.22), isPolice));
     }).ElseIf(isMirror.greaterThan(0.5), () => {
@@ -2050,6 +2135,10 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
         let rearEmit = tail.add(turn);
         if (fixed) rearEmit = rearEmit.add(color(0xf0f6ff).mul(tailLens).mul(reverseRearSection).mul(state.w).mul(1.8));
         emit.assign(rearEmit);
+      });
+      if (unifiedShell) If(nearGlazing.and(brake.greaterThan(0.5)), () => {
+        const chmsl = chmslMask(() => evalWindowGlass().rearGlass);
+        emit.assign(emit.add(color(0xff0c16).mul(chmsl.mul(2.3))));
       });
     }).ElseIf(isSign.greaterThan(0.5), () => {
       const signFace = smoothstep(0.55, 0.75, abs(n.z));

@@ -172,12 +172,17 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   assert.ok(steeringSweep < taxiSpec.radius + taxiBody.archGap,
     `steered tire sweep ${steeringSweep.toFixed(3)} stays inside the arch ${(taxiSpec.radius + taxiBody.archGap).toFixed(3)}`);
   // 上下同步加宽：tumblehome 收小，车顶/玻璃房一起变宽
-  for (const point of taxiBody.tumble) assert.ok(point[1] <= 0.125 && point[1] >= 0.09, `tumblehome ${point[1]}`);
+  assert.ok(taxiLayout.body(-2.35).W - taxiLayout.body(-2.35).xE < 0.09,
+    'the hatch shoulder follows the glass without a wide ledge');
   // 低矮圆润前脸：长收圆 + 大 rake，机舱盖低、风挡大倾角
   const noseFront = cars.carTipZ(taxiBody, 0.95, true);
   const noseBumper = cars.carTipZ(taxiBody, 0.6, true);
   assert.ok(noseBumper - noseFront > 0.12, `raked nose: bumper ${noseBumper.toFixed(2)} vs hood line ${noseFront.toFixed(2)}`);
   assert.ok(taxiLayout.body(2.1).yE < 0.95, `low bonnet line ${taxiLayout.body(2.1).yE.toFixed(2)}`);
+  assert.ok(taxiLayout.body(1.8).yE >= 0.93, 'the nose meets the higher hood');
+  const sideWindowBase = Array.from({ length: 17 }, (_, i) => taxiLayout.cabin(1.06 - i * 0.20).beltY);
+  assert.ok(Math.max(...sideWindowBase) - Math.min(...sideWindowBase) < 0.012,
+    'the window belt is level from the front door to the rear quarter');
   assert.ok(angleFromVertical(1, (taxiBody.cabin.cowl - taxiBody.cabin.roofFront) / (taxiLayout.rail.front.y - taxiLayout.belt.cowl.y)) > 50,
     'strongly raked windscreen (more than 50° from vertical)');
   // 长弧形车顶：顶线连续、无折点
@@ -192,6 +197,33 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   // 侧面是凸曲面：低超椭圆指数 + 明显 tumblehome，没有竖直方盒侧板
   assert.ok(taxiBody.lowerRound >= 2 && taxiBody.lowerRound <= 2.4, `lowerRound ${taxiBody.lowerRound}`);
   assert.ok(taxiBody.upperRound >= 2 && taxiBody.upperRound <= 2.4, `upperRound ${taxiBody.upperRound}`);
+  for (const detail of [1, 0]) {
+    const shell = cars.buildBodyLoft(taxiBody, detail);
+    const { position, partId } = shell.attributes;
+    const neighbors = Array.from({ length: position.count }, () => []);
+    for (let i = 0; i < shell.index.count; i += 3) {
+      const [a, b, c] = shell.index.array.slice(i, i + 3);
+      if ([a, b, c].some(v => partId.getX(v) !== 0)) continue;
+      neighbors[a].push(b, c);
+      neighbors[b].push(a, c);
+      neighbors[c].push(a, b);
+    }
+    const isRear = i => position.getZ(i) < -1.5 && Math.abs(position.getX(i)) > 0.56;
+    const roof = neighbors.findIndex((links, i) => links.length && isRear(i) && position.getY(i) > 1.55);
+    assert.ok(roof >= 0, 'the high rear roof is part of the exterior');
+    const seen = new Set([roof]);
+    const pending = [roof];
+    for (const point of pending) {
+      for (const next of neighbors[point]) {
+        if (seen.has(next)) continue;
+        seen.add(next);
+        pending.push(next);
+      }
+    }
+    assert.ok([...seen].some(i => isRear(i) && position.getY(i) < 0.95),
+      'the rear roof and tail shoulder share connected exterior faces');
+    shell.dispose();
+  }
   const midSection = taxiLayout.body(0);
   assert.ok(midSection.W - midSection.xE > 0.08, 'side glass sits in from the widest point (convex shoulder, no vertical slab)');
   assert.ok(midSection.W - midSection.xE <= 0.13, 'tumblehome stays small so the cabin is wide too (upper and lower body widened together)');
@@ -201,9 +233,7 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   const glassHeight = taxiLayout.cabin(0).railY - taxiLayout.belt.cowl.y;
   assert.ok(glassHeight > 0.32, `large side glass, ${glassHeight.toFixed(2)} m tall`);
   // 后窗下缘要贴着尾门，不能留下三厢尾箱或悬空的玻璃。
-  const capTopZ = cars.carTipZ(taxiBody, taxiLayout.body(taxiBody.zRear).yT - 0.02, false);
-  assert.ok(taxiBody.cabin.deck > capTopZ && taxiBody.cabin.deck - capTopZ < 0.13,
-    `backlight base ${taxiBody.cabin.deck} joins the rear face at ${capTopZ.toFixed(2)}`);
+  assert.equal(taxiBody.cabin.deck, taxiBody.zRear, 'the hatch profile closes at the same station as the tail face');
   const backlightRise = taxiLayout.cabin(taxiBody.cabin.roofRear).railY - taxiLayout.cabin(taxiBody.cabin.deck).beltY;
   const backlightRun = Math.abs(taxiBody.cabin.deck - taxiBody.cabin.roofRear);
   const backlightAngle = angleFromVertical(backlightRise, backlightRun);
@@ -341,8 +371,9 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   assert.ok(playerTaxi.chassis.getObjectByName('player-taxi-cockpit'), 'driver cockpit is present');
   const bodyMesh = playerTaxi.chassis.getObjectByName('taxi-lofted-body');
   const closedBody = cars.buildCarGeometry(cars.BODY_SPECS.taxi, false);
+  assert.ok(closedBody.attributes.partId.array.every(id => id !== 1), 'glazing is painted on the same exterior');
   assert.deepEqual(bodyMesh.geometry.index.array, closedBody.index.array, 'player taxi keeps the complete lofted body and roof');
-  assert.equal(bodyMesh.material.transparent, false, 'the closed dark glazing hides the shell beneath it');
+  assert.equal(bodyMesh.material.transparent, false, 'the exterior uses opaque dark glazing');
   assert.equal(bodyMesh.material, cars.createLoftedCarMaterial(cars.BODY_SPECS.taxi, models.PALETTE.taxiBlue));
   assert.equal(models.createTrafficCarBody('taxi').material.transparent, false, 'ambient taxi glass stays opaque');
   closedBody.dispose();
