@@ -327,6 +327,31 @@ function makeFactory(graph, options = {}) {
   return { peds, scene, rigs: stub.rigs.slice(rigStart), crowd: stub.crowds[crowdStart], sceneStub: scene };
 }
 
+test('a follower slows for the same queue in either update order', () => {
+  const focus = { x: 50, y: 0, z: 0 };
+  const dt = 0.05;
+  const initialSpeed = 1.2;
+  function followerSpeed(gap, reverse) {
+    const { peds } = makeFactory(straightGraph(100), { maxPeds: 2, pavement: false });
+    peds.update(0, focus, 0);
+    const [leader, follower] = peds.peds;
+    const leg = peds.region.tracks[0];
+    for (const [ped, s] of [[leader, 50 + gap], [follower, 50]]) {
+      const { x, z, dx, dz } = sampleTrack(leg, s);
+      Object.assign(ped, { leg, s, x, z, placed: true, dir: 1, heading: Math.atan2(dx, dz),
+        fromLeg: null, lateral: 0, v: initialSpeed, speed: initialSpeed, pause: 0, restAt: Infinity });
+    }
+    if (reverse) peds.peds.reverse();
+    peds.update(dt, focus, dt);
+    return follower.v;
+  }
+
+  // 第二个间距下，队首在一帧内走出 1.6 m 感知范围，只有帧首位置仍在范围内。
+  const speeds = [1, 1.56].map(gap => ({ gap, leaderFirst: followerSpeed(gap, false), followerFirst: followerSpeed(gap, true) }));
+  const slowed = initialSpeed - 3.2 * dt;
+  assert.deepEqual(speeds, [1, 1.56].map(gap => ({ gap, leaderFirst: slowed, followerFirst: slowed })));
+});
+
 test('dead-end tracks make peds turn around instead of walking off the end or into the road', () => {
   const graph = straightGraph(60);
   const focus = { x: 30, y: 0, z: 0 };

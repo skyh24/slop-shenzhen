@@ -273,6 +273,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
   };
   const scratch = { x: 0, y: 0, z: 0, dx: 1, dz: 0 };
   const nearPeds = [];
+  const queueSpeeds = new Float64Array(cfg.maxPeds);
   const avoidance = [];
   let region = null;
   let lastFocus = null;
@@ -482,7 +483,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     return speed;
   }
 
-  function advance(ped, dt) {
+  function advance(ped, dt, queueSpeed) {
     if (ped.pause > 0) {
       ped.pause = Math.max(0, ped.pause - dt);
       ped.v = 0;
@@ -491,7 +492,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     for (const player of avoidance) {
       if (squareDistance(ped.x, ped.z, player.x, player.z) < player.radius ** 2) { target = 0; break; }
     }
-    if (target > 0) target = Math.min(target, aheadSpeed(ped));
+    if (target > 0) target = Math.min(target, queueSpeed);
     // 无连接的端点前提前减速，折返前自然停住。
     const end = ped.dir > 0 ? 1 : 0;
     if (ped.leg.ends[end].length === 0) {
@@ -581,7 +582,6 @@ export function createSzPedestrians(scene, graph, options = {}) {
     nearPeds.length = 0;
     crowd.begin();
     let placed = 0;
-    let near = 0;
     let drawn = 0;
     const nearSq = cfg.nearRadiusM ** 2;
     for (const ped of peds) {
@@ -594,9 +594,14 @@ export function createSzPedestrians(scene, graph, options = {}) {
         if (ped.rig.placed) ped.rig.placed = false;
         continue;
       }
-      near++;
       nearPeds.push(ped);
-      advance(ped, dt);
+    }
+    // 先用帧首位置统一计算跟随速度，避免队列行为取决于更新顺序。
+    for (let i = 0; i < nearPeds.length; i++) queueSpeeds[i] = aheadSpeed(nearPeds[i]);
+    for (let i = 0; i < nearPeds.length; i++) {
+      const ped = nearPeds[i];
+      const distanceSq = squareDistance(ped.x, ped.z, focus.x, focus.z);
+      advance(ped, dt, queueSpeeds[i]);
       const draw = !isVisible || isVisible(ped.x, ped.z, 7, ped.y);
       if (draw) drawn++;
       // 隐藏但离得近的人仍然推进步态；超过 50 m 且看不见则等待重新落地，省掉骨骼计算。
@@ -608,7 +613,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     }
     crowd.end();
     statistics.placed = placed;
-    statistics.near = near;
+    statistics.near = nearPeds.length;
     statistics.drawn = drawn;
   }
 
