@@ -92,7 +92,6 @@ test('real Three draws and collides with the same curved recess, slabs and suppo
 
     try {
       assert.equal(surfaces.length, 0);
-      assert.equal(group.children.length, 5);
       assert.equal(parts.filter(p => /^nonferrous:upper-balcony:/.test(p.id)).length, 11);
       assert.equal(parts.filter(p => /^nonferrous:middle-balcony:/.test(p.id)).length, 4);
       assert.equal(parts.filter(p => /^nonferrous:south-gallery-pier:/.test(p.id)).length, 7);
@@ -120,9 +119,22 @@ test('real Three draws and collides with the same curved recess, slabs and suppo
       const base = pier.minY, soffit = named('south-gallery-soffit');
       assert.equal(contains(p.x, base + 1.4, p.z), true);
       assert.equal(contains(aisle.x, base + 1.4, aisle.z), false);
-      close(ray(aisle.x, base + 1.4, aisle.z, 0, 1, 0).point.y, soffit.minY);
+      const ceiling = ray(aisle.x, base + 1.4, aisle.z, 0, 1, 0);
+      close(ceiling.point.y, soffit.minY);
+      assert.equal(ceiling.object.name, 'nonferrousGallerySoffit');
+      assert.ok(ceiling.object.material.emissiveNode);
+      const pierHit = ray(aisle.x, base + 0.2, aisle.z, p.x - aisle.x, 0, p.z - aisle.z);
+      assert.equal(pierHit.object.name, 'nonferrousGalleryPier');
+      assert.ok(pierHit.object.material.colorNode);
       const lobby = center(named('south-gallery-lobby').polygon.outer);
-      assert.equal(contains(lobby.x, base + 1.4, lobby.z), true);
+      const approach = { x: lobby.x - aisle.x, z: lobby.z - aisle.z };
+      const distance = Math.hypot(approach.x, approach.z);
+      const ux = approach.x / distance, uz = approach.z / distance;
+      const doorLine = ray(aisle.x, base + 1.4, aisle.z, ux, 0, uz);
+      assert.equal(doorLine.object.name, 'nonferrousLobbyGlass');
+      assert.equal(contains(doorLine.point.x - ux * 0.002, base + 1.4, doorLine.point.z - uz * 0.002), false);
+      assert.equal(contains(doorLine.point.x + ux * 0.002, base + 1.4, doorLine.point.z + uz * 0.002), true);
+      assert.equal(group.children.length, 7);
 
       let triangles = 0;
       const v = new THREE.Vector3(), w = new THREE.Vector3(), origin = new THREE.Vector3();
