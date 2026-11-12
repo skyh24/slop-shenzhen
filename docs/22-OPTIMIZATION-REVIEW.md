@@ -515,3 +515,45 @@ rg -n "StorageInstancedBufferAttribute" js ref/slop-wuhan/js/runtime/main.js
    - 运行时：新增 `js/sz-water.js`，用本轮的 `sz-water-material.js` 非 coastal 变体、按 `levelM` 平铺、1–2 km 分块合并、用 terrainSurface sampler 在环顶点取岸高做 1–2 m 裙边；`main.js:169-170` 之后挂 `buildSzWater(scene, GEO.water)`；`js/sz-data-format.js` 新增 `validateWater`（参考 `validateSeaSurface`）。`sz-spatial.js` 的 isWater/groundHeight 语义保持不变，水面高度只用于渲染/相机。
    - 验收：terrainSurface 继续挖洞（现有 `tests/sz-ground.test.cjs` 的 narrow water cut 断言保留）；5 组机位（大沙河上/下游、新洲河中/下游、香蜜湖）日夜截图；海/河共用同一材质实现；重建两个共享包时必须遵守 [HANDOFF](HANDOFF.md) 第 8 节的单分支规则。
    - 不在本任务：西丽水库要画需北扩 phase1 或明确“本期不含”；新洲河 3.3 km 无面缺口需要先定宽度来源并标估计，另立数据任务。
+
+### S4 日夜状态只写一处（2026-11-11）
+
+- 分支 `dsh-4fd71333-f268`（原计划 `m9-night-uniform`），提交 `9ea9d74`（`Share one night uniform across lighting and city modules`）。V2 在同一分支单独提交 `ea73ead`，见下一条。
+- 做法：日夜系数只保留 `js/sz-materials.js` 的 `sceneUniforms.night` 一份。`js/lighting.js` 把它当 `this.uNightFactor`（同一个 uniform 对象），`applyPreset` 是唯一写入点，天空和城市材质自动同步；入口 `js/main.js` 删掉 `sceneUniforms.night.value = lightingSystem.uNightFactor.value` 的转抄，也不再给模块传夜间系数。`sz-street-lamps`、`sz-apec`、`sz-apec-city` 在 `update()` 里直接读 `sceneUniforms.night.value`（保留原来的 clamp 语义）；`sz-light-show` 的 `update()` 自己按 `> 0.25` 改 `group.visible`，入口只调用 `lightShow.update()`。
+- A5 复核：`rg -n "cityUniforms" js/sz-*.js` 现在命中 `js/sz-materials.js`（另有 `sz-road-material.js` 早已在读时段参数），深圳模块不再各自持有一套夜间状态。
+- 测试：新增 `tests/sz-night-uniform.test.cjs` 3 项契约（单写点、入口不再转抄/传参、四个模块直接读 uniform 且无 `nightFactor` 参数）；`sz-street-lamps`/`sz-apec`/`sz-apec-city` 的运行期用例改成写 `sceneUniforms.night.value`，并新增路灯透明度 0→0.72/0.9、APEC 主题自发光随 uniform 增强、灯光秀 `group.visible` 阈值三项行为断言；`lighting-shadow.test.cjs` 补 `./sz-materials.js` 桩。Node 全套 485 项通过、0 跳过；Python 105 项通过。
+- 浏览器（`python3 tools/sz/serve.py --port 8097`；改前用 `git archive HEAD` 导出的干净副本在 8098，同一 ego-browser、同一页、同口径）：
+  - 机位：福田 CBD `?qa=1&cam=-900,10,1069,-426,140,1069`、深南大道 `?qa=1&cam=-400,9.4,438,-120,12,438`；四个时段各截改前改后共 16 张，另有 APEC 大屏午夜补充 2 张，截图和原始记录在 `docs/qa/m9-night/`（只留本地）。
+  - S4 验收：独立探针在每次切档后等渲染循环至少再跑 4 帧，读 15 个字段 × 4 时段（灯光秀 `group.visible`、路灯 Points/加性叠加不透明度与可见分块、APEC 大屏、围挡、主题标牌 emissive），改前改后逐值相同（容差 1e-6，0 处差异）：golden/midday 灯光秀隐藏、路灯 0；twilight 灯光秀显示、路灯 0.252/0.2016、大屏 0.566、围挡 0.1496、标牌和 108.038；midnight 路灯 0.774/0.6192、大屏 1.117、围挡 0.3352、标牌和 109.691。`apecTheme`/`apecCity` 全程可见。
+  - 像素：APEC 大屏午夜 meanAbsDiff 0.0007、变化像素 0.47%、平均亮度 0.2023→0.2025，属于车流/人群位置差异。
+  - `[init] compile`：改前 7 个样本中位 1177 ms，改后 1064 ms（−9.6%）；单样本约 ±20% 离散、区间大幅重叠，按噪声处理（这条同时覆盖 V2 的着色器增长）。其余阶段量级不变。
+- 结论：模块夜间表现和改前一致；16 张同机位图的像素差异只来自 V2 的窗灯/玻璃（见下条），S4 本身不改变夜景。
+
+### V2 立面窗灯接 uInteriorGlow 与幕墙玻璃（2026-11-11）
+
+- 提交 `ea73ead`（`Drive facade window glow from city interior glow and raise curtain-wall glass`），文件 `js/sz-materials.js`，测试 `tests/sz-facade-material.test.cjs`，另给加载 `sz-materials` 的 `tests/sz-ground.test.cjs`、`tests/sz-bay-bridge.test.cjs` 补了 `city-lighting-materials` 桩。
+- 窗灯：`createBuildingMaterial` 的窗灯和首层灯改读 `cityUniforms.uInteriorGlow`（`js/lighting.js` 的时段参数：golden 0.48 / midday 0.24 / twilight 1.25 / midnight 1.55），不再只乘 `sceneUniforms.night`：
+  ```js
+  glowGate = smoothstep(0.5, 1.2, uInteriorGlow)
+  glowStrength = glowGate * min(uInteriorGlow * 0.9 - 0.28, 0.95)
+  ```
+  逐档强度 0 / 0 / 0.845 / 0.95；对最亮套间窗的平均亮度，黄昏是旧 `night` 公式的 3.02 倍、午夜 1.10 倍，首层灯光黄昏 3.28 倍；golden、midday 仍严格为 0。逐套间确定性、办公室冷白/住宅暖黄不变。
+- 幕墙玻璃（参考 `createCurtainWallMaterial` 695 行）：满玻璃率幕墙金属度 `glazing * mix(0.5, 0.72, curtain)`（curtain=1 时 0.72），玻璃粗糙度 0.12→0.055，并在窗台附近叠加只给幕墙的积灰（≤0.12）；`colorNode` 增加一层菲涅尔天空反射 `mix(glassTint*paneTone, mix(uSkyHorizonColor, uSkyTopColor, fresnel), fresnel*0.62*glazing)`。非幕墙开窗玻璃仍是旧的 0.5×glazing 金属度和 `mix(0.42,0.12,glazing)` 粗糙度（有单测断言住宅≈0.336）。
+- 节点预算：colorNode 506→524（上限 600），合并图 551→585（上限 700），没有为反射再复制材质或增加着色器分支。
+- 测试：`tests/sz-facade-material.test.cjs` 改为加载真实 `city-lighting-materials.js`，CPU 求值器补 `clamp/pow/normalize/cameraPosition` 和颜色 uniform 摊平；新增“黄昏明显亮于旧 night 公式、午夜不超过黄昏 1.5 倍”“满幕墙金属度≥0.6、粗糙度≤0.12、实体墙≤0.1、住宅开窗保持旧值”用例；Node 全套 485 项通过、0 跳过。
+- 浏览器同机位对比（同上 2 机位 × 4 时段 + APEC 午夜）：
+  - 黄昏窗灯明显变亮：CBD 整帧平均亮度 0.3266→0.3540（+8.4%），11.71% 像素亮度增加 >8/255、11.77% 像素有变化，是 8 对里变化最大的一对；切掉前景路面的顶部 70% 立面带 0.3447→0.3633、7.89% 像素变亮。深南大道机位整帧 0.2381→0.2389（1.36% 像素变亮），因为画面主要是路面和天空、只有远处少量立面，作为“无副作用”对照。
+  - 午夜窗灯只小幅变亮：CBD 整帧 0.1106→0.1139（1.12% 像素变亮）；深南 0.0975→0.0978。白天 golden/midday 的变化来自幕墙天空反射（CBD meanAbsDiff 0.0019/0.0023，深南 0.0046/0.0049），整帧平均亮度基本不变。
+  - 同一批截图里 APEC 大屏午夜 meanAbsDiff 0.0007、路灯和灯光秀由 S4 探针逐值证明一致；页面和控制台没有新增应用报错（只有浏览器扩展自身告警）。
+- `[init] compile`：同 S4 的 7 样本中位 1177→1064 ms（−9.6%），单样本约 ±20% 离散，判断为噪声；V2 新增的 34 个节点没有造成可测的编译上升。
+- 室内景深评估（本轮不做）：
+  - `evaluateApartmentInterior` / `apartmentInteriorBehind`（参考 230 / 401 行）每个玻璃像素要算世界空间视线 ray-box 三轴 slab 交点（3 次 tFar 加两次 min）、按楼层房间模块（2–3 开间、相位和 3 个房间哈希）、左右窗帘与灯具条带，再按 `fwidth` 做远景聚类和 LOD 收敛。
+  - 这里的共享楼体材质覆盖全城普通楼，玻璃像素是出现频率最高的表面；每像素多约 60–120 条依赖 ALU 和若干临时寄存器，直接压在最忙的片元路径上。导数 `fwidth` 还必须在分支外求，覆盖率门控只能省一部分算力。
+  - 节点图和寄存器压力会推高 Dawn/Naga 冷编译时间与 pipeline 数量（当前 colorNode 已 524 节点），编译风险和帧时间风险叠加。
+  - 只值得给高玻璃率的 glass_tower / landmark / office（fid 0/1/7）做；但 `fid` 是 attribute，无法统一分支，按楼型分流就得再复制一套材质，等于多一个 pipeline、多一次编译。
+  - 因此必须单独测量：CBD 机位（深南大道/福田站）冷启动编译毫秒数 + 连续帧 GPU 时间，与现状同机位对比，再决定是否为高玻璃率楼单独建材质。本轮保持不做，既守住编译预算（colorNode 524 / 合计 585），也不影响窗灯与幕墙反射的观感收益。
+- 已知口径/限制：
+  - 窗灯现在只由 `uInteriorGlow` 驱动；如果以后给 `night` 加渐变动画，窗灯不会跟着渐变（时段仍是瞬时切换）。
+  - golden 的 0.48 距 gate 起点 0.5 只差 0.02，以后调整时段参数若把 golden 抬过 0.5，会在白天点亮窗灯。
+  - 午夜窗灯比改前亮 1.10 倍；若实机觉得过亮，只需调 `glowStrength` 的 0.95 上限。
+  - 深南大道机位的黄昏窗灯增益被路面/天空稀释，验收以 CBD 机位为准。

@@ -102,8 +102,9 @@ test('real Three builds instanced light-show meshes without touching building co
   const packageUrl = pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, '/'));
   const THREE = await import(new URL('build/three.webgpu.js', packageUrl));
   const tsl = await import(new URL('build/three.tsl.js', packageUrl));
+  const nightUniform = tsl.uniform(0);
   const showModule = loadModule(read('sz-light-show.js'), { imports: {
-    'three/webgpu': THREE, 'three/tsl': tsl, './sz-materials.js': { sceneUniforms: { night: tsl.uniform(0) } },
+    'three/webgpu': THREE, 'three/tsl': tsl, './sz-materials.js': { sceneUniforms: { night: nightUniform } },
     './sz-building-layout.js': placement, './sz-polygon.js': polygonModule
   } });
   const scene = new THREE.Scene();
@@ -120,6 +121,13 @@ test('real Three builds instanced light-show meshes without touching building co
   assert.ok(show.group.children.every(mesh => mesh.isInstancedMesh && mesh.count > 0));
   assert.ok(show.group.children.some(mesh => mesh.name === 'shenzhen-light-show:steel-bands' && mesh.count === 2));
   assert.equal(show.statistics.instances, show.statistics.strips + show.statistics.crownSegments + show.statistics.landmarkBands);
+  // 显隐由模块按全局日夜 uniform 自己判断，入口只调用 update()。
+  nightUniform.value = 0;
+  show.update();
+  assert.equal(show.group.visible, false, 'daylight hides the light show');
+  nightUniform.value = 0.5;
+  show.update();
+  assert.equal(show.group.visible, true, 'the show fades in past night 0.25');
   show.dispose();
   assert.equal(show.group.parent, null);
 });

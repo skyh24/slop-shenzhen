@@ -752,6 +752,7 @@ function loadLighting() {
   const mod = loadModule(lightingSource, {
     filename: 'lighting.js',
     imports: {
+      './sz-materials.js': { sceneUniforms: { night: { value: 0 } } },
       'three/webgpu': THREE,
       'three/tsl': tsl,
       'three/addons/objects/SkyMesh.js': { SkyMesh },

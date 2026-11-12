@@ -9,6 +9,7 @@ const root = join(__dirname, '..');
 const read = (file) => readFileSync(join(root, 'js', file), 'utf8');
 const geometrySource = read('sz-geometry.js');
 const materialsSource = read('sz-materials.js');
+const cityLightingSource = read('city-lighting-materials.js');
 
 // --- sz-geometry：用最小 THREE 桩读回顶点缓冲，不需要浏览器或真实 three ---
 const geometryThree = {
@@ -103,7 +104,14 @@ test('FACADE_PROFILES follows the data pipeline facade order and carries the sha
   assert.ok(declaration, 'tools/sz/buildings.py must declare FACADES');
   const pipelineFacades = [...declaration[1].matchAll(/'([^']+)'/g)].map((match) => match[1]);
 
-  const materials = loadModule(materialsSource, { imports: { 'three/webgpu': {}, 'three/tsl': { Fn: (fn) => fn, uniform: (value) => value, float: (value) => value } } });
+  const materials = loadModule(materialsSource, {
+    imports: {
+      'three/webgpu': {},
+      'three/tsl': { Fn: (fn) => fn, uniform: (value) => value, float: (value) => value },
+      // 这个用例只读 FACADE_PROFILES，城市灯光模块不必真正构造。
+      './city-lighting-materials.js': {}
+    }
+  });
   const profiles = materials.FACADE_PROFILES;
   assert.equal(profiles.length, pipelineFacades.length);
   assert.deepEqual(Array.from(profiles, (profile) => profile.name), pipelineFacades);
@@ -129,7 +137,14 @@ test('building material builds one MeshStandardNodeMaterial with day/night nodes
   { skip: !threeDir }, async () => {
     const loadThree = (file) => import(pathToFileURL(join(threeDir, 'build', file)));
     const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
-    const materials = loadModule(materialsSource, { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
+    assert.match(materialsSource, /import \{ cityUniforms \} from '\.\/city-lighting-materials\.js';/,
+      'the facade reads the live city lighting uniforms instead of only sceneUniforms.night');
+    assert.match(materialsSource, /uInteriorGlow/, 'window glow follows cityUniforms.uInteriorGlow');
+    assert.match(materialsSource, /uSkyHorizonColor/, 'curtain-wall glass reflects the sky horizon colour');
+    const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
+    // 和 tests/sz-road-material.test.cjs 一样加载真实模块：城市 uniform 必须是真实 TSL uniform 节点。
+    const cityLighting = loadModule(cityLightingSource, { imports });
+    const materials = loadModule(materialsSource, { imports: { ...imports, './city-lighting-materials.js': cityLighting } });
     const material = materials.createBuildingMaterial();
     assert.ok(material instanceof THREE.MeshStandardNodeMaterial);
     for (const node of ['colorNode', 'roughnessNode', 'metalnessNode', 'emissiveNode']) {
@@ -192,6 +207,12 @@ function createFacadeEvaluator() {
     return args.map((arg) => values(arg)[0]);
   });
   const uniforms = [];
+  // 颜色 uniform 在真实 TSL 里是 vec3：CPU 求值时摊平成 rgb；数值 uniform（uInteriorGlow）保持单值。
+  const uniformValues = (value) => {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === 'object' && 'r' in value) return [value.r, value.g, value.b];
+    return [value];
+  };
   const state = {
     meta: new Input([0, 0, 10, 30]),
     uv: new Input([0, 0]),
@@ -227,19 +248,49 @@ function createFacadeEvaluator() {
     }),
     color: (hex) => new Node(() => [(hex >> 16 & 255) / 255, (hex >> 8 & 255) / 255, (hex & 255) / 255]),
     uniform: (value) => {
-      const node = new Node(() => [node.value]);
+      const node = new Node(() => uniformValues(node.value));
       node.value = value;
       uniforms.push(node);
       return node;
     },
+    // 幕墙玻璃的菲涅尔反射用到的三个 TSL 基础算子。
+    clamp: (value, low, high) => ternary(value, low, high,
+      (component, lowValue, highValue) => Math.min(highValue, Math.max(lowValue, component))),
+    pow: (base, exponent) => binary(base, exponent, Math.pow),
+    normalize: (value) => new Node(() => {
+      const vector = values(value);
+      const length = Math.hypot(...vector) || 1;
+      return vector.map((component) => component / length);
+    }),
     fwidth: () => state.pixel,
     positionWorld: new Input([0, 0, 0]),
     normalWorldGeometry: state.normal,
+    cameraPosition: new Input([0, 0, 10]),
     time: state.time
   };
   class MeshStandardNodeMaterial { constructor(options = {}) { Object.assign(this, options); } }
-  const materials = loadModule(materialsSource, { imports: { 'three/webgpu': { MeshStandardNodeMaterial }, 'three/tsl': tsl } });
-  return { materials, state, uniforms, bump };
+  // city-lighting-materials.js 加载时会构造 Color/Vector3 类型的城市 uniform，这里给最小实现。
+  class Color {
+    constructor(hex) {
+      this.r = (hex >> 16 & 255) / 255;
+      this.g = (hex >> 8 & 255) / 255;
+      this.b = (hex & 255) / 255;
+    }
+  }
+  class Vector3 {
+    constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z; }
+    normalize() {
+      const length = Math.hypot(this.x, this.y, this.z) || 1;
+      this.x /= length; this.y /= length; this.z /= length;
+      return this;
+    }
+  }
+  const three = { MeshStandardNodeMaterial, Color, Vector3 };
+  const cityLighting = loadModule(cityLightingSource, { imports: { 'three/webgpu': three, 'three/tsl': tsl } });
+  const materials = loadModule(materialsSource, {
+    imports: { 'three/webgpu': three, 'three/tsl': tsl, './city-lighting-materials.js': cityLighting }
+  });
+  return { materials, cityUniforms: cityLighting.cityUniforms, state, uniforms, bump };
 }
 
 const hexToRgb = (hex) => [(hex >> 16 & 255) / 255, (hex >> 8 & 255) / 255, (hex & 255) / 255];
@@ -318,63 +369,125 @@ test('distant facades converge to the average glazing ratio instead of solid wal
   }
 });
 
-test('night windows repeat per suite and are stable across frames, while ground floors glow', () => {
+// 各时段的 cityUniforms.uInteriorGlow（js/lighting.js TIME_PRESETS）和旧公式的 sceneUniforms.night。
+// 旧窗灯亮度 = ... × night；测试用它换算“比旧行为亮多少”。
+const GLOW = { golden: 0.48, midday: 0.24, twilight: 1.25, midnight: 1.55 };
+const OLD_NIGHT = { golden: 0, midday: 0, twilight: 0.28, midnight: 0.86 };
+// 生产公式 glowStrength 的解析式，和 js/sz-materials.js 的 smoothstep gate + 仿射项保持一致。
+const glowStrength = (glow) => {
+  const t = Math.min(Math.max((glow - 0.5) / (1.2 - 0.5), 0), 1);
+  const gate = t * t * (3 - 2 * t);
+  return gate * Math.min(glow * 0.9 - 0.28, 0.95);
+};
+const luminanceOf = (emissive) => 0.2126 * emissive[0] + 0.7152 * emissive[1] + 0.0722 * emissive[2];
+
+const sampleEmissive = (evaluator, material, fid, u, v, glow) => {
+  evaluator.cityUniforms.uInteriorGlow.value = glow;
+  const { state } = evaluator;
+  state.meta.current = [fid, seed, wallLength, buildingHeight];
+  state.normal.current = [0, 0, 1];
+  state.uv.current = [u, v];
+  evaluator.bump();
+  return Array.from(material.emissiveNode.values);
+};
+
+const brightestEmissive = (evaluator, material, fid, glow) => {
+  const profile = evaluator.materials.FACADE_PROFILES[fid];
+  const { margin, bayWidth } = fittedBay(profile);
+  let best = null;
+  for (let floor = 1; floor <= 6; floor++) {
+    for (let cell = 0; cell < 8; cell++) {
+      const emissive = sampleEmissive(evaluator, material, fid, margin + bayWidth * (cell + 0.3),
+        profile.groundHeight + profile.floorHeight * (floor + 0.5), glow);
+      const luminance = luminanceOf(emissive);
+      if (!best || luminance > best.luminance) best = { luminance, emissive };
+    }
+  }
+  return best;
+};
+
+test('twilight windows glow from uInteriorGlow and stay stable per suite across frames', () => {
   const evaluator = createFacadeEvaluator();
   const profiles = evaluator.materials.FACADE_PROFILES;
   const material = evaluator.materials.createBuildingMaterial();
-  const { state, materials } = evaluator;
-  const sample = (fid, u, v, night) => {
-    materials.sceneUniforms.night.value = night;
-    state.meta.current = [fid, seed, wallLength, buildingHeight];
-    state.normal.current = [0, 0, 1];
-    state.uv.current = [u, v];
-    evaluator.bump();
-    return Array.from(material.emissiveNode.values);
-  };
+  const { state } = evaluator;
   const profile = profiles[2];
   const { margin, bayWidth } = fittedBay(profile);
   const windowU = margin + bayWidth * 0.15;
   const windowV = profile.groundHeight + profile.floorHeight * 2.5;
-  const day = sample(2, windowU, windowV, 0);
-  assert.ok(day.every((value) => value === 0), 'daytime windows must not emit');
-  const night = sample(2, windowU, windowV, 1);
+  for (const glow of [GLOW.midday, GLOW.golden]) {
+    const day = sampleEmissive(evaluator, material, 2, windowU, windowV, glow);
+    assert.ok(day.every((value) => value === 0), `daytime windows must not emit (glow ${glow})`);
+  }
+  const twilight = sampleEmissive(evaluator, material, 2, windowU, windowV, GLOW.twilight);
+  assert.ok(twilight.some((value) => value > 0.01), 'twilight windows light up');
   state.time.current = [7.5];
-  const laterFrame = sample(2, windowU, windowV, 1);
-  assert.deepEqual(laterFrame, night, 'window occupancy must be seeded per suite, not re-randomised per frame');
+  const laterFrame = sampleEmissive(evaluator, material, 2, windowU, windowV, GLOW.twilight);
+  assert.deepEqual(laterFrame, twilight, 'window occupancy must be seeded per suite, not re-randomised per frame');
+  const ground = sampleEmissive(evaluator, material, 2, wallLength * 0.5, 1.2, GLOW.twilight);
+  assert.ok(ground.some((value) => value > 0.01), 'residential entrances keep a warm twilight light');
+});
 
-  const ground = sample(2, wallLength * 0.5, 1.2, 1);
-  assert.ok(ground.some((value) => value > 0.01), 'residential entrances keep a warm night light');
+test('twilight glow is clearly brighter than the old night formula while midnight stays controlled', () => {
+  const evaluator = createFacadeEvaluator();
+  const material = evaluator.materials.createBuildingMaterial();
+  const golden = brightestEmissive(evaluator, material, 2, GLOW.golden);
+  const midday = brightestEmissive(evaluator, material, 2, GLOW.midday);
+  const twilight = brightestEmissive(evaluator, material, 2, GLOW.twilight);
+  const midnight = brightestEmissive(evaluator, material, 2, GLOW.midnight);
+  // 白天 gate 为 0，乘法会留下 IEEE -0，所以用 === 0 而不是 Object.is 严格比较。
+  assert.ok(golden.luminance === 0, 'golden hour keeps windows off');
+  assert.ok(midday.luminance === 0, 'midday keeps windows off');
+  assert.ok(twilight.luminance > 0.01, 'twilight lights windows');
+  // 用新 gate 反推旧公式的亮度：旧公式黄昏只乘 night = 0.28、午夜 0.86。
+  const baseLuminance = twilight.luminance / glowStrength(GLOW.twilight);
+  const oldTwilight = baseLuminance * OLD_NIGHT.twilight;
+  const oldMidnight = baseLuminance * OLD_NIGHT.midnight;
+  assert.ok(twilight.luminance >= 1.5 * oldTwilight,
+    `twilight must be clearly brighter than the old night factor (got ${(twilight.luminance / oldTwilight).toFixed(2)}x)`);
+  assert.ok(twilight.luminance >= 2 * midday.luminance, 'twilight stays clearly above the daylight baseline');
+  assert.ok(midnight.luminance >= oldMidnight, 'midnight is not dimmer than before');
+  assert.ok(midnight.luminance <= twilight.luminance * 1.5, 'midnight must not blow out against twilight');
 });
 
 test('night window light follows building use: office stays cool, housing turns warm', () => {
   const evaluator = createFacadeEvaluator();
-  const profiles = evaluator.materials.FACADE_PROFILES;
   const material = evaluator.materials.createBuildingMaterial();
-  const { state, materials } = evaluator;
-  materials.sceneUniforms.night.value = 1;
-  const brightestAt = (fid) => {
-    const profile = profiles[fid];
-    const { margin, bayWidth } = fittedBay(profile);
-    let best = null;
-    for (let floor = 1; floor <= 6; floor++) {
-      for (let cell = 0; cell < 8; cell++) {
-        const u = margin + bayWidth * (cell + 0.3);
-        const v = profile.groundHeight + profile.floorHeight * (floor + 0.5);
-        state.meta.current = [fid, seed, wallLength, buildingHeight];
-        state.normal.current = [0, 0, 1];
-        state.uv.current = [u, v];
-        evaluator.bump();
-        const emissive = Array.from(material.emissiveNode.values);
-        const luminance = 0.2126 * emissive[0] + 0.7152 * emissive[1] + 0.0722 * emissive[2];
-        if (!best || luminance > best.luminance) best = { luminance, emissive };
-      }
-    }
-    return best;
-  };
-  const office = brightestAt(1);
-  const housing = brightestAt(2);
-  assert.ok(office.luminance > 0.01, 'office suites must light up at night');
-  assert.ok(housing.luminance > 0.01, 'housing suites must light up at night');
+  const office = brightestEmissive(evaluator, material, 1, GLOW.twilight);
+  const housing = brightestEmissive(evaluator, material, 2, GLOW.twilight);
+  assert.ok(office.luminance > 0.01, 'office suites must light up at twilight');
+  assert.ok(housing.luminance > 0.01, 'housing suites must light up at twilight');
   assert.ok(office.emissive[2] >= office.emissive[0], 'office night light stays cool white (blue >= red)');
   assert.ok(housing.emissive[0] > housing.emissive[2], 'housing night light turns warm (red > blue)');
+});
+
+test('curtain-wall panes reach reference metalness and low roughness while solid masonry stays low', () => {
+  const evaluator = createFacadeEvaluator();
+  const material = evaluator.materials.createBuildingMaterial();
+  const { state } = evaluator;
+  const at = (fid, u, v) => {
+    state.meta.current = [fid, seed, wallLength, buildingHeight];
+    state.normal.current = [0, 0, 1];
+    state.uv.current = [u, v];
+    evaluator.bump();
+    return { metalness: material.metalnessNode.values[0], roughness: material.roughnessNode.values[0] };
+  };
+  const glassTower = evaluator.materials.FACADE_PROFILES[0];
+  const { margin, bayWidth } = fittedBay(glassTower);
+  const midFloorV = glassTower.groundHeight + glassTower.floorHeight * 2.5;
+  const pane = at(0, margin + bayWidth * 0.3, midFloorV);
+  assert.ok(pane.metalness >= 0.6, `full-glazing curtain wall reaches reference metalness (got ${pane.metalness})`);
+  assert.ok(pane.roughness <= 0.12, `pane roughness approaches the reference glass (got ${pane.roughness})`);
+  const solid = at(0, 0.01, midFloorV);
+  assert.ok(solid.metalness <= 0.1, `solid masonry stays non-metallic (got ${solid.metalness})`);
+  assert.ok(solid.roughness >= 0.6, `solid masonry stays rough (got ${solid.roughness})`);
+  // 普通开窗玻璃不跟着变镜面：住宅塔楼窗心金属度仍是旧的 0.5 × glazing。
+  const housing = evaluator.materials.FACADE_PROFILES[2];
+  const housingBay = fittedBay(housing);
+  const punched = at(2, housingBay.margin + housingBay.bayWidth * 0.15,
+    housing.groundHeight + housing.floorHeight * 2.5);
+  assert.ok(punched.metalness < 0.2, `punched housing windows keep the old metalness (got ${punched.metalness})`);
+  // 窗台积灰只加在幕墙上：普通开窗玻璃的粗糙度仍是旧的 mix(0.42, 0.12, glazing) = 0.336。
+  assert.ok(punched.roughness >= 0.3 && punched.roughness <= 0.35,
+    `punched housing windows keep the old roughness (got ${punched.roughness})`);
 });

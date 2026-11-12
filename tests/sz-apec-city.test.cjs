@@ -15,9 +15,11 @@ const read = (file) => readFileSync(join(__dirname, '../js', file), 'utf8');
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const terrain = loadModule(read('sz-terrain.js'));
 // 纯函数测试不需要 THREE：空对象证明模块顶层没有解引用 three。
+const nightUniform = { value: 0 };
+const materialsStub = { sceneUniforms: { night: nightUniform } };
 const pure = loadModule(read('sz-apec-city.js'), {
   imports: { 'three/webgpu': {}, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
-    './sz-mesh-utils.js': meshUtils({}) }
+    './sz-mesh-utils.js': meshUtils({}), './sz-materials.js': materialsStub }
 });
 
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
@@ -263,7 +265,7 @@ test('runtime builds screens robots and hoarding panels on the real data, then d
   const { document, drawCalls } = fakeCanvasGlobals();
   const module = loadModule(read('sz-apec-city.js'), {
     imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
-      './sz-mesh-utils.js': meshUtils(THREE, { document }) },
+      './sz-mesh-utils.js': meshUtils(THREE, { document }), './sz-materials.js': materialsStub },
     globals: { document }
   });
   const scene = new THREE.Scene();
@@ -312,7 +314,8 @@ test('runtime builds screens robots and hoarding panels on the real data, then d
 
   // 机器人确定性巡逻：位置和车轮有限，步长封顶。
   const robotPositionsBefore = robotGroups.map((robotGroup) => robotGroup.position.clone());
-  model.update(1.0, 0);
+  nightUniform.value = 0;
+  model.update(1.0);
   const robotPositionsAfter = robotGroups.map((robotGroup) => robotGroup.position.clone());
   assert.notDeepEqual(plain(robotPositionsAfter.map((v) => [v.x, v.z])),
     plain(robotPositionsBefore.map((v) => [v.x, v.z])));
@@ -328,22 +331,24 @@ test('runtime builds screens robots and hoarding panels on the real data, then d
     assert.ok(wheels.every((wheel) => Math.abs(wheel.rotation.x) > 0));
   }
 
-  // 夜景：大屏和机器人灯条的自发光强度随 nightFactor 提高。
+  // 夜景：大屏和机器人灯条的自发光强度随 sceneUniforms.night 提高。
   const face = model.group.getObjectByName('apec-led-screen-face:apec-led-screen-civic-south');
   assert.ok(face?.material?.emissiveMap);
-  model.update(0.016, 0);
+  nightUniform.value = 0;
+  model.update(0.016);
   const dayFace = face.material.emissiveIntensity;
   const lightBar = model.group.getObjectByName('apec-patrol-robot-light-bar');
   assert.ok(lightBar?.material);
   const dayLightBar = lightBar.material.emissiveIntensity;
-  model.update(0.016, 1);
+  nightUniform.value = 1;
+  model.update(0.016);
   assert.ok(face.material.emissiveIntensity > dayFace, 'LED screen brighter at night');
   assert.ok(lightBar.material.emissiveIntensity > dayLightBar, 'robot light bar brighter at night');
 
   model.dispose();
   assert.equal(scene.children.length, 0);
   assert.equal(model.group.parent, null);
-  assert.doesNotThrow(() => model.update(0.016, 1));
+  assert.doesNotThrow(() => model.update(0.016));
 });
 
 test('runtime builds with a 1x1 fallback texture when canvas is unavailable', { skip: !threeDir }, async () => {
@@ -352,7 +357,7 @@ test('runtime builds with a 1x1 fallback texture when canvas is unavailable', { 
   // 不注入 document：模块必须走 DataTexture 降级路径，构建/销毁都不抛错。
   const module = loadModule(read('sz-apec-city.js'), {
     imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
-      './sz-mesh-utils.js': meshUtils(THREE) }
+      './sz-mesh-utils.js': meshUtils(THREE), './sz-materials.js': materialsStub }
   });
   const scene = new THREE.Scene();
   const model = module.buildApecCityElements(scene, {
@@ -364,7 +369,8 @@ test('runtime builds with a 1x1 fallback texture when canvas is unavailable', { 
   // 没有地形时地面高度回退 0：大屏落地、机器人按锚点台面标高。
   const civic = model.group.getObjectByName('apec-led-screen:apec-led-screen-civic-south');
   assert.equal(civic.position.y, 0);
-  model.update(0.016, 0.5);
+  nightUniform.value = 0.5;
+  model.update(0.016);
   model.dispose();
   assert.equal(scene.children.length, 0);
 });
@@ -374,7 +380,7 @@ test('runtime with no data builds an empty group instead of throwing', { skip: !
   const [THREE] = await Promise.all([loadThree('three.webgpu.js')]);
   const module = loadModule(read('sz-apec-city.js'), {
     imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
-      './sz-mesh-utils.js': meshUtils(THREE) }
+      './sz-mesh-utils.js': meshUtils(THREE), './sz-materials.js': materialsStub }
   });
   const scene = new THREE.Scene();
   const model = module.buildApecCityElements(scene, {});
@@ -382,7 +388,7 @@ test('runtime with no data builds an empty group instead of throwing', { skip: !
   assert.equal(model.statistics.robots, 0);
   assert.equal(model.statistics.hoardings, 0);
   assert.equal(model.group.children.length, 0);
-  model.update(0.016, 1);
+  model.update(0.016);
   model.dispose();
   assert.equal(scene.children.length, 0);
   assert.throws(() => module.buildApecCityElements(null, {}), /require a scene/);

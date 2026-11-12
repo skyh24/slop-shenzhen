@@ -13,8 +13,11 @@ const plain = value => JSON.parse(JSON.stringify(value));
 const strings = loadModule(read('sz-strings.js'));
 const terrain = loadModule(read('sz-terrain.js'));
 // 纯函数测试不需要 THREE；空对象证明模块顶层没有解引用 three
+const nightUniform = { value: 1 };
+const materialsStub = { sceneUniforms: { night: nightUniform } };
 const apec = loadModule(read('sz-apec.js'), {
-  imports: { 'three/webgpu': {}, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule }
+  imports: { 'three/webgpu': {}, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
+    './sz-materials.js': materialsStub }
 });
 
 // 用真实路网 link 结构造合成路网：nodes 是扁平坐标，links 是 [起点, 终点, 路名索引, 路宽, 车道, 方向, 中间点...]
@@ -233,7 +236,8 @@ test('the runtime builds instanced banners signs and flower beds under the theme
   });
   const fakeDocument = { createElement: () => ({ width: 0, height: 0, getContext: () => context }) };
   const module = loadModule(read('sz-apec.js'), {
-    imports: { 'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule },
+    imports: { 'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
+      './sz-materials.js': materialsStub },
     globals: { document: fakeDocument }
   });
   const scene = new THREE.Scene();
@@ -267,6 +271,21 @@ test('the runtime builds instanced banners signs and flower beds under the theme
     assert.equal(model.group.getObjectByName('apec-banner-poles').count, 16);
     assert.equal(model.group.getObjectByName('apec-flowers:lianhuashan-flower-bed').count, 300);
     assert.ok(drawCalls.some(([name]) => name === 'fillText'));
+    // 日夜系数直接读全局 uniform：夜间招牌和道旗的自发光变强。
+    const emissiveSum = () => {
+      let sum = 0;
+      model.group.traverse((object) => {
+        const value = object.material?.emissiveIntensity;
+        if (Number.isFinite(value) && value > 0) sum += value;
+      });
+      return sum;
+    };
+    nightUniform.value = 0;
+    model.update(0.016);
+    const dayEmissive = emissiveSum();
+    nightUniform.value = 1;
+    model.update(0.016);
+    assert.ok(emissiveSum() > dayEmissive, 'APEC signs brighten with sceneUniforms.night');
     // 几何尺寸对得上 APEC 道旗：底边 2.6 米、高 1.6 米，正反两片旗面各一条法线
     const geometries = module.createApecGeometry();
     assert.equal(geometries.banner.attributes.position.count, 8);
@@ -280,11 +299,11 @@ test('the runtime builds instanced banners signs and flower beds under the theme
     assert.ok(geometries.flower.attributes.position.count <= 30);
     assert.equal(geometries.bed.attributes.normal.getY(0), 1);
     for (const geometry of Object.values(geometries)) geometry.dispose();
-    model.update(0.016, 1);
+    model.update(0.016);
     model.setEnabled(false);
     assert.equal(model.group.visible, false);
     assert.equal(model.enabled, false);
-    model.update(0.016, 1);
+    model.update(0.016);
     model.setEnabled(true);
     assert.equal(model.group.visible, true);
     model.dispose();
@@ -296,7 +315,8 @@ test('a non-APEC date starts with the theme hidden', { skip: !threeDir }, async 
   const { pathToFileURL: toUrl } = require('node:url');
   const THREE = await import(toUrl(join(threeDir, 'build', 'three.webgpu.js')));
   const module = loadModule(read('sz-apec.js'), {
-    imports: { 'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule }
+    imports: { 'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
+      './sz-materials.js': materialsStub }
   });
   const scene = new THREE.Scene();
   const model = module.buildApecTheme(scene, { now: new Date(2026, 10, 9) });

@@ -21,6 +21,7 @@ import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
 import { SunLight } from 'three/addons/lights/SunLight.js';
 import { SunLightNode } from 'three/addons/lights/SunLightNode.js';
 import { cityUniforms } from './city-lighting-materials.js';
+import { sceneUniforms } from './sz-materials.js';
 
 // Atmospheric sky, environment lighting, sunlight and time-of-day presets.
 
@@ -157,7 +158,9 @@ class LightingSystem {
 
     // Calibrate SkyMesh raw radiance (EE=1000 * 0.04) into standard exposure=1.0 HDR range
     this.uSkyExposure = uniform(0.148);
-    this.uNightFactor = uniform(0.0);
+    // 日夜系数只有这一份：引擎天空和深圳城市材质共用 sceneUniforms.night，
+    // applyPreset 写一次，天空、楼体、路灯、灯光秀和 APEC 都读同一个 uniform。
+    this.uNightFactor = sceneUniforms.night;
     this.uNightSkyColor = uniform(new THREE.Color(0x0b1528));
     const rawSkyNode = this.sky.material.colorNode;
     this.sky.material.colorNode = Fn(() => {

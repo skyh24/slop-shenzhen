@@ -6,6 +6,7 @@ import * as THREE from 'three/webgpu';
 import { terrainHeight } from './sz-terrain.js';
 import { landmarkCenter, finitePoint, ringPerimeter, ringCentroid, outerRings, largestRing, sampleRing, distanceToRing } from './sz-polygon.js';
 import { canvasTexture } from './sz-mesh-utils.js';
+import { sceneUniforms } from './sz-materials.js';
 
 export const APEC_CITY_COLORS = Object.freeze({
   chinaRed: 0xc8102e,
@@ -573,11 +574,12 @@ export function buildApecCityElements(scene, {
     robots: plan.robots,
     hoardings: plan.hoardings,
     parts: statistics.parts,
-    update(dt, nightFactor = 0) {
+    update(dt) {
       // 与其它动画模块一致：单帧步长封顶，避免切回标签页后机器人瞬移。
       const step = clampNumber(Number.isFinite(dt) ? dt : 0, 0, 0.05);
       elapsed += step;
-      const night = clampNumber(Number.isFinite(nightFactor) ? nightFactor : 0, 0, 1);
+      // 日夜系数直接读全局 uniform，入口不再逐个模块转抄。
+      const night = clampNumber(sceneUniforms.night.value, 0, 1);
       for (const record of screenRecords) record.faceMaterial.emissiveIntensity = 0.3 + night * 0.95;
       if (hoardingMaterial) hoardingMaterial.emissiveIntensity = 0.06 + night * 0.32;
       for (const record of robotRecords) {
