@@ -1,11 +1,10 @@
 import { insideSignalBounds } from './sz-intersection-control.js';
-import { writeTrafficCollider } from './sz-traffic.js';
 import { vehicleContact } from './vehicle-physics.js';
+import { followingReach, routeLeader, sameTrafficLevel, writeEntityCollider, writeTrafficCollider } from './sz-driving-motion.js';
 
 const ACTOR = 'player-autodrive';
 const ROAD_MARGIN = 0.05;
 const START_HEIGHT_TOLERANCE = 0.26;
-const LOOK_AHEAD = 32;
 const headingError = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -52,29 +51,13 @@ function frontDistance(approach, model, x, z, heading) {
     + Math.abs(along) * model.hz + Math.abs(across) * model.hx + model.z * along + model.x * across;
 }
 
-function stopForTraffic(run, model, car, nearTraffic, reach) {
-  let stop = Infinity;
-  for (const body of nearTraffic(car.position.x, car.position.z, reach)) {
-    if (body.minY > car.position.y + 2.5 || body.maxY < car.position.y - 1.5) continue;
-    const ahead = project(run.route.samples, body.x, body.z, Math.max(0, run.index - 2), run.s + reach + 4);
-    if (!ahead) continue;
-    const parallel = Math.abs(body.sin * ahead.dx + body.cos * ahead.dz);
-    const perpendicular = Math.abs(body.cos * ahead.dx - body.sin * ahead.dz);
-    const across = body.halfW * parallel + body.halfL * perpendicular;
-    const along = body.halfL * parallel + body.halfW * perpendicular;
-    if (ahead.error > model.hx + across + 0.35 || ahead.s + along < run.s - 0.5) continue;
-    stop = Math.min(stop, ahead.s - along - model.hz - 1.1);
-  }
-  return stop;
-}
-
 export function createAutoDrive({ model, roadHeight, control, nearTraffic = () => [] }) {
   let run = null;
   let reservation = null;
   let status = 'idle';
   const statistics = { routeLength: 0, travelled: 0, signalWaits: 0, intersectionWaits: 0, signalEntries: 0 };
   const intersectionMargin = Math.hypot(model.hx, model.hz) + 0.35;
-  const candidate = {}, contact = {};
+  const candidate = {}, contact = {}, ego = {};
 
   // 取当前进度前后 ±8 m 内的路段表面，与 poseOnRoute 在衔接处的取边窗口一致；
   // 地面与高架端头各自只覆盖到自己的端头，四角需要能回退到相邻段的表面。
@@ -151,9 +134,10 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     const speed = Math.max(0, car.speed);
     // 在仍可停车的位置先检查到冲突区出口，给已经在路口内的车留出驶离空间。
     const nearStop = signal && !reservation && stopAt - run.s < Math.max(18, speed ** 2 / 3.3 + 4);
-    const reach = nearStop ? Math.max(LOOK_AHEAD, signal.clearS - run.s + 8) : LOOK_AHEAD;
-    const vehicleStop = stopForTraffic(run, model, car, nearTraffic, reach);
-    const exitBlocked = nearStop && vehicleStop < signal.clearS + 2;
+    const reach = Math.max(followingReach(speed), nearStop ? signal.clearS - run.s + 8 : 0);
+    const leader = routeLeader({ samples: route.samples, index: run.index, s: run.s, reach,
+      ego: writeEntityCollider(ego, car), bodies: nearTraffic(car.position.x, car.position.z, reach), roadHeight });
+    const exitBlocked = nearStop && leader.gap + run.s < signal.clearS + 2;
     const requested = signal && !reservation && stopAt - run.s <= 4 ? signal.approach : null;
     if (run.request && run.request !== requested) control.cancelRequest(run.request, ACTOR);
     if (requested) control.request(requested, ACTOR, elapsed, !exitBlocked);
@@ -163,10 +147,10 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     const dx = target.x - car.position.x, dz = target.z - car.position.z;
     const lateral = dx * Math.cos(car.heading) - dz * Math.sin(car.heading);
     const desiredSteer = Math.atan2(4 * model.halfWheelbase * lateral, dx * dx + dz * dz);
-    const lastStop = Math.min(route.length - 0.24, held ? stopAt : Infinity, vehicleStop);
+    const lastStop = Math.min(route.length - 0.24, held ? stopAt : Infinity);
     const remaining = Math.max(0, lastStop - run.s);
-    const targetSpeed = Math.min(route.limits[run.index], Math.sqrt(3.3 * remaining));
-    let state = vehicleStop - run.s < 4 ? 'traffic' : 'driving';
+    const targetSpeed = Math.min(route.limits[run.index], Math.sqrt(3.3 * remaining), leader.limit);
+    let state = leader.limit < Math.min(2.8, route.limits[run.index]) ? 'traffic' : 'driving';
     if (held && stopAt - run.s < 4) {
       const { sourceIndex, to } = signal.approach;
       state = control.approachState(sourceIndex, to, elapsed).phase === 'green' ? 'intersection' : 'signal';
@@ -196,7 +180,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
           pitch: pivot?.rotation.x ?? 0, roll: pivot?.rotation.z ?? 0 });
         const extent = Math.max(x - candidate.minX, candidate.maxX - x, z - candidate.minZ, candidate.maxZ - z);
         for (const body of nearTraffic(x, z, extent)) {
-          if (candidate.minY < body.maxY && candidate.maxY > body.minY && vehicleContact(candidate, body, contact)) {
+          if (sameTrafficLevel(candidate, body) && vehicleContact(candidate, body, contact)) {
             run.stalled = 0;
             if (status === 'driving') status = 'traffic';
             return false;

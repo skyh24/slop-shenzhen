@@ -238,7 +238,7 @@ class QaSession {
   // window.__szQA()：把启动阶段、场景统计、交通/人群/地图状态汇总成纯数据快照。
   snapshot() {
     const { controllerManager, cameraSystem, lightingSystem, mapSystem, traffic, pedestrians, roadFrontage,
-      autoDrive, sea, streetscape, landmarks, bridge, renderer, buildingSigns, buildingDetails,
+      autoDrive, laneAssist, sea, streetscape, landmarks, bridge, renderer, buildingSigns, buildingDetails,
       audioSystem, getElapsed, getRenderedFrames, getGraphicsLoss } = this.runtime;
     const elapsed = getElapsed();
     return {
@@ -261,6 +261,8 @@ class QaSession {
           stop: stop ? { s: stop.s, clearS: stop.clearS, osmNodeId: stop.approach.osmNodeId, group: stop.approach.group } : null };
       }) },
       pedestrians: { ...pedestrians.statistics },
+      assists: laneAssist && { lane: laneAssist.status, changing: laneAssist.active, enabled: laneAssist.enabled,
+        emergencyBrake: controllerManager.emergencyBrakeEnabled },
       roadFrontage: { ...roadFrontage.statistics, intersections: roadFrontage.control.intersections.map(intersection => ({
         id: intersection.id, approaches: intersection.approaches.map(({ osmNodeId, group, stopX, stopZ }) => ({ osmNodeId, group, stopX, stopZ }))
       })), clock: elapsed, control: roadFrontage.control.snapshot?.(elapsed) ?? [],

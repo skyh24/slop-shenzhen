@@ -699,6 +699,13 @@ export function buildWalkTracks(graph, options = {}) {
     connectors: connected.connectors,
     legs,
     pavement,
+    walkableHeight(x, z, referenceY) {
+      const y = cfg.heightAt(x, z);
+      if (!Number.isFinite(y) || Math.abs(y - referenceY) > cfg.maxStepRiseM
+        || barrier.contains(x, z, cfg.carriagewayClearanceM)
+        || colliderAt(colliderIndex, x, z, y, cfg.colliderRadiusM, cfg.colliderHeightM)) return null;
+      return y;
+    },
     statistics: {
       ...built.statistics,
       ...connected.statistics,

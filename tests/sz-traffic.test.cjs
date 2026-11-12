@@ -3,6 +3,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const driving = require('./helpers/driving.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 class Group {
@@ -53,7 +54,6 @@ const three = {
 const load = (name, imports) => loadModule(readFileSync(join(__dirname, '../js', name), 'utf8'), { imports });
 const roads = load('sz-roads.js', { 'three/webgpu': three, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) } });
 const signalModule = load('sz-intersection-control.js');
-const vehiclePhysics = load('vehicle-physics.js');
 const vehicleSpecs = {
   taxi: { track: 1.6, wheelbase: 2.8, radius: 0.35 }, sedan: { track: 1.6, wheelbase: 2.8, radius: 0.35 },
   suv: { track: 1.69, wheelbase: 2.9, radius: 0.38 }, minivan: { track: 1.69, wheelbase: 3.03, radius: 0.37 },
@@ -92,7 +92,7 @@ const { createTrafficGraph, createSzTraffic, laneOffsets, laneRoute, poseOnRoute
   './sz-roads.js': roads,
   './sz-vehicles.js': trafficVehicles,
   './building-collision.js': load('building-collision.js', { './sz-polygon.js': polygonModule }),
-  './vehicle-physics.js': vehiclePhysics
+  ...driving
 });
 
 const groundRoad = id => ({ osmId: `way/${id}`, heightSource: 'terrain', layer: 0, bridge: false, tunnel: false });
@@ -452,4 +452,60 @@ test('traffic refuses ambient routes that would end on an elevated deck', () => 
   for (let frame = 0; frame < 30; frame++) traffic.update(0.05, { x: 100, z: 0 });
   assert.equal(traffic.statistics.active, 0);
   assert.ok(traffic.statistics.mainlineEndRejects > 0, 'routes ending on a deck are rejected');
+});
+
+test('traffic brakes for a stopped lead vehicle before overlap and follows it away smoothly', () => {
+  const graph = { nodes: [0, 0, 900, 0], names: ['Road'],
+    links: [[0, 1, 0, 6.5, 1, 1, []]], metadata: [groundRoad(1)] };
+  const traffic = createSzTraffic(new Group(), graph, { roadHeight: () => 6 });
+  const focus = { x: 250, z: 0 };
+  traffic.update(0, focus);
+  const actor = traffic.vehicles.find(vehicle => vehicle.route);
+  const lead = { type: 'car', heading: Math.PI / 2, speed: 0,
+    collisionBounds: { min: { x: -1, y: 0, z: -2.3 }, max: { x: 1, y: 1.8, z: 2.3 } },
+    position: { x: actor.pose.x + 25, y: 6, z: 0 } };
+  const gap = () => lead.position.x - 2.3 - actor.collider.maxX;
+  let brakedAt = 0;
+  let previous = actor.speed;
+  for (let i = 0; i < 220; i++) {
+    traffic.update(0.05, focus, [lead]);
+    if (actor.speed < previous - 0.01 && !brakedAt) brakedAt = gap();
+    assert.ok(gap() > 1.9);
+    previous = actor.speed;
+  }
+  assert.ok(brakedAt > 8);
+  assert.ok(gap() > 1.9 && gap() < 2.4);
+  assert.equal(actor.speed, 0);
+  lead.speed = 5;
+  for (let i = 0; i < 120; i++) {
+    lead.position.x += lead.speed * 0.05;
+    traffic.update(0.05, focus, [lead]);
+    assert.ok(actor.speed - previous <= 2.2 * 0.05 + 1e-7);
+    previous = actor.speed;
+  }
+  assert.ok(actor.speed > 3.5);
+  lead.speed = 0;
+  for (let i = 0; i < 180; i++) {
+    traffic.update(0.05, focus, [lead]);
+    assert.ok(gap() > 1.9);
+  }
+  assert.equal(actor.speed, 0);
+});
+
+test('a crossing pedestrian and a cutting-in car constrain the route before overlap while an upper deck does not', () => {
+  const { routeLeader, writeEntityCollider, writePedestrianCollider, contactTime } = driving['./sz-driving-motion.js'];
+  const ego = writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: 0 }, heading: 0, speed: 12 });
+  const samples = [{ x: 0, z: 0, s: 0 }, { x: 0, z: 60, s: 60 }];
+  const lead = (...bodies) => routeLeader({ samples, index: 0, s: 0, reach: 45, ego, bodies, roadHeight: () => 0 });
+  const pedestrian = writePedestrianCollider({}, -2.8, 0, 18, Math.PI / 2, 1.35);
+  const upper = writePedestrianCollider({}, -2.8, 5, 18, Math.PI / 2, 1.35);
+  const cutIn = writeEntityCollider({}, { type: 'car', position: { x: 5, y: 0, z: 17 }, heading: -Math.PI / 4, speed: 6 });
+  cutIn.id = 'traffic:cut-in';
+  const nearbyLane = { ...cutIn, sin: 0, cos: 1, vx: 0, vz: 6 };
+  assert.ok(lead(pedestrian).limit < ego.vz);
+  assert.ok(lead(cutIn).limit < ego.vz);
+  assert.equal(lead(nearbyLane).limit, Infinity);
+  assert.equal(lead(upper).limit, Infinity);
+  const sweep = contactTime(ego, { ...pedestrian, x: -8, z: 5 }, 1, -20, 12);
+  assert.ok(sweep > 0 && sweep < 1);
 });

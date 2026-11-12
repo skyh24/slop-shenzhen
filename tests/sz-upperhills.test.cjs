@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const driving = require('./helpers/driving.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
@@ -144,6 +145,7 @@ test('UpperHills geometry renders its sourced towers and separated public levels
     const { createGroundSurfaceSampler } = loadModule(read('sz-ground-surface.js'));
     const groundHeight = createGroundSurfaceSampler(geo.terrainSurface);
     const { ThirdPersonControllerManager } = loadModule(read('controllers.js'), { imports: {
+      ...driving,
       'three/webgpu': THREE, './sz-city-config.js': { ISLAND_BOUNDS: { minX: 1100, maxX: 1150, minZ: -1440, maxZ: -1330 } },
       './sz-controller-surfaces.js': { createSurfaceResolver }, './sz-park-arrivals.js': {}, './sz-strings.js': {},
       './city-lighting-materials.js': {}, './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8 } } },

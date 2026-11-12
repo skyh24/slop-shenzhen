@@ -1,6 +1,6 @@
 import { STR } from './sz-strings.js';
 import { waitForFirstFrame } from './sz-startup.js';
-import { populateTeleportMenu, wireMetroMenu, wirePopovers, wireShortcuts, createLocationReadout, createHudTelemetry } from './sz-ui.js';
+import { populateTeleportMenu, wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, createLocationReadout, createHudTelemetry } from './sz-ui.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
@@ -36,6 +36,7 @@ import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
 import { createSzPedestrians } from './sz-pedestrians.js';
 import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
 import { createAutoDrive } from './sz-auto-drive.js';
+import { createLaneAssist } from './sz-lane-assist.js';
 import { VEHICLE_SPECS } from './sz-vehicles.js';
 import { sceneUniforms } from './sz-materials.js';
 import { ThirdPersonControllerManager, FLIGHT_START_ALTITUDE, PLAYER_SPEED_LIMITS } from './controllers.js';
@@ -324,7 +325,12 @@ async function initApp() {
   const driveModel = trafficModelBounds(driveCar.collisionBounds, VEHICLE_SPECS.taxi);
   // 自动驾驶与地图规划使用交通模块的组合高度：地面沥青 + 高架桥面（按边表面身份取样）。
   const driveOptions = { model: driveModel, roadHeight: traffic.roadHeight, control: roadFrontage.control };
-  const autoDrive = createAutoDrive({ ...driveOptions, nearTraffic: traffic.nearColliders });
+  const nearPedestrians = (x, z, radius) => pedestrians.nearColliders?.(x, z, radius) ?? [];
+  const nearRoadUsers = (x, z, radius) => [...traffic.nearColliders(x, z, radius), ...nearPedestrians(x, z, radius)];
+  controllerManager.nearPedestrians = nearPedestrians;
+  const autoDrive = createAutoDrive({ ...driveOptions, nearTraffic: nearRoadUsers });
+  const laneAssist = createLaneAssist({ ...driveOptions, graph: GEO.roadGraph, network: traffic.network,
+    isClear: pose => controllerManager.isClearCarPose(pose), nearTraffic: nearRoadUsers });
   let planner = null;
   const drivePlanner = () => planner ??= createDrivePlanner(traffic.network, GEO.roadGraph, { ...driveOptions,
     isClear: pose => controllerManager.isClearCarPose(pose), detailedRoadIds: roadFrontage.detailedRoadIds });
@@ -531,6 +537,7 @@ async function initApp() {
     modeFeedback.hidden = true;
     if (changed) {
       autoDrive.stop('manual');
+      laneAssist.cancel();
       cameraSystem.resetForTeleport();
       selectCamera('chase');
     }
@@ -648,6 +655,7 @@ async function initApp() {
     const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(GEO.parks, x, z) : null);
     const destination = controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park });
     if (!destination) return null;
+    laneAssist.cancel();
     autoDrive.stop('manual');
     touchControls.reset();
     gamepadControls.reset();
@@ -683,6 +691,7 @@ async function initApp() {
     touchHints: touchControls.available,
     onToggle: (open) => {
       closePopovers();
+      laneAssist.cancel();
       controllerManager.resetInput();
       touchControls.setEnabled(!open);
       gamepadControls.setEnabled(!open);
@@ -729,6 +738,15 @@ async function initApp() {
     });
   }
 
+  const manualCarAvailable = () => controllerManager.activeMode === 'car' && !mapSystem.isFullMapOpen && !autoDrive.active;
+  function requestLane(direction) {
+    if (!manualCarAvailable()) return;
+    const { forward, backward, left, right, brake, boost } = controllerManager.keys;
+    laneAssist.request(driveCar, direction, Boolean(forward || backward || left || right || brake || boost));
+    drivingAssists.render(true, true);
+  }
+
+  const drivingAssists = wireDrivingAssists(controllerManager, laneAssist);
   // 模式 1–4、相机 V 与 5–0、HUD H、声音 N、喇叭 B 的全局快捷键由 js/sz-ui.js 统一接线。
   wireShortcuts({
     onMode: selectMode,
@@ -736,7 +754,11 @@ async function initApp() {
     onCycleCamera: cycleCamera,
     onToggleHud: () => hudToggleBtn?.click(),
     onToggleSound: () => audioSystem.setEnabled(!audioSystem.enabled),
-    onHonk: () => { if (!mapSystem.isFullMapOpen) audioSystem.honk(controllerManager.getActiveEntity()); }
+    onHonk: () => { if (!mapSystem.isFullMapOpen) audioSystem.honk(controllerManager.getActiveEntity()); },
+    onLane: requestLane,
+    onLaneCancel: () => laneAssist.cancel(),
+    onToggleLane: () => { if (manualCarAvailable()) drivingAssists.toggleLane(); },
+    onToggleEmergencyBrake: () => { if (manualCarAvailable()) drivingAssists.toggleEmergencyBrake(); }
   });
   window.addEventListener('resize', () => {
     cameraSystem.onResize(window.innerWidth, window.innerHeight);
@@ -755,7 +777,7 @@ async function initApp() {
   // QA 入口：只在回环地址的 ?qa=1 下调用，普通游玩地址不向 window 暴露任何调试对象。
   if (qa.enabled) {
     qa.install({
-      renderer, scene, cameraSystem, controllerManager, mapSystem, autoDrive, lightingSystem, audioSystem,
+      renderer, scene, cameraSystem, controllerManager, mapSystem, autoDrive, laneAssist, lightingSystem, audioSystem,
       buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, sea, bridge,
       modules: {
         lamps: streetLamps, trees, apec: apecTheme, apecCity, drones, lightShow,
@@ -876,12 +898,16 @@ async function initApp() {
         camera.coordinateSystem, camera.reversedDepth);
     }
     const active = controllerManager.getActiveEntity();
-    traffic.update(dt, active.position, [active], elapsed, isTrafficVisible);
-    pedestrians.update(dt, active.position, elapsed, isPedVisible, [active]);
+    // 车流读取帧首行人；行人读取推进后的车身并验证脚步。玩家最后扫掠两类当前包络。
+    traffic.update(dt, active.position, [active], elapsed, isTrafficVisible, nearPedestrians(active.position.x, active.position.z, 140));
+    pedestrians.update(dt, active.position, elapsed, isPedVisible, [active],
+      traffic.nearColliders(active.position.x, active.position.z, 175));
     const { forward, backward, left, right, brake, boost } = controllerManager.keys;
-    const driveInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode,
-      manual: !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right || brake || boost) });
+    const manual = !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right || brake || boost);
+    const autoInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode, manual });
+    const driveInput = autoInput ?? laneAssist.update(driveCar, { manual });
     controllerManager.update(dt, elapsed, driveInput);
+    drivingAssists.render(manualCarAvailable());
     cameraSystem.update(dt, elapsed);
     qa.applyCamera(cameraSystem.camera);
     streetscape.update(cameraSystem.camera.position);

@@ -4,6 +4,7 @@ const zlib = require('node:zlib');
 const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const driving = require('./helpers/driving.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 // 轻量 THREE / PersonCrowd / PersonRig 替身：不访问 DOM 或 WebGPU，只验证轨迹、出生、回收和接地逻辑。
@@ -86,6 +87,7 @@ const tracks = loadModule(read('sz-pedestrian-tracks.js'), {
 const pedestrianStub = createPedestrianStub();
 const pedestrians = loadModule(read('sz-pedestrians.js'), {
   imports: {
+    ...driving,
     'three/webgpu': three,
     './pedestrians.js': pedestrianStub.module,
     './sz-pedestrian-tracks.js': tracks,
@@ -676,4 +678,31 @@ test('factory target crowd size follows local density: dense blocks vs park gree
   assert.ok(parkTarget < denseTarget - 20, `park target ${parkTarget} should be clearly sparser than ${denseTarget}`);
   assert.ok(peds.statistics.placed <= parkTarget + 10);
   assert.ok(peds.statistics.placed > 0);
+});
+
+test('a pedestrian yields on the walk track for an approaching car and ignores the same car overhead', () => {
+  const { writeEntityCollider } = driving['./sz-driving-motion.js'];
+  const focus = { x: 50, y: 0, z: 0 };
+  function walk(height) {
+    const { peds } = makeFactory(straightGraph(100), { maxPeds: 1, pavement: false });
+    peds.update(0, focus, 0);
+    const ped = peds.peds[0], leg = peds.region.tracks[0];
+    const at = sampleTrack(leg, 50);
+    Object.assign(ped, { leg, s: 50, x: at.x, z: at.z, y: at.y, dir: 1, heading: Math.atan2(at.dx, at.dz),
+      placed: true, lateral: 0, v: 1.2, speed: 1.2, pause: 0, restAt: Infinity });
+    const car = writeEntityCollider({}, { type: 'car', position: { x: at.x + 4.5, y: height, z: at.z + 1.1 },
+      heading: -Math.PI / 2, speed: 5 });
+    for (let i = 1; i <= 15; i++) {
+      peds.update(0.05, focus, i * 0.05, null, null, [car]);
+      assert.notEqual(peds.region.walkableHeight(ped.x, ped.z, ped.y), null);
+      assert.ok(Math.abs(ped.z - at.z) < 0.7);
+    }
+    const yielded = peds.statistics.vehicleYields;
+    const obstacleFree = ped.s;
+    for (let i = 16; i <= 40; i++) peds.update(0.05, focus, i * 0.05);
+    assert.ok(ped.s > obstacleFree + 0.7);
+    return yielded;
+  }
+  assert.ok(walk(0) > 0);
+  assert.equal(walk(5), 0);
 });

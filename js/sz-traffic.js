@@ -6,6 +6,9 @@ import {
 } from './sz-vehicles.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { vehicleContact } from './vehicle-physics.js';
+import { boxDimensions, followingReach, routeLeader, writeEntityCollider, writeTrafficCollider } from './sz-driving-motion.js';
+
+export { writeTrafficCollider };
 
 const SPAWN_CELL = 100;
 const SEARCH_RADIUS = 360;
@@ -186,7 +189,18 @@ export function createTrafficGraph(graph, { canTurn = () => true, elevated = nul
       return true;
     });
   }
-  return { edges, cells };
+  function nearSegments(x, z, radius) {
+    const segments = new Map();
+    for (let ix = Math.floor((x - radius) / SPAWN_CELL); ix <= Math.floor((x + radius) / SPAWN_CELL); ix++) {
+      for (let iz = Math.floor((z - radius) / SPAWN_CELL); iz <= Math.floor((z + radius) / SPAWN_CELL); iz++) {
+        for (const { edge, segment } of cells.get(cellKey(ix, iz)) ?? []) {
+          segments.set(edge.segments[segment], { edge, segment });
+        }
+      }
+    }
+    return [...segments.values()];
+  }
+  return { edges, cells, nearSegments };
 }
 
 export function usableWidth(edge, halfWidth) {
@@ -415,14 +429,8 @@ export function poseOnRoute(samples, s, model, roadHeight, pose) {
   const y = (leftFront + rightFront + leftRear + rightRear) / 4;
   if (Math.abs(pitch) > 0.28 || Math.abs(roll) > 0.2 || Math.abs(center - y) > 0.26
     || Math.abs(leftFront + rightRear - rightFront - leftRear) > 0.44) return false;
-  Object.assign(pose, { x, y, z, heading, pitch, roll, sin, cos, edge: t < 0.5 ? a.edge : b.edge });
+  Object.assign(pose, { x, y, z, heading, pitch, roll, sin, cos, index: lo, edge: t < 0.5 ? a.edge : b.edge });
   return true;
-}
-
-function boxDimensions(box) {
-  const { min, max } = box;
-  return { x: (max.x + min.x) / 2, y: (max.y + min.y) / 2, z: (max.z + min.z) / 2,
-    hx: (max.x - min.x) / 2, hy: (max.y - min.y) / 2, hz: (max.z - min.z) / 2 };
 }
 
 export function trafficModelBounds(box, spec) {
@@ -430,28 +438,6 @@ export function trafficModelBounds(box, spec) {
   return { ...boxDimensions(box),
     halfTrack: spec.track / 2, halfWheelbase: spec.wheelbase / 2,
     corners: [[min.x, min.z], [min.x, max.z], [max.x, min.z], [max.x, max.z]] };
-}
-
-export function writeTrafficCollider(body, model, pose) {
-  const { sin, cos, pitch, roll } = pose;
-  const cp = Math.cos(pitch), sp = Math.sin(pitch), cr = Math.cos(roll), sr = Math.sin(roll);
-  const bx = cr * model.x - sr * model.y;
-  const tilted = sr * model.x + cr * model.y;
-  const by = cp * tilted - sp * model.z;
-  const bz = sp * tilted + cp * model.z;
-  const tiltedRadius = Math.abs(sr) * model.hx + Math.abs(cr) * model.hy;
-  const halfW = Math.abs(cr) * model.hx + Math.abs(sr) * model.hy;
-  const halfL = Math.abs(sp) * tiltedRadius + Math.abs(cp) * model.hz;
-  const halfY = Math.abs(cp) * tiltedRadius + Math.abs(sp) * model.hz;
-  const x = pose.x + cos * bx + sin * bz;
-  const z = pose.z - sin * bx + cos * bz;
-  const y = pose.y + by;
-  const radiusX = Math.abs(cos) * halfW + Math.abs(sin) * halfL;
-  const radiusZ = Math.abs(sin) * halfW + Math.abs(cos) * halfL;
-  Object.assign(body, { x, y, z, heading: pose.heading, sin, cos, halfW, halfL,
-    minX: x - radiusX, maxX: x + radiusX, minZ: z - radiusZ, maxZ: z + radiusZ, minY: y - halfY, maxY: y + halfY });
-  Object.assign(body.obb ??= {}, { cx: x, cz: z, cs: cos, sn: sin, hx: halfW, hz: halfL });
-  return body;
 }
 
 function intersects(a, b) {
@@ -481,17 +467,6 @@ function makeObstacleIndex(colliders) {
     }
     return null;
   };
-}
-
-function playerBodies(entities) {
-  return entities.filter(entity => entity.position && entity.type !== 'helicopter').map(entity => {
-    const { x, y, z } = entity.position;
-    const sin = Math.sin(entity.heading);
-    const cos = Math.cos(entity.heading);
-    const model = entity.collisionBounds ? boxDimensions(entity.collisionBounds) : { x: 0, y: 0.9, z: 0, hx: 0.48, hy: 0.9, hz: 0.48 };
-    return writeTrafficCollider({ type: 'player', id: entity.type }, model, { x, y: y + (entity.chassisPivot?.position.y ?? 0), z, sin, cos,
-      pitch: entity.chassisPivot?.rotation.x ?? 0, roll: entity.chassisPivot?.rotation.z ?? 0 });
-  });
 }
 
 export function createSzTraffic(scene, graph, { roadHeight, elevated = null, colliders = [], signals = null, detailedRoadIds = [], canTurn } = {}) {
@@ -577,6 +552,8 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
   let candidates = [];
   let approachCandidates = [];
   let players = [];
+  let walkers = [];
+  const frameBodies = [];
   let clock = 0;
   let simulationTime = 0;
 
@@ -648,6 +625,9 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
 
   function collides(body, actor) {
     for (const candidate of players) {
+      if (intersects(body, candidate) && vehicleContact(body, candidate, contact)) return candidate;
+    }
+    for (const candidate of walkers) {
       if (intersects(body, candidate) && vehicleContact(body, candidate, contact)) return candidate;
     }
     for (const other of vehicles) {
@@ -738,6 +718,8 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
       actor.s = first;
       actor.end = last;
       actor.speed = Math.min(4, actor.desiredSpeed);
+      actor.collider.vx = actor.pose.sin * actor.speed;
+      actor.collider.vz = actor.pose.cos * actor.speed;
       actor.stalled = 0;
       actor.wheelSpin = 0;
       actor.steer = 0;
@@ -772,7 +754,15 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
     actor.blocker = exitBlocker ? { ...exitBlocker, atExit: true }
       : phaseHeld ? { kind: 'signal-or-owner', id: stop.approach.id } : null;
     const brakingSpeed = held ? Math.sqrt(2 * 3.6 * remaining) : Infinity;
-    const speed = Math.min(actor.desiredSpeed, actor.speed + 2.2 * dt, brakingSpeed);
+    const leader = routeLeader({ samples: route, index: actor.pose.index, s: actor.s,
+      reach: followingReach(actor.speed), ego: actor.collider,
+      bodies: frameBodies, roadHeight: heightFor });
+    if (!actor.blocker && leader.blocker && leader.limit < actor.desiredSpeed) {
+      actor.blocker = { kind: leader.blocker.type, id: leader.blocker.id };
+    }
+    const desired = Math.min(actor.desiredSpeed, leader.limit);
+    const deceleration = leader.gap < 4 ? 7.5 : 3.6;
+    const speed = Math.min(brakingSpeed, actor.speed + Math.max(-deceleration * dt, Math.min(2.2 * dt, desired - actor.speed)));
     const next = Math.min(actor.end, actor.s + speed * dt, held ? Math.max(actor.s, stoppingAt) : Infinity);
     const steps = Math.ceil((next - actor.s) / 0.25);
     let s = actor.s;
@@ -810,14 +800,22 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
     actor.stalled = s === actor.s && !waiting ? actor.stalled + dt : 0;
     actor.speed = steps > 0 && s === next ? speed : 0;
     actor.s = s;
+    actor.collider.vx = actor.pose.sin * actor.speed;
+    actor.collider.vz = actor.pose.cos * actor.speed;
   }
 
-  function update(dt, focus, entities = [], elapsedSeconds = null, isVisible = null) {
+  function update(dt, focus, entities = [], elapsedSeconds = null, isVisible = null, pedestrians = []) {
     if (!Number.isFinite(focus?.x) || !Number.isFinite(focus?.z)) return;
     dt = Math.max(0, Math.min(dt, 0.05));
     simulationTime += dt;
     clock = Number.isFinite(elapsedSeconds) ? elapsedSeconds : clock + dt;
-    players = playerBodies(entities);
+    players = entities.filter(entity => entity.position && entity.type !== 'helicopter')
+      .map(entity => writeEntityCollider({}, entity));
+    walkers = pedestrians;
+    // 所有跟车决策读取帧首速度；实际推进仍按当前占用逐子步核验。
+    frameBodies.length = 0;
+    frameBodies.push(...players, ...walkers);
+    for (const actor of vehicles) if (actor.route) frameBodies.push({ ...actor.collider });
     for (const actor of vehicles) {
       if (!actor.route) continue;
       const distance = squareDistance(actor.pose.x, actor.pose.z, focus);
