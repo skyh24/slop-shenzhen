@@ -7,7 +7,7 @@
 - **代码**：本轮基于 `main` 的 `2aae618` 复核 `m1-validated-fast-data` 更新，合并目标为 `main`；具体提交以 Git 为准。正式入口 <http://127.0.0.1:8080/> 运行深圳，`index.html` 加载 `js/main.js`。`mvp.html` 已删除，只作历史参考。2026-11-11 合并 `dsh-75ff7e49-3276`（车公庙高架车行链路），无人机连续往返和实例化（`dsh-e2c175e5-44a3`）的内容此前已由 `50f6cf0` 落在 `main` 上，分支内容与 `main` 一致。
 - **共享包**：`js/sz-city.json.gz` 6,916,984 字节，SHA-256 `690c6d1e99fa642e9cefb756eaadd1f80b0dc7f612f7a486148c83f099bcce75`，由 `tools/sz/build.py` 生成。
 - **数据**：36,064 栋普通楼，来源是 OSM 12,692、Overture 16,022、GloBFP 7,350，没有随机放置的楼，见 [21 号](21-FOOTPRINT-AND-STREET-AUDIT.md)。其中 4 栋楼高按公开资料修正，见 [20 号](20-BUILDING-HEIGHT-AUDIT.md)。另有约 5.9 万棵树（OSM 点位加标注为模拟的补种）。
-- **测试**：**第三批基线（2026-11-11，`dsh-75ff7e49-3276` 合并后）**：设置 `SZ_THREE_PACKAGE_DIR=.agents/three-0.187.0` 后 Node **489 项通过、0 跳过、0 失败**；Python **104 项通过**。新 worktree 的 agent 用这两个数字当基线，报告里写实际数量。数量变化包含此前删除纽约测试与后续新增回归，不与旧 493 项直接比较。
+- **测试**：**2026-11-11 合并轮次后基线**：设置 `SZ_THREE_PACKAGE_DIR=.agents/three-0.187.0` 后 Node **531 项通过、0 跳过、0 失败**；`.venv/bin/python -m unittest discover -s tools/sz/tests` **145 项通过**。新 worktree 的 agent 用这两个数字当基线，报告里写实际数量。数量变化包含此前删除纽约测试与后续新增回归，不与旧 493 项直接比较。
 - **验收**：九条硬性要求还没有一条整体通过；M9 性能未通过，所以没有 baseline 标签。逐条证据和缺口见 [ACCEPTANCE-STATUS.md](ACCEPTANCE-STATUS.md)。
 
 ## 2. 已经挂进场景的主要内容
@@ -74,6 +74,7 @@ python3 tools/qa/check.py --scope full               # 大版本或共享核心�
   - `dsh-75ff7e49-3276`（`c8c0e73`，rebase 到 `f8aa120` 后合并为 `6a586c7`）：车公庙高架车行链路。33 条、约 5.74 km 桥面按渲染桥面顶面三角面接入车流图、地图规划和轮胎接触；只有非隧道、`layer>0`、派生纵坡 ≤12% 的链路进入；地面车不会吸到桥面；自动规划返回走过的 `surfaces`。冲突解析：`js/main.js` 保留 S3 的 `qa.stage`/`...site` 写法并补 `elevated: elevatedRoads.drive`，`js/sz-qa.js` 的车辆快照补 `surfaceId`（原 `main.js` 里那段 QA 已迁到该文件）。
   - `dsh-e2c175e5-44a3`：无人机连续往返和实例化，内容早已由 `50f6cf0` 落在 `main`（两个提交与 `main` 内容逐字节一致），已把分支指回 `main`，不再产生合并提交。
   - 验证：Node **489 项通过、0 跳过**（新增 13 项：高架车行链路、桥下地面不被吸上桥、匝道接地抬脚、自动驾驶表面身份、无人机跨两端点/停运不转）；Python **104 项通过**。8080 冷启动场景完成首帧（WebGPU，2,531 帧），控制台只有此前那 4 条 TSL `getNodeType` 报错和 `uv` 警告，没有新增；首帧后加载层仍停在“等待图形引擎完成第一帧”，属已知偶发问题，重载也未恢复。同一会话里观察到 30 辆环境车中 5 辆位于桥面表面、高度与计划桥面误差 ≤0.22 m 且未停滞。**玩家手动驾驶桥面按用户要求未做完整验收**，只到代码和单测一级。
+- **2026-11-11 第二轮分支合并（协调者）**：合并 `dsh-1dc3d81a-71a5`（建筑来源样本，文件按编号让位改到 28 号并补 README 索引）、`dsh-4fd71333-f268`（S4 单一日夜 uniform + V2 窗灯/幕墙）、`dsh-8d556fbe-5734`（乘员上下车状态机，工作树里是未提交改动，复核测试后由协调者提交为 `e04c6fb`，合并为 `548ed3a`）。`dsh-b56ae6f1-c908`（V3 海面）在我开始清理前已被快进合入。冲突只有 `tests/sz-ground.test.cjs`（保留 main 的 `sz-water-material` 桩）和 22 号第 7 节交付记录（两段都保留）。合并后 Node **531 项通过、0 跳过**，Python **145 项通过**。11 个 worktree 全部满足“已合入 + 工作树干净”后删除，截图先并入 `docs/qa/`；分支保留。模块盘点同步到 87 个文件、35,424 行（[26 号](26-MODULE-INVENTORY.md)）。
 
 ## 8. 数据包提交规则（2026-11-11）
 
