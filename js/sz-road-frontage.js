@@ -27,6 +27,16 @@ function pavingMaterial() {
   return m;
 }
 
+function medianGrassMaterial() {
+  const m = material(0x527044, 0, 0.98);
+  const patches = fract(positionWorld.x.mul(0.37).add(positionWorld.z.mul(0.52)));
+  const blades = fract(positionWorld.x.mul(13.1)).mul(fract(positionWorld.z.mul(17.7)));
+  const blend = smoothstep(0.14, 0.84, patches).mul(0.18);
+  const detail = blades.mul(smoothstep(0.18, 0.65, max(fwidth(positionWorld.x), fwidth(positionWorld.z))).oneMinus());
+  m.colorNode = color(0x486537).mul(blend.add(detail.mul(0.24)).add(0.92));
+  return m;
+}
+
 function polygonMesh(positions, origin, mat, name) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions instanceof Float32Array ? positions : new Float32Array(positions), 3));
@@ -190,6 +200,33 @@ function addMedianShrubs(group, sites, contactHeight) {
   return matrices.length;
 }
 
+function addMedianGrass(group, sites, medianHeight) {
+  const matrices = [];
+  for (const [x, z] of sites) {
+    const gx = x + 0.85;
+    const y = medianHeight(gx, z);
+    if (!Number.isFinite(y) || !Number.isFinite(medianHeight(gx + 0.25, z))
+      || !Number.isFinite(medianHeight(gx - 0.25, z))
+      || !Number.isFinite(medianHeight(gx, z + 0.25))
+      || !Number.isFinite(medianHeight(gx, z - 0.25))) continue;
+    matrices.push(new THREE.Matrix4().makeRotationY(matrices.length * 2.39996).setPosition(gx, y, z));
+  }
+  if (!matrices.length) return 0;
+  const blades = new THREE.BufferGeometry();
+  blades.setAttribute('position', new THREE.Float32BufferAttribute([
+    -0.18, 0, 0, -0.07, 0, 0, -0.19, 0.15, 0.02,
+    -0.05, 0, 0, 0.05, 0, 0, 0, 0.18, -0.035,
+    0.06, 0, 0, 0.15, 0, 0, 0.18, 0.12, 0.04,
+    0, 0, -0.1, 0, 0, -0.02, 0.01, 0.16, -0.13,
+    0, 0, 0.03, 0, 0, 0.13, -0.04, 0.14, 0.16
+  ], 3));
+  blades.computeVertexNormals();
+  const leaves = material(0x71864b);
+  leaves.side = THREE.DoubleSide;
+  instance(group, 'shennan-median:grass', blades, leaves, matrices);
+  return matrices.length;
+}
+
 export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeight, roadHeight } = {}) {
   const control = createIntersectionControl(source, graph);
   const statistics = { triangleCount: 0, curbTriangles: 0, signals: 0, shrubs: 0 };
@@ -204,9 +241,15 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   // 外环和洞沿的源环方向可能相反，双面材料只用于薄路缘侧壁。
   walls.side = THREE.DoubleSide;
   const style = { sidewalk: paving, paving, paint: material(0xf1eee5, -3, 0.84), median: material(0x52673b) };
+  const grass = medianGrassMaterial();
+  const shennanMedian = source.corridors.some(row => row.id === 'shennan-chegongmiao'
+    && row.medianSource?.positionSource === 'documented-median-between-osm-carriageways');
+  let medianHeight = () => null;
   const samplers = [];
   for (const feature of source.features) {
-    const mat = style[feature.kind];
+    const planted = shennanMedian && feature.id === 'shennan-chegongmiao:median'
+      && feature.sourceIds.length >= 2 && feature.sourceIds.every(id => /^way\/\d+$/.test(id));
+    const mat = planted ? grass : style[feature.kind];
     if (!mat) throw new Error(`Unknown frontage surface: ${feature.kind}`);
     const layout = createRoadPolygonLayout(feature, terrain);
     for (const chunk of layout.chunks) {
@@ -214,12 +257,15 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       if (feature.riseM) for (let i = 1; i < positions.length; i += 3) positions[i] += feature.riseM;
       const mesh = polygonMesh(positions, chunk.origin, mat, chunk.id);
       mesh.userData.sourceIds = feature.sourceIds;
+      if (planted) mesh.userData.planting = { spacingSource: 'estimate', shrubWidthSource: 'estimate',
+        note: '照片入库后再定' };
       mesh.userData.heightSource = feature.riseM ? 'terrain-relative-design-estimate' : 'terrain';
       group.add(mesh);
     }
     if (feature.riseM) {
       const sample = createRoadHeightSampler(layout.chunks, terrain.grid);
       samplers.push(sample);
+      if (planted) medianHeight = sample;
       statistics.curbTriangles += addCurbWalls(group, feature, groundHeight, walls);
     }
     statistics.triangleCount += layout.statistics.triangles;
@@ -236,12 +282,15 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const hardware = signalHardware(group, control, (x, z) => contactHeight(x, z) ?? groundHeight(x, z), roadHeight);
   statistics.signals = hardware.origins.length;
   statistics.shrubs = addMedianShrubs(group, source.shrubSites ?? [], contactHeight);
+  statistics.shennanShrubs = (source.shrubSites ?? []).filter(([x, z]) => medianHeight(x, z) !== null).length;
+  statistics.curbSegments = statistics.curbTriangles / 2;
+  statistics.grassClumps = addMedianGrass(group, source.shrubSites ?? [], medianHeight);
   scene.add(group);
   return { group, control, contactHeight, colliders: hardware.colliders, signalOrigins: hardware.origins, statistics,
     detailedRoadIds: [...new Set(source.corridors.flatMap(row => row.roadIds))], update: hardware.update,
     dispose() {
       group.removeFromParent();
-      const geometries = new Set(), materials = new Set([...Object.values(style), walls]);
+      const geometries = new Set(), materials = new Set([...Object.values(style), walls, grass]);
       group.traverse(mesh => {
         if (!mesh.isMesh) return;
         geometries.add(mesh.geometry);

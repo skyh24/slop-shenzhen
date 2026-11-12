@@ -190,6 +190,16 @@ test('side tracks are offset outside the carriageway and follow heightAt', () =>
   assert.equal(built.statistics.tracks, 2);
 });
 
+test('a raised source sidewalk carries the walk track without drawing a second pavement', () => {
+  const graph = straightGraph(100, 10);
+  graph.metadata[0].highway = 'trunk';
+  const heightAt = (_, z) => z <= -6.5 && z >= -6.9 ? 0.12 : 0;
+  const result = buildWalkTracks(graph, { heightAt, groundHeight: () => 0 });
+  assert.equal(result.tracks.length, 1);
+  assert.ok(result.tracks[0].points.every(point => point.y === 0.12));
+  assert.equal(result.pavement.statistics.triangles, 0);
+});
+
 test('a collider splits a side track, and a fully blocked side is rejected', () => {
   const graph = straightGraph(200);
   const half = 200;

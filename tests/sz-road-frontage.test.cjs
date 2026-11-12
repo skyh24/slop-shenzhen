@@ -79,6 +79,16 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   assert.ok(greenA.emissiveIntensity > 0 && greenB.emissiveIntensity === 0);
   model.update(4.5);
   assert.ok(greenB.emissiveIntensity > 0 && greenA.emissiveIntensity === 0);
+  const grass = model.group.children.find(mesh => mesh.name === 'shennan-median:grass');
+  assert.ok(grass?.isInstancedMesh && grass.count === model.statistics.grassClumps);
+  assert.ok(model.statistics.shennanShrubs > 0 && model.statistics.curbSegments > 0);
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < grass.count; i++) {
+    grass.getMatrixAt(i, m);
+    const { x, y, z } = new THREE.Vector3().setFromMatrixPosition(m);
+    assert.equal(roadHeight(x, z), null);
+    assert.ok(Math.abs(model.contactHeight(x, z) - y) < 1e-4);
+  }
   let checkedPaint = 0, checkedRaised = 0;
   for (const mesh of model.group.children) {
     const raised = mesh.userData.heightSource === 'terrain-relative-design-estimate';

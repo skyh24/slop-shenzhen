@@ -8,13 +8,18 @@ const polygonModule = require('./helpers/polygon.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const THREE_STUB = {};
+const roads = loadModule(read('sz-roads.js'), { imports: {
+  'three/webgpu': THREE_STUB, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
+} });
+const placementImports = { './sz-roads.js': roads, './sz-geodata.js': { GEO: null } };
+
 // 解码/LOD 纯函数测试用不到树冠库；真实 Three 用例里再加载 sz-tree-crown.js。
 const crownStub = {
   CROWN_SPECIES: { ficus: {}, camphor: {}, phoenix: {}, bauhinia: {}, 'royal-palm': {}, kapok: {} },
   createCrownLibrary: () => { throw new Error('crown library not used here'); }
 };
 const trees = loadModule(read('sz-trees.js'), {
-  imports: { 'three/webgpu': THREE_STUB, './sz-polygon.js': polygonModule, './sz-tree-crown.js': crownStub }
+  imports: { ...placementImports, 'three/webgpu': THREE_STUB, './sz-polygon.js': polygonModule, './sz-tree-crown.js': crownStub }
 });
 
 const SPECIES = ['ficus', 'camphor', 'phoenix', 'bauhinia', 'royal-palm', 'kapok'];
@@ -41,6 +46,31 @@ function makePayload(records) {
     limitations: []
   };
 }
+
+test('estimated minor street trees keep one curb, including reversed source links', () => {
+  const graph = { nodes: [0, 0, 100, 0], links: [[1, 0, 0, 10, 2, 0, []]],
+    metadata: [{ heightSource: 'terrain', highway: 'secondary' }] };
+  const allowed = trees.createStreetTreeFilter(graph);
+  assert.equal(allowed(50, -7.5), true);
+  assert.equal(allowed(50, 7.5), false);
+  assert.equal(allowed(50, -10), false);
+  graph.metadata[0].highway = 'primary';
+  assert.equal(trees.createStreetTreeFilter(graph)(50, 7.5), true);
+});
+
+test('median planting uses only sourced Shennan geometry and alternates the two tree species', () => {
+  const feature = { id: 'shennan-chegongmiao:median', kind: 'median', sourceIds: ['way/1', 'way/2'],
+    trianglesXZ: [0, 0, 50, 0, 0, 8, 50, 0, 50, 8, 0, 8] };
+  const corridor = { id: 'shennan-chegongmiao',
+    medianSource: { positionSource: 'documented-median-between-osm-carriageways' } };
+  const source = { features: [feature], corridors: [corridor],
+    shrubSites: [[1, 1], [1, 7], [4, 1], [4, 7], [24, 1], [24, 7], [60, 1], [60, 7]] };
+  const planting = trees.planShennanMedianTrees(source);
+  assert.equal(planting.length, 2);
+  assert.equal(planting[0].speciesName, 'kapok');
+  assert.equal(planting[1].speciesName, 'ficus');
+  assert.equal(trees.planShennanMedianTrees({ ...source, corridors: [] }).length, 0);
+});
 
 test('tree payload decodes decimetres to metres and keeps provenance', () => {
   const payload = makePayload([
@@ -127,7 +157,7 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
   const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
-    imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
+    imports: { ...placementImports, 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
       './sz-tree-crown.js': { CROWN_SPECIES: crown.CROWN_SPECIES, createCrownLibrary: crown.createCrownLibrary } }
   });
   const payload = makePayload([
@@ -214,7 +244,7 @@ test('missing or empty tree payload leaves scene untouched apart from an empty g
   const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
-    imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
+    imports: { ...placementImports, 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
       './sz-tree-crown.js': { CROWN_SPECIES: crown.CROWN_SPECIES, createCrownLibrary: crown.createCrownLibrary } }
   });
   const scene = new THREE.Scene();
@@ -233,7 +263,7 @@ test('every species gets its own card-crown mesh in the near LOD', { skip: !thre
   const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
-    imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
+    imports: { ...placementImports, 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
       './sz-tree-crown.js': { CROWN_SPECIES: crown.CROWN_SPECIES, createCrownLibrary: crown.createCrownLibrary } }
   });
   const scene = new THREE.Scene();
@@ -258,7 +288,7 @@ test('near LOD hysteresis keeps crowns steady across the 180–198 m band', { sk
   const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
-    imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
+    imports: { ...placementImports, 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
       './sz-tree-crown.js': { CROWN_SPECIES: crown.CROWN_SPECIES, createCrownLibrary: crown.createCrownLibrary } }
   });
   const scene = new THREE.Scene();

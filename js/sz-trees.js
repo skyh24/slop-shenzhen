@@ -1,6 +1,8 @@
 import * as THREE from 'three/webgpu';
 import { polygonContains } from './sz-polygon.js';
 import { CROWN_SPECIES, createCrownLibrary } from './sz-tree-crown.js';
+import { GEO } from './sz-geodata.js';
+import { isGroundRoad, roadLinkPoints, roadsideSides } from './sz-roads.js';
 
 // 树木实例化渲染：按 1000 m 分块，每块树干 + 近冠 + 远冠（1 个低模冠），
 // 近/<180 m 切近冠，>900 m 隐藏。所有随机量只由树标识的固定哈希派生，加载结果稳定。
@@ -260,8 +262,88 @@ function emptyResult() {
   };
 }
 
+const STREET_TREE_CLASSES = new Set(['trunk', 'trunk_link', 'primary', 'primary_link',
+  'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'residential', 'unclassified', 'living_street']);
+const STREET_TREE_OFFSET_M = 2.5;
+const STREET_TREE_CELL_M = 64;
+
+// 旧包的模拟树没有道路 ID。按生成器的路缘偏移反查最吻合路段，只筛模拟行道树。
+export function createStreetTreeFilter(graph) {
+  const cells = new Map();
+  const cell = value => Math.floor(value / STREET_TREE_CELL_M);
+  for (let i = 0; i < (graph?.links.length ?? 0); i++) {
+    const meta = graph.metadata[i];
+    if (!isGroundRoad(meta) || !STREET_TREE_CLASSES.has(meta.highway)) continue;
+    const link = graph.links[i];
+    const points = roadLinkPoints(graph, link);
+    if (points.length < 2) continue;
+    const sides = roadsideSides(meta.highway, points);
+    const offset = link[3] / 2 + STREET_TREE_OFFSET_M;
+    for (let j = 1; j < points.length; j++) {
+      const a = points[j - 1], b = points[j];
+      const length = Math.hypot(b.x - a.x, b.z - a.z);
+      if (length < 1e-6) continue;
+      const row = { a, length, dx: (b.x - a.x) / length, dz: (b.z - a.z) / length, offset, sides };
+      const pad = offset + 1.1;
+      for (let ix = cell(Math.min(a.x, b.x) - pad); ix <= cell(Math.max(a.x, b.x) + pad); ix++) {
+        for (let iz = cell(Math.min(a.z, b.z) - pad); iz <= cell(Math.max(a.z, b.z) + pad); iz++) {
+          const key = `${ix},${iz}`;
+          if (!cells.has(key)) cells.set(key, []);
+          cells.get(key).push(row);
+        }
+      }
+    }
+  }
+  return (x, z) => {
+    let bestError = 1.1;
+    let allowed = false;
+    for (const { a, length, dx, dz, offset, sides } of cells.get(`${cell(x)},${cell(z)}`) ?? []) {
+      const px = x - a.x, pz = z - a.z;
+      const along = px * dx + pz * dz;
+      if (along < -0.2 || along > length + 0.2) continue;
+      const across = px * dz - pz * dx;
+      const error = Math.abs(Math.abs(across) - offset);
+      if (error >= bestError) continue;
+      bestError = error;
+      allowed = sides.includes(Math.sign(across));
+    }
+    return allowed;
+  };
+}
+
+export function planShennanMedianTrees(frontage) {
+  const feature = frontage?.features.find(row => row.id === 'shennan-chegongmiao:median' && row.kind === 'median');
+  const corridor = frontage?.corridors.find(row => row.id === 'shennan-chegongmiao');
+  if (!feature || feature.sourceIds.length < 2 || !feature.sourceIds.every(id => /^way\/\d+$/.test(id))
+    || corridor?.medianSource?.positionSource !== 'documented-median-between-osm-carriageways') return [];
+  const triangles = feature.trianglesXZ;
+  const onMedian = (x, z) => {
+    for (let i = 0; i < triangles.length; i += 6) {
+      const [ax, az, bx, bz, cx, cz] = triangles.slice(i, i + 6);
+      const side = (u, v, w, t) => (w - u) * (z - v) - (t - v) * (x - u);
+      const a = side(ax, az, bx, bz), b = side(bx, bz, cx, cz), c = side(cx, cz, ax, az);
+      if (Math.min(a, b, c) >= -1e-8 || Math.max(a, b, c) <= 1e-8) return true;
+    }
+    return false;
+  };
+  const trees = [];
+  // 仅在已核对的分隔带内取两列灌木之间的点。株距为估计，照片入库后再定。
+  const sites = frontage.shrubSites ?? [];
+  for (let i = 1; i < sites.length; i += 2) {
+    const [x, a] = sites[i - 1];
+    const [nextX, b] = sites[i];
+    if (x !== nextX || Math.abs(a - b) < 3) continue;
+    const z = (a + b) / 2;
+    if (trees.some(tree => Math.hypot(tree.x - x, tree.z - z) < 18) || !onMedian(x, z)) continue;
+    const speciesName = trees.length % 2 === 0 ? 'kapok' : 'ficus';
+    trees.push({ id: `${feature.id}:tree:${i}`, x, z, height: 10, crown: 6, speciesName });
+  }
+  return trees;
+}
+
 export function buildSzTrees(scene, payload, options = {}) {
-  const { groundHeight, roadHeight, pathAt = () => [], colliders = [] } = options;
+  const { groundHeight, heightAt = groundHeight, roadHeight, roadGraph, pathAt = () => [], colliders = [],
+    roadFrontage = GEO?.roadFrontage } = options;
   const trees = decodeTreePayload(payload);
   if (!trees || trees.count === 0) {
     const empty = emptyResult();
@@ -272,6 +354,11 @@ export function buildSzTrees(scene, payload, options = {}) {
   group.name = 'shenzhen-trees';
   const countsBySource = {};
   const skipped = { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0 };
+  const acceptStreetTree = roadGraph ? createStreetTreeFilter(roadGraph) : () => true;
+  const mappedTrees = [...trees.osm.keys()];
+  const medianTrees = planShennanMedianTrees(roadFrontage).filter(tree => mappedTrees
+    .every(index => Math.hypot(tree.x - trees.x[index], tree.z - trees.z[index]) >= 4));
+  let removedStreetSide = 0;
   const empty = emptyResult();
   if (typeof groundHeight !== 'function') {
     empty.statistics.payloadCount = trees.count;
@@ -285,11 +372,17 @@ export function buildSzTrees(scene, payload, options = {}) {
   const placed = [];
   const treeColliders = [];
   const crownTemplates = new Set();
-  for (let index = 0; index < trees.count; index++) {
-    const x = trees.x[index];
-    const z = trees.z[index];
-    const height = trees.height[index];
-    const crown = trees.crown[index];
+  for (let index = 0; index < trees.count + medianTrees.length; index++) {
+    const median = medianTrees[index - trees.count];
+    const x = median?.x ?? trees.x[index];
+    const z = median?.z ?? trees.z[index];
+    const height = median?.height ?? trees.height[index];
+    const crown = median?.crown ?? trees.crown[index];
+    const sourceName = median ? 'simulated-median' : (trees.sources[trees.source[index]] ?? 'unknown');
+    if (sourceName === 'simulated-street' && !acceptStreetTree(x, z)) {
+      removedStreetSide++;
+      continue;
+    }
     let baseY = Infinity;
     let reason = null;
     for (const [dx, dz] of probes) {
@@ -313,18 +406,18 @@ export function buildSzTrees(scene, payload, options = {}) {
         }
       }
     }
+    if (median || sourceName === 'simulated-street') baseY = heightAt(x, z) ?? baseY;
     if (!reason && hitsCollider(x, z, crown / 2, baseY, baseY + height)) reason = 'buildingConflict';
     if (reason) {
       skipped[reason] += 1;
       continue;
     }
-    const speciesName = trees.speciesNames[trees.species[index]] ?? 'ficus';
-    const sourceName = trees.sources[trees.source[index]] ?? 'unknown';
+    const speciesName = median?.speciesName ?? trees.speciesNames[trees.species[index]] ?? 'ficus';
     countsBySource[sourceName] = (countsBySource[sourceName] ?? 0) + 1;
     const style = speciesStyle(speciesName);
     const trunkHeight = trunkHeightFor(style, height);
     const trunkRadius = trunkRadiusFor(style, crown);
-    const id = trees.osm.get(index) ?? `tree/${index}`;
+    const id = median?.id ?? trees.osm.get(index) ?? `tree/${index}`;
     // 未知树种退回 ficus 叶卡形态，颜色仍用该树种的调色板。
     const crownTemplate = CROWN_TEMPLATE_NAMES.has(speciesName) ? speciesName : 'ficus';
     crownTemplates.add(crownTemplate);
@@ -511,6 +604,8 @@ export function buildSzTrees(scene, payload, options = {}) {
     chunks: chunks.length,
     lodCells,
     countsBySource,
+    removedStreetSide,
+    medianSpacingSource: 'estimate',
     skipped,
     cardCrownSpecies: crownLibrary ? crownLibrary.statistics.species.map(item => item.name) : [],
     instances: { trunks: placed.length, cards: placed.length, farCrowns: placed.length },

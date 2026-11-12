@@ -67,12 +67,20 @@ export function roadLinkPoints(graph, [start, end, , , , , inner]) {
   return points.filter((p, i) => !i || p.x !== points[i - 1].x || p.z !== points[i - 1].z);
 }
 
-function roadSectionPoints(graph, link, metadata) {
+export function roadSectionPoints(graph, link, metadata) {
   const source = metadata.crossSection?.points;
   if (!source) return roadLinkPoints(graph, link);
   const points = [];
   for (let i = 0; i < source.length; i += 3) points.push({ x: source[i], z: source[i + 1], leftM: source[i + 2] });
   return points;
+}
+
+// 支路选固定一侧，反向编码同一路段时保持世界坐标中的同一侧。
+export function roadsideSides(highway, points) {
+  if (['trunk', 'trunk_link', 'primary', 'primary_link'].includes(highway)) return [1, -1];
+  const first = points[0];
+  const last = points.at(-1);
+  return [first.x < last.x || (first.x === last.x && first.z <= last.z) ? 1 : -1];
 }
 
 export function roadTravelPoints(graph, link, metadata) {

@@ -1,11 +1,13 @@
 import * as THREE from 'three/webgpu';
 import { color, uniform } from 'three/tsl';
-import { roadLinkPoints } from './sz-roads.js';
+import { isGroundRoad, roadSectionPoints, roadsideSides } from './sz-roads.js';
 import { sceneUniforms } from './sz-materials.js';
 
-// 主干道路灯：点位按源路网中心线等距派生，属外观还原参数，不代表逐杆实测位置。
-const LAMP_CLASSES = new Set(['trunk', 'trunk_link', 'primary', 'primary_link']);
-const SPACING_BY_CLASS = { trunk: 24, trunk_link: 26, primary: 22, primary_link: 24 };
+// 灯位按源道路断面和道路等级派生，属外观估计。
+const SPACING_BY_CLASS = {
+  trunk: 24, trunk_link: 26, primary: 22, primary_link: 24, secondary: 34, secondary_link: 38,
+  tertiary: 42, tertiary_link: 46, residential: 50, unclassified: 50, living_street: 56, service: 56
+};
 const CURB_OFFSET_M = 0.9; // 灯杆立在路缘外侧
 const ARM_LENGTH_M = 2.2;
 const HEAD_HEIGHT_M = 7.9;
@@ -23,7 +25,7 @@ function normalAt(a, b) {
   return { dx: dx / length, dz: dz / length };
 }
 
-function interpolate(points, distance) {
+function interpolate(points, distance, width) {
   let travelled = 0;
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1];
@@ -33,7 +35,10 @@ function interpolate(points, distance) {
       const t = segment > 1e-6 ? (distance - travelled) / segment : 0;
       const n = normalAt(a, b);
       if (!n) return null;
-      return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, ...n };
+      const aLeft = a.leftM ?? width / 2;
+      const bLeft = b.leftM ?? width / 2;
+      return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t,
+        left: aLeft + (bLeft - aLeft) * t, ...n };
     }
     travelled += segment;
   }
@@ -55,17 +60,17 @@ export function planLampSites(roadGraph, options = {}) {
     const link = roadGraph.links[index];
     const metadata = roadGraph.metadata[index];
     if (!metadata) throw new Error(`Missing road metadata: ${index}`);
-    if (metadata.heightSource !== 'terrain' || metadata.bridge || metadata.tunnel || metadata.layer) {
+    if (!isGroundRoad(metadata)) {
       rejected.bridgeOrTunnelOrLayer++;
       continue;
     }
     const kind = metadata.highway;
-    if (!LAMP_CLASSES.has(kind)) {
+    if (!Object.hasOwn(SPACING_BY_CLASS, kind)) {
       rejected.unsupportedClass++;
       continue;
     }
     const width = link[3];
-    const points = roadLinkPoints(roadGraph, link);
+    const points = roadSectionPoints(roadGraph, link, metadata);
     if (points.length < 2) {
       rejected.shortLink++;
       continue;
@@ -76,14 +81,15 @@ export function planLampSites(roadGraph, options = {}) {
       rejected.shortLink++;
       continue;
     }
-    const spacing = options.spacingM ?? SPACING_BY_CLASS[kind] ?? 32;
-    const offset = Math.max(0.4, width / 2 + curbOffset);
-    for (const side of [1, -1]) {
+    const spacing = options.spacingM ?? SPACING_BY_CLASS[kind];
+    if (!(spacing > 0)) throw new Error('Street lamp spacing must be positive');
+    for (const side of roadsideSides(kind, points)) {
       // 两侧灯杆错开半个间距，避免正对。
       const phase = side === 1 ? spacing * 0.5 : spacing * 0.25;
       for (let distance = junctionMargin + phase; distance <= total - junctionMargin; distance += spacing) {
-        const at = interpolate(points, distance);
+        const at = interpolate(points, distance, width);
         if (!at) continue;
+        const offset = Math.max(0.4, (side === 1 ? at.left : width - at.left) + curbOffset);
         const x = at.x + at.dz * offset * side;
         const z = at.z - at.dx * offset * side;
         if (!Number.isFinite(x) || !Number.isFinite(z)) {
@@ -204,7 +210,7 @@ function glowInstances(chunk, group, materials, textures, glow) {
 }
 
 export function buildSzStreetLamps(scene, roadGraph, options = {}) {
-  const { groundHeight, roadHeight } = options;
+  const { groundHeight, heightAt = groundHeight, roadHeight } = options;
   if (typeof groundHeight !== 'function') throw new Error('Street lamps require a ground height sampler');
   const plan = planLampSites(roadGraph, options);
   const glow = uniform(0);
@@ -220,15 +226,17 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
   const skipped = { unsupportedGround: 0, roadSurface: 0 };
   const unique = new Set();
   const sites = [];
+  const placementRadius = 0.34;
+  const edgeProbes = [[0, 0], [placementRadius, 0], [-placementRadius, 0], [0, placementRadius], [0, -placementRadius]];
   for (const site of plan.sites) {
     const key = `${Math.round(site.x * 2)},${Math.round(site.z * 2)}`;
     if (unique.has(key)) continue;
     unique.add(key);
-    if (typeof roadHeight === 'function' && roadHeight(site.x, site.z) != null) {
+    if (roadHeight && edgeProbes.some(([dx, dz]) => Number.isFinite(roadHeight(site.x + dx, site.z + dz)))) {
       skipped.roadSurface++;
       continue;
     }
-    const y = groundHeight(site.x, site.z);
+    const y = heightAt(site.x, site.z);
     if (!Number.isFinite(y)) {
       skipped.unsupportedGround++;
       continue;
@@ -274,7 +282,7 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
   scene.add(group);
   const statistics = {
     source: 'derived-from-road-centrelines',
-    method: 'equal spacing along ground trunk/primary centre lines, both sides, curb offset',
+    method: 'class-dependent spacing outside the rendered road, major roads both sides and minor roads one side',
     spacingByClassM: { ...SPACING_BY_CLASS },
     planned: plan.sites.length,
     placed: sites.length,
