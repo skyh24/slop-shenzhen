@@ -243,6 +243,19 @@ const ROAD_NAME_COUNT = new Set(ROAD_LABELS.map((l) => l.text)).size;
 
 
 let LAYERS;
+function droneMapLayer(stations, routes) {
+  const markers = stations.map(station => ({ ...station, bounds: boundsOf([station]) }));
+  const tracks = [];
+  for (const route of routes) {
+    const points = route.path?.points;
+    if (!points) continue;
+    const path = new Path2D();
+    addLine(path, points);
+    tracks.push({ id: route.id, path, bounds: boundsOf(points) });
+  }
+  return { routes: tracks, stations: markers };
+}
+
 function mapLayers() {
   if (LAYERS) return LAYERS;
   const layers = {};
@@ -274,20 +287,6 @@ function mapLayers() {
     const points = polygons.flatMap(polygon => polygon.outer);
     layers.hsr.push({ ...station, path, bounds: boundsOf(points) });
   }
-  // 无人机航线图层：端点来自 air 段（有来源+核实日期），航迹是两端直线示意。
-  layers.drones = { routes: [], stations: [] };
-  if (GEO.air?.droneStations && GEO.air?.droneRoutes) {
-    const stationById = new Map(GEO.air.droneStations.map(station => [station.id, station]));
-    layers.drones.stations = GEO.air.droneStations.map(station => ({ ...station, bounds: boundsOf([station]) }));
-    for (const route of GEO.air.droneRoutes) {
-      const from = stationById.get(route.fromStationId);
-      const to = stationById.get(route.toStationId);
-      if (!from || !to) continue;
-      const path = new Path2D();
-      addLine(path, [from, to]);
-      layers.drones.routes.push({ ...route, path, bounds: boundsOf([from, to]), from, to });
-    }
-  }
   const metroColours = new Map((GEO.metro?.lines || []).map(line => [line.ref, line.colour]));
   layers.metro = (GEO.metro?.segments || []).map(segment => {
     const path = new Path2D();
@@ -309,4 +308,4 @@ function footprintLayers() {
   FOOTPRINTS = { tones, version: 1 };
   return FOOTPRINTS;
 }
-export { MAP, ROAD_LABELS, ROAD_NAME_COUNT, MapView, addLine, addRing, boundsOf, mapLayers, footprintLayers, drawPlayerArrow, drawWaypoint, overlaps };
+export { MAP, ROAD_LABELS, ROAD_NAME_COUNT, MapView, addLine, addRing, boundsOf, mapLayers, footprintLayers, droneMapLayer, drawPlayerArrow, drawWaypoint, overlaps };

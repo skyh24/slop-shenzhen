@@ -137,9 +137,9 @@ export function apecSignSites({ landmarks = [], buildings = [], area = null, anc
       z: gate ? gate.z : xiangmihu.z + 70,
       baseY: gate && Number.isFinite(gate.baseY) ? gate.baseY : null,
       yaw: gate && Number.isFinite(gate.yaw) ? gate.yaw : 0,
-      widthM: 10,
+      widthM: gate?.widthM ?? 10,
       heightM: 1.8,
-      mountM: 1.1,
+      mountM: gate?.mountM ?? 1.1,
       source: gate ? 'landmark-model-gate' : 'landmark-center+illustrative-offset'
     });
   }
@@ -187,9 +187,10 @@ export function apecFlowerBeds({ landmarks = [], area = null, anchors = null } =
     const baseZ = sea ? sea.z : xiangmihu.z + 55;
     const baseY = sea && Number.isFinite(sea.baseY) ? sea.baseY : null;
     beds.push({ id: 'iec-xiangmihu-flower-sea', landmark: 'iec-xiangmihu', label: STR.apecTheme.flowerSea,
-      x: baseX, z: baseZ, baseY, radiusXM: 18, radiusZM: 12, count: 220, seed: 11,
+      x: baseX, z: baseZ, baseY, radiusXM: sea?.radiusXM ?? 18, radiusZM: sea?.radiusZM ?? 12,
+      conform: sea?.conform, count: sea?.conform ? 56 : 220, seed: 11,
       source: sea ? 'landmark-model-lawn' : 'illustrative' });
-    beds.push({ id: 'iec-xiangmihu-lake-bed', landmark: 'iec-xiangmihu', label: STR.apecTheme.flowerSea,
+    if (!sea?.conform) beds.push({ id: 'iec-xiangmihu-lake-bed', landmark: 'iec-xiangmihu', label: STR.apecTheme.flowerSea,
       x: baseX + 38, z: baseZ + 26, baseY, radiusXM: 26, radiusZM: 8, count: 160, seed: 12,
       source: sea ? 'landmark-model-lawn+illustrative-offset' : 'illustrative' });
   }
@@ -430,7 +431,7 @@ function buildSignLayer(group, geometry, textureFor, signs, groundY) {
   return { objects, materials };
 }
 
-function buildFlowerLayer(group, geometry, beds, groundY) {
+function buildFlowerLayer(group, geometry, beds, groundY, groundHeight) {
   if (beds.length === 0) return null;
   const materials = [];
   const objects = [];
@@ -455,15 +456,22 @@ function buildFlowerLayer(group, geometry, beds, groundY) {
     const yAxis = new THREE.Vector3(0, 1, 0);
     sites.forEach((site, index) => {
       quaternion.setFromAxisAngle(yAxis, site.rotation);
-      matrix.compose(new THREE.Vector3(site.x, centerY + 0.1, site.z), quaternion,
+      const y = bed.conform ? groundHeight?.(site.x, site.z) ?? groundY(site.x, site.z) : centerY;
+      matrix.compose(new THREE.Vector3(site.x, y + 0.1, site.z), quaternion,
         new THREE.Vector3(site.scale, site.scale, site.scale));
       patch.setMatrixAt(index, matrix);
       patch.setColorAt(index, new THREE.Color(FLOWER_COLORS[site.colorIndex]));
     });
     patch.instanceColor.needsUpdate = true;
-    group.add(base, patch);
-    materials.push(bedMaterial, flowerMaterial);
-    objects.push(base, patch);
+    if (bed.conform) bedMaterial.dispose();
+    else {
+      group.add(base);
+      materials.push(bedMaterial);
+      objects.push(base);
+    }
+    group.add(patch);
+    materials.push(flowerMaterial);
+    objects.push(patch);
     flowers += sites.length;
   }
   return { objects, materials, flowers };
@@ -496,7 +504,7 @@ function buildTruckLayer(group, geometry, trucks, groundY) {
 
 export function buildApecTheme(scene, {
   lampSites = [], lampChunkVisible = () => true, terrain = null, landmarks = [], buildings = [], area = null,
-  now = null, anchors = null
+  now = null, anchors = null, groundHeight = null
 } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('APEC theme requires a scene');
   const group = new THREE.Group();
@@ -554,8 +562,25 @@ export function buildApecTheme(scene, {
   }
   const trucks = buildTruckLayer(group, geometries, plan.trucks, groundY);
   if (trucks) { layers.push(trucks); materials.push(...trucks.materials); }
-  const flowers = buildFlowerLayer(group, geometries, plan.flowerBeds, groundY);
+  const flowers = buildFlowerLayer(group, geometries, plan.flowerBeds, groundY, groundHeight);
   if (flowers) { layers.push(flowers); materials.push(...flowers.materials); }
+  const flags = (anchors?.iecFlags ?? []).filter(flag => Number.isFinite(flag.baseY));
+  if (flags.length) {
+    const flagMaterial = new THREE.MeshStandardNodeMaterial({ color: APEC_COLORS.chinaRed, roughness: 0.84 });
+    const poleMaterial = new THREE.MeshStandardNodeMaterial({ color: 0x909b9d, roughness: 0.47, metalness: 0.35 });
+    const cloth = new THREE.InstancedMesh(geometries.truckBody, flagMaterial, flags.length);
+    const poles = new THREE.InstancedMesh(geometries.truckBody, poleMaterial, flags.length);
+    cloth.name = 'apec-iec-flags';
+    poles.name = 'apec-iec-flagpoles';
+    const matrix = new THREE.Matrix4();
+    flags.forEach(({ x, z, baseY }, i) => {
+      poles.setMatrixAt(i, matrix.makeScale(0.12, 7.2, 0.12).setPosition(x, baseY + 3.6, z));
+      cloth.setMatrixAt(i, matrix.makeScale(1.8, 1.0, 0.035).setPosition(x + 0.9, baseY + 6.55, z));
+    });
+    group.add(cloth, poles);
+    layers.push({ objects: [cloth, poles] });
+    materials.push(flagMaterial, poleMaterial);
+  }
   statistics.flowers.built = flowers?.flowers ?? 0;
   statistics.meshes = layers.reduce((sum, layer) => sum + layer.objects.length, 0);
 

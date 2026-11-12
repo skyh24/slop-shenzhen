@@ -124,6 +124,8 @@ export function planApecScreens(landmarks = []) {
 
 // 锚点优先用 main 传入的会场模型门廊/花海点；缺失时退回地标中心加示意偏移。
 function resolveRobotAnchor(def, landmarks, anchors) {
+  const local = anchors?.iecRobotSites?.[def.anchor];
+  if (finitePoint(local)) return { ...local, anchorSource: 'main-anchor' };
   const raw = def.anchor === 'iecFlowerSea'
     ? anchors?.iecFlowerSea ?? anchors?.flowerSea
     : anchors?.[def.anchor];
@@ -168,12 +170,12 @@ export function planApecRobots(landmarks = [], anchors = null) {
       x: anchor.x,
       z: anchor.z,
       baseY: anchor.baseY,
-      radiusXM: def.radiusXM,
-      radiusZM: def.radiusZM,
+      radiusXM: anchor.radiusXM ?? def.radiusXM,
+      radiusZM: anchor.radiusZM ?? def.radiusZM,
       speedRadPerSec: def.speedRadPerSec,
       phase: def.phase,
       lightColour: def.lightColour,
-      path: sampleEllipse(anchor, def.radiusXM, def.radiusZM, def.phase, ROBOT_PATH_SAMPLES),
+      path: sampleEllipse(anchor, anchor.radiusXM ?? def.radiusXM, anchor.radiusZM ?? def.radiusZM, def.phase, ROBOT_PATH_SAMPLES),
       source: def.anchor === 'iecGate' ? 'iec-model-gate-anchor' : 'iec-model-flower-sea-anchor',
       heightSource: 'estimate'
     });
@@ -370,7 +372,7 @@ function triangleCount(geometry) {
  *  输出：{ group, statistics, screens, robots, hoardings, update, dispose }；
  *        update 做机器人确定性巡逻与夜间灯条亮度，不含碰撞体。 */
 export function buildApecCityElements(scene, {
-  terrain = null, landmarks = [], sites = null, anchors = null
+  terrain = null, landmarks = [], sites = null, anchors = null, groundHeight = null
 } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('APEC city elements require a scene');
   const plan = planApecCityElements({ landmarks, sites, anchors });
@@ -480,6 +482,7 @@ export function buildApecCityElements(scene, {
     const startAngle = robot.phase;
     robotGroup.position.set(robot.x + Math.cos(startAngle) * robot.radiusXM, baseY,
       robot.z + Math.sin(startAngle) * robot.radiusZM);
+    if (anchors?.iecRobotSites) robotGroup.position.y = groundHeight?.(robotGroup.position.x, robotGroup.position.z) ?? baseY;
     robotGroup.rotation.y = Math.atan2(-Math.sin(startAngle) * robot.radiusXM, Math.cos(startAngle) * robot.radiusZM);
     const accentMaterial = keepMaterial(new THREE.MeshStandardNodeMaterial({
       color: robot.lightColour, roughness: 0.55, metalness: 0.15
@@ -589,7 +592,7 @@ export function buildApecCityElements(scene, {
         const z = robot.z + Math.sin(angle) * robot.radiusZM;
         const dx = -Math.sin(angle) * robot.radiusXM;
         const dz = Math.cos(angle) * robot.radiusZM;
-        record.group.position.set(x, record.baseY, z);
+        record.group.position.set(x, (anchors?.iecRobotSites && groundHeight?.(x, z)) ?? record.baseY, z);
         record.group.rotation.y = Math.atan2(dx, dz);
         const arcSpeed = robot.speedRadPerSec * Math.hypot(Math.sin(angle) * robot.radiusXM,
           Math.cos(angle) * robot.radiusZM);

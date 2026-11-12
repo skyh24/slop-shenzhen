@@ -139,6 +139,7 @@ export const STR = {
     start: name => `环绕${name}`,
     stop: '退出环绕'
   },
+  bayWaterfront: { destination: '中湾阅海广场', walk: '观海步道' },
   teleport: {
     cocoParkApproach: 'COCO Park 一期东南门前场',
     cocoParkApproachDetail: '福华三路北侧步行起点',
@@ -162,8 +163,24 @@ export const STR = {
   drones: {
     title: '无人机航线',
     layer: '无人机航线图层',
-    statusSuspended: '会期低空管控：停运',
-    altitudeEstimate: '巡航高度约 100 m（估计）'
+    statusSuspended: '会期低空管控 · 停运',
+    receiver: '无人机接收点 · 估计站位',
+    choose: '选择接收点',
+    approach: '前往步行起点',
+    walkCloser: '请走到接收点附近再开始。',
+    unavailable: '当前路线暂无经过场景净空校验的完整路径。',
+    approachUnavailable: '当前没有安全步行落点。',
+    blocked: '请停稳并结束当前驾驶或节目，再开始观看。',
+    failed: '配送已结束，已恢复玩家视角。',
+    normal: '跟随无人机送货',
+    simulation: '模拟配送',
+    simulationOnly: '端点配对待核实 · 仅供模拟',
+    estimate: '估计站位与示意航迹 · 无实时运营信息',
+    followMode: '配送跟随',
+    repeat: '再看一轮',
+    exit: '退出跟随',
+    returning: phase => `返航 · ${phase}`,
+    phase: { loading: '待命 / 装载', takeoff: '起飞', cruise: '巡航', descent: '下降', delivery: '到站交付', complete: '已返回起点' }
   },
   hsr: {
     title: '高铁图层',
@@ -171,6 +188,33 @@ export const STR = {
     xili: '西丽站（在建）',
     north: '深圳北站',
     highSpeedRail: '高铁'
+  },
+  cruise: {
+    short: '巡游',
+    label: '空中巡游',
+    names: { beihuan: '北环巡游', shennan: '深南巡游', binhai: '滨海巡游' },
+    note: '深圳模拟巡游 · 目标高度为地面道路上方约 80 米',
+    speed: '最高速度',
+    scenicSpeed: speed => `观景 · ${speed} km/h`,
+    fullSpeed: speed => `全速 · ${speed} km/h`,
+    progress: '巡游进度',
+    start: '开始巡游',
+    map: '查看路线',
+    pause: '暂停',
+    resume: '继续',
+    replay: '重新开始',
+    exit: '退出巡游',
+    busy: '请先退出当前的演出或地标环绕。',
+    unavailable: '路线净空暂未通过检查',
+    statuses: { aligning: '对准航向', waiting: '等待沿线场景', flying: '自动巡游', paused: '已暂停', complete: '已到站 · 悬停' },
+    endpoints: (from, to) => `${from} → ${to}`,
+    estimate: (length, seconds) => {
+      const rounded = Math.round(seconds);
+      return `${(length / 1000).toFixed(2)} 公里 · 约 ${Math.floor(rounded / 60)} 分 ${rounded % 60} 秒`;
+    },
+    telemetry: (km, total, height, target) =>
+      `${(km / 1000).toFixed(1)} / ${(total / 1000).toFixed(1)} 公里 · 离地 ${Math.round(height)} 米（目标 ${target} 米）`,
+    mapLocation: label => `巡游位置：${label}`,
   },
   drive: {
     plan: '规划驾车',
@@ -258,8 +302,6 @@ export const STR = {
     light: '灯光展',
     location: '莲花山看灯光秀',
     original: '福田 CBD · 项目原创节目',
-    drone: '无人机展',
-    unavailable: '尚未开放',
     noArrival: '暂时无法安全抵达山顶平台',
     pause: '暂停',
     resume: '继续',
@@ -267,6 +309,16 @@ export const STR = {
     exit: '退出',
     cues: ['花卉绽放', '火箭升空', 'APEC · 开放与合作', '转场'],
     statue: '邓小平同志'
+  },
+  talentShow: {
+    location: '人才公园看无人机表演',
+    entryDetail: '深圳湾内湖南岸 · 前往并开始',
+    original: '后海星潮 · 项目原创模拟节目',
+    noArrival: '暂时无法安全抵达人才公园堤岸',
+    away: '已离开推荐观演区，节目仍在进行',
+    replayPending: '无人机正在准备回收，随后从头播放',
+    cues: ['准备起飞', '星潮汇聚', '花开后海', '海豚跃浪', '火箭升空',
+      '深圳天际线', 'APEC · 开放与合作', '潮光谢幕', '编队返航']
   },
   apecTheme: {
     label: 'APEC 主题',

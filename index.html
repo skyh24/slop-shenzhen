@@ -204,6 +204,7 @@
   <link rel="modulepreload" href="./js/building-collision.js" />
   <link rel="modulepreload" href="./js/sz-city-config.js" />
   <link rel="modulepreload" href="./js/sz-ground.js" />
+  <link rel="modulepreload" href="./js/sz-bay-waterfront.js" />
   <link rel="modulepreload" href="./js/sz-ground-surface.js" />
   <link rel="modulepreload" href="./js/sz-sea.js" />
   <link rel="modulepreload" href="./js/sz-water-material.js" />
@@ -215,6 +216,12 @@
   <link rel="modulepreload" href="./js/sz-road-building-clearance.js" />
   <link rel="modulepreload" href="./js/sz-intersection-control.js" />
   <link rel="modulepreload" href="./js/sz-streetscape.js" />
+  <link rel="modulepreload" href="./js/sz-talent-park.js" />
+  <link rel="modulepreload" href="./js/sz-talent-waterfront.js" />
+  <link rel="modulepreload" href="./js/sz-talent-pedestrians.js" />
+  <link rel="modulepreload" href="./js/sz-talent-drone-show.js" />
+  <link rel="modulepreload" href="./js/sz-drone-choreography.js" />
+  <link rel="modulepreload" href="./js/sz-drone-formations.js" />
   <link rel="modulepreload" href="./js/sz-coco-park-approach.js" />
   <link rel="modulepreload" href="./js/sz-golf-course.js" />
   <link rel="modulepreload" href="./js/sz-street-lamps.js" />
@@ -225,6 +232,10 @@
   <link rel="modulepreload" href="./js/sz-apec.js" />
   <link rel="modulepreload" href="./js/sz-apec-city.js" />
   <link rel="modulepreload" href="./js/sz-drone-routes.js" />
+  <link rel="modulepreload" href="./js/sz-air-cruise.js" />
+  <link rel="modulepreload" href="./js/sz-air-cruise-ui.js" />
+  <link rel="modulepreload" href="./js/sz-flight-motion.js" />
+  <link rel="modulepreload" href="./js/sz-drone-watch.js" />
   <link rel="modulepreload" href="./js/sz-light-show.js" />
   <link rel="modulepreload" href="./js/sz-cbd-program.js" />
   <link rel="modulepreload" href="./js/sz-lianhuashan.js" />
@@ -244,6 +255,7 @@
   <link rel="modulepreload" href="./js/sz-landmarks/nonferrous-tower.js" />
   <link rel="modulepreload" href="./js/sz-landmarks/press-tower.js" />
   <link rel="modulepreload" href="./js/sz-landmarks/iec-xiangmihu.js" />
+  <link rel="modulepreload" href="./js/sz-landmarks/iec-grounds.js" />
   <link rel="modulepreload" href="./js/sz-landmarks/super-hq.js" />
   <link rel="modulepreload" href="./js/sz-landmarks/shenzhen-bay-bridge.js" />
   <link rel="modulepreload" href="./js/sz-landmarks/layout.js" />
@@ -393,6 +405,9 @@
       <button id="btn-program" class="tool-btn" type="button" popovertarget="program-popover" data-label="program.label">
         <svg class="icon" aria-hidden="true"><use href="#i-apec"/></svg><span class="tool-label" data-text="program.label"></span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
       </button>
+      <button id="btn-air-cruise" class="tool-btn" type="button" popovertarget="air-cruise-popover" data-label="cruise.label">
+        <svg class="icon" aria-hidden="true"><use href="#i-camera"/></svg><span class="tool-label" data-text="cruise.short"></span>
+      </button>
       <button id="btn-open-map" class="tool-btn" type="button" data-tip="ui.openMap" data-label="ui.map" aria-keyshortcuts="M">
         <svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span class="tool-label" data-text="ui.map"></span><kbd>M</kbd>
       </button>
@@ -404,6 +419,48 @@
         <svg class="icon icon-hide" aria-hidden="true"><use href="#i-eye"/></svg><svg class="icon icon-show" aria-hidden="true"><use href="#i-eye-off"/></svg>
       </button>
     </div>
+    <section id="program-panel" class="panel program-panel" data-label="program.location" hidden>
+      <div>
+        <strong id="program-cue" role="status"></strong>
+        <div id="program-credit" class="program-credit"></div>
+        <div id="program-status" class="program-credit" role="status" hidden></div>
+      </div>
+      <div class="program-actions">
+        <button id="program-pause" class="tool-btn" type="button" data-text="program.pause" aria-pressed="false"></button>
+        <button id="program-replay" class="tool-btn" type="button" data-text="program.replay"></button>
+        <button id="program-exit" class="tool-btn" type="button" data-text="program.exit"></button>
+      </div>
+    </section>
+    <section id="air-cruise-panel" class="panel cruise-panel" data-label="cruise.label" hidden>
+      <div class="cruise-summary">
+        <strong id="air-cruise-title"></strong>
+        <span id="air-cruise-state" role="status"></span>
+      </div>
+      <progress id="air-cruise-progress" data-label="cruise.progress" max="1" value="0"></progress>
+      <div id="air-cruise-telemetry" class="pop-sub"></div>
+      <div class="cruise-actions">
+        <button id="air-cruise-pause" class="tool-btn" type="button" data-text="cruise.pause"></button>
+        <button id="air-cruise-replay" class="tool-btn" type="button" data-text="cruise.replay"></button>
+        <button id="air-cruise-map" class="tool-btn" type="button" data-text="cruise.map"></button>
+        <button id="air-cruise-exit" class="tool-btn" type="button" data-text="cruise.exit" aria-keyshortcuts="Escape"></button>
+      </div>
+    </section>
+  </div>
+
+  <div id="air-cruise-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" data-label="cruise.label">
+    <div class="pop-title" data-text="cruise.label"></div>
+    <label class="cruise-speed">
+      <span data-text="cruise.speed"></span>
+      <input id="air-cruise-speed" type="number" min="1" step="1" inputmode="numeric">
+      <span class="pop-sub" data-text="ui.speedUnit"></span>
+    </label>
+    <div class="cruise-actions cruise-presets">
+      <button id="air-cruise-scenic" class="tool-btn" type="button"></button>
+      <button id="air-cruise-full" class="tool-btn" type="button"></button>
+    </div>
+    <div id="air-cruise-routes"></div>
+    <p class="pop-sub cruise-note" data-text="cruise.note"></p>
+    <p id="air-cruise-feedback" class="pop-title" role="status" data-text="cruise.busy" hidden></p>
   </div>
 
   <div id="program-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" data-label="program.label">
@@ -413,8 +470,8 @@
     <button id="btn-cbd-show" class="pop-item" type="button">
       <span class="pop-name" data-text="program.light"></span><span class="pop-sub" data-text="program.location"></span>
     </button>
-    <button class="pop-item" type="button" disabled>
-      <span class="pop-name" data-text="program.drone"></span><span class="pop-sub" data-text="program.unavailable"></span>
+    <button id="btn-talent-show" class="pop-item" type="button" disabled>
+      <span class="pop-name" data-text="talentShow.location"></span><span class="pop-sub" data-text="talentShow.entryDetail"></span>
     </button>
     <p id="program-feedback" class="pop-title" role="status" data-text="program.noArrival" hidden></p>
   </div>
@@ -430,22 +487,14 @@
     <button id="tp-flatiron" class="pop-item tp-btn" data-teleport="tencent-binhai" type="button"><span class="pop-name"></span><span class="pop-sub"></span></button>
     <button id="tp-centralpark" class="pop-item tp-btn" data-teleport="lianhuashan" type="button"><span class="pop-name"></span><span class="pop-sub"></span></button>
     <button id="tp-owtc" class="pop-item tp-btn" data-teleport="civic-center" type="button"><span class="pop-name"></span><span class="pop-sub"></span></button>
+    <button id="tp-talent-show" class="pop-item" type="button" disabled>
+      <span class="pop-name" data-text="talentShow.location"></span><span class="pop-sub" data-text="talentShow.entryDetail"></span>
+    </button>
     <p id="teleport-feedback" class="pop-title" role="status" hidden></p>
   </div>
 
   <!-- Bottom-Left: Street-Name Signs & Live GPS Radar Minimap -->
   <div class="hud hud-bottom-left">
-    <section id="program-panel" class="panel program-panel" data-label="program.location" hidden>
-      <div>
-        <strong id="program-cue" role="status"></strong>
-        <div class="program-credit" data-text="program.original"></div>
-      </div>
-      <div class="program-actions">
-        <button id="program-pause" class="tool-btn" type="button" data-text="program.pause" aria-pressed="false"></button>
-        <button id="program-replay" class="tool-btn" type="button" data-text="program.replay"></button>
-        <button id="program-exit" class="tool-btn" type="button" data-text="program.exit"></button>
-      </div>
-    </section>
     <div class="location-controls">
       <div id="hud-location" class="location" aria-live="off"></div>
       <button id="landmark-orbit" class="panel tool-btn" type="button" hidden></button>
@@ -460,6 +509,12 @@
       <span class="radar-north" aria-hidden="true" data-text="ui.north"></span>
       <kbd class="radar-key">M</kbd>
     </aside>
+  </div>
+
+  <div id="drone-follow-hud" class="panel drive-hud" hidden>
+    <span id="drone-follow-status" role="status"></span>
+    <button id="drone-follow-repeat" class="tool-btn" type="button" data-text="drones.repeat" hidden></button>
+    <button id="drone-follow-exit" class="tool-btn" type="button"><span data-text="drones.exit"></span> <kbd>Esc</kbd></button>
   </div>
 
   <!-- Bottom-Center: Third-Person Mode Switcher & Controls Guide -->
@@ -618,7 +673,7 @@
       <div class="panel map-zoom">
         <button id="map-metro" class="icon-btn" type="button" popovertarget="metro-popover" data-tip="metro.title" data-label="metro.title"><svg class="icon" aria-hidden="true"><use href="#i-metro"/></svg></button>
         <button id="map-hsr" class="icon-btn" type="button" aria-pressed="false" data-tip="hsr.title" data-label="hsr.title"><svg class="icon" aria-hidden="true"><use href="#i-rail"/></svg></button>
-        <button id="map-drones" class="icon-btn" type="button" aria-pressed="false" data-tip="drones.title" data-label="drones.title"><svg class="icon" aria-hidden="true"><use href="#i-drone"/></svg></button>
+        <button id="map-drones" class="icon-btn" type="button" aria-pressed="false" aria-controls="map-drone-panel" data-tip="drones.title" data-label="drones.title"><svg class="icon" aria-hidden="true"><use href="#i-drone"/></svg></button>
         <button id="map-plan-drive" class="icon-btn" type="button" aria-pressed="false" aria-controls="map-drive-panel" data-tip="drive.plan" data-label="drive.plan"><svg class="icon" aria-hidden="true"><use href="#i-car"/></svg></button>
       </div>
     </div>
@@ -631,6 +686,18 @@
       </div>
       <div id="metro-lines"></div>
     </div>
+
+    <section id="map-drone-panel" class="panel map-drive-panel" data-label="drones.title" hidden>
+      <label for="map-drone-station" data-text="drones.choose"></label>
+      <select id="map-drone-station"></select>
+      <p id="map-drone-route"></p>
+      <p id="map-drone-status" role="status"></p>
+      <div class="map-drive-actions">
+        <button id="map-drone-approach" class="tool-btn" type="button" data-text="drones.approach" hidden></button>
+        <button id="map-drone-follow" class="tool-btn" type="button" data-text="drones.normal"></button>
+        <button id="map-drone-simulate" class="tool-btn" type="button" data-text="drones.simulation"></button>
+      </div>
+    </section>
 
     <section id="map-drive-panel" class="panel map-drive-panel" data-label="drive.plan" hidden>
       <strong data-text="drive.plan"></strong>

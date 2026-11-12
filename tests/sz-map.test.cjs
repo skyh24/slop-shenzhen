@@ -171,8 +171,14 @@ test('HSR layer draws only verified station footprints and stays off by default'
   assert.equal(layers.hsr.find(station => station.id === 'futian-station').underConstruction, false);
 });
 
-test('drone layer draws sourced route lines and stations only when enabled', () => {
+test('drone layer uses the checked route and station positions only when enabled', () => {
   const { context, map } = fixture();
+  map.droneLayer = vm.runInContext(`droneMapLayer(
+    [{ ...GEO.air.droneStations[0], x: 12 }, GEO.air.droneStations[1]],
+    [{ id: 'r', path: { points: [{ x: 12, z: 20 }, { x: 80, z: 60 }] } }, { id: 'invalid', path: { reason: 'blocked' } }]
+  )`, context);
+  assert.equal(map.droneLayer.stations[0].x, 12);
+  assert.equal(map.droneLayer.routes.length, 1);
   const strokes = [];
   const fills = [];
   const ctx = new Proxy({}, {

@@ -49,7 +49,7 @@ export function siteTakeoverIds(buildings, sites = {}) {
   return ids;
 }
 
-export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt } = {}) {
+export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, groundHeight } = {}) {
   const source = new Map(buildings.map(building => [building.id, building]));
   const skipIds = new Set();
   const plans = [];
@@ -58,7 +58,7 @@ export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt } = {
     const sourceIds = definition.sourceIds ?? [];
     if (!sourceIds.every(id => source.has(id))) continue;
     // 已核场地与玩家活动地面一同传入；贴地接驳用显示面，楼体估高仍用原地形。
-    const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {}, heightAt };
+    const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {}, heightAt, groundHeight };
     const parts = definition.build(source, terrain, context);
     if (parts.length === 0) continue;
     for (const id of sourceIds) skipIds.add(id);

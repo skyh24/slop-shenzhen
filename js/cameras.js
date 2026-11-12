@@ -49,6 +49,7 @@ class CameraSystem {
 
     this.activePresetId = 'chase';
     this.landmarkOrbit = null;
+    this.droneFollow = null;
     this.orbitYawOffset = 0.0;
     this.orbitPitchOffset = 0.09;
     this.zoomMultiplier = 1.0;
@@ -79,7 +80,7 @@ class CameraSystem {
     canvas.style.touchAction = 'none';
 
     canvas.addEventListener('pointerdown', (e) => {
-      if (this.activePresetId !== 'chase' && this.activePresetId !== 'pov') return;
+      if (!this.droneFollow && this.activePresetId !== 'chase' && this.activePresetId !== 'pov') return;
       if (e.button !== 0 || pointers.size >= 2) return;
       // Only two touch pointers may share a gesture; mouse and pen drags stay independent.
       if (pointers.size && (e.pointerType !== 'touch' || pointers.values().next().value.type !== 'touch')) return;
@@ -87,7 +88,7 @@ class CameraSystem {
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
       canvas.setPointerCapture(e.pointerId);
       this.isDragging = true;
-      this.userOrbitTimer = 4.0;
+      if (!this.droneFollow) this.userOrbitTimer = 4.0;
     });
 
     canvas.addEventListener('pointermove', (e) => {
@@ -101,16 +102,19 @@ class CameraSystem {
       pointer.x = e.clientX;
       pointer.y = e.clientY;
 
-      if (pair) {
+      if (this.droneFollow) {
+        this.droneFollow.yaw = THREE.MathUtils.clamp(this.droneFollow.yaw - dx * 0.0065, -1.3, 1.3);
+        this.droneFollow.pitch = THREE.MathUtils.clamp(this.droneFollow.pitch + dy * 0.005, -0.12, 0.48);
+      } else if (pair) {
         const distance = Math.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y);
         if (this.activePresetId === 'chase' && previousDistance > 1 && distance > 1) {
           this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier * previousDistance / distance));
         }
       } else {
         this.orbitYawOffset -= dx * 0.0065;
-        this.orbitPitchOffset = Math.max(-0.32, Math.min(0.68, this.orbitPitchOffset + dy * 0.005));
+        this.orbitPitchOffset = Math.max(this.activePresetId === 'pov' ? -1.18 : -0.32, Math.min(0.68, this.orbitPitchOffset + dy * 0.005));
       }
-      this.userOrbitTimer = 4.0;
+      if (!this.droneFollow) this.userOrbitTimer = 4.0;
     });
 
     const releasePointer = (id) => {
@@ -131,7 +135,7 @@ class CameraSystem {
     });
 
     canvas.addEventListener('wheel', (e) => {
-      if (this.activePresetId !== 'chase') return;
+      if (this.droneFollow || this.activePresetId !== 'chase') return;
       e.preventDefault();
       this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier + e.deltaY * 0.001));
     }, { passive: false });
@@ -164,14 +168,74 @@ class CameraSystem {
     this.followEntity = null;
   }
 
+  startDroneFollow(pose, clearFraction) {
+    if (this.droneFollow) return;
+    this._clearPointers();
+    this.droneFollow = {
+      pose, clearFraction, yaw: 0.48, pitch: 0.1, heading: pose.yaw, side: 0.48, elevation: 0.1,
+      offset: new THREE.Vector3(), hasFrame: false
+    };
+  }
+
+  stopDroneFollow() {
+    if (!this.droneFollow) return;
+    this._clearPointers();
+    this.droneFollow = null;
+  }
+
+  updateDroneFollow(dt) {
+    const view = this.droneFollow;
+    const { pose, offset } = view;
+    const target = this._desiredLook.copy(pose.position);
+    target.y += 0.58;
+    const k = 1 - Math.exp(-dt * 6);
+    const turn = pose.yaw - view.heading;
+    view.heading += Math.atan2(Math.sin(turn), Math.cos(turn)) * k;
+    view.side += (view.yaw - view.side) * k;
+    view.elevation += (view.pitch - view.elevation) * k;
+
+    const desired = this._desiredPos;
+    const distance = 5.3 + pose.speed * 0.095;
+    let found = false;
+    for (const shift of [0, -0.95, 0.95, Math.PI]) {
+      const yaw = view.heading + view.side + shift;
+      desired.set(-Math.sin(yaw) * distance, 1.25 + view.elevation * distance, -Math.cos(yaw) * distance).add(target);
+      const safe = view.clearFraction(target, desired);
+      if (safe * distance < 2.2) continue;
+      desired.lerp(target, safe < 1 ? 1 - safe + 0.03 : 0).sub(target);
+      found = true;
+      break;
+    }
+    if (!found) return false;
+    if (view.hasFrame) offset.lerp(desired, k);
+    else offset.copy(desired);
+    const smoothed = this._droneSmoothed ??= new THREE.Vector3();
+    const fraction = view.clearFraction(target, smoothed.copy(target).add(offset));
+    if (fraction * offset.length() < 2.2) {
+      offset.copy(desired);
+    } else if (fraction < 1) {
+      offset.multiplyScalar(fraction - 0.03);
+    }
+
+    this.camera.position.copy(target).add(offset);
+    this.camera.lookAt(target);
+    view.hasFrame = true;
+    return true;
+  }
+
   applyGamepadInput(lookX, lookY, zoom, dt) {
     if (!(dt > 0) || !Number.isFinite(dt)) return;
+    if (this.droneFollow) {
+      this.droneFollow.yaw = THREE.MathUtils.clamp(this.droneFollow.yaw - lookX * 2 * dt, -1.3, 1.3);
+      this.droneFollow.pitch = THREE.MathUtils.clamp(this.droneFollow.pitch + lookY * dt, -0.12, 0.48);
+      return;
+    }
     if (this.activePresetId !== 'chase' && this.activePresetId !== 'pov') return;
     // POV uses the orbit angles, but only chase renders a zoomed camera distance.
     if (this.activePresetId !== 'chase') zoom = 0;
     if (!lookX && !lookY && !zoom) return;
     this.orbitYawOffset -= lookX * 2.0 * dt;
-    this.orbitPitchOffset = Math.max(-0.32, Math.min(0.68, this.orbitPitchOffset + lookY * 1.25 * dt));
+    this.orbitPitchOffset = Math.max(this.activePresetId === 'pov' ? -1.18 : -0.32, Math.min(0.68, this.orbitPitchOffset + lookY * 1.25 * dt));
     this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier + zoom * 0.9 * dt));
     this.userOrbitTimer = 4.0;
   }
@@ -199,8 +263,8 @@ class CameraSystem {
     this.camera.updateProjectionMatrix();
   }
 
-  update(dt, elapsed, wallTime = elapsed) {
-    const entity = this.controllerManager.getActiveEntity();
+  update(dt, elapsed, wallTime = elapsed, cruiseEntity = null) {
+    const entity = cruiseEntity ?? this.controllerManager.getActiveEntity();
     const desiredPos = this._desiredPos;
     const desiredLook = this._desiredLook;
 
@@ -208,7 +272,7 @@ class CameraSystem {
       this.userOrbitTimer = Math.max(0, this.userOrbitTimer - dt);
     }
 
-    if (!this.isDragging && this.userOrbitTimer <= 0 && Math.abs(entity.speed) > 0.5) {
+    if (!cruiseEntity && !this.isDragging && this.userOrbitTimer <= 0 && Math.abs(entity.speed) > 0.5) {
       this.orbitYawOffset -= Math.round(this.orbitYawOffset / (Math.PI * 2)) * (Math.PI * 2);
       this.orbitYawOffset += (0.0 - this.orbitYawOffset) * (1 - Math.exp(-dt * 2.2));
     }
@@ -234,7 +298,10 @@ class CameraSystem {
           this.followZoom += (this.zoomMultiplier - this.followZoom) * k;
         }
         // 飞行以机体当前航向为基准，手动环绕角叠加在追尾方向上。
-        const yaw = (entity.type === 'helicopter' ? entity.heading : this.followHeading) + this.orbitYawOffset;
+        const flightHeading = entity.entryTurnRemaining > 0 ? entity.mesh.rotation.y : entity.heading;
+        if (entity.entryTurnRemaining > 0) this.followHeading = flightHeading;
+        const yaw = (entity.type === 'helicopter' && (!cruiseEntity || entity.entryTurnRemaining > 0)
+          ? flightHeading : this.followHeading) + this.orbitYawOffset;
         const sinYaw = Math.sin(yaw);
         const cosYaw = Math.cos(yaw);
         const dist = entity.chaseDistance * this.followZoom * (1 + Math.min(0.25, this.smoothedSpeed * 0.01));
@@ -249,6 +316,7 @@ class CameraSystem {
         );
 
         desiredLook.set(entity.position.x, this.followBaseY + entity.cameraTargetOffset.y, entity.position.z);
+        cruiseEntity?.limitCamera(desiredLook, desiredPos);
         break;
       }
 

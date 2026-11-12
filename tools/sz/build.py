@@ -11,6 +11,7 @@ from shapely import make_valid, set_precision, transform
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
+from air_cruises import build_air_cruises
 from beihuan import apply_beihuan_sections
 from bridges import build_bridges
 from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, ROLES,
@@ -19,7 +20,7 @@ from commercial_paving import cut_commercial_paving, ground_carriageway_mask
 from geo import (HONG_KONG_BOUNDARY_ID, ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local,
                  project, project_coords)
 from land import _polys, _to_local, build_land
-from landmark_sites import build_landmark_sites
+from landmark_sites import build_landmark_sites, read_site_areas
 from osm import read_osm
 from map_regions import build_map_regions
 from parks import build_parks
@@ -27,8 +28,10 @@ from road_frontage import build_road_frontage
 from roads import CLASSES, build_roads
 from roadgraph import build_roadgraph
 from sea_surface import build_sea_surface
+from shenzhen_bay import build_shenzhen_bay
 from shenzhen_golf import build_shenzhen_golf
-from streetscape import build_streetscape
+from streetscape import build_iec_paths, build_streetscape
+from talent_park import compile_talent_park
 from terrain import build_terrain
 from terrain_exclusions import chunjian_exclusions
 from terrain_surface import apply_city_datum, apply_urban_datum, build_terrain_surface
@@ -225,6 +228,7 @@ def write_city_packages(payload, report, sources, started):
     regions = build_map_regions(payload, osm_source, enc_poly)
     payload['mapRegions'] = regions
     report['mapRegions'] = {key: regions[key] for key in ('version', 'source', 'pilot', 'coverage')}
+    payload['airCruises'], report['airCruises'] = build_air_cruises(payload['roadGraph'], osm_source)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
     compressed = gzip.compress(raw, 9, mtime=0)
@@ -370,6 +374,8 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
         'changedSections': changed, 'rebuiltChunks': [chunk['id'] for chunk in surface['chunks']]}
     payload['terrain'], payload['terrainSurface'] = terrain, surface
     build_shenzhen_golf(payload, osm, pbf, report)
+    payload.pop('shenzhenBay', None)
+    build_shenzhen_bay(payload, osm, pbf, report)
     write_city_packages(payload, report, sources, started)
 
 
@@ -493,12 +499,16 @@ def main():
     ap.add_argument('--footprint-source', choices=['all', 'osm'], default='all',
                     help='all = OSM + Overture + GloBFP footprints; osm = only map-marked OSM footprints')
     mode = ap.add_mutually_exclusive_group()
+    mode.add_argument('--build-shenzhen-bay', action='store_true',
+                      help='apply the reviewed Shenzhen Bay waterfront to an unmodified verified city package')
     mode.add_argument('--repack-existing', action='store_true',
                     help='validate the snapshot and repack SZC1; migrate legacy road preview out of both packages')
     mode.add_argument('--audit-road-preview', action='store_true',
                       help='write the offline OSM road preview audit as JSON to stdout')
     mode.add_argument('--rebuild-map-regions', action='store_true',
                       help='regenerate map regions from the verified city package and OSM snapshot')
+    mode.add_argument('--rebuild-air-cruises', action='store_true',
+                      help='regenerate air cruises from the verified city road graph')
     mode.add_argument('--rebuild-ground', action='store_true',
                       help='rebuild the ground pilot from the current verified payload and snapshots')
     mode.add_argument('--rebuild-civic-ground', action='store_true',
@@ -511,6 +521,10 @@ def main():
                       help='rebuild reviewed commercial paving chunks on the verified terrain and road graph')
     mode.add_argument('--rebuild-golf-course', action='store_true',
                       help='apply the reviewed Shenzhen Golf Course site to the verified package')
+    mode.add_argument('--rebuild-iec', action='store_true',
+                      help='add reviewed Xiangmi Lake paths and reflecting pool to the current verified snapshot')
+    mode.add_argument('--rebuild-talent-park', action='store_true',
+                      help='compile the reviewed Talent Park waterfront on the verified package')
     args = ap.parse_args()
     if args.refresh_frontage_crossing_axes and not args.rebuild_road_frontage:
         ap.error('--refresh-frontage-crossing-axes requires --rebuild-road-frontage')
@@ -519,14 +533,14 @@ def main():
         export_road_preview(not args.no_cache)
         return
 
-    if args.repack_existing or args.rebuild_map_regions:
+    if args.repack_existing or args.rebuild_map_regions or args.rebuild_air_cruises:
         started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
         sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
         report = json.loads(VALIDATION_REPORT.read_text())
         require_matching_snapshot(raw, report, sources)
-        if 'roads' in payload or args.rebuild_map_regions:
+        if 'roads' in payload or args.rebuild_map_regions or args.rebuild_air_cruises:
             write_city_packages(payload, json.loads(REPORT.read_text()), sources, started)
         else:
             print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
@@ -535,6 +549,20 @@ def main():
     if args.rebuild_road_frontage:
         rebuild_road_frontage(args.rebuild_road_frontage, crossing_axis_ids=args.refresh_frontage_crossing_axes,
                               use_cache=not args.no_cache)
+        return
+
+    if args.rebuild_talent_park:
+        started = time.time()
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        osm_source = next(source for source in sources if source['id'] == 'osm-guangdong')
+        osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=ROOT / osm_source['file'],
+                       source_sha256=osm_source['sha256'])
+        report = json.loads(REPORT.read_text())
+        compile_talent_park(payload, osm, osm_source, report)
+        write_city_packages(payload, report, sources, started)
         return
 
     terrain_ids = ('copernicus-dem-N22E113', 'copernicus-dem-N22E114') if args.terrain_source == 'copernicus' else ('terrain-N22E113', 'terrain-N22E114')
@@ -546,7 +574,32 @@ def main():
     t0 = time.time()
     report = {'formatVersion': FORMAT_VERSION, 'origin': [ORIGIN_LON, ORIGIN_LAT], 'bbox': PHASE1_BBOX}
     osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=pbf, source_sha256=osm_source['sha256'])
+    if args.build_shenzhen_bay:
+        raw = gzip.decompress(OUT.read_bytes())
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        payload = json.loads(raw)
+        report = json.loads(REPORT.read_text())
+        build_shenzhen_bay(payload, osm, pbf, report)
+        write_city_packages(payload, report, sources, t0)
+        return
     envelope, excluded, clip, report['coverage'] = city_clip(osm)
+    landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
+    if args.rebuild_iec:
+        raw = gzip.decompress(OUT.read_bytes())
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        payload = json.loads(raw)
+        report = json.loads(REPORT.read_text())
+        payload['iecPaths'] = build_iec_paths(landmark_manifest, osm, report)
+        landmark = next(row for row in landmark_manifest if row['id'] == 'iec-xiangmihu')
+        pool = ('way', int(landmark['osm']['reflectingPool'].split('/')[1]))
+        role = payload['sites']['sites'][landmark['id']]
+        if 'reflectingPool' not in role:
+            for count in ('requestedObjects', 'resolvedObjects', 'roles'):
+                report['landmarkSites'][count] += 1
+        role['reflectingPool'] = read_site_areas({pool: None}, pbf)[pool]
+        write_city_packages(payload, report, sources, t0)
+        return
+
     print(f'osm loaded in {time.time() - t0:.1f}s', flush=True)
     if args.rebuild_ground or args.rebuild_civic_ground or args.rebuild_commercial_ground or args.rebuild_golf_course:
         rebuild_ground(args.terrain_source, sources, osm, osm_source, report, t0, clip, excluded,
@@ -568,7 +621,6 @@ def main():
     road_graph = build_roadgraph(osm, clip, report)
     apply_beihuan_sections(road_graph, report)
     road_graph['turnRestrictions'] = build_turn_restrictions(pbf, road_graph, report)
-    landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
     sites = build_landmark_sites(landmark_manifest, report, pbf=pbf, area_entries=osm['buildings'])
     # 春茧两座封闭厅是已核实的地面裁除区：派生路面不得改写馆内格点，先按原始 DSM 求出并复用。
     exclusions = chunjian_exclusions(buildings, terrain, osm['roads'])
@@ -635,6 +687,7 @@ def main():
         },
         'names': names,
         'landmarks': landmarks,
+        'iecPaths': build_iec_paths(landmark_manifest, osm, report),
         'parks': [{**park, 'areas': [{**area, 'polygon': enc_poly(area['polygon'])}
                                     for area in park['areas']]} for park in parks],
         'bridges': bridges,
@@ -646,6 +699,7 @@ def main():
         payload['seaSurface'] = {**sea_surface, 'polygons': [enc_poly(p) for p in sea_surface['polygons']]}
     if streetscape:
         payload['streetscape'] = streetscape
+    compile_talent_park(payload, osm, osm_source, report)
     if trees:
         payload['trees'] = trees
 
@@ -656,6 +710,7 @@ def main():
     }
 
     build_shenzhen_golf(payload, osm, pbf, report)
+    build_shenzhen_bay(payload, osm, pbf, report)
     write_city_packages(payload, report, sources, t0)
 
 

@@ -674,7 +674,6 @@ function addPassengerBody(b) {
 function addCargoBody(b) {
   b.add('white-sensor-hull', roundedBox(0.43, 0.147, 1.02, 0.121), PALETTE.white, [0, 0.671, 0]);
   b.box('lower-frame', [0.59, 0.079, 0.69], PALETTE.dark, [0, 0.548, 0], ZERO, 'trim');
-  b.add('cargo-container', roundedBox(0.321, 0.205, 0.655, 0.047), PALETTE.yellow, [0, 0.323, 0]);
   b.add('cargo-lid', roundedBox(0.341, 0.044, 0.681, 0.024), PALETTE.dark, [0, 0.533, 0], ZERO, 'trim');
   for (const side of [-1, 1]) {
     b.box('cargo-latch', [0.059, 0.106, 0.029], PALETTE.silver, [side * 0.21, 0.446, 0.337], ZERO, 'trim');
@@ -682,7 +681,6 @@ function addCargoBody(b) {
     b.ball('stereo-camera', [0.044, 0.043, 0.038], PALETTE.glass, [side * 0.115, 0.685, 0.519], 'glass');
   }
   b.ball('downward-camera', [0.062, 0.036, 0.057], PALETTE.glass, [0, 0.508, 0.41], 'glass');
-  b.ball('bottom-beacon', [0.038, 0.017, 0.036], PALETTE.light, [0, 0.109, -0.278], 'light');
 }
 
 function makeRotor(materials, cargo) {
@@ -756,6 +754,18 @@ function createAircraft(cargo) {
     mounts.push({ position: [x, y + (cargo ? 0.1 : 0.151), z], direction: side * fore });
   }
   const group = b.finish();
+  let cargoBox = null, statusLight = null;
+  if (cargo) {
+    const container = builder(materials);
+    container.add('cargo-container', roundedBox(0.321, 0.205, 0.655, 0.047), PALETTE.yellow, [0, 0.323, 0]);
+    cargoBox = container.finish();
+    group.add(cargoBox);
+    const beacon = builder(materials);
+    beacon.ball('bottom-beacon', [0.038, 0.017, 0.036], PALETTE.light, [0, 0.109, -0.278], 'light');
+    statusLight = beacon.finish();
+    group.add(statusLight);
+    group.userData.parts.push(...cargoBox.userData.parts, ...statusLight.userData.parts);
+  }
   // 内置飞行员单独成组，玩家登机后整组隐藏，换成同一个玩家角色的坐姿。
   let pilot = null;
   if (!cargo) {
@@ -778,7 +788,7 @@ function createAircraft(cargo) {
     group.add(part);
     return part;
   });
-  return { ...finalize(group, bounds), rotors, pilot, seat: cargo ? null : EVTOL_SEAT,
+  return { ...finalize(group, bounds), rotors, pilot, cargoBox, statusLight, seat: cargo ? null : EVTOL_SEAT,
     setOccupantVisible(visible) { if (pilot) pilot.visible = Boolean(visible); },
     update(dt, throttle = 0) {
     if (!Number.isFinite(dt) || dt < 0 || !Number.isFinite(throttle)) throw new Error('Invalid rotor update');

@@ -336,7 +336,7 @@ function emptyResult() {
 
 export function buildSzTrees(scene, payload, options = {}) {
   const { groundHeight, heightAt = groundHeight, roadHeight, shennanMedianHeight = () => null,
-    streetTreeSideAllowed = () => true, pathAt = () => [], reserveWalk = () => false, colliders = [], roadFrontage } = options;
+    streetTreeSideAllowed = () => true, pathAt = () => [], simulatedPathAt, reserveWalk = () => false, colliders = [], roadFrontage } = options;
   const trees = decodeTreePayload(payload);
   if (!trees || trees.count === 0) {
     const empty = emptyResult();
@@ -394,7 +394,7 @@ export function buildSzTrees(scene, payload, options = {}) {
           break;
         }
         const paths = pathAt(x + dx, z + dz);
-        if (paths && paths.length) {
+        if (paths?.length || (sourceName.startsWith('simulated-') && simulatedPathAt?.(x + dx, z + dz))) {
           reason = 'pathConflict';
           break;
         }
@@ -423,7 +423,8 @@ export function buildSzTrees(scene, payload, options = {}) {
       skipped.frontageTrunkConflict++;
       continue;
     }
-    if (sourceName.startsWith('simulated-') && reserveWalk(x, z, trunkRadius + 0.3)) {
+    if (sourceName.startsWith('simulated-') && (reserveWalk(x, z, trunkRadius + 0.3)
+      || options.reserveBayWalk?.(x, z, trunkRadius + 0.3))) {
       skipped.reservedWalk++;
       continue;
     }
@@ -714,5 +715,18 @@ export function buildSzTrees(scene, payload, options = {}) {
   if (representative) {
     for (const mesh of cardMeshes) if (mesh !== representative) mesh.userData.sharesPipelineWith = representative;
   }
-  return { group, colliders: treeColliders, statistics, update, dispose };
+  function flightObstacles(bounds) {
+    const obstacles = [];
+    for (const record of placed) {
+      // 树干碰撞只覆盖近地；低空检查必须计入远近两档树冠及摆动。
+      const radius = record.crown * 0.75 + 0.35;
+      if (record.x + radius < bounds.minX || record.x - radius > bounds.maxX
+        || record.z + radius < bounds.minZ || record.z - radius > bounds.maxZ) continue;
+      obstacles.push({ minX: record.x - radius, maxX: record.x + radius, minZ: record.z - radius,
+        maxZ: record.z + radius, minY: record.y + record.trunkHeight * 0.65,
+        maxY: record.y + record.height + 0.5 });
+    }
+    return obstacles;
+  }
+  return { group, colliders: treeColliders, statistics, update, dispose, flightObstacles };
 }

@@ -1,6 +1,6 @@
 import { STR } from './sz-strings.js';
 import { waitForFirstFrame } from './sz-startup.js';
-import { wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, renderControlHints, wireSummitProgram, wireApecTheme, createLocationReadout, createHudTelemetry, renderSoundButton, wireHudToggle, createModeIndicator } from './sz-ui.js';
+import { wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, renderControlHints, wireShowPrograms, wireApecTheme, createLocationReadout, createHudTelemetry, renderSoundButton, wireHudToggle, createModeIndicator } from './sz-ui.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
@@ -9,6 +9,7 @@ import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
 import { GEO, REAL_BUILDINGS, DATA_TIMINGS } from './sz-geodata.js';
 import { getLocationLabel, inBounds, isWater, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { buildSzGround } from './sz-ground.js';
+import { buildSzBayWaterfront, createBayParkArrivals, createBayPathLookup } from './sz-bay-waterfront.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads, planStreetTreeSides } from './sz-roads.js';
 import { buildSzRoadFrontage } from './sz-road-frontage.js';
@@ -16,16 +17,20 @@ import { buildSzRoadPaint } from './sz-road-paint.js';
 import { createRoadBuildingClearance } from './sz-road-building-clearance.js';
 import { createSurfaceResolver } from './sz-controller-surfaces.js';
 import { buildSzStreetscape } from './sz-streetscape.js';
+import { prepareTalentPark } from './sz-talent-park.js';
 import { createTeleportMenu } from './sz-coco-park-approach.js';
 import { buildSzStreetLamps } from './sz-street-lamps.js';
 import { buildSzTrees } from './sz-trees.js';
 import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzDroneRoutes } from './sz-drone-routes.js';
+import { createSceneAirCruise } from './sz-air-cruise.js';
+import { wireAirCruise } from './sz-air-cruise-ui.js';
+import { wireDroneWatch } from './sz-drone-watch.js';
 import { buildSzLightShow, planLandmarkBands } from './sz-light-show.js';
 import { createCbdProgram, isCbdProgramBuilding } from './sz-cbd-program.js';
 import { buildLianhuashanSummit, reviewedParkOmissions, SUMMIT_ARRIVAL } from './sz-lianhuashan.js';
-import { gatePoint, gateYaw, gateDeckY, flowerSeaAnchor, flowerSeaDeckY } from './sz-landmarks/iec-xiangmihu.js';
+import { buildIecGrounds } from './sz-landmarks/iec-grounds.js';
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
@@ -68,6 +73,7 @@ async function initApp() {
   const loadingStatus = document.getElementById('loading-status');
   const loadingFill = document.getElementById('loading-progress');
   let graphicsLoss = null;
+  let droneWatch;
   let renderedFrames = 0;
   let elapsed = 0;
   // QA 调试入口只在回环地址的 ?qa=1 下安装；固定机位、?skip= 阶段开关和帧采样都在 js/sz-qa.js。
@@ -136,6 +142,7 @@ async function initApp() {
   renderer.onDeviceLost = ({ api, reason, message, ...details }) => {
     onDeviceLost({ api, reason, message, ...details });
     graphicsLoss = { api, reason, message };
+    droneWatch?.stop(true);
     const boot = globalThis.__szBoot;
     if (boot?.fail) {
       boot.fail('deviceLost', new Error(message || reason || 'Graphics device lost'));
@@ -200,10 +207,11 @@ async function initApp() {
   const roadPaint = qa.stage('paint', () =>
     buildSzRoadPaint(scene, GEO.roadGraph, { ...site, intersections: roadFrontage.control.intersections,
       frontage: GEO.roadFrontage, decks: elevatedRoads.links }));
-  // 路缘接触和绘制共用同一份三角面，未覆盖的位置沿用源地形。
   const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface);
   site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? publicWalk.heightAt(x, z) ?? ground.groundHeight(x, z);
   site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
+  const bayPaths = createBayPathLookup(GEO.shenzhenBay?.paths);
+  site.reserveBayWalk = (x, z, radius) => bayPaths(x, z, radius).length > 0;
   markInit('roads');
   await showLoadingStage(STR.startup.landmarks, 'landmarks');
   const lianhuashan = GEO.parks.find(park => park.id === 'lianhuashan');
@@ -211,6 +219,8 @@ async function initApp() {
   const parkOmissions = reviewedParkOmissions(lianhuashan, site.buildings);
   const cbdProgram = createCbdProgram({ ...SUMMIT_ARRIVAL, y: SUMMIT_ARRIVAL.y + 1.68 }, sceneUniforms.night);
   const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, { ...site, programEmission: cbdProgram.emission }));
+  const iec = landmarks.group.getObjectByName('ShenzhenLandmark:iec-xiangmihu')
+    ? buildIecGrounds(scene, { ...site, roadSurfaces: roads.surfaces, water: GEO.water, paths: GEO.iecPaths }) : null;
   const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
   const yanjiang = buildYanjiangExpressway(scene, GEO.yanjiangExpressway);
   markInit('landmarks');
@@ -236,39 +246,39 @@ async function initApp() {
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders];
   site.colliders = buildings;
   const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
+  const talentPark = prepareTalentPark(qa, scene, GEO, site);
+  const { waterfront } = talentPark;
   site.pathAt = (x, z) => {
     const summitPaths = summit.pathAt(x, z);
-    return summitPaths.length ? summitPaths : streetscape.pathAt(x, z);
+    if (summitPaths.length) return summitPaths;
+    const waterfrontPaths = waterfront?.pathAt(x, z);
+    return waterfrontPaths?.length ? waterfrontPaths : streetscape.pathAt(x, z);
   };
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
   // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
   const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
-  // 源树先保留位置，模拟树灯共用样段预约带。
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
-    ...site, carriagewayOccupied, roadFrontage: GEO.roadFrontage, reserveWalk: publicWalk.reserves, pilotTrees: publicWalk.trees,
+    ...site, carriagewayOccupied, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
+    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r),
+    pilotTrees: [...publicWalk.trees, ...(waterfront?.pilotTrees ?? [])],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
   const streetLamps = qa.stage('lamps', () => {
     const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: elevatedRoads.surfaces });
     return buildSzStreetLamps(scene, site.roadGraph, {
-      ...site, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk,
+      ...site, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk, relocateSite: iec?.relocateLamp,
       placementObstacles: [...buildings, ...trees.colliders],
       deckOccupied: (x, z, bottom, top) =>
         deck.at(x, z).some(surface => surface.height + 4.5 > bottom && surface.height - 0.35 < top)
     });
   });
-  // 国际交流中心模型给出的真实门廊/花海台面锚点只构造一次，APEC 主题和城市元素共用。
-  const anchors = {
-    iecGate: { x: gatePoint.x, z: gatePoint.z, yaw: gateYaw, baseY: gateDeckY },
-    iecFlowerSea: { x: flowerSeaAnchor.x, z: flowerSeaAnchor.z, baseY: flowerSeaDeckY }
-  };
+  const anchors = iec?.anchors;
   // APEC 周城市元素：会期内默认打开，模块内所有几何都在主题开关下。
   const apecTheme = qa.stage('apec', () =>
     buildApecTheme(scene, { ...site, lampSites: streetLamps.sites, lampChunkVisible: streetLamps.chunkVisible,
       landmarks: GEO.landmarks, area: GEO.bounds, anchors }));
-  // APEC 城市元素：路侧 LED 大屏、会场巡逻机器人、西丽站围挡公益广告，随主题开关显隐。
   const apecCity = qa.stage('apecCity', () =>
     buildApecCityElements(scene, { ...site, landmarks: GEO.landmarks, anchors }));
   // 地铁出入口：点位来自 OSM 已核实节点；雨棚/站名牌是外观参数，吸附到实际渲染地面。
@@ -284,14 +294,19 @@ async function initApp() {
   }));
   const futianStation = stations?.futian ?? null;
   const xiliConstruction = stations?.xili ?? null;
-  // 无人机航线：端点来自 air 段公开来源；航迹示意，会期低空管控时停在站点。
-  const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, terrain: site.terrain }));
   const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...(streetLamps.colliders ?? []), ...trees.colliders,
     ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? []),
-    ...elevatedRoads.colliders];
+    ...elevatedRoads.colliders, ...(waterfront?.colliders ?? [])];
   const planter = publicWalk.placePlanter(colliders, site.heightAt);
   if (planter) colliders.push(planter);
+  const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, site,
+    obstacles: colliders, treeObstacles: trees.flightObstacles }));
+  colliders.push(...drones.colliders);
   site.colliders = colliders;
+  const bayWaterfront = qa.measureBuild('bayWaterfront', () =>
+    buildSzBayWaterfront(scene, GEO.shenzhenBay, { ...site, pathsNear: bayPaths }));
+  colliders.push(...bayWaterfront.colliders);
+  const { people: talentPeople, program: talentProgram, show: talentShow, update: updateTalentPark } = talentPark.connect(colliders);
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = qa.stage('traffic', () => createSzTraffic(scene, GEO.roadGraph, {
     ...site,
@@ -306,9 +321,11 @@ async function initApp() {
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
-    surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces, ...summit.surfaces],
-    nearTraffic: traffic.nearColliders
+    surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
+    nearTraffic: traffic.nearColliders, nearWalkers: talentPeople?.nearColliders, flightSettings: GEO.airCruises?.flight,
+    groundAccess: bayWaterfront.allowsGroundMode
   });
+  const cruise = qa.measureBuild('airCruises', () => createSceneAirCruise(GEO.airCruises, controllerManager, site, PLAYER_SPEED_LIMITS.helicopter));
   let initialTime = 'golden';
   try {
     const saved = JSON.parse(localStorage.getItem(PLAYER_STATE_KEY));
@@ -333,12 +350,14 @@ async function initApp() {
   const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, GEO.roadGraph, {
     ...site,
     publicRoute: publicWalk.route(colliders),
-    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2),
+    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || waterfront?.reserves(x, z, 2),
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
+    localWalk: iec?.walk, blockGenericWalk: iec?.blockGenericWalk,
     spawnMinM: 8,
-    spawnMaxM: 160
+    spawnMaxM: 160,
+    publicRoutes: bayWaterfront.publicRoutes
   }));
   roadFrontage.update(0);
   traffic.update(0, loadingFocus, [controllerManager.getActiveEntity()], 0);
@@ -347,7 +366,9 @@ async function initApp() {
   const driveModel = trafficModelBounds(driveCar.collisionBounds, VEHICLE_SPECS.taxi);
   // 自动驾驶与地图规划使用交通模块的组合高度：地面沥青 + 高架桥面（按边表面身份取样）。
   const driveOptions = { model: driveModel, roadHeight: traffic.roadHeight, control: roadFrontage.control };
-  const nearPedestrians = (x, z, radius) => pedestrians.nearColliders?.(x, z, radius) ?? [];
+  const nearPedestrians = (x, z, radius) => [
+    ...(pedestrians.nearColliders?.(x, z, radius) ?? []), ...(talentPeople?.nearColliders(x, z, radius) ?? [])
+  ];
   const nearRoadUsers = (x, z, radius) => [...traffic.nearColliders(x, z, radius), ...nearPedestrians(x, z, radius)];
   controllerManager.nearPedestrians = nearPedestrians;
   const autoDrive = createAutoDrive({ ...driveOptions, nearTraffic: nearRoadUsers });
@@ -398,8 +419,13 @@ async function initApp() {
   updateSoundButton();
   // pagehide also covers navigation away on mobile; preserve the context across back-forward cache restores.
   window.addEventListener('pagehide', (event) => {
+    droneWatch?.stop();
     savePlayerState();
-    if (!event.persisted) audioSystem.dispose();
+    if (event.persisted) return;
+    audioSystem.dispose();
+    iec?.dispose();
+    bayWaterfront.dispose();
+    drones.dispose();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) savePlayerState(); });
   markInit('controllers');
@@ -413,7 +439,7 @@ async function initApp() {
       else firstByMaterial.set(chunk.material, chunk);
     }
   }
-  setupSceneCulling(scene, [...cullingRoots, landmarks.group, summit.group, bridge.group, yanjiang, streetscape.group, publicWalk.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
+  setupSceneCulling(scene, [...cullingRoots, landmarks.group, summit.group, iec?.group, bridge.group, yanjiang, streetscape.group, publicWalk.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
     futianStation?.group, xiliConstruction?.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [
@@ -471,7 +497,6 @@ async function initApp() {
   const colorGrade = createPostProcessing(renderer, scenePassColor, reflections);
   const renderPipeline = new THREE.RenderPipeline(renderer, colorGrade.outputNode);
 
-  // 6. Wire UI Controls (Strictly using safe DOM APIs: textContent, classList, addEventListener)
   const modeButtons = document.querySelectorAll('[data-mode]');
   const cameraButtons = document.querySelectorAll('[data-camera]');
   const scenicAvailability = { bayBridge: Boolean(bridge.group), yanjiang: Boolean(yanjiang) };
@@ -481,20 +506,13 @@ async function initApp() {
   }
   const timeButtons = document.querySelectorAll('[data-time]');
   const bayPark = LANDMARK_SITES['shenzhen-bay-park'];
-  const bayParkSource = GEO.parks.find(park => park.id === bayPark?.id);
-  const bayParkRoad = bayPark && findGroundArrival(bayPark, 'car', { radius: 800 });
-  const parkArrivals = {
-    person: bayParkSource?.areas.some(area => area.arrivals.length) && { ...bayPark, ...streetscape.arrival, park: bayParkSource,
-      detail: streetscape.arrival ? STR.teleport.parkPath : STR.teleport.parkWalk },
-    car: bayParkRoad && { ...bayParkRoad, detail: STR.teleport.nearParkRoad(getLocationLabel(bayParkRoad.x, bayParkRoad.z), bayParkRoad.distance) },
-    helicopter: bayPark && { ...bayPark, detail: STR.teleport.parkFlight }
-  };
+  const parkArrivals = createBayParkArrivals(bayPark, GEO.parks, bayWaterfront.arrival ?? streetscape.arrival,
+    findGroundArrival, getLocationLabel);
   const { entries: teleportEntries, buttons: teleportButtons, syncWalkApproach } = createTeleportMenu(TELEPORT_LOCATIONS, bayPark, getLocationLabel);
   const parkButton = teleportButtons.find(button => button.dataset.teleport === bayPark?.id);
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
   const placeModeIndicator = createModeIndicator(document.getElementById('mode-switch'));
   touchControls.onAvailabilityChange = placeModeIndicator;
-
   const elFps = document.getElementById('hud-fps');
   const elMode = document.getElementById('hud-active-mode');
   const elCamera = document.getElementById('hud-active-camera');
@@ -502,7 +520,7 @@ async function initApp() {
   const elSpeedMeter = document.getElementById('hud-speed-meter');
   const elAltitude = document.getElementById('hud-altitude');
   const elLocation = document.getElementById('hud-location');
-  const landmarkViews = createLandmarkViews(SZ_LANDMARKS, landmarks.heights, site.heightAt, TELEPORT_LOCATIONS, gateYaw);
+  const landmarkViews = createLandmarkViews(SZ_LANDMARKS, landmarks.heights, site.heightAt, TELEPORT_LOCATIONS, anchors?.iecGate?.yaw);
   const elControlsHint = document.getElementById('hud-controls-hint');
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
     onCycleMode: (step) => {
@@ -513,10 +531,10 @@ async function initApp() {
     onToggleMap: () => mapSystem.toggleFullMap(!mapSystem.isFullMapOpen),
     onCloseMap: () => mapSystem.toggleFullMap(false)
   });
-
   const modeFeedback = document.getElementById('mode-feedback');
   let modeFeedbackTimer;
   function selectMode(mode, destination = null) {
+    if (cruise.active || droneWatch?.active) return false;
     const changed = mode !== controllerManager.activeMode;
     clearTimeout(modeFeedbackTimer);
     if (!controllerManager.setMode(mode, destination)) {
@@ -560,6 +578,11 @@ async function initApp() {
   }
 
   function selectCamera(camId, snap = false) {
+    if (droneWatch?.active) return;
+    if (cruise.active) {
+      if (camId === 'chase') cameraSystem.resetOrbit();
+      return;
+    }
     cameraSystem.setCameraPreset(camId, snap);
     cameraButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-camera') === camId);
@@ -568,7 +591,6 @@ async function initApp() {
     if (elCamera) elCamera.textContent = preset.name;
   }
 
-  // Steps through CAMERA_PRESETS (V / Shift+V, and the arrows either side of the camera name)
   function cycleCamera(step) {
     const n = cameraPresets.length;
     const idx = cameraPresets.findIndex((p) => p.id === cameraSystem.activePresetId);
@@ -588,15 +610,22 @@ async function initApp() {
     apecCity.group.visible = active;
     sceneUniforms.apec.value = active ? 1 : 0;
   });
-
   const closePopovers = wirePopovers();
-  showSession = wireSummitProgram({ program: cbdProgram, controllerManager, cameraSystem, lightingSystem,
-    arrival: summit.group ? SUMMIT_ARRIVAL : null, selectMode, selectCamera, selectTime, closePopovers });
-  modeButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      selectMode(btn.getAttribute('data-mode'));
-    });
+  function resetTravelInput() {
+    autoDrive.stop('manual');
+    laneAssist.cancel();
+    controllerManager.resetInput();
+    touchControls.reset();
+    gamepadControls.reset();
+  }
+  function markWaypoint(waypoint) { mapSystem.waypoint = waypoint; }
+  showSession = wireShowPrograms({
+    shows: [{ entryIds: ['btn-cbd-show'], program: cbdProgram, labels: STR.program,
+      arrival: summit.group ? SUMMIT_ARRIVAL : null }, talentShow],
+    controllerManager, cameraSystem, lightingSystem, selectMode, selectCamera, selectTime, closePopovers,
+    canStart: () => !cruise.active && !droneWatch?.active, resetInput: resetTravelInput, markArrival: ({ x, z }, name) => markWaypoint({ x, z, name })
   });
+  for (const button of modeButtons) button.addEventListener('click', () => selectMode(button.dataset.mode));
 
   cameraButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -610,13 +639,9 @@ async function initApp() {
   if (camPrevBtn) camPrevBtn.addEventListener('click', () => cycleCamera(-1));
   if (camNextBtn) camNextBtn.addEventListener('click', () => cycleCamera(1));
 
-  timeButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      selectTime(btn.getAttribute('data-time'));
-    });
-  });
+  for (const button of timeButtons) button.addEventListener('click', () => selectTime(button.dataset.time));
 
-  // A mouse click mustn't leave the focus on a HUD button, or Space (jump / ascend) and Enter would press it again
+  // 鼠标点击后取消按钮焦点，避免跳跃或上升再次触发按钮。
   document.addEventListener('click', (e) => {
     const btn = e.target instanceof Element ? e.target.closest('button') : null;
     if (btn && e.detail > 0) btn.blur();
@@ -625,23 +650,26 @@ async function initApp() {
   const landmarkOrbit = wireLandmarkOrbit({
     button: document.getElementById('landmark-orbit'), views: landmarkViews, controllerManager, cameraSystem, heightAt: site.heightAt,
     mapOpen: () => mapSystem.isFullMapOpen,
+    available: () => !cruise.active && !droneWatch?.active,
     exit: () => selectCamera('chase', true),
     onStart: () => {
       for (const button of cameraButtons) button.classList.remove('active');
       if (elCamera) elCamera.textContent = cameraSystem.getActivePreset().name;
     }
   });
-
   const renderLocation = createLocationReadout({
     el: elLocation, nearestBuildingName: (x, z) => buildingSigns.nearestName(x, z)
   });
   const hud = createHudTelemetry({
     els: { fps: elFps, speed: elSpeed, speedMeter: elSpeedMeter, altitude: elAltitude },
-    controllerManager, cameraSystem, topSpeed: PLAYER_SPEED_LIMITS, renderLocation
+    controllerManager, cameraSystem, topSpeed: PLAYER_SPEED_LIMITS, renderLocation, cruise
   });
   const { teleportTo, teleportFromMap } = createTeleportActions({ controllerManager, landmarkViews, parks: GEO.parks,
     inBounds, isWater, carriagewayOccupied, findGroundArrival, roadHeight: roads.roadHeight, flightStartAltitude: FLIGHT_START_ALTITUDE,
     selectMode, onArrival: finishTeleport, closeMap: () => mapSystem.toggleFullMap(false) });
+  droneWatch = wireDroneWatch({ drones, controllerManager, cameraSystem, touchControls, gamepadControls,
+    laneAssist, autoDrive, canStart: () => !cruise.active && !showSession.active, closePopovers, mapOpen: () => mapSystem.isFullMapOpen, teleport: teleportTo,
+    onCameraLabel: label => { elCamera.textContent = label; } });
   function finishTeleport(destination, options, park, landmark) {
     laneAssist.cancel();
     autoDrive.stop('manual');
@@ -659,7 +687,7 @@ async function initApp() {
   }
 
   function goToDriveStart(route) {
-    if (!route || autoDrive.active) return false;
+    if (!route || cruise.active || droneWatch?.active || autoDrive.active) return false;
     const { x, z, dx, dz } = route.from;
     const heading = Math.atan2(dx, dz);
     const destination = controllerManager.findTeleportPosition(x, z, heading, 0, true, null, { exact: true, mode: 'car' });
@@ -671,25 +699,26 @@ async function initApp() {
     selectCamera('chase', true);
     return true;
   }
-
   const mapSystem = new SZMapSystem({
     controllerManager,
     cameraSystem,
+    airCruise: cruise,
     touchHints: touchControls.available,
     onToggle: (open) => {
       closePopovers();
       laneAssist.cancel();
       controllerManager.resetInput();
-      touchControls.setEnabled(!open);
+      touchControls.setEnabled(!open && !cruise.active && !droneWatch.active);
       gamepadControls.setEnabled(!open);
     },
-    onTeleport: teleportFromMap,
+    onTeleport: (...args) => !cruise.active && !droneWatch.active && teleportFromMap(...args),
+    drones: droneWatch.map,
     drive: {
-      snap: (x, z) => drivePlanner().snap(x, z),
+      snap: (x, z) => cruise.active ? null : drivePlanner().snap(x, z),
       route: (start, end) => drivePlanner().route(start, end),
       goToStart: goToDriveStart,
-      canStart: route => autoDrive.canStart(route, driveCar, controllerManager.activeMode),
-      start: route => autoDrive.start(route, driveCar, controllerManager.activeMode),
+      canStart: route => !cruise.active && !droneWatch.active && autoDrive.canStart(route, driveCar, controllerManager.activeMode),
+      start: route => !cruise.active && !droneWatch.active && autoDrive.start(route, driveCar, controllerManager.activeMode),
       stop: autoDrive.stop,
       get active() { return autoDrive.active; },
       get status() { return autoDrive.status; }
@@ -700,6 +729,7 @@ async function initApp() {
   const teleportFeedback = document.getElementById('teleport-feedback');
   teleportButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
+      if (cruise.active || droneWatch.active) return;
       const key = btn.dataset.teleport;
       const loc = key === bayPark?.id ? parkArrivals[controllerManager.activeMode] : teleportEntries[key];
       const arrived = loc && teleportTo(loc.x, loc.z, loc.heading, loc);
@@ -710,22 +740,21 @@ async function initApp() {
       if (arrived) closePopovers();
     });
   });
-
   const openMapBtn = document.getElementById('btn-open-map');
   if (openMapBtn) openMapBtn.addEventListener('click', () => mapSystem.toggleFullMap(true));
 
+  const cruiseUi = wireAirCruise({ cruise, cameraSystem, controllerManager, mapSystem, touchControls, gamepadControls,
+    laneAssist, canEnter: () => !showSession.active && !droneWatch.active, selectCamera, closePopovers, modeLabel: elMode, cameraLabel: elCamera, buildingDetails });
   wireHudToggle(hudToggleBtn, closePopovers);
 
-  const manualCarAvailable = () => controllerManager.activeMode === 'car' && !mapSystem.isFullMapOpen && !autoDrive.active;
+  const manualCarAvailable = () => !cruise.active && !droneWatch.active && controllerManager.activeMode === 'car' && !mapSystem.isFullMapOpen && !autoDrive.active;
   function requestLane(direction) {
     if (!manualCarAvailable()) return;
     const { forward, backward, left, right, brake, boost } = controllerManager.keys;
     laneAssist.request(driveCar, direction, Boolean(forward || backward || left || right || brake || boost));
     drivingAssists.render(true, true);
   }
-
   const drivingAssists = wireDrivingAssists(controllerManager, laneAssist);
-  // 模式 1–4、相机 V 与 5–0、HUD H、声音 N、喇叭 B 的全局快捷键由 js/sz-ui.js 统一接线。
   wireShortcuts({
     onMode: selectMode,
     onCamera: (id) => selectCamera(id, true),
@@ -736,6 +765,7 @@ async function initApp() {
     onLane: requestLane,
     onLaneCancel: () => laneAssist.cancel(),
     onExitOrbit: landmarkOrbit.stop,
+    onExitCruise: cruiseUi.close,
     onToggleLane: () => { if (manualCarAvailable()) drivingAssists.toggleLane(); },
     onToggleEmergencyBrake: () => { if (manualCarAvailable()) drivingAssists.toggleEmergencyBrake(); }
   });
@@ -749,19 +779,18 @@ async function initApp() {
     }
   });
 
-  // 恢复玩家位置和时段后再初始化追尾相机。
   selectMode(controllerManager.activeMode);
   selectCamera('chase', true);
   selectTime(initialTime);
   // QA 入口：只在回环地址的 ?qa=1 下调用，普通游玩地址不向 window 暴露任何调试对象。
   if (qa.enabled) {
     qa.install({
-      renderer, scene, cameraSystem, controllerManager, mapSystem, autoDrive, laneAssist, lightingSystem, audioSystem,
+      renderer, scene, cameraSystem, controllerManager, mapSystem, autoDrive, laneAssist, lightingSystem, audioSystem, cruise,
       buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, sea, bridge, publicWalk,
       colliders,
       modules: {
         lamps: streetLamps, trees, apec: apecTheme, apecCity, drones, lightShow,
-        summit, cbdProgram, programIds: cityBlocks.programIds ?? [], parkOmissions,
+        summit, cbdProgram, waterfront, talentProgram, talentPeople, programIds: cityBlocks.programIds ?? [], parkOmissions,
         elevatedRoads, metroEntrances, futian: futianStation, xili: xiliConstruction
       },
       teleport: teleportTo,
@@ -770,7 +799,7 @@ async function initApp() {
       getGraphicsLoss: () => graphicsLoss
     });
   }
-  // the web fonts change the buttons' widths once they arrive
+  // 字体加载后重新测量按钮宽度。
   if (document.fonts) document.fonts.ready.then(placeModeIndicator);
   markInit('ui');
 
@@ -859,7 +888,6 @@ async function initApp() {
   markInit('compile');
   await showLoadingStage(STR.startup.warmup, 'warmup');
 
-  // 6. Animation Loop
   let lastTime = performance.now();
   let nextPlayerSave = 0;
   let warmedUp = false; // see the first frame below
@@ -885,40 +913,46 @@ async function initApp() {
         camera.coordinateSystem, camera.reversedDepth);
     }
     const active = controllerManager.getActiveEntity();
+    const activityFocus = cruise.entity?.position ?? active.position;
     // 车流读取帧首行人；行人读取推进后的车身并验证脚步。玩家最后扫掠两类当前包络。
-    traffic.update(dt, active.position, [active], elapsed, isTrafficVisible, nearPedestrians(active.position.x, active.position.z, 140));
-    pedestrians.update(dt, active.position, elapsed, isPedVisible, [active],
-      traffic.nearColliders(active.position.x, active.position.z, 175));
+    traffic.update(dt, activityFocus, [active], elapsed, isTrafficVisible, nearPedestrians(activityFocus.x, activityFocus.z, 140));
+    pedestrians.update(dt, activityFocus, elapsed, isPedVisible, [active],
+      traffic.nearColliders(activityFocus.x, activityFocus.z, 175));
+    updateTalentPark(dt, active.position, cameraSystem.camera.position, isPedVisible);
     const { forward, backward, left, right, brake, boost } = controllerManager.keys;
     const manual = !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right || brake || boost);
-    const autoInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode, manual });
-    const driveInput = autoInput ?? laneAssist.update(driveCar, { manual });
-    controllerManager.update(dt, elapsed, driveInput);
+    if (!cruise.active && !droneWatch.active) {
+      const autoInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode, manual });
+      const driveInput = autoInput ?? laneAssist.update(driveCar, { manual });
+      controllerManager.update(dt, elapsed, driveInput);
+    }
+    const prefetch = cruiseUi.update(now, rawDt);
     drivingAssists.render(manualCarAvailable());
-    landmarkOrbit.update(manual);
-    cameraSystem.update(dt, elapsed, now / 1000);
+    if (!droneWatch.active) landmarkOrbit.update(manual);
+    drones.update(dt, cameraSystem.camera.position);
+    if (!droneWatch.update(dt)) cameraSystem.update(dt, elapsed, now / 1000, cruise.entity);
     qa.applyCamera(cameraSystem.camera);
     streetscape.update(cameraSystem.camera.position);
     streetLamps.update(cameraSystem.camera.position);
     trees.update(cameraSystem.camera.position);
     apecTheme.update(dt);
     apecCity.update(dt);
-    drones.update(dt);
     showSession.update(rawDt);
     lightShow.update();
-    metroEntrances.update(cameraSystem.currentPos);
-    futianStation?.update(cameraSystem.currentPos);
+    metroEntrances.update(cameraSystem.camera.position);
+    bayWaterfront.update(cameraSystem.camera.position);
+    futianStation?.update(cameraSystem.camera.position);
     xiliConstruction?.update();
     buildingSigns.update(cameraSystem.camera.position);
     buildingSigns.group.updateMatrixWorld(true);
-    buildingDetails.update(cameraSystem.camera.position);
+    buildingDetails.update(prefetch ?? cameraSystem.camera.position);
     buildingDetails.group.updateMatrixWorld(true);
     qa.markSimulation(profile);
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();
       nextPlayerSave = now + 5000;
     }
-    lightingSystem.update(cameraSystem.currentPos);
+    lightingSystem.update(cameraSystem.camera.position);
     mapSystem.update();
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk

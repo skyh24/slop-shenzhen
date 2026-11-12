@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "checkedOn": "2026-11-12",
+  "roadSource": "osm-guangdong",
+  "flight": {
+    "heightReference": "surface-road-or-ground",
+    "targetHeightM": 80,
+    "speedMps": 58,
+    "accelerationMps2": 55.55555555555556,
+    "initialTurnSeconds": 1,
+    "brakingMps2": 7,
+    "lateralAccelerationMps2": 4,
+    "sampleStepM": 5
+  },
+  "routes": [
+    {
+      "id": "beihuan",
+      "roads": [{"name": "北环大道", "highway": "trunk"}],
+      "start": {
+        "name": "中山公园北侧",
+        "osmIds": ["way/203270341"],
+        "evidence": ["https://cgj.sz.gov.cn/xsmh/gysz/twf/rwls/content/post_10840060.html"],
+        "anchorLonLat": [113.9138, 22.55368],
+        "mainWayId": "way/974379909",
+        "mainLonLat": [113.91459, 22.55455]
+      },
+      "end": {
+        "name": "笔架山公园 · 北环珍珠岭天桥",
+        "osmIds": ["way/98999987", "way/248635642"],
+        "evidence": ["https://www.sz.gov.cn/ztfw/jtly/wyk_184755/content/mpost_11256495.html"],
+        "mainWayId": "way/1055004298",
+        "mainLonLat": [114.0732345, 22.5702133]
+      }
+    },
+    {
+      "id": "shennan",
+      "roads": [{"name": "深南大道", "highway": "primary"}, {"name": "深南中路", "highway": "primary"}],
+      "roadEvidence": ["https://pnr.sz.gov.cn/ywzy/ghzs/dlql/table03.html", "https://pnr.sz.gov.cn/attachment/1/1442/1442495/10537363.pdf"],
+      "start": {
+        "name": "腾讯大厦 · 深南大道侧",
+        "landmarkId": "tencent-towers",
+        "osmIds": ["way/600815118"],
+        "evidence": ["https://www.tencent.com/index.php/zh-cn/articles/80116.html", "https://amap.com/place/B0FFG9KTNL"],
+        "anchorLonLat": [113.92966, 22.54325],
+        "mainWayId": "way/633620767",
+        "mainLonLat": [113.93064, 22.5424474]
+      },
+      "end": {
+        "name": "华强北 · 深南中路路口",
+        "osmIds": ["way/627529512"],
+        "evidence": ["https://pnr.sz.gov.cn/attachment/0/392/392299/5835706.pdf"],
+        "mainWayId": "way/996762416",
+        "mainLonLat": [114.08162, 22.54309]
+      }
+    },
+    {
+      "id": "binhai",
+      "roads": [{"name": "滨海大道", "highway": "trunk"}, {"name": "滨河大道", "highway": "trunk"}],
+      "roadEvidence": ["https://pnr.sz.gov.cn/attachment/1/1442/1442495/10537363.pdf", "https://jtys.sz.gov.cn/pcjt/tsjt/content/post_12123186.html"],
+      "start": {
+        "name": "腾讯滨海大厦 · 滨海大道侧",
+        "landmarkId": "tencent-binhai",
+        "osmIds": ["way/737149477", "way/694152192"],
+        "address": "南山区海天二路33号",
+        "evidence": ["https://pnr.sz.gov.cn/attachment/1/1285/1285348/10537364.pdf", "https://ditu.amap.com/place/B0FFGHF5B5"],
+        "anchorLonLat": [113.93054, 22.52515],
+        "mainWayId": "way/1058988272",
+        "mainLonLat": [113.93140, 22.524506]
+      },
+      "end": {
+        "name": "福田下沙 KK ONE",
+        "osmIds": ["way/638856663", "way/638856662"],
+        "address": "福田区滨河大道9289号",
+        "evidence": ["https://www.szft.gov.cn/bmxx/qstjdbsc/gzdt/content/post_11451056.html", "https://ditu.amap.com/place/B0FFL3QBAW"],
+        "anchorLonLat": [114.02207, 22.53158],
+        "mainWayId": "way/1051282775",
+        "mainLonLat": [114.02137, 22.5319677]
+      }
+    }
+  ]
+}

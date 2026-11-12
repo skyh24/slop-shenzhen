@@ -1105,8 +1105,8 @@ test('passenger aircraft caps speed and altitude and brings level skids onto ter
   controller.maxFlightAltitude = 400;
   controller.keys.forward = controller.keys.up = true;
   for (let i = 0; i < 120; i++) controller.updateHelicopter(1 / 60);
-  assert.ok(Math.abs(ent.speed * 3.6 - 300) < 0.01);
-  assert.equal(ent.verticalSpeed, 20);
+  assert.ok(Math.abs(ent.speed * 3.6 - 400) < 0.01);
+  assert.ok(Math.abs(ent.verticalSpeed - 20) < 1e-8);
 
   ent.position.y = 399.97;
   controller.updateHelicopter(1 / 60);
@@ -1171,9 +1171,9 @@ test('aircraft stops before terrain above its ceiling without compressing skids 
 });
 
 
-test('player vehicles reach their requested speed limits in four seconds across frame rates', () => {
+test('player vehicles reach their configured speed limits across frame rates', () => {
   for (const hz of [30, 60, 120, null]) {
-    for (const [mode, target] of [['car', 80], ['cyclist', 60], ['helicopter', 600], ['helicopter', -400]]) {
+    for (const [mode, target, seconds] of [['car', 80, 4], ['cyclist', 60, 4], ['helicopter', 600, 3], ['helicopter', -400, 4]]) {
       const sim = mode === 'car' ? carDynamicsHarness() : teleportHarness(mode);
       const { controller } = sim;
       const entity = sim.car || sim.ent;
@@ -1185,13 +1185,13 @@ test('player vehicles reach their requested speed limits in four seconds across 
       controller.keys[input] = true;
       const update = mode === 'car' ? 'updateCar' : mode === 'cyclist' ? 'updateCyclist' : 'updateHelicopter';
       let elapsed = 0, frame = 0;
-      for (const milestone of [2, 4, 6]) {
+      for (const milestone of [1, 2, 3, 4, 6]) {
         while (elapsed < milestone - 1e-10) {
           const dt = Math.min(hz ? 1 / hz : [1 / 30, 1 / 144, 1 / 60][frame++ % 3], milestone - elapsed);
           controller[update](dt);
           elapsed += dt;
         }
-        assert.ok(Math.abs(entity.speed * 3.6 - target * Math.min(1, milestone / 4)) < 0.01,
+        assert.ok(Math.abs(entity.speed * 3.6 - target * Math.min(1, milestone / seconds)) < 0.01,
           `${mode} reaches the expected speed at ${milestone}s with ${hz || 'variable'} FPS`);
       }
       assert.equal(Math.sign(entity.position.z), Math.sign(target), 'the vehicle moves in the requested direction');

@@ -23,7 +23,8 @@ const STAGE_STUBS = {
   apecCity: () => ({ group: emptyGroup(), update: () => {} }),
   metro: () => ({ group: emptyGroup(), colliders: [], update: () => {} }),
   stations: () => null,
-  drones: () => ({ group: emptyGroup(), update: () => {} }),
+  drones: () => ({ group: emptyGroup(), colliders: [], stations: [], routes: [],
+    status: () => ({}), preview() {}, update() {}, dispose() {} }),
   traffic: () => ({ group: emptyGroup(), update: () => {}, nearColliders: () => [], statistics: {}, vehicles: [], network: null }),
   pedestrians: () => ({ group: emptyGroup(), update: () => {}, statistics: {} })
 };
@@ -63,6 +64,7 @@ class QaSession {
     this.camera = this.enabled ? parseCamera(query.get('cam')) : null;
     // ?skip=landmarks,trees,…：只在 qa 下生效，其它地址下仍然走完整构建。
     this.skipped = new Set((this.enabled ? query.get('skip') ?? '' : '').split(',').map(name => name.trim()).filter(Boolean));
+    this.cruiseEvidence = this.enabled && query.get('cruiseEvidence') === '1';
     this.startup = {};
     this.startupAt = {};
     this.compilation = {};
@@ -74,6 +76,8 @@ class QaSession {
     this.queuePending = false;
     this.sampledFrames = 0;
     this.runtime = null;
+    this.publishTalent = this.enabled && query.get('telemetry') === 'talent';
+    this.nextTalentSample = 0;
   }
 
   // 跳过某个构建阶段时返回占位对象，否则执行构建函数。
@@ -145,6 +149,7 @@ class QaSession {
 
   endFrame(token, now, renderer) {
     if (!token) return;
+    this.sampleTalent(now, renderer);
     if (this.previousFrameAt !== null) {
       this.frames.push({
         at: now, intervalMs: now - this.previousFrameAt, simulationMs: token.simulationEnd - token.start,
@@ -158,6 +163,7 @@ class QaSession {
     while (this.frames[0]?.at < cutoff) this.frames.shift();
     while (this.gpu[0]?.at < cutoff) this.gpu.shift();
     while (this.queue[0]?.at < cutoff) this.queue.shift();
+    if (this.cruiseEvidence) this.recordCruiseEvidence(now, renderer);
     this.sampledFrames++;
     if (this.sampledFrames % 30 !== 0) return;
     const device = renderer.backend.device;
@@ -176,6 +182,33 @@ class QaSession {
     }
   }
 
+  recordCruiseEvidence(now, renderer) {
+    const { cruise, controllerManager, buildingSigns, buildingDetails, lightingSystem, cameraSystem, mapSystem } = this.runtime;
+    const { status, route, distance, altitude, entity } = cruise;
+    const last = this.cruiseRows.at(-1);
+    if (last && last.status === status && last.id === route?.id && now - last.at < 1000) return;
+    const range = this.frames.filter(frame => frame.at > now - 1000);
+    const stats = key => {
+      const values = range.map(frame => frame[key]).sort((a, b) => a - b);
+      return values.length && [values[Math.floor((values.length - 1) / 2)], values[Math.ceil(values.length * 0.95) - 1], values.at(-1)];
+    };
+    const player = controllerManager.getActiveEntity();
+    this.cruiseRows.push({
+      at: now, id: route?.id, status, distance, altitude, speed: entity?.speed, speedLimit: route?.speedMps,
+      position: entity?.position.toArray(), heading: entity?.heading,
+      mode: controllerManager.activeMode, player: player.position.toArray(), playerHeading: player.heading,
+      playerVisualHeading: player.mesh.rotation.y, playerSpeed: player.speed,
+      camera: cameraSystem.camera.position.toArray(), time: lightingSystem.activePresetId, map: mapSystem.isFullMapOpen,
+      focused: document.hasFocus(), frameCount: range.length,
+      intervalMs: stats('intervalMs'), drawCalls: stats('drawCalls'), triangles: stats('triangles'),
+      memory: { ...renderer.info.memory }, heapBytes: performance.memory?.usedJSHeapSize,
+      details: buildingDetails.statistics.chunks, pending: buildingDetails.statistics.pending,
+      signs: buildingSigns.statistics.textures
+    });
+    if (this.cruiseRows.length > 3600) this.cruiseRows.shift();
+    this.cruiseOutput.textContent = JSON.stringify(this.cruiseRows);
+  }
+
   // 安装 window 入口：只挂快照、调试函数和模块对象，不改变玩法。
   install(runtime) {
     if (!this.enabled || this.runtime) return;
@@ -189,6 +222,7 @@ class QaSession {
     window.__szApec = modules.apec;
     window.__szApecCity = modules.apecCity;
     window.__szDrones = modules.drones;
+    if (modules.drones?.statistics) console.info('[drone routes]', JSON.stringify(modules.drones.statistics));
     window.__szLightShow = modules.lightShow;
     window.__szElevatedRoads = modules.elevatedRoads;
     window.__szMetroEntrances = modules.metroEntrances;
@@ -196,6 +230,13 @@ class QaSession {
     window.__szXili = modules.xili;
     this.installDebug(runtime);
     this.installSnapshot(runtime);
+    if (this.publishTalent && modules.waterfront) {
+      const surface = document.createElement('script');
+      surface.type = 'application/json';
+      surface.id = 'qa-talent-telemetry';
+      document.body.append(surface);
+      this.talentSurface = surface;
+    }
   }
 
   // QA 专用传送与碰撞查询：只在本机回环地址的 ?qa=1 下暴露，便于固定机位复测和诊断。
@@ -233,11 +274,26 @@ class QaSession {
     window.__szDebug = {
       scene: this.runtime.scene, renderer: this.runtime.renderer, camera: this.runtime.cameraSystem.camera,
       signs: this.runtime.buildingSigns, details: this.runtime.buildingDetails,
-      controllerManager, teleport
+      controllerManager, teleport, pedestrians: this.runtime.pedestrians
     };
   }
 
   installSnapshot(runtime) {
+    if (this.cruiseEvidence) {
+      this.cruiseRows = [];
+      this.cruiseOutput = document.createElement('script');
+      this.cruiseOutput.id = 'qa-cruise-evidence';
+      this.cruiseOutput.type = 'application/json';
+      document.body.append(this.cruiseOutput);
+      const plans = document.createElement('script');
+      plans.id = 'qa-cruise-plans';
+      plans.type = 'application/json';
+      plans.textContent = JSON.stringify(runtime.cruise.routes.map(route => ({
+        id: route.id, unavailable: route.unavailable, duration: route.estimateSeconds, fullDuration: route.full?.estimateSeconds, distance: route.distance,
+        length3d: route.length3d, ...route.audit
+      })));
+      document.body.append(plans);
+    }
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) return;
       this.frames.length = 0;
@@ -270,15 +326,44 @@ class QaSession {
     };
   }
 
+  talentSnapshot() {
+    const { modules, controllerManager } = this.runtime;
+    const active = controllerManager.getActiveEntity();
+    const program = modules?.talentProgram;
+    return program && {
+      ...program.statistics, active: program.active, paused: program.paused, time: program.time, cue: program.cue,
+      available: program.available, delivery: modules.drones.statistics,
+      waterfront: modules.waterfront.statistics, arrival: modules.waterfront.arrival,
+      routeDistance: modules.waterfront.route.nearest(active.position.x, active.position.z),
+      support: active._support,
+      actors: modules.talentPeople.actors.map(({ id, x, y, z, heading, mode, s, v }) => ({ id, x, y, z, heading, mode, s, v }))
+    };
+  }
+
+  sampleTalent(now, renderer) {
+    if (!this.talentSurface || now < this.nextTalentSample) return;
+    this.nextTalentSample = now + 160;
+    const { controllerManager, cameraSystem, lightingSystem, modules } = this.runtime;
+    const active = controllerManager.getActiveEntity();
+    this.talentSurface.textContent = JSON.stringify({
+      at: now, ...this.talentSnapshot(), lighting: lightingSystem.activePresetId,
+      mode: active.type, camera: cameraSystem.activePresetId, cameraPosition: cameraSystem.camera.position.toArray(),
+      position: { x: active.position.x, y: active.position.y, z: active.position.z, heading: active.heading, speed: active.speed },
+      summit: modules.cbdProgram.active, frame: renderer.info.frame, memory: renderer.info.memory,
+      perf: this.profileSnapshot()
+    });
+  }
+
   // window.__szQA()：把启动阶段、场景统计、交通/人群/地图状态汇总成纯数据快照。
   snapshot() {
     const { controllerManager, cameraSystem, lightingSystem, mapSystem, traffic, pedestrians, roadFrontage,
       autoDrive, laneAssist, sea, streetscape, landmarks, bridge, publicWalk, renderer, buildingSigns, buildingDetails,
-      audioSystem, getElapsed, getRenderedFrames, getGraphicsLoss, modules } = this.runtime;
+      audioSystem, cruise, getElapsed, getRenderedFrames, getGraphicsLoss, modules } = this.runtime;
     const elapsed = getElapsed();
     const active = controllerManager.getActiveEntity();
     const program = modules?.cbdProgram;
     return {
+      talentShow: this.talentSnapshot(),
       summitProgram: program && {
         active: program.active, paused: program.paused, time: program.time, cue: program.cue,
         ...program.statistics, participants: modules.programIds,
@@ -286,6 +371,12 @@ class QaSession {
         summitSurfaces: modules.summit.surfaces.length
       },
       ready: audioSystem.ready,
+      airCruise: cruise && {
+        status: cruise.status, id: cruise.route?.id, distance: cruise.distance, altitude: cruise.altitude,
+        position: cruise.entity?.position.toArray(), speed: cruise.entity?.speed,
+        routes: cruise.routes.map(route => ({ id: route.id, unavailable: route.unavailable, distance: route.distance,
+          duration: route.duration, length3d: route.length3d, ...route.audit }))
+      },
       mode: controllerManager.activeMode,
       entities: Object.fromEntries(Object.entries(controllerManager.entities).map(([mode, entity]) => [mode, {
         x: entity.position.x, y: entity.position.y, z: entity.position.z, heading: entity.heading, speed: entity.speed

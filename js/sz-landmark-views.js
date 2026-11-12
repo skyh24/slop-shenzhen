@@ -9,7 +9,7 @@ export function createLandmarkViews(landmarks, heights, heightAt, approaches, ga
     'convention-center': [0, -1],
     'press-tower': [0, 1],
     chunjian: [-1, 0],
-    'iec-xiangmihu': [Math.sin(gateYaw), Math.cos(gateYaw)]
+    ...(Number.isFinite(gateYaw) && { 'iec-xiangmihu': [Math.sin(gateYaw), Math.cos(gateYaw)] })
   };
   return new Map(landmarks.flatMap(({ id, x, z, name, height }) => {
     const model = heights?.get(id);
@@ -67,7 +67,8 @@ function orbitAltitude(target, heightAt, colliders) {
   return altitude;
 }
 
-export function wireLandmarkOrbit({ button, views, controllerManager, cameraSystem, heightAt, mapOpen, exit, onStart }) {
+export function wireLandmarkOrbit({ button, views, controllerManager, cameraSystem, heightAt, mapOpen, exit, onStart,
+  available = () => true }) {
   function nearbyTarget() {
     const { x, z } = controllerManager.getActiveEntity().position;
     let closest = null;
@@ -86,6 +87,10 @@ export function wireLandmarkOrbit({ button, views, controllerManager, cameraSyst
   }
 
   function update(manual = false) {
+    if (!available()) {
+      button.hidden = true;
+      return;
+    }
     const { up, down } = controllerManager.keys;
     if (!mapOpen() && (manual || up || down)) stop();
     const active = Boolean(cameraSystem.landmarkOrbit);
@@ -97,6 +102,7 @@ export function wireLandmarkOrbit({ button, views, controllerManager, cameraSyst
   }
 
   button.addEventListener('click', () => {
+    if (!available()) return;
     if (cameraSystem.landmarkOrbit) { stop(); return; }
     const target = nearbyTarget();
     if (!target || mapOpen()) return;

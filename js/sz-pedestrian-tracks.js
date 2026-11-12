@@ -376,7 +376,8 @@ function walkableRuns(points, cfg, heightAt, colliderIndex, barrier, statistics,
       }
     }
     const y = heightAt(point.x, point.z);
-    let blocked = !Number.isFinite(y) || (raisedOnly && !raised) || cfg.excludeWalkAt?.(point.x, point.z);
+    let blocked = !Number.isFinite(y) || (raisedOnly && !raised) || cfg.excludeWalkAt?.(point.x, point.z)
+      || cfg.blockGenericWalk?.(point.x, point.z);
     if (!blocked && lastY !== null && Math.abs(y - lastY) > cfg.maxStepRiseM) blocked = true;
     if (!blocked && barrier && barrier.contains(point.x, point.z, cfg.carriagewayClearanceM)) {
       blocked = true;
@@ -488,7 +489,7 @@ function connectorPoints(a, b, cfg, heightAt, colliderIndex, barrier) {
     const y = a.y + (b.y - a.y) * t;
     if (cfg.excludeWalkAt?.(x, z)) return null;
     if (Math.abs(midY - y) > cfg.maxStepRiseM) return null;
-    if (barrier && barrier.contains(x, z, clearance)) return null;
+    if (barrier?.contains(x, z, clearance) || cfg.blockGenericWalk?.(x, z)) return null;
     if (colliderAt(colliderIndex, x, z, y, cfg.colliderRadiusM, cfg.colliderHeightM)) return null;
     points.push({ x, z, y });
   }
@@ -638,7 +639,9 @@ export function buildPavementRibbons(legs, options = {}) {
       const leftY = cfg.heightAt(leftX, leftZ);
       const rightY = cfg.heightAt(rightX, rightZ);
       // 整条带（两边 + 中线）都必须离沥青有正间隙，才把这一排画出来。
-      const blocked = onRaisedSidewalk(cfg, point.x, point.z) || onRaisedSidewalk(cfg, leftX, leftZ)
+      const blocked = cfg.blockGenericWalk?.(point.x, point.z)
+        || cfg.blockGenericWalk?.(leftX, leftZ) || cfg.blockGenericWalk?.(rightX, rightZ)
+        || onRaisedSidewalk(cfg, point.x, point.z) || onRaisedSidewalk(cfg, leftX, leftZ)
         || onRaisedSidewalk(cfg, rightX, rightZ)
         || cfg.excludeWalkAt?.(point.x, point.z)
         || cfg.excludeWalkAt?.(leftX, leftZ) || cfg.excludeWalkAt?.(rightX, rightZ)
@@ -685,6 +688,60 @@ export function buildPavementRibbons(legs, options = {}) {
   return { positions: new Float32Array(positions), colors: new Float32Array(colors), statistics };
 }
 
+// 在指定公共面内为双向靠右预留空间，沿多个横向候选连续搜索。
+function localTracks(path, bounds, clear) {
+  const tracks = [];
+  const runs = bounds ? clipPolyline(path.points, bounds) : [path.points];
+  for (const run of runs) {
+    // 端头略内缩，留出转身余量并避开裁切面边缘的浮点误差。
+    const points = resamplePolyline(run, 1.1).slice(1, -1);
+    if (points.length < 2) continue;
+    const offsets = [0, -0.55, 0.55, -1.1, 1.1, -1.65, 1.65];
+    let previous = [];
+    for (const [i, p] of points.entries()) {
+      const { dx, dz } = tangentAt(points, i);
+      const normal = { x: dz, z: -dx };
+      const current = [];
+      for (const offset of offsets) {
+        const x = p.x + normal.x * offset, z = p.z + normal.z * offset;
+        const y = clear(x, z);
+        if (y === null) continue;
+        // 两边通行带同时校核，避免绕过一个灯杆后在同一狭缝中面对面停住。
+        if ([-0.48, 0.48].some(n => clear(x + normal.x * n, z + normal.z * n) === null)) continue;
+        const candidates = previous.filter(a => {
+          if (Math.abs(a.y - y) > 0.38 || Math.abs(a.offset - offset) > 1.1) return false;
+          const dx = x - a.x, dz = z - a.z;
+          const length = Math.hypot(dx, dz);
+          if (length < EPSILON) return false;
+          const count = Math.ceil(length / 0.28);
+          for (let j = 0; j <= count; j++) {
+            const mx = a.x + dx * j / count, mz = a.z + dz * j / count;
+            if ([-0.48, 0, 0.48].some(n => clear(mx + dz / length * n, mz - dx / length * n) === null)) return false;
+          }
+          return true;
+        });
+        candidates.sort((a, b) => a.cost + Math.abs(a.offset - offset) * 2 - b.cost - Math.abs(b.offset - offset) * 2);
+        const prior = candidates[0];
+        if (i > 0 && !prior) continue;
+        current.push({ x, z, y, offset, prior, cost: (prior?.cost ?? 0) + Math.abs(offset)
+          + Math.abs((prior?.offset ?? offset) - offset) * 2 });
+      }
+      previous = current;
+      if (!previous.length) break;
+    }
+    if (!previous.length) continue;
+    previous.sort((a, b) => a.cost - b.cost);
+    const route = [];
+    for (let node = previous[0]; node; node = node.prior) route.push({ x: node.x, z: node.z, y: node.y });
+    if (trackLength(route) < 10) continue;
+    const track = makeTrack(route.reverse(), 'local-sidewalk', {
+      id: path.id + ':' + tracks.length, highway: 'footway', publicHeight: clear
+    });
+    tracks.push(track);
+  }
+  return tracks;
+}
+
 export function buildWalkTracks(graph, options = {}) {
   const cfg = config(options);
   const bounds = cfg.bounds ?? null;
@@ -693,25 +750,33 @@ export function buildWalkTracks(graph, options = {}) {
   const built = buildSidewalkTracks(graph, { ...cfg, colliderIndex, barrier });
   const connected = connectTracks(built.tracks, { ...cfg, colliderIndex, barrier });
   const legs = [...built.tracks, ...connected.connectors];
+  const local = cfg.localWalk ? localTracks(cfg.localWalk, bounds, (x, z) => {
+    const y = cfg.localWalk.heightAt(x, z);
+    if (!Number.isFinite(y) || barrier.contains(x, z, cfg.carriagewayClearanceM)
+      || colliderAt(colliderIndex, x, z, y, 0.43, cfg.colliderHeightM)) return null;
+    return y;
+  }) : [];
   const pavement = cfg.pavement
     ? buildPavementRibbons(legs, { ...cfg, colliderIndex, barrier })
     : { positions: new Float32Array(0), colors: new Float32Array(0), statistics: { triangles: 0, areaM2: 0, clampedSamples: 0, carriagewaySkipped: 0 } };
   return {
-    tracks: built.tracks,
+    tracks: [...built.tracks, ...local],
     connectors: connected.connectors,
-    legs,
+    legs: [...legs, ...local],
     pavement,
     carriagewayOccupied: (x, z) => barrier.contains(x, z, cfg.colliderRadiusM),
     walkableHeight(x, z, referenceY) {
       const y = cfg.heightAt(x, z);
       if (!Number.isFinite(y) || Math.abs(y - referenceY) > cfg.maxStepRiseM
-        || barrier.contains(x, z, cfg.carriagewayClearanceM)
+        || barrier.contains(x, z, cfg.carriagewayClearanceM) || cfg.blockGenericWalk?.(x, z)
         || colliderAt(colliderIndex, x, z, y, cfg.colliderRadiusM, cfg.colliderHeightM)) return null;
       return y;
     },
     statistics: {
       ...built.statistics,
       ...connected.statistics,
+      localTracks: local.map(track => ({ id: track.id, length: track.length })),
+      walkableMeters: built.statistics.walkableMeters + local.reduce((sum, track) => sum + track.length, 0),
       pavementTriangles: pavement.statistics.triangles,
       pavementAreaM2: pavement.statistics.areaM2,
       pavementClampedSamples: pavement.statistics.clampedSamples,
@@ -722,8 +787,8 @@ export function buildWalkTracks(graph, options = {}) {
   };
 }
 
-export function createPublicWalkTrack(points) {
-  return makeTrack(points, 'public-walk', { id: 'public-walk:zhongxin-2-west', highway: 'unclassified',
+export function createPublicWalkTrack(points, { id = 'public-walk:zhongxin-2-west', walkAt, reserve, restSide, jogSpeed } = {}) {
+  return makeTrack(points, 'public-walk', { id, walkAt, reserve, restSide, jogSpeed, highway: 'unclassified',
     normals: points.map((_, i) => tangentAt(points, i)) });
 }
 

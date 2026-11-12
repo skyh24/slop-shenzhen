@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "osmSnapshotId": "osm-guangdong",
+  "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+  "checkedAt": "2026-11-12",
+  "parkOsmId": "relation/18459537",
+  "trailOsmId": "relation/19398338",
+  "lakeOsmId": "relation/10175109",
+  "sources": [
+    "https://swj.sz.gov.cn/ztzl/swhjs/bdfc/content/post_11740850.html",
+    "https://www.sz.gov.cn/szzt2010/gysz/szld/content/post_10775677.html",
+    "https://cgj.sz.gov.cn/zjcg/zh/content/post_11949573.html",
+    "https://www.szdesigncenter.com/tgspy"
+  ],
+  "route": [
+    {"osmId":"way/537564666", "from":5405506613, "to":3316262707, "kind":"greenway", "widthM":4.6},
+    {"osmId":"way/537570364", "from":3316262707, "to":5490090930, "kind":"promenade", "widthM":4.4}
+  ],
+  "entrances": [
+    {"osmId":"way/1415882795", "from":13011682084, "to":5405506613, "kind":"steps", "widthM":2.8},
+    {"osmId":"way/571169634", "from":5490090921, "to":5490090925, "kind":"promenade", "widthM":2.8}
+  ],
+  "viewNode": 3316262708,
+  "retainingEdgeNodes": [5405506608, 3316262712],
+  "bridgeApproachOsmIds": ["way/537570365", "way/570468707", "way/571169638"],
+  "simulation": {
+    "airspaceCenter": {"x": -11250, "y": 110, "z": 3680},
+    "lakeHeightM": 0.65,
+    "lakeHeightSource": "estimate",
+    "edgeSetbackM": 0.65,
+    "pavingWidthSource": "estimate",
+    "aggregate": "simulated-landscape",
+    "stepsProfile": "terrain-derived-estimate",
+    "fixtures": "simulated-landscape"
+  }
+}

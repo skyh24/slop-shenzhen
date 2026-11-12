@@ -337,7 +337,9 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
   const obstacles = walkPlacement ? (options.placementObstacles ?? []).filter(item =>
     item.maxX >= walkPlacement.bounds.minX && item.minX <= walkPlacement.bounds.maxX
     && item.maxZ >= walkPlacement.bounds.minZ && item.minZ <= walkPlacement.bounds.maxZ) : [];
-  for (const site of plan.sites) {
+  for (const candidate of plan.sites) {
+    const site = options.relocateSite ? options.relocateSite(candidate) : candidate;
+    if (!site) continue;
     if (!site.median && Number.isFinite(medianHeight?.(site.x, site.z))) continue;
     if (options.carriagewayOccupied?.(site.x, site.z, placementRadius)
       || (roadHeight && edgeProbes.some(([dx, dz]) => Number.isFinite(roadHeight(site.x + dx, site.z + dz))))) {

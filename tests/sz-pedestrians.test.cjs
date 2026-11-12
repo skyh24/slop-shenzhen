@@ -148,6 +148,27 @@ function tJunctionGraph({ crossBridge = false, crossWidth = 30 } = {}) {
   };
 }
 
+test('a reviewed sidewalk detours around a pole without breaking the two walking lanes', () => {
+  const path = { id: 'way/1', points: [{ x: 10, z: 9 }, { x: 180, z: 9 }],
+    heightAt: (x, z) => x >= 10 && x <= 180 && Math.abs(z - 9) <= 2.8 ? 0 : null };
+  const graph = straightGraph();
+  const pole = collider(85.7, 8.7, 86.3, 9.3);
+  const options = { localWalk: path, heightAt: flatHeight, colliders: [pole] };
+  const result = buildWalkTracks(graph, options);
+  const track = result.tracks.find(row => row.kind === 'local-sidewalk');
+  assert.ok(track && track.length > 166);
+  assert.ok(track.points.some(point => Math.abs(point.x - 86) < 0.6 && Math.abs(point.z - 9) > 1.1));
+  const pose = {};
+  for (let s = 0; s <= track.length; s += 0.2) {
+    sampleTrack(track, s, pose);
+    for (const side of [-0.38, 0.38]) {
+      assert.equal(track.publicHeight(pose.x + pose.dz * side, pose.z - pose.dx * side), 0);
+    }
+  }
+  const blocked = buildWalkTracks(graph, { ...options, colliders: [collider(85, 6, 87, 12)] });
+  assert.equal(blocked.tracks.some(row => row.kind === 'local-sidewalk'), false);
+});
+
 function assertLegsOutsideBarrier(legs, barrier, { margin = 0.05, step = 0.5 } = {}) {
   const scratch = {};
   let samples = 0;
