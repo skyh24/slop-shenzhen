@@ -18,14 +18,14 @@ from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, R
 from geo import (HONG_KONG_BOUNDARY_ID, ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local,
                  project, project_coords)
 from land import _polys, _to_local, build_land
-from landmark_sites import build_landmark_sites
+from landmark_sites import build_landmark_sites, read_site_areas
 from osm import read_osm
 from parks import build_parks
 from road_frontage import build_road_frontage
 from roads import CLASSES, build_roads
 from roadgraph import build_roadgraph
 from sea_surface import build_sea_surface
-from streetscape import build_streetscape
+from streetscape import build_iec_paths, build_streetscape
 from terrain import build_terrain
 from terrain_exclusions import chunjian_exclusions
 from terrain_surface import apply_city_datum, apply_urban_datum, build_terrain_surface
@@ -336,6 +336,8 @@ def main():
                       help='rebuild the ground pilot from the current verified payload and snapshots')
     mode.add_argument('--rebuild-civic-ground', action='store_true',
                       help='apply the reviewed Civic Square paving and Shennan median to the verified package')
+    mode.add_argument('--rebuild-iec', action='store_true',
+                      help='add reviewed Xiangmi Lake paths and reflecting pool to the current verified snapshot')
     args = ap.parse_args()
 
     if args.repack_existing:
@@ -357,6 +359,23 @@ def main():
     report = {'formatVersion': FORMAT_VERSION, 'origin': [ORIGIN_LON, ORIGIN_LAT], 'bbox': PHASE1_BBOX}
     envelope = phase1_clip_local()
     osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=pbf, source_sha256=osm_source['sha256'])
+    landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
+    if args.rebuild_iec:
+        raw = gzip.decompress(OUT.read_bytes())
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        payload = json.loads(raw)
+        report = json.loads(REPORT.read_text())
+        payload['iecPaths'] = build_iec_paths(landmark_manifest, osm, report)
+        landmark = next(row for row in landmark_manifest if row['id'] == 'iec-xiangmihu')
+        pool = ('way', int(landmark['osm']['reflectingPool'].split('/')[1]))
+        role = payload['sites']['sites'][landmark['id']]
+        if 'reflectingPool' not in role:
+            for count in ('requestedObjects', 'resolvedObjects', 'roles'):
+                report['landmarkSites'][count] += 1
+        role['reflectingPool'] = read_site_areas({pool: None}, pbf)[pool]
+        write_city_packages(payload, report, sources, t0)
+        return
+
     boundary = osm['hongKongBoundary']
     if boundary is None or boundary.is_empty or not boundary.is_valid:
         raise ValueError('The locked OSM snapshot is missing a valid Hong Kong boundary')
@@ -387,7 +406,6 @@ def main():
     road_graph = build_roadgraph(osm, clip, report)
     apply_beihuan_sections(road_graph, report)
     road_graph['turnRestrictions'] = build_turn_restrictions(pbf, road_graph, report)
-    landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
     sites = build_landmark_sites(landmark_manifest, report, pbf=pbf, area_entries=osm['buildings'])
     # 春茧两座封闭厅是已核实的地面裁除区：派生路面不得改写馆内格点，先按原始 DSM 求出并复用。
     exclusions = chunjian_exclusions(buildings, terrain, osm['roads'])
@@ -462,6 +480,7 @@ def main():
         },
         'names': names,
         'landmarks': landmarks,
+        'iecPaths': build_iec_paths(landmark_manifest, osm, report),
         'parks': [{**park, 'areas': [{**area, 'polygon': enc_poly(area['polygon'])}
                                     for area in park['areas']]} for park in parks],
         'bridges': bridges,

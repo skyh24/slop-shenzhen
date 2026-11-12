@@ -49,21 +49,21 @@ const partVertices = part => {
 const outsideDistance = (polygon, p) => collision.polygonContains(polygon, p.x, p.z) ? 0 : ringDistance(polygon.outer, p);
 
 test('IEC venue builds deterministic estimate volumes on the reviewed Xiangmi Lake site', () => {
-  assert.ok(model.length > 60, `expected a campus, got ${model.length} parts`);
+  assert.ok(model.length >= 25, `expected a campus, got ${model.length} parts`);
   assert.ok(model.length < 300, `part budget exceeded: ${model.length}`);
   assert.equal(new Set(model.map(part => part.id)).size, model.length);
-  assert.ok(iec.sourceIds.length === 0);
-  assert.ok(iec.optionalSkipIds.length > 20);
+  assert.equal(iec.sourceIds.length, 7);
+  assert.ok(iec.sourceIds.every(id => source.has(id)));
+  assert.ok(iec.optionalSkipIds.length > 0);
   assert.ok(iec.optionalSkipIds.every(id => source.has(id)));
   const styles = new Set(model.map(part => part.style));
   assert.ok(styles.size < 8, `material budget exceeded: ${[...styles]}`);
   assert.ok([...styles].every(style => iec.IEC_STYLES.includes(style)));
-  assert.deepEqual(new Set(model.map(part => part.style)), new Set(iec.IEC_STYLES));
+  assert.deepEqual(new Set(model.map(part => part.sourceId)), new Set(iec.sourceIds));
   for (const part of model) {
-    assert.equal(part.heightSource, 'estimate');
-    assert.equal(part.sourceId, 'site:iec-xiangmihu');
-    assert.equal(part.baseSourceId, 'site:iec-xiangmihu');
-    assert.equal(part.layoutSource, 'derived');
+    assert.ok(['estimate', 'design'].includes(part.heightSource), part.id);
+    assert.equal(part.baseSourceId, part.sourceId);
+    assert.ok(['osm-footprint', 'derived'].includes(part.layoutSource), part.id);
     assert.ok(Number.isFinite(part.minY) && Number.isFinite(part.maxY) && part.maxY > part.minY, part.id);
     assert.ok(part.polygon.outer.length >= 3);
   }
@@ -85,7 +85,7 @@ test('IEC campus stays on the site, off the lake and keeps the reviewed containm
   }
   assert.ok(maxOutside < 1, `campus should stay inside the site outline, got ${maxOutside.toFixed(2)} m`);
   // 入口广场可以贴岸，但不能起在水里：边界离湖 23 m 以上，广场到湖岸的距离必须为正。
-  assert.ok(ringDistance(lakePolygon.outer, iec.gatePoint) > 20);
+  assert.ok(ringDistance(lakePolygon.outer, iec.entry) > 20);
 });
 
 test('IEC massing heights are explicitly estimated and consistent with colliders', () => {
@@ -96,40 +96,32 @@ test('IEC massing heights are explicitly estimated and consistent with colliders
     return part.maxY - ground;
   });
   const tallest = Math.max(...heights);
-  assert.ok(tallest <= 90, `tallest estimated volume ${tallest.toFixed(1)} m exceeds 90 m`);
+  assert.ok(tallest <= 107, `tallest estimated volume ${tallest.toFixed(1)} m exceeds 107 m`);
   assert.ok(tallest >= 15, `tallest estimated volume ${tallest.toFixed(1)} m is implausibly low`);
-  assert.ok(Math.max(...model.map(part => part.maxY)) < 100);
+  assert.ok(Math.max(...model.map(part => part.maxY)) < 124);
   for (const part of model) {
     const collider = partsApi.partCollider(part);
     assert.equal(collider.minY, part.minY);
     assert.equal(collider.maxY, part.maxY);
     assert.equal(collider.polygon, part.polygon);
-    assert.equal(collider.heightSource, 'estimate');
+    assert.equal(collider.heightSource, part.heightSource);
     assert.ok(collider.maxY > collider.minY);
   }
 });
 
-test('IEC entry gate and flower-sea anchors point at the right lakefront positions', () => {
-  assert.ok(Number.isFinite(iec.gatePoint.x) && Number.isFinite(iec.gatePoint.z));
-  assert.ok(collision.polygonContains(sitePolygon, iec.gatePoint.x, iec.gatePoint.z));
-  assert.equal(collision.polygonContains(lakePolygon, iec.gatePoint.x, iec.gatePoint.z), false);
-  // 入口门洞在场地边界附近（不深埋场地内部），且朝向湖面。
-  assert.ok(ringDistance(sitePolygon.outer, iec.gatePoint) < 40);
-  const gateTerrain = terrain.terrainHeight(geo.terrain, iec.gatePoint.x, iec.gatePoint.z);
-  assert.ok(Number.isFinite(gateTerrain));
-  assert.ok(iec.gateDeckY >= gateTerrain - 0.05, 'gate deck must not bury the APEC gate sign');
-  assert.ok(iec.gateDeckY - gateTerrain < 3);
-  assert.ok(Number.isFinite(iec.gateYaw));
-  assert.ok(iec.gateYaw > 0 && iec.gateYaw < Math.PI * 2);
-
-  assert.ok(collision.polygonContains(sitePolygon, iec.flowerSeaAnchor.x, iec.flowerSeaAnchor.z));
-  assert.equal(collision.polygonContains(lakePolygon, iec.flowerSeaAnchor.x, iec.flowerSeaAnchor.z), false);
-  const flowerTerrain = terrain.terrainHeight(geo.terrain, iec.flowerSeaAnchor.x, iec.flowerSeaAnchor.z);
-  assert.ok(Number.isFinite(flowerTerrain));
-  assert.ok(iec.flowerSeaDeckY >= flowerTerrain - 0.05, 'flower bed deck must not bury the APEC flower beds');
-  assert.ok(iec.flowerSeaDeckY - flowerTerrain < 4);
-  // 花海台地离湖不应太远，仍是“湖畔花海”。
-  assert.ok(ringDistance(lakePolygon.outer, iec.flowerSeaAnchor) < 80);
+test('IEC entrance faces Hongli West Road and its columns are grounded outside the closed hall', () => {
+  const canopy = model.find(part => part.id.includes('entry:canopy'));
+  const columns = model.filter(part => part.id.includes('entry:column'));
+  assert.equal(columns.length, 4);
+  assert.ok(Math.cos(iec.entry.yaw) > 0.9);
+  const portal = iec.entryPoint(0, 8.5);
+  assert.ok(collision.polygonContains(canopy.polygon, portal.x, portal.z));
+  assert.ok(columns.every(part => !collision.polygonContains(part.polygon, portal.x, portal.z)));
+  for (const column of columns) {
+    const y = terrain.terrainHeight(geo.terrain, (column.minX + column.maxX) / 2, (column.minZ + column.maxZ) / 2);
+    assert.ok(y - column.minY > 0.2 && y - column.minY < 0.3, column.id);
+    assert.ok(Math.abs(canopy.minY - column.maxY) < 0.1, column.id);
+  }
 });
 
 test('IEC venue degrades to an empty plan without site data instead of throwing', () => {
@@ -162,8 +154,8 @@ test('real Three draws the IEC campus within part, triangle and material budgets
       name => realIec.createIecMaterial(name));
     group.updateMatrixWorld(true);
     try {
-      assert.equal(group.children.length, realIec.IEC_STYLES.length);
-      assert.deepEqual(group.children.map(mesh => mesh.name).sort(), [...realIec.IEC_STYLES].sort());
+      assert.equal(group.children.length, new Set(model.map(part => part.style)).size);
+      assert.ok(group.children.every(mesh => realIec.IEC_STYLES.includes(mesh.name)));
       assert.equal(surfaces.length, 0);
       let triangles = 0;
       for (const mesh of group.children) {

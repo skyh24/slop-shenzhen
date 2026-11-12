@@ -203,7 +203,7 @@ class QaSession {
     window.__szDebug = {
       scene: this.runtime.scene, renderer: this.runtime.renderer, camera: this.runtime.cameraSystem.camera,
       signs: this.runtime.buildingSigns, details: this.runtime.buildingDetails,
-      controllerManager, teleport
+      controllerManager, teleport, pedestrians: this.runtime.pedestrians
     };
   }
 

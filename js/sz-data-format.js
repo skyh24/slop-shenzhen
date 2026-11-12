@@ -43,6 +43,23 @@ function validateStreetscape(streetscape, parks) {
   }
 }
 
+function validateIecPaths(paths) {
+  if (paths === undefined) return;
+  requireData(Array.isArray(paths), 'IEC paths');
+  const ids = new Set();
+  for (const path of paths) {
+    requireData(/^way\/\d+$/.test(path.osmId) && !ids.has(path.osmId)
+      && ['public-roadside', 'unverified'].includes(path.access)
+      && path.heightSource === 'terrain' && ['osm-width', 'visual-estimate'].includes(path.widthSource)
+      && Number.isFinite(path.widthM) && path.widthM > 0
+      && Array.isArray(path.points) && path.points.length >= 2
+      && path.points.every(point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite))
+      && Array.isArray(path.nodeIds) && path.nodeIds.length === path.points.length
+      && path.nodeIds.every(id => /^node\/\d+$/.test(id)), 'IEC path');
+    ids.add(path.osmId);
+  }
+}
+
 function validateTrees(trees) {
   if (trees === undefined) return;
   requireData(trees?.version === 1 && Number.isSafeInteger(trees.count) && trees.count >= 0, 'trees header');
@@ -413,6 +430,7 @@ export function validateCityPayload(raw) {
     }
   }
   validateStreetscape(raw.streetscape, raw.parks ?? []);
+  validateIecPaths(raw.iecPaths);
   validateTrees(raw.trees);
   validateSites(raw.sites);
   validateAir(raw.air);
@@ -537,6 +555,7 @@ export function decodeCityPayload(raw, metrics = null) {
     bridges: raw.bridges ?? [], yanjiangExpressway: raw.yanjiangExpressway ?? null,
     seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },
     streetscape: raw.streetscape ?? null,
+    iecPaths: raw.iecPaths ?? [],
     trees: raw.trees ?? null,
     sites: decodeSites(raw.sites),
     air: raw.air ?? null,

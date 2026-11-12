@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { GeoBuilder, addFlatPolygon } from './sz-geometry.js';
 import { createSzWaterMaterial } from './sz-water-material.js';
 
-export function buildSzSea(scene, surface) {
+export function buildSzSea(scene, surface, { name = 'shenzhen-sea', coastal = true } = {}) {
   if (!surface) return null;
   const batch = new GeoBuilder();
   for (const { outer, holes } of surface.polygons) {
@@ -10,9 +10,9 @@ export function buildSzSea(scene, surface) {
     addFlatPolygon(batch, rings, surface.heightM);
   }
   const geometry = batch.build();
-  const material = createSzWaterMaterial({ coastal: true });
+  const material = createSzWaterMaterial({ coastal });
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.name = 'shenzhen-sea';
+  mesh.name = name;
   mesh.userData.source = surface.source;
   scene.add(mesh);
   return {

@@ -15,7 +15,7 @@ const loadThree = (file) => import(pathToFileURL(join(threeDir, 'build', file)))
 test('sea surface uses the shared water material module and preloads it', () => {
   const sea = read('sz-sea.js');
   assert.match(sea, /import \{ createSzWaterMaterial \} from '\.\/sz-water-material\.js';/);
-  assert.match(sea, /createSzWaterMaterial\(\{ coastal: true \}\)/);
+  assert.match(sea, /createSzWaterMaterial\(\{ coastal \}\)/);
   assert.doesNotMatch(sea, /createWaterMaterial/);
   const html = readFileSync(join(root, 'index.html'), 'utf8');
   assert.match(html, /<link rel="modulepreload" href="\.\/js\/sz-water-material\.js" \/>/);

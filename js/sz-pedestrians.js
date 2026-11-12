@@ -218,10 +218,10 @@ function createPed(id, cfg) {
 
 function processPose(ped, sampled) {
   const fade = Math.max(0, Math.min(1, ped.s / 2.5, (ped.leg.length - ped.s) / 2.5));
-  const lateral = ped.lateral * fade;
+  const lateral = ped.leg.publicHeight ? ped.lateral : ped.lateral * fade;
   ped.x = sampled.x + sampled.dz * lateral;
   ped.z = sampled.z - sampled.dx * lateral;
-  ped.y = sampled.y;
+  ped.y = ped.leg.publicHeight?.(ped.x, ped.z) ?? sampled.y;
   // 坐标系约定与控制器相同：heading = atan2(x 分量, z 分量)，0 为南、π 为北。
   ped.heading = Math.atan2(sampled.dx * ped.dir, sampled.dz * ped.dir);
 }
@@ -372,6 +372,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     statistics.regionBuilds++;
     statistics.regionBuildMs = (typeof performance === 'object' && performance?.now ? performance.now() : Date.now()) - started;
     statistics.tracks = built.tracks.length;
+    statistics.localTracks = built.statistics.localTracks;
     statistics.connectors = built.connectors.length;
     statistics.walkableMeters = built.statistics.walkableMeters;
     statistics.pavementTriangles = built.statistics.pavementTriangles;
@@ -530,7 +531,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
         // 在当前步行带内试小幅让开；每个子步另查实际通行面和车身。
         for (const side of [0.68 * ped.dir, -0.68 * ped.dir]) {
           const x = scratch.x + scratch.dz * side, z = scratch.z - scratch.dx * side;
-          const y = region.walkableHeight(x, z, scratch.y);
+          const y = ped.leg.publicHeight ? ped.leg.publicHeight(x, z) : region.walkableHeight(x, z, scratch.y);
           if (y === null) continue;
           writePedestrianCollider(walkProbe, x, y, z, ped.heading, 0);
           if (vehicles.every(body => !Number.isFinite(contactTime(walkProbe, body, 1.05, undefined, undefined, 0.12)))) {
@@ -540,7 +541,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
         }
       }
     }
-    const previous = vehicles.length ? { x: ped.x, y: ped.y, z: ped.z, heading: ped.heading, s: ped.s,
+    const previous = vehicles.length || ped.leg.publicHeight ? { x: ped.x, y: ped.y, z: ped.z, heading: ped.heading, s: ped.s,
       leg: ped.leg, dir: ped.dir, fromLeg: ped.fromLeg, lateral: ped.lateral, pause: ped.pause } : null;
     const acceleration = target > ped.v ? 1.7 : 3.2;
     ped.v = clamp(ped.v + clamp(target - ped.v, -acceleration * dt, acceleration * dt), 0, ped.speed);
@@ -563,7 +564,8 @@ export function createSzPedestrians(scene, graph, options = {}) {
     sampleTrack(ped.leg, ped.s, scratch);
     processPose(ped, scratch);
     if (previous) {
-      const y = region.walkableHeight(ped.x, ped.z, scratch.y);
+      const y = ped.leg.publicHeight ? ped.leg.publicHeight(ped.x, ped.z)
+        : region.walkableHeight(ped.x, ped.z, scratch.y);
       writePedestrianCollider(walkProbe, previous.x, previous.y, previous.z, ped.heading, 0);
       const dx = ped.x - previous.x, dz = ped.z - previous.z;
       const blocked = vehicles.some(body => {

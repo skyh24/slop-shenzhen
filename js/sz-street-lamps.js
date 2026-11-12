@@ -333,7 +333,9 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
   const sites = [];
   const placementRadius = 0.34;
   const edgeProbes = [[0, 0], [placementRadius, 0], [-placementRadius, 0], [0, placementRadius], [0, -placementRadius]];
-  for (const site of plan.sites) {
+  for (const candidate of plan.sites) {
+    const site = options.relocateSite ? options.relocateSite(candidate) : candidate;
+    if (!site) continue;
     if (!site.median && Number.isFinite(medianHeight?.(site.x, site.z))) continue;
     if (roadHeight && edgeProbes.some(([dx, dz]) => Number.isFinite(roadHeight(site.x + dx, site.z + dz)))) {
       skipped.roadSurface++;

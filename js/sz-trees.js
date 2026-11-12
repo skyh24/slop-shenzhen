@@ -250,7 +250,7 @@ function emptyResult() {
 
 export function buildSzTrees(scene, payload, options = {}) {
   const { groundHeight, heightAt = groundHeight, roadHeight, shennanMedianHeight = () => null,
-    streetTreeSideAllowed = () => true, pathAt = () => [], colliders = [] } = options;
+    streetTreeSideAllowed = () => true, pathAt = () => [], simulatedPathAt, colliders = [] } = options;
   const trees = decodeTreePayload(payload);
   if (!trees || trees.count === 0) {
     const empty = emptyResult();
@@ -305,7 +305,7 @@ export function buildSzTrees(scene, payload, options = {}) {
           break;
         }
         const paths = pathAt(x + dx, z + dz);
-        if (paths && paths.length) {
+        if (paths?.length || (sourceName.startsWith('simulated-') && simulatedPathAt?.(x + dx, z + dz))) {
           reason = 'pathConflict';
           break;
         }

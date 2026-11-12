@@ -22,7 +22,7 @@ import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzDroneRoutes } from './sz-drone-routes.js';
 import { buildSzLightShow, planLandmarkBands } from './sz-light-show.js';
-import { gatePoint, gateYaw, gateDeckY, flowerSeaAnchor, flowerSeaDeckY } from './sz-landmarks/iec-xiangmihu.js';
+import { buildIecGrounds } from './sz-landmarks/iec-grounds.js';
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
@@ -201,6 +201,8 @@ async function initApp() {
   markInit('roads');
   await showLoadingStage(STR.startup.landmarks, 'landmarks');
   const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, site));
+  const iec = landmarks.group.getObjectByName('ShenzhenLandmark:iec-xiangmihu')
+    ? buildIecGrounds(scene, { ...site, roadSurfaces: roads.surfaces, water: GEO.water, paths: GEO.iecPaths }) : null;
   const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
   const yanjiang = buildYanjiangExpressway(scene, GEO.yanjiangExpressway);
   markInit('landmarks');
@@ -231,25 +233,20 @@ async function initApp() {
   const streetLamps = qa.stage('lamps', () => {
     const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: elevatedRoads.surfaces });
     return buildSzStreetLamps(scene, site.roadGraph, {
-      ...site, medianHeight: roadFrontage.medianHeight,
+      ...site, medianHeight: roadFrontage.medianHeight, relocateSite: iec?.relocateLamp,
       deckOccupied: (x, z, bottom, top) =>
         deck.at(x, z).some(surface => surface.height + 4.5 > bottom && surface.height - 0.35 < top)
     });
   });
   // 树木：OSM 来源点加带标注的模拟行道树/公园树，接触面与铺装/建筑冲突在运行时复核。
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
-    ...site, streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
+    ...site, simulatedPathAt: iec?.sceneryAt, streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
-  // 国际交流中心模型给出的真实门廊/花海台面锚点只构造一次，APEC 主题和城市元素共用。
-  const anchors = {
-    iecGate: { x: gatePoint.x, z: gatePoint.z, yaw: gateYaw, baseY: gateDeckY },
-    iecFlowerSea: { x: flowerSeaAnchor.x, z: flowerSeaAnchor.z, baseY: flowerSeaDeckY }
-  };
+  const anchors = iec?.anchors;
   // APEC 周城市元素：会期内默认打开，模块内所有几何都在主题开关下。
   const apecTheme = qa.stage('apec', () =>
     buildApecTheme(scene, { ...site, lampSites: streetLamps.sites, lampChunkVisible: streetLamps.chunkVisible,
       landmarks: GEO.landmarks, area: GEO.bounds, anchors }));
-  // APEC 城市元素：路侧 LED 大屏、会场巡逻机器人、西丽站围挡公益广告，随主题开关显隐。
   const apecCity = qa.stage('apecCity', () =>
     buildApecCityElements(scene, { ...site, landmarks: GEO.landmarks, anchors }));
   // 地铁出入口：点位来自 OSM 已核实节点；雨棚/站名牌是外观参数，吸附到实际渲染地面。
@@ -315,6 +312,7 @@ async function initApp() {
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
+    localWalk: iec?.walk, blockGenericWalk: iec?.blockGenericWalk,
     spawnMinM: 8,
     spawnMaxM: 160
   }));
@@ -383,7 +381,9 @@ async function initApp() {
   // pagehide also covers navigation away on mobile; preserve the context across back-forward cache restores.
   window.addEventListener('pagehide', (event) => {
     savePlayerState();
-    if (!event.persisted) audioSystem.dispose();
+    if (event.persisted) return;
+    audioSystem.dispose();
+    iec?.dispose();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) savePlayerState(); });
   markInit('controllers');
@@ -395,7 +395,7 @@ async function initApp() {
     // 每类静态分块共用材质和顶点布局，预编译其中一块即可。
     for (const chunk of chunks) chunk.userData.sharesPipelineWith = first;
   }
-  setupSceneCulling(scene, [...cullingRoots, landmarks.group, bridge.group, yanjiang, streetscape.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
+  setupSceneCulling(scene, [...cullingRoots, landmarks.group, iec?.group, bridge.group, yanjiang, streetscape.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
     futianStation?.group, xiliConstruction?.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [

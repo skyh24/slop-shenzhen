@@ -349,7 +349,7 @@ function appendTriangles(vertices, polygon, [originX, originZ], plane) {
   return area;
 }
 
-function appendRoadTriangle(vertices, sources, triangle, footprints, origin, union) {
+function appendRoadTriangle(vertices, sources, triangle, footprints, origin, union, exclusions = []) {
   const [a, b, c] = triangle;
   const determinant = turn(a, b, c);
   if (determinant >= -EPSILON) return 0;
@@ -366,13 +366,13 @@ function appendRoadTriangle(vertices, sources, triangle, footprints, origin, uni
     const polygon = intersectFootprint(triangle, footprint);
     if (!hasArea(polygon)) continue;
     for (const source of footprint.sources) sources.set(source.linkIndex, source);
-    if (!union) {
+    if (!union && !exclusions.length) {
       area += appendTriangles(vertices, polygon, origin, plane);
       continue;
     }
-    // 在每个地形三角面内做并集，交叉口和相邻弯道只有一层路面。
+    // 先从铺装裁掉同层车行面，再合并本功能自身重叠的路缘片。
     let visible = [polygon];
-    for (const prior of covered) {
+    for (const prior of exclusions.length ? [...exclusions, ...covered] : covered) {
       if (!overlaps(footprint.bounds, prior.bounds)) continue;
       const remainder = [];
       for (const piece of visible) subtractFootprint(piece, prior, remainder);
@@ -380,12 +380,12 @@ function appendRoadTriangle(vertices, sources, triangle, footprints, origin, uni
       if (visible.length === 0) break;
     }
     for (const piece of visible) area += appendTriangles(vertices, piece, origin, plane);
-    if (visible.length) covered.push(footprint);
+    if (union && visible.length) covered.push(footprint);
   }
   return area;
 }
 
-function clippedSurface(cells, terrainSurface, id, statistics, union = true) {
+function clippedSurface(cells, terrainSurface, id, statistics, union = true, exclusions = []) {
   const chunks = [];
 
   for (const chunk of terrainSurface.chunks) {
@@ -409,7 +409,7 @@ function clippedSurface(cells, terrainSurface, id, statistics, union = true) {
           const offset = indices[index + j] * 3;
           triangle.push({ x: positions[offset] + originX, y: positions[offset + 1], z: positions[offset + 2] + originZ });
         }
-        statistics.areaM2 += appendRoadTriangle(vertices, sources, triangle, footprints, chunk.origin, union);
+        statistics.areaM2 += appendRoadTriangle(vertices, sources, triangle, footprints, chunk.origin, union, exclusions[cellRanges[i]]);
       }
       if (vertices.length > firstVertex) roadRanges.push(cellRanges[i], firstVertex, vertices.length);
     }
@@ -449,7 +449,7 @@ export function createRoadSurfaceLayout(graph, terrainSurface) {
   return { chunks, statistics };
 }
 
-export function createRoadPolygonLayout(feature, terrainSurface) {
+export function createRoadPolygonLayout(feature, terrainSurface, exclusionChunks = []) {
   const { id, trianglesXZ } = feature;
   if (terrainSurface?.version !== 1 || !terrainSurface.grid || trianglesXZ.length % 6 !== 0) {
     throw new Error('Attributed road polygons and rendered terrain surface are required');
@@ -463,8 +463,19 @@ export function createRoadPolygonLayout(feature, terrainSurface) {
     const winding = turn(a, b, c);
     if (Math.abs(winding) > EPSILON) addFootprint(winding > 0 ? [a, b, c] : [a, c, b], source);
   }
+  const exclusions = footprintIndex(terrainSurface.grid);
+  for (const { positions, origin, cellRanges } of exclusionChunks) {
+    for (let i = 0; i < cellRanges.length; i += 3) {
+      const [cell, start, end] = cellRanges.subarray(i, i + 3);
+      if (!cells[cell]) continue;
+      for (let j = start; j < end; j += 9) {
+        const points = [j, j + 6, j + 3].map(k => ({ x: positions[k] + origin[0], z: positions[k + 2] + origin[1] }));
+        if (turn(...points) > EPSILON) exclusions.addFootprint(points, []);
+      }
+    }
+  }
   const statistics = { triangles: 0, areaM2: 0 };
-  return { chunks: clippedSurface(cells, terrainSurface, id, statistics, false), statistics };
+  return { chunks: clippedSurface(cells, terrainSurface, id, statistics, false, exclusions.cells), statistics };
 }
 
 function sampleRoadCell({ positions, origin }, start, end, worldX, worldZ) {

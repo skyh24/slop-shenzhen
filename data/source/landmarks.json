@@ -58,8 +58,27 @@
     {
       "id": "iec-xiangmihu", "name": "深圳国际交流中心（APEC 2026 主会场）", "phase": 1,
       "center": [22.54735, 114.02410],
-      "osm": { "site": "way/1080860977", "lake": "way/25482483", "lakePark": "way/1361069232", "hotels": ["node/14322540131", "node/14322540132"] },
-      "heightSource": "estimate", "status": "todo",
+      "osm": { "site": "way/1080860977", "lake": "way/25482483", "lakePark": "way/1361069232", "reflectingPool": "way/1572116217", "hotels": ["node/14322540131", "node/14322540132"] },
+      "heightSource": "estimate", "status": "partial",
+      "review": {
+        "checkedAt": "2026-11-12",
+        "footprints": {
+          "southWing": "way/1431482482", "northWing": "way/1431482483", "hotel": "way/1431884285",
+          "upperLink": "way/1572116213", "lakeHall": "way/1572116214", "court": "way/1572116215", "hotelLink": "way/1572116216",
+          "source": "osm-guangdong", "editedAt": "2026-10-27"
+        },
+        "designHeights": {
+          "conferenceBuildingM": 43.57, "hotelPodiumM": 26.3, "hotelBuildingM": 99.9, "hotelRoofFrameM": 105.95,
+          "source": "https://pnr.sz.gov.cn/attachment/1/1709/1709340/12759583.pdf",
+          "sourceDate": "2026-01-25",
+          "sha256": "27cd1084b406139e455d833bd6280a3bfd382bff674d39e76e1f7a72f14668f3",
+          "datum": "1956 Yellow Sea, design zero 12.00 m. Runtime bases sampled on EGM2008 terrain without datum substitution."
+        },
+        "paths": [
+          { "osmId": "way/1377331203", "widthEstimateM": 4.8, "access": "public-roadside" },
+          { "osmId": "way/1572116219", "widthEstimateM": 3.8, "access": "unverified" }
+        ]
+      },
       "apec": {
         "role": "Leaders' Meeting main venue (Nov 18-19); CEO Summit (Nov 17-18) reported here; site includes the Wuzhou hotel; Xiangmi Lake flower sea outside the gates",
         "metro": "Xiangmi and Xiangmei North (lines 2/8)",

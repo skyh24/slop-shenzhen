@@ -104,3 +104,27 @@ def build_streetscape(pbf, osm, parks, report):
     path_ids = {item['osmId'] for item in pilot['paths']}
     path_tags, trees = read_streetscape_sources(pbf, path_ids, park)
     return compile_streetscape(pilot, park, osm['roads'], path_tags, trees, report)
+
+
+def build_iec_paths(manifest, osm, report):
+    """保留审核过的场外市政人行道与开放待核的园路。"""
+    landmark = next(row for row in manifest if row['id'] == 'iec-xiangmihu')
+    review = landmark['review']
+    ways = {row['id']: row for row in osm['roads']}
+    paths = []
+    for entry in review['paths']:
+        identity = entry['osmId']
+        way = ways.get(identity)
+        tags = way['tags'] if way else {}
+        if (tags.get('highway') != 'footway' or tags.get('access') in ('no', 'private')
+                or tags.get('bridge', 'no') != 'no' or tags.get('tunnel', 'no') != 'no'
+                or tags.get('layer', '0') != '0'):
+            raise ValueError(f'Cannot resolve reviewed IEC ground path: {identity}')
+        width = _num(tags.get('width'))
+        points = [[round(v, 2) for v in project(*point)] for point in way['geom'].coords]
+        paths.append({'osmId': identity, 'access': entry['access'], 'heightSource': 'terrain',
+                      'widthM': width or entry['widthEstimateM'], 'widthSource': 'osm-width' if width else 'visual-estimate',
+                      'points': points, 'nodeIds': [f'node/{ref}' for ref in way['nodeRefs']]})
+    report['iecSiteReview'] = {**review, 'paths': [
+        {k: v for k, v in row.items() if k not in ('points', 'nodeIds')} for row in paths]}
+    return paths

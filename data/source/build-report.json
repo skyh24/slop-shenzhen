@@ -76013,10 +76013,10 @@
   },
   "landmarkSites": {
     "source": "osm-guangdong",
-    "requestedObjects": 69,
-    "resolvedObjects": 57,
+    "requestedObjects": 70,
+    "resolvedObjects": 58,
     "landmarks": 28,
-    "roles": 51,
+    "roles": 52,
     "missing": [
       {
         "osmId": "relation/6371344",
@@ -79248,14 +79248,54 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7226,
-    "metadataBytes": 16702976,
+    "metadataBytes": 16704746,
     "numericBytes": 33423256,
-    "uncompressedBytes": 50126280,
+    "uncompressedBytes": 50128056,
     "lossless": true,
-    "compressedBytes": 11337469,
-    "compressedSha256": "00c424a0e094d7d118a9bfc122097d0d711ec4015706dc0ca1a1a7e37a1e787a"
+    "compressedBytes": 11338339,
+    "compressedSha256": "9cc2da849a9bbdaa70faca489963434186069a0faf1aab6dad387d22ce53ea22"
   },
-  "outputBytes": 11304063,
-  "outputSha256": "d65633061a7113df99130b97dd52d720384df685fc4d65b67750b40905c6912d",
-  "seconds": 117.9
+  "outputBytes": 11304757,
+  "outputSha256": "ac68e7b2c5fd55fc69d93cc5be7a0f2bca9a5009e1be9be6795518faf30794cd",
+  "seconds": 38.1,
+  "iecSiteReview": {
+    "checkedAt": "2026-11-12",
+    "footprints": {
+      "southWing": "way/1431482482",
+      "northWing": "way/1431482483",
+      "hotel": "way/1431884285",
+      "upperLink": "way/1572116213",
+      "lakeHall": "way/1572116214",
+      "court": "way/1572116215",
+      "hotelLink": "way/1572116216",
+      "source": "osm-guangdong",
+      "editedAt": "2026-10-27"
+    },
+    "designHeights": {
+      "conferenceBuildingM": 43.57,
+      "hotelPodiumM": 26.3,
+      "hotelBuildingM": 99.9,
+      "hotelRoofFrameM": 105.95,
+      "source": "https://pnr.sz.gov.cn/attachment/1/1709/1709340/12759583.pdf",
+      "sourceDate": "2026-01-25",
+      "sha256": "27cd1084b406139e455d833bd6280a3bfd382bff674d39e76e1f7a72f14668f3",
+      "datum": "1956 Yellow Sea, design zero 12.00 m. Runtime bases sampled on EGM2008 terrain without datum substitution."
+    },
+    "paths": [
+      {
+        "osmId": "way/1377331203",
+        "access": "public-roadside",
+        "heightSource": "terrain",
+        "widthM": 4.8,
+        "widthSource": "visual-estimate"
+      },
+      {
+        "osmId": "way/1572116219",
+        "access": "unverified",
+        "heightSource": "terrain",
+        "widthM": 3.8,
+        "widthSource": "visual-estimate"
+      }
+    ]
+  }
 }
