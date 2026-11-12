@@ -1,4 +1,4 @@
-import { convexHull, isGroundRoad, roadLinkPoints, roadSectionPoints } from './sz-roads.js';
+import { convexHull, isGroundRoad, roadSectionPoints } from './sz-roads.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 
 // 深圳没有全城实测的人行道网格：本模块沿地面道路中心线两侧偏移出“模拟步行带”（walk track），
@@ -47,7 +47,7 @@ function boundsOverlap(a, b) {
 
 const LINK_BOUNDS_CACHE = new WeakMap();
 
-function linkBounds(graph, link) {
+function linkBounds(graph, link, metadata) {
   const bounds = { minX: Infinity, minZ: Infinity, maxX: -Infinity, maxZ: -Infinity };
   const add = (x, z) => {
     if (x < bounds.minX) bounds.minX = x;
@@ -55,9 +55,7 @@ function linkBounds(graph, link) {
     if (z < bounds.minZ) bounds.minZ = z;
     if (z > bounds.maxZ) bounds.maxZ = z;
   };
-  add(graph.nodes[link[0] * 2], graph.nodes[link[0] * 2 + 1]);
-  add(graph.nodes[link[1] * 2], graph.nodes[link[1] * 2 + 1]);
-  for (let i = 0; i < link[6].length; i += 2) add(link[6][i], link[6][i + 1]);
+  for (const { x, z } of roadSectionPoints(graph, link, metadata)) add(x, z);
   return bounds;
 }
 
@@ -66,7 +64,7 @@ function linkBoundsCache(graph) {
   let cache = LINK_BOUNDS_CACHE.get(graph);
   if (cache) return cache;
   cache = new Array(graph.links.length);
-  for (let i = 0; i < graph.links.length; i++) cache[i] = linkBounds(graph, graph.links[i]);
+  for (let i = 0; i < graph.links.length; i++) cache[i] = linkBounds(graph, graph.links[i], graph.metadata[i]);
   LINK_BOUNDS_CACHE.set(graph, cache);
   return cache;
 }
@@ -145,7 +143,7 @@ export function resamplePolyline(points, stepM) {
 }
 
 // 左侧法向 (dz, -dx)：side = +1 是该侧，side = -1 是对侧。
-export function offsetPolyline(points, offsetM) {
+function sidewalkPolyline(points, side, widthM, marginM) {
   const result = [];
   for (let i = 0; i < points.length; i++) {
     const previous = points[Math.max(0, i - 1)];
@@ -155,7 +153,9 @@ export function offsetPolyline(points, offsetM) {
     const length = Math.hypot(dx, dz) || 1;
     dx /= length;
     dz /= length;
-    result.push({ x: points[i].x + dz * offsetM, z: points[i].z - dx * offsetM });
+    const { x, z, leftM = widthM / 2 } = points[i];
+    const offset = side * ((side === 1 ? leftM : widthM - leftM) + marginM);
+    result.push({ x: x + dz * offset, z: z - dx * offset });
   }
   return result;
 }
@@ -531,17 +531,23 @@ export function buildSidewalkTracks(graph, options = {}) {
     if (raisedOnly && typeof cfg.groundHeight !== 'function') continue;
     const link = graph.links[index];
     if (!(link[3] > 0)) continue;
-    if (bounds && !boundsOverlap(boxes[index], bounds)) continue;
+    const widthM = link[3];
+    if (bounds) {
+      const box = boxes[index];
+      const pad = widthM + cfg.walkMarginM;
+      if (!boundsOverlap({ minX: box.minX - pad, maxX: box.maxX + pad,
+        minZ: box.minZ - pad, maxZ: box.maxZ + pad }, bounds)) continue;
+    }
     statistics.candidateLinks++;
-    const centerline = roadLinkPoints(graph, link);
+    const centerline = roadSectionPoints(graph, link, metadata);
     if (centerline.length < 2) continue;
-    const runs = bounds ? clipPolyline(centerline, bounds) : [centerline];
-    statistics.clippedRuns += runs.length;
-    const offset = link[3] / 2 + cfg.walkMarginM;
-    for (const run of runs) {
-      if (trackLength(run) < 0.5) continue;
-      for (const side of [1, -1]) {
-        const line = resamplePolyline(offsetPolyline(run, side * offset), cfg.sampleStepM);
+    for (const side of [1, -1]) {
+      const sidewalk = sidewalkPolyline(centerline, side, widthM, cfg.walkMarginM);
+      const runs = bounds ? clipPolyline(sidewalk, bounds) : [sidewalk];
+      statistics.clippedRuns += runs.length;
+      for (const run of runs) {
+        if (trackLength(run) < 0.5) continue;
+        const line = resamplePolyline(run, cfg.sampleStepM);
         for (const points of walkableRuns(line, cfg, cfg.heightAt, colliderIndex, barrier, statistics, raisedOnly)) {
           const length = trackLength(points);
           if (length < cfg.minRunLengthM) {
@@ -549,7 +555,7 @@ export function buildSidewalkTracks(graph, options = {}) {
             continue;
           }
           tracks.push(makeTrack(points, 'sidewalk', { id: `walk:${nextId++}`, linkIndex: index, side,
-            highway: metadata.highway, widthM: link[3], offsetM: offset }));
+            highway: metadata.highway, widthM }));
           statistics.walkableMeters += length;
         }
       }

@@ -190,6 +190,22 @@ test('side tracks are offset outside the carriageway and follow heightAt', () =>
   assert.equal(built.statistics.tracks, 2);
 });
 
+test('an asymmetric section keeps the raised sidewalk inside a focus window beyond the centreline', () => {
+  const graph = straightGraph(100, 12);
+  graph.metadata[0].highway = 'trunk';
+  graph.metadata[0].crossSection = { points: [0, 0, 2, 100, 0, 2] };
+  const built = buildWalkTracks(graph, {
+    bounds: { minX: 20, minZ: 11, maxX: 80, maxZ: 13 },
+    heightAt: (_, z) => z >= 11 && z <= 13 ? 0.12 : 0,
+    groundHeight: () => 0
+  });
+  assert.equal(built.tracks.length, 1);
+  const { points } = built.tracks[0];
+  assert.equal(points[0].x, 20);
+  assert.equal(points.at(-1).x, 80);
+  assert.ok(points.every(point => Math.abs(point.z - 12.1) < 1e-6 && point.y === 0.12));
+});
+
 test('a raised source sidewalk carries the walk track without drawing a second pavement', () => {
   const graph = straightGraph(100, 10);
   graph.metadata[0].highway = 'trunk';
