@@ -1,0 +1,155 @@
+{
+  "id": "futian-shopping-park-audit",
+  "status": "draft",
+  "checkedAt": "2026-11-12",
+  "baseline": {
+    "head": "b7485539acf74208a49faf3cdc3266238b861b42",
+    "cityPackages": {
+      "sz-city.json.gz": "d65633061a7113df99130b97dd52d720384df685fc4d65b67750b40905c6912d",
+      "sz-city.szc.gz": "00c424a0e094d7d118a9bfc122097d0d711ec4015706dc0ca1a1a7e37a1e787a"
+    }
+  },
+  "boundsWgs84": [114.04765, 22.5353, 114.05015, 22.53955],
+  "structuralPilotId": "futian-civic",
+  "coordinateSource": "源坐标为 WGS84 经度、纬度（度）。投影复用 tools/sz/geo.py，原点 114.0545E、22.5463N，x 东、z 南，米制。包和样区叠置计算水平投影平方米。样区窗口包住两个用地和围合车道，不等同于现行 8 米地坪旧样区。",
+  "snapshot": {
+    "id": "osm-guangdong",
+    "snapshotAt": "2026-11-08T23:59:19Z",
+    "sha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+    "url": "https://download.geofabrik.de/asia/china/guangdong-261108.osm.pbf",
+    "license": "ODbL-1.0"
+  },
+  "fieldSources": {
+    "sourceArea": "data/source/urban-datum.json 的 commercial 条目，继承 OSM 地类及经纬度环。用地面跨边界部分留在叠置报告内，建筑不按街块线裁切。",
+    "blockBoundary": "从正式包 roadGraph 的指定地面 OSM 道路边围合，再减去 sz-roads.js 在正式地形上生成的沥青。断面宽度按包内 widthSource 记录。车行边为派生边缘，行道与产权外缘缺测。",
+    "paving": "正式包 terrainSurface 的三个顶点均为 kind=3 的三角面。现行商业铺装来自用地轮廓扣除已入包绿化等；灰色接缝是中性外观估计。",
+    "buildingFootprints": "使用正式包 buildings.rings 的量化源足迹和来源，不按商业范围改造模型。建筑投影与铺装重叠可能涉及下沉场地、架空或补充数据误判，保留对象待核。",
+    "entrances": "正式包 metro.entrances 及锁定 OSM 节点。地铁出口点、商场入口和入口实际接地分别记录。",
+    "publicWalkableArea": "需要带范围、地表层级与权限证据。入口、通道线、活动信息和铺装投影均不足以确定地面公众步行面的面积。"
+  },
+  "blocks": [
+    {
+      "id": "shopping-park-north-of-fuhua",
+      "name": "购物公园街块",
+      "sourceAreaOsmId": "way/529086160",
+      "osmVersion": 3,
+      "osmEditedAt": "2017-12-13",
+      "landUse": "retail",
+      "seedWgs84": [114.0487, 22.5387],
+      "boundaryWayIds": ["way/853286925", "way/853286934", "way/923157996", "way/996321292", "way/1050511752", "way/1050511754"],
+      "access": {"status": "unknown", "openingHours": null},
+      "material": {"status": "unknown", "value": null, "generatedAppearanceStatus": "estimated", "evidenceRefs": ["north-improvement"]},
+      "notes": "福华一路、中心二路、福华路北幅和民田路东幅围合。区级资料确认福华路北侧有购物公园整治和铺装恢复，具体材质、范围、开放时段及完工实况待核。"
+    },
+    {
+      "id": "coco-park-north-of-fuhua-3",
+      "name": "福田星河 COCO Park 北区所在街块",
+      "sourceAreaOsmId": "way/546582690",
+      "osmVersion": 9,
+      "osmEditedAt": "2025-09-25",
+      "landUse": "retail",
+      "seedWgs84": [114.0488, 22.5364],
+      "boundaryWayIds": ["way/1216685953", "way/996208013", "way/923157990", "way/853286944", "way/923157991", "way/996752253", "way/34900359"],
+      "access": {"status": "operating-retail", "openingHours": null, "osmOpeningHours": "10:00-22:00", "evidenceRefs": ["operator-annual-report", "event-venues"]},
+      "material": {"status": "unknown", "value": null, "generatedAppearanceStatus": "estimated", "evidenceRefs": []},
+      "notes": "福华路南幅、中心二路、福华三路北幅和民田路东幅围合。运营方称福华三路以北的项目为北区。官方活动名录记录东南门和多层中庭。OSM 营业时段适用于商场标签，连续地表范围和入口权限需另核。"
+    }
+  ],
+  "places": [
+    {
+      "id": "shopping-park-station",
+      "name": "购物公园站及连城新天地",
+      "osmIds": ["node/6753412233", "relation/7713452", "way/1334954501"],
+      "blockIds": ["shopping-park-north-of-fuhua", "coco-park-north-of-fuhua-3"],
+      "crosses": "福华路",
+      "evidenceRefs": ["metro-link-city", "slow-travel-plan"],
+      "notes": "用共享场所 ID 关联两街块，保留福华路走廊和分隔带。地面购物公园和星河商场是两个独立源面。"
+    },
+    {
+      "id": "futian-coco-park",
+      "name": "福田星河 COCO Park",
+      "osmIds": ["way/546582690"],
+      "blockIds": ["coco-park-north-of-fuhua-3"],
+      "crosses": "福华三路",
+      "outsideSample": "南区是福华三路南侧星河国际裙楼商业。仅登记场所关系，南区建筑和地面留待下一片。",
+      "evidenceRefs": ["operator-annual-report", "operator-north-south", "phase-2-event", "skywalk-proposal"]
+    }
+  ],
+  "metroEntranceOsmIds": ["node/2458982113", "node/2458982109", "node/2458982105"],
+  "connections": [
+    {
+      "id": "shopping-park-b-c-via-link-city",
+      "status": "verified",
+      "kind": "underground",
+      "level": -1,
+      "access": {"status": "public-pedestrian-connection", "openingHours": null, "fareControl": null, "stepFree": null},
+      "crosses": "福华路",
+      "entranceOsmIds": ["node/2458982113", "node/2458982109"],
+      "wayIds": ["way/1334954502", "way/1334954501", "way/1334954503"],
+      "osmWaysEditedAt": {"way/1334954502": "2024-11-18", "way/1334954501": "2026-03-14", "way/1334954503": "2024-11-18"},
+      "sourceNodeIds": ["node/2458982113", "node/12350301103", "node/12350301106", "node/12350301107", "node/12350301108", "node/2458982109"],
+      "routeWgs84": [[114.0489113, 22.5375968], [114.048914, 22.5374413], [114.0493758, 22.5374462], [114.0493784, 22.5372131], [114.0489924, 22.5372094], [114.0489929, 22.5371677]],
+      "evidenceRefs": ["metro-link-city", "metro-exit-c", "slow-travel-plan"],
+      "notes": "锁定 OSM 路径按共享节点从 B 口接地下商业街主线再到 C 口。深圳地铁与慢行规划证实购物公园站厅和地下商业街关系，深圳地铁还记录 C 口楼梯中段通向 COCO Park。OSM 仅提供平面路线和层级，通道宽度、净高与现行开放细节待核。"
+    },
+    {
+      "id": "coco-park-fuhua-3-skywalk",
+      "status": "proposed",
+      "kind": "elevated",
+      "crosses": "福华三路",
+      "wayIds": [],
+      "routeWgs84": null,
+      "access": {"status": "unknown", "openingHours": null},
+      "evidenceRefs": ["skywalk-proposal"],
+      "notes": "公示方案由星河 COCO Park 跨福华三路接星河国际花城北侧。竣工、目前开放与精确端点仍缺证据。"
+    }
+  ],
+  "retainedFeaturesAndGaps": [
+    {
+      "kind": "green",
+      "status": "unknown",
+      "osmIds": [],
+      "geometryWgs84": null,
+      "notes": "本片两个用地内没有包内绿地多边形。锁定快照的样区检索未发现草地、花圃、花园或公园标签的节点和线面。实际草坪、种植边界及其所处层级仍待影像或测绘核实。保留现有地面、树木及道路关系。"
+    },
+    {
+      "kind": "flowerbed",
+      "status": "unknown",
+      "osmIds": [],
+      "geometryWgs84": null,
+      "notes": "花池范围、构造与材质待现场或有尺度影像核实。"
+    },
+    {
+      "kind": "entrance",
+      "status": "partial",
+      "osmIds": ["node/2458982113", "node/2458982109", "node/2458982105"],
+      "evidenceRefs": ["event-venues", "metro-exit-c"],
+      "notes": "B 口在北侧，C、D 口在南侧。C 口另有通向商场的证据。COCO Park 东南门位置只有文字描述，地面接高和进门路线待核。D 口附近包内有 globfp/34670，需现场辨别其投影和地铁出口的关系。"
+    },
+    {
+      "kind": "building",
+      "status": "partial",
+      "osmIds": ["way/238825588", "way/539435437", "way/241116477"],
+      "evidenceRefs": ["early-mall-profile", "event-venues"],
+      "notes": "way/238825588 与其内 way/539435437 为包内商场轮廓和建筑部件候选。政府资料明确有下沉广场和多层中庭，包内足迹叠置只能用于定位冲突。北侧 way/241116477 带 layer=1，但包内 minHeight 为 0，底层实体和可通行门洞待核。"
+    },
+    {
+      "kind": "path",
+      "status": "mapped",
+      "osmIds": ["way/1489119790", "way/1489119791", "way/1489119792", "way/1489119793", "way/1489119794", "way/1489469760", "way/1489469761", "way/1489469762", "way/1489469763"],
+      "notes": "锁定快照的北街块步道及穿楼通道候选，保留与入口、建筑的原始关联。通道净空、表面材料和公众权限待核。样区未检出 OSM highway=crossing 或 footway=crossing 对象，地面过街待现场核对。"
+    }
+  ],
+  "documents": {
+    "north-improvement": {"documentDate": "2023", "url": "https://www.szft.gov.cn/attachment/1/1557/1557912/10419724.pdf", "field": "购物公园综合整治提升工程的位置和铺装恢复范围描述"},
+    "operator-annual-report": {"documentDate": "2026-04-22", "url": "https://www.hkexnews.hk/listedco/listconews/sehk/2026/0422/2026042200455_c.pdf", "field": "截至 2025 年底已开业项目表中北区、南区的区分"},
+    "operator-north-south": {"documentDate": "2019", "url": "https://www.g-cre.com/news/Inner/187", "field": "运营方将星河国际裙楼纳入 COCO Park 并区分南北区"},
+    "phase-2-event": {"documentDate": "2021", "url": "https://www.szft.gov.cn/bmxx/qftjdbsc/hdrl/content/post_9422343.html", "field": "二期福华三路 268 号及 F 口附近的活动地点"},
+    "event-venues": {"documentDate": "2025", "url": "https://www.szft.gov.cn/xxgk/bmtzgg/content/post_12556639.html", "field": "东南门、星空广场、中庭及各层活动场所"},
+    "early-mall-profile": {"documentDate": "2006", "url": "https://www.szft.gov.cn/xxgk/zwgk/gzxx/zsyz/content/post_4220865.html", "field": "福华三路北区旧资料中的下沉式露天广场和室内街"},
+    "metro-link-city": {"documentDate": "2014-06", "url": "https://www.szmc.net/szmc_m/home/xinweenzhongxin/gonggaoxinwen/201406/35970.html", "field": "已开业地下商业街连接购物公园站厅与会展中心站"},
+    "metro-exit-c": {"documentDate": "2012-09", "url": "https://www.szmc.net/szmc_m/home/xinweenzhongxin/gonggaoxinwen/201209/35857.html", "field": "C 口楼梯中段通往商场的实际连接"},
+    "slow-travel-plan": {"documentDate": null, "url": "https://jtys.sz.gov.cn/attachment/0/295/295769/5564061.pdf", "field": "慢行调查所列购物公园站和商业区地下连接；资料编制日未核实"},
+    "skywalk-proposal": {"documentDate": "2020", "url": "https://www.szft.gov.cn/hdjlpt/yjzj/answer/6102", "field": "平安组团连廊公示所列福华三路跨街方案"}
+  }
+}
