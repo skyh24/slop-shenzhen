@@ -192,6 +192,7 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
 
 
 def write_city_packages(payload, report, sources, started):
+    payload.pop('roads', None)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
     compressed = gzip.compress(raw, 9, mtime=0)
@@ -320,6 +321,35 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     write_city_packages(payload, report, sources, started)
 
 
+def city_clip(osm):
+    envelope = phase1_clip_local()
+    boundary = osm['hongKongBoundary']
+    if boundary is None or boundary.is_empty or not boundary.is_valid:
+        raise ValueError('The locked OSM snapshot is missing a valid Hong Kong boundary')
+    excluded = _to_local(boundary)
+    # 岸线简化与分米量化可能跨过原边线，留出小于源分辨率的内缩量。
+    boundary_inset = 1.2
+    clip = envelope.difference(excluded.buffer(boundary_inset))
+    coverage = {'excludedOsmId': f'relation/{HONG_KONG_BOUNDARY_ID}',
+                'excludedAreaKm2': round(envelope.difference(clip).area / 1e6, 3),
+                'boundaryInsetM': boundary_inset, 'areaKm2': round(clip.area / 1e6, 3)}
+    return envelope, excluded, clip, coverage
+
+
+def export_road_preview(use_cache):
+    # 离线审核保留旧预览口径，包括非机动车道；运行时只读有向路网。
+    sources = verify_sources(source_ids=('osm-guangdong',))
+    source = sources[0]
+    osm = read_osm(PHASE1_BBOX, use_cache=use_cache, pbf=ROOT / source['file'], source_sha256=source['sha256'])
+    _, _, clip, coverage = city_clip(osm)
+    counts = {}
+    roads = build_roads(osm, clip, counts)
+    encoded = [{**{key: value for key, value in road.items() if key != 'line'},
+                'pts': enc_ring(road['line'].coords, strip_closure=False)} for road in roads]
+    print(json.dumps({'origin': [ORIGIN_LON, ORIGIN_LAT], 'coverage': coverage,
+                      'sourceIntegrity': sources, **counts, 'preview': encoded}, ensure_ascii=False))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-cache', action='store_true', help='rebuild OSM and GloBFP extraction caches from the verified snapshots')
@@ -331,20 +361,30 @@ def main():
                     help='all = OSM + Overture + GloBFP footprints; osm = only map-marked OSM footprints')
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument('--repack-existing', action='store_true',
-                    help='validate the existing shared snapshot and generate lossless SZC1 without rebuilding geometry')
+                    help='validate the snapshot and repack SZC1; migrate legacy road preview out of both packages')
+    mode.add_argument('--audit-road-preview', action='store_true',
+                      help='write the offline OSM road preview audit as JSON to stdout')
     mode.add_argument('--rebuild-ground', action='store_true',
                       help='rebuild the ground pilot from the current verified payload and snapshots')
     mode.add_argument('--rebuild-civic-ground', action='store_true',
                       help='apply the reviewed Civic Square paving and Shennan median to the verified package')
     args = ap.parse_args()
 
+    if args.audit_road_preview:
+        export_road_preview(not args.no_cache)
+        return
+
     if args.repack_existing:
+        started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
         sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
         report = json.loads(VALIDATION_REPORT.read_text())
         require_matching_snapshot(raw, report, sources)
-        print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
+        if 'roads' in payload:
+            write_city_packages(payload, json.loads(REPORT.read_text()), sources, started)
+        else:
+            print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
         return
 
     terrain_ids = ('copernicus-dem-N22E113', 'copernicus-dem-N22E114') if args.terrain_source == 'copernicus' else ('terrain-N22E113', 'terrain-N22E114')
@@ -355,19 +395,8 @@ def main():
 
     t0 = time.time()
     report = {'formatVersion': FORMAT_VERSION, 'origin': [ORIGIN_LON, ORIGIN_LAT], 'bbox': PHASE1_BBOX}
-    envelope = phase1_clip_local()
     osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=pbf, source_sha256=osm_source['sha256'])
-    boundary = osm['hongKongBoundary']
-    if boundary is None or boundary.is_empty or not boundary.is_valid:
-        raise ValueError('The locked OSM snapshot is missing a valid Hong Kong boundary')
-    excluded = _to_local(boundary)
-    # 岸线简化与分米量化可能跨过原边线，留出小于源分辨率的内缩量。
-    boundary_inset = 1.2
-    clip = envelope.difference(excluded.buffer(boundary_inset))
-    report['coverage'] = {'excludedOsmId': f'relation/{HONG_KONG_BOUNDARY_ID}',
-                          'excludedAreaKm2': round(envelope.difference(clip).area / 1e6, 3),
-                          'boundaryInsetM': boundary_inset,
-                          'areaKm2': round(clip.area / 1e6, 3)}
+    envelope, excluded, clip, report['coverage'] = city_clip(osm)
     print(f'osm loaded in {time.time() - t0:.1f}s', flush=True)
     if args.rebuild_ground or args.rebuild_civic_ground:
         rebuild_ground(args.terrain_source, sources, osm, osm_source, report, t0, clip, excluded, civic_review=args.rebuild_civic_ground)
@@ -381,7 +410,7 @@ def main():
                                 globfp_path=ensure_globfp(inputs, use_cache=not args.no_cache))
     print(f'buildings: {len(buildings)} in {time.time() - t0:.1f}s', flush=True)
     land, water, wetland, green = build_land(osm, clip, buildings, report, paving=civic)
-    roads = build_roads(osm, clip, report)
+    build_roads(osm, clip, report)  # 保留离线道路数量与公里数。
     terrain = build_terrain(clip, report, source=args.terrain_source, excluded=excluded)
     sea_surface = build_sea_surface(osm, envelope, land, terrain, report)
     road_graph = build_roadgraph(osm, clip, report)
@@ -435,14 +464,6 @@ def main():
         'water': [enc_poly(w['poly']) for w in water],
         'wetland': [enc_poly(w['poly']) for w in wetland],
         'green': [enc_poly(g['poly']) for g in green],
-        'roads': {
-            'cls': [CLASSES.index(r['cls']) for r in roads],
-            'width': [r['width'] for r in roads],
-            'oneway': [1 if r['oneway'] else 0 for r in roads],
-            'elevated': [1 if r['elevated'] else 0 for r in roads],
-            'name': [r['name'] or '' for r in roads],
-            'pts': [enc_ring(r['line'].coords, strip_closure=False) for r in roads],
-        },
         'buildings': {
             'id': [b['id'] for b in buildings],
             'rings': [enc_poly(b['poly']) for b in buildings],

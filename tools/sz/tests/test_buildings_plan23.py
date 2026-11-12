@@ -496,13 +496,14 @@ class SharedPackageRegressionTests(unittest.TestCase):
         self.assertAlmostEqual(polygon_area(points), SAME_BUILDING_AREA, delta=3.0)
 
     def named_roads(self, keyword):
-        """从共享包路网里取名字包含关键字的道路：返回 [(点列, 宽度), ...]。"""
-        out = []
-        for name, pts, width in zip(self.city['roads']['name'], self.city['roads']['pts'],
-                                    self.city['roads']['width']):
-            if keyword in name:
-                out.append((ring_points(pts), width))
-        return out
+        """从正式有向路网读取道路中心线和车行宽度。"""
+        graph = self.city['roadGraph']
+        nodes = list(zip(graph['nodes'][::2], graph['nodes'][1::2]))
+        return [
+            ([nodes[start], *zip(inner[::2], inner[1::2]), nodes[end]], width)
+            for start, end, name, width, _, _, inner in graph['links']
+            if keyword in graph['names'][name]
+        ]
 
 
 if __name__ == '__main__':

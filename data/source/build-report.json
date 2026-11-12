@@ -79247,15 +79247,15 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7226,
-    "metadataBytes": 16702976,
-    "numericBytes": 33423256,
-    "uncompressedBytes": 50126280,
+    "columns": 6912,
+    "metadataBytes": 14885319,
+    "numericBytes": 32910304,
+    "uncompressedBytes": 47795672,
     "lossless": true,
-    "compressedBytes": 11337469,
-    "compressedSha256": "00c424a0e094d7d118a9bfc122097d0d711ec4015706dc0ca1a1a7e37a1e787a"
+    "compressedBytes": 10559618,
+    "compressedSha256": "ab8a6a2c428ba5f06b98afe6b4c15ffeff5c1bb0e9d9c1bf6ebecd8141f3d1ea"
   },
-  "outputBytes": 11304063,
-  "outputSha256": "d65633061a7113df99130b97dd52d720384df685fc4d65b67750b40905c6912d",
-  "seconds": 117.9
+  "outputBytes": 10533782,
+  "outputSha256": "1a90a3982f03b826e1f7c8a1bad035f3b4286f1eeacc6765724d35bcf3c28bd8",
+  "seconds": 19.2
 }
