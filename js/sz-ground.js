@@ -55,7 +55,7 @@ function batchChunks(entries) {
 
 export { createGroundSurfaceSampler };
 
-const COLORS = [0xb5b0a2, 0x6f875a, 0x527858];
+const COLORS = [0xb5b0a2, 0x6f875a, 0x527858, 0xa7a8a4];
 
 export function buildSzGround(scene, surface, options = {}) {
   const chunks = unpackSurface(surface);

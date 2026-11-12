@@ -12,7 +12,7 @@ from shapely.ops import unary_union
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from geo import KX, KY, ORIGIN_LAT, ORIGIN_LON
 from terrain_exclusions import SOURCE, _footprint_signature, chunjian_exclusions
-from terrain_surface import build_terrain_surface
+from terrain_surface import apply_urban_datum, build_terrain_surface
 
 
 def grid():
@@ -38,6 +38,19 @@ def faces(surface):
 
 
 class TerrainSurfaceTests(unittest.TestCase):
+    def test_urban_pilot_levels_the_core_and_preserves_protected_and_distant_ground(self):
+        source = {**grid(), 'nx': 6, 'nz': 2, 'heights': [200] * 12}
+        dry = box(0, 0, 125, 25)
+        park = box(50, -1, 75, 26)
+        pilot = ({'id': 'test-pilot', 'transitionM': 50}, box(0, 0, 50, 25))
+        report = {}
+        derived = apply_urban_datum(source, [pilot], {'heightM': 8, 'reference': {}}, dry, park, report)
+        self.assertEqual(source['heights'], [200] * 12)
+        self.assertEqual(derived['heights'], [80, 140, 200, 200, 200, 200] * 2)
+        self.assertEqual(derived['processing']['heightSource'], 'fixture-dem')
+        self.assertEqual(report['urbanDatum']['heightSource'], 'urban-datum')
+        self.assertEqual(report['urbanDatum']['pilots']['test-pilot']['levelVertices'], 2)
+
     def test_exact_l_shaped_coverage_and_subcell_water_channel(self):
         g = grid()
         coverage = Polygon([(0, 0), (50, 0), (50, 25), (25, 25), (25, 50), (0, 50)])

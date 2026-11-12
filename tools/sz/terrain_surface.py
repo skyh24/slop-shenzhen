@@ -4,9 +4,62 @@ import math
 import time
 
 import numpy as np
-from shapely import constrained_delaunay_triangles, contains_xy, prepare
+from shapely import box as grid_boxes
+from shapely import constrained_delaunay_triangles, contains_xy, distance, intersects, points, prepare
 from shapely.geometry import Polygon, box
 from shapely.ops import unary_union
+
+
+def apply_urban_datum(terrain, pilots, datum, dry, protected, report):
+    """仅改样区和过渡带格点。显示、道路与落地仍读取同一份三角面。"""
+    step, nx, nz, scale = (terrain[key] for key in ('step', 'nx', 'nz', 'heightScale'))
+    height = datum['heightM']
+    target = round(height / scale)
+    if not math.isclose(height, target * scale, abs_tol=1e-8):
+        raise ValueError('Urban datum must align to the terrain height scale')
+    original = np.asarray(terrain['heights'], dtype=np.int64).reshape(nz, nx)
+    x, z = np.meshgrid(terrain['x0'] + np.arange(nx) * step, terrain['z0'] + np.arange(nz) * step)
+    xy = points(x, z)
+    # 裁切到岸边的三角面也用水侧格点插值，覆盖参与岸边三角面的四个角。
+    prepare(dry)
+    dry_cells = intersects(dry, grid_boxes(x[:-1, :-1], z[:-1, :-1], x[1:, 1:], z[1:, 1:]))
+    coverage = np.zeros((nz, nx), dtype=bool)
+    coverage[:-1, :-1] |= dry_cells
+    coverage[:-1, 1:] |= dry_cells
+    coverage[1:, :-1] |= dry_cells
+    coverage[1:, 1:] |= dry_cells
+    blend = np.zeros((nz, nx), dtype=np.float64)
+    by_pilot = {}
+    for pilot, polygon in pilots:
+        width = pilot['transitionM']
+        if not math.isfinite(width) or width < step:
+            raise ValueError('Urban datum transition must cover at least one grid cell')
+        west, north, east, south = polygon.bounds
+        near = coverage & (x >= west - width) & (x <= east + width) & (z >= north - width) & (z <= south + width)
+        ratio = np.clip(1 - distance(polygon, xy[near]) / width, 0, 1)
+        if not protected.is_empty:
+            # 公园及保护边缘接回已有地面，避免场景地坪侵入已有自然起伏。
+            ratio = np.minimum(ratio, np.clip(distance(protected, xy[near]) / width, 0, 1))
+        blend[near] = np.maximum(blend[near], ratio)
+        by_pilot[pilot['id']] = {'boundsXZ': list(polygon.bounds), 'transitionM': width,
+                                 'levelVertices': int((ratio == 1).sum())}
+    influence = blend * blend * (3 - 2 * blend)
+    values = original + np.rint((target - original) * influence).astype(np.int64)
+    delta = (values - original) * scale
+    modified = values != original
+    ramp = (blend > 0) & (blend < 1)
+    y = values * scale
+    dx, dz = np.diff(y, axis=1) / step, np.diff(y, axis=0) / step
+    first = ramp[:-1, :-1] | ramp[1:, :-1] | ramp[:-1, 1:]
+    last = ramp[1:, 1:] | ramp[1:, :-1] | ramp[:-1, 1:]
+    slopes = np.concatenate((np.hypot(dx[:-1], dz[:, :-1])[first], np.hypot(dx[1:], dz[:, 1:])[last])) * 100
+    details = {'heightSource': 'urban-datum', 'heightM': height, 'reference': datum['reference'], 'pilots': by_pilot,
+               'changedVertices': int(modified.sum()), 'maxDeltaM': round(float(np.abs(delta).max()), 3),
+               'transitionSlopePercent': {'p95': round(float(np.percentile(slopes, 95)), 3) if slopes.size else 0,
+                                          'max': round(float(slopes.max()), 3) if slopes.size else 0}}
+    report['urbanDatum'] = details
+    return {**terrain, 'heights': values.ravel().tolist(),
+            'processing': {**terrain['processing'], 'urbanDatum': details}}
 
 
 def _polygons(geometry):
@@ -25,7 +78,8 @@ def _triangle_height(points, x, z):
     return u * a[1] + v * b[1] + (1 - u - v) * c[1]
 
 
-def build_terrain_surface(terrain, coverage, land, water, report, green=(), wetland=(), chunk_size=500, exclusions=()):
+def build_terrain_surface(terrain, coverage, land, water, report, green=(), wetland=(), chunk_size=500, exclusions=(),
+                          paving=()):
     """输入都是米制 Shapely 面，water/green/wetland/exclusions 为带 poly 的记录。"""
     started = time.perf_counter()
     step, nx, nz = terrain['step'], terrain['nx'], terrain['nz']
@@ -58,8 +112,10 @@ def build_terrain_surface(terrain, coverage, land, water, report, green=(), wetl
     prepare(excluded)
     greens = unary_union([g['poly'] for g in green])
     wetlands = unary_union([g['poly'] for g in wetland])
+    stone = unary_union(paving)
     prepare(greens)
     prepare(wetlands)
+    prepare(stone)
     chunks = []
     surface_area = 0.0
     if dry.is_empty:
@@ -80,17 +136,20 @@ def build_terrain_surface(terrain, coverage, land, water, report, green=(), wetl
             full_chunk = region.covers(chunk_box)
             # 只对相交的三角形做差集，避免远处海岸网格因多边形环重排而改动。
             has_exclusion = bool(removed) and excluded.intersects(chunk_box)
-            positions, indices, ranges, vertex_ids = [], [], [], {}
+            has_paving = stone.intersects(chunk_box)
+            positions, indices, ranges, vertex_ids, stone_vertices = [], [], [], {}, []
 
-            def vertex(point):
-                # 去重只使用精确坐标，不量化边界；高度仍在原始 DEM 三角平面上。
-                key = (point[0], point[1], point[2])
+            def vertex(point, paved):
+                # 铺装边界的两边位置相同、颜色独立，裁切仍在同一个高程平面内。
+                key = (*point, paved)
                 if key not in vertex_ids:
                     vertex_ids[key] = len(positions) // 3
+                    if paved:
+                        stone_vertices.append(vertex_ids[key])
                     positions.extend([point[0] - origin_x, point[1], point[2] - origin_z])
                 return vertex_ids[key]
 
-            def emit(points):
+            def emit(points, paved=False):
                 nonlocal surface_area
                 a, b, c = points
                 signed_area = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2])
@@ -99,7 +158,7 @@ def build_terrain_surface(terrain, coverage, land, water, report, green=(), wetl
                 if signed_area < 0:
                     points = [a, c, b]
                 surface_area += abs(signed_area) * 0.5
-                indices.extend(vertex(p) for p in points)
+                indices.extend(vertex(p, paved) for p in points)
 
             i0 = max(0, round((origin_x - x0) / step))
             i1 = min(nx - 1, round((origin_x + chunk_size - x0) / step))
@@ -109,33 +168,41 @@ def build_terrain_surface(terrain, coverage, land, water, report, green=(), wetl
                 z = z0 + j * step
                 for i in range(i0, i1):
                     x = x0 + i * step
-                    square = None if full_chunk and not has_exclusion else box(x, z, x + step, z + step)
+                    square = None if full_chunk and not (has_exclusion or has_paving) else box(x, z, x + step, z + step)
                     full_cell = full_chunk or region.covers(square)
                     if not full_cell and not region.intersects(square):
                         continue
                     cut_cell = has_exclusion and excluded.intersects(square)
+                    paved_cell = has_paving and stone.intersects(square)
+                    all_paved = paved_cell and stone.covers(square)
                     start = len(indices)
                     a = (x, heights[j * nx + i] * terrain['heightScale'], z)
                     b = (x + step, heights[j * nx + i + 1] * terrain['heightScale'], z)
                     c = (x, heights[(j + 1) * nx + i] * terrain['heightScale'], z + step)
                     d = (x + step, heights[(j + 1) * nx + i + 1] * terrain['heightScale'], z + step)
                     for triangle in ([a, c, b], [b, c, d]):
-                        if full_cell and not cut_cell:
-                            emit(triangle)
+                        if full_cell and not cut_cell and (not paved_cell or all_paved):
+                            emit(triangle, all_paved)
                             continue
                         clipped = Polygon([(p[0], p[2]) for p in triangle])
                         if not full_cell:
                             clipped = clipped.intersection(region)
                         if cut_cell and excluded.intersects(clipped):
                             clipped = clipped.difference(excluded)
-                        elif full_cell:
+                        elif full_cell and not paved_cell:
                             emit(triangle)
                             continue
-                        for poly in _polygons(clipped):
-                            if poly.area <= 1e-10:
-                                continue
-                            for face in constrained_delaunay_triangles(poly).geoms:
-                                emit([(px, _triangle_height(triangle, px, pz), pz) for px, pz in list(face.exterior.coords)[:-1]])
+                        if paved_cell and not all_paved and stone.intersects(clipped):
+                            pieces = [(clipped.difference(stone), False), (clipped.intersection(stone), True)]
+                        else:
+                            pieces = [(clipped, all_paved)]
+                        for piece, paved in pieces:
+                            for poly in _polygons(piece):
+                                if poly.area <= 1e-10:
+                                    continue
+                                for face in constrained_delaunay_triangles(poly).geoms:
+                                    emit([(px, _triangle_height(triangle, px, pz), pz)
+                                          for px, pz in list(face.exterior.coords)[:-1]], paved)
                     if len(indices) > start:
                         ranges.extend([j * (nx - 1) + i, start, len(indices) - start])
             if not indices:
@@ -146,6 +213,7 @@ def build_terrain_surface(terrain, coverage, land, water, report, green=(), wetl
             kinds = np.zeros(len(array), dtype=np.uint8)
             kinds[contains_xy(greens, xs, zs)] = 1
             kinds[contains_xy(wetlands, xs, zs)] = 2
+            kinds[stone_vertices] = 3
             chunks.append({'id': f'{cx},{cz}', 'origin': [origin_x, origin_z], 'positions': positions,
                            'indices': indices, 'cellRanges': ranges, 'kinds': kinds.tolist()})
     expected_area = dry.area - removed_area
@@ -163,4 +231,6 @@ def build_terrain_surface(terrain, coverage, land, water, report, green=(), wetl
     if removed:
         result['exclusions'] = removed
         report['terrainSurface']['exclusions'] = removed
+    if paving:
+        report['terrainSurface']['stonePavingAreaM2'] = round(stone.intersection(dry).difference(excluded).area, 3)
     return result

@@ -1,18 +1,21 @@
 {
   "version": 1,
-  "checkedAt": "2026-11-12T01:45:39.809535+00:00",
+  "checkedAt": "2026-11-12T04:31:57.210141+00:00",
   "encodingValidation": "passed",
   "realityValidation": "incomplete",
   "recentObservationWindow": [
     2025,
     2026
   ],
-  "payloadSha256": "aa57b1f854ca2ebaa9d893b0f2784cc74b942c9cc4da4842e03b4f90bdf7f0cf",
+  "payloadSha256": "090794d1400506d557f0c705175048dcef82c0bb62c8d1f6c6c7f03a8d65afd3",
   "sourceIntegrity": [
     {
       "id": "osm-guangdong",
       "sha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
       "bytes": 174793884,
+      "file": "data/raw/guangdong-latest.osm.pbf",
+      "url": "https://download.geofabrik.de/asia/china/guangdong-261108.osm.pbf",
+      "snapshotAt": "2026-11-08T23:59:19Z",
       "release": "2026-11-08T23:59:19Z",
       "referenceYear": null,
       "observedAt": null
@@ -21,6 +24,9 @@
       "id": "overture-buildings",
       "sha256": "0028f8116503f4a48d4b6e0a03b770c7f3267f86154945077e3a421d8d5d7f1e",
       "bytes": 45372883,
+      "file": "data/raw/overture/buildings-2026-10-21.0.jsonl",
+      "url": "s3://overturemaps-us-west-2/release/2026-10-21.0/theme=buildings/type=building/*",
+      "snapshotAt": null,
       "release": "2026-10-21.0",
       "referenceYear": null,
       "observedAt": null
@@ -29,6 +35,9 @@
       "id": "globfp-2265",
       "sha256": "1afdd8cd03b31e9b215242630b283c5d2cb880b8648b411fdcf92d8e0f2acdc1",
       "bytes": 170628543,
+      "file": "data/raw/globfp/2265.zip",
+      "url": "https://ndownloader.figshare.com/files/57131525",
+      "snapshotAt": null,
       "release": null,
       "referenceYear": 2020,
       "observedAt": null
@@ -37,6 +46,9 @@
       "id": "globfp-2269",
       "sha256": "84ecfcb9bd9e2e342d124b8842d72d1891f127fe46eb4fa1f8f2901b2571b226",
       "bytes": 71481999,
+      "file": "data/raw/globfp/2269.zip",
+      "url": "https://ndownloader.figshare.com/files/57131471",
+      "snapshotAt": null,
       "release": null,
       "referenceYear": 2020,
       "observedAt": null
@@ -45,6 +57,9 @@
       "id": "copernicus-dem-N22E113",
       "sha256": "074e13244e6da6745bcf76150fdc6e06f774140a7aac796785922fce962eacbb",
       "bytes": 36641041,
+      "file": "data/raw/terrain/copernicus/N22E113.tif",
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N22_00_E113_00_DEM/Copernicus_DSM_COG_10_N22_00_E113_00_DEM.tif",
+      "snapshotAt": null,
       "release": "2021 (AWS public distribution)",
       "referenceYear": null,
       "observedAt": null
@@ -53,6 +68,9 @@
       "id": "copernicus-dem-N22E114",
       "sha256": "b950ab75642d6684fe08c82b6aa3bb087c1d35acd229ef0e6e6586e1b0868fa3",
       "bytes": 25030462,
+      "file": "data/raw/terrain/copernicus/N22E114.tif",
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N22_00_E114_00_DEM/Copernicus_DSM_COG_10_N22_00_E114_00_DEM.tif",
+      "snapshotAt": null,
       "release": "2021 (AWS public distribution)",
       "referenceYear": null,
       "observedAt": null
@@ -383,10 +401,10 @@
     "format": "SZC1",
     "version": 1,
     "columns": 3241,
-    "metadataBytes": 7754614,
-    "numericBytes": 14670272,
-    "uncompressedBytes": 22424936,
+    "metadataBytes": 7756999,
+    "numericBytes": 14681208,
+    "uncompressedBytes": 22438256,
     "lossless": true,
-    "compressedBytes": 6710223
+    "compressedBytes": 6705966
   }
 }

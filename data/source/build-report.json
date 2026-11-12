@@ -44568,11 +44568,11 @@
     ],
     "unresolvedLinks": [],
     "timing": {
-      "baselineSeconds": 0.056,
-      "stationSeconds": 0.136,
-      "profileSeconds": 0.927,
-      "vertexSeconds": 0.784,
-      "totalSeconds": 2.0
+      "baselineSeconds": 0.069,
+      "stationSeconds": 0.202,
+      "profileSeconds": 0.973,
+      "vertexSeconds": 0.806,
+      "totalSeconds": 2.157
     },
     "limitations": [
       "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
@@ -44699,11 +44699,11 @@
   },
   "terrainSurface": {
     "chunks": 534,
-    "vertices": 245240,
-    "triangles": 386824,
-    "areaKm2": 105.747093,
-    "areaErrorM2": -1.71e-06,
-    "seconds": 2.59,
+    "vertices": 245594,
+    "triangles": 387171,
+    "areaKm2": 105.746514,
+    "areaErrorM2": -2.7e-07,
+    "seconds": 3.55,
     "waterLevelsGenerated": false,
     "heightSource": "copernicus-glo30-dsm",
     "exclusions": [
@@ -45061,7 +45061,8 @@
           ]
         ]
       }
-    ]
+    ],
+    "stonePavingAreaM2": 109688.085
   },
   "metro": {
     "network": "深圳地铁",
@@ -45802,12 +45803,195 @@
     "format": "SZC1",
     "version": 1,
     "columns": 3241,
-    "metadataBytes": 7754614,
-    "numericBytes": 14670272,
-    "uncompressedBytes": 22424936,
+    "metadataBytes": 7756999,
+    "numericBytes": 14681208,
+    "uncompressedBytes": 22438256,
     "lossless": true,
-    "compressedBytes": 6710223
+    "compressedBytes": 6705966
   },
-  "outputBytes": 6872995,
-  "seconds": 39.6
+  "outputBytes": 6865167,
+  "seconds": 15.7,
+  "urbanDatum": {
+    "heightSource": "urban-datum",
+    "heightM": 8.0,
+    "reference": {
+      "method": "Median of nine selected OSM ground-road centreline points sampled with bilinear FABDEM V1-2, rounded to the 0.1 m terrain grid. The prior derived surface is comparison only.",
+      "kind": "estimated-engineering-surface",
+      "verticalDatum": "EGM2008",
+      "sourceId": "fabdem-bristol-v1.2-road-surface",
+      "sourceUrl": "https://research-information.bris.ac.uk/en/datasets/fabdem-v1-2/",
+      "medianM": 8.008,
+      "previousSurfaceMedianM": 11.207,
+      "samples": [
+        {
+          "name": "福中三路新洲段",
+          "osmId": "way/616988561",
+          "wgs84": [
+            114.0449972,
+            22.5452345
+          ],
+          "fabdemM": 8.008,
+          "previousSurfaceM": 12.971
+        },
+        {
+          "name": "福中三路市民中心",
+          "osmId": "way/616988561",
+          "wgs84": [
+            114.0554,
+            22.5454025
+          ],
+          "fabdemM": 9.306,
+          "previousSurfaceM": 11.207
+        },
+        {
+          "name": "深南大道竹子林",
+          "osmId": "way/996247118",
+          "wgs84": [
+            114.0028711,
+            22.5361318
+          ],
+          "fabdemM": 16.755,
+          "previousSurfaceM": 18.412
+        },
+        {
+          "name": "深南大道车公庙",
+          "osmId": "way/892901021",
+          "wgs84": [
+            114.0206794,
+            22.5390993
+          ],
+          "fabdemM": 6.984,
+          "previousSurfaceM": 5.914
+        },
+        {
+          "name": "深南大道科技园",
+          "osmId": "way/1050765265",
+          "wgs84": [
+            113.9488987,
+            22.5433253
+          ],
+          "fabdemM": 4.776,
+          "previousSurfaceM": 7.837
+        },
+        {
+          "name": "华强北振中路",
+          "osmId": "way/177228961",
+          "wgs84": [
+            114.0827607,
+            22.5456129
+          ],
+          "fabdemM": 11.866,
+          "previousSurfaceM": 18.844
+        },
+        {
+          "name": "华强北深南中路",
+          "osmId": "way/616351227",
+          "wgs84": [
+            114.0828209,
+            22.5432326
+          ],
+          "fabdemM": 10.881,
+          "previousSurfaceM": 14.479
+        },
+        {
+          "name": "后海海德三道",
+          "osmId": "way/232498907",
+          "wgs84": [
+            113.9414931,
+            22.5203878
+          ],
+          "fabdemM": 5.098,
+          "previousSurfaceM": 4.444
+        },
+        {
+          "name": "会展中心福华三路",
+          "osmId": "way/996752264",
+          "wgs84": [
+            114.0546994,
+            22.5353316
+          ],
+          "fabdemM": 7.06,
+          "previousSurfaceM": 1.916
+        }
+      ]
+    },
+    "pilots": {
+      "futian-civic": {
+        "boundsXZ": [
+          -1080.0507020331738,
+          -105.20083140965144,
+          668.6028155441369,
+          996.6394554603527
+        ],
+        "transitionM": 300,
+        "levelVertices": 3080
+      },
+      "shennan-chegongmiao": {
+        "boundsXZ": [
+          -3754.46196420826,
+          686.5738470948572,
+          -3137.290134475435,
+          930.1968250960931
+        ],
+        "transitionM": 260,
+        "levelVertices": 250
+      }
+    },
+    "changedVertices": 7155,
+    "maxDeltaM": 23.7,
+    "transitionSlopePercent": {
+      "p95": 24.747,
+      "max": 79.108
+    },
+    "commercialPaving": {
+      "osmIds": [
+        "way/1305353913",
+        "way/529086160",
+        "way/546582690",
+        "way/776141699"
+      ],
+      "source": "Neutral hardscape appearance estimated within reviewed retail and commercial outlines, excluding mapped green surfaces. No claim about stone material or public access.",
+      "areaM2": 109688.09
+    }
+  },
+  "groundRebuild": {
+    "basePayloadSha256": "515854981b5fac23787d40bed06d7514c0d4c0fe9e55d35fa0da662464eec4ec",
+    "changedSections": [
+      "terrain",
+      "terrainSurface"
+    ],
+    "rebuiltChunks": [
+      "-3,-1",
+      "-2,-1",
+      "-1,-1",
+      "0,-1",
+      "1,-1",
+      "-8,0",
+      "-7,0",
+      "-6,0",
+      "-3,0",
+      "-2,0",
+      "-1,0",
+      "0,0",
+      "1,0",
+      "-9,1",
+      "-8,1",
+      "-7,1",
+      "-6,1",
+      "-3,1",
+      "-2,1",
+      "-1,1",
+      "0,1",
+      "1,1",
+      "-9,2",
+      "-8,2",
+      "-7,2",
+      "-6,2",
+      "-3,2",
+      "-2,2",
+      "-1,2",
+      "0,2",
+      "1,2"
+    ]
+  }
 }

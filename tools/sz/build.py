@@ -6,13 +6,15 @@ import json
 import time
 from pathlib import Path
 
-from shapely.geometry import box
+from shapely import make_valid, transform
+from shapely.geometry import Polygon, box
+from shapely.ops import unary_union
 
 from beihuan import apply_beihuan_sections
 from bridges import build_bridges
 from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, ROLES,
                        UPSTREAM_FAMILIES, build_buildings, ensure_globfp)
-from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project
+from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project, project_coords
 from land import build_land
 from landmark_sites import build_landmark_sites
 from osm import read_osm
@@ -24,19 +26,20 @@ from sea_surface import build_sea_surface
 from streetscape import build_streetscape
 from terrain import build_terrain
 from terrain_exclusions import chunjian_exclusions
-from terrain_surface import build_terrain_surface
+from terrain_surface import apply_urban_datum, build_terrain_surface
 from road_surface import build_road_surface
 from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
 from fastpack import encode_city
-from package_validation import CORE_SOURCES, audit_payload, require_matching_snapshot, verify_sources
+from package_validation import CORE_SOURCES, audit_payload, require_matching_snapshot, ring_points, verify_sources
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'js/sz-city.json.gz'
 REPORT = ROOT / 'data/source/build-report.json'
 LANDMARKS = ROOT / 'data/source/landmarks.json'
 AIR = ROOT / 'data/source/air-routes.json'
+URBAN_DATUM = ROOT / 'data/source/urban-datum.json'
 FAST_OUT = ROOT / 'js/sz-city.szc.gz'
 VALIDATION_REPORT = ROOT / 'data/source/data-validation-report.json'
 
@@ -88,6 +91,99 @@ def write_fast_package(payload, raw, sources):
     return stats
 
 
+def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph, osm, osm_source, report):
+    manifest = json.loads(URBAN_DATUM.read_text())
+    if manifest['version'] != 1 or manifest['osmSnapshotSha256'] != osm_source['sha256']:
+        raise ValueError('Urban datum needs the reviewed OSM snapshot')
+    dry = unary_union(land).difference(unary_union([feature['poly'] for feature in water]))
+    mapped_green = {entry['id']: entry['geom'] for entry in osm['green']}
+    protected = unary_union([transform(mapped_green[entry['osmId']], project, interleaved=False)
+                             for entry in manifest['relief']]
+                            + [entry['poly'] for entry in exclusions])
+    pilots = []
+    for row in manifest['pilots']:
+        west, south, east, north = row['boundsWgs84']
+        pilots.append((row, box(*project(west, north), *project(east, south))))
+    core = unary_union([polygon for _, polygon in pilots])
+    commercial = []
+    for row in manifest['commercial']:
+        outer, *holes = row['polygonWgs84']
+        polygon = Polygon(project_coords(outer), [project_coords(ring) for ring in holes])
+        if not polygon.is_valid:
+            raise ValueError(f'Invalid commercial area: {row["osmId"]}')
+        commercial.append(polygon)
+    planted = unary_union([entry['poly'] for entry in [*green, *wetland]]).union(protected)
+    paving = unary_union(commercial).intersection(core).difference(planted)
+    terrain = build_road_surface(terrain, graph, report, excluded_polygons=exclusions)
+    terrain = apply_urban_datum(terrain, pilots, manifest['datum'], dry, protected, report)
+    report['urbanDatum']['commercialPaving'] = {'osmIds': [row['osmId'] for row in manifest['commercial']],
+        'source': manifest['pavingSource'], 'areaM2': round(paving.intersection(dry).area, 2)}
+    surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland,
+                                    exclusions=exclusions, paving=[paving])
+    affected = unary_union([polygon.buffer(row['transitionM'] + terrain['step']) for row, polygon in pilots])
+    return terrain, surface, affected
+
+
+def write_city_packages(payload, report, sources, started):
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
+    temporary = OUT.with_suffix('.tmp')
+    temporary.write_bytes(gzip.compress(raw, 9, mtime=0))
+    try:
+        report['fastPackage'] = write_fast_package(payload, raw, sources)
+        temporary.replace(OUT)
+    finally:
+        temporary.unlink(missing_ok=True)
+    report['outputBytes'] = OUT.stat().st_size
+    report['seconds'] = round(time.time() - started, 1)
+    REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+
+
+def rebuild_ground(terrain_source, sources, osm, osm_source, report, started):
+    raw = gzip.decompress(OUT.read_bytes())
+    validation = json.loads(VALIDATION_REPORT.read_text())
+    require_matching_snapshot(raw, validation, sources)
+    payload = json.loads(raw)
+    report.update(json.loads(REPORT.read_text()))
+    clip = phase1_clip_local()
+    if (payload['origin'] != [ORIGIN_LON, ORIGIN_LAT]
+            or payload['coverage'] != [enc_poly(p) for p in getattr(clip, 'geoms', [clip])]):
+        raise ValueError('Ground rebuild requires the current city origin and coverage')
+
+    def polygons(key):
+        for outer, *holes in payload[key]:
+            polygon = Polygon(ring_points(outer), [ring_points(ring) for ring in holes])
+            yield polygon if polygon.is_valid else make_valid(polygon)
+
+    previous = payload['terrainSurface']
+    exclusions = [{**{key: value for key, value in item.items() if key not in ('areaM2', 'boundsXZ', 'polygonXZ')},
+                   'poly': Polygon(item['polygonXZ'])} for item in previous.get('exclusions', [])]
+    land = list(polygons('land'))
+    water, green, wetland = [[{'poly': poly} for poly in polygons(key)] for key in ('water', 'green', 'wetland')]
+    source = build_terrain(clip, report, source=terrain_source)
+    terrain, surface, affected = compile_ground(source, clip, land, water, green, wetland, exclusions,
+                                                payload['roadGraph'], osm, osm_source, report)
+    if previous['grid'] != surface['grid'] or previous['chunkSize'] != surface['chunkSize']:
+        raise ValueError('Ground rebuild changed the city terrain grid')
+    size = surface['chunkSize']
+    # 局部重建沿用样区外已发布的三角面，避免重解码岸线引入无关变化。
+    def in_pilot(chunk):
+        x, z = chunk['origin']
+        return affected.intersects(box(x, z, x + size, z + size))
+
+    retained = [chunk for chunk in previous['chunks'] if not in_pilot(chunk)]
+    rebuilt = [chunk for chunk in surface['chunks'] if in_pilot(chunk)]
+    surface['chunks'] = sorted([*retained, *rebuilt], key=lambda chunk: chunk['origin'][::-1])
+    report['terrainSurface'].update(chunks=len(surface['chunks']),
+        vertices=sum(len(chunk['positions']) // 3 for chunk in surface['chunks']),
+        triangles=sum(len(chunk['indices']) // 3 for chunk in surface['chunks']))
+    report['groundRebuild'] = {'basePayloadSha256': validation['payloadSha256'],
+        'changedSections': ['terrain', 'terrainSurface'], 'rebuiltChunks': [chunk['id'] for chunk in rebuilt]}
+    payload['terrain'], payload['terrainSurface'] = terrain, surface
+    write_city_packages(payload, report, sources, started)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-cache', action='store_true', help='rebuild OSM and GloBFP extraction caches from the verified snapshots')
@@ -97,8 +193,11 @@ def main():
                     help='select a traceable elevation product without modifying source heights')
     ap.add_argument('--footprint-source', choices=['all', 'osm'], default='all',
                     help='all = OSM + Overture + GloBFP footprints; osm = only map-marked OSM footprints')
-    ap.add_argument('--repack-existing', action='store_true',
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument('--repack-existing', action='store_true',
                     help='validate the existing shared snapshot and generate lossless SZC1 without rebuilding geometry')
+    mode.add_argument('--rebuild-ground', action='store_true',
+                      help='rebuild the ground pilot from the current verified payload and snapshots')
     args = ap.parse_args()
 
     if args.repack_existing:
@@ -121,6 +220,9 @@ def main():
     clip = phase1_clip_local()
     osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=pbf, source_sha256=osm_source['sha256'])
     print(f'osm loaded in {time.time() - t0:.1f}s', flush=True)
+    if args.rebuild_ground:
+        rebuild_ground(args.terrain_source, sources, osm, osm_source, report, t0)
+        return
 
     buildings = build_buildings(osm, clip, report, reviewed_parent_uses=not args.without_building_use_review,
                                 include_remote_footprints=args.footprint_source == 'all',
@@ -136,12 +238,9 @@ def main():
     road_graph['turnRestrictions'] = build_turn_restrictions(pbf, road_graph, report)
     # 春茧两座封闭厅是已核实的地面裁除区：派生路面不得改写馆内格点，先按原始 DSM 求出并复用。
     exclusions = chunjian_exclusions(buildings, terrain, osm['roads'])
-    # 路面走廊用 FABDEM 基线派生平滑高程；原始 DSM 在走廊外不变，报告记录逐段前后高差。
-    terrain = build_road_surface(terrain, road_graph, report,
-                                 excluded_polygons=[exclusion['poly'] for exclusion in exclusions])
+    terrain, terrain_surface, _ = compile_ground(terrain, clip, land, water, green, wetland, exclusions,
+                                                 road_graph, osm, osm_source, report)
     road_frontage = build_road_frontage(pbf, osm, road_graph, buildings, report)
-    terrain_surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland,
-                                          exclusions=exclusions)
     metro = build_metro(clip, report, use_cache=not args.no_cache, pbf=pbf, verified_source=osm_source)
 
     landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
@@ -233,14 +332,7 @@ def main():
         'buildingsWithLevels': sum(1 for b in buildings if b.get('levels', -1) > 0),
     }
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
-    report['fastPackage'] = write_fast_package(payload, raw, sources)
-    OUT.write_bytes(gzip.compress(raw, 9, mtime=0))
-    report['outputBytes'] = OUT.stat().st_size
-    report['seconds'] = round(time.time() - t0, 1)
-    REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    write_city_packages(payload, report, sources, t0)
 
 
 if __name__ == '__main__':
