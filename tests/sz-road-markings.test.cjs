@@ -3,9 +3,10 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { loadModule } = require('./helpers/module.cjs');
+const roads = require('./helpers/roads.cjs');
 
 const { createLanePlan, createMarkingLayout } = loadModule(
-  readFileSync(join(__dirname, '../js/sz-road-markings.js'), 'utf8'));
+  readFileSync(join(__dirname, '../js/sz-road-markings.js'), 'utf8'), { imports: { './sz-roads.js': roads } });
 
 const GROUND = { osmId: 'way/1', highway: 'primary', widthSource: 'estimate-from-class',
   heightSource: 'terrain', bridge: false, tunnel: false, layer: 0 };
@@ -58,6 +59,28 @@ test('reviewed corridor replaces overlapping paint while generic markings contin
   assert.ok(strips.some(strip => strip.ax === 89));
   assert.ok(strips.every(strip => strip.bx <= 27 || strip.ax >= 89));
   assert.ok(strips.every(strip => LONGITUDINAL.has(strip.kind)));
+});
+
+test('edge and lane paint follow a changing asymmetric section after trimming a junction', () => {
+  const graph = graphFor([{ x: 0, z: 14 }, { x: 120, z: 14 }], {
+    width: 12, lanes: 3, direction: 1,
+    metadata: { crossSection: { laneWidthM: 3, points: [0, 14, 2, 120, 14, 4] } }
+  });
+  const approach = { sourceIndex: 0, group: 0, stopX: 110, stopZ: 14, dx: 1, dz: 0, widthM: 12 };
+  const { strips, statistics } = createMarkingLayout(graph, { intersections: [{ approaches: [approach] }] });
+  assert.equal(statistics.breakLinks, 1);
+  const edges = longitudinal(strips).filter(strip => strip.kind.startsWith('edge'));
+  assert.ok(edges.some(strip => strip.kind === 'edge-left'));
+  assert.ok(edges.some(strip => strip.kind === 'edge-right'));
+  for (const strip of edges) {
+    for (const [x, z] of [[strip.ax, strip.az], [strip.bx, strip.bz]]) {
+      const edge = 14 - (2 + 2 * x / 120);
+      const expected = edge + (strip.kind === 'edge-right' ? 11.62 : 0.38);
+      assert.ok(Math.abs(z - expected) < 1e-8);
+    }
+  }
+  const lanes = [...new Set(strips.filter(strip => strip.kind === 'lane' && strip.ax === 0).map(strip => strip.az))];
+  assert.deepEqual(lanes.sort((a, b) => a - b), [15, 18]);
 });
 
 test('two-way roads get a double-yellow center, dashed lane dividers and solid edge lines', () => {

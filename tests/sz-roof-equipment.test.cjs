@@ -5,6 +5,7 @@ const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
+const roadsModule = require('./helpers/roads.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 // 只验证平面几何计划，不创建场景；Three 和材质用空壳，建筑模块的入口函数不在这里调用。
@@ -17,7 +18,7 @@ const buildingsModule = loadModule(read('sz-buildings.js'), { imports: {
   './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
   './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': emptyThree } }),
   './sz-materials.js': { createBuildingMaterial: () => ({}) },
-  './sz-building-layout.js': layout, './sz-polygon.js': polygonModule
+  './sz-building-layout.js': layout, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
 } });
 const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
 const { buildings } = decodeCityPayload(JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz')))));

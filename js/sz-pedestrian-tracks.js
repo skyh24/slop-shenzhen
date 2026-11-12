@@ -1,4 +1,4 @@
-import { convexHull, isGroundRoad, roadSectionPoints } from './sz-roads.js';
+import { visitGroundRoadFootprints, isGroundRoad, roadSectionPoints } from './sz-roads.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 
 // 深圳没有全城实测的人行道网格：本模块沿地面道路中心线两侧偏移出“模拟步行带”（walk track），
@@ -267,45 +267,8 @@ function colliderAt(index, x, z, y, radius, height) {
   return null;
 }
 
-function turn(a, b, c) {
-  return (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
-}
-
-// 与 js/sz-roads.js 的路面网格同源：有复核断面的路按 crossSection 的左右边取宽度，
-// 共用 OSM 节点的路口按各臂端断面的凸包补面，相邻段外侧再补斜接三角形。
-// 这样人物避让的车行道范围与实际画出来的沥青是同一份几何，不会在路口切过路面。
-// ux、uz 是单位方向；leftM 是该站点到左路缘的米数（无复核断面时取半宽）。
-function sectionEdges(point, ux, uz, widthM) {
-  const left = point.leftM ?? widthM / 2;
-  const right = widthM - left;
-  return [
-    { x: point.x + uz * left, z: point.z - ux * left },
-    { x: point.x - uz * right, z: point.z + ux * right }
-  ];
-}
-
-// 凸多边形存成朝外的半平面：点在内侧时 signed <= 0；查询时用 margin 把边向外推。
-function barrierPolygon(points) {
-  const ring = [];
-  for (const point of points) {
-    const last = ring[ring.length - 1];
-    if (last && Math.abs(last.x - point.x) < 1e-7 && Math.abs(last.z - point.z) < 1e-7) continue;
-    ring.push({ x: point.x, z: point.z });
-  }
-  if (ring.length > 1) {
-    const first = ring[0];
-    const last = ring[ring.length - 1];
-    if (Math.abs(first.x - last.x) < 1e-7 && Math.abs(first.z - last.z) < 1e-7) ring.pop();
-  }
-  if (ring.length < 3) return null;
-  let area = 0;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i];
-    const b = ring[(i + 1) % ring.length];
-    area += a.x * b.z - b.x * a.z;
-  }
-  if (Math.abs(area) < 1e-6) return null;
-  if (area < 0) ring.reverse();
+// 车行面访问器返回逆时针凸多边形。点在所有边的内侧时 signed <= 0。
+function barrierPolygon(ring) {
   const edges = [];
   const bounds = { minX: Infinity, minZ: Infinity, maxX: -Infinity, maxZ: -Infinity };
   for (let i = 0; i < ring.length; i++) {
@@ -336,7 +299,13 @@ export function createCarriagewayBarrier(graph, options = {}) {
     minX: options.bounds.minX - extendM, minZ: options.bounds.minZ - extendM,
     maxX: options.bounds.maxX + extendM, maxZ: options.bounds.maxZ + extendM
   } : null;
-  const boxes = linkBoundsCache(graph);
+  const boxes = bounds ? linkBoundsCache(graph) : null;
+  const includeLink = boxes ? index => {
+    const box = boxes[index];
+    const width = graph.links[index][3];
+    return box.minX - width <= bounds.maxX && box.maxX + width >= bounds.minX
+      && box.minZ - width <= bounds.maxZ && box.maxZ + width >= bounds.minZ;
+  } : null;
   const cells = new Map();
   let polygons = 0;
   function add(points) {
@@ -353,71 +322,7 @@ export function createCarriagewayBarrier(graph, options = {}) {
     }
     polygons++;
   }
-  const included = [];
-  const touched = new Set();
-  for (let index = 0; index < graph.links.length; index++) {
-    if (!isGroundRoad(graph.metadata[index])) continue;
-    if (bounds && !boundsOverlap(boxes[index], bounds)) continue;
-    included.push(index);
-    touched.add(graph.links[index][0]);
-    touched.add(graph.links[index][1]);
-  }
-  for (const index of included) {
-    const link = graph.links[index];
-    const stations = roadSectionPoints(graph, link, graph.metadata[index]);
-    if (stations.length < 2) continue;
-    let previous = null;
-    for (let i = 1; i < stations.length; i++) {
-      const a = stations[i - 1];
-      const b = stations[i];
-      const dx = b.x - a.x;
-      const dz = b.z - a.z;
-      const length = Math.hypot(dx, dz);
-      if (length < EPSILON) continue;
-      const ux = dx / length;
-      const uz = dz / length;
-      const start = sectionEdges(a, ux, uz, link[3]);
-      const end = sectionEdges(b, ux, uz, link[3]);
-      add([start[0], end[0], end[1], start[1]]);
-      if (previous) {
-        const change = previous.ux * uz - previous.uz * ux;
-        const side = change > 0 ? 0 : 1;
-        const before = previous.end[side];
-        const after = start[side];
-        if (Math.abs(turn(a, before, after)) > EPSILON) add(change > 0 ? [a, before, after] : [a, after, before]);
-      }
-      previous = { ux, uz, end };
-    }
-  }
-  // 共用节点路口补面：与 indexRoadFootprints 一样取各臂端断面的凸包，臂可以来自区域外的路。
-  if (touched.size > 0) {
-    const arms = new Map();
-    for (let index = 0; index < graph.links.length; index++) {
-      const metadata = graph.metadata[index];
-      if (!isGroundRoad(metadata)) continue;
-      const link = graph.links[index];
-      if (!touched.has(link[0]) && !touched.has(link[1])) continue;
-      const stations = roadSectionPoints(graph, link, metadata);
-      if (stations.length < 2) continue;
-      const addArm = (from, to, atStart, node) => {
-        const dx = to.x - from.x;
-        const dz = to.z - from.z;
-        const length = Math.hypot(dx, dz);
-        if (length < EPSILON) return;
-        const points = sectionEdges(atStart ? from : to, dx / length, dz / length, link[3]);
-        let list = arms.get(node);
-        if (!list) arms.set(node, list = []);
-        list.push(...points);
-      };
-      if (touched.has(link[0])) addArm(stations[0], stations[1], true, link[0]);
-      if (touched.has(link[1])) addArm(stations.at(-2), stations.at(-1), false, link[1]);
-    }
-    for (const points of arms.values()) {
-      if (points.length < 4) continue;
-      const hull = convexHull(points);
-      if (hull.length >= 3) add(hull);
-    }
-  }
+  visitGroundRoadFootprints(graph, add, includeLink);
   function contains(x, z, marginM = 0) {
     const list = cells.get(cellKey(Math.floor(x / cellSize), Math.floor(z / cellSize)));
     if (!list) return false;

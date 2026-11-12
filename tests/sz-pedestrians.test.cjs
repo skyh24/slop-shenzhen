@@ -437,6 +437,28 @@ test('peds spawn away from the player and stop when the player is close', () => 
   }
 });
 
+test('pedestrian avoidance and visibility use the local surface above sea level', () => {
+  const graph = straightGraph(2000);
+  const focus = { x: 1000, y: 8, z: 0 };
+  const stepNear = (playerHeight) => {
+    const { peds } = makeFactory(graph, { heightAt: () => 8, maxPeds: 1, nearRadiusM: 200 });
+    peds.update(0, focus, 0);
+    const ped = peds.peds.find(candidate => candidate.placed);
+    assert.ok(ped);
+    ped.v = 0;
+    const start = ped.s;
+    const player = { type: 'person', position: { x: ped.x, y: playerHeight, z: ped.z } };
+    let visibleY;
+    for (let frame = 1; frame <= 12; frame++) {
+      peds.update(0.05, focus, frame * 0.05, (x, z, radius, y) => { visibleY = y; return true; }, [player]);
+    }
+    assert.equal(visibleY, 8);
+    return Math.abs(ped.s - start);
+  };
+  assert.equal(stepNear(8), 0);
+  assert.ok(stepNear(20) > 0.1);
+});
+
 test('peds never stand inside building colliders and dispose releases the scene', () => {
   const graph = straightGraph(800);
   const building = collider(350, -9, 450, -3);
@@ -461,19 +483,23 @@ test('factory validates its injected dependencies', () => {
   assert.throws(() => buildWalkTracks(straightGraph(), { heightAt: undefined }));
 });
 
-test('carriageway barrier uses the terminal section at a right-angle junction', () => {
+test('the local barrier shares asymmetric terminal sections with rendered asphalt', () => {
   const graph = roadGraph([2, 8, 10, 8, 10, 16], [4, 4]);
+  graph.metadata[0].crossSection = { points: [2, 8, 1.5, 10, 8, 2.5] };
   const grid = { x0: 0, z0: 0, step: 20, nx: 2, nz: 2 };
   const terrain = { version: 1, grid, chunks: [{ id: 'flat', origin: [0, 0],
     positions: [0, 5, 0, 20, 5, 0, 0, 5, 20, 20, 5, 20],
     indices: [0, 2, 1, 1, 2, 3], cellRanges: [0, 0, 6] }] };
   const { chunks } = roads.createRoadSurfaceLayout(graph, terrain);
   const asphaltHeight = roads.createRoadHeightSampler(chunks, grid);
-  const barrier = createCarriagewayBarrier(graph);
+  const bounds = { minX: 10.5, minZ: 6.9, maxX: 11.5, maxZ: 7.9 };
+  const barrier = createCarriagewayBarrier(graph, { bounds, linkExtendM: 0 });
   for (const [x, z] of [[10.8, 7.2], [11.2, 7.5]]) {
     assert.equal(asphaltHeight(x, z), 5);
     assert.equal(barrier.contains(x, z), true);
   }
+  assert.equal(asphaltHeight(12.5, 7.2), null);
+  assert.equal(barrier.contains(12.5, 7.2), false);
 });
 
 test('carriageway barrier is the rendered road geometry plus a positive margin', () => {

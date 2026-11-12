@@ -9,11 +9,12 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | 文件 | 内容 |
 | --- | --- |
 | [HANDOFF.md](HANDOFF.md) | **从这里开始**：当前状态、已挂进场景的内容、下一步、已知风险 |
-| [REVIEW-FOLLOWUP-2026-11-10.md](REVIEW-FOLLOWUP-2026-11-10.md) | 功能缺陷审查：已复现问题、功能缺口、修复顺序与验收条件 |
-| [22-OPTIMIZATION-REVIEW.md](22-OPTIMIZATION-REVIEW.md) | 代码优化审查：架构精简、性能、画面，对照纽约和武汉，带执行计划 |
+| [REVIEW-FOLLOWUP-2026-11-10.md](REVIEW-FOLLOWUP-2026-11-10.md) | 2026-11-10 缺陷复现、当时的功能缺口和证据 |
+| [22-OPTIMIZATION-REVIEW.md](22-OPTIMIZATION-REVIEW.md) | 纽约和武汉对照的历史审查、实际优化交付和回滚证据 |
 | [TASKS.md](TASKS.md) | 按里程碑的任务清单和勾选状态 |
 | [ACCEPTANCE-STATUS.md](ACCEPTANCE-STATUS.md) | 九条硬性要求逐条的验收等级和证据 |
-| [NEXT-AGENT-PLAN.md](NEXT-AGENT-PLAN.md) | E0–E6 长期计划、并行分工，以及发给新会话的接续提示 |
+| [29-SHENZHEN-REFINEMENT-PLAN.md](29-SHENZHEN-REFINEMENT-PLAN.md) | 深圳专项精细化、首批路线、依赖、所有权和验收 |
+| [30-REFINEMENT-WORKTREE-PROMPTS.md](30-REFINEMENT-WORKTREE-PROMPTS.md) | 八个专项和协调者的可复制提示词 |
 | [CONVENTIONS.md](CONVENTIONS.md) | 开发规范：语言、代码风格、坐标、数据、建模、验收、Git |
 | [GLOSSARY.md](../GLOSSARY.md) | 区域、街区、场所、走廊与通行表面的领域词汇 |
 | [HANDOFF-HISTORY-2026-11-10.md](HANDOFF-HISTORY-2026-11-10.md)、[HANDOFF-HISTORY-2026-11-09.md](HANDOFF-HISTORY-2026-11-09.md) | 交接历史，只作证据，不作当前指令 |
@@ -35,7 +36,7 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [10-PERF-QA.md](10-PERF-QA.md) | 性能预算、自动检查、浏览器验收路线 |
 | [11-MVP.md](11-MVP.md) | MVP 历史、**正式版九条硬性要求和验收标准** |
 
-### 专项规划（12–27）
+### 模块细则和既有专题计划
 
 | 文件 | 内容 |
 | --- | --- |
@@ -45,9 +46,8 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [18-ROAD-BUILDING-CLEARANCE-PLAN.md](18-ROAD-BUILDING-CLEARANCE-PLAN.md) | 道路与建筑净空治理方案 |
 | [23-BUILDING-AND-STREET-PLAN.md](23-BUILDING-AND-STREET-PLAN.md) | 建筑与占道、城区地坪、深南绿带、路侧、标线、桥隧和出租车曲面计划 |
 | [27-REGION-DATA-PLAN.md](27-REGION-DATA-PLAN.md) | 道路围合区域、地标关联、可扩展风貌基础数据及分阶段接入计划 |
-| [19-WEBSITE-OPTIMIZATION-PLAN.md](19-WEBSITE-OPTIMIZATION-PLAN.md) | 网站加载、数据格式、分块与发布优化（原 13 号） |
 
-### 审计与参考（16–26）
+### 审计与参考
 
 | 文件 | 内容 |
 | --- | --- |
@@ -61,7 +61,7 @@ Slop Shenzhen 是一个在浏览器里漫游深圳关内（南山、福田，二
 | [28-BUILDING-SOURCE-SAMPLES.md](28-BUILDING-SOURCE-SAMPLES.md) | 福田高层、科技园、城中村、立交周边的建筑来源样本对比与引入新源的结论 |
 | [RESEARCH.md](RESEARCH.md) | 前期调研：参考仓库、武汉教训、数据源、APEC、地标核实、检索服务状况 |
 
-2026-11-10 删除的过期文档：`15-IMPROVEMENT-PLAN.md`（规则并入 02、03 号）、`CODE-REVIEW-2026-11-10.md`（模块说明并入 01 号）、`SLIM-REVIEW-2026-11-10.md`（并入 22 号）、`NEXT-SESSION-PROMPT.md`（接续提示并入 NEXT-AGENT-PLAN）。
+2026-11-12 移除旧派工表 `NEXT-AGENT-PLAN.md` 和早期性能计划 `19-WEBSITE-OPTIMIZATION-PLAN.md`。派工以 29、30 号为准，仍适用的加载、分块和发布要求进入 10 号，快包证据保留在 24 号。原稿可由 Git 历史追溯。
 
 文档里指向 `qa/` 的链接是本地证据，`docs/qa/` 不进 Git，克隆的仓库里打不开是预期的。
 
@@ -85,7 +85,7 @@ flowchart LR
   M9 --> M10[M10_phase2]
 ```
 
-正式入口和局部驾驶已实现，但 M2 的地面真实性与全域通行未完成。当前功能修复按 REVIEW-FOLLOWUP 第 4 节推进，优化按 22 号并行推进；不因图示顺序把其他模块误标成未开始。
+正式入口和局部驾驶已实现，但 M2 的地面真实性与全域通行未完成。当前按 [29 号](29-SHENZHEN-REFINEMENT-PLAN.md) 的专项依赖推进。图示表示正式验收依赖，局部功能完成情况以 [验收状态](ACCEPTANCE-STATUS.md) 为准。
 
 ## 运行
 
@@ -100,7 +100,7 @@ python3 tools/sz/serve.py --port 8080
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -r tools/sz/requirements.txt
-.venv/bin/python tools/sz/build.py          # 生成 js/sz-city.json.gz 和 data/source/build-report.json
+.venv/bin/python tools/sz/build.py          # 同时生成 JSON、SZC1 和构建报告
 ```
 
 `tools/sz/fetch.py`（下载并校验原始快照）还没写，现在要按 `data/source/sources.json` 手动下载到 `data/raw/`。

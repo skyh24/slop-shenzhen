@@ -1,3 +1,5 @@
+import { isGroundRoad, roadSectionPoints } from './sz-roads.js';
+
 // 深圳地面道路标线：按 [23 号文档](../../docs/23-BUILDING-AND-STREET-PLAN.md) 第 7 节收束线型。
 // 车道数只用来推断线型，不冒充实测；估算车道数与 OSM lanes 分开标记（laneSource）。
 const LANE_WIDTH_M = 3.25;
@@ -19,14 +21,6 @@ const MAX_MITER_SCALE = 4;
 const PAVEMENT_TOLERANCE = 0.02;
 const SAMPLE_STEP = 20;
 
-function linkPoints(graph, link) {
-  const [a, b, , , , , inner] = link;
-  const points = [{ x: graph.nodes[a * 2], z: graph.nodes[a * 2 + 1] }];
-  for (let i = 0; i < inner.length; i += 2) points.push({ x: inner[i], z: inner[i + 1] });
-  points.push({ x: graph.nodes[b * 2], z: graph.nodes[b * 2 + 1] });
-  return points.filter((point, i) => !i || point.x !== points[i - 1].x || point.z !== points[i - 1].z);
-}
-
 // 把 OSM 车道数或按路宽估算的车道数翻成线型。双向用中心线分向，单向不画黄线。
 export function createLanePlan(link, metadata = {}) {
   const width = Number(link[3]);
@@ -41,11 +35,12 @@ export function createLanePlan(link, metadata = {}) {
   const narrow = width < NARROW_WIDTH_M || (twoWay && laneCount <= 2);
   const forward = twoWay ? Math.max(1, Math.ceil(laneCount / 2)) : laneCount;
   const backward = twoWay ? Math.max(1, laneCount - forward) : 0;
-  const laneWidth = width / laneCount;
+  const sectionLaneWidth = metadata.crossSection?.laneWidthM;
+  const laneWidth = !twoWay && sectionLaneWidth > 0 ? sectionLaneWidth : width / laneCount;
   // 双向双黄线落在道路中心线上（第 7 节要求车道、停止线、斑马线共用同一条中心线），
   // 两个方向各占半幅；奇数车道时多出的一条分在本侧半幅内。
   const half = width / 2;
-  const forwardWidth = twoWay ? half / forward : width / laneCount;
+  const forwardWidth = twoWay ? half / forward : laneWidth;
   const backwardWidth = twoWay ? half / backward : 0;
   const internal = [];
   if (!narrow) {
@@ -54,7 +49,9 @@ export function createLanePlan(link, metadata = {}) {
       for (let i = 1; i < forward; i++) internal.push({ offset: -half + i * forwardWidth, kind: 'dashed-white' });
       for (let i = 1; i < backward; i++) internal.push({ offset: half - i * backwardWidth, kind: 'dashed-white' });
     } else {
-      for (let i = 1; i < laneCount; i++) internal.push({ offset: -half + i * laneWidth, kind: 'dashed-white' });
+      for (let i = 1; i < laneCount && i * laneWidth < width; i++) {
+        internal.push({ offset: -half + i * laneWidth, kind: 'dashed-white' });
+      }
     }
   } else if (twoWay) {
     // 窄路不再按估算车道数拆线，只保留中心线和边线。
@@ -90,9 +87,12 @@ function offsetPoints(points, offset, halfWidth) {
     const previous = segments[i - 1] ?? null;
     const next = segments[i] ?? null;
     if (!previous && !next) continue;
+    // 断面点到左路缘的距离可能逐点变化；标线偏移先换算到这条断面的坐标。
+    const leftWidth = points[i].leftM ?? halfWidth;
+    const across = offset + (halfWidth - leftWidth);
     if (!previous || !next) {
       const only = previous ?? next;
-      out.push({ x: points[i].x - only.uz * offset, z: points[i].z + only.ux * offset });
+      out.push({ x: points[i].x - only.uz * across, z: points[i].z + only.ux * across });
       continue;
     }
     let bx = -previous.uz - next.uz;
@@ -100,25 +100,26 @@ function offsetPoints(points, offset, halfWidth) {
     let length = Math.hypot(bx, bz);
     if (length < 1e-6) {
       // 180° 折返没有唯一平分线，退回本段法线。
-      out.push({ x: points[i].x - next.uz * offset, z: points[i].z + next.ux * offset });
+      out.push({ x: points[i].x - next.uz * across, z: points[i].z + next.ux * across });
       continue;
     }
     bx /= length; bz /= length;
     const cosine = bx * -next.uz + bz * next.ux;
     const scale = cosine < 1 / MAX_MITER_SCALE ? MAX_MITER_SCALE : 1 / cosine;
-    const miter = { x: points[i].x + bx * offset * scale, z: points[i].z + bz * offset * scale };
+    const miter = { x: points[i].x + bx * across * scale, z: points[i].z + bz * across * scale };
     let bevel = false;
-    if (Math.abs(offset) > 1e-6 && scale > 1.0001) {
+    if (Math.abs(across) > 1e-6 && scale > 1.0001) {
       // 凸侧斜接点的垂足落到路段之外：只有斜接长度不超过斜切路缘（到平分线与路缘交点）时才算在路面内。
       const distance = Math.min(distanceToSegment(miter, points[i - 1], points[i]), distanceToSegment(miter, points[i], points[i + 1]));
-      const inside = distance <= Math.abs(offset) + 1e-6;
-      const limit = halfWidth * cosine / Math.max(Math.abs(offset), 1e-9);
+      const inside = distance <= Math.abs(across) + 1e-6;
+      const sideWidth = across < 0 ? leftWidth : 2 * halfWidth - leftWidth;
+      const limit = sideWidth * cosine / Math.abs(across);
       bevel = !inside && scale > limit - PAVEMENT_TOLERANCE;
     }
     if (bevel) {
       // 斜接会伸出斜切路缘，改画斜切：两段法线偏移点连一条斜线。
-      out.push({ x: points[i].x - previous.uz * offset, z: points[i].z + previous.ux * offset });
-      out.push({ x: points[i].x - next.uz * offset, z: points[i].z + next.ux * offset });
+      out.push({ x: points[i].x - previous.uz * across, z: points[i].z + previous.ux * across });
+      out.push({ x: points[i].x - next.uz * across, z: points[i].z + next.ux * across });
     } else out.push(miter);
   }
   return out;
@@ -216,6 +217,7 @@ function subline(points, startS, endS) {
       const insert = (distance) => {
         const t = (distance - s) / length;
         const point = { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
+        if (a.leftM !== undefined) point.leftM = a.leftM + (b.leftM - a.leftM) * t;
         const last = out.at(-1);
         if (!last || Math.hypot(last.x - point.x, last.z - point.z) > 1e-6) out.push(point);
       };
@@ -307,14 +309,14 @@ export function createMarkingLayout(graph, { intersections = [], frontage } = {}
   const degree = new Map();
   for (let i = 0; i < graph.links.length; i++) {
     const m = graph.metadata[i];
-    if (m.heightSource !== 'terrain' || m.bridge || m.tunnel || m.layer) continue;
+    if (!isGroundRoad(m)) continue;
     const [a, b] = graph.links[i];
     degree.set(a, (degree.get(a) ?? 0) + 1); degree.set(b, (degree.get(b) ?? 0) + 1);
   }
   for (let i = 0; i < graph.links.length; i++) {
     const link = graph.links[i], metadata = graph.metadata[i];
     statistics.links++;
-    if (metadata.heightSource !== 'terrain' || metadata.bridge || metadata.tunnel || metadata.layer) { statistics.skippedLinks++; continue; }
+    if (!isGroundRoad(metadata)) { statistics.skippedLinks++; continue; }
     const plan = createLanePlan(link, metadata);
     if (!plan) { statistics.skippedLinks++; continue; }
     statistics.paintedLinks++;
@@ -324,7 +326,7 @@ export function createMarkingLayout(graph, { intersections = [], frontage } = {}
     if (plan.narrow) statistics.narrowLinks++;
     if (plan.twoWay) statistics.twoWayLinks++;
     else statistics.oneWayLinks++;
-    const points = linkPoints(graph, link);
+    const points = roadSectionPoints(graph, link, metadata);
     if (points.length < 2) continue;
     const length = points.reduce((sum, point, index) => index ? sum + Math.hypot(point.x - points[index - 1].x, point.z - points[index - 1].z) : 0, 0);
     const junctionGap = Math.min(plan.width * 0.38, 7, length * 0.30);
@@ -345,8 +347,8 @@ export function createMarkingLayout(graph, { intersections = [], frontage } = {}
       if (startS > 0 || endS < Infinity) statistics.breakLinks++;
       const half = plan.width / 2;
       if (plan.edge) {
-        line(clipped, half - 0.38, 'white', 1, 1, 0, strips, 'edge-left', half);
-        line(clipped, -half + 0.38, 'white', 1, 1, 0, strips, 'edge-right', half);
+        line(clipped, half - 0.38, 'white', 1, 1, 0, strips, 'edge-right', half);
+        line(clipped, -half + 0.38, 'white', 1, 1, 0, strips, 'edge-left', half);
       }
       for (const divider of plan.internal) {
         if (divider.kind === 'double-yellow') {

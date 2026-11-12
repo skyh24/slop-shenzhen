@@ -5,7 +5,7 @@ Slop Shenzhen：浏览器里的 1:1 深圳关内城市漫游（南山、福田�
 ## 开工时按范围读取
 
 1. 首次进入任务读 [docs/HANDOFF.md](docs/HANDOFF.md) 当前状态、[docs/CONVENTIONS.md](docs/CONVENTIONS.md) 和 [docs/25-FAST-CHECKS.md](docs/25-FAST-CHECKS.md)。同一会话复用未变化的内容。
-2. 只读 [docs/TASKS.md](docs/TASKS.md) 的任务条目及对应 00–10 号模块文档；功能修复定位 REVIEW-FOLLOWUP 第 4 节，架构/性能/画面定位 22 号第 5 节。涉及长期计划或并行分工再读 NEXT-AGENT-PLAN。
+2. 只读 [docs/TASKS.md](docs/TASKS.md) 的任务条目及对应 00–10 号模块文档；后续精细化、优先次序和并行依赖见 [29 号](docs/29-SHENZHEN-REFINEMENT-PLAN.md)，派工使用 [30 号](docs/30-REFINEMENT-WORKTREE-PROMPTS.md)。22 号和 REVIEW-FOLLOWUP 供追溯审计证据。
 3. 正式功能验收或大版本发布时读 [docs/11-MVP.md](docs/11-MVP.md) 九条硬性要求与 [docs/10-PERF-QA.md](docs/10-PERF-QA.md) 完整验收路线。
 
 **日常开发、审查与提交按 [25 号](docs/25-FAST-CHECKS.md) 执行**：相关测试、一次差异审查、通过后提交；大版本全量。该仓库流程覆盖通用技能中固定全量、固定双代理和重复确认的默认步骤，用户明确指定的审查方式优先。

@@ -4,6 +4,7 @@ import { GeoBuilder, addWalls, addFlatPolygon } from './sz-geometry.js';
 import { createBuildingMaterial } from './sz-materials.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
 import { ringArea, ringContains, polygonContains } from './sz-polygon.js';
+import { visitGroundRoadFootprints } from './sz-roads.js';
 
 // 普通楼按 2.4 km 合并成一个渲染块：出生点 1484 次绘制里 105 次来自 1 km 建筑块，
 // 放大后块数约降到 1/5，三角形只随视野内建筑范围略增。
@@ -106,104 +107,6 @@ function expandRing(ring, expand) {
   return ring.map(p => ({ x: cx + (p.x - cx) * scale, z: cz + (p.z - cz) * scale }));
 }
 
-// 与 sz-roads.js 的 isGroundRoad 同规则：只有按地形起伏的地面道路参与裙房占道检查，
-// 桥、隧道和分层道路不按平面占道处理（这里是纯函数，避免把道路渲染模块拖进建筑模块）。
-function isGroundRoad({ heightSource, bridge, tunnel, layer }) {
-  return heightSource === 'terrain' && !bridge && !tunnel && !layer;
-}
-
-function roadLinkPoints(graph, [start, end, , , , , inner]) {
-  const points = [{ x: graph.nodes[start * 2], z: graph.nodes[start * 2 + 1] }];
-  for (let i = 0; i < inner.length; i += 2) points.push({ x: inner[i], z: inner[i + 1] });
-  points.push({ x: graph.nodes[end * 2], z: graph.nodes[end * 2 + 1] });
-  return points.filter((point, index) => !index || point.x !== points[index - 1].x || point.z !== points[index - 1].z);
-}
-
-const ROAD_TURN_EPSILON = 1e-8;
-
-function roadTurn(a, b, c) {
-  return (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
-}
-
-function convexHullPoints(points) {
-  const sorted = [...points].sort((a, b) => a.x - b.x || a.z - b.z);
-  const half = vertices => {
-    const edge = [];
-    for (const point of vertices) {
-      while (edge.length > 1 && roadTurn(edge[edge.length - 2], edge[edge.length - 1], point) <= ROAD_TURN_EPSILON) edge.pop();
-      edge.push(point);
-    }
-    edge.pop();
-    return edge;
-  };
-  return half(sorted).concat(half([...sorted].reverse()));
-}
-
-// 与 sz-roads.js 的 roadSectionPoints 一致：带断面的道路用断面点（leftM 为左侧偏移），否则用中心线。
-function roadSectionPoints(graph, link, metadata) {
-  const source = metadata.crossSection?.points;
-  if (!source) return roadLinkPoints(graph, link);
-  const points = [];
-  for (let i = 0; i < source.length; i += 3) points.push({ x: source[i], z: source[i + 1], leftM: source[i + 2] });
-  return points;
-}
-
-// 解析：地面道路实际渲染出来的沥青足迹，规则与 sz-roads.js 的 indexRoadFootprints 相同：
-// 逐段断面四边形、弯道外侧斜接三角形、共顶点的地面路段再补凸包覆盖路口。
-// 裙房占道检查按这份渲染面判断，不能用中心线加宽近似（弯道和路口会漏掉边角）。
-function collectGroundRoadFootprints(graph, add) {
-  const junctionArms = new Map();
-  const addArm = (nodeIndex, section) => {
-    let arm = junctionArms.get(nodeIndex);
-    if (!arm) { arm = { points: [], count: 0 }; junctionArms.set(nodeIndex, arm); }
-    arm.points.push(...section);
-    arm.count++;
-  };
-  for (let linkIndex = 0; linkIndex < graph.links.length; linkIndex++) {
-    const metadata = graph.metadata?.[linkIndex];
-    if (!metadata || !isGroundRoad(metadata)) continue;
-    const link = graph.links[linkIndex];
-    const width = link[3];
-    if (!(width > 0)) continue;
-    const points = roadSectionPoints(graph, link, metadata);
-    let previous = null;
-    for (let i = 1; i < points.length; i++) {
-      const a = points[i - 1], b = points[i];
-      const dx = b.x - a.x, dz = b.z - a.z;
-      const length = Math.sqrt(dx * dx + dz * dz);
-      if (length < 1e-6) continue;
-      // 断面两侧点：左侧用 leftM（缺省为半宽），右侧补齐到总宽，与渲染一致。
-      const section = point => {
-        const left = (point.leftM ?? width / 2) / length;
-        const right = width / length - left;
-        return [{ x: point.x + dz * left, z: point.z - dx * left },
-          { x: point.x - dz * right, z: point.z + dx * right }];
-      };
-      const startSection = section(a);
-      const endSection = section(b);
-      add([startSection[0], endSection[0], endSection[1], startSection[1]], `${linkIndex}:${i}:surface`);
-      if (previous) {
-        const change = previous.dx * dz - previous.dz * dx;
-        const side = change > 0 ? 0 : 1;
-        const before = previous.endSection[side], after = startSection[side];
-        if (Math.abs(roadTurn(a, before, after)) > ROAD_TURN_EPSILON) {
-          add(change > 0 ? [a, before, after] : [a, after, before], `${linkIndex}:${i}:mitre`);
-        }
-      } else {
-        addArm(link[0], startSection);
-      }
-      if (i === points.length - 1) addArm(link[1], endSection);
-      previous = { dx, dz, endSection };
-    }
-  }
-  // 只有共用节点且至少两条地面路段才补路口凸包；单端点和跨层道路保持各自边界。
-  for (const [nodeIndex, arm] of junctionArms) {
-    if (arm.count < 2) continue;
-    const hull = convexHullPoints(arm.points);
-    if (hull.length >= 3) add(hull, `junction:${nodeIndex}`);
-  }
-}
-
 // 解析：候选裙房建筑清单。只做与高程无关的体量筛选，外环按当前规则放大到期望值。
 function collectPodiumCandidates(buildings) {
   const candidates = [];
@@ -261,7 +164,7 @@ function buildPodiumOccupancy(buildings, terrain, roadGraph, entrances, candidat
     rangeCache.set(buildingIndex, range);
     return range;
   };
-  // 把与给定 bbox 相交的候选下标交给 visit；跨格对象只访问一次。
+  // 把与给定 bbox 相交的候选下标交给 visit；跨格对象由调用方去重。
   const visitCandidates = (bounds, visit) => {
     for (let ix = cellOf(bounds.minX); ix <= cellOf(bounds.maxX); ix++) {
       for (let iz = cellOf(bounds.minZ); iz <= cellOf(bounds.maxZ); iz++) {
@@ -286,17 +189,14 @@ function buildPodiumOccupancy(buildings, terrain, roadGraph, entrances, candidat
     });
   }
 
-  if (roadGraph?.links) {
-    collectGroundRoadFootprints(roadGraph, (outer, footprintKey) => {
-      if (outer.length < 3) return;
-      const bounds = ringBounds(outer);
-      visitCandidates(bounds, index => {
-        if (roadSeen[index].has(footprintKey)) return;
-        roadSeen[index].add(footprintKey);
-        context[index].roads.push({ polygon: { outer, holes: [] }, bounds });
-      });
+  if (roadGraph?.links) visitGroundRoadFootprints(roadGraph, points => {
+    const bounds = ringBounds(points);
+    visitCandidates(bounds, index => {
+      if (roadSeen[index].has(points)) return;
+      roadSeen[index].add(points);
+      context[index].roads.push({ polygon: { outer: points, holes: [] }, bounds });
     });
-  }
+  });
 
   for (const entrance of entrances ?? []) {
     if (!Number.isFinite(entrance?.x) || !Number.isFinite(entrance?.z)) continue;

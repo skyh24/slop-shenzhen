@@ -6,18 +6,18 @@
 
 ## 路网
 
-### 当前实现（2026-11-10 核对代码）
+### 当前实现
 
 | 内容 | 模块 |
 | --- | --- |
 | 路面网格 | `js/sz-roads.js` 的 `buildSzRoads`，按源数据分块，一个共享沥青材质 |
-| 标线 | `js/sz-road-markings.js` 生成布局，`js/sz-road-paint.js` 负责虚线着色和 600 m 分块 |
+| 标线 | `js/sz-road-markings.js` 按断面生成布局，`js/sz-road-paint.js` 负责虚线着色和 2.4 km 分块 |
 | 路口信号、路侧设施 | `js/sz-road-frontage.js`、`js/sz-intersection-control.js` |
-| 车流路网 | `js/sz-traffic.js` 的 `createTrafficGraph`，只用地面道路（`isGroundRoad`） |
+| 车流路网 | `js/sz-traffic.js` 的 `createTrafficGraph`，使用地面路网和已接入的高架表面 |
 | 高架和匝道 | `js/sz-elevated-roads.js`，车公庙 37 条链路，层高按 `layer` 估计，显示和接触共用三角面 |
 | 地形和派生路面 | `js/sz-ground.js`、`js/sz-ground-surface.js`、`js/sz-terrain.js`，数据由 `tools/sz/road_surface.py` 和 `tools/sz/terrain_surface.py` 生成 |
 
-纽约的 `road-network.js` 和 `road-paint.js` 不在正式入口里，计划从 `js/` 删除，见 [22-OPTIMIZATION-REVIEW.md](22-OPTIMIZATION-REVIEW.md)。路面材质的改进方向也写在那份文档的 V1。
+参考纽约从实际街面几何派生通行范围的做法，深圳的沥青裁切、行人避让和裙房退让共用 `js/sz-roads.js` 的 `visitGroundRoadFootprints`。该函数按断面生成路段面、弯道补面和共享节点路口凸包，并保留源路段下标。行人只选附近路段，路口补面仍会收集相接路段的端断面。沥青再用地形三角面裁切，裙房和步行带分别应用各自的净空规则。行人避让按玩家与当地接触面的高差判断，可见性按行人脚下的高度计算。
 
 城区平坦基准、商圈铺装、深南中央绿带和标线标准见 [23 号](23-BUILDING-AND-STREET-PLAN.md)。正式包在一期普通城区使用 8 米工程地坪，核实的山地、丘陵公园和立交接点保留相应高程。高程来源和保留范围见 [城区基准清单](../data/source/urban-datum.json)，构建报告把派生地坪标为 `urban-datum`。
 
@@ -90,7 +90,7 @@
 
 ## 路面标线
 
-正式实现由 `js/sz-road-markings.js` 生成布局，`js/sz-road-paint.js` 绘制。复核走廊范围内使用已有来源标线，通用线在范围边界截断并保留虚线相位。中央双黄线只用于有对向车道的路段，斑马线按已核实过街或信号进向绘制。
+正式实现由 `js/sz-road-markings.js` 生成布局，`js/sz-road-paint.js` 绘制。已有复核断面的路段沿逐点左右边界定位边线，单向路的分道线按断面车道宽计算。复核走廊范围内使用已有来源标线，通用线在范围边界截断并保留虚线相位。中央双黄线只用于有对向车道的路段，斑马线按已核实过街或信号进向绘制。
 
 ## 验收
 

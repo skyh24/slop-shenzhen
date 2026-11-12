@@ -1,7 +1,7 @@
 # 26 深圳运行时模块盘点
 
 盘点日期：2026-11-11。基线：Node 531 项通过、0 跳过；Python 145 项通过（合并 S4/V2、水面与乘员上下车之后）。
-对象：`js/` 下 69 个顶层模块 + `js/sz-landmarks/` 下 18 个文件，共 87 个文件、35,424 行。
+原始盘点覆盖 87 个文件。2026-11-12 按已提交入口补记 `sz-startup.js` 与 `press-tower.js`，现有 70 个顶层模块和 19 个地标目录文件，共 89 个 JS 文件。其余行数是 11 月 11 日快照。
 本文按**模块**组织，回答三件事：每个模块做什么、哪些实现重复、哪些该拆。按任务编号组织的结论见 [22 号优化审查](22-OPTIMIZATION-REVIEW.md)。
 
 行数、导出、调用方均由命令生成（`grep -c ''`、`grep -n "^export"`、相对 import 反查），不是凭记忆写。地标模块的“相关测试”按模块名匹配，属近似值。
@@ -10,18 +10,19 @@
 
 | 项 | 说明 |
 | --- | --- |
-| 层级 | 深圳自有 69 个（51 顶层 + 18 地标）；纽约保留引擎 18 个，只登记不改 |
+| 层级 | 按深圳模块和沿用纽约的引擎模块列职责；纽约源文件保存在只读 `ref/` |
 | `three` | 是否在文件顶部 `import ... from 'three/webgpu'`；标 `-` 的可以在 Node 里直接测 |
 | 被谁用 | 只统计 `js/` 内的相对 import；测试与工具脚本不计 |
 | 文件路径 | 表格里的“文件”列相对 `js/`；地标模块写成 `sz-landmarks/xxx.js` |
 | 结论 | 保留 / 复用（指向第 11 节）/ 拆分（指向第 12 节）/ 删除 / 未核实 |
 | 维护 | 新增或删除模块时同一次提交内更新本表；行数变化超过 10% 时在“变更记录”写一行 |
 
-## 2. 启动与数据（6）
+## 2. 启动与数据（7）
 
 | 文件 | 行 | three | 职责 | 主要导出 | 被谁用 |
 | --- | ---: | :--: | --- | --- | --- |
 | `main.js` | 996 | ✓ | 入口：加载阶段、建场景、接线、输入、帧循环、存档 | 无（副作用入口） | — |
+| `sz-startup.js` | 15 | - | 首帧 GPU 等待与超时 | `waitForFirstFrame` | `main` |
 | `sz-geodata.js` | 68 | - | 城市包单例：读包、解码、导出 `GEO` / `REAL_BUILDINGS` / `CITY_PAYLOAD` / `DATA_TIMINGS` | 4 个常量 | 7 处（见第 3 节重复项） |
 | `sz-data-format.js` | 503 | - | 数据适配：JSON 与 SZC1 解码、契约校验、坏包报错 | `decodeCityPayload`、`validateCityPayload`、`readCityPayload`、`decodeFastCity`、`decodeSites`、`decodeRing`、`decodePoly`、`CityDataError` | `sz-geodata` |
 | `sz-strings.js` | 222 | - | 玩家可见文字，代码只引用键名 | `STR` | 8 处（`main`、`sz-ui`、`sz-map`、`sz-vehicles` 等） |
@@ -54,14 +55,14 @@
 | `sz-road-markings.js` | 139 | - | 标线布局：车道计划、双黄线、边线、停止线 | `createLanePlan`、`createMarkingLayout` | `sz-road-paint` |
 | `sz-road-paint.js` | 71 | ✓ | 把标线布局建成网格 | `buildSzRoadPaint` | `main` |
 | `sz-road-frontage.js` | 255 | ✓ | 路缘、人行道台阶、路口信号外观 | `buildSzRoadFrontage` | `main` |
-| `sz-elevated-roads.js` | 633 | ✓ | 车公庙高架：桥面/匝道/桥墩计划、建场景、车行链路与表面身份 | `planElevatedRoads`、`buildSzElevatedRoads`、`ELEVATED_DRIVE_MAX_GRADE` | `main` |
+| `sz-elevated-roads.js` | 858 | ✓ | 车公庙、深南广深和竹子林：桥面、匝道、桥墩和可车行表面 | `planElevatedRoads`、`buildSzElevatedRoads`、`ELEVATED_DRIVE_MAX_GRADE` | `main` |
 | `sz-tunnels.js` | 614 | ✓ | 隧道：按 OSM layer 估算埋深、洞身断面与复核清单；与高架共用立交选区 | `planSzTunnels`、`buildSzTunnels`、`TUNNEL_LAYER_DEPTH_M` 等 6 个 | `main` |
 | `sz-water-material.js` | 370 | ✓ | 水面材质：风浪贴图法线、坡度方差粗糙度、菲涅尔反射、夜间岸线反光 | `getWaterWaveTexture`、`createSzWaterMaterial` 等 3 个 | `sz-sea` |
 | `sz-streetscape.js` | 198 | ✓ | 步行带铺装条带与纹理 | `buildSzStreetscape` | `main` |
 | `sz-ground.js` | 101 | ✓ | 地形地面网格 + 采样器 | `buildSzGround` | `main` |
 | `sz-sea.js` | 26 | ✓ | 海面 | `buildSzSea` | `main` |
 
-## 5. 建筑与地标（22）
+## 5. 建筑与地标（23）
 
 | 文件 | 行 | three | 职责 | 主要导出 | 被谁用 |
 | --- | ---: | :--: | --- | --- | --- |
@@ -77,18 +78,19 @@
 | `sz-landmarks/super-hq.js` | 827 | ✓ | 深圳湾超级总部基地（含双塔计划与设计楼高） | `build`、`siteRoles`、`designHeights`、`createSuperHqMaterial` 等 10 个 | `layout` |
 | `sz-landmarks/iec-xiangmihu.js` | 502 | ✓ | 国际交流中心（APEC 主会场） | `build`、`gatePoint`、`flowerSeaAnchor`、`createIecMaterial` 等 11 个 | `layout`、`main` |
 | `sz-landmarks/upperhills.js` | 459 | ✓ | 深业上城 | `build`、`createUpperhillsMaterial` | `layout` |
-| `sz-landmarks/chunjian.js` | 539 | - | 春笋（中国华润大厦） | `build`、`shellProfile`、`standSpec` 等 6 个 | `layout` |
+| `sz-landmarks/chunjian.js` | 539 | - | 春茧（深圳湾体育中心） | `build`、`shellProfile`、`standSpec` 等 6 个 | `layout` |
 | `sz-landmarks/dji-sky-city.js` | 342 | - | 天空之城 | `build`、`sourceIds` | `layout` |
 | `sz-landmarks/shenzhen-bay-bridge.js` | 283 | ✓ | 深圳湾大桥（远景） | `buildShenzhenBayBridge` | `main` |
 | `sz-landmarks/shenzhen-bay-culture-square.js` | 278 | ✓ | 深圳湾文化广场 | `build`、`createCulturePavingMask` | `layout` |
 | `sz-landmarks/convention-center.js` | 279 | - | 会展中心 | `build` | `layout` |
 | `sz-landmarks/civic-center.js` | 302 | - | 市民中心 | `build`、`roofDetail`、`colonnadeSpec` | `layout` |
 | `sz-landmarks/ping-an.js` | 288 | - | 平安金融中心 | `build` | `layout` |
-| `sz-landmarks/nonferrous-tower.js` | 192 | ✓ | 中金大厦（有色金属塔） | `build`、`createNonferrousMaterial` | `layout`、`materials` |
-| `sz-landmarks/chunsun.js` | 97 | - | 春笋旁的小体量补充 | `build` | `layout` |
+| `sz-landmarks/nonferrous-tower.js` | 192 | ✓ | 中国有色大厦 | `build`、`createNonferrousMaterial` | `layout`、`materials` |
+| `sz-landmarks/chunsun.js` | 97 | - | 春笋（中国华润大厦） | `build` | `layout` |
+| `sz-landmarks/press-tower.js` | 65 | - | 深圳特区报业大厦的顶冠与尖塔 | `build`、`sourceIds`、`optionalSkipIds` | `layout` |
 | `sz-landmarks/tencent-binhai.js` | 30 | - | 腾讯滨海大厦（薄封装） | `build`、`sourceIds` | `layout` |
 
-13 个专模共用 `parts.js` 的部件描述与 `render.js` 的渲染，`layout.js` 是唯一注册表 —— 这是仓库里**接缝放得最对的一处**：新增地标只改三个文件，不动 `main.js`。
+13 个建筑专模通过 `layout.js` 注册，共用 `parts.js` 的部件描述与 `render.js` 的渲染。深圳湾大桥由 `main.js` 单独装配。
 
 ## 6. 交通与人（7）
 

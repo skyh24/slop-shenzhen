@@ -1,6 +1,6 @@
 # 01 架构：纽约原版怎么改成深圳
 
-2026-11-10 按正式入口的实际 import 关系重写。早期版本的模块矩阵是计划阶段写的，很多文件名和最终实现不一致（例如 `sz-street-details.js`、`js/landmarks/`、`drones.js`、`sz-geodata.json.gz`），已按代码改正。
+2026-11-12 复核。专题实现顺序与派工见 [29 号](29-SHENZHEN-REFINEMENT-PLAN.md) 与 [30 号](30-REFINEMENT-WORKTREE-PROMPTS.md)。
 
 ## 原则
 
@@ -8,7 +8,7 @@
 
 深圳版保留这条启动流程，以及成熟的引擎系统：控制器、相机、车身、人物、物理、音频、光照、剔除、后期。和曼哈顿方格网绑死的部分（地面、路网、交通、建筑、街道细节、地图、材质）都由深圳模块重写，而不是改造纽约文件。纽约的运行时代码只剩正式入口实际加载的引擎文件（音频、碰撞与物理、车辆、人物、控制器、相机、光照、剔除、后期）；没有接入的 27 个纽约文件加两份 `.bin.gz` 数据包已在 2026-11-10 从 `js/` 删除，纽约代码只在只读的 `ref/slop-newyork/` 里，见 [22-OPTIMIZATION-REVIEW.md](22-OPTIMIZATION-REVIEW.md) A1。
 
-正式入口：`index.html`（import map 加 modulepreload）加载 `js/main.js`，可达 80 个文件、30,172 行（2026-11-10 复核）。`js/` 下的模块全部可达（临时 MVP 预览已在同日删除）；`tests/runtime-reachability.test.cjs` 从 `js/main.js` 遍历相对 import，再出现不可达模块就会失败。
+正式入口：`index.html`（import map 加 modulepreload）加载 `js/main.js`，`js/` 下的模块通过正式入口可达；`tests/runtime-reachability.test.cjs` 从 `js/main.js` 遍历相对 import，再出现不可达模块就会失败。
 
 ## 模块矩阵
 
@@ -22,10 +22,10 @@
 | `city-grid.js` | 替换 | `sz-ground.js`（地形块）、`sz-ground-surface.js`、`sz-terrain.js`（三角面高度查询）、`sz-roads.js`（路面）、`sz-sea.js`（海面） |
 | `boroughs.js` | 未替换（文件已删） | 远景天际线没有做 |
 | `landmarks.js` | 替换 | `sz-landmarks/`：每个地标一个文件，`index.js` 汇总，`layout.js` 负责源足迹接管，`parts.js`、`render.js`、`materials.js` 共用部件、渲染和材质 |
-| `buildings.js`、`building-footprints.js`、`building-details.js`、`fire-escapes.js` | 替换 | `sz-buildings.js`（1 km 合批，塔楼加裙房、屋顶设备）、`sz-building-layout.js`、`sz-materials.js`（立面材质）、`sz-building-details.js`（近景阳台、空调、雨棚）、`sz-building-signs.js`（楼名和小区门牌） |
+| `buildings.js`、`building-footprints.js`、`building-details.js`、`fire-escapes.js` | 替换 | `sz-buildings.js`（2.4 km 合批，塔楼加裙房、屋顶设备）、`sz-building-layout.js`、`sz-materials.js`（立面材质）、`sz-building-details.js`（近景阳台、空调、雨棚）、`sz-building-signs.js`（楼名和小区门牌） |
 | `street-details.js`、`street-props.js`、`trees.js`、`tree-placements.js` | 替换 | `sz-streetscape.js`、`sz-street-lamps.js`、`sz-road-frontage.js`（路口信号和路侧设施）、`sz-trees.js`（树干加近冠和远冠 LOD） |
 | `subway-entrances.js` | 替换 | `sz-metro-entrances.js`；高铁站和西丽工地在 `sz-station-sites.js` |
-| `road-network.js`、`traffic.js` | 替换 | `sz-traffic.js`（自建车道图，只用地面道路）、`sz-intersection-control.js`、`sz-drive-route.js`（地图规划驾车）、`sz-auto-drive.js` |
+| `road-network.js`、`traffic.js` | 替换 | `sz-traffic.js`（自建车道图，地面路网加已接入的高架边）、`sz-intersection-control.js`、`sz-drive-route.js`（地图规划驾车）、`sz-auto-drive.js` |
 | `road-paint.js` | 替换 | `sz-road-markings.js`（布局）加 `sz-road-paint.js`（着色） |
 | `cars.js` | 改造 | 增加 `shenzhen` locale：蓝白出租、粤B 绿牌和蓝牌、顶灯；车型和车轮在 `sz-vehicles.js` |
 | `bus.js`、`helicopter.js` | 替换 | 公交和四旋翼载人飞行器都在 `sz-vehicles.js`（`createEvtolMesh`） |
@@ -40,7 +40,9 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `sz-elevated-roads.js` | 车公庙立交 37 条桥面和连接坡道；层高按 `layer` 估计，显示和接触共用三角面 |
+| `sz-elevated-roads.js` | 车公庙、深南广深和竹子林立交桥面与匝道；来源层级与估计高程分开，显示和接触共用三角面 |
+| `sz-startup.js` | GPU 首帧等待与超时处理 |
+| `sz-tunnels.js` | 隧道计划、三维表面和净空检查；正式入口目前接入核对清单 |
 | `sz-apec.js`、`sz-apec-city.js` | APEC 道旗、会场标识、花坛、转播车、路侧大屏、巡逻机器人、围挡广告；不用官方会徽 |
 | `sz-light-show.js` | 福田中心区 ≥150 m 普通高层的夜间灯带 |
 | `sz-drone-routes.js` | 无人机配送：端点只用 `data/source/air-routes.json` 里有来源的站点，航迹是示意 |
@@ -55,7 +57,7 @@
 
 ```mermaid
 flowchart TD
-  build[tools/sz/build.py] --> pack[js/sz-city.json.gz]
+  build[tools/sz/build.py] --> pack[JSON 与 SZC1]
   pack --> geo[sz-geodata.js + sz-data-format.js]
   geo --> cfg[sz-city-config.js]
   geo --> ground[sz-ground / sz-roads / sz-sea]
@@ -77,8 +79,6 @@ flowchart TD
 
 所有构建模块拿到的是同一份解码后的数据；显示几何和碰撞体来自同一份轮廓或部件。
 
-## 不做的事
+## 迁移边界
 
-- 不引入打包工具，沿用纽约原版的 import map 加本地静态服务器
-- 不整套搬武汉（台北）运行系统；只移植数据管线做法和出租车接单逻辑。文件位置见 [17-WUHAN-REFERENCE.md](17-WUHAN-REFERENCE.md)
-- 不导入外部三维模型
+开发入口沿用纽约的 import map 和本地静态服务器。场景全部程序化建模。武汉现行运行时供城市数据、分层表面和出租车流程参考，文件位置见 [17 号](17-WUHAN-REFERENCE.md)。接单流程属于后续计划，发布产物的对照口径见 [10 号](10-PERF-QA.md#6-加载数据与发布专项)。

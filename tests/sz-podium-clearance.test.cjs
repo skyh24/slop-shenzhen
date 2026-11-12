@@ -6,6 +6,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const { loadModule } = require('./helpers/module.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
+const roadsModule = require('./helpers/roads.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 
@@ -72,7 +73,7 @@ function loadCityBlocks(THREE, facades) {
     './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: facades } } },
     './sz-geometry.js': geometry,
     './sz-materials.js': { createBuildingMaterial: () => ({ dispose() {} }) },
-    './sz-building-layout.js': layout, './sz-polygon.js': polygonModule,
+    './sz-building-layout.js': layout, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule,
     './building-collision.js': collision,
     './sz-terrain.js': terrain
   } });

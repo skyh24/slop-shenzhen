@@ -1,6 +1,6 @@
 # 22 代码优化审查：架构精简、性能、画面
 
-当前实施顺序和状态见 [HANDOFF](HANDOFF.md) 与 [TASKS](TASKS.md)。本文保留形成时的方案、分支安排和验证证据。
+当前实施顺序见 [29 号专项计划](29-SHENZHEN-REFINEMENT-PLAN.md)，状态见 [HANDOFF](HANDOFF.md) 与 [TASKS](TASKS.md)。本文前六节为历史审查，第七节记录实际交付和回滚证据。
 
 日期：2026-11-10。审查基线：`main` 的 `c687ba0`，工作树干净。本文取代当天早些时候的 `SLIM-REVIEW-2026-11-10.md`，并补充了性能和画面两部分。
 
@@ -11,7 +11,7 @@
 
 参照对象：纽约原版 `ref/slop-newyork`，模块地图见 [16-NY-REFERENCE.md](16-NY-REFERENCE.md)；武汉 `ref/slop-wuhan`，模块地图见 [17-WUHAN-REFERENCE.md](17-WUHAN-REFERENCE.md)。`ref/` 在 `.gitignore` 里，Cursor 的搜索工具默认跳过它，要用 `rg` 直接搜。
 
-功能缺陷仍按 [REVIEW-FOLLOWUP-2026-11-10.md](REVIEW-FOLLOWUP-2026-11-10.md) 第 4 节的顺序处理，第一项是裙房占道。本文的任务都不改玩法，可以由另一组人并行推进，冲突约束见第 5 节。
+当时的功能缺陷和复现路径见 [2026-11-10 功能审查](REVIEW-FOLLOWUP-2026-11-10.md)。
 
 ## 1. 结论
 
@@ -128,7 +128,7 @@
 | P2 | `sz-building-signs.js` 596–608、677、705 行 | 每块名牌一个 `Mesh`；每个不同的名字一个 `MeshBasicMaterial` 和一张 canvas 贴图 | 地铁出入口已经用站名图集（`sz-metro-entrances.js`）。名牌可以按 200 m 块合成一张图集、一个网格 | 代码核实；CBD 区的实际块数需测量 | 中到高 |
 | P3 | `sz-metro-entrances.js` 591 行 | 全城出入口的玻璃是一个 `InstancedMesh`，包围球覆盖全城，视锥剔除失效；结构部分已经按空间分块 | 和结构部分用同一套分块 | 代码核实 | 中 |
 | P4 | `sz-data-format.js` 237、348 行 | `readCityPayload` 和 `decodeCityPayload` 各调一次 `validateCityPayload`，城市包完整校验两遍 | 只在读取时校验一次 | 代码核实 | 低到中，改动很小 |
-| P5 | 启动数据格式 | 7 MB gzip JSON，主线程 `JSON.parse` | 武汉 WUH1：变长整数加 gzip（`js/runtime/geodata-codec.js`），纽约 NYB1 | 需测量 | 已在 [19-WEBSITE-OPTIMIZATION-PLAN.md](19-WEBSITE-OPTIMIZATION-PLAN.md) B 项，这里不重复立项 |
+| P5 | 启动数据格式 | 7 MB gzip JSON，主线程 `JSON.parse` | 武汉 WUH1：变长整数加 gzip（`js/runtime/geodata-codec.js`），纽约 NYB1 | 需测量 | SZC1 实测与合并复核见 [24 号](24-VALIDATED-FAST-DATA.md)，后续格式验收见 [10 号](10-PERF-QA.md#6-加载数据与发布专项) |
 | P6 | `main.js` 1159–1161 行 | 每帧对名牌组和细节组调用 `updateMatrixWorld(true)` | 纽约只更新动态根（交通、玩家）。改成块增删时才更新 | 代码核实；耗时需测量 | 低到中 |
 | P7 | `sz-street-lamps.js` 201 行 | 夜间光晕 `Points` 设了 `frustumCulled = false`，全城光晕都参与绘制 | 按灯杆分块，打开视锥剔除 | 代码核实 | 低到中，只影响夜间 |
 | P8 | `sz-ground.js` 33 行 | 地形块默认投射阴影 | `scene-culling.js` 237–311 行已把半径超过 350 m 的投影网格换成 500 m 分块阴影替身，所以不是每帧全量投影。莲花山等山体的自投影是想要的效果 | 需测量阴影 pass 耗时 | 待定，不先改 |

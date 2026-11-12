@@ -218,6 +218,7 @@ function processPose(ped, sampled) {
   const lateral = ped.lateral * fade;
   ped.x = sampled.x + sampled.dz * lateral;
   ped.z = sampled.z - sampled.dx * lateral;
+  ped.y = sampled.y;
   // 坐标系约定与控制器相同：heading = atan2(x 分量, z 分量)，0 为南、π 为北。
   ped.heading = Math.atan2(sampled.dx * ped.dir, sampled.dz * ped.dir);
 }
@@ -384,7 +385,8 @@ export function createSzPedestrians(scene, graph, options = {}) {
     for (const entity of players) {
       const position = entity?.position;
       if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) continue;
-      if (!(position.y < 3)) continue;
+      const height = cfg.heightAt(position.x, position.z);
+      if (!Number.isFinite(height) || !(Math.abs(position.y - height) < 3)) continue;
       avoidance.push({ x: position.x, z: position.z, radius: entity.type === 'person' ? 1.1 : 2.6 });
     }
   }
@@ -407,7 +409,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
       const distance = Math.hypot(scratch.x - focus.x, scratch.z - focus.z);
       if (distance < cfg.spawnMinM || distance > cfg.spawnMaxM) continue;
       // 视锥内近处不允许凭空出现；远处 90 m 外允许被人群补充，避免镜头前突然冒人。
-      if (isVisible && distance < cfg.viewProtectM && isVisible(scratch.x, scratch.z, 7)) continue;
+      if (isVisible && distance < cfg.viewProtectM && isVisible(scratch.x, scratch.z, 7, scratch.y)) continue;
       let blocked = false;
       for (const player of avoidance) {
         if (squareDistance(scratch.x, scratch.z, player.x, player.z) < (player.radius + 1) ** 2) { blocked = true; break; }
@@ -555,7 +557,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
         if (!ped.placed) continue;
         const distanceSq = squareDistance(ped.x, ped.z, focus.x, focus.z);
         if (distanceSq < cfg.viewProtectM ** 2) continue;
-        if (isVisible && isVisible(ped.x, ped.z, 7)) continue;
+        if (isVisible && isVisible(ped.x, ped.z, 7, ped.y)) continue;
         if (!isVisible && distanceSq < 150 ** 2) continue;
         retired.push({ ped, distanceSq });
       }
@@ -595,7 +597,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
       near++;
       nearPeds.push(ped);
       advance(ped, dt);
-      const draw = !isVisible || isVisible(ped.x, ped.z, 7);
+      const draw = !isVisible || isVisible(ped.x, ped.z, 7, ped.y);
       if (draw) drawn++;
       // 隐藏但离得近的人仍然推进步态；超过 50 m 且看不见则等待重新落地，省掉骨骼计算。
       if (!draw && distanceSq > 2500) ped.rig.placed = false;

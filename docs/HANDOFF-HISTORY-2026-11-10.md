@@ -146,7 +146,7 @@ node --test tests/*.test.cjs                         # 需 SZ_THREE_PACKAGE_DIR 
 
 ## 6. 首读
 
-本文件 → 改进计划（15 号，已删除，规则并入 02、03 号） → [下一位计划](NEXT-AGENT-PLAN.md) → [规范](CONVENTIONS.md) → [验收标准](10-PERF-QA.md) → 对应模块。
+本文件 → 改进计划（15 号，已删除，规则并入 02、03 号） → [后续专项计划](29-SHENZHEN-REFINEMENT-PLAN.md) → [规范](CONVENTIONS.md) → [验收标准](10-PERF-QA.md) → 对应模块。
 
 ## 2j. round 22：Q8 驾驶版尝试（未达成）
 

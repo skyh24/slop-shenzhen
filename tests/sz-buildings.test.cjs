@@ -5,6 +5,7 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { loadModule } = require('./helpers/module.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
+const roadsModule = require('./helpers/roads.cjs');
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const terrain = loadModule(read('sz-terrain.js'));
 const { buildingPlacement, buildingSeed } = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
@@ -45,7 +46,7 @@ test('raised building soffits face the passage and preserve courtyard holes and 
       './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
       './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
       './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
-      './sz-building-layout.js': { buildingPlacement, buildingSeed }, './sz-polygon.js': polygonModule
+      './sz-building-layout.js': { buildingPlacement, buildingSeed }, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
     } });
     const scene = new THREE.Scene();
     const blocks = buildCityBlocks(scene, { buildings: [{ ...building, facade: 'office' }], terrain: grid });
@@ -83,7 +84,7 @@ test('one-kilometre building batches preserve every triangle attribute and colli
     './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
     './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
     './sz-materials.js': { createBuildingMaterial: () => ({}) },
-    './sz-building-layout.js': { buildingPlacement, buildingSeed }, './sz-polygon.js': polygonModule
+    './sz-building-layout.js': { buildingPlacement, buildingSeed }, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
   } });
   const buildings = [250, 750].map(x => ({
     ...building, id: `building/${x}`, facade: 'office', cx: x, cz: 30,
@@ -122,7 +123,7 @@ test('tall ordinary towers gain an estimated podium with matching display and co
     './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
     './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
     './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
-    './sz-building-layout.js': { buildingPlacement, buildingSeed }, './sz-polygon.js': polygonModule
+    './sz-building-layout.js': { buildingPlacement, buildingSeed }, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
   } });
   const scene = new THREE.Scene();
   const tower = { ...building, id: 'way/999', height: 120, minHeight: 0, polygons: [{ outer, holes: [] }] };
@@ -146,7 +147,7 @@ test('ordinary towers get estimated parapets and rooftop equipment without new c
     './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
     './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
     './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
-    './sz-building-layout.js': { buildingPlacement, buildingSeed }, './sz-polygon.js': polygonModule
+    './sz-building-layout.js': { buildingPlacement, buildingSeed }, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
   } });
   const scene = new THREE.Scene();
   const tower = { ...building, id: 'way/2001', height: 150, minHeight: 0, polygons: [{ outer, holes: [] }] };

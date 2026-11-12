@@ -212,7 +212,7 @@ python3 tools/sz/serve.py --port 8080            # 正式静态服务器，常�
 - 树木按 [06-STREETSCAPE.md](06-STREETSCAPE.md)：榕树、凤凰木、宫粉紫荆、大王椰
 - 帧率：一期全范围地面 60 帧、飞行 50 帧以上（预算见 [10-PERF-QA.md](10-PERF-QA.md)）
 
-## 4. 原始里程碑建议（当前执行顺序见NEXT-AGENT-PLAN）
+## 4. 原始里程碑建议（当前执行顺序见 [29 号](29-SHENZHEN-REFINEMENT-PLAN.md)）
 
 1. 地形和海岸（3.2），因为建筑和道路的高度都要贴地形
 2. 换纽约引擎和界面（3.6），把 MVP 的数据接进纽约的地面、路网、车辆、相机模块

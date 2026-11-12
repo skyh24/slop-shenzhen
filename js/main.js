@@ -340,9 +340,8 @@ async function initApp() {
     return trafficFrustum.intersectsBox(trafficBounds);
   }
   // 人群只需要在地面附近判断可见性；给一个约 4 m 高的包围盒，避免把正后方的人也算进骨骼解算。
-  function isPedVisible(x, z, radius) {
+  function isPedVisible(x, z, radius, y) {
     if (!cameraSystem.initialized) return true;
-    const y = controllerManager.getActiveEntity().position.y;
     trafficBounds.min.set(x - radius, y - 2.5, z - radius);
     trafficBounds.max.set(x + radius, y + 4, z + radius);
     return trafficFrustum.intersectsBox(trafficBounds);

@@ -190,33 +190,54 @@ function footprintIndex(grid) {
   return { cells, addFootprint };
 }
 
-function indexRoadFootprints(graph, grid) {
-  const { cells, addFootprint } = footprintIndex(grid);
+// 路面裁切、行人避让和裙房退让共用裁切前的平面边界。
+// 局部查询也收集相邻路段的端断面，保证区域边缘的路口补面完整。
+export function visitGroundRoadFootprints(graph, visit, includeLink = null) {
   const junctions = new Map();
+  const selected = new Set();
+  const nodes = new Set();
   let groundLinks = 0;
 
-  function addArm(node, crossSection, source) {
-    if (!junctions.has(node)) junctions.set(node, { points: [], sources: [] });
+  if (includeLink) {
+    for (let index = 0; index < graph.links.length; index++) {
+      if (!includeLink(index)) continue;
+      const metadata = graph.metadata[index];
+      if (!metadata || !isGroundRoad(metadata)) continue;
+      selected.add(index);
+      const [start, end] = graph.links[index];
+      nodes.add(start);
+      nodes.add(end);
+    }
+  }
+
+  function addArm(node, crossSection, linkIndex) {
+    if (includeLink && !nodes.has(node)) return;
+    if (!junctions.has(node)) junctions.set(node, { points: [], linkIndices: [] });
     const junction = junctions.get(node);
     junction.points.push(...crossSection);
-    junction.sources.push(source);
+    junction.linkIndices.push(linkIndex);
   }
 
   for (let index = 0; index < graph.links.length; index++) {
-    const metadata = graph.metadata[index];
-    if (!isGroundRoad(metadata)) continue;
-    groundLinks++;
     const link = graph.links[index];
-    const [start, end, name, width, lanes, direction] = link;
-    const source = { ...metadata, linkIndex: index, name: graph.names[name], width, lanes, direction };
+    const [start, end, , width] = link;
+    const emit = !includeLink || selected.has(index);
+    if (!emit && !nodes.has(start) && !nodes.has(end)) continue;
+    const metadata = graph.metadata[index];
+    if (!metadata || !isGroundRoad(metadata)) continue;
+    groundLinks++;
+    if (!(width > 0)) continue;
+    const linkIndices = [index];
     const points = roadSectionPoints(graph, link, metadata);
     let previous = null;
     for (let i = 1; i < points.length; i++) {
+      if (!emit && i !== 1 && i !== points.length - 1) continue;
       const a = points[i - 1];
       const b = points[i];
       const dx = b.x - a.x;
       const dz = b.z - a.z;
       const length = Math.hypot(dx, dz);
+      if (length < EPSILON) continue;
       const section = p => {
         const left = (p.leftM ?? width / 2) / length;
         const right = width / length - left;
@@ -224,29 +245,31 @@ function indexRoadFootprints(graph, grid) {
       };
       const startSection = section(a);
       const endSection = section(b);
-      addFootprint([startSection[0], endSection[0], endSection[1], startSection[1]], [source]);
+      if (emit) visit([startSection[0], endSection[0], endSection[1], startSection[1]], linkIndices);
       if (previous) {
         // 按外侧路缘补斜接，避免急弯处的直角切口和无界延长。
         const change = previous.dx * dz - previous.dz * dx;
         const side = change > 0 ? 0 : 1;
         const before = previous.endSection[side];
         const after = startSection[side];
-        if (Math.abs(turn(a, before, after)) > EPSILON) {
-          addFootprint(change > 0 ? [a, before, after] : [a, after, before], [source]);
+        if (emit && Math.abs(turn(a, before, after)) > EPSILON) {
+          visit(change > 0 ? [a, before, after] : [a, after, before], linkIndices);
         }
       } else {
-        addArm(start, startSection, source);
+        addArm(start, startSection, index);
       }
-      if (i === points.length - 1) addArm(end, endSection, source);
+      if (i === points.length - 1) addArm(end, endSection, index);
       previous = { dx, dz, endSection };
     }
   }
 
   // 共用 OSM 节点的地面路段才能补接缝；单独端点和跨层道路保持各自边界。
-  for (const { points, sources } of junctions.values()) {
-    if (sources.length >= 2) addFootprint(convexHull(points), sources);
+  for (const { points, linkIndices } of junctions.values()) {
+    if (linkIndices.length < 2) continue;
+    const hull = convexHull(points);
+    if (hull.length >= 3) visit(hull, linkIndices);
   }
-  return { cells, groundLinks };
+  return groundLinks;
 }
 
 function edgeDistance(edge, point) {
@@ -404,7 +427,18 @@ export function createRoadSurfaceLayout(graph, terrainSurface) {
     || terrainSurface?.version !== 1 || !terrainSurface.grid) {
     throw new Error('Source road graph and rendered terrain surface are required');
   }
-  const { cells, groundLinks } = indexRoadFootprints(graph, terrainSurface.grid);
+  const { cells, addFootprint } = footprintIndex(terrainSurface.grid);
+  const sources = new Map();
+  const groundLinks = visitGroundRoadFootprints(graph, (points, linkIndices) => {
+    const roadSources = linkIndices.map(linkIndex => {
+      if (!sources.has(linkIndex)) {
+        const [, , name, width, lanes, direction] = graph.links[linkIndex];
+        sources.set(linkIndex, { ...graph.metadata[linkIndex], linkIndex, name: graph.names[name], width, lanes, direction });
+      }
+      return sources.get(linkIndex);
+    });
+    addFootprint(points, roadSources);
+  });
   const statistics = { sourceLinks: graph.links.length, groundLinks, unresolvedLinks: graph.links.length - groundLinks,
     renderedLinks: 0, linksWithoutSurface: 0, triangles: 0, areaM2: 0 };
   const chunks = clippedSurface(cells, terrainSurface, 'road-ground', statistics);
