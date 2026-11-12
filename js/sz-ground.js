@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { attribute, fract, fwidth, max, min, mix, positionWorld, smoothstep, vec3 } from 'three/tsl';
-import { unpackSurface, sampler, createGroundSurfaceSampler } from './sz-ground-surface.js';
+import { copyGroundChunksForRender, createGroundSurfaceSampler } from './sz-ground-surface.js';
 
 // 静态地表按 2.4 km 超块合并（与 sz-roads.js 同款逻辑）：页面只需给每个分块一份带位置/法线/颜色/索引的
 // BufferGeometry 和世界原点，合并时把原点烘焙进顶点位置。三角形不变，只牺牲更粗的视锥剔除。
@@ -72,13 +72,13 @@ function groundMaterial() {
 }
 
 export function buildSzGround(scene, surface, options = {}) {
-  const chunks = unpackSurface(surface);
+  const chunks = copyGroundChunksForRender(surface);
   const palette = COLORS.map(value => new THREE.Color(value));
   const material = options.material ?? groundMaterial();
   const group = new THREE.Group();
   group.name = 'shenzhen-ground';
   const entries = [];
-  for (const chunk of chunks.values()) {
+  for (const chunk of chunks) {
     const colors = new Float32Array(chunk.kinds.length * 3);
     const paved = new Float32Array(chunk.kinds.length);
     chunk.kinds.forEach((kind, i) => {
@@ -109,7 +109,7 @@ export function buildSzGround(scene, surface, options = {}) {
     for (const entry of batch.chunks) entry.geometry.dispose();
   }
   scene.add(group);
-  return { group, meshes, groundHeight: sampler(surface, chunks),
+  return { group, meshes, groundHeight: createGroundSurfaceSampler(surface),
     dispose() {
       scene.remove(group);
       for (const mesh of meshes) mesh.geometry.dispose();
