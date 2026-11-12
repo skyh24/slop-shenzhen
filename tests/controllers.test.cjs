@@ -39,6 +39,8 @@ function keyboardHarness(nyc = {}) {
       return null;
     },
     isTypingInField: (event) => ['INPUT', 'SELECT'].includes(event.target?.tagName),
+    isWater: () => false,
+    nearestRoads: () => [],
     ...nyc
   };
   const { ThirdPersonControllerManager } = loadModule(source, {
@@ -789,23 +791,26 @@ test('successive mode teleports keep parked players out of the arrival and defau
   cyclist.position.x = 200;
   const heading = Math.PI / 2; // The first radial candidate is +X: its rear camera would sit on the parked car.
   assert.deepEqual({ ...controller.teleportActiveTo(0, 0, heading) }, { x: 0, z: 0 });
-  const arrivals = [car];
   const radii = { car: 2.4, person: 0.48, cyclist: 1.0 };
-  for (const mode of ['person', 'cyclist']) {
-    controller.activeMode = mode;
-    const ent = controller.entities[mode];
-    const actual = controller.teleportActiveTo(0, 0, heading);
-    assert.notDeepEqual({ ...actual }, { x: 0, z: 0 });
-    for (const parked of arrivals) {
-      const dx = parked.position.x - actual.x, dz = parked.position.z - actual.z;
-      const cameraBack = Math.cos(0.09) * ent.chaseDistance;
-      const along = Math.max(0, Math.min(cameraBack, -dx));
-      assert.ok(Math.hypot(dx, dz) > radii[parked.type] + radii[mode], 'player bodies must not overlap');
-      assert.ok(Math.hypot(dx + along, dz) > radii[parked.type] + 0.5, 'the complete default chase corridor must be clear');
-    }
-    assert.deepEqual([car.position.x, car.position.z], [0, 0], 'switching modes leaves the parked car in place');
-    arrivals.push(ent);
-  }
+  // 步行角色与自行车不再各自占一个位置：同一个角色上车后就坐在车里，只检查停着的车。
+  controller.activeMode = 'person';
+  const personArrival = controller.teleportActiveTo(0, 0, heading);
+  assert.notDeepEqual({ ...personArrival }, { x: 0, z: 0 });
+  assert.ok(Math.hypot(car.position.x - personArrival.x, car.position.z - personArrival.z) > radii.car + radii.person,
+    'a walking player must not be placed inside the parked car');
+
+  controller.activeMode = 'cyclist';
+  const cyclistArrival = controller.teleportActiveTo(0, 0, heading);
+  assert.notDeepEqual({ ...cyclistArrival }, { x: 0, z: 0 });
+  const cameraBack = Math.cos(0.09) * cyclist.chaseDistance;
+  const dx = car.position.x - cyclistArrival.x, dz = car.position.z - cyclistArrival.z;
+  const along = Math.max(0, Math.min(cameraBack, -dx));
+  assert.ok(Math.hypot(dx, dz) > radii.car + radii.cyclist, 'the cyclist arrival must not overlap the parked car');
+  assert.ok(Math.hypot(dx + along, dz) > radii.car + 0.5, 'the complete default chase corridor must be clear');
+  assert.deepEqual([car.position.x, car.position.z], [0, 0], 'switching modes leaves the parked car in place');
+  // 同一角色已经坐到自行车上，不会再以步行的形式留在原位置
+  assert.equal(controller.occupant.mode, 'cyclist');
+  assert.deepEqual({ x: person.position.x, z: person.position.z }, { x: cyclist.position.x, z: cyclist.position.z });
 });
 
 test('player clearance respects altitude and permits a ground arrival under an airborne helicopter', () => {
@@ -1041,10 +1046,10 @@ test('walking steps onto a low rendered platform and keeps its footing after sto
   assert.equal(car.position.y, 0);
   assert.equal(car._support.surfaceId, 'terrain');
   controller.surfaceResolver = resolver;
-  controller.setMode('person');
-  walk(1, 0);
-  assert.equal(ent._support.surfaceId, 'low');
-  assert.equal(ent.position.y, 0.24);
+  // 同一个角色已经坐进车里：不再留在平台上自行行走，也不再跑步行解算。
+  const seated = { x: ent.position.x, z: ent.position.z };
+  for (let i = 0; i < 30; i++) controller.poseCharacters(1 / 60, { x: 0, y: 2, z: 0 });
+  assert.deepEqual({ x: ent.position.x, z: ent.position.z }, seated, 'the driver stays in the seat instead of walking off');
 });
 
 test('walking cannot climb a high platform or cross a side wall while stepping onto a low one', () => {

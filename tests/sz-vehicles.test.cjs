@@ -362,4 +362,48 @@ test('real three geometry has grounded wheels, clear fenders and bounded rotors'
   const cargo = models.createCargoDroneMesh();
   assert.ok(!cargo.group.userData.parts.some(name => name.startsWith('pilot-')), 'cargo drone has no occupant');
   cargo.dispose();
+
+  // 玩家出租车：挖开驾驶位顶盖 + 独立透明前门玻璃 + 座舱内衬 + 座椅/方向盘，供同一角色坐姿绑定。
+  const playerTaxi = models.createShenzhenCarMesh({ type: 'taxi' });
+  const seat = playerTaxi.seat;
+  assert.ok(seat && seat.pelvis && seat.feet.length === 2 && seat.hands.length === 2, 'player taxi exposes a driver seat');
+  assert.ok(seat.pelvis.y > 0.5 && seat.pelvis.y < 0.8, `pelvis sits on the cushion (${seat.pelvis.y})`);
+  for (const foot of seat.feet) assert.ok(foot.z > seat.pelvis.z + 0.3 && foot.y < seat.pelvis.y, 'feet reach into the footwell');
+  for (const hand of seat.hands) assert.ok(hand.z > seat.pelvis.z + 0.25 && hand.y > seat.pelvis.y, 'hands reach the wheel');
+  const cockpit = playerTaxi.chassis.getObjectByName('player-taxi-cockpit');
+  assert.ok(cockpit, 'player taxi has a visible driver cockpit');
+  assert.ok(playerTaxi.chassis.getObjectByName('player-taxi-cockpit'), 'driver cockpit is present');
+  const bodyMesh = playerTaxi.chassis.getObjectByName('taxi-lofted-body');
+  const positions = bodyMesh.geometry.attributes.position;
+  const partIds = bodyMesh.geometry.attributes.partId;
+  const indices = bodyMesh.geometry.index;
+  let roofCapTriangles = 0;
+  for (let t = 0; t < indices.count / 3; t++) {
+    const a = indices.getX(t * 3), b = indices.getX(t * 3 + 1), c = indices.getX(t * 3 + 2);
+    if (Math.round(partIds.getX(a)) !== 0) continue; // 玻璃房顶属于 WINDOW，不参与车身顶盖统计
+    const x = Math.abs((positions.getX(a) + positions.getX(b) + positions.getX(c)) / 3);
+    const y = (positions.getY(a) + positions.getY(b) + positions.getY(c)) / 3;
+    const z = (positions.getZ(a) + positions.getZ(b) + positions.getZ(c)) / 3;
+    if (x < 0.52 && y > 0.945 && z > -0.52 && z < 1.0) roofCapTriangles++;
+  }
+  assert.equal(roofCapTriangles, 0, 'the roof cap above the driver is opened for the occupant');
+  // 环境车继续使用封闭整车几何，不能把玩家座舱开口带到 30 辆环境车上。
+  const ambient = models.createTrafficCarBody('taxi');
+  ambient.geometry.computeBoundingBox();
+  assert.ok(ambient.geometry.index.count / 3 > 1500, 'ambient taxi keeps its closed lofted body');
+  playerTaxi.dispose();
+
+  // 四旋翼：座位锚点 + 内置飞行员可整组隐藏（玩家登机后换成同一角色）。
+  const occupied = models.createEvtolMesh();
+  assert.ok(occupied.seat && occupied.seat.pelvis, 'eVTOL exposes a pilot seat');
+  const pilotGroup = occupied.group.getObjectByName('pilot');
+  assert.ok(pilotGroup && pilotGroup.visible, 'empty eVTOL shows its built-in pilot');
+  occupied.setOccupantVisible(false);
+  assert.equal(pilotGroup.visible, false, 'boarding hides the built-in pilot');
+  occupied.setOccupantVisible(true);
+  assert.equal(pilotGroup.visible, true);
+  occupied.dispose();
+  const emptyCargo = models.createCargoDroneMesh();
+  assert.equal(emptyCargo.seat, null, 'cargo drone has no passenger seat');
+  emptyCargo.dispose();
 });
