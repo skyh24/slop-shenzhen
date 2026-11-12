@@ -65,6 +65,22 @@ export function createLanePlan(link, metadata = {}) {
     narrow, twoWay, highway };
 }
 
+// 桥面为了接触留有最小铺装宽度，车道数仍按来源断面判断。
+export function createDeckLanePlan(link, metadata, deckWidth, barrierWidth) {
+  const usable = deckWidth - barrierWidth * 2;
+  const sourceWidth = Math.min(link[3], usable);
+  const osmLanes = link[4] > 0 ? link[4] : 0;
+  const classRamp = metadata.highway.endsWith('_link') && metadata.widthSource === 'estimate-from-class';
+  const estimate = classRamp ? 1 : Math.floor((sourceWidth + 0.25) / 3);
+  const laneCount = Math.max(1, Math.min(MAX_LANES, osmLanes || estimate));
+  const lines = [{ offset: -usable / 2 + 0.24, duty: 1 }, { offset: usable / 2 - 0.24, duty: 1 }];
+  for (let lane = 1; lane < laneCount; lane++) {
+    const center = link[5] === 0 && lane === Math.ceil(laneCount / 2);
+    lines.push({ offset: usable * (lane / laneCount - 0.5), duty: 0.32, color: center ? 'yellow' : 'white' });
+  }
+  return { laneCount, laneSource: osmLanes ? 'osm-lanes' : 'width-estimate', lines };
+}
+
 function distanceToSegment(point, a, b) {
   const dx = b.x - a.x, dz = b.z - a.z;
   const length = Math.hypot(dx, dz);

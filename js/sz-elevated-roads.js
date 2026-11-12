@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { normalWorld, positionWorld } from 'three/tsl';
 import { isGroundRoad, roadLinkPoints } from './sz-roads.js';
 import { createGroundSurfaceSampler } from './sz-ground-surface.js';
 import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
@@ -13,7 +14,7 @@ const MAX_CHUNKS = 12;
 const EPSILON = 1e-8;
 // 护栏尺寸照武汉参考实现（0.95 m 高、0.35 m 宽）估计，不是深圳设计图尺寸。
 const BARRIER_HEIGHT_M = 0.95;
-const BARRIER_WIDTH_M = 0.35;
+export const ELEVATED_BARRIER_WIDTH_M = 0.35;
 // 桥面离开地面超过这个高度才加护栏；匝道落地段两侧留开口给车辆进出。
 const BARRIER_MIN_SEPARATION_M = 0.75;
 // 车行链路只接受可驾驶的估计纵坡；更陡的派生桥面是未核实断面，不接入车流/自动导航。
@@ -360,8 +361,8 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
     const nz = frameA.nz + (frameB.nz - frameA.nz) * mix;
     const length = Math.hypot(nx, nz) || 1;
     const sign = side === 'left' ? -1 : 1;
-    return { x: point.x + (nx / length) * BARRIER_WIDTH_M * sign,
-      z: point.z + (nz / length) * BARRIER_WIDTH_M * sign };
+    return { x: point.x + (nx / length) * ELEVATED_BARRIER_WIDTH_M * sign,
+      z: point.z + (nz / length) * ELEVATED_BARRIER_WIDTH_M * sign };
   };
   for (let i = 1; i < frames.length; i++) {
     const a = frames[i - 1];
@@ -812,6 +813,8 @@ export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, inter
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1
   });
+  // 只偏移桥面接收阴影的采样点，消除薄桥板投到自身的条纹。
+  material.receivedShadowPositionNode = positionWorld.add(normalWorld.mul(0.24));
   const meshes = [];
   for (const chunk of plan.chunks) {
     const geometry = new THREE.BufferGeometry();

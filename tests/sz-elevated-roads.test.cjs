@@ -10,8 +10,9 @@ const roads = loadModule(read('sz-roads.js'), { imports: {
 } });
 const groundSurface = loadModule(read('sz-ground-surface.js'));
 const controllerSurfaces = loadModule(read('sz-controller-surfaces.js'));
+const tslStub = { normalWorld: { mul: () => ({}) }, positionWorld: { add: () => ({}) } };
 const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
-  'three/webgpu': {},
+  'three/webgpu': {}, 'three/tsl': tslStub,
   './sz-roads.js': roads,
   './sz-ground-surface.js': groundSurface,
   './sz-controller-surfaces.js': controllerSurfaces
@@ -149,6 +150,7 @@ test('real THREE build creates at most twelve chunk meshes and a walkable deck t
     } });
     const module = loadModule(read('sz-elevated-roads.js'), { imports: {
       'three/webgpu': THREE,
+      'three/tsl': await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.tsl.js'))),
       './sz-roads.js': realRoads,
       './sz-ground-surface.js': groundSurface,
       './sz-controller-surfaces.js': controllerSurfaces
@@ -294,7 +296,7 @@ function fakeElevatedThree() {
 test('built elevated roads expose drive surfaces and a deck height sampler on the same triangles', () => {
   const fake = fakeElevatedThree();
   const module = loadModule(read('sz-elevated-roads.js'), { imports: {
-    'three/webgpu': fake,
+    'three/webgpu': fake, 'three/tsl': tslStub,
     './sz-roads.js': roads,
     './sz-ground-surface.js': groundSurface,
     './sz-controller-surfaces.js': controllerSurfaces
@@ -445,7 +447,7 @@ test('piers expose a contact body from the ground to the deck underside', () => 
 test('built elevated roads expose the guardrail and pier contact bodies', () => {
   const fake = fakeElevatedThree();
   const module = loadModule(read('sz-elevated-roads.js'), { imports: {
-    'three/webgpu': fake,
+    'three/webgpu': fake, 'three/tsl': tslStub,
     './sz-roads.js': roads,
     './sz-ground-surface.js': groundSurface,
     './sz-controller-surfaces.js': controllerSurfaces

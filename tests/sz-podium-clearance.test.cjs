@@ -17,6 +17,10 @@ const SAMPLE_ROAD_OSM_ID = 'way/270044912';
 const terrain = loadModule(read('sz-terrain.js'));
 const layout = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
 const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
+const roads = loadModule(read('sz-roads.js'), { imports: { 'three/webgpu': {}, './sz-road-material.js': {} } });
+const { createRoadBuildingClearance } = loadModule(read('sz-road-building-clearance.js'), { imports: {
+  './sz-roads.js': roads, './building-collision.js': collision
+} });
 const { polygonContains } = collision;
 
 // 离线 stub：sz-geometry 只用到这些能力，注意三角化按扇形生成，足以覆盖任意外环顶点数。
@@ -252,6 +256,46 @@ const realFacades = raw.enums.facade;
 const sampleBuilding = realBuildings.find(building => building.id === SAMPLE_BUILDING_ID);
 const realEntrances = (geo.roadFrontage?.entrances ?? []).map(({ x, z }) => ({ x, z }));
 const sampleRoads = groundRoadCentrelines(geo.roadGraph).filter(road => road.osmId === SAMPLE_ROAD_OSM_ID);
+
+test('rendered Chegongmiao ramp clearance removes the phantom footprint and its collider', () => {
+  const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
+    'three/webgpu': {}, 'three/tsl': {}, './sz-roads.js': roads, './sz-ground-surface.js': loadModule(read('sz-ground-surface.js')),
+    './sz-controller-surfaces.js': {}
+  } });
+  const building = realBuildings.find(item => item.id === 'globfp/5784');
+  const deckPlan = elevated.planElevatedRoads(geo.roadGraph, geo.terrainSurface);
+  const roadClearance = createRoadBuildingClearance(EMPTY_ROAD_GRAPH(), () => null, deckPlan.links);
+  const placement = layout.buildingPlacement(building, geo.terrain);
+  assert.match(roadClearance(building.polygons[0], building, placement.minY, placement.maxY), /^sz-elevated-road:/);
+  assert.equal(roadClearance(building.polygons[0], building, -30, -25), null);
+  assert.equal(roadClearance(building.polygons[0], building, 90, 95), null);
+
+  const { buildCityBlocks } = loadCityBlocks(stubThree(), realFacades);
+  const blocks = buildCityBlocks(makeScene(), { buildings: [building], terrain: geo.terrain, roadClearance });
+  assert.equal(blocks.roadConflicts[0].buildingId, building.id);
+  assert.equal(blocks.allBlocks.length, 0);
+  assert.equal(blocks.colliders.length, 0);
+  assert.equal(blocks.group.children.length, 0);
+});
+
+test('ground road clearance checks the drivable path, courtyards and underpasses', () => {
+  const graph = straightRoadGraph(-20, 0, 20, 0);
+  const intersects = createRoadBuildingClearance(graph, () => 0);
+  const building = makeTower({ id: 'globfp/1', height: 12, outer: ringSquare(0, 0, 5) });
+  const raised = makeTower({ id: 'globfp/2', height: 12, minHeight: 6, outer: ringSquare(0, 0, 5) });
+  const near = makeTower({ id: 'globfp/3', height: 12, outer: ringSquare(0, 6, 4) });
+  const passage = makeTower({ id: 'globfp/4', height: 12, outer: ringSquare(0, 0, 8),
+    holes: [ringSquare(0, 0, 7)] });
+  assert.match(intersects(building.polygons[0], building, 0, 12), /^ground:/);
+  assert.equal(intersects(raised.polygons[0], raised, 6, 12), null);
+  assert.equal(intersects(near.polygons[0], near, 0, 12), null);
+  assert.equal(intersects(passage.polygons[0], passage, 0, 12), null);
+  const osm = { ...building, id: 'way/900000006' };
+  const { buildCityBlocks } = loadCityBlocks(stubThree(), ['office']);
+  const blocks = buildCityBlocks(makeScene(), { buildings: [building, osm, raised, near, passage],
+    terrain: FLAT_GRID(), roadClearance: intersects });
+  assert.deepEqual(Array.from(blocks.colliders, collider => collider.sourceId), [osm.id, raised.id, near.id, passage.id]);
+});
 
 test('real sample tower keeps the ground carriageway of way/270044912 clear of estimated podiums', () => {
   assert.ok(sampleBuilding, 'shared payload still carries the sample tower');

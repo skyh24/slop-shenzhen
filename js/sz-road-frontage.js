@@ -251,7 +251,8 @@ function addShennanFlowerBeds(group, sites, medianHeight, material) {
 export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeight, roadHeight } = {}) {
   const control = createIntersectionControl(source, graph);
   const statistics = { triangleCount: 0, curbTriangles: 0, curbSegments: 0, signals: 0, shrubs: 0, shennanFlowerBeds: 0 };
-  const empty = { group: null, control, contactHeight: () => null, shennanMedianHeight: () => null, colliders: [],
+  const empty = { group: null, control, contactHeight: () => null, shennanMedianHeight: () => null,
+    medianHeight: () => null, colliders: [],
     detailedRoadIds: [], statistics, update() {}, dispose() {} };
   if (!source) return empty;
   if (typeof groundHeight !== 'function' || typeof roadHeight !== 'function') throw new Error('Road frontage requires terrain and asphalt contact');
@@ -265,15 +266,16 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const style = { sidewalk: paving, paving, paint: material(0xf1eee5, -3, 0.84), median: material(0x52673b) };
   const grass = plantedSurfaceMaterial(0x4f762b);
   const flowers = plantedSurfaceMaterial(0x864359);
-  const shennanMedians = new Map(source.corridors.filter(row => row.id.startsWith('shennan-')
-    && row.medianSource?.positionSource === 'documented-median-between-osm-carriageways')
+  const medians = new Map(source.corridors.filter(row =>
+    row.medianSource?.positionSource === 'documented-median-between-osm-carriageways')
     .map(row => [`${row.id}:median`, row]));
   const medianSamplers = [];
   const samplers = [];
   for (const feature of source.features) {
-    const corridor = shennanMedians.get(feature.id);
-    const planted = corridor && feature.kind === 'median'
+    const corridor = medians.get(feature.id);
+    const verifiedMedian = corridor && feature.kind === 'median'
       && feature.sourceIds.length >= 2 && feature.sourceIds.every(id => /^way\/\d+$/.test(id));
+    const planted = verifiedMedian && corridor.id.startsWith('shennan-');
     const mat = planted ? grass : style[feature.kind];
     if (!mat) throw new Error(`Unknown frontage surface: ${feature.kind}`);
     const layout = createRoadPolygonLayout(feature, terrain);
@@ -291,20 +293,22 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     if (feature.riseM) {
       const sample = createRoadHeightSampler(layout.chunks, terrain.grid);
       samplers.push(sample);
-      if (planted) medianSamplers.push({ bounds: corridor.bounds, sample });
+      if (verifiedMedian) medianSamplers.push({ bounds: corridor.bounds, sample, planted });
       statistics.curbTriangles += addCurbWalls(group, feature, groundHeight, walls);
     }
     statistics.triangleCount += layout.statistics.triangles;
   }
   statistics.curbSegments = statistics.curbTriangles / 2;
-  function shennanMedianHeight(x, z) {
-    for (const { bounds: [x0, z0, x1, z1], sample } of medianSamplers) {
+  function medianHeight(x, z, shennanOnly = false) {
+    for (const { bounds: [x0, z0, x1, z1], sample, planted } of medianSamplers) {
+      if (shennanOnly && !planted) continue;
       if (x < x0 || x > x1 || z < z0 || z > z1) continue;
       const y = sample(x, z);
       if (y !== null) return y;
     }
     return null;
   }
+  const shennanMedianHeight = (x, z) => medianHeight(x, z, true);
   function contactHeight(x, z) {
     if (!source.corridors.some(({ bounds }) => x >= bounds[0] && x <= bounds[2] && z >= bounds[1] && z <= bounds[3])) return null;
     let y = null;
@@ -320,7 +324,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   statistics.shrubs = addMedianShrubs(group, sites.filter(([x, z]) => shennanMedianHeight(x, z) === null), contactHeight);
   statistics.shennanFlowerBeds = addShennanFlowerBeds(group, sites, shennanMedianHeight, flowers);
   scene.add(group);
-  return { group, control, contactHeight, shennanMedianHeight, colliders: hardware.colliders, signalOrigins: hardware.origins, statistics,
+  return { group, control, contactHeight, shennanMedianHeight, medianHeight, colliders: hardware.colliders, signalOrigins: hardware.origins, statistics,
     detailedRoadIds: [...new Set(source.corridors.flatMap(row => row.roadIds))], update: hardware.update,
     dispose() {
       group.removeFromParent();

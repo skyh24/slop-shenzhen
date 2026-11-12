@@ -20,36 +20,8 @@ const apec = loadModule(read('sz-apec.js'), {
     './sz-materials.js': materialsStub }
 });
 
-// 用真实路网 link 结构造合成路网：nodes 是扁平坐标，links 是 [起点, 终点, 路名索引, 路宽, 车道, 方向, 中间点...]
-function makeGraph(roads) {
-  const nodeIndices = new Map();
-  const nodes = [];
-  const links = [];
-  const names = [''];
-  const nameIndices = new Map([['', 0]]);
-  const metadata = [];
-  function node(x, z) {
-    const key = `${x},${z}`;
-    if (!nodeIndices.has(key)) {
-      nodeIndices.set(key, nodes.length / 2);
-      nodes.push(x, z);
-    }
-    return nodeIndices.get(key);
-  }
-  for (const road of roads) {
-    const points = road.points;
-    const start = node(...points[0]);
-    const end = node(...points.at(-1));
-    const name = road.name ?? '';
-    if (!nameIndices.has(name)) {
-      nameIndices.set(name, names.length);
-      names.push(name);
-    }
-    links.push([start, end, nameIndices.get(name), road.width ?? 16, 0, 0, ...points.slice(1, -1).flat()]);
-    metadata.push({ osmId: `way/${links.length}`, highway: 'primary', bridge: road.bridge ?? false,
-      tunnel: road.tunnel ?? false, layer: road.layer ?? 0 });
-  }
-  return { nodes, links, names, metadata };
+function lampSite(roadName, x, z = 0, y = 8.4, yaw = Math.PI / 2) {
+  return { roadName, x, z, y, yaw, stationM: x + 20 };
 }
 
 function planFor(overrides = {}) {
@@ -91,65 +63,13 @@ test('APEC strings live under a new apecTheme key and existing keys are untouche
   }
 });
 
-test('banners are placed every 40 m on both sides of the three APEC avenues only', () => {
-  const graph = makeGraph([
-    { name: '深南大道', points: [[0, 0], [120, 0]] },
-    { name: '深南大道', points: [[120, 0], [240, 0]] },
-    { name: '深南大道', points: [[240, 0], [360, 0]] },
-    { name: '福华路', points: [[0, 100], [120, 100]] }
-  ]);
-  const sites = apec.bannerSites(graph);
-  assert.equal(sites.length, 12);
-  assert.ok(sites.every(site => site.roadName === '深南大道'));
-  const first = sites.filter(site => site.linkIndex === 0);
-  assert.deepEqual(plain(first.map(site => [site.side, site.z])), [[1, -9], [-1, 9], [1, -9], [-1, 9]]);
-  assert.deepEqual(plain(first.map(site => site.x)), [40, 40, 80, 80]);
-  assert.ok(first.every(site => Math.abs(site.yaw - Math.PI / 2) < 1e-9));
-  assert.equal(apec.isApecBannerRoad('福华路'), false);
-  assert.equal(apec.isApecBannerRoad('滨河大道辅道'), true);
-  assert.equal(apec.isApecBannerRoad('滨海大道'), true);
+test('APEC avenue banners use only installed lamp positions and preserve their mounting height', () => {
+  const lampSites = [lampSite('深南大道', 20), lampSite('滨河大道辅道', 40, 30),
+    lampSite('滨海大道', 60, 50), lampSite('福华路', 80)];
+  const sites = apec.bannerSites(lampSites);
+  assert.equal(sites.length, 3);
+  sites.forEach((site, index) => assert.equal(site, lampSites[index]));
   assert.equal(apec.isApecBannerRoad(''), false);
-});
-
-test('banner offset is half the road width plus one metre', () => {
-  const graph = makeGraph([{ name: '深南大道', points: [[0, 0], [120, 0]], width: 24 }]);
-  const sites = apec.bannerSites(graph, { spacingM: 40 });
-  assert.equal(sites.length, 4);
-  assert.deepEqual(plain([...new Set(sites.map(site => site.z))].sort((a, b) => a - b)), [-13, 13]);
-});
-
-test('banner placement skips everything within 15 m of a junction', () => {
-  const graph = makeGraph([
-    { name: '深南大道', points: [[0, 0], [120, 0]] },
-    { name: '深南大道', points: [[120, 0], [240, 0]] },
-    { name: '深南大道', points: [[120, 0], [120, 120]] }
-  ]);
-  assert.equal(apec.bannerSites(graph).length, 12);
-  assert.equal(apec.bannerSites(graph, { junctionGapM: 50 }).length, 6);
-  assert.equal(apec.bannerSites(graph, { junctionGapM: 0 }).length, 12);
-});
-
-test('no banners on bridges tunnels or elevated links', () => {
-  const graph = makeGraph([
-    { name: '深南大道', points: [[0, 0], [120, 0]], bridge: true },
-    { name: '深南大道', points: [[0, 0], [120, 0]], tunnel: true },
-    { name: '深南大道', points: [[0, 0], [120, 0]], layer: 1 },
-    { name: '深南大道', points: [[0, 0], [120, 0]] }
-  ]);
-  const sites = apec.bannerSites(graph);
-  assert.equal(sites.length, 4);
-  assert.ok(sites.every(site => site.linkIndex === 3));
-});
-
-test('banner placement is deterministic and honours spacing', () => {
-  const graph = makeGraph([{ name: '滨海大道', points: [[0, 0], [400, 0]] }]);
-  const sites = apec.bannerSites(graph, { spacingM: 50 });
-  assert.equal(sites.length, 14);
-  const distances = sites.filter(site => site.side === 1).map(site => site.distanceM);
-  assert.deepEqual(plain(distances), [50, 100, 150, 200, 250, 300, 350]);
-  assert.deepEqual(apec.bannerSites(graph, { spacingM: 50 }), sites);
-  assert.throws(() => apec.bannerSites(null), /requires a road graph/);
-  assert.throws(() => apec.bannerSites(graph, { spacingM: 0 }), /must be positive/);
 });
 
 test('sign plan uses real convention-centre bounds and labels illustrative offsets', () => {
@@ -209,9 +129,9 @@ test('flower layout is deterministic, even and inside the declared ellipse', () 
 });
 
 test('full plan placement is deterministic', () => {
-  const graph = makeGraph([{ name: '深南大道', points: [[0, 0], [240, 0]] }]);
-  const first = planFor({ roadGraph: graph });
-  const second = planFor({ roadGraph: graph });
+  const lampSites = [lampSite('深南大道', 20), lampSite('深南大道', 80)];
+  const first = planFor({ lampSites });
+  const second = planFor({ lampSites });
   assert.deepEqual(first, second);
   const statistics = apec.summarizeApecPlan(first);
   assert.equal(statistics.banners.count, first.banners.length);
@@ -241,13 +161,10 @@ test('the runtime builds instanced banners signs and flower beds under the theme
     globals: { document: fakeDocument }
   });
   const scene = new THREE.Scene();
-  const graph = makeGraph([
-    { name: '深南大道', points: [[0, 0], [240, 0]] },
-    { name: '滨河大道', points: [[0, 60], [160, 60]] }
-  ]);
+  const lampSites = [lampSite('深南大道', 20, 2), lampSite('滨河大道', 55, 58), lampSite('福华路', 80)];
   {
     const model = module.buildApecTheme(scene, {
-      roadGraph: graph,
+      lampSites,
       terrain: null,
       landmarks: [
         { id: 'convention-center', x: 100, z: 100 },
@@ -261,14 +178,18 @@ test('the runtime builds instanced banners signs and flower beds under the theme
     assert.equal(model.enabled, true);
     assert.equal(model.group.visible, true);
     assert.equal(model.group.name, 'shenzhen-apec-theme');
-    assert.equal(model.statistics.banners.count, 16);
+    assert.equal(model.statistics.banners.count, 2);
     assert.equal(model.statistics.flowers.built, 680);
     assert.equal(model.statistics.signs.length, 3);
     assert.equal(model.statistics.meshes, model.group.children.length);
     const banners = model.group.getObjectByName('apec-banners');
     assert.ok(banners.isInstancedMesh);
-    assert.equal(banners.count, 16);
-    assert.equal(model.group.getObjectByName('apec-banner-poles').count, 16);
+    assert.equal(banners.count, 2);
+    assert.equal(model.group.getObjectByName('apec-banner-poles'), undefined);
+    const matrix = new THREE.Matrix4();
+    banners.getMatrixAt(0, matrix);
+    assert.ok(new THREE.Vector3().setFromMatrixPosition(matrix)
+      .distanceTo(new THREE.Vector3(lampSites[0].x, lampSites[0].y, lampSites[0].z)) < 1e-5);
     assert.equal(model.group.getObjectByName('apec-flowers:lianhuashan-flower-bed').count, 300);
     assert.ok(drawCalls.some(([name]) => name === 'fillText'));
     // 日夜系数直接读全局 uniform：夜间招牌和道旗的自发光变强。
@@ -286,12 +207,12 @@ test('the runtime builds instanced banners signs and flower beds under the theme
     nightUniform.value = 1;
     model.update(0.016);
     assert.ok(emissiveSum() > dayEmissive, 'APEC signs brighten with sceneUniforms.night');
-    // 几何尺寸对得上 APEC 道旗：底边 2.6 米、高 1.6 米，正反两片旗面各一条法线
+    // 几何尺寸对得上 APEC 道旗：底边 3.25 米、高 1.6 米，正反两片旗面各一条法线
     const geometries = module.createApecGeometry();
     assert.equal(geometries.banner.attributes.position.count, 8);
     assert.equal(geometries.banner.index.count, 12);
-    assert.ok(Math.abs(geometries.banner.boundingBox.min.y - 2.6) < 1e-5);
-    assert.ok(Math.abs(geometries.banner.boundingBox.max.y - 4.2) < 1e-5);
+    assert.ok(Math.abs(geometries.banner.boundingBox.min.y - 3.25) < 1e-5);
+    assert.ok(Math.abs(geometries.banner.boundingBox.max.y - 4.85) < 1e-5);
     assert.ok(Math.abs(geometries.banner.boundingBox.max.x - geometries.banner.boundingBox.min.x - 0.9) < 1e-5);
     assert.equal(geometries.banner.attributes.normal.getZ(0), 1);
     assert.equal(geometries.banner.attributes.normal.getZ(4), -1);
