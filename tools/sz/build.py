@@ -2,17 +2,20 @@
 
 import argparse
 import gzip
+import hashlib
 import json
 import time
 from pathlib import Path
 
-from shapely.geometry import box
+from shapely import make_valid, transform
+from shapely.geometry import Polygon, box
+from shapely.ops import unary_union
 
 from beihuan import apply_beihuan_sections
 from bridges import build_bridges
 from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, ROLES,
                        UPSTREAM_FAMILIES, build_buildings)
-from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project
+from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project, project_coords
 from land import build_land
 from landmark_sites import build_landmark_sites
 from osm import PBF, read_osm
@@ -24,13 +27,12 @@ from sea_surface import build_sea_surface
 from streetscape import build_streetscape
 from terrain import build_terrain
 from terrain_exclusions import chunjian_exclusions
-from terrain_surface import build_terrain_surface
-from road_surface import build_road_surface
+from terrain_surface import build_terrain_surface, build_urban_grid
 from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
 from fastpack import encode_city
-from package_validation import CORE_SOURCES, audit_payload, verify_sources
+from package_validation import CORE_SOURCES, audit_payload, ring_points, verify_sources
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'js/sz-city.json.gz'
@@ -39,6 +41,7 @@ LANDMARKS = ROOT / 'data/source/landmarks.json'
 AIR = ROOT / 'data/source/air-routes.json'
 FAST_OUT = ROOT / 'js/sz-city.szc.gz'
 VALIDATION_REPORT = ROOT / 'data/source/data-validation-report.json'
+URBAN_DATUM = ROOT / 'data/source/urban-datum.json'
 
 FORMAT_VERSION = 2
 FAR_PAD = 30000
@@ -74,11 +77,61 @@ def landmark_entries(landmarks):
     return out
 
 
+def load_urban_ranges(osm, osm_sha256, path=URBAN_DATUM):
+    """用同一快照的对象身份加载保留地形和商圈；范围禁止随版本漂移。"""
+    ranges = json.loads(path.read_text())
+    if ranges['version'] != 1 or ranges['osmSnapshotSha256'] != osm_sha256:
+        raise ValueError('Urban range manifest does not match the verified OSM snapshot')
+    green = {entry['id']: entry for entry in osm['green']}
+
+    def geometry(entry):
+        source_id = entry['osmId']
+        tags = entry['tag']
+        source = green.get(source_id)
+        if 'multipolygonWgs84' in entry:
+            polygons = entry['multipolygonWgs84']
+        elif 'polygonWgs84' in entry:
+            polygons = [entry['polygonWgs84']]
+        elif source and all(source['tags'].get(key) == value for key, value in tags.items()):
+            return transform(source['geom'], project, interleaved=False)
+        else:
+            raise ValueError(f'Missing source area for urban range: {source_id}')
+        shapes = [Polygon(project_coords(outer), [project_coords(ring) for ring in holes])
+                  for outer, *holes in polygons]
+        if not shapes or any(not shape.is_valid or shape.is_empty or shape.area <= 0 for shape in shapes):
+            raise ValueError(f'Invalid polygon for urban range: {source_id}')
+        return unary_union(shapes)
+
+    relief = [geometry(entry) for entry in ranges['relief']]
+    commercial = []
+    for entry in ranges['commercial']:
+        if entry['tag'].get('landuse') not in ('commercial', 'retail'):
+            raise ValueError(f'Unsupported commercial land use: {entry["osmId"]}')
+        commercial.append(geometry(entry))
+    lawns = [geometry(entry) for entry in ranges['verifiedLawns']]
+    paving = unary_union(commercial).difference(unary_union(lawns))
+    return ranges, relief, paving
+
+
+def compile_ground(terrain, clip, land, water, green, wetland, exclusions, osm, osm_sha256, report):
+    ranges, relief, paving = load_urban_ranges(osm, osm_sha256)
+    dry = unary_union(land).difference(unary_union([item['poly'] for item in water]))
+    terrain = build_urban_grid(terrain, [dry], relief, ranges['datum'], report)
+    report['roadSurface']['ranges'] = {'manifest': 'data/source/urban-datum.json', 'osmSha256': osm_sha256,
+        'reliefIds': [entry['osmId'] for entry in ranges['relief']],
+        'commercialIds': [entry['osmId'] for entry in ranges['commercial']],
+        'verifiedLawnIds': [entry['osmId'] for entry in ranges['verifiedLawns']]}
+    surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland,
+                                    exclusions=exclusions, paving=[paving] if not paving.is_empty else ())
+    return terrain, surface
+
+
 def write_fast_package(payload, raw, sources):
     validation = audit_payload(payload, raw, sources)
     packed, stats = encode_city(payload)
     compressed = gzip.compress(packed, 9, mtime=0)
     stats['compressedBytes'] = len(compressed)
+    stats['compressedSha256'] = hashlib.sha256(compressed).hexdigest()
     validation['output'] = stats
     # 校验和编码全部成功后才替换产物；失败保留上一次可用包。
     temporary = FAST_OUT.with_suffix('.tmp')
@@ -86,6 +139,58 @@ def write_fast_package(payload, raw, sources):
     temporary.replace(FAST_OUT)
     VALIDATION_REPORT.write_text(json.dumps(validation, ensure_ascii=False, indent=2) + '\n')
     return stats
+
+
+def write_city_packages(payload, report, sources, started):
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
+    compressed = gzip.compress(raw, 9, mtime=0)
+    temporary = OUT.with_suffix('.tmp')
+    temporary.write_bytes(compressed)
+    try:
+        report['fastPackage'] = write_fast_package(payload, raw, sources)
+        temporary.replace(OUT)
+    finally:
+        temporary.unlink(missing_ok=True)
+    report['outputBytes'] = len(compressed)
+    report['outputSha256'] = hashlib.sha256(compressed).hexdigest()
+    report['seconds'] = round(time.time() - started, 1)
+    REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+
+
+def rebuild_ground(terrain_source, sources, use_cache):
+    """复用已校验正式包的其他段，供地面独立交付。"""
+    started = time.time()
+    base = gzip.decompress(OUT.read_bytes())
+    digest = hashlib.sha256(base).hexdigest()
+    validation = json.loads(VALIDATION_REPORT.read_text())
+    if validation['payloadSha256'] != digest or validation['sourceIntegrity'] != sources:
+        raise ValueError('Ground rebuild requires a payload bound to the verified source snapshots')
+    payload = json.loads(base)
+    report = json.loads(REPORT.read_text())
+    clip = phase1_clip_local()
+    if (payload['origin'] != [ORIGIN_LON, ORIGIN_LAT]
+            or payload['coverage'] != [enc_poly(p) for p in getattr(clip, 'geoms', [clip])]):
+        raise ValueError('Ground rebuild requires the current city origin and coverage')
+
+    def decode_polygons(key):
+        for outer, *holes in payload[key]:
+            poly = Polygon(ring_points(outer), [ring_points(ring) for ring in holes])
+            yield poly if poly.is_valid else make_valid(poly)
+
+    exclusions = [{**{key: value for key, value in item.items() if key not in ('areaM2', 'boundsXZ', 'polygonXZ')},
+                   'poly': Polygon(item['polygonXZ'])} for item in payload['terrainSurface'].get('exclusions', [])]
+    land = list(decode_polygons('land'))
+    water, green, wetland = [[{'poly': poly} for poly in decode_polygons(key)] for key in ('water', 'green', 'wetland')]
+    terrain = build_terrain(clip, report, source=terrain_source)
+    osm = read_osm(PHASE1_BBOX, use_cache=use_cache)
+    osm_sha256 = next(source['sha256'] for source in sources if source['id'] == 'osm-guangdong')
+    payload['terrain'], payload['terrainSurface'] = compile_ground(
+        terrain, clip, land, water, green, wetland, exclusions, osm, osm_sha256, report)
+    report['groundRebuild'] = {'basePayloadSha256': digest, 'changedSections': ['terrain', 'terrainSurface'],
+                               'boundaryGeometry': 'verified payload decimetre polygons'}
+    write_city_packages(payload, report, sources, started)
 
 
 def main():
@@ -97,8 +202,11 @@ def main():
                     help='select a traceable elevation product without modifying source heights')
     ap.add_argument('--footprint-source', choices=['all', 'osm'], default='all',
                     help='all = OSM + Overture + GloBFP footprints; osm = only map-marked OSM footprints')
-    ap.add_argument('--repack-existing', action='store_true',
-                    help='validate the existing shared snapshot and generate lossless SZC1 without rebuilding geometry')
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument('--repack-existing', action='store_true',
+                      help='validate the existing shared snapshot and generate lossless SZC1 without rebuilding geometry')
+    mode.add_argument('--rebuild-ground', action='store_true',
+                      help='rebuild only ground from verified current payload and write both packages')
     args = ap.parse_args()
 
     if args.repack_existing:
@@ -110,6 +218,9 @@ def main():
 
     terrain_ids = ('copernicus-dem-N22E113', 'copernicus-dem-N22E114') if args.terrain_source == 'copernicus' else ('terrain-N22E113', 'terrain-N22E114')
     sources = verify_sources(source_ids=(*CORE_SOURCES, *terrain_ids))
+    if args.rebuild_ground:
+        rebuild_ground(args.terrain_source, sources, use_cache=not args.no_cache)
+        return
 
     t0 = time.time()
     report = {'formatVersion': FORMAT_VERSION, 'origin': [ORIGIN_LON, ORIGIN_LAT], 'bbox': PHASE1_BBOX}
@@ -127,14 +238,12 @@ def main():
     road_graph = build_roadgraph(osm, clip, report)
     apply_beihuan_sections(road_graph, report)
     road_graph['turnRestrictions'] = build_turn_restrictions(PBF, road_graph, report)
-    # 春茧两座封闭厅是已核实的地面裁除区：派生路面不得改写馆内格点，先按原始 DSM 求出并复用。
+    # 春茧封闭厅仍按原始 DSM 核对后裁除，海面也始终从原始高程独立生成。
     exclusions = chunjian_exclusions(buildings, terrain, osm['roads'])
-    # 路面走廊用 FABDEM 基线派生平滑高程；原始 DSM 在走廊外不变，报告记录逐段前后高差。
-    terrain = build_road_surface(terrain, road_graph, report,
-                                 excluded_polygons=[exclusion['poly'] for exclusion in exclusions])
+    osm_sha256 = next(source['sha256'] for source in sources if source['id'] == 'osm-guangdong')
+    terrain, terrain_surface = compile_ground(terrain, clip, land, water, green, wetland, exclusions,
+                                              osm, osm_sha256, report)
     road_frontage = build_road_frontage(PBF, osm, road_graph, buildings, report)
-    terrain_surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland,
-                                          exclusions=exclusions)
     metro = build_metro(clip, report, use_cache=not args.no_cache)
 
     landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
@@ -226,14 +335,7 @@ def main():
         'buildingsWithLevels': sum(1 for b in buildings if b.get('levels', -1) > 0),
     }
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
-    report['fastPackage'] = write_fast_package(payload, raw, sources)
-    OUT.write_bytes(gzip.compress(raw, 9, mtime=0))
-    report['outputBytes'] = OUT.stat().st_size
-    report['seconds'] = round(time.time() - t0, 1)
-    REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    write_city_packages(payload, report, sources, t0)
 
 
 if __name__ == '__main__':

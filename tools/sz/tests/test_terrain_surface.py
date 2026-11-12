@@ -1,9 +1,11 @@
 """显示网格的岸线、水洞、三角面共面和分块接缝测试。"""
 
+import gzip
 import json
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from shapely.geometry import LineString, Polygon, box
@@ -11,8 +13,9 @@ from shapely.ops import unary_union
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from geo import KX, KY, ORIGIN_LAT, ORIGIN_LON
+from build import rebuild_ground
 from terrain_exclusions import SOURCE, _footprint_signature, chunjian_exclusions
-from terrain_surface import build_terrain_surface
+from terrain_surface import build_terrain_surface, build_urban_grid
 
 
 def grid():
@@ -38,6 +41,57 @@ def faces(surface):
 
 
 class TerrainSurfaceTests(unittest.TestCase):
+    def test_scoped_ground_rebuild_rejects_an_unbound_base_package(self):
+        with TemporaryDirectory() as directory:
+            base = Path(directory) / 'city.json.gz'
+            validation = Path(directory) / 'data-validation-report.json'
+            base.write_bytes(gzip.compress(b'{}'))
+            validation.write_text(json.dumps({'payloadSha256': 'stale-hash', 'sourceIntegrity': []}))
+            with patch('build.OUT', base), patch('build.VALIDATION_REPORT', validation):
+                with self.assertRaisesRegex(ValueError, 'payload bound to the verified source snapshots'):
+                    rebuild_ground('copernicus', [], use_cache=False)
+
+    def test_urban_grid_levels_connected_blocks_without_rewriting_relief_core_or_source(self):
+        source = {**grid(), 'nx': 9, 'heights': [120] * 27}
+        report = {}
+        land = [box(0, 0, 200, 50)]
+        active = build_urban_grid(source, land, [box(75, -200, 500, 250)],
+                                  {'heightM': 8.0, 'reference': {'method': 'fixture'}}, report)
+        self.assertEqual(source['heights'], [120] * 27)
+        self.assertEqual(active['heights'][:9], [80, 80, 80, 80, 103, 120, 120, 120, 120])
+        self.assertEqual(active['processing']['heightSource'], 'urban-datum')
+        self.assertEqual(active['processing']['urbanDatum']['sourceHeightSource'], 'fixture-dem')
+        self.assertEqual(report['roadSurface']['transitionSlopePercent']['max'], 9.2)
+        self.assertEqual(report['roadSurface']['vertices']['changed'], 15)
+        surface = build_terrain_surface(active, land[0], land, [], {})
+        heights = {(x, z): y for face in faces(surface) for x, y, z in face}
+        self.assertEqual(heights[25, 25], 8)
+        self.assertAlmostEqual(heights[100, 25], 10.3)
+        self.assertEqual(heights[125, 25], 12)
+        self.assertEqual(heights[200, 25], 12)
+
+    def test_commercial_stone_replaces_unverified_green_without_changing_contact(self):
+        terrain = grid()
+        coverage = box(0, 0, 50, 50)
+        stone = box(6, 11, 19, 38).difference(box(8, 21, 12, 29))
+        report = {}
+        surface = build_terrain_surface(terrain, coverage, [coverage], [], report,
+            green=[{'poly': box(-1, -1, 51, 51)}], paving=[stone])
+        paved = []
+        for chunk in surface['chunks']:
+            positions = chunk['positions']
+            for i in range(0, len(chunk['indices']), 3):
+                indices = chunk['indices'][i:i + 3]
+                kinds = {chunk['kinds'][k] for k in indices}
+                self.assertIn(kinds, ({1}, {3}))
+                vertices = [positions[k * 3:k * 3 + 3] for k in indices]
+                for x, y, z in vertices:
+                    self.assertAlmostEqual(y, sample(terrain, x, z), places=8)
+                if kinds == {3}:
+                    paved.append(Polygon([(x, z) for x, y, z in vertices]))
+        self.assertAlmostEqual(unary_union(paved).symmetric_difference(stone).area, 0, places=8)
+        self.assertEqual(report['terrainSurface']['stonePavingAreaM2'], stone.area)
+
     def test_exact_l_shaped_coverage_and_subcell_water_channel(self):
         g = grid()
         coverage = Polygon([(0, 0), (50, 0), (50, 25), (25, 25), (25, 50), (0, 50)])

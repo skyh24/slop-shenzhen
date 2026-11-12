@@ -55,7 +55,8 @@ function batchChunks(entries) {
 
 export { createGroundSurfaceSampler };
 
-const COLORS = [0xb5b0a2, 0x6f875a, 0x527858];
+// 地类 3 是商圈内的石材铺装占位色，未核实草坪用铺装边界切分三角面。
+const COLORS = [0xb5b0a2, 0x6f875a, 0x527858, 0xa9a9ac];
 
 export function buildSzGround(scene, surface, options = {}) {
   const chunks = unpackSurface(surface);

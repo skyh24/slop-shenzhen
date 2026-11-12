@@ -42784,1807 +42784,587 @@
     ]
   },
   "roadSurface": {
-    "status": "applied",
-    "heightSource": "derived-road",
-    "baseline": {
-      "heightSource": "derived-road",
-      "sourceId": "fabdem-bristol-v1.2",
-      "productType": "modelled DTM from Copernicus GLO-30",
+    "heightSource": "urban-datum",
+    "sourceHeightSource": "copernicus-glo30-dsm",
+    "datumM": 8.0,
+    "reference": {
+      "method": "Median of nine selected OSM ground-road centreline points sampled with bilinear FABDEM V1-2, rounded to the 0.1 m terrain grid. The prior derived surface is comparison only.",
+      "kind": "estimated-engineering-surface",
       "verticalDatum": "EGM2008",
-      "acquisition": "source GLO-30 mainly 2011–2015; FABDEM release 2023-01",
-      "license": "CC BY-NC-SA 4.0 plus Copernicus attribution terms; commercial licensing is separate",
-      "licenseReference": "https://data.bris.ac.uk/datasets/s5hqmjcdj8yo2ibzi9b4ew3sn/readme.txt",
-      "reference": "https://research-information.bris.ac.uk/en/datasets/fabdem-v1-2/",
-      "checkedAt": "2026-11-09",
-      "files": [
+      "sourceId": "fabdem-bristol-v1.2-road-surface",
+      "sourceUrl": "https://research-information.bris.ac.uk/en/datasets/fabdem-v1-2/",
+      "medianM": 8.008,
+      "previousSurfaceMedianM": 11.207,
+      "samples": [
         {
-          "path": "data/raw/terrain/audit/N22E113_FABDEM_V1-2.tif",
-          "sha256": "1d37c8c7f4f23b72b5cca337994113100db7758973ae51bfbf4a97d3307960dc",
-          "bytes": 15527400
+          "name": "福中三路新洲段",
+          "osmId": "way/616988561",
+          "wgs84": [
+            114.0449972,
+            22.5452345
+          ],
+          "fabdemM": 8.008,
+          "previousSurfaceM": 12.971
         },
         {
-          "path": "data/raw/terrain/audit/N22E114_FABDEM_V1-2.tif",
-          "sha256": "328281e83e64814004dc602bac865caf8d5a5bc143aca49bb96cc26226a4b94d",
-          "bytes": 13929353
+          "name": "福中三路市民中心",
+          "osmId": "way/616988561",
+          "wgs84": [
+            114.0554,
+            22.5454025
+          ],
+          "fabdemM": 9.306,
+          "previousSurfaceM": 11.207
+        },
+        {
+          "name": "深南大道竹子林",
+          "osmId": "way/996247118",
+          "wgs84": [
+            114.0028711,
+            22.5361318
+          ],
+          "fabdemM": 16.755,
+          "previousSurfaceM": 18.412
+        },
+        {
+          "name": "深南大道车公庙",
+          "osmId": "way/892901021",
+          "wgs84": [
+            114.0206794,
+            22.5390993
+          ],
+          "fabdemM": 6.984,
+          "previousSurfaceM": 5.914
+        },
+        {
+          "name": "深南大道科技园",
+          "osmId": "way/1050765265",
+          "wgs84": [
+            113.9488987,
+            22.5433253
+          ],
+          "fabdemM": 4.776,
+          "previousSurfaceM": 7.837
+        },
+        {
+          "name": "华强北振中路",
+          "osmId": "way/177228961",
+          "wgs84": [
+            114.0827607,
+            22.5456129
+          ],
+          "fabdemM": 11.866,
+          "previousSurfaceM": 18.844
+        },
+        {
+          "name": "华强北深南中路",
+          "osmId": "way/616351227",
+          "wgs84": [
+            114.0828209,
+            22.5432326
+          ],
+          "fabdemM": 10.881,
+          "previousSurfaceM": 14.479
+        },
+        {
+          "name": "后海海德三道",
+          "osmId": "way/232498907",
+          "wgs84": [
+            113.9414931,
+            22.5203878
+          ],
+          "fabdemM": 5.098,
+          "previousSurfaceM": 4.444
+        },
+        {
+          "name": "会展中心福华三路",
+          "osmId": "way/996752264",
+          "wgs84": [
+            114.0546994,
+            22.5353316
+          ],
+          "fabdemM": 7.06,
+          "previousSurfaceM": 1.916
         }
-      ],
-      "sampler": "manifest-geotiff",
-      "attribution": "FABDEM V1-2 (University of Bristol) contains modified Copernicus GLO-30 elevation data; CC BY-NC-SA 4.0 plus Copernicus attribution terms."
+      ]
     },
-    "rule": {
-      "stationSpacingM": 10.0,
-      "gradeClampPasses": 3,
-      "maxGradePercentByClass": {
-        "local": 10.0,
-        "motorway": 6.0,
-        "pedestrian": 10.0,
-        "primary": 7.0,
-        "secondary": 8.0,
-        "service": 10.0,
-        "tertiary": 10.0,
-        "trunk": 6.0
-      },
-      "stationMedianFilterWindow": 7,
-      "referenceRule": "reference = median_filter(min(median_filter(FABDEM), original DSM runtime height), 7) with nodata fallbacks; lowering only",
-      "raiseCapM": 0.5,
-      "plateauBufferSteps": 1.5,
-      "plateauBufferRule": "nearest station half width + 1.5 * terrain step",
-      "transitionM": 15.0,
-      "maxTransitionSlope": 0.2,
-      "maxTransitionM": 45.0,
-      "transitionRule": "width = clip(|profile - original DSM| / maxTransitionSlope, minTransitionM, maxTransitionM)",
-      "plateauRelaxation": {
-        "iterations": 10,
-        "alpha": 0.5,
-        "scope": "derived vertices only; original terrain is a fixed boundary"
-      },
-      "insideStepLimit": {
-        "limitM": 1.7,
-        "iterations": 60,
-        "scope": "adjacent derived vertices inside one corridor, with the raise cap applied"
-      },
-      "rimFadeLayers": 3,
-      "steepTerrainExclusion": {
-        "maxLocalDsmStepM": 3.0,
-        "rule": "terrain cells steeper than this keep the original DSM"
-      },
-      "nodeLevelRelaxation": {
-        "iterations": 10,
-        "rule": "shared node levels relaxed so endpoints fit the class grade allowance"
-      },
-      "junctionContinuity": "shared nodes use the median of incident resolved link reference endpoints",
-      "quantizationM": 0.1,
-      "terrainStepM": 25.0,
-      "method": "FABDEM station baseline median-filtered to reject residual building/canopy spikes, then reduced to min(filtered FABDEM, original DSM runtime height) per station with nodata fallbacks; the reference series is median-filtered again; shared nodes pinned to the median incident reference endpoint and relaxed within the class grade allowance; class grade clamp with forward/backward passes; flat cross-section; plateau radius = nearest station half width + 1.5 terrain steps; adaptive smoothstep transition (15 m minimum, widened where the profile differs from the DSM); bounded Laplacian relaxation and an inside-corridor single-cell step limit; derived vertices never exceed the original DSM by more than the raise cap; quantized to terrain heightScale"
-    },
-    "links": {
-      "total": 11238,
-      "eligible": 10478,
-      "resolved": 10478,
-      "unresolved": 0,
-      "gradeInfeasible": 0,
-      "excluded": {
-        "bridge": 498,
-        "layer": 93,
-        "shortLength": 76,
-        "tunnel": 93
-      },
-      "excludedTerrain": 0,
-      "maxAbsDeltaM": 47.381,
-      "p95AbsDeltaM": 10.449,
-      "medianAbsDeltaM": 3.382,
-      "overFiveMetres": 3150,
-      "reference": {
-        "rule": "reference = min(median-filtered FABDEM, original DSM runtime height), then median-filtered",
-        "medianBiasM": -2.097,
-        "p10BiasM": -5.643,
-        "p90BiasM": -0.055,
-        "maxRaiseBiasM": 0.125,
-        "definition": "biasM = median reference - median original DSM along the centreline; positive means the reference still sits above the DSM"
-      }
-    },
-    "stations": {
-      "count": 143708,
-      "spacingM": 10.0,
-      "medianFilterWindow": 7,
-      "spikeLimitM": 3.0,
-      "filteredLinks": 9823,
-      "spikeSamplesOverLimit": 27,
-      "maxRejectedSpikeM": 5.172
-    },
+    "reliefEdgeM": 45.0,
+    "reliefEdgeRule": "smoothstep from datum to source inside the first 45 m; preserve the source grid beyond",
+    "heightKind": "derived-engineering-surface",
     "vertices": {
       "total": 281934,
-      "derived": 66155,
-      "plateau": 53118,
-      "transition": 13037,
-      "changed": 63872,
-      "changedFraction": 0.22655,
-      "maxAbsDeltaM": 8.2,
-      "p95AbsDeltaM": 2.6,
-      "maxAdjacentDeltaM": 1.8,
-      "plateauAdjacentDeltaM": 1.8,
-      "rimAdjacentDeltaM": 7.0,
-      "rimNewStepM": 4.1,
-      "insideNewStepM": 1.7,
-      "adjacentStepsOver2M": 0,
-      "adjacentStepsOver5M": 0,
-      "plateauStepsOver2M": 0,
-      "raisedCapped": 14057,
-      "maxRaiseM": 0.5,
-      "excluded": 19,
-      "limitM": 0.5
+      "urban": 167758,
+      "reliefUnchanged": 9408,
+      "transition": 3872,
+      "changed": 170826
     },
-    "classes": {
-      "motorway": {
-        "links": 198,
-        "changedVertices": 2085,
-        "maxAbsDeltaM": 14.589,
-        "p95AbsDeltaM": 8.259
-      },
-      "trunk": {
-        "links": 459,
-        "changedVertices": 2587,
-        "maxAbsDeltaM": 11.651,
-        "p95AbsDeltaM": 6.897
-      },
-      "primary": {
-        "links": 2997,
-        "changedVertices": 14547,
-        "maxAbsDeltaM": 46.545,
-        "p95AbsDeltaM": 8.001
-      },
-      "secondary": {
-        "links": 2076,
-        "changedVertices": 10301,
-        "maxAbsDeltaM": 16.908,
-        "p95AbsDeltaM": 7.861
-      },
-      "tertiary": {
-        "links": 2217,
-        "changedVertices": 14448,
-        "maxAbsDeltaM": 29.302,
-        "p95AbsDeltaM": 10.553
-      },
-      "local": {
-        "links": 2531,
-        "changedVertices": 19904,
-        "maxAbsDeltaM": 47.381,
-        "p95AbsDeltaM": 13.313
-      },
-      "service": {
-        "links": 0,
-        "changedVertices": 0,
-        "maxAbsDeltaM": null,
-        "p95AbsDeltaM": null
-      },
-      "pedestrian": {
-        "links": 0,
-        "changedVertices": 0,
-        "maxAbsDeltaM": null,
-        "p95AbsDeltaM": null
-      }
+    "transitionTriangles": 12108,
+    "transitionSlopePercent": {
+      "p50": 23.286,
+      "p95": 190.294,
+      "max": 681.875
     },
-    "largeDeltas": [
-      {
-        "osmId": "way/187658564",
-        "name": "",
-        "class": "local",
-        "lengthM": 102.325,
-        "maxAbsDeltaM": 47.381,
-        "maxFabdemSpikeM": 0.707
-      },
-      {
-        "osmId": "way/41019601",
-        "name": "彩田路",
-        "class": "primary",
-        "lengthM": 190.502,
-        "maxAbsDeltaM": 46.545,
-        "maxFabdemSpikeM": 0.526
-      },
-      {
-        "osmId": "way/582246450",
-        "name": "滨河彩田立交",
-        "class": "primary",
-        "lengthM": 230.1,
-        "maxAbsDeltaM": 40.7,
-        "maxFabdemSpikeM": 3.568
-      },
-      {
-        "osmId": "way/41019601",
-        "name": "彩田路",
-        "class": "primary",
-        "lengthM": 175.622,
-        "maxAbsDeltaM": 40.604,
-        "maxFabdemSpikeM": 3.778
-      },
-      {
-        "osmId": "way/363776688",
-        "name": "",
-        "class": "local",
-        "lengthM": 202.291,
-        "maxAbsDeltaM": 34.631,
-        "maxFabdemSpikeM": 2.567
-      },
-      {
-        "osmId": "way/1305276433",
-        "name": "",
-        "class": "primary",
-        "lengthM": 116.924,
-        "maxAbsDeltaM": 31.941,
-        "maxFabdemSpikeM": 4.107
-      },
-      {
-        "osmId": "way/41018945",
-        "name": "彩田路",
-        "class": "primary",
-        "lengthM": 25.354,
-        "maxAbsDeltaM": 31.685,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/1305276431",
-        "name": "",
-        "class": "primary",
-        "lengthM": 169.007,
-        "maxAbsDeltaM": 31.535,
-        "maxFabdemSpikeM": 2.452
-      },
-      {
-        "osmId": "way/996755160",
-        "name": "彩田路",
-        "class": "primary",
-        "lengthM": 115.619,
-        "maxAbsDeltaM": 29.847,
-        "maxFabdemSpikeM": 1.924
-      },
-      {
-        "osmId": "way/1305276433",
-        "name": "",
-        "class": "primary",
-        "lengthM": 56.693,
-        "maxAbsDeltaM": 29.808,
-        "maxFabdemSpikeM": 0.629
-      },
-      {
-        "osmId": "way/26274669",
-        "name": "彩田路",
-        "class": "primary",
-        "lengthM": 122.096,
-        "maxAbsDeltaM": 29.798,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/996755160",
-        "name": "彩田路",
-        "class": "primary",
-        "lengthM": 15.513,
-        "maxAbsDeltaM": 29.782,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/26274669",
-        "name": "彩田路",
-        "class": "primary",
-        "lengthM": 38.449,
-        "maxAbsDeltaM": 29.377,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/617224846",
-        "name": "福华五路",
-        "class": "tertiary",
-        "lengthM": 113.843,
-        "maxAbsDeltaM": 29.302,
-        "maxFabdemSpikeM": 1.727
-      },
-      {
-        "osmId": "way/41018945",
-        "name": "彩田路",
-        "class": "primary",
-        "lengthM": 49.153,
-        "maxAbsDeltaM": 27.964,
-        "maxFabdemSpikeM": 0.734
-      },
-      {
-        "osmId": "way/743544184",
-        "name": "新洲路",
-        "class": "primary",
-        "lengthM": 202.287,
-        "maxAbsDeltaM": 25.63,
-        "maxFabdemSpikeM": 2.154
-      },
-      {
-        "osmId": "way/686891191",
-        "name": "",
-        "class": "local",
-        "lengthM": 143.883,
-        "maxAbsDeltaM": 25.009,
-        "maxFabdemSpikeM": 0.107
-      },
-      {
-        "osmId": "way/235113766",
-        "name": "文心四路",
-        "class": "local",
-        "lengthM": 126.212,
-        "maxAbsDeltaM": 24.869,
-        "maxFabdemSpikeM": 1.28
-      },
-      {
-        "osmId": "way/245930191",
-        "name": "",
-        "class": "local",
-        "lengthM": 58.995,
-        "maxAbsDeltaM": 23.487,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/1569744113",
-        "name": "",
-        "class": "tertiary",
-        "lengthM": 11.06,
-        "maxAbsDeltaM": 23.379,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/1568438181",
-        "name": "",
-        "class": "tertiary",
-        "lengthM": 17.635,
-        "maxAbsDeltaM": 23.365,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/1552015911",
-        "name": "百合三路",
-        "class": "tertiary",
-        "lengthM": 370.598,
-        "maxAbsDeltaM": 23.319,
-        "maxFabdemSpikeM": 0.426
-      },
-      {
-        "osmId": "way/1569744112",
-        "name": "百合三路",
-        "class": "tertiary",
-        "lengthM": 11.883,
-        "maxAbsDeltaM": 23.311,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/223456857",
-        "name": "上沙伙头岭路",
-        "class": "local",
-        "lengthM": 440.72,
-        "maxAbsDeltaM": 23.061,
-        "maxFabdemSpikeM": 2.423
-      },
-      {
-        "osmId": "way/1552015912",
-        "name": "百合三路",
-        "class": "tertiary",
-        "lengthM": 367.362,
-        "maxAbsDeltaM": 22.947,
-        "maxFabdemSpikeM": 0.805
-      },
-      {
-        "osmId": "way/1552015912",
-        "name": "百合三路",
-        "class": "tertiary",
-        "lengthM": 12.137,
-        "maxAbsDeltaM": 22.924,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/517912183",
-        "name": "莲塘尾一路",
-        "class": "local",
-        "lengthM": 392.473,
-        "maxAbsDeltaM": 22.775,
-        "maxFabdemSpikeM": 3.555
-      },
-      {
-        "osmId": "way/1553347018",
-        "name": "百合八路",
-        "class": "tertiary",
-        "lengthM": 486.135,
-        "maxAbsDeltaM": 22.742,
-        "maxFabdemSpikeM": 0.466
-      },
-      {
-        "osmId": "way/1569744111",
-        "name": "",
-        "class": "tertiary",
-        "lengthM": 11.084,
-        "maxAbsDeltaM": 22.648,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/245930172",
-        "name": "",
-        "class": "local",
-        "lengthM": 106.964,
-        "maxAbsDeltaM": 22.589,
-        "maxFabdemSpikeM": 0.771
-      },
-      {
-        "osmId": "way/817826961",
-        "name": "",
-        "class": "local",
-        "lengthM": 193.36,
-        "maxAbsDeltaM": 22.576,
-        "maxFabdemSpikeM": 1.425
-      },
-      {
-        "osmId": "way/1568438182",
-        "name": "",
-        "class": "tertiary",
-        "lengthM": 15.97,
-        "maxAbsDeltaM": 22.29,
-        "maxFabdemSpikeM": 0.047
-      },
-      {
-        "osmId": "way/245794172",
-        "name": "科技广场路",
-        "class": "local",
-        "lengthM": 288.674,
-        "maxAbsDeltaM": 21.944,
-        "maxFabdemSpikeM": 0.411
-      },
-      {
-        "osmId": "way/817826962",
-        "name": "",
-        "class": "local",
-        "lengthM": 258.731,
-        "maxAbsDeltaM": 21.882,
-        "maxFabdemSpikeM": 1.135
-      },
-      {
-        "osmId": "way/1018428241",
-        "name": "",
-        "class": "local",
-        "lengthM": 18.399,
-        "maxAbsDeltaM": 21.303,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/1553347019",
-        "name": "",
-        "class": "tertiary",
-        "lengthM": 42.678,
-        "maxAbsDeltaM": 21.282,
-        "maxFabdemSpikeM": 0.052
-      },
-      {
-        "osmId": "way/223456780",
-        "name": "上沙东村九巷",
-        "class": "local",
-        "lengthM": 479.848,
-        "maxAbsDeltaM": 21.046,
-        "maxFabdemSpikeM": 1.935
-      },
-      {
-        "osmId": "way/996755162",
-        "name": "彩田路",
-        "class": "primary",
-        "lengthM": 169.24,
-        "maxAbsDeltaM": 21.0,
-        "maxFabdemSpikeM": 2.067
-      },
-      {
-        "osmId": "way/232333399",
-        "name": "",
-        "class": "local",
-        "lengthM": 78.88,
-        "maxAbsDeltaM": 20.973,
-        "maxFabdemSpikeM": 0.063
-      },
-      {
-        "osmId": "way/1306285061",
-        "name": "",
-        "class": "local",
-        "lengthM": 120.561,
-        "maxAbsDeltaM": 20.854,
-        "maxFabdemSpikeM": 0.818
-      },
-      {
-        "osmId": "way/1553347017",
-        "name": "",
-        "class": "tertiary",
-        "lengthM": 43.938,
-        "maxAbsDeltaM": 20.177,
-        "maxFabdemSpikeM": 0.148
-      },
-      {
-        "osmId": "way/854903606",
-        "name": "科技广场路",
-        "class": "local",
-        "lengthM": 281.167,
-        "maxAbsDeltaM": 20.045,
-        "maxFabdemSpikeM": 0.685
-      },
-      {
-        "osmId": "way/1352282132",
-        "name": "",
-        "class": "local",
-        "lengthM": 61.949,
-        "maxAbsDeltaM": 19.747,
-        "maxFabdemSpikeM": 0.017
-      },
-      {
-        "osmId": "way/493389667",
-        "name": "紫竹七道",
-        "class": "local",
-        "lengthM": 183.309,
-        "maxAbsDeltaM": 19.739,
-        "maxFabdemSpikeM": 0.317
-      },
-      {
-        "osmId": "way/97522362",
-        "name": "皇岗四街",
-        "class": "local",
-        "lengthM": 109.52,
-        "maxAbsDeltaM": 19.356,
-        "maxFabdemSpikeM": 0.171
-      },
-      {
-        "osmId": "way/513275412",
-        "name": "星河路",
-        "class": "local",
-        "lengthM": 168.132,
-        "maxAbsDeltaM": 19.169,
-        "maxFabdemSpikeM": 0.346
-      },
-      {
-        "osmId": "way/1568230846",
-        "name": "",
-        "class": "primary",
-        "lengthM": 65.467,
-        "maxAbsDeltaM": 19.102,
-        "maxFabdemSpikeM": 0.063
-      },
-      {
-        "osmId": "way/1018428242",
-        "name": "",
-        "class": "local",
-        "lengthM": 76.308,
-        "maxAbsDeltaM": 19.098,
-        "maxFabdemSpikeM": 0.164
-      },
-      {
-        "osmId": "way/1018428241",
-        "name": "",
-        "class": "local",
-        "lengthM": 21.813,
-        "maxAbsDeltaM": 19.072,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/34900353",
-        "name": "滨河彩田立交",
-        "class": "primary",
-        "lengthM": 266.843,
-        "maxAbsDeltaM": 18.986,
-        "maxFabdemSpikeM": 0.219
-      },
-      {
-        "osmId": "way/26274669",
-        "name": "彩田路",
-        "class": "primary",
-        "lengthM": 145.55,
-        "maxAbsDeltaM": 18.922,
-        "maxFabdemSpikeM": 0.314
-      },
-      {
-        "osmId": "way/855206669",
-        "name": "新闻路",
-        "class": "tertiary",
-        "lengthM": 165.817,
-        "maxAbsDeltaM": 18.871,
-        "maxFabdemSpikeM": 0.684
-      },
-      {
-        "osmId": "way/166998768",
-        "name": "水围七街",
-        "class": "local",
-        "lengthM": 196.942,
-        "maxAbsDeltaM": 18.779,
-        "maxFabdemSpikeM": 0.638
-      },
-      {
-        "osmId": "way/1352282131",
-        "name": "",
-        "class": "local",
-        "lengthM": 64.807,
-        "maxAbsDeltaM": 18.52,
-        "maxFabdemSpikeM": 0.022
-      },
-      {
-        "osmId": "way/393889379",
-        "name": "泰然六路",
-        "class": "tertiary",
-        "lengthM": 226.41,
-        "maxAbsDeltaM": 18.117,
-        "maxFabdemSpikeM": 0.323
-      },
-      {
-        "osmId": "way/684241532",
-        "name": "石厦北一街",
-        "class": "local",
-        "lengthM": 135.891,
-        "maxAbsDeltaM": 18.096,
-        "maxFabdemSpikeM": 1.082
-      },
-      {
-        "osmId": "way/220653222",
-        "name": "科研路",
-        "class": "tertiary",
-        "lengthM": 189.262,
-        "maxAbsDeltaM": 18.084,
-        "maxFabdemSpikeM": 0.143
-      },
-      {
-        "osmId": "way/853206488",
-        "name": "兴融三路",
-        "class": "local",
-        "lengthM": 122.69,
-        "maxAbsDeltaM": 18.07,
-        "maxFabdemSpikeM": 0.003
-      },
-      {
-        "osmId": "way/892901033",
-        "name": "新闻路",
-        "class": "tertiary",
-        "lengthM": 167.613,
-        "maxAbsDeltaM": 18.058,
-        "maxFabdemSpikeM": 0.362
-      },
-      {
-        "osmId": "way/231534943",
-        "name": "",
-        "class": "local",
-        "lengthM": 137.478,
-        "maxAbsDeltaM": 17.651,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/861052681",
-        "name": "",
-        "class": "local",
-        "lengthM": 200.494,
-        "maxAbsDeltaM": 17.521,
-        "maxFabdemSpikeM": 0.775
-      },
-      {
-        "osmId": "way/228121863",
-        "name": "",
-        "class": "local",
-        "lengthM": 155.961,
-        "maxAbsDeltaM": 17.315,
-        "maxFabdemSpikeM": 0.171
-      },
-      {
-        "osmId": "way/914046803",
-        "name": "皇岗五街",
-        "class": "local",
-        "lengthM": 146.281,
-        "maxAbsDeltaM": 17.303,
-        "maxFabdemSpikeM": 0.438
-      },
-      {
-        "osmId": "way/1352282133",
-        "name": "",
-        "class": "local",
-        "lengthM": 42.252,
-        "maxAbsDeltaM": 17.283,
-        "maxFabdemSpikeM": 0.04
-      },
-      {
-        "osmId": "way/1422487068",
-        "name": "",
-        "class": "primary",
-        "lengthM": 75.446,
-        "maxAbsDeltaM": 17.054,
-        "maxFabdemSpikeM": 0.275
-      },
-      {
-        "osmId": "way/245755667",
-        "name": "竹子林五路",
-        "class": "local",
-        "lengthM": 86.627,
-        "maxAbsDeltaM": 17.047,
-        "maxFabdemSpikeM": 0.6
-      },
-      {
-        "osmId": "way/855693210",
-        "name": "景田东路",
-        "class": "tertiary",
-        "lengthM": 181.491,
-        "maxAbsDeltaM": 16.979,
-        "maxFabdemSpikeM": 0.45
-      },
-      {
-        "osmId": "way/193723772",
-        "name": "景田东路",
-        "class": "tertiary",
-        "lengthM": 94.41,
-        "maxAbsDeltaM": 16.931,
-        "maxFabdemSpikeM": 0.244
-      },
-      {
-        "osmId": "way/1050921367",
-        "name": "景田路",
-        "class": "secondary",
-        "lengthM": 332.481,
-        "maxAbsDeltaM": 16.908,
-        "maxFabdemSpikeM": 0.487
-      },
-      {
-        "osmId": "way/1352282133",
-        "name": "",
-        "class": "local",
-        "lengthM": 26.456,
-        "maxAbsDeltaM": 16.806,
-        "maxFabdemSpikeM": 0.022
-      },
-      {
-        "osmId": "way/1352282132",
-        "name": "",
-        "class": "local",
-        "lengthM": 14.144,
-        "maxAbsDeltaM": 16.804,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/856026022",
-        "name": "泰然四路",
-        "class": "tertiary",
-        "lengthM": 281.496,
-        "maxAbsDeltaM": 16.794,
-        "maxFabdemSpikeM": 0.796
-      },
-      {
-        "osmId": "way/1050921369",
-        "name": "景田路",
-        "class": "secondary",
-        "lengthM": 134.221,
-        "maxAbsDeltaM": 16.79,
-        "maxFabdemSpikeM": 0.092
-      },
-      {
-        "osmId": "way/223456774",
-        "name": "上沙龙秋路",
-        "class": "local",
-        "lengthM": 208.232,
-        "maxAbsDeltaM": 16.775,
-        "maxFabdemSpikeM": 0.345
-      },
-      {
-        "osmId": "way/97522387",
-        "name": "皇岗三街",
-        "class": "local",
-        "lengthM": 308.949,
-        "maxAbsDeltaM": 16.538,
-        "maxFabdemSpikeM": 0.644
-      },
-      {
-        "osmId": "way/235290415",
-        "name": "文心六路",
-        "class": "local",
-        "lengthM": 65.389,
-        "maxAbsDeltaM": 16.535,
-        "maxFabdemSpikeM": 1.912
-      },
-      {
-        "osmId": "way/96333000",
-        "name": "商报东一路",
-        "class": "tertiary",
-        "lengthM": 278.689,
-        "maxAbsDeltaM": 16.383,
-        "maxFabdemSpikeM": 0.727
-      },
-      {
-        "osmId": "way/135906440",
-        "name": "泰然六路",
-        "class": "tertiary",
-        "lengthM": 226.759,
-        "maxAbsDeltaM": 16.366,
-        "maxFabdemSpikeM": 0.281
-      },
-      {
-        "osmId": "way/273652986",
-        "name": "",
-        "class": "local",
-        "lengthM": 268.328,
-        "maxAbsDeltaM": 16.352,
-        "maxFabdemSpikeM": 0.659
-      },
-      {
-        "osmId": "way/40971897",
-        "name": "新洲路",
-        "class": "primary",
-        "lengthM": 218.623,
-        "maxAbsDeltaM": 16.342,
-        "maxFabdemSpikeM": 0.66
-      },
-      {
-        "osmId": "way/1429423855",
-        "name": "上沙椰树路",
-        "class": "local",
-        "lengthM": 146.87,
-        "maxAbsDeltaM": 16.305,
-        "maxFabdemSpikeM": 0.261
-      },
-      {
-        "osmId": "way/586589637",
-        "name": "高新南环路",
-        "class": "tertiary",
-        "lengthM": 164.777,
-        "maxAbsDeltaM": 16.262,
-        "maxFabdemSpikeM": 0.383
-      },
-      {
-        "osmId": "way/243387684",
-        "name": "",
-        "class": "local",
-        "lengthM": 411.286,
-        "maxAbsDeltaM": 16.233,
-        "maxFabdemSpikeM": 0.917
-      },
-      {
-        "osmId": "way/827602243",
-        "name": "皇岗六街",
-        "class": "local",
-        "lengthM": 337.354,
-        "maxAbsDeltaM": 16.182,
-        "maxFabdemSpikeM": 0.678
-      },
-      {
-        "osmId": "way/349913411",
-        "name": "",
-        "class": "local",
-        "lengthM": 72.495,
-        "maxAbsDeltaM": 16.17,
-        "maxFabdemSpikeM": 0.157
-      },
-      {
-        "osmId": "way/160131332",
-        "name": "彩云路",
-        "class": "tertiary",
-        "lengthM": 115.233,
-        "maxAbsDeltaM": 16.155,
-        "maxFabdemSpikeM": 0.057
-      },
-      {
-        "osmId": "way/610188504",
-        "name": "威尼斯东街",
-        "class": "local",
-        "lengthM": 214.285,
-        "maxAbsDeltaM": 16.147,
-        "maxFabdemSpikeM": 0.527
-      },
-      {
-        "osmId": "way/166998814",
-        "name": "水围五街",
-        "class": "local",
-        "lengthM": 147.689,
-        "maxAbsDeltaM": 16.119,
-        "maxFabdemSpikeM": 0.34
-      },
-      {
-        "osmId": "way/913432110",
-        "name": "皇岗三街",
-        "class": "local",
-        "lengthM": 308.446,
-        "maxAbsDeltaM": 16.118,
-        "maxFabdemSpikeM": 0.821
-      },
-      {
-        "osmId": "way/243384968",
-        "name": "",
-        "class": "local",
-        "lengthM": 391.073,
-        "maxAbsDeltaM": 16.114,
-        "maxFabdemSpikeM": 0.539
-      },
-      {
-        "osmId": "way/923999673",
-        "name": "上沙椰树路",
-        "class": "local",
-        "lengthM": 95.545,
-        "maxAbsDeltaM": 15.99,
-        "maxFabdemSpikeM": 0.191
-      },
-      {
-        "osmId": "way/166998861",
-        "name": "水围二街",
-        "class": "tertiary",
-        "lengthM": 78.977,
-        "maxAbsDeltaM": 15.954,
-        "maxFabdemSpikeM": 0.759
-      },
-      {
-        "osmId": "way/1429423852",
-        "name": "",
-        "class": "local",
-        "lengthM": 367.369,
-        "maxAbsDeltaM": 15.903,
-        "maxFabdemSpikeM": 1.329
-      },
-      {
-        "osmId": "way/923999673",
-        "name": "上沙椰树路",
-        "class": "local",
-        "lengthM": 341.518,
-        "maxAbsDeltaM": 15.892,
-        "maxFabdemSpikeM": 0.66
-      },
-      {
-        "osmId": "way/238026497",
-        "name": "",
-        "class": "local",
-        "lengthM": 123.701,
-        "maxAbsDeltaM": 15.868,
-        "maxFabdemSpikeM": 0.542
-      },
-      {
-        "osmId": "way/228278328",
-        "name": "花云街",
-        "class": "local",
-        "lengthM": 185.712,
-        "maxAbsDeltaM": 15.841,
-        "maxFabdemSpikeM": 0.236
-      },
-      {
-        "osmId": "way/231534958",
-        "name": "西村二路",
-        "class": "local",
-        "lengthM": 302.284,
-        "maxAbsDeltaM": 15.802,
-        "maxFabdemSpikeM": 0.194
-      },
-      {
-        "osmId": "way/248452027",
-        "name": "",
-        "class": "local",
-        "lengthM": 112.377,
-        "maxAbsDeltaM": 15.751,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/855206670",
-        "name": "新闻路",
-        "class": "tertiary",
-        "lengthM": 30.281,
-        "maxAbsDeltaM": 15.733,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/135906445",
-        "name": "泰然二路",
-        "class": "tertiary",
-        "lengthM": 277.209,
-        "maxAbsDeltaM": 15.716,
-        "maxFabdemSpikeM": 1.392
-      },
-      {
-        "osmId": "way/1044157158",
-        "name": "西村一路",
-        "class": "local",
-        "lengthM": 258.518,
-        "maxAbsDeltaM": 15.7,
-        "maxFabdemSpikeM": 0.444
-      },
-      {
-        "osmId": "way/303794323",
-        "name": "",
-        "class": "local",
-        "lengthM": 106.95,
-        "maxAbsDeltaM": 15.694,
-        "maxFabdemSpikeM": 0.119
-      },
-      {
-        "osmId": "way/46898363",
-        "name": "紫荆道",
-        "class": "tertiary",
-        "lengthM": 149.437,
-        "maxAbsDeltaM": 15.601,
-        "maxFabdemSpikeM": 0.291
-      },
-      {
-        "osmId": "way/245978171",
-        "name": "岗厦村东三坊",
-        "class": "local",
-        "lengthM": 171.645,
-        "maxAbsDeltaM": 15.519,
-        "maxFabdemSpikeM": 0.621
-      },
-      {
-        "osmId": "way/227854417",
-        "name": "",
-        "class": "local",
-        "lengthM": 166.431,
-        "maxAbsDeltaM": 15.483,
-        "maxFabdemSpikeM": 0.366
-      },
-      {
-        "osmId": "way/877893388",
-        "name": "",
-        "class": "local",
-        "lengthM": 47.998,
-        "maxAbsDeltaM": 15.396,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/231534943",
-        "name": "",
-        "class": "local",
-        "lengthM": 151.89,
-        "maxAbsDeltaM": 15.321,
-        "maxFabdemSpikeM": 0.104
-      },
-      {
-        "osmId": "way/855206670",
-        "name": "新闻路",
-        "class": "tertiary",
-        "lengthM": 22.633,
-        "maxAbsDeltaM": 15.302,
-        "maxFabdemSpikeM": 0.483
-      },
-      {
-        "osmId": "way/303794312",
-        "name": "",
-        "class": "local",
-        "lengthM": 29.493,
-        "maxAbsDeltaM": 15.266,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/477810546",
-        "name": "海虹道",
-        "class": "tertiary",
-        "lengthM": 102.457,
-        "maxAbsDeltaM": 15.243,
-        "maxFabdemSpikeM": 0.031
-      },
-      {
-        "osmId": "way/96329679",
-        "name": "石厦北三街",
-        "class": "local",
-        "lengthM": 105.661,
-        "maxAbsDeltaM": 15.206,
-        "maxFabdemSpikeM": 0.043
-      },
-      {
-        "osmId": "way/488734870",
-        "name": "科技南六路",
-        "class": "local",
-        "lengthM": 127.031,
-        "maxAbsDeltaM": 15.203,
-        "maxFabdemSpikeM": 0.2
-      },
-      {
-        "osmId": "way/1431881291",
-        "name": "安景道",
-        "class": "local",
-        "lengthM": 89.965,
-        "maxAbsDeltaM": 15.184,
-        "maxFabdemSpikeM": 0.005
-      },
-      {
-        "osmId": "way/245930191",
-        "name": "",
-        "class": "local",
-        "lengthM": 70.019,
-        "maxAbsDeltaM": 15.175,
-        "maxFabdemSpikeM": 0.001
-      },
-      {
-        "osmId": "way/235152799",
-        "name": "海德二道",
-        "class": "local",
-        "lengthM": 132.95,
-        "maxAbsDeltaM": 15.169,
-        "maxFabdemSpikeM": 0.625
-      },
-      {
-        "osmId": "way/231534931",
-        "name": "",
-        "class": "local",
-        "lengthM": 30.625,
-        "maxAbsDeltaM": 15.159,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/303794323",
-        "name": "",
-        "class": "local",
-        "lengthM": 8.723,
-        "maxAbsDeltaM": 15.12,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/101317833",
-        "name": "海月路",
-        "class": "tertiary",
-        "lengthM": 114.241,
-        "maxAbsDeltaM": 15.102,
-        "maxFabdemSpikeM": 0.063
-      },
-      {
-        "osmId": "way/303794312",
-        "name": "",
-        "class": "local",
-        "lengthM": 88.9,
-        "maxAbsDeltaM": 15.095,
-        "maxFabdemSpikeM": 0.439
-      },
-      {
-        "osmId": "way/246259925",
-        "name": "",
-        "class": "local",
-        "lengthM": 262.866,
-        "maxAbsDeltaM": 15.094,
-        "maxFabdemSpikeM": 0.433
-      },
-      {
-        "osmId": "way/231534939",
-        "name": "",
-        "class": "local",
-        "lengthM": 81.789,
-        "maxAbsDeltaM": 15.004,
-        "maxFabdemSpikeM": 0.366
-      },
-      {
-        "osmId": "way/1314576501",
-        "name": "",
-        "class": "local",
-        "lengthM": 153.723,
-        "maxAbsDeltaM": 14.998,
-        "maxFabdemSpikeM": 0.379
-      },
-      {
-        "osmId": "way/193702050",
-        "name": "",
-        "class": "local",
-        "lengthM": 128.538,
-        "maxAbsDeltaM": 14.977,
-        "maxFabdemSpikeM": 0.393
-      },
-      {
-        "osmId": "way/854919704",
-        "name": "泰然四路",
-        "class": "tertiary",
-        "lengthM": 437.358,
-        "maxAbsDeltaM": 14.957,
-        "maxFabdemSpikeM": 1.024
-      },
-      {
-        "osmId": "way/1216000742",
-        "name": "海德二道",
-        "class": "local",
-        "lengthM": 132.955,
-        "maxAbsDeltaM": 14.92,
-        "maxFabdemSpikeM": 0.582
-      },
-      {
-        "osmId": "way/193702053",
-        "name": "",
-        "class": "local",
-        "lengthM": 65.044,
-        "maxAbsDeltaM": 14.916,
-        "maxFabdemSpikeM": 0.26
-      },
-      {
-        "osmId": "way/193702053",
-        "name": "",
-        "class": "local",
-        "lengthM": 65.368,
-        "maxAbsDeltaM": 14.916,
-        "maxFabdemSpikeM": 0.302
-      },
-      {
-        "osmId": "way/245755661",
-        "name": "竹子林二路",
-        "class": "local",
-        "lengthM": 93.528,
-        "maxAbsDeltaM": 14.911,
-        "maxFabdemSpikeM": 0.407
-      },
-      {
-        "osmId": "way/245794171",
-        "name": "泰然五路",
-        "class": "local",
-        "lengthM": 317.658,
-        "maxAbsDeltaM": 14.892,
-        "maxFabdemSpikeM": 1.426
-      },
-      {
-        "osmId": "way/193702047",
-        "name": "",
-        "class": "local",
-        "lengthM": 97.829,
-        "maxAbsDeltaM": 14.889,
-        "maxFabdemSpikeM": 0.489
-      },
-      {
-        "osmId": "way/193719682",
-        "name": "新州四街",
-        "class": "local",
-        "lengthM": 211.085,
-        "maxAbsDeltaM": 14.8,
-        "maxFabdemSpikeM": 0.037
-      },
-      {
-        "osmId": "way/231532384",
-        "name": "福沙路",
-        "class": "local",
-        "lengthM": 97.903,
-        "maxAbsDeltaM": 14.748,
-        "maxFabdemSpikeM": 0.064
-      },
-      {
-        "osmId": "way/231534939",
-        "name": "",
-        "class": "local",
-        "lengthM": 82.589,
-        "maxAbsDeltaM": 14.72,
-        "maxFabdemSpikeM": 0.022
-      },
-      {
-        "osmId": "way/852241510",
-        "name": "华强南路",
-        "class": "secondary",
-        "lengthM": 145.866,
-        "maxAbsDeltaM": 14.678,
-        "maxFabdemSpikeM": 0.125
-      },
-      {
-        "osmId": "way/166998861",
-        "name": "水围二街",
-        "class": "tertiary",
-        "lengthM": 72.539,
-        "maxAbsDeltaM": 14.67,
-        "maxFabdemSpikeM": 0.859
-      },
-      {
-        "osmId": "way/284305906",
-        "name": "",
-        "class": "local",
-        "lengthM": 210.862,
-        "maxAbsDeltaM": 14.662,
-        "maxFabdemSpikeM": 0.65
-      },
-      {
-        "osmId": "way/1352282133",
-        "name": "",
-        "class": "local",
-        "lengthM": 43.217,
-        "maxAbsDeltaM": 14.649,
-        "maxFabdemSpikeM": 0.059
-      },
-      {
-        "osmId": "way/958581829",
-        "name": "新洲十一街",
-        "class": "local",
-        "lengthM": 211.284,
-        "maxAbsDeltaM": 14.619,
-        "maxFabdemSpikeM": 0.822
-      },
-      {
-        "osmId": "way/248452024",
-        "name": "",
-        "class": "local",
-        "lengthM": 174.704,
-        "maxAbsDeltaM": 14.614,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/40933455",
-        "name": "深南广深立交桥",
-        "class": "motorway",
-        "lengthM": 188.351,
-        "maxAbsDeltaM": 14.589,
-        "maxFabdemSpikeM": 0.259
-      },
-      {
-        "osmId": "way/40933138",
-        "name": "深南广深立交桥",
-        "class": "motorway",
-        "lengthM": 134.472,
-        "maxAbsDeltaM": 14.574,
-        "maxFabdemSpikeM": 0.636
-      },
-      {
-        "osmId": "way/659870814",
-        "name": "下沙南街",
-        "class": "local",
-        "lengthM": 154.699,
-        "maxAbsDeltaM": 14.567,
-        "maxFabdemSpikeM": 0.273
-      },
-      {
-        "osmId": "way/1044157157",
-        "name": "沙尾步行街",
-        "class": "local",
-        "lengthM": 223.825,
-        "maxAbsDeltaM": 14.56,
-        "maxFabdemSpikeM": 1.476
-      },
-      {
-        "osmId": "way/231534931",
-        "name": "",
-        "class": "local",
-        "lengthM": 58.954,
-        "maxAbsDeltaM": 14.541,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/493389667",
-        "name": "紫竹七道",
-        "class": "local",
-        "lengthM": 151.824,
-        "maxAbsDeltaM": 14.513,
-        "maxFabdemSpikeM": 0.374
-      },
-      {
-        "osmId": "way/816881865",
-        "name": "蓝花道",
-        "class": "tertiary",
-        "lengthM": 289.599,
-        "maxAbsDeltaM": 14.512,
-        "maxFabdemSpikeM": 0.368
-      },
-      {
-        "osmId": "way/1044157167",
-        "name": "东村一路",
-        "class": "local",
-        "lengthM": 124.631,
-        "maxAbsDeltaM": 14.481,
-        "maxFabdemSpikeM": 0.318
-      },
-      {
-        "osmId": "way/819859526",
-        "name": "",
-        "class": "local",
-        "lengthM": 120.168,
-        "maxAbsDeltaM": 14.47,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/217589453",
-        "name": "水围十街",
-        "class": "local",
-        "lengthM": 184.888,
-        "maxAbsDeltaM": 14.456,
-        "maxFabdemSpikeM": 0.498
-      },
-      {
-        "osmId": "way/916588752",
-        "name": "桃花路",
-        "class": "secondary",
-        "lengthM": 180.556,
-        "maxAbsDeltaM": 14.424,
-        "maxFabdemSpikeM": 0.217
-      },
-      {
-        "osmId": "way/684241525",
-        "name": "",
-        "class": "local",
-        "lengthM": 244.075,
-        "maxAbsDeltaM": 14.399,
-        "maxFabdemSpikeM": 0.655
-      },
-      {
-        "osmId": "way/217649924",
-        "name": "四号路",
-        "class": "local",
-        "lengthM": 218.18,
-        "maxAbsDeltaM": 14.325,
-        "maxFabdemSpikeM": 0.356
-      },
-      {
-        "osmId": "way/854903590",
-        "name": "泰然三路",
-        "class": "local",
-        "lengthM": 152.418,
-        "maxAbsDeltaM": 14.32,
-        "maxFabdemSpikeM": 0.132
-      },
-      {
-        "osmId": "way/1077356119",
-        "name": "石厦碉楼巷",
-        "class": "local",
-        "lengthM": 137.018,
-        "maxAbsDeltaM": 14.318,
-        "maxFabdemSpikeM": 0.443
-      },
-      {
-        "osmId": "way/854903596",
-        "name": "",
-        "class": "local",
-        "lengthM": 105.865,
-        "maxAbsDeltaM": 14.279,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/246557505",
-        "name": "",
-        "class": "local",
-        "lengthM": 445.633,
-        "maxAbsDeltaM": 14.248,
-        "maxFabdemSpikeM": 1.298
-      },
-      {
-        "osmId": "way/282885042",
-        "name": "石厦六街",
-        "class": "local",
-        "lengthM": 214.409,
-        "maxAbsDeltaM": 14.234,
-        "maxFabdemSpikeM": 0.97
-      },
-      {
-        "osmId": "way/243119787",
-        "name": "",
-        "class": "local",
-        "lengthM": 48.515,
-        "maxAbsDeltaM": 14.221,
-        "maxFabdemSpikeM": 0.169
-      },
-      {
-        "osmId": "way/193723772",
-        "name": "景田东路",
-        "class": "tertiary",
-        "lengthM": 20.48,
-        "maxAbsDeltaM": 14.14,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/1306285061",
-        "name": "",
-        "class": "local",
-        "lengthM": 15.708,
-        "maxAbsDeltaM": 14.139,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/865609643",
-        "name": "",
-        "class": "local",
-        "lengthM": 51.445,
-        "maxAbsDeltaM": 14.138,
-        "maxFabdemSpikeM": 0.005
-      },
-      {
-        "osmId": "way/284305907",
-        "name": "",
-        "class": "local",
-        "lengthM": 166.809,
-        "maxAbsDeltaM": 14.047,
-        "maxFabdemSpikeM": 0.557
-      },
-      {
-        "osmId": "way/1050511751",
-        "name": "民田路",
-        "class": "tertiary",
-        "lengthM": 85.653,
-        "maxAbsDeltaM": 13.98,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/861052672",
-        "name": "",
-        "class": "local",
-        "lengthM": 65.569,
-        "maxAbsDeltaM": 13.976,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/819859517",
-        "name": "益丹一街",
-        "class": "local",
-        "lengthM": 189.315,
-        "maxAbsDeltaM": 13.957,
-        "maxFabdemSpikeM": 0.742
-      },
-      {
-        "osmId": "way/232628467",
-        "name": "福海湾街",
-        "class": "local",
-        "lengthM": 215.671,
-        "maxAbsDeltaM": 13.954,
-        "maxFabdemSpikeM": 0.821
-      },
-      {
-        "osmId": "way/586589637",
-        "name": "高新南环路",
-        "class": "tertiary",
-        "lengthM": 120.7,
-        "maxAbsDeltaM": 13.95,
-        "maxFabdemSpikeM": 0.21
-      },
-      {
-        "osmId": "way/234738420",
-        "name": "",
-        "class": "local",
-        "lengthM": 257.686,
-        "maxAbsDeltaM": 13.948,
-        "maxFabdemSpikeM": 0.192
-      },
-      {
-        "osmId": "way/962310881",
-        "name": "梅林路",
-        "class": "secondary",
-        "lengthM": 53.196,
-        "maxAbsDeltaM": 13.928,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/97522107",
-        "name": "皇岗公园街",
-        "class": "tertiary",
-        "lengthM": 178.348,
-        "maxAbsDeltaM": 13.916,
-        "maxFabdemSpikeM": 0.199
-      },
-      {
-        "osmId": "way/824751284",
-        "name": "红棉道",
-        "class": "secondary",
-        "lengthM": 160.732,
-        "maxAbsDeltaM": 13.904,
-        "maxFabdemSpikeM": 0.04
-      },
-      {
-        "osmId": "way/854903590",
-        "name": "泰然三路",
-        "class": "local",
-        "lengthM": 70.103,
-        "maxAbsDeltaM": 13.884,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/854903596",
-        "name": "",
-        "class": "local",
-        "lengthM": 6.466,
-        "maxAbsDeltaM": 13.884,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/659870814",
-        "name": "下沙南街",
-        "class": "local",
-        "lengthM": 104.575,
-        "maxAbsDeltaM": 13.861,
-        "maxFabdemSpikeM": 0.31
-      },
-      {
-        "osmId": "way/865609643",
-        "name": "",
-        "class": "local",
-        "lengthM": 42.827,
-        "maxAbsDeltaM": 13.861,
-        "maxFabdemSpikeM": 0.144
-      },
-      {
-        "osmId": "way/166998795",
-        "name": "水围九街",
-        "class": "local",
-        "lengthM": 244.289,
-        "maxAbsDeltaM": 13.858,
-        "maxFabdemSpikeM": 0.308
-      },
-      {
-        "osmId": "way/856409071",
-        "name": "景田北三街",
-        "class": "local",
-        "lengthM": 187.597,
-        "maxAbsDeltaM": 13.85,
-        "maxFabdemSpikeM": 0.863
-      },
-      {
-        "osmId": "way/566000432",
-        "name": "高新南四道",
-        "class": "tertiary",
-        "lengthM": 111.039,
-        "maxAbsDeltaM": 13.843,
-        "maxFabdemSpikeM": 0.011
-      },
-      {
-        "osmId": "way/854903589",
-        "name": "泰然三路",
-        "class": "local",
-        "lengthM": 152.503,
-        "maxAbsDeltaM": 13.834,
-        "maxFabdemSpikeM": 0.153
-      },
-      {
-        "osmId": "way/160131332",
-        "name": "彩云路",
-        "class": "tertiary",
-        "lengthM": 86.102,
-        "maxAbsDeltaM": 13.806,
-        "maxFabdemSpikeM": 0.083
-      },
-      {
-        "osmId": "way/188661994",
-        "name": "",
-        "class": "local",
-        "lengthM": 173.317,
-        "maxAbsDeltaM": 13.8,
-        "maxFabdemSpikeM": 0.629
-      },
-      {
-        "osmId": "way/208124043",
-        "name": "汕头街",
-        "class": "tertiary",
-        "lengthM": 130.257,
-        "maxAbsDeltaM": 13.709,
-        "maxFabdemSpikeM": 0.801
-      },
-      {
-        "osmId": "way/996181416",
-        "name": "",
-        "class": "local",
-        "lengthM": 134.23,
-        "maxAbsDeltaM": 13.664,
-        "maxFabdemSpikeM": 0.06
-      },
-      {
-        "osmId": "way/1430531119",
-        "name": "岗厦村东二坊",
-        "class": "local",
-        "lengthM": 132.543,
-        "maxAbsDeltaM": 13.637,
-        "maxFabdemSpikeM": 1.196
-      },
-      {
-        "osmId": "way/488453361",
-        "name": "深大东路",
-        "class": "local",
-        "lengthM": 327.174,
-        "maxAbsDeltaM": 13.636,
-        "maxFabdemSpikeM": 1.855
-      },
-      {
-        "osmId": "way/854903589",
-        "name": "泰然三路",
-        "class": "local",
-        "lengthM": 70.068,
-        "maxAbsDeltaM": 13.629,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/217604716",
-        "name": "",
-        "class": "local",
-        "lengthM": 176.892,
-        "maxAbsDeltaM": 13.626,
-        "maxFabdemSpikeM": 0.538
-      },
-      {
-        "osmId": "way/245929516",
-        "name": "十一号路",
-        "class": "local",
-        "lengthM": 117.811,
-        "maxAbsDeltaM": 13.598,
-        "maxFabdemSpikeM": 0.0
-      },
-      {
-        "osmId": "way/640465233",
-        "name": "滨河金田立交",
-        "class": "primary",
-        "lengthM": 207.053,
-        "maxAbsDeltaM": 13.598,
-        "maxFabdemSpikeM": 0.483
-      },
-      {
-        "osmId": "way/694755299",
-        "name": "高新南四道",
-        "class": "tertiary",
-        "lengthM": 111.052,
-        "maxAbsDeltaM": 13.597,
-        "maxFabdemSpikeM": 0.025
-      },
-      {
-        "osmId": "way/217649987",
-        "name": "金地一路",
-        "class": "tertiary",
-        "lengthM": 163.424,
-        "maxAbsDeltaM": 13.573,
-        "maxFabdemSpikeM": 0.62
-      },
-      {
-        "osmId": "way/243384977",
-        "name": "",
-        "class": "local",
-        "lengthM": 276.251,
-        "maxAbsDeltaM": 13.484,
-        "maxFabdemSpikeM": 0.836
-      },
-      {
-        "osmId": "way/996181402",
-        "name": "益田路",
-        "class": "primary",
-        "lengthM": 122.687,
-        "maxAbsDeltaM": 13.45,
-        "maxFabdemSpikeM": 0.355
-      },
-      {
-        "osmId": "way/529238672",
-        "name": "西丽北路",
-        "class": "tertiary",
-        "lengthM": 206.162,
-        "maxAbsDeltaM": 13.436,
-        "maxFabdemSpikeM": 0.494
-      },
-      {
-        "osmId": "way/245962635",
-        "name": "景田北二街",
-        "class": "local",
-        "lengthM": 285.414,
-        "maxAbsDeltaM": 13.409,
-        "maxFabdemSpikeM": 1.008
-      },
-      {
-        "osmId": "way/231534931",
-        "name": "",
-        "class": "local",
-        "lengthM": 83.697,
-        "maxAbsDeltaM": 13.404,
-        "maxFabdemSpikeM": 0.276
-      },
-      {
-        "osmId": "way/231534943",
-        "name": "",
-        "class": "local",
-        "lengthM": 81.955,
-        "maxAbsDeltaM": 13.396,
-        "maxFabdemSpikeM": 0.274
-      },
-      {
-        "osmId": "way/853286961",
-        "name": "中心五路",
-        "class": "tertiary",
-        "lengthM": 213.938,
-        "maxAbsDeltaM": 13.393,
-        "maxFabdemSpikeM": 0.629
-      },
-      {
-        "osmId": "way/1050921416",
-        "name": "铁二路",
-        "class": "local",
-        "lengthM": 178.033,
-        "maxAbsDeltaM": 13.375,
-        "maxFabdemSpikeM": 0.1
-      },
-      {
-        "osmId": "way/916581534",
-        "name": "下梅林一街",
-        "class": "tertiary",
-        "lengthM": 327.985,
-        "maxAbsDeltaM": 13.375,
-        "maxFabdemSpikeM": 0.492
-      }
+    "transitionTrianglesOver10Percent": 8240,
+    "transitionDistanceM": {
+      "p50": 21.316,
+      "p95": 42.511,
+      "max": 44.992
+    },
+    "deltaM": {
+      "p50": 6.9,
+      "p95": 32.6,
+      "max": 212.7
+    },
+    "steepestTransitionCellXZ": [
+      -5625.0,
+      -2000.0
     ],
-    "unresolvedLinks": [],
-    "timing": {
-      "baselineSeconds": 0.056,
-      "stationSeconds": 0.136,
-      "profileSeconds": 0.927,
-      "vertexSeconds": 0.784,
-      "totalSeconds": 2.0
-    },
-    "limitations": [
-      "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
-      "The derived surface is a de-contamination (lowering) pass only: it never exceeds the original DSM by more than the raise cap, so the DSM absolute level and building bases stay consistent",
-      "Where the original DSM is contaminated upward over a whole link, min(FABDEM, DSM) cannot remove all of it; the residual is capped by the raise cap and reported as capped vertices",
-      "Bridge, tunnel and layer links keep the original terrain and are not smoothed",
-      "Links without a complete FABDEM station profile keep the original terrain; the list is capped",
-      "Links with any station inside a locked terrain exclusion polygon keep the original terrain",
-      "The flat cross-section ignores real superelevation, cross fall, kerb and sidewalk level changes",
-      "A link whose two node elevations exceed the class grade allowance keeps both nodes (network continuity wins) and is reported as grade-infeasible",
-      "The transition band is widened on purpose where the derived surface differs a lot from the DSM, so the modified footprint can exceed half width + 1.5 steps + 15 m in contaminated areas"
-    ]
+    "ranges": {
+      "manifest": "data/source/urban-datum.json",
+      "osmSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+      "reliefIds": [
+        "way/686377686",
+        "relation/9523118",
+        "relation/9523119",
+        "relation/9523120",
+        "way/41281446",
+        "way/98999987",
+        "relation/17354200",
+        "way/540340500",
+        "relation/15626540",
+        "relation/18459537",
+        "way/181234743",
+        "way/529070102",
+        "way/415703359",
+        "way/533912107",
+        "way/215912569",
+        "relation/14532495",
+        "way/207170378"
+      ],
+      "commercialIds": [
+        "relation/19692109",
+        "relation/9137146",
+        "way/1019891882",
+        "way/1023940396",
+        "way/1044157147",
+        "way/1047141791",
+        "way/1047141848",
+        "way/1047141849",
+        "way/1047141852",
+        "way/1055883813",
+        "way/1080860977",
+        "way/1081081920",
+        "way/1081081950",
+        "way/1081126165",
+        "way/1081126225",
+        "way/1081134197",
+        "way/1125364882",
+        "way/1152627764",
+        "way/1152627765",
+        "way/1163682871",
+        "way/1163682872",
+        "way/1163682874",
+        "way/1163682875",
+        "way/1164455820",
+        "way/1190750253",
+        "way/1190833378",
+        "way/1190833383",
+        "way/1190833399",
+        "way/1190833400",
+        "way/1190833405",
+        "way/1190833411",
+        "way/1190833432",
+        "way/1190833433",
+        "way/1192582516",
+        "way/1194189553",
+        "way/1209950754",
+        "way/1243990487",
+        "way/1244599899",
+        "way/1252773721",
+        "way/1253197465",
+        "way/1253197466",
+        "way/1253197467",
+        "way/1253197490",
+        "way/1253197491",
+        "way/1253197492",
+        "way/1253197493",
+        "way/1253197504",
+        "way/1253197505",
+        "way/1253197507",
+        "way/1253197509",
+        "way/1253197515",
+        "way/1253197518",
+        "way/1253197524",
+        "way/1253489217",
+        "way/1253833761",
+        "way/1254832459",
+        "way/1254832463",
+        "way/1258728399",
+        "way/1258728401",
+        "way/1258728402",
+        "way/1258728434",
+        "way/1258931688",
+        "way/1270022657",
+        "way/1270138823",
+        "way/1271780861",
+        "way/1271780862",
+        "way/1271780863",
+        "way/1271780864",
+        "way/1271780865",
+        "way/1271780866",
+        "way/1271780905",
+        "way/1271780906",
+        "way/1271780911",
+        "way/1271780912",
+        "way/1271780918",
+        "way/1273285320",
+        "way/1273285334",
+        "way/1273285335",
+        "way/1275488548",
+        "way/1276338241",
+        "way/1276374229",
+        "way/1276374231",
+        "way/1286783039",
+        "way/1286783040",
+        "way/1291650406",
+        "way/1291650408",
+        "way/1301946141",
+        "way/1302660144",
+        "way/1302673892",
+        "way/1302673893",
+        "way/1302673895",
+        "way/1302673896",
+        "way/1305286506",
+        "way/1305286507",
+        "way/1305286508",
+        "way/1305286510",
+        "way/1305286511",
+        "way/1305286513",
+        "way/1305286518",
+        "way/1305286521",
+        "way/1305286530",
+        "way/1305286531",
+        "way/1305353889",
+        "way/1305353909",
+        "way/1305353913",
+        "way/1305353915",
+        "way/1305353917",
+        "way/1305353919",
+        "way/1305354429",
+        "way/1305491167",
+        "way/1305597249",
+        "way/1305597252",
+        "way/1309192712",
+        "way/1309412036",
+        "way/1343470525",
+        "way/1343494492",
+        "way/1343499343",
+        "way/1351253320",
+        "way/1354393302",
+        "way/1354393303",
+        "way/1354937323",
+        "way/1361112952",
+        "way/1361112958",
+        "way/1361112970",
+        "way/1361112971",
+        "way/1361112972",
+        "way/1361112973",
+        "way/1361197412",
+        "way/1361197418",
+        "way/1361696423",
+        "way/1362986808",
+        "way/1363144049",
+        "way/1363144051",
+        "way/1364197084",
+        "way/1366758301",
+        "way/1419648180",
+        "way/1425161386",
+        "way/1425485297",
+        "way/1425708649",
+        "way/1425712174",
+        "way/1425727921",
+        "way/1425961072",
+        "way/1426350907",
+        "way/1426418857",
+        "way/1426615677",
+        "way/1429635169",
+        "way/1429635738",
+        "way/1429863061",
+        "way/1429863075",
+        "way/1429991998",
+        "way/1430129473",
+        "way/1430129499",
+        "way/1430179035",
+        "way/1430314552",
+        "way/1430314553",
+        "way/1430431772",
+        "way/1430431773",
+        "way/1430431775",
+        "way/1430431776",
+        "way/1430431777",
+        "way/1430431778",
+        "way/1430431779",
+        "way/1430431824",
+        "way/1430772779",
+        "way/1431601665",
+        "way/1431605023",
+        "way/1431605024",
+        "way/1431605025",
+        "way/1431605029",
+        "way/1431613790",
+        "way/1431713268",
+        "way/1431872779",
+        "way/1431881289",
+        "way/1431881292",
+        "way/1431881296",
+        "way/1432192897",
+        "way/1432487925",
+        "way/1432686551",
+        "way/1432686553",
+        "way/1432686560",
+        "way/1433739961",
+        "way/1433739962",
+        "way/1433768848",
+        "way/1434749070",
+        "way/1434749072",
+        "way/1434749075",
+        "way/1436530923",
+        "way/1445336379",
+        "way/1448591054",
+        "way/1468136147",
+        "way/1473781590",
+        "way/187668487",
+        "way/237756475",
+        "way/237887918",
+        "way/239436036",
+        "way/246622228",
+        "way/246622753",
+        "way/255635893",
+        "way/264408919",
+        "way/304053216",
+        "way/322631274",
+        "way/328412126",
+        "way/328412149",
+        "way/328427343",
+        "way/359904033",
+        "way/376392652",
+        "way/376514989",
+        "way/376514991",
+        "way/376514994",
+        "way/379503019",
+        "way/420459634",
+        "way/435010330",
+        "way/456324027",
+        "way/456324030",
+        "way/487792612",
+        "way/498524785",
+        "way/508770221",
+        "way/508876178",
+        "way/513231941",
+        "way/513231942",
+        "way/529086160",
+        "way/532810312",
+        "way/533679792",
+        "way/533912145",
+        "way/533912148",
+        "way/533912149",
+        "way/533912150",
+        "way/533916244",
+        "way/534150961",
+        "way/534150962",
+        "way/541067858",
+        "way/545225933",
+        "way/545225935",
+        "way/545225990",
+        "way/545699486",
+        "way/546581819",
+        "way/546582690",
+        "way/553781206",
+        "way/555342866",
+        "way/555593808",
+        "way/560519734",
+        "way/560519736",
+        "way/563798386",
+        "way/565253607",
+        "way/586124738",
+        "way/586621907",
+        "way/588326736",
+        "way/603067551",
+        "way/603067552",
+        "way/603067553",
+        "way/603067555",
+        "way/603067556",
+        "way/603067557",
+        "way/603067558",
+        "way/603067560",
+        "way/603067561",
+        "way/616856972",
+        "way/617162846",
+        "way/617162847",
+        "way/617162848",
+        "way/617162849",
+        "way/617162859",
+        "way/617224819",
+        "way/617224820",
+        "way/617224821",
+        "way/617224822",
+        "way/617224823",
+        "way/617224825",
+        "way/617224826",
+        "way/617224827",
+        "way/617224831",
+        "way/617224834",
+        "way/617224835",
+        "way/617224836",
+        "way/617224837",
+        "way/617224839",
+        "way/617224840",
+        "way/617224843",
+        "way/617224845",
+        "way/623043133",
+        "way/638856661",
+        "way/674563581",
+        "way/674563582",
+        "way/674563585",
+        "way/674563586",
+        "way/674566923",
+        "way/690825579",
+        "way/691307326",
+        "way/691307328",
+        "way/691561880",
+        "way/692087683",
+        "way/692087684",
+        "way/694157067",
+        "way/694157068",
+        "way/694157069",
+        "way/694157070",
+        "way/694157071",
+        "way/694157072",
+        "way/694157073",
+        "way/694157074",
+        "way/694157079",
+        "way/694157080",
+        "way/694157081",
+        "way/694157082",
+        "way/694157083",
+        "way/694157084",
+        "way/694157085",
+        "way/694157086",
+        "way/694157087",
+        "way/694157088",
+        "way/694157090",
+        "way/694157091",
+        "way/694157092",
+        "way/694157100",
+        "way/694157102",
+        "way/694157103",
+        "way/694609115",
+        "way/694609116",
+        "way/694609117",
+        "way/694609118",
+        "way/694609119",
+        "way/694609120",
+        "way/694609121",
+        "way/694609122",
+        "way/694609126",
+        "way/700827692",
+        "way/707365820",
+        "way/707378861",
+        "way/728214519",
+        "way/728236669",
+        "way/736645119",
+        "way/736645120",
+        "way/736645121",
+        "way/736645122",
+        "way/737149477",
+        "way/737149478",
+        "way/737149480",
+        "way/737149483",
+        "way/737149484",
+        "way/737149485",
+        "way/737149486",
+        "way/737149487",
+        "way/737426465",
+        "way/737426468",
+        "way/737426470",
+        "way/737426478",
+        "way/741503057",
+        "way/741581536",
+        "way/746554936",
+        "way/746554940",
+        "way/747970493",
+        "way/747970495",
+        "way/747970498",
+        "way/747970503",
+        "way/762457414",
+        "way/765565840",
+        "way/765565853",
+        "way/765565854",
+        "way/771860730",
+        "way/773719250",
+        "way/773719251",
+        "way/776141680",
+        "way/776141691",
+        "way/776141692",
+        "way/776141699",
+        "way/776182823",
+        "way/776182835",
+        "way/776897369",
+        "way/777201407",
+        "way/777201408",
+        "way/777201412",
+        "way/777201414",
+        "way/777201420",
+        "way/777201421",
+        "way/777201481",
+        "way/777201505",
+        "way/777202339",
+        "way/777202340",
+        "way/777390932",
+        "way/779037727",
+        "way/779229108",
+        "way/782886874",
+        "way/782886875",
+        "way/782886876",
+        "way/793394336",
+        "way/793394337",
+        "way/793394338",
+        "way/793394345",
+        "way/793394346",
+        "way/793394350",
+        "way/793394351",
+        "way/793394354",
+        "way/793394356",
+        "way/793394358",
+        "way/793394362",
+        "way/793394363",
+        "way/793394364",
+        "way/793394365",
+        "way/793394366",
+        "way/801982575",
+        "way/815147492",
+        "way/818049954",
+        "way/822499904",
+        "way/855693224",
+        "way/856026024",
+        "way/875261249",
+        "way/875261265",
+        "way/898510387",
+        "way/898510389",
+        "way/898510435",
+        "way/908382933",
+        "way/911272956",
+        "way/913228151",
+        "way/914215466",
+        "way/914374173",
+        "way/916104990",
+        "way/916419697",
+        "way/918269966",
+        "way/925018673",
+        "way/978382000"
+      ],
+      "verifiedLawnIds": []
+    }
   },
   "roadFrontage": {
     "corridors": [
@@ -44699,13 +43479,13 @@
   },
   "terrainSurface": {
     "chunks": 534,
-    "vertices": 245240,
-    "triangles": 386824,
-    "areaKm2": 105.747093,
-    "areaErrorM2": -1.71e-06,
-    "seconds": 2.59,
+    "vertices": 282452,
+    "triangles": 426654,
+    "areaKm2": 105.746514,
+    "areaErrorM2": -1e-06,
+    "seconds": 5.92,
     "waterLevelsGenerated": false,
-    "heightSource": "copernicus-glo30-dsm",
+    "heightSource": "urban-datum",
     "exclusions": [
       {
         "id": "chunjian-pool-interior",
@@ -45061,7 +43841,8 @@
           ]
         ]
       }
-    ]
+    ],
+    "stonePavingAreaM2": 9003755.492
   },
   "metro": {
     "network": "深圳地铁",
@@ -45802,12 +44583,22 @@
     "format": "SZC1",
     "version": 1,
     "columns": 3241,
-    "metadataBytes": 7754614,
-    "numericBytes": 14670272,
-    "uncompressedBytes": 22424936,
+    "metadataBytes": 7756492,
+    "numericBytes": 15838080,
+    "uncompressedBytes": 23594624,
     "lossless": true,
-    "compressedBytes": 6710223
+    "compressedBytes": 6335045,
+    "compressedSha256": "aeaf65e06346ee0a256cb48a0a99eabf4451cb439dc9bb68a564077352555ff7"
   },
-  "outputBytes": 6872995,
-  "seconds": 39.6
+  "outputBytes": 6532937,
+  "seconds": 15.2,
+  "groundRebuild": {
+    "basePayloadSha256": "aa57b1f854ca2ebaa9d893b0f2784cc74b942c9cc4da4842e03b4f90bdf7f0cf",
+    "changedSections": [
+      "terrain",
+      "terrainSurface"
+    ],
+    "boundaryGeometry": "verified payload decimetre polygons"
+  },
+  "outputSha256": "9054e9d67cf9f9b9e1949d7b8d758ef845ca4d27ab960acc63cf121671be2a41"
 }
