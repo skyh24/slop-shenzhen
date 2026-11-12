@@ -46,7 +46,7 @@ test('contact query reads rendered Float32 triangle positions and excludes missi
       { id: '0,0', origin: [0, 0], positions: [0, 0, 0, 0, 20.123456, 25, 25, 10, 0],
         indices: [0, 1, 2], kinds: [0, 0, 0], cellRanges: [0, 0, 3] },
       { id: '1,0', origin: [25, 0], positions: [0, 10, 0, 0, 40, 25, 25, 30, 0],
-        indices: [0, 1, 2], kinds: [0, 0, 0], cellRanges: [1, 0, 3] }
+        indices: [0, 1, 2], kinds: [3, 3, 3], cellRanges: [1, 0, 3] }
     ] };
   const height = createGroundSurfaceSampler(surface);
   const expected = new Float32Array([20.123456])[0] * 0.4 + 10 * 0.2;
@@ -55,6 +55,8 @@ test('contact query reads rendered Float32 triangle positions and excludes missi
   assert.equal(height(25, 0), 10, 'shared chunk border remains continuous');
   assert.equal(height(-1, 0), null);
   assert.equal(height(NaN, 0), null);
+  surface.chunks[1].kinds[0] = 4;
+  assert.throws(() => createGroundSurfaceSampler(surface), /Invalid terrain surface chunk/);
 });
 
 test('generated clipped ground is queryable without filling a subcell lake or coastline gap', async () => {
