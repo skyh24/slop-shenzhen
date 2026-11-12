@@ -23,7 +23,8 @@ const STAGE_STUBS = {
   apecCity: () => ({ group: emptyGroup(), update: () => {} }),
   metro: () => ({ group: emptyGroup(), colliders: [], update: () => {} }),
   stations: () => null,
-  drones: () => ({ group: emptyGroup(), update: () => {} }),
+  drones: () => ({ group: emptyGroup(), colliders: [], stations: [], routes: [],
+    status: () => ({}), preview() {}, update() {}, dispose() {} }),
   traffic: () => ({ group: emptyGroup(), update: () => {}, nearColliders: () => [], statistics: {}, vehicles: [], network: null }),
   pedestrians: () => ({ group: emptyGroup(), update: () => {}, statistics: {} })
 };
@@ -189,6 +190,7 @@ class QaSession {
     window.__szApec = modules.apec;
     window.__szApecCity = modules.apecCity;
     window.__szDrones = modules.drones;
+    if (modules.drones?.statistics) console.info('[drone routes]', JSON.stringify(modules.drones.statistics));
     window.__szLightShow = modules.lightShow;
     window.__szElevatedRoads = modules.elevatedRoads;
     window.__szMetroEntrances = modules.metroEntrances;

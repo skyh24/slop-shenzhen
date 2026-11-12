@@ -225,6 +225,7 @@
   <link rel="modulepreload" href="./js/sz-apec.js" />
   <link rel="modulepreload" href="./js/sz-apec-city.js" />
   <link rel="modulepreload" href="./js/sz-drone-routes.js" />
+  <link rel="modulepreload" href="./js/sz-drone-watch.js" />
   <link rel="modulepreload" href="./js/sz-light-show.js" />
   <link rel="modulepreload" href="./js/sz-cbd-program.js" />
   <link rel="modulepreload" href="./js/sz-lianhuashan.js" />
@@ -459,6 +460,12 @@
     </aside>
   </div>
 
+  <div id="drone-follow-hud" class="panel drive-hud" hidden>
+    <span id="drone-follow-status" role="status"></span>
+    <button id="drone-follow-repeat" class="tool-btn" type="button" data-text="drones.repeat" hidden></button>
+    <button id="drone-follow-exit" class="tool-btn" type="button"><span data-text="drones.exit"></span> <kbd>Esc</kbd></button>
+  </div>
+
   <!-- Bottom-Center: Third-Person Mode Switcher & Controls Guide -->
   <footer class="hud hud-bottom-center">
     <p id="mode-feedback" class="panel mode-feedback" role="status" hidden></p>
@@ -599,7 +606,7 @@
       <div class="panel map-zoom">
         <button id="map-metro" class="icon-btn" type="button" popovertarget="metro-popover" data-tip="metro.title" data-label="metro.title"><svg class="icon" aria-hidden="true"><use href="#i-metro"/></svg></button>
         <button id="map-hsr" class="icon-btn" type="button" aria-pressed="false" data-tip="hsr.title" data-label="hsr.title"><svg class="icon" aria-hidden="true"><use href="#i-rail"/></svg></button>
-        <button id="map-drones" class="icon-btn" type="button" aria-pressed="false" data-tip="drones.title" data-label="drones.title"><svg class="icon" aria-hidden="true"><use href="#i-drone"/></svg></button>
+        <button id="map-drones" class="icon-btn" type="button" aria-pressed="false" aria-controls="map-drone-panel" data-tip="drones.title" data-label="drones.title"><svg class="icon" aria-hidden="true"><use href="#i-drone"/></svg></button>
         <button id="map-plan-drive" class="icon-btn" type="button" aria-pressed="false" aria-controls="map-drive-panel" data-tip="drive.plan" data-label="drive.plan"><svg class="icon" aria-hidden="true"><use href="#i-car"/></svg></button>
       </div>
     </div>
@@ -612,6 +619,18 @@
       </div>
       <div id="metro-lines"></div>
     </div>
+
+    <section id="map-drone-panel" class="panel map-drive-panel" data-label="drones.title" hidden>
+      <label for="map-drone-station" data-text="drones.choose"></label>
+      <select id="map-drone-station"></select>
+      <p id="map-drone-route"></p>
+      <p id="map-drone-status" role="status"></p>
+      <div class="map-drive-actions">
+        <button id="map-drone-approach" class="tool-btn" type="button" data-text="drones.approach" hidden></button>
+        <button id="map-drone-follow" class="tool-btn" type="button" data-text="drones.normal"></button>
+        <button id="map-drone-simulate" class="tool-btn" type="button" data-text="drones.simulation"></button>
+      </div>
+    </section>
 
     <section id="map-drive-panel" class="panel map-drive-panel" data-label="drive.plan" hidden>
       <strong data-text="drive.plan"></strong>

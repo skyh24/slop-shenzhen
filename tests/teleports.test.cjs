@@ -93,6 +93,7 @@ test('teleports mark resolved landings or the reviewed destination from an exact
   const environment = {
     teleportEntries,
     landmarkViews: new Map(),
+    droneWatch: { map: null },
     bayPark: null,
     controllerManager: {
       teleportActiveTo: (x, z, heading, altitude, options) => {

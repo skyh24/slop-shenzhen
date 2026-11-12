@@ -1,7 +1,7 @@
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
 import { NYC_LANDMARKS, ISLAND_BOUNDS, getLocationLabel, isTypingInField } from './sz-city-config.js';
 import { STR } from './sz-strings.js';
-import { MAP, ROAD_LABELS, ROAD_NAME_COUNT, MapView, addLine, mapLayers, footprintLayers, drawPlayerArrow, drawWaypoint, overlaps } from './sz-map-layers.js';
+import { MAP, ROAD_LABELS, ROAD_NAME_COUNT, MapView, addLine, mapLayers, footprintLayers, droneMapLayer, drawPlayerArrow, drawWaypoint, overlaps } from './sz-map-layers.js';
 
 // 保留纽约地图控件和缓存机制；地理图层改用深圳同一份真实数据。
 const FONT = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
@@ -15,7 +15,7 @@ function roadMatches(label, query) {
 }
 
 class NYCMapSystem {
-  constructor({ controllerManager, cameraSystem, allBlocks = [], onTeleport, onToggle, drive = null, touchHints = false }) {
+  constructor({ controllerManager, cameraSystem, allBlocks = [], onTeleport, onToggle, drive = null, drones = null, touchHints = false }) {
     this.controllerManager = controllerManager;
     this.cameraSystem = cameraSystem;
     this.allBlocks = allBlocks;
@@ -66,6 +66,10 @@ class NYCMapSystem {
     this.metroLines = new Set();
     this.hsrVisible = false;
     this.dronesVisible = false;
+    this.droneControls = drones;
+    this.droneLayer = drones ? droneMapLayer(drones.stations, drones.routes) : null;
+    this.droneStation = null;
+    this.droneFeedback = '';
     this.isPlanningDrive = false;
     this.driveStart = null;
     this.driveEnd = null;
@@ -156,17 +160,8 @@ class NYCMapSystem {
       });
     }
 
-    const droneButton = document.getElementById('map-drones');
-    if (droneButton) {
-      droneButton.addEventListener('click', () => {
-        this.dronesVisible = !this.dronesVisible;
-        droneButton.setAttribute('aria-pressed', String(this.dronesVisible));
-        droneButton.classList.toggle('active', this.dronesVisible);
-        this.miniCache = null;
-        this.fullStaticKey = '';
-        this.renderFullMap();
-      });
-    }
+    if (this.droneLayer?.stations.length) this.bindDroneCard();
+    else document.getElementById('map-drones')?.toggleAttribute('hidden', true);
 
     if (this.fullCanvas) {
       this.fullCanvas.style.touchAction = 'none';
@@ -222,7 +217,7 @@ class NYCMapSystem {
             const wPos = this.screenToWorld(mx, my, rect.width, rect.height);
             if (this.isPlanningDrive) {
               if (!this.drive.active) this.pickDrivePoint(wPos.x, wPos.z);
-            } else {
+            } else if (!this.pickDroneStation(wPos)) {
               // 只在点中可见地标图钉时走正面到达，普通地图点仍按原位置处理。
               let landmarkId;
               let closest = 7;
@@ -276,6 +271,7 @@ class NYCMapSystem {
     toggle?.addEventListener('click', () => {
       if (this.drive.active) return;
       this.isPlanningDrive = !this.isPlanningDrive;
+      if (this.isPlanningDrive && this.dronesVisible) this.toggleDroneCard(false);
       this.resetDrivePlan();
       this.renderPointerHint();
     });
@@ -420,6 +416,109 @@ class NYCMapSystem {
     this.renderFullMap();
   }
 
+  bindDroneCard() {
+    const byId = suffix => document.getElementById('map-drone-' + suffix);
+    const ui = this.droneUI = {
+      toggle: document.getElementById('map-drones'), panel: byId('panel'), select: byId('station'),
+      route: byId('route'), status: byId('status'), approach: byId('approach'),
+      follow: byId('follow'), demo: byId('simulate')
+    };
+    for (const station of this.droneLayer.stations) {
+      const option = document.createElement('option');
+      option.value = station.id;
+      option.textContent = station.name;
+      ui.select.append(option);
+    }
+    ui.toggle.addEventListener('click', () => this.toggleDroneCard(!this.dronesVisible));
+    ui.select.addEventListener('change', () => this.selectDroneStation(ui.select.value, true));
+    ui.approach.addEventListener('click', () => {
+      if (this.droneControls.approach(this.droneStation)) this.toggleFullMap(false);
+      else {
+        this.droneFeedback = STR.drones.approachUnavailable;
+        this.renderDroneCard();
+      }
+    });
+    for (const [button, demo] of [[ui.follow, false], [ui.demo, true]]) {
+      button.addEventListener('click', () => {
+        if (this.droneControls.follow(this.droneStation, demo)) this.toggleFullMap(false);
+        else this.renderDroneCard();
+      });
+    }
+  }
+
+  toggleDroneCard(open) {
+    if (!this.droneUI) return;
+    this.dronesVisible = open;
+    this.droneUI.toggle.setAttribute('aria-pressed', String(open));
+    this.droneUI.toggle.classList.toggle('active', open);
+    this.droneUI.panel.hidden = !open;
+    this.miniCache = null;
+    this.fullStaticKey = '';
+    if (open) {
+      if (this.isPlanningDrive) {
+        this.isPlanningDrive = false;
+        this.renderDriveUi();
+        this.renderPointerHint();
+      }
+      const nearby = this.droneLayer.stations.find(station => this.droneControls.status(station.id).nearby);
+      const id = nearby?.id ?? this.droneStation?.id ?? this.droneLayer.stations[0]?.id;
+      if (id) this.selectDroneStation(id, !nearby);
+    } else {
+      this.droneControls.preview(null);
+      this.renderFullMap();
+    }
+  }
+
+  pickDroneStation(point) {
+    if (!this.dronesVisible || !this.droneLayer) return false;
+    let selected;
+    let distance = 10 / this.viewZoom;
+    for (const station of this.droneLayer.stations) {
+      const d = Math.hypot(station.x - point.x, station.z - point.z);
+      if (d > distance) continue;
+      selected = station;
+      distance = d;
+    }
+    if (!selected) return false;
+    this.selectDroneStation(selected.id, false);
+    return true;
+  }
+
+  selectDroneStation(id, center) {
+    const station = this.droneLayer.stations.find(item => item.id === id);
+    if (!station) return;
+    this.droneStation = station;
+    this.droneFeedback = '';
+    this.droneUI.select.value = id;
+    if (center) {
+      this.viewCenterX = station.x;
+      this.viewCenterZ = station.z;
+      this.viewZoom = Math.max(this.viewZoom, 0.75);
+    }
+    this.droneControls.preview(id);
+    this.renderDroneCard();
+    this.renderFullMap();
+  }
+
+  renderDroneCard() {
+    if (!this.droneStation || !this.dronesVisible || !this.isFullMapOpen) return;
+    const ui = this.droneUI, strings = STR.drones;
+    const { route, suspended, nearby, mission, available, blocked, canApproach } = this.droneControls.status(this.droneStation.id);
+    const active = mission && mission.pose.phase !== 'complete';
+    const phase = active && strings.phase[mission.pose.phase];
+    const lines = [this.droneFeedback, suspended && strings.statusSuspended, route?.simulationOnly && strings.simulationOnly,
+      !available && strings.unavailable, available && !nearby && strings.walkCloser,
+      nearby && blocked && strings.blocked, phase && (mission.demo ? strings.simulation + ' · ' : '')
+        + (mission.pose.returning ? strings.returning(phase) : phase)].filter(Boolean);
+    const status = lines.join(' / ') || strings.phase.loading;
+    if (ui.status.textContent !== status) ui.status.textContent = status;
+    const routeLabel = route?.from && route.to ? route.from.name + ' ⇄ ' + route.to.name + ' · ' + strings.estimate : strings.estimate;
+    if (ui.route.textContent !== routeLabel) ui.route.textContent = routeLabel;
+    ui.approach.hidden = nearby || !canApproach;
+    ui.follow.disabled = !nearby || !available || suspended || route?.simulationOnly || blocked || Boolean(active && mission.demo);
+    ui.demo.disabled = !nearby || !available || blocked || Boolean(active && !mission.demo);
+  }
+
   cancelPan() {
     const id = this.panPointerId;
     this.panPointerId = null;
@@ -430,7 +529,10 @@ class NYCMapSystem {
 
   toggleFullMap(open) {
     this.isFullMapOpen = Boolean(open);
-    if (!this.isFullMapOpen) this.cancelPan();
+    if (!this.isFullMapOpen) {
+      this.cancelPan();
+      if (this.dronesVisible) this.toggleDroneCard(false);
+    }
     if (this.onToggle) this.onToggle(this.isFullMapOpen);
     if (!this.modal) return;
     this.modal.classList.toggle('hidden', !this.isFullMapOpen);
@@ -443,7 +545,11 @@ class NYCMapSystem {
       this.viewCenterX = ent.position.x;
       this.viewCenterZ = ent.position.z;
       this.resizeFullCanvas();
-      this.renderFullMap();
+      if (!this.isPlanningDrive && this.droneLayer?.stations.some(station => this.droneControls.status(station.id).nearby)) {
+        this.toggleDroneCard(true);
+      } else {
+        this.renderFullMap();
+      }
     }
   }
 
@@ -575,7 +681,7 @@ class NYCMapSystem {
       }
     }
     if (this.dronesVisible) {
-      const drones = layers.drones;
+      const drones = this.droneLayer;
       if (drones) {
         ctx.strokeStyle = MAP.droneRoute;
         ctx.lineWidth = 2 / v.s;
@@ -587,7 +693,7 @@ class NYCMapSystem {
         ctx.setLineDash([]);
         for (const station of drones.stations) {
           if (!v.sees(station.bounds)) continue;
-          ctx.fillStyle = MAP.droneStation;
+          ctx.fillStyle = station.available === false ? '#ab9d87' : MAP.droneStation;
           ctx.beginPath();
           ctx.arc(v.toX(station.x), v.toY(station.z), 4 / v.s, 0, Math.PI * 2);
           ctx.fill();
@@ -683,6 +789,7 @@ class NYCMapSystem {
   }
 
   update() {
+    this.renderDroneCard();
     if (this.isFullMapOpen && this.isPlanningDrive || this.drive?.status !== this.previousDriveStatus) {
       this.renderDriveUi();
       this.previousDriveStatus = this.drive?.status;

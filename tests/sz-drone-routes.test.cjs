@@ -5,255 +5,216 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { loadModule } = require('./helpers/module.cjs');
 
-const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
-const load = (name, imports = {}) => loadModule(read(name), { imports });
-const terrain = load('sz-terrain.js');
-const droneRoutes = load('sz-drone-routes.js', { 'three/webgpu': {}, './sz-terrain.js': terrain });
-
+const source = readFileSync(join(__dirname, '../js/sz-drone-routes.js'), 'utf8');
 const air = {
-  version: 3,
-  verifiedAt: '2026-11-09',
-  status: 'source-endpoints-schematic-tracks',
   droneStations: [
-    { id: 'a', name: 'A 站', operator: '美团无人机', kind: 'takeoff', x: 0, z: 0,
-      coordinateSource: 'test', sourceUrls: ['https://example.com/a'], verifiedAt: '2026-11-09' },
-    { id: 'b', name: 'B 站', operator: '美团无人机', kind: 'landing', x: 300, z: 400,
-      coordinateSource: 'test', sourceUrls: ['https://example.com/b'], verifiedAt: '2026-11-09' }
+    { id: 'a', name: 'A', x: 0, z: 0, coordinatePrecisionM: 20 },
+    { id: 'b', name: 'B', x: 300, z: 0, coordinatePrecisionM: 20 }
   ],
-  droneRoutes: [
-    { id: 'route-1', name: 'A ⇄ B', operator: '美团无人机', fromStationId: 'a', toStationId: 'b',
-      lengthM: 500, trackStatus: 'schematic', altitudeM: 100, altitudeSource: 'estimate',
-      sourceUrls: ['https://example.com/a'], sourcePublisher: 'test', sourcePublishedAt: '2023-09-04',
-      verifiedAt: '2026-11-09' }
-  ],
-  apecSuspension: {
-    windows: [{ from: '2026-11-07', to: '2026-11-21', areas: 'test', sourceUrl: 'https://example.com/notice' }],
-    operatorNotice: { text: '停运', sourceUrl: 'https://example.com/notice' }
-  }
+  droneRoutes: [{ id: 'route-1', fromStationId: 'a', toStationId: 'b',
+    trackStatus: 'schematic', altitudeM: 100, altitudeSource: 'estimate' }],
+  apecSuspension: { windows: [{ from: '2026-11-07', to: '2026-11-21' }] }
 };
+const site = {
+  obstacles: [], isWater: () => false, roadHeight: () => null,
+  heightAt: () => 8, flightHeightAt: () => 8
+};
+const terrain = loadModule(readFileSync(join(__dirname, '../js/sz-terrain.js'), 'utf8'));
+const load = (THREE = {}, createCargoDroneMesh) => loadModule(source, {
+  imports: { 'three/webgpu': THREE, './sz-vehicles.js': { createCargoDroneMesh }, './sz-strings.js': { STR: {} }, './sz-terrain.js': terrain }
+});
+const pkg = process.env.SZ_THREE_PACKAGE_DIR;
+const realThree = () => import(pathToFileURL(join(pkg, 'build/three.webgpu.js')));
 
-test('drone plan keeps sourced endpoints and marks schematic tracks', () => {
-  const plan = droneRoutes.planDroneFlights(air, { now: new Date('2026-11-01T00:00:00+08:00') });
-  assert.equal(plan.routes.length, 1);
-  assert.equal(plan.suspended, false);
-  const [route] = plan.routes;
-  assert.equal(route.from.id, 'a');
-  assert.equal(route.to.id, 'b');
-  assert.equal(route.lengthM, 500);
-  assert.equal(route.altitudeM, 100);
-  assert.equal(route.altitudeSource, 'estimate');
-  assert.equal(route.flights.length, 2);
-  assert.ok(route.flights.every(flight => flight.speedMps > 0 && flight.phase >= 0 && flight.phase < 1));
-  assert.ok(droneRoutes.isApecAirSuspended(air, new Date('2026-11-08T12:00:00+08:00')));
-  assert.ok(droneRoutes.isApecAirSuspended(air, new Date('2026-11-21T23:00:00+08:00')));
-  assert.equal(droneRoutes.isApecAirSuspended(air, new Date('2026-11-22T00:00:00+08:00')), false);
-  assert.equal(droneRoutes.isApecAirSuspended(air, new Date('2026-11-06T23:59:00+08:00')), false);
+test('APEC date boundaries follow Shenzhen midnight throughout an existing browser session', () => {
+  const { isApecAirSuspended } = load();
+  assert.equal(isApecAirSuspended(air, '2026-11-06T15:59:59Z'), false);
+  assert.equal(isApecAirSuspended(air, '2026-11-06T16:00:00Z'), true);
+  assert.equal(isApecAirSuspended(air, '2026-11-21T15:59:59Z'), true);
+  assert.equal(isApecAirSuspended(air, '2026-11-21T16:00:00Z'), false);
 });
 
-test('drone plan drops routes whose station is missing instead of inventing one', () => {
-  const broken = { ...air, droneRoutes: [{ ...air.droneRoutes[0], toStationId: 'missing' }] };
-  const plan = droneRoutes.planDroneFlights(broken, { now: new Date('2026-11-01T00:00:00+08:00') });
-  assert.equal(plan.routes.length, 0);
+test('station placement preserves provenance and rejects water, roads and canopy', { skip: !pkg }, async () => {
+  const { planDroneFlights } = load(await realThree());
+  const canopy = { minX: -5, maxX: 5, minZ: -5, maxZ: 5, minY: 12, maxY: 30 };
+  const { stations, routes } = planDroneFlights(air, {
+    ...site, obstacles: [canopy], isWater: (x, z) => x < -2,
+    roadHeight: (x, z) => z < -2 ? 8 : null
+  });
+  const [a] = stations;
+  assert.equal(a.available, true);
+  assert.equal(a.sourceX, 0);
+  assert.equal(a.sourceZ, 0);
+  assert.equal(a.positionSource, 'scene-estimate');
+  assert.ok(a.offsetM > 5 && a.offsetM <= 20);
+  assert.ok(a.x >= -2 && a.z >= -2 && a.y > 8);
+  assert.equal(routes[0].trackStatus, 'schematic');
+  const closed = planDroneFlights(air, { ...site, isWater: x => x < 100 });
+  assert.equal(closed.routes[0].path.reason, 'no-safe-station');
+  assert.equal(closed.stations[0].available, false);
+  const missing = planDroneFlights({ ...air, droneStations: [air.droneStations[0]] }, site);
+  assert.equal(missing.routes[0].path.reason, 'no-safe-station');
 });
 
-const openNow = new Date('2026-11-01T00:00:00+08:00');
-const DT = 0.05;
+test('route clearance covers narrow building obstacles and enforces the ceiling', { skip: !pkg }, async () => {
+  const { planDroneFlights } = load(await realThree());
+  const tower = { minX: 150.55, maxX: 150.8, minZ: -0.5, maxZ: 0.5, minY: 8, maxY: 160 };
+  const [route] = planDroneFlights(air, { ...site, obstacles: [tower],
+    flightHeightAt: x => x > 100 && x < 120 ? 150 : 8 }).routes;
+  assert.equal(route.path.cruiseY, 176);
+  const [closed] = planDroneFlights(air, { ...site, obstacles: [{ ...tower, maxY: 245 }] }).routes;
+  assert.equal(closed.path.reason, 'cruise-ceiling');
+  const [unknown] = planDroneFlights(air, { ...site, flightHeightAt: () => null }).routes;
+  assert.equal(unknown.path.reason, 'unknown-terrain');
+});
 
-function openPlan() {
-  return droneRoutes.planDroneFlights(air, { now: openNow });
-}
-
-// 两个弧度角之间的最小夹角
-function headingDelta(a, b) {
-  const delta = Math.abs(a - b) % (Math.PI * 2);
-  return delta > Math.PI ? Math.PI * 2 - delta : delta;
-}
-
-// 按 0.05 秒步长采样一条飞行计划的示意航迹
-function sampleTrack(route, flight, steps = 2200) {
-  const samples = [];
-  for (let step = 0; step <= steps; step++) {
-    const elapsed = step * DT;
-    const pose = droneRoutes.dronePoseAt(route, flight, elapsed);
-    samples.push({ elapsed, ...pose });
-  }
-  return samples;
-}
-
-test('drone pose keeps the initial phase and turns at both endpoints', () => {
-  const [route] = openPlan().routes;
-  const [outbound, inbound] = route.flights;
-  assert.equal(outbound.phase, 0);
-  assert.equal(inbound.phase, 0.5);
-  assert.equal(outbound.direction, 1);
-  assert.equal(inbound.direction, -1);
-  const dx = route.to.x - route.from.x;
-  const dz = route.to.z - route.from.z;
-  const outboundYaw = Math.atan2(dx, dz);
-  const inboundYaw = Math.atan2(-dx, -dz);
-  const startOut = droneRoutes.dronePoseAt(route, outbound, 0);
-  const startIn = droneRoutes.dronePoseAt(route, inbound, 0);
-  assert.ok(Math.abs(startOut.travel) < 1e-12, 'outbound starts at the from end');
-  assert.ok(Math.abs(startIn.travel - 0.5) < 1e-12, 'inbound starts at its phase point');
-  assert.ok(headingDelta(startOut.yaw, outboundYaw) < 1e-9);
-  assert.ok(headingDelta(startIn.yaw, inboundYaw) < 1e-9);
-
-  const stepLimit = outbound.speedMps * DT + 1e-9;
-  for (const flight of [outbound, inbound]) {
-    const samples = sampleTrack(route, flight);
-    let maxStep = 0;
-    let minToFrom = Infinity;
-    let minToTo = Infinity;
-    const flips = [];
-    for (let index = 1; index < samples.length; index++) {
-      const previous = samples[index - 1];
-      const current = samples[index];
-      maxStep = Math.max(maxStep, Math.hypot(current.x - previous.x, current.z - previous.z));
-      // 初始时刻就在端点时不算“到达”，从第二段开始统计回到起点端
-      if (index > 500) minToFrom = Math.min(minToFrom, Math.hypot(current.x - route.from.x, current.z - route.from.z));
-      minToTo = Math.min(minToTo, Math.hypot(current.x - route.to.x, current.z - route.to.z));
-      if (current.direction !== previous.direction) flips.push(current);
+test('each end can dispatch a continuous round trip on the displayed polyline', { skip: !pkg }, async () => {
+  const THREE = await realThree();
+  const { dronePoseAt, planDroneFlights } = load(THREE);
+  const [route] = planDroneFlights(air, site).routes;
+  const { path } = route;
+  assert.equal(path.points[0].y, route.from.y);
+  assert.equal(path.points.at(-1).y, route.to.y);
+  for (const fromEnd of [false, true]) {
+    const origin = fromEnd ? path.points.at(-1) : path.points[0];
+    const destination = fromEnd ? path.points[0] : path.points.at(-1);
+    const deliveries = new Set();
+    const phases = new Set();
+    const sample = { position: new THREE.Vector3() };
+    const prev = origin.clone();
+    const edge = new THREE.Line3();
+    const closest = new THREE.Vector3();
+    for (let t = 0; t < 2 * path.seconds + 16; t += 0.1) {
+      const pose = dronePoseAt(path, fromEnd, t, sample);
+      phases.add(pose.phase);
+      assert.ok(prev.distanceTo(pose.position) <= 2.001);
+      assert.ok(path.points.slice(1).some((point, i) => edge.set(path.points[i], point)
+        .closestPointToPoint(pose.position, true, closest).distanceToSquared(pose.position) < 1e-12));
+      if (pose.phase === 'delivery') {
+        assert.ok(destination.equals(pose.position));
+        deliveries.add(pose.delivered);
+      }
+      if (pose.returning) assert.equal(pose.cargo, false);
+      prev.copy(pose.position);
     }
-    assert.ok(maxStep <= stepLimit, `single-frame step ${maxStep} stays within ${stepLimit}`);
-    assert.ok(maxStep > stepLimit * 0.9, 'the drone actually cruises instead of standing still');
-    assert.ok(minToTo < 0.5, 'the to endpoint is reached');
-    assert.ok(minToFrom < 0.5, 'the from endpoint is reached again on the way back');
-    assert.equal(flips.length, 2, 'two endpoint turns within 110 s');
-    // 第一次过端点后方向反转，第二次过另一端后恢复首段方向
-    assert.equal(flips[0].direction, -flight.direction);
-    assert.ok(headingDelta(flips[0].yaw, flight.direction > 0 ? inboundYaw : outboundYaw) < 1e-9);
-    assert.equal(flips[1].direction, flight.direction);
-    assert.ok(headingDelta(flips[1].yaw, flight.direction > 0 ? outboundYaw : inboundYaw) < 1e-9);
+    assert.deepEqual([...phases], ['loading', 'takeoff', 'cruise', 'descent', 'delivery', 'complete']);
+    assert.deepEqual([...deliveries], [false, true]);
+    assert.ok(origin.equals(prev));
   }
 });
 
-test('drone without turnAtEnds stops at the destination end', () => {
-  const [route] = openPlan().routes;
-  const oneWay = { ...route.flights[0], turnAtEnds: false };
-  const parked = droneRoutes.dronePoseAt(route, oneWay, route.lengthM / oneWay.speedMps + 5);
-  assert.equal(parked.travel, 1);
-  assert.equal(parked.direction, 1);
-  assert.ok(Math.abs(parked.x - route.to.x) < 1e-9);
-  assert.ok(Math.abs(parked.z - route.to.z) < 1e-9);
-});
-
-// 从实例矩阵读回位置和绕 Y 轴的朝向，断言不依赖模块内部对象
-function readInstance(mesh, THREE) {
-  const matrix = new THREE.Matrix4();
-  const position = new THREE.Vector3();
-  const quaternion = new THREE.Quaternion();
-  const scale = new THREE.Vector3();
-  return index => {
-    mesh.getMatrixAt(index, matrix);
-    matrix.decompose(position, quaternion, scale);
-    return { x: position.x, y: position.y, z: position.z, yaw: 2 * Math.atan2(quaternion.y, quaternion.w) };
-  };
-}
-
-test('real drone module builds, flies when open and parks during APEC control', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
-  const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
-  const realModule = loadModule(read('sz-drone-routes.js'), { imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain } });
-  const grid = { x0: -100, z0: -100, nx: 2, nz: 2, step: 200, heightScale: 0.1, heights: [100, 100, 100, 100] };
+test('suspended operations, manual simulation, following visibility and disposal stay independent', { skip: !pkg }, async () => {
+  const THREE = await realThree();
+  let releases = 0;
+  const module = load(THREE, () => {
+    const group = new THREE.Group();
+    const cargoBox = new THREE.Group();
+    group.add(cargoBox);
+    return { group, cargoBox, statusLight: new THREE.Group(), bounds: new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(1, 1, 1)),
+      update() {}, dispose() { releases++; } };
+  });
   const scene = new THREE.Scene();
-  const openAir = realModule.buildSzDroneRoutes(scene, { air, terrain: grid, now: openNow });
-  assert.equal(openAir.statistics.routes, 1);
-  assert.equal(openAir.statistics.flights, 2);
-  assert.equal(openAir.statistics.suspended, false);
-  const instanced = name => {
-    const mesh = openAir.group.children.find(child => child.name === name);
-    assert.ok(mesh?.isInstancedMesh, `${name} is an InstancedMesh`);
-    return mesh;
-  };
-  const hulls = instanced('drone-hulls');
-  const rotors = instanced('drone-rotors');
-  const redLamps = instanced('drone-lamps-red');
-  const greenLamps = instanced('drone-lamps-green');
-  instanced('drone-stations');
-  // P10：每架 1 个机身实例、4 个旋翼实例、红/绿各 1 个灯实例，不再建独立网格
-  assert.equal(hulls.count, 2);
-  assert.equal(rotors.count, 8);
-  assert.equal(redLamps.count, 2);
-  assert.equal(greenLamps.count, 2);
-  assert.equal(openAir.group.children.filter(child => child.isMesh && !child.isInstancedMesh).length, 0,
-    'no per-drone meshes remain');
-  assert.equal(openAir.group.children.filter(child => child.type === 'Group' && child.children.length > 5).length, 0);
-  assert.equal(openAir.statistics.instancedMeshes, 5);
-  assert.equal(openAir.statistics.meshes, 6, 'five instanced meshes plus one route line');
-  assert.equal(openAir.statistics.instances, 16);
-  assert.ok(openAir.statistics.meshes < 2 * 13 + 2 * 2, 'instancing cuts the draw objects');
+  let now = '2026-11-06T15:59:00Z';
+  const system = module.buildSzDroneRoutes(scene, { air, site, clock: () => new Date(now) });
+  const [a, b] = system.stations;
+  const line = system.group.children.find(child => child.isLine);
+  const aircraft = system.group.getObjectByName('route-1:drone');
+  assert.equal(line.visible, false);
+  assert.equal(aircraft.visible, false);
+  system.preview(a.id);
+  assert.equal(line.visible, true);
+  assert.equal(line.geometry.attributes.position.count, system.routes[0].path.points.length);
+  assert.equal(system.start(a.id, false, b), null);
+  const normal = system.start(b.id, false, b);
+  assert.equal(normal.stationId, b.id);
+  assert.ok(normal.pose.position.equals(new THREE.Vector3(b.x, b.y, b.z)));
+  now = '2026-11-06T16:00:00Z';
+  system.update(0.05);
+  assert.equal(system.isActive(normal), false);
+  assert.equal(aircraft.visible, false);
+  assert.equal(system.start(a.id, false, a), null);
+  const demo = system.start(a.id, true, a);
+  assert.equal(system.status(b.id, b).mission, demo);
+  assert.equal(system.start(b.id, true, b), demo);
+  assert.equal(demo.stationId, a.id);
+  const far = new THREE.Vector3(8000, 8000, 8000);
+  system.update(0.05, far);
+  assert.equal(aircraft.visible, true);
+  system.preview(null);
+  assert.equal(line.visible, true);
+  system.stopFollowing();
+  system.update(0.05, far);
+  assert.equal(aircraft.visible, false);
+  assert.equal(line.visible, false);
+  assert.equal(system.start(a.id, true, a), demo);
+  let geometryReleases = 0;
+  const geometries = new Set();
+  system.group.traverse(({ geometry }) => { if (geometry) geometries.add(geometry); });
+  for (const geometry of geometries) geometry.addEventListener('dispose', () => geometryReleases++);
+  system.dispose();
+  system.dispose();
+  assert.equal(geometryReleases, geometries.size);
+  assert.equal(system.isActive(demo), false);
+  assert.equal(system.start(a.id, true, a), null);
+  assert.equal(releases, 1);
+  assert.equal(system.group.parent, null);
+  assert.equal(system.group.children.length, 0);
+});
 
-  const [route] = openAir.routes;
-  const [outbound] = route.flights;
-  const readHull = readInstance(hulls, THREE);
-  openAir.update(0);
-  const first = readHull(0);
-  const second = readHull(1);
-  assert.ok(Math.hypot(first.x - route.from.x, first.z - route.from.z) < 1e-6,
-    'first drone waits at the from end at time zero');
-  assert.ok(Math.hypot(second.x - (route.from.x + route.to.x) / 2,
-    second.z - (route.from.z + route.to.z) / 2) < 1e-6, 'second drone starts at its half-way phase');
-  assert.ok(first.y > 100, 'the drone at the from end cruises above terrain');
-  assert.ok(first.y >= route.altitudeM && second.y >= route.altitudeM, 'drones keep the schematic altitude');
+test('camera ray shortens against thin obstacles and uphill terrain', { skip: !pkg }, async () => {
+  const THREE = await realThree();
+  const { cameraClearFraction } = load(THREE);
+  const a = new THREE.Vector3(0, 1, 0), b = new THREE.Vector3(8, 2, 0);
+  assert.equal(cameraClearFraction(a, b, [], () => 0), 1);
+  const wall = { minX: 4, maxX: 4.1, minZ: -1, maxZ: 1, minY: 0, maxY: 3 };
+  assert.ok(cameraClearFraction(a, b, [wall], () => 0) < 0.5);
+  assert.ok(cameraClearFraction(a, b, [], x => x < 2 ? 0 : 3) < 0.3);
+});
 
-  // 以真实实例矩阵连续更新 110 秒，跨过两个端点；位置逐帧采样，不允许出现瞬移。
-  // 实例矩阵按 float32 存取，读回位置有舍入，给 1% 容差
-  const stepLimit = outbound.speedMps * DT * 1.01;
-  const rotorBefore = [...rotors.instanceMatrix.array.slice(0, 16)];
-  const tracks = [[], []];
-  for (let step = 0; step <= 2200; step++) {
-    openAir.update(DT);
-    tracks.forEach((track, index) => track.push(readHull(index)));
-  }
-  assert.notDeepEqual([...rotors.instanceMatrix.array.slice(0, 16)], rotorBefore, 'rotors keep spinning while flying');
-  for (const [index, track] of tracks.entries()) {
-    let maxStep = 0;
-    let minToFrom = Infinity;
-    let minToTo = Infinity;
-    let turns = 0;
-    for (let sample = 1; sample < track.length; sample++) {
-      const previous = track[sample - 1];
-      const current = track[sample];
-      maxStep = Math.max(maxStep, Math.hypot(current.x - previous.x, current.z - previous.z));
-      if (sample > 500) minToFrom = Math.min(minToFrom, Math.hypot(current.x - route.from.x, current.z - route.from.z));
-      minToTo = Math.min(minToTo, Math.hypot(current.x - route.to.x, current.z - route.to.z));
-      if (headingDelta(current.yaw, previous.yaw) > 0.5) turns++;
-    }
-    assert.ok(maxStep <= stepLimit, `drone ${index} single-frame step ${maxStep} stays within ${stepLimit}`);
-    assert.ok(minToFrom < 0.5 && minToTo < 0.5, `drone ${index} reaches both endpoints`);
-    assert.equal(turns, 2, `drone ${index} turns at two endpoints`);
-    assert.ok(track.every(point => point.y >= route.altitudeM - 1e-6), `drone ${index} keeps the schematic cruise altitude`);
-  }
-  // 返程朝向：0 号机在第一次过端点后应背向 to 端
-  const turnIndex = tracks[0].findIndex((point, index) => index > 0
-    && headingDelta(point.yaw, tracks[0][index - 1].yaw) > 0.5);
-  const dx = route.to.x - route.from.x;
-  const dz = route.to.z - route.from.z;
-  assert.ok(turnIndex > 0);
-  assert.ok(headingDelta(tracks[0][turnIndex].yaw, Math.atan2(-dx, -dz)) < 0.2, 'the return leg faces back');
-
-  // 停运日期：同一批实例收在起降点，旋翼停转
-  const suspendedAir = realModule.buildSzDroneRoutes(scene, { air, terrain: grid, now: new Date('2026-11-12T00:00:00+08:00') });
-  assert.equal(suspendedAir.statistics.suspended, true);
-  const parkedHulls = suspendedAir.group.children.find(child => child.name === 'drone-hulls');
-  const parkedRotors = suspendedAir.group.children.find(child => child.name === 'drone-rotors');
-  const readParked = readInstance(parkedHulls, THREE);
-  suspendedAir.update(0.016);
-  const parked = [readParked(0), readParked(1)];
-  assert.ok(parked.every(point => Math.abs(point.x - air.droneStations[0].x) < 1e-6
-    && Math.abs(point.z - air.droneStations[0].z) < 1e-6), 'suspended drones wait at the takeoff station');
-  assert.ok(parked.every(point => point.y < 20), 'suspended drones stay near the ground');
-  const readRotor = readInstance(parkedRotors, THREE);
-  for (let index = 0; index < parkedRotors.count; index++) {
-    const rotor = readRotor(index);
-    assert.ok(Math.hypot(rotor.x - air.droneStations[0].x, rotor.z - air.droneStations[0].z) < 0.8,
-      'parked rotors stay with the drone');
-  }
-  const parkedBefore = [...parkedHulls.instanceMatrix.array];
-  const parkedRotorsBefore = [...parkedRotors.instanceMatrix.array];
-  suspendedAir.update(0.016);
-  assert.deepEqual([...parkedHulls.instanceMatrix.array], parkedBefore, 'parked drones do not move');
-  assert.deepEqual([...parkedRotors.instanceMatrix.array], parkedRotorsBefore, 'parked rotors do not spin');
-  openAir.dispose();
-  suspendedAir.dispose();
-  assert.equal(openAir.group.parent, null);
+test('watching restores the same player after Escape and uses a safe fallback after loss', () => {
+  const source = readFileSync(join(__dirname, '../js/sz-drone-watch.js'), 'utf8');
+  const strings = loadModule(readFileSync(join(__dirname, '../js/sz-strings.js'), 'utf8'));
+  const nodes = new Map();
+  const document = { body: { dataset: {} }, getElementById(id) {
+    if (!nodes.has(id)) nodes.set(id, { hidden: true, addEventListener(type, listener) { this[type] = listener; }, focus() {} });
+    return nodes.get(id);
+  } };
+  const window = { addEventListener(type, listener) { this[type] = listener; } };
+  const { wireDroneWatch } = loadModule(source, { imports: { './sz-strings.js': strings },
+    globals: { document, window, setTimeout: () => 1, clearTimeout() {} } });
+  const person = { position: { x: 8, y: 4, z: 6 }, heading: 2, speed: 0 };
+  const original = structuredClone(person);
+  const station = { id: 'a', approach: { x: 11, y: 4, z: 6, heading: 1 } };
+  const mission = { pose: { phase: 'cruise' }, demo: true };
+  let safety = true, active = true, fallback;
+  const camera = { startDroneFollow(pose) { this.target = pose; }, stopDroneFollow() { this.target = null; },
+    updateDroneFollow: () => true, getActivePreset: () => ({ name: 'Prior camera' }), resetForTeleport() {} };
+  const touch = { setEnabled(enabled) { this.enabled = enabled; } };
+  const labels = [];
+  const watch = wireDroneWatch({
+    drones: { stations: [station], routes: [], start: () => mission, isActive: () => active, stopFollowing() {} },
+    controllerManager: { activeMode: 'person', getActiveEntity: () => person, occupant: { timer: 0 },
+      resetInput() {}, findModePosition: () => safety,
+      teleportActiveTo(x, z) { fallback = { x, z }; return fallback; } },
+    cameraSystem: camera, touchControls: touch, gamepadControls: { reset() {} },
+    laneAssist: { cancel() {} }, autoDrive: { active: false }, cbdProgram: { active: false },
+    closePopovers() {}, mapOpen: () => false, teleport() {}, onCameraLabel: label => labels.push(label)
+  });
+  assert.equal(watch.map.follow(station, true), true);
+  assert.equal(watch.update(0.05), true);
+  assert.equal(camera.target, mission.pose);
+  assert.equal(touch.enabled, false);
+  window.keydown({ code: 'Escape' });
+  assert.deepEqual(person, original);
+  assert.equal(watch.active, false);
+  assert.equal(touch.enabled, true);
+  assert.equal(camera.target, null);
+  assert.equal(labels.at(-1), 'Prior camera');
+  assert.equal(watch.map.follow(station, true), true);
+  active = safety = false;
+  assert.equal(watch.update(0.05), false);
+  assert.deepEqual(fallback, { x: 11, z: 6 });
+  assert.equal(watch.active, false);
+  assert.equal(nodes.get('drone-follow-exit').hidden, true);
+  assert.equal(nodes.get('drone-follow-status').textContent, strings.STR.drones.failed);
 });

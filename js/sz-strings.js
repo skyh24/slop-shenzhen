@@ -145,8 +145,24 @@ export const STR = {
   drones: {
     title: '无人机航线',
     layer: '无人机航线图层',
-    statusSuspended: '会期低空管控：停运',
-    altitudeEstimate: '巡航高度约 100 m（估计）'
+    statusSuspended: '会期低空管控 · 停运',
+    receiver: '无人机接收点 · 估计站位',
+    choose: '选择接收点',
+    approach: '前往步行起点',
+    walkCloser: '请走到接收点附近再开始。',
+    unavailable: '当前路线暂无经过场景净空校验的完整路径。',
+    approachUnavailable: '当前没有安全步行落点。',
+    blocked: '请停稳并结束当前驾驶或节目，再开始观看。',
+    failed: '配送已结束，已恢复玩家视角。',
+    normal: '跟随无人机送货',
+    simulation: '模拟配送',
+    simulationOnly: '端点配对待核实 · 仅供模拟',
+    estimate: '估计站位与示意航迹 · 无实时运营信息',
+    followMode: '配送跟随',
+    repeat: '再看一轮',
+    exit: '退出跟随',
+    returning: phase => `返航 · ${phase}`,
+    phase: { loading: '待命 / 装载', takeoff: '起飞', cruise: '巡航', descent: '下降', delivery: '到站交付', complete: '已返回起点' }
   },
   hsr: {
     title: '高铁图层',

@@ -22,6 +22,7 @@ import { buildSzTrees } from './sz-trees.js';
 import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzDroneRoutes } from './sz-drone-routes.js';
+import { wireDroneWatch } from './sz-drone-watch.js';
 import { buildSzLightShow, planLandmarkBands } from './sz-light-show.js';
 import { createCbdProgram, isCbdProgramBuilding } from './sz-cbd-program.js';
 import { buildLianhuashanSummit, reviewedParkOmissions, SUMMIT_ARRIVAL } from './sz-lianhuashan.js';
@@ -67,6 +68,7 @@ async function initApp() {
   const loadingStatus = document.getElementById('loading-status');
   const loadingFill = document.getElementById('loading-progress');
   let graphicsLoss = null;
+  let droneWatch;
   let renderedFrames = 0;
   let elapsed = 0;
   // QA 调试入口只在回环地址的 ?qa=1 下安装；固定机位、?skip= 阶段开关和帧采样都在 js/sz-qa.js。
@@ -135,6 +137,7 @@ async function initApp() {
   renderer.onDeviceLost = ({ api, reason, message, ...details }) => {
     onDeviceLost({ api, reason, message, ...details });
     graphicsLoss = { api, reason, message };
+    droneWatch?.stop(true);
     const boot = globalThis.__szBoot;
     if (boot?.fail) {
       boot.fail('deviceLost', new Error(message || reason || 'Graphics device lost'));
@@ -281,13 +284,14 @@ async function initApp() {
   }));
   const futianStation = stations?.futian ?? null;
   const xiliConstruction = stations?.xili ?? null;
-  // 无人机航线：端点来自 air 段公开来源；航迹示意，会期低空管控时停在站点。
-  const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, terrain: site.terrain }));
   const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...(streetLamps.colliders ?? []), ...trees.colliders,
     ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? []),
     ...elevatedRoads.colliders];
   const planter = publicWalk.placePlanter(colliders, site.heightAt);
   if (planter) colliders.push(planter);
+  const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, site,
+    obstacles: colliders, treeObstacles: trees.flightObstacles }));
+  colliders.push(...drones.colliders);
   site.colliders = colliders;
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = qa.stage('traffic', () => createSzTraffic(scene, GEO.roadGraph, {
@@ -395,8 +399,12 @@ async function initApp() {
   updateSoundButton();
   // pagehide also covers navigation away on mobile; preserve the context across back-forward cache restores.
   window.addEventListener('pagehide', (event) => {
+    droneWatch?.stop();
     savePlayerState();
-    if (!event.persisted) audioSystem.dispose();
+    if (!event.persisted) {
+      audioSystem.dispose();
+      drones.dispose();
+    }
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) savePlayerState(); });
   markInit('controllers');
@@ -468,7 +476,6 @@ async function initApp() {
   const colorGrade = createPostProcessing(renderer, scenePassColor, reflections);
   const renderPipeline = new THREE.RenderPipeline(renderer, colorGrade.outputNode);
 
-  // 6. Wire UI Controls (Strictly using safe DOM APIs: textContent, classList, addEventListener)
   const modeButtons = document.querySelectorAll('[data-mode]');
   const cameraButtons = document.querySelectorAll('[data-camera]');
   const scenicAvailability = { bayBridge: Boolean(bridge.group), yanjiang: Boolean(yanjiang) };
@@ -491,7 +498,6 @@ async function initApp() {
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
   const placeModeIndicator = createModeIndicator(document.getElementById('mode-switch'));
   touchControls.onAvailabilityChange = placeModeIndicator;
-
   const elFps = document.getElementById('hud-fps');
   const elMode = document.getElementById('hud-active-mode');
   const elCamera = document.getElementById('hud-active-camera');
@@ -510,10 +516,10 @@ async function initApp() {
     onToggleMap: () => mapSystem.toggleFullMap(!mapSystem.isFullMapOpen),
     onCloseMap: () => mapSystem.toggleFullMap(false)
   });
-
   const modeFeedback = document.getElementById('mode-feedback');
   let modeFeedbackTimer;
   function selectMode(mode, destination = null) {
+    if (droneWatch?.active) return false;
     const changed = mode !== controllerManager.activeMode;
     clearTimeout(modeFeedbackTimer);
     if (!controllerManager.setMode(mode, destination)) {
@@ -557,6 +563,7 @@ async function initApp() {
   }
 
   function selectCamera(camId, snap = false) {
+    if (droneWatch?.active) return;
     cameraSystem.setCameraPreset(camId, snap);
     cameraButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-camera') === camId);
@@ -565,7 +572,6 @@ async function initApp() {
     if (elCamera) elCamera.textContent = preset.name;
   }
 
-  // Steps through CAMERA_PRESETS (V / Shift+V, and the arrows either side of the camera name)
   function cycleCamera(step) {
     const n = cameraPresets.length;
     const idx = cameraPresets.findIndex((p) => p.id === cameraSystem.activePresetId);
@@ -585,7 +591,6 @@ async function initApp() {
     apecCity.group.visible = active;
     sceneUniforms.apec.value = active ? 1 : 0;
   });
-
   const closePopovers = wirePopovers();
   showSession = wireSummitProgram({ program: cbdProgram, controllerManager, cameraSystem, lightingSystem,
     arrival: summit.group ? SUMMIT_ARRIVAL : null, selectMode, selectCamera, selectTime, closePopovers });
@@ -613,7 +618,7 @@ async function initApp() {
     });
   });
 
-  // A mouse click mustn't leave the focus on a HUD button, or Space (jump / ascend) and Enter would press it again
+  // 鼠标点击后取消按钮焦点，避免跳跃或上升再次触发按钮。
   document.addEventListener('click', (e) => {
     const btn = e.target instanceof Element ? e.target.closest('button') : null;
     if (btn && e.detail > 0) btn.blur();
@@ -621,14 +626,13 @@ async function initApp() {
 
   const landmarkOrbit = wireLandmarkOrbit({
     button: document.getElementById('landmark-orbit'), views: landmarkViews, controllerManager, cameraSystem, heightAt: site.heightAt,
-    mapOpen: () => mapSystem.isFullMapOpen,
+    mapOpen: () => mapSystem.isFullMapOpen || Boolean(droneWatch?.active),
     exit: () => selectCamera('chase', true),
     onStart: () => {
       for (const button of cameraButtons) button.classList.remove('active');
       if (elCamera) elCamera.textContent = cameraSystem.getActivePreset().name;
     }
   });
-
   const renderLocation = createLocationReadout({
     el: elLocation, nearestBuildingName: (x, z) => buildingSigns.nearestName(x, z)
   });
@@ -636,8 +640,11 @@ async function initApp() {
     els: { fps: elFps, speed: elSpeed, speedMeter: elSpeedMeter, altitude: elAltitude },
     controllerManager, cameraSystem, topSpeed: PLAYER_SPEED_LIMITS, renderLocation
   });
+  droneWatch = wireDroneWatch({ drones, controllerManager, cameraSystem, touchControls, gamepadControls,
+    laneAssist, autoDrive, cbdProgram, closePopovers, mapOpen: () => mapSystem.isFullMapOpen, teleport: teleportTo,
+    onCameraLabel: label => { elCamera.textContent = label; } });
   function teleportTo(x, z, heading, options = {}) {
-    if (!inBounds(x, z)) return null;
+    if (cameraSystem.droneFollow || !inBounds(x, z)) return null;
     const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(GEO.parks, x, z) : null);
     const landmark = landmarkViews.get(options.landmarkId);
     const arrival = landmark && findLandmarkArrival(landmark, controllerManager,
@@ -664,7 +671,7 @@ async function initApp() {
   }
 
   function goToDriveStart(route) {
-    if (!route || autoDrive.active) return false;
+    if (!route || droneWatch?.active || autoDrive.active) return false;
     const { x, z, dx, dz } = route.from;
     const heading = Math.atan2(dx, dz);
     const destination = controllerManager.findTeleportPosition(x, z, heading, 0, true, null, { exact: true, mode: 'car' });
@@ -676,7 +683,6 @@ async function initApp() {
     selectCamera('chase', true);
     return true;
   }
-
   const mapSystem = new SZMapSystem({
     controllerManager,
     cameraSystem,
@@ -685,16 +691,17 @@ async function initApp() {
       closePopovers();
       laneAssist.cancel();
       controllerManager.resetInput();
-      touchControls.setEnabled(!open);
+      touchControls.setEnabled(!open && !cameraSystem.droneFollow);
       gamepadControls.setEnabled(!open);
     },
     onTeleport: teleportTo,
+    drones: droneWatch.map,
     drive: {
       snap: (x, z) => drivePlanner().snap(x, z),
       route: (start, end) => drivePlanner().route(start, end),
       goToStart: goToDriveStart,
       canStart: route => autoDrive.canStart(route, driveCar, controllerManager.activeMode),
-      start: route => autoDrive.start(route, driveCar, controllerManager.activeMode),
+      start: route => !droneWatch?.active && autoDrive.start(route, driveCar, controllerManager.activeMode),
       stop: autoDrive.stop,
       get active() { return autoDrive.active; },
       get status() { return autoDrive.status; }
@@ -715,22 +722,19 @@ async function initApp() {
       if (arrived) closePopovers();
     });
   });
-
   const openMapBtn = document.getElementById('btn-open-map');
   if (openMapBtn) openMapBtn.addEventListener('click', () => mapSystem.toggleFullMap(true));
 
   wireHudToggle(hudToggleBtn, closePopovers);
 
-  const manualCarAvailable = () => controllerManager.activeMode === 'car' && !mapSystem.isFullMapOpen && !autoDrive.active;
+  const manualCarAvailable = () => !droneWatch?.active && controllerManager.activeMode === 'car' && !mapSystem.isFullMapOpen && !autoDrive.active;
   function requestLane(direction) {
     if (!manualCarAvailable()) return;
     const { forward, backward, left, right, brake, boost } = controllerManager.keys;
     laneAssist.request(driveCar, direction, Boolean(forward || backward || left || right || brake || boost));
     drivingAssists.render(true, true);
   }
-
   const drivingAssists = wireDrivingAssists(controllerManager, laneAssist);
-  // 模式 1–4、相机 V 与 5–0、HUD H、声音 N、喇叭 B 的全局快捷键由 js/sz-ui.js 统一接线。
   wireShortcuts({
     onMode: selectMode,
     onCamera: (id) => selectCamera(id, true),
@@ -754,7 +758,6 @@ async function initApp() {
     }
   });
 
-  // 恢复玩家位置和时段后再初始化追尾相机。
   selectMode(controllerManager.activeMode);
   selectCamera('chase', true);
   selectTime(initialTime);
@@ -775,7 +778,7 @@ async function initApp() {
       getGraphicsLoss: () => graphicsLoss
     });
   }
-  // the web fonts change the buttons' widths once they arrive
+  // 字体加载后重新测量按钮宽度。
   if (document.fonts) document.fonts.ready.then(placeModeIndicator);
   markInit('ui');
 
@@ -864,7 +867,6 @@ async function initApp() {
   markInit('compile');
   await showLoadingStage(STR.startup.warmup, 'warmup');
 
-  // 6. Animation Loop
   let lastTime = performance.now();
   let nextPlayerSave = 0;
   let warmedUp = false; // see the first frame below
@@ -894,25 +896,27 @@ async function initApp() {
     traffic.update(dt, active.position, [active], elapsed, isTrafficVisible, nearPedestrians(active.position.x, active.position.z, 140));
     pedestrians.update(dt, active.position, elapsed, isPedVisible, [active],
       traffic.nearColliders(active.position.x, active.position.z, 175));
-    const { forward, backward, left, right, brake, boost } = controllerManager.keys;
-    const manual = !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right || brake || boost);
-    const autoInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode, manual });
-    const driveInput = autoInput ?? laneAssist.update(driveCar, { manual });
-    controllerManager.update(dt, elapsed, driveInput);
+    if (!droneWatch.active) {
+      const { forward, backward, left, right, brake, boost } = controllerManager.keys;
+      const manual = !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right || brake || boost);
+      const autoInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode, manual });
+      const driveInput = autoInput ?? laneAssist.update(driveCar, { manual });
+      controllerManager.update(dt, elapsed, driveInput);
+      landmarkOrbit.update(manual);
+    }
     drivingAssists.render(manualCarAvailable());
-    landmarkOrbit.update(manual);
-    cameraSystem.update(dt, elapsed, now / 1000);
+    drones.update(dt, cameraSystem.camera.position);
+    if (!droneWatch.update(dt)) cameraSystem.update(dt, elapsed, now / 1000);
     qa.applyCamera(cameraSystem.camera);
     streetscape.update(cameraSystem.camera.position);
     streetLamps.update(cameraSystem.camera.position);
     trees.update(cameraSystem.camera.position);
     apecTheme.update(dt);
     apecCity.update(dt);
-    drones.update(dt);
     showSession.update(rawDt);
     lightShow.update();
-    metroEntrances.update(cameraSystem.currentPos);
-    futianStation?.update(cameraSystem.currentPos);
+    metroEntrances.update(cameraSystem.camera.position);
+    futianStation?.update(cameraSystem.camera.position);
     xiliConstruction?.update();
     buildingSigns.update(cameraSystem.camera.position);
     buildingSigns.group.updateMatrixWorld(true);
@@ -923,7 +927,7 @@ async function initApp() {
       savePlayerState();
       nextPlayerSave = now + 5000;
     }
-    lightingSystem.update(cameraSystem.currentPos);
+    lightingSystem.update(cameraSystem.camera.position);
     mapSystem.update();
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk

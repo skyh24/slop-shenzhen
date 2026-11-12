@@ -1656,3 +1656,32 @@ body.touch-enabled .pop-item { min-height: 44px; }
   opacity: 0.54;
   cursor: default;
 }
+
+#map-drone-station {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 6px;
+  border-radius: 6px;
+  color: var(--text-1);
+  background: #202a34;
+}
+
+#map-drone-panel .tool-btn, #drone-follow-hud .tool-btn {
+  min-height: 38px;
+}
+
+#drone-follow-hud {
+  position: fixed;
+  z-index: 8;
+  left: 50%;
+  bottom: max(96px, calc(env(safe-area-inset-bottom) + 88px));
+  transform: translateX(-50%);
+  max-width: calc(100% - 16px);
+  width: max-content;
+}
+
+body.touch-enabled #map-drone-panel .tool-btn,
+body.touch-enabled #drone-follow-hud .tool-btn { min-height: 44px; }
+
+body[data-drone-follow] #hud-controls-hint { visibility: hidden; }
