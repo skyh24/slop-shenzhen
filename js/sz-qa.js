@@ -239,9 +239,17 @@ class QaSession {
   snapshot() {
     const { controllerManager, cameraSystem, lightingSystem, mapSystem, traffic, pedestrians, roadFrontage,
       autoDrive, laneAssist, sea, streetscape, landmarks, bridge, renderer, buildingSigns, buildingDetails,
-      audioSystem, getElapsed, getRenderedFrames, getGraphicsLoss } = this.runtime;
+      audioSystem, getElapsed, getRenderedFrames, getGraphicsLoss, modules } = this.runtime;
     const elapsed = getElapsed();
+    const active = controllerManager.getActiveEntity();
+    const program = modules?.cbdProgram;
     return {
+      summitProgram: program && {
+        active: program.active, paused: program.paused, time: program.time, cue: program.cue,
+        ...program.statistics, participants: modules.programIds,
+        omitted: [...modules.parkOmissions], support: active._support,
+        summitSurfaces: modules.summit.surfaces.length
+      },
       ready: audioSystem.ready,
       mode: controllerManager.activeMode,
       entities: Object.fromEntries(Object.entries(controllerManager.entities).map(([mode, entity]) => [mode, {

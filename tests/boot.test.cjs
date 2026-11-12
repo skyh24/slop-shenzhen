@@ -11,7 +11,7 @@ const moduleScripts = scripts.filter((match) => /\btype="module"/.test(match[1])
 // 启动兜底脚本必须是 classic inline：没有 src，也没有 type（import map / module 各有自己的 type）。
 const inlineScripts = scripts.filter((match) => !/\bsrc=/.test(match[1]) && !match[1].includes('type='));
 const inlineBoot = inlineScripts[0];
-const preloads = [...html.matchAll(/<link rel="modulepreload" href="([^"]+)"\s*\/>/g)];
+const preloads = [...html.matchAll(/<link rel="modulepreload" href="([^"]+)"(?: as="(json)")?\s*\/>/g)];
 const entries = [...html.matchAll(/<script type="module" src="([^"]+)"><\/script>/g)];
 
 // 从内联脚本里取出 BOOT_LABELS / BOOT_MESSAGES 对象字面量；跳过字符串里的花括号，求值后与 STR.boot 逐项比较。
@@ -68,7 +68,12 @@ test('native module entry and imports share canonical preloaded URLs on GitHub P
   assert.ok(!links.includes('./js/nyc-geodata.js'), 'the Shenzhen entry does not load New York geography');
   const base = 'https://example.test/slop-shenzhen/';
   const urls = new Set(links.map((src) => new URL(src, base).href));
-  for (const src of links) {
+  for (const [, src, type] of preloads) {
+    if (type === 'json') {
+      assert.match(src, /^\.\/data\/source\/[\w-]+\.json$/);
+      assert.doesNotThrow(() => JSON.parse(readFileSync(join(__dirname, '..', src), 'utf8')));
+      continue;
+    }
     assert.match(src, /^\.\/js\/(?:[\w-]+\/)*[\w-]+\.js$/, 'preloads use the same unversioned paths as native imports');
     const source = readFileSync(join(__dirname, '..', src), 'utf8');
     for (const [, specifier] of source.matchAll(/(?:\bfrom\s*|\bimport\s*)['"](\.[^'"]+)['"]/g)) {

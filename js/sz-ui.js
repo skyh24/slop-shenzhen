@@ -152,6 +152,104 @@ export function wirePopovers() {
   return closePopovers;
 }
 
+// 节目菜单内的城市主题开关沿用已有本机偏好。
+export function wireApecTheme(theme, onChange) {
+  const button = document.getElementById('btn-apec');
+  const stateKey = 'sz-apec-enabled';
+  function select(enabled, persist) {
+    const active = theme.setEnabled(enabled);
+    onChange(active);
+    button?.classList.toggle('active', active);
+    button?.setAttribute('aria-pressed', String(active));
+    if (persist) {
+      try { localStorage.setItem(stateKey, active ? '1' : '0'); } catch { /* 存储不可用不影响主题 */ }
+    }
+  }
+
+  button?.addEventListener('click', () => select(!theme.enabled, true));
+  let saved = null;
+  try { saved = localStorage.getItem(stateKey); } catch { /* 存储不可用时沿用会期默认值 */ }
+  select(saved === null ? theme.enabled : saved === '1', false);
+}
+
+export function wireSummitProgram({ program, controllerManager, cameraSystem, lightingSystem, arrival,
+  selectMode, selectCamera, selectTime, closePopovers }) {
+  const panel = document.getElementById('program-panel');
+  const menuButton = document.getElementById('btn-program');
+  const entry = document.getElementById('btn-cbd-show');
+  const feedback = document.getElementById('program-feedback');
+  const pause = document.getElementById('program-pause');
+  const cue = document.getElementById('program-cue');
+  let previous = null;
+  let shownCue = -1;
+
+  function syncControls() {
+    pause.textContent = program.paused ? STR.program.resume : STR.program.pause;
+    pause.setAttribute('aria-pressed', String(program.paused));
+    if (shownCue === program.cue) return;
+    shownCue = program.cue;
+    cue.textContent = STR.program.cues[shownCue];
+  }
+
+  entry.disabled = !arrival;
+  entry.addEventListener('click', () => {
+    const destination = controllerManager.findModePosition('person', {
+      type: 'person', position: arrival, heading: arrival.heading
+    });
+    if (destination?.surfaceId !== arrival.surfaceId) {
+      feedback.hidden = false;
+      return;
+    }
+    const previousState = {
+      time: lightingSystem.activePresetId, camera: cameraSystem.activePresetId,
+      yaw: cameraSystem.orbitYawOffset, pitch: cameraSystem.orbitPitchOffset, zoom: cameraSystem.zoomMultiplier
+    };
+    if (!selectMode('person', destination)) {
+      feedback.hidden = false;
+      return;
+    }
+    previous ??= previousState;
+    feedback.hidden = true;
+    cameraSystem.resetForTeleport();
+    selectCamera('pov', true);
+    selectTime('midnight');
+    program.start();
+    syncControls();
+    panel.hidden = false;
+    menuButton.classList.add('active');
+    closePopovers();
+  });
+
+  pause.addEventListener('click', () => { program.togglePause(); syncControls(); });
+  document.getElementById('program-replay').addEventListener('click', () => {
+    program.replay();
+    syncControls();
+  });
+  document.getElementById('program-exit').addEventListener('click', () => {
+    if (!previous) return;
+    program.stop();
+    selectTime(previous.time);
+    if (cameraSystem.activePresetId === 'pov') {
+      selectCamera(previous.camera, true);
+      cameraSystem.orbitYawOffset = previous.yaw;
+      cameraSystem.orbitPitchOffset = previous.pitch;
+      cameraSystem.zoomMultiplier = previous.zoom;
+    }
+    previous = null;
+    panel.hidden = true;
+    menuButton.classList.remove('active');
+    menuButton.focus();
+  });
+
+  return {
+    get previousTime() { return previous?.time; },
+    update(dt) {
+      program.update(dt);
+      if (program.active && shownCue !== program.cue) syncControls();
+    }
+  };
+}
+
 // 全局快捷键：模式 1–4、相机 V 与 5–0、HUD H、声音 N、喇叭 B；输入框内的按键不拦截。
 // 按键码是开放集合，默认分支静默忽略，不按有限取值的 switch 抛错。
 export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, onToggleSound, onHonk, onLane, onLaneCancel, onToggleLane, onToggleEmergencyBrake }) {

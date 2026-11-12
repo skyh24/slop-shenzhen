@@ -228,6 +228,21 @@ export const STR = {
   help: '拖动平移 · 右键旋转 · 滚轮缩放 · 点地标跳转',
   apecBanner: 'APEC CHINA 2026 · 深圳 · 11月18—19日',
   // APEC 周城市元素模块（js/sz-apec.js）用到的文案；不改动上面的 apec / apecBanner 旧键
+  program: {
+    label: '节目',
+    light: '灯光展',
+    location: '莲花山看灯光秀',
+    original: '福田 CBD · 项目原创节目',
+    drone: '无人机展',
+    unavailable: '尚未开放',
+    noArrival: '暂时无法安全抵达山顶平台',
+    pause: '暂停',
+    resume: '继续',
+    replay: '重播',
+    exit: '退出',
+    cues: ['花卉绽放', '火箭升空', 'APEC · 开放与合作', '转场'],
+    statue: '邓小平同志'
+  },
   apecTheme: {
     label: 'APEC 主题',
     hint: 'APEC 周城市氛围，会期 11 月 11—21 日',

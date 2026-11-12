@@ -125,7 +125,7 @@ const aaBand = (x, a, b, fw) => smoothstep(ZERO, fw, x.sub(a)).mul(smoothstep(ZE
 const packV = (fields, fallback = 0) => FACADE_PROFILES.map((p) => vec4(
   num(p[fields[0]]), num(p[fields[1]]), num(p[fields[2]]), fields.length > 3 ? num(p[fields[3]]) : num(fallback)));
 
-export function createBuildingMaterial() {
+export function createBuildingMaterial(programEmission = null) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.68, metalness: 0.06 });
   const pickV = (id, values) => values.reduce((acc, value, i) => acc.add(value.mul(step(abs(id.sub(num(i))), HALF))), vec4(0));
   const pickC = (id, values) => values.reduce((acc, value, i) => acc.add(color(value).mul(step(abs(id.sub(num(i))), HALF))), vec3(0));
@@ -295,7 +295,8 @@ export function createBuildingMaterial() {
   const groundGlow = mix(color(0xd9e6f0), color(0xffd49a), warmth)
     .mul(groundGlass.add(groundDoor.mul(num(0.7)))).mul(num(0.34))
     .mul(occupancy.mul(num(0.45)).add(num(0.55))).mul(glowStrength);
-  m.emissiveNode = windowGlow.add(groundGlow);
+  const officeGlow = programEmission ? programEmission(windowGlow, glazed.mul(ONE.sub(mullionMask))) : windowGlow;
+  m.emissiveNode = officeGlow.add(groundGlow);
 
   const hardSurface = max(windowFrameMask, mullionMask);
   // 幕墙玻璃对齐纽约 createCurtainWallMaterial：满玻璃率粗糙度 0.055，窗台附近叠一点积灰；

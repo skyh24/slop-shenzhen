@@ -27,7 +27,7 @@ const styles = {
   conventionGlass: { metal: 0x839ba2, glass: 0x455f6c, roof: 0x7b888b, bay: 2.5, floor: 5.8, fin: 0.085, sill: 0.085, lit: 0.1, rough: 0.24, glow: 0xeedfc5, wash: 0.055 }
 };
 
-function facadeMaterial(style) {
+function facadeMaterial(style, programEmission) {
   const material = new THREE.MeshStandardNodeMaterial();
   const u = uv().x;
   const v = uv().y;
@@ -56,8 +56,10 @@ function facadeMaterial(style) {
   material.metalnessNode = mix(float(0.12), mix(float(0.38), float(0.26), pane), wall);
   material.roughnessNode = mix(float(0.75), mix(float(0.43), uniform(style.rough), pane), wall);
   const office = mix(float(style.lit * 0.27), step(noise, uniform(style.lit)), detail).mul(0.46);
-  material.emissiveNode = uniform(new THREE.Color(style.glow)).mul(office.add(style.wash ?? 0))
-    .mul(pane).mul(wall).mul(sceneUniforms.night);
+  const glass = pane.mul(wall);
+  const glow = uniform(new THREE.Color(style.glow)).mul(office.add(style.wash ?? 0))
+    .mul(glass).mul(sceneUniforms.night);
+  material.emissiveNode = programEmission ? programEmission(glow, glass) : glow;
   return material;
 }
 
@@ -149,8 +151,12 @@ function conventionCover(glazed) {
   return material;
 }
 
-export function createLandmarkMaterial(name) {
-  if (Object.hasOwn(styles, name)) return facadeMaterial(styles[name]);
+const CBD_GLASS_STYLES = new Set(['pingAnGlass', 'pingAnObservation', 'civicGlass', 'pressTowerGlass']);
+
+export function createLandmarkMaterial(name, programEmission = null) {
+  if (Object.hasOwn(styles, name)) {
+    return facadeMaterial(styles[name], CBD_GLASS_STYLES.has(name) ? programEmission : null);
+  }
   if (name.startsWith('upperhills')) return createUpperhillsMaterial(name);
   if (name.startsWith('nonferrous')) return createNonferrousMaterial(name);
   if (name.startsWith('iec')) return createIecMaterial(name);

@@ -1607,3 +1607,36 @@ body.touch-enabled .pop-item { min-height: 44px; }
     transition-duration: 0.01ms !important;
   }
 }
+
+.program-panel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 8px 10px;
+  max-width: calc(100vw - 30px);
+  pointer-events: auto;
+}
+
+.program-panel[hidden] {
+  display: none;
+}
+
+.program-credit {
+  font-size: 10px;
+  opacity: 0.76;
+}
+
+.program-actions {
+  display: flex;
+  gap: 2px;
+}
+
+#program-popover .pop-item[aria-pressed="true"] .pop-name {
+  color: var(--taxi);
+}
+
+#program-popover .pop-item:disabled {
+  opacity: 0.54;
+  cursor: default;
+}
