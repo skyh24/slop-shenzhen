@@ -242,7 +242,7 @@ test('an elevated deck route is planned and driven with its surface identity', (
   assert.equal(route.from.edge, network.edges[0]);
   const auto = createAutoDrive({ model, roadHeight, nearTraffic: () => [] });
   const car = { position: { x: route.from.x, y: 10, z: route.from.z },
-    heading: Math.atan2(route.from.dx, route.from.dz), speed: 0 };
+    heading: Math.atan2(route.from.dx, route.from.dz), speed: 0, _support: { surfaceId: DECK_SURFACE, height: 10 } };
   queries.length = 0;
   assert.equal(auto.start(route, car, 'car'), true);
   assert.equal(queries.length, 5);
@@ -261,6 +261,44 @@ test('an elevated deck route is planned and driven with its surface identity', (
   assert.ok(queries.includes(network.edges[1]), '当前段桥面身份参与接触查询');
   assert.ok(queries.some(edge => edge.surfaceId === DECK_SURFACE_B), '当前进度段桥面身份参与接触查询');
   assert.equal(auto.status, 'driving');
+});
+
+test('automatic driving rejects an overlapping route on a different level', () => {
+  const roadHeight = (x, z, edge) => edge?.surfaceId ? 20 : 8;
+  const auto = createAutoDrive({ model, roadHeight });
+  const deckRoute = { from: { x: 0, z: 0, dx: 1, dz: 0, edge: { surfaceId: DECK_SURFACE } }, length: 50 };
+  const groundRoute = { ...deckRoute, from: { ...deckRoute.from, edge: {} } };
+  const car = { position: { x: 0, y: 8, z: 0 }, heading: Math.PI / 2, speed: 0,
+    _support: { surfaceId: 'terrain', height: 8 } };
+
+  assert.equal(auto.canStart(deckRoute, car, 'car'), false, 'the car below the bridge cannot start the bridge route');
+  assert.equal(auto.start(deckRoute, car, 'car'), false);
+  assert.equal(auto.status, 'idle');
+  car.position.y = 20;
+  car._support = { surfaceId: DECK_SURFACE, height: 20 };
+  assert.equal(auto.canStart(groundRoute, car, 'car'), false, 'the car on the bridge cannot start the road below');
+  assert.equal(auto.canStart(deckRoute, car, 'car'), true);
+
+  car._support = { surfaceId: DECK_SURFACE_B, height: 20 };
+  assert.equal(auto.canStart(deckRoute, car, 'car'), false, 'equal height does not connect independent decks');
+  car._support = null;
+  assert.equal(auto.canStart(deckRoute, car, 'car'), false, 'an unknown support cannot start a bridge route');
+  car._support = { surfaceId: DECK_SURFACE, height: 20 };
+  car.position.y = 19;
+  assert.equal(auto.canStart(deckRoute, car, 'car'), false, 'a stale support cannot override the car height');
+  car._support.height = 19;
+  assert.equal(auto.canStart(deckRoute, car, 'car'), false, 'support and car height must still agree with the actual deck');
+});
+
+test('automatic driving checks the center height at the actual car position on a ramp', () => {
+  const edge = { surfaceId: DECK_SURFACE, sharedStart: true };
+  const ramp = (x, z, candidate) => candidate === edge && x >= 0 && Math.abs(z) < 3 ? 8 + x * 0.12 : null;
+  const auto = createAutoDrive({ model, roadHeight: ramp });
+  const route = { from: { x: 3, z: 0, dx: 1, dz: 0, edge }, length: 50 };
+  const car = { position: { x: 4, y: 8.48, z: 0 }, heading: Math.PI / 2, speed: 0,
+    _support: { surfaceId: DECK_SURFACE, height: 8.48 } };
+  assert.ok(Math.abs(ramp(4 + model.hz, 0, edge) - car.position.y) > 0.26, 'the ramp can have sloped corner contact');
+  assert.equal(auto.start(route, car, 'car'), true);
 });
 
 test('a ground edge under an elevated deck keeps the ground surface', () => {

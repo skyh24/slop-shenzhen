@@ -4,13 +4,14 @@ import { vehicleContact } from './vehicle-physics.js';
 
 const ACTOR = 'player-autodrive';
 const ROAD_MARGIN = 0.05;
+const START_HEIGHT_TOLERANCE = 0.26;
 const LOOK_AHEAD = 32;
 const headingError = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 // 接触面身份随每个采样点下传：高架段只查桥面，桥下地面段不会被桥面高度串走。
 // edges 可为单条边、边数组或 null；数组用于地面/高架衔接处按附近段表面逐点回退。
-export function hasRoadFootprint(roadHeight, model, x, z, heading, edges = null) {
+export function hasRoadFootprint(roadHeight, model, x, z, heading, edges = null, centerY = null) {
   const list = edges == null || (Array.isArray(edges) && edges.length === 0) ? [null] : Array.isArray(edges) ? edges : [edges];
   const heightAt = (px, pz) => {
     for (const edge of list) {
@@ -19,7 +20,8 @@ export function hasRoadFootprint(roadHeight, model, x, z, heading, edges = null)
     }
     return null;
   };
-  if (!Number.isFinite(heightAt(x, z))) return false;
+  const height = heightAt(x, z);
+  if (!Number.isFinite(height) || (centerY !== null && !(Math.abs(height - centerY) <= START_HEIGHT_TOLERANCE))) return false;
   const sin = Math.sin(heading), cos = Math.cos(heading);
   return model.corners.every(([px, pz]) => Number.isFinite(heightAt(x + px * cos + pz * sin, z - px * sin + pz * cos)));
 }
@@ -94,11 +96,19 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   }
 
   function canStart(route, car, mode) {
-    return Boolean(route && !run && mode === 'car' && Math.abs(car.speed) <= 0.3
-      && Math.hypot(car.position.x - route.from.x, car.position.z - route.from.z) <= 1.25
-      && Math.abs(headingError(car.heading, Math.atan2(route.from.dx, route.from.dz))) <= 0.28
-      && !control?.contains(car.position.x, car.position.z, intersectionMargin)
-      && hasRoadFootprint(roadHeight, model, car.position.x, car.position.z, car.heading, route.from.edge));
+    if (!route || run || mode !== 'car' || !(Math.abs(car.speed) <= 0.3)) return false;
+    const { x, y, z } = car.position;
+    const { x: startX, z: startZ, dx, dz, edge } = route.from;
+    const aligned = Math.hypot(x - startX, z - startZ) <= 1.25
+      && Math.abs(headingError(car.heading, Math.atan2(dx, dz))) <= 0.28;
+    if (!aligned || control?.contains(x, z, intersectionMargin)) return false;
+    const surfaceId = edge?.surfaceId ?? 'terrain';
+    const support = car._support;
+    // 控制器把当前支撑记为 { surfaceId, height }。无支撑记录的调用方仅可用实采地面启动。
+    if ((support?.surfaceId ?? 'terrain') !== surfaceId || !Number.isFinite(y)) return false;
+    if (support && (!Number.isFinite(support.height) || Math.abs(support.height - y) > START_HEIGHT_TOLERANCE)) return false;
+    // 只比较车心高程，坡道的四角各取自己的接触高度。
+    return hasRoadFootprint(roadHeight, model, x, z, car.heading, edge, y);
   }
 
   function start(route, car, mode) {
