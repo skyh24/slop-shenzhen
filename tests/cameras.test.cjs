@@ -65,7 +65,7 @@ function cameraHarness(entity = {
   const { CAMERA_PRESETS, CameraSystem } = loadModule(source, {
     globals: { window, document },
     imports: { 'three/webgpu': { Vector3, PerspectiveCamera }, './sz-camera-presets.js': { getScenicCamera },
-      './sz-strings.js': { STR: { cameraNames: {} } } }
+      './sz-strings.js': { STR: { cameraNames: {} } }, './sz-landmark-views.js': { LANDMARK_RADIUS: 200 } }
   });
   const camera = new CameraSystem(canvas, { getActiveEntity: () => entity });
   return {
@@ -313,4 +313,36 @@ test('teleport releases every camera pointer and ignores old gestures before acc
   h.pointer(h.canvas, 'pointermove', 3, 610);
   close(h.camera.orbitYawOffset, -0.065);
   assert.equal(h.camera.isDragging, true);
+});
+
+test('flight chase stays on the current rear axis through sharp turns and manual look input', () => {
+  const h = cameraHarness({
+    position: new Vector3(30, 200, 60), heading: 0, speed: 30, type: 'helicopter',
+    chaseDistance: 8.9, chaseHeight: 3.3, cameraTargetOffset: new Vector3(0, 1.2, 0)
+  });
+  h.camera.update(1 / 60, 0);
+  h.entity.heading = Math.PI / 2;
+  h.camera.applyGamepadInput(1, 0, 0, 1 / 60);
+  h.pointer(h.canvas, 'pointerdown', 1, 0);
+  h.pointer(h.canvas, 'pointermove', 1, 300);
+  h.camera.update(1 / 60, 1);
+  close(h.camera.currentPos.z, h.entity.position.z);
+  assert.ok(h.camera.currentPos.x < h.entity.position.x);
+  close(h.camera.orbitYawOffset, 0);
+});
+
+test('landmark orbit maintains a 200 metre radius and completes a wall-clock lap in 120 seconds', () => {
+  const { camera } = cameraHarness();
+  const target = { x: 0, y: 70, z: 0 };
+  camera.startLandmarkOrbit(target, 145);
+  for (const [time, x, z] of [[10, 0, 200], [40, 200, 0], [70, 0, -200], [100, -200, 0], [130, 0, 200]]) {
+    camera.update(1 / 60, 1, time);
+    close(camera.currentPos.x, x);
+    close(camera.currentPos.y, 145);
+    close(camera.currentPos.z, z);
+    close(camera.currentLookAt.y, 70);
+  }
+  camera.setCameraPreset('chase', true);
+  assert.equal(camera.landmarkOrbit, null);
+  assert.equal(camera.getActivePreset().id, 'chase');
 });

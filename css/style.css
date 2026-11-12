@@ -736,6 +736,22 @@ body.hud-minimized .icon-show {
 /* ------------------------------------------------------------------------------------------------------------------
    Bottom left: NYC street-name signs over the GPS radar
    ------------------------------------------------------------------------------------------------------------------ */
+.location-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  max-width: min(40vw, 380px);
+}
+
+#landmark-orbit {
+  pointer-events: auto;
+  min-height: 26px;
+  font-size: 12px;
+}
+
+#landmark-orbit[hidden] { display: none; }
+
 .location {
   display: flex;
   flex-direction: column;

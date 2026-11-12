@@ -223,7 +223,19 @@ class NYCMapSystem {
             if (this.isPlanningDrive) {
               if (!this.drive.active) this.pickDrivePoint(wPos.x, wPos.z);
             } else {
-              const destination = this.onTeleport?.(wPos.x, wPos.z);
+              // 只在点中可见地标图钉时走正面到达，普通地图点仍按原位置处理。
+              let landmarkId;
+              let closest = 7;
+              for (const landmark of NYC_LANDMARKS) {
+                const lx = (landmark.x - this.viewCenterX) * this.viewZoom;
+                const lz = (landmark.z - this.viewCenterZ) * this.viewZoom;
+                if (Math.abs(lx) > rect.width * 0.48 || Math.abs(lz) > rect.height * 0.48) continue;
+                const distance = Math.hypot(lx + rect.width / 2 - mx, lz + rect.height / 2 - my);
+                if (distance > closest) continue;
+                closest = distance;
+                landmarkId = landmark.id;
+              }
+              const destination = this.onTeleport?.(wPos.x, wPos.z, undefined, { landmarkId });
               if (!destination && this.elHoverInfo) this.elHoverInfo.textContent = STR.map.noArrival;
             }
             this.renderFullMap();

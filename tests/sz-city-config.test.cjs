@@ -132,3 +132,14 @@ test('expanded city provides source-derived arrivals and rejects Hong Kong groun
   assert.equal(city.getLocationInfo(0, -3000).kind, 'land');
   assert.equal(city.getLocationInfo(1491.5, 3798.3).kind, 'outside');
 });
+
+test('a landmark arrival uses the near edge of the front road and faces the landmark', async () => {
+  const { createCityConfig } = await modulePromise;
+  const city = createCityConfig(fixture, [building]);
+  const landmark = city.LANDMARK_SITES['civic-center'];
+  const point = city.findGroundArrival(landmark, 'car', { front: { x: 0, z: -1 } });
+  assert.equal(point.sourceRoadId, 'way/3');
+  assert.equal(point.x, 0);
+  assert.ok(Math.abs(point.z - (-30 + 3.5 + 2.28 + 0.15)) < 1e-8);
+  assert.equal(Math.abs(point.heading), 0);
+});

@@ -118,6 +118,10 @@ export const STR = {
   },
   touchActions: { jump: '跳跃', ascend: '上升', descend: '下降' },
   vehicleLabels: { taxi: '深圳出租', available: '空车', taxiMark: '深圳', taxiSign: 'TAXI' },
+  landmarkOrbit: {
+    start: name => `环绕${name}`,
+    stop: '退出环绕'
+  },
   teleport: {
     parkWalk: '前往有来源的园内步行区',
     parkPath: '步行抵达日出剧场步道',
@@ -198,7 +202,7 @@ export const STR = {
   locationSeparator: ' · ',
   title: '深圳 · Slop Shenzhen',
   cameraNames: {
-    chase: '追尾视角', action: '动作视角', pov: '第一人称', centralPark: '莲花山看中轴线',
+    landmarkOrbit: '地标环绕', chase: '追尾视角', action: '动作视角', pov: '第一人称', centralPark: '莲花山看中轴线',
     fifthAve: '深圳湾公园看后海', timesSquare: '市民中心看中轴线', chryslerGCT: '人才公园看春笋',
     observatory: '平安上空', bryantPark: '腾讯滨海双塔', waterfront: '深圳湾天际线', drone: '城市航拍',
     djiSkyCity: '大疆天空之城', pingAnTower: '远看平安金融中心', chunsunTower: '后海上空看春笋',

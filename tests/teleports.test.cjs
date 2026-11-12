@@ -89,6 +89,7 @@ test('preset and map teleports share arrival resets and mark only a resolved lan
   const feedback = {};
   const environment = {
     TELEPORT_LOCATIONS,
+    landmarkViews: new Map(),
     bayPark: null,
     controllerManager: {
       teleportActiveTo: (x, z, heading, altitude, options) => {
@@ -140,4 +141,24 @@ test('preset and map teleports share arrival resets and mark only a resolved lan
   assert.equal(feedback.textContent, 'No arrival');
   assert.equal(map.onTeleport(10000, 10000), null);
   assert.equal(map.waypoint.x, landed.x);
+});
+
+test('landmark flight arrivals search the front arc at exactly 200 metres and face the centre', async () => {
+  const { findLandmarkArrival } = await import('../js/sz-landmark-views.js');
+  const candidates = [];
+  const landmark = { x: 100, y: 170, z: -300, front: { x: 0, z: 1 } };
+  const controller = {
+    activeMode: 'helicopter', maxFlightAltitude: 400,
+    findTeleportPosition(x, z, heading, y, requireArrival, park, options) {
+      assert.equal(requireArrival, true);
+      assert.equal(options.exact, true);
+      candidates.push({ x, z });
+      return x === 100 ? null : { x, y, z, heading };
+    }
+  };
+  const point = findLandmarkArrival(landmark, controller, null, null, 200);
+  assert.deepEqual(candidates[0], { x: 100, z: -100 });
+  assert.ok(Math.abs(Math.hypot(point.x - landmark.x, point.z - landmark.z) - 200) < 1e-8);
+  assert.equal(point.heading, Math.atan2(landmark.x - point.x, landmark.z - point.z));
+  assert.equal(point.y, 174);
 });

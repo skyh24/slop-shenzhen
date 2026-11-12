@@ -93,6 +93,37 @@ function roadCandidates(road, target, radius, forFlight) {
   return out;
 }
 
+// 正面落点取建筑一侧的路缘，并以实际落点重新对准地标。
+function landmarkRoadCandidates(road, landmark, front, body, radius) {
+  const candidates = [];
+  const section = road.crossSection?.points;
+  const points = section ? Array.from({ length: section.length / 3 }, (_, i) => ({
+    x: section[i * 3], z: section[i * 3 + 1], left: section[i * 3 + 2]
+  })) : road.pts;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i];
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const length = Math.hypot(dx, dz);
+    if (length < 0.01) continue;
+    const nx = -dz / length, nz = dx / length;
+    const side = Math.sign((landmark.x - a.x) * nx + (landmark.z - a.z) * nz) || 1;
+    const projection = ((landmark.x - a.x) * dx + (landmark.z - a.z) * dz) / length;
+    const stations = new Set([0, ...ARRIVAL_OFFSETS].map(offset => Math.max(0, Math.min(length, projection + offset))));
+    for (const station of stations) {
+      const t = station / length;
+      const left = section ? a.left + (b.left - a.left) * t : road.w / 2;
+      const width = side < 0 ? left : road.w - left;
+      const offset = side * (width + body.halfLength + 0.15);
+      const x = a.x + dx * t + nx * offset, z = a.z + dz * t + nz * offset;
+      const px = x - landmark.x, pz = z - landmark.z;
+      const distance = Math.hypot(px, pz);
+      if (distance < 1 || distance > radius || px * front.x + pz * front.z < distance * 0.25) continue;
+      candidates.push({ x, z, heading: Math.atan2(-px, -pz), distance, road });
+    }
+  }
+  return candidates;
+}
+
 export function createCityConfig(geo, buildings = [], labels = STR) {
   const spatial = createCitySpatial(geo);
   const nearBuildings = makeBuildingIndex(buildings);
@@ -106,6 +137,7 @@ export function createCityConfig(geo, buildings = [], labels = STR) {
     highway: ['motorway', 'motorway_link', 'trunk', 'trunk_link'].includes(road.highway),
     highwayClass: road.highway }));
   const roadById = new Map(roads.map(road => [road.id, road]));
+  const maxRoadWidth = roads.reduce((max, road) => Math.max(max, road.w), 0);
   const maxLaneOffset = roads.reduce((largest, road) => road.dir === 0 ? Math.max(largest, road.w / 4) : largest, 0);
 
   function nearestRoads(x, z, radius = 160) {
@@ -187,17 +219,18 @@ export function createCityConfig(geo, buildings = [], labels = STR) {
   }
 
   function findGroundArrival(target, mode = 'car', options = {}) {
-    bodyFor(mode);
-    const { forFlight = false, isClear } = options;
+    const body = bodyFor(mode);
+    const { forFlight = false, isClear, front } = options;
     const radius = options.radius ?? 600;
     if (!target || !Number.isFinite(target.x) || !Number.isFinite(target.z)
       || (!forFlight && !spatial.inBounds(target.x, target.z))) return null;
     if (!Number.isFinite(radius) || radius < 0 || (!forFlight && radius > 2000)) throw new Error('Invalid arrival search radius');
     // 用实际车道点的距离筛选，先把可能落在搜索圈内的车道对应的中心线都取到。
-    const queryRadius = forFlight ? radius + maxLaneOffset : radius;
+    const queryRadius = front ? radius + maxRoadWidth + body.halfLength : forFlight ? radius + maxLaneOffset : radius;
     const candidates = spatial.nearestRoads(target.x, target.z, queryRadius, { allowOutside: forFlight })
       .filter(hit => hit.road.heightSource === 'terrain' && !hit.road.bridge && !hit.road.tunnel && !hit.road.layer)
-      .flatMap(hit => roadCandidates(hit.road, target, radius, forFlight))
+      .flatMap(hit => front ? landmarkRoadCandidates(hit.road, target, front, body, radius)
+        : roadCandidates(hit.road, target, radius, forFlight))
       .sort((a, b) => a.distance - b.distance || a.road.id - b.road.id || a.x - b.x || a.z - b.z);
     for (const candidate of candidates) {
       const y = spatial.groundHeight(candidate.x, candidate.z);

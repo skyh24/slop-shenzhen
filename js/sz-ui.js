@@ -154,7 +154,7 @@ export function wirePopovers() {
 
 // 全局快捷键：模式 1–4、相机 V 与 5–0、HUD H、声音 N、喇叭 B；输入框内的按键不拦截。
 // 按键码是开放集合，默认分支静默忽略，不按有限取值的 switch 抛错。
-export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, onToggleSound, onHonk, onLane, onLaneCancel, onToggleLane, onToggleEmergencyBrake }) {
+export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, onToggleSound, onHonk, onLane, onLaneCancel, onExitOrbit, onToggleLane, onToggleEmergencyBrake }) {
   window.addEventListener('keydown', (e) => {
     if (isTypingInField(e)) return;
     switch (e.code) {
@@ -212,6 +212,7 @@ export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, on
         break;
       case 'Escape':
         onLaneCancel?.();
+        onExitOrbit?.();
         break;
       default:
         break;
@@ -268,6 +269,25 @@ export function wireDrivingAssists(controller, lane) {
       show(controller.emergencyBrakeEnabled ? labels.brakeOn : labels.brakeOff);
     }
   };
+}
+
+export function renderControlHints(el, mode) {
+  if (!el) return;
+  const items = (STR.controlHints[mode] || []).map(([keys, action]) => {
+    const item = document.createElement('span');
+    item.className = 'hint';
+    for (const key of keys) {
+      const kbd = document.createElement('kbd');
+      kbd.textContent = key;
+      item.appendChild(kbd);
+    }
+    const label = document.createElement('span');
+    label.className = 'hint-label';
+    label.textContent = action;
+    item.appendChild(label);
+    return item;
+  });
+  el.replaceChildren(...items);
 }
 
 // HUD 位置读数：街角/道路名加就近楼名。楼名只作定位提示，普通楼没有名称时退回附近地标名。

@@ -1,13 +1,13 @@
 import { STR } from './sz-strings.js';
 import { waitForFirstFrame } from './sz-startup.js';
-import { populateTeleportMenu, wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, createLocationReadout, createHudTelemetry } from './sz-ui.js';
+import { populateTeleportMenu, wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, renderControlHints, createLocationReadout, createHudTelemetry } from './sz-ui.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
 import { GEO, REAL_BUILDINGS, DATA_TIMINGS } from './sz-geodata.js';
-import { getLocationLabel, inBounds, isWater, findGroundArrival, LANDMARK_SITES, TELEPORT_LOCATIONS } from './sz-city-config.js';
+import { getLocationLabel, inBounds, isWater, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { buildSzGround } from './sz-ground.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads, planStreetTreeSides } from './sz-roads.js';
@@ -43,6 +43,7 @@ import { ThirdPersonControllerManager, FLIGHT_START_ALTITUDE, PLAYER_SPEED_LIMIT
 import { TouchControls } from './touch-controls.js';
 import { GamepadControls } from './gamepad-controls.js';
 import { CameraSystem, CAMERA_PRESETS } from './cameras.js';
+import { createLandmarkViews, findLandmarkArrival, wireLandmarkOrbit } from './sz-landmark-views.js';
 import { LightingSystem } from './lighting.js';
 import { SZMapSystem } from './sz-map.js';
 import { parkAt } from './sz-park-arrivals.js';
@@ -485,6 +486,7 @@ async function initApp() {
   const elSpeedMeter = document.getElementById('hud-speed-meter');
   const elAltitude = document.getElementById('hud-altitude');
   const elLocation = document.getElementById('hud-location');
+  const landmarkViews = createLandmarkViews(SZ_LANDMARKS, landmarks.heights, site.heightAt, TELEPORT_LOCATIONS, gateYaw);
   const elControlsHint = document.getElementById('hud-controls-hint');
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
     onCycleMode: (step) => {
@@ -496,26 +498,6 @@ async function initApp() {
     onCloseMap: () => mapSystem.toggleFullMap(false)
   });
 
-  function renderControlHints(mode) {
-    if (!elControlsHint) return;
-    const items = (STR.controlHints[mode] || []).map(([keys, action]) => {
-      const item = document.createElement('span');
-      item.className = 'hint';
-      for (const key of keys) {
-        const kbd = document.createElement('kbd');
-        kbd.textContent = key;
-        item.appendChild(kbd);
-      }
-      const label = document.createElement('span');
-      label.className = 'hint-label';
-      label.textContent = action;
-      item.appendChild(label);
-      return item;
-    });
-    elControlsHint.replaceChildren(...items);
-  }
-
-  // The taxi-yellow pill under the selected mode glides from button to button
   function placeModeIndicator() {
     const active = modeSwitch ? modeSwitch.querySelector('.mode-btn.active') : null;
     if (!active) return;
@@ -550,7 +532,7 @@ async function initApp() {
     placeModeIndicator();
     const ent = controllerManager.getActiveEntity();
     if (elMode) elMode.textContent = ent.label;
-    renderControlHints(mode);
+    renderControlHints(elControlsHint, mode);
     if (parkButton) {
       const entry = parkArrivals[mode];
       const detail = entry?.detail ?? STR.teleport.parkUnavailable[mode];
@@ -580,7 +562,8 @@ async function initApp() {
   function cycleCamera(step) {
     const n = cameraPresets.length;
     const idx = cameraPresets.findIndex((p) => p.id === cameraSystem.activePresetId);
-    selectCamera(cameraPresets[(idx + step + n) % n].id, true);
+    const next = idx < 0 ? (step < 0 ? n - 1 : 0) : (idx + step + n) % n;
+    selectCamera(cameraPresets[next].id, true);
   }
 
   function selectTime(timeId) {
@@ -643,6 +626,16 @@ async function initApp() {
     if (btn && e.detail > 0) btn.blur();
   });
 
+  const landmarkOrbit = wireLandmarkOrbit({
+    button: document.getElementById('landmark-orbit'), views: landmarkViews, controllerManager, cameraSystem, heightAt: site.heightAt,
+    mapOpen: () => mapSystem.isFullMapOpen,
+    exit: () => selectCamera('chase', true),
+    onStart: () => {
+      for (const button of cameraButtons) button.classList.remove('active');
+      if (elCamera) elCamera.textContent = cameraSystem.getActivePreset().name;
+    }
+  });
+
   const renderLocation = createLocationReadout({
     el: elLocation, nearestBuildingName: (x, z) => buildingSigns.nearestName(x, z)
   });
@@ -653,7 +646,13 @@ async function initApp() {
   function teleportTo(x, z, heading, options = {}) {
     if (!inBounds(x, z)) return null;
     const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(GEO.parks, x, z) : null);
-    const destination = controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park });
+    const landmark = landmarkViews.get(options.landmarkId);
+    const arrival = landmark && findLandmarkArrival(landmark, controllerManager,
+      findGroundArrival, roads.roadHeight, FLIGHT_START_ALTITUDE);
+    if (landmark && !arrival) return null;
+    const destination = arrival
+      ? controllerManager.teleportActiveTo(arrival.x, arrival.z, arrival.heading, arrival.y, { exact: true })
+      : controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park });
     if (!destination) return null;
     laneAssist.cancel();
     autoDrive.stop('manual');
@@ -666,7 +665,7 @@ async function initApp() {
     mapSystem.waypoint = {
       x: destination.x,
       z: destination.z,
-      name: area?.name ?? name
+      name: landmark?.name ?? area?.name ?? name
     };
     return destination;
   }
@@ -757,6 +756,7 @@ async function initApp() {
     onHonk: () => { if (!mapSystem.isFullMapOpen) audioSystem.honk(controllerManager.getActiveEntity()); },
     onLane: requestLane,
     onLaneCancel: () => laneAssist.cancel(),
+    onExitOrbit: landmarkOrbit.stop,
     onToggleLane: () => { if (manualCarAvailable()) drivingAssists.toggleLane(); },
     onToggleEmergencyBrake: () => { if (manualCarAvailable()) drivingAssists.toggleEmergencyBrake(); }
   });
@@ -908,7 +908,8 @@ async function initApp() {
     const driveInput = autoInput ?? laneAssist.update(driveCar, { manual });
     controllerManager.update(dt, elapsed, driveInput);
     drivingAssists.render(manualCarAvailable());
-    cameraSystem.update(dt, elapsed);
+    landmarkOrbit.update(manual);
+    cameraSystem.update(dt, elapsed, now / 1000);
     qa.applyCamera(cameraSystem.camera);
     streetscape.update(cameraSystem.camera.position);
     streetLamps.update(cameraSystem.camera.position);

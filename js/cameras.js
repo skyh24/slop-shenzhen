@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { getScenicCamera } from './sz-camera-presets.js';
 import { STR } from './sz-strings.js';
+import { LANDMARK_RADIUS } from './sz-landmark-views.js';
 
 // Chase, action, cockpit, fixed-location and aerial cameras, with mouse/touch orbit and zoom.
 
@@ -31,6 +32,9 @@ const CAMERA_PRESETS = [
   { id: 'yanjiang', name: STR.cameraNames.yanjiang, category: 'scenic', fov: 56 }
 ];
 
+const LANDMARK_ORBIT = { id: 'landmarkOrbit', name: STR.cameraNames.landmarkOrbit, category: 'scenic', fov: 62 };
+const ORBIT_SECONDS = 120;
+
 class CameraSystem {
   constructor(domElement, controllerManager) {
     this.domElement = domElement;
@@ -44,6 +48,7 @@ class CameraSystem {
     );
 
     this.activePresetId = 'chase';
+    this.landmarkOrbit = null;
     this.orbitYawOffset = 0.0;
     this.orbitPitchOffset = 0.09;
     this.zoomMultiplier = 1.0;
@@ -102,7 +107,7 @@ class CameraSystem {
           this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier * previousDistance / distance));
         }
       } else {
-        this.orbitYawOffset -= dx * 0.0065;
+        if (!this.isFlightChase()) this.orbitYawOffset -= dx * 0.0065;
         this.orbitPitchOffset = Math.max(-0.32, Math.min(0.68, this.orbitPitchOffset + dy * 0.005));
       }
       this.userOrbitTimer = 4.0;
@@ -140,6 +145,7 @@ class CameraSystem {
       this.followEntity = null;
       if (preset.id === 'chase') this.resetOrbit();
     }
+    this.landmarkOrbit = null;
     this.activePresetId = preset.id;
     this.camera.fov = preset.fov;
     this.camera.updateProjectionMatrix();
@@ -148,16 +154,30 @@ class CameraSystem {
     }
   }
 
+  startLandmarkOrbit(target, altitude) {
+    const { x, z } = this.controllerManager.getActiveEntity().position;
+    this._clearPointers();
+    this.landmarkOrbit = { target, altitude, angle: Math.atan2(x - target.x, z - target.z), start: null };
+    this.activePresetId = LANDMARK_ORBIT.id;
+    this.camera.fov = LANDMARK_ORBIT.fov;
+    this.camera.updateProjectionMatrix();
+    this.followEntity = null;
+  }
+
   applyGamepadInput(lookX, lookY, zoom, dt) {
     if (!(dt > 0) || !Number.isFinite(dt)) return;
     if (this.activePresetId !== 'chase' && this.activePresetId !== 'pov') return;
     // POV uses the orbit angles, but only chase renders a zoomed camera distance.
     if (this.activePresetId !== 'chase') zoom = 0;
     if (!lookX && !lookY && !zoom) return;
-    this.orbitYawOffset -= lookX * 2.0 * dt;
+    if (!this.isFlightChase()) this.orbitYawOffset -= lookX * 2.0 * dt;
     this.orbitPitchOffset = Math.max(-0.32, Math.min(0.68, this.orbitPitchOffset + lookY * 1.25 * dt));
     this.zoomMultiplier = Math.max(0.45, Math.min(2.4, this.zoomMultiplier + zoom * 0.9 * dt));
     this.userOrbitTimer = 4.0;
+  }
+
+  isFlightChase() {
+    return this.activePresetId === 'chase' && this.controllerManager.getActiveEntity().type === 'helicopter';
   }
 
   resetOrbit() {
@@ -174,6 +194,7 @@ class CameraSystem {
   }
 
   getActivePreset() {
+    if (this.landmarkOrbit) return LANDMARK_ORBIT;
     return CAMERA_PRESETS.find((p) => p.id === this.activePresetId) || CAMERA_PRESETS[0];
   }
 
@@ -182,7 +203,7 @@ class CameraSystem {
     this.camera.updateProjectionMatrix();
   }
 
-  update(dt, elapsed) {
+  update(dt, elapsed, wallTime = elapsed) {
     const entity = this.controllerManager.getActiveEntity();
     const desiredPos = this._desiredPos;
     const desiredLook = this._desiredLook;
@@ -203,7 +224,7 @@ class CameraSystem {
 
     const k = 1 - Math.exp(-dt * 8.5);
     const preset = this.getActivePreset();
-    const mode = preset.category === 'scenic' ? 'scenic' : this.activePresetId;
+    const mode = this.landmarkOrbit ? LANDMARK_ORBIT.id : preset.category === 'scenic' ? 'scenic' : this.activePresetId;
     switch (mode) {
       case 'chase': {
         if (!this.initialized || this.followEntity !== entity) {
@@ -216,7 +237,8 @@ class CameraSystem {
           this.followBaseY += (entity.position.y - this.followBaseY) * k;
           this.followZoom += (this.zoomMultiplier - this.followZoom) * k;
         }
-        const yaw = this.followHeading + this.orbitYawOffset;
+        // 飞行转向很快，追尾按机体当前航向取景，避免转弯时镜头落到侧面。
+        const yaw = entity.type === 'helicopter' ? entity.heading : this.followHeading + this.orbitYawOffset;
         const sinYaw = Math.sin(yaw);
         const cosYaw = Math.cos(yaw);
         const dist = entity.chaseDistance * this.followZoom * (1 + Math.min(0.25, this.smoothedSpeed * 0.01));
@@ -280,6 +302,16 @@ class CameraSystem {
         break;
       }
 
+      case 'landmarkOrbit': {
+        const orbit = this.landmarkOrbit;
+        orbit.start ??= wallTime;
+        const angle = orbit.angle + (wallTime - orbit.start) * 2 * Math.PI / ORBIT_SECONDS;
+        const { x, y, z } = orbit.target;
+        desiredPos.set(x + Math.sin(angle) * LANDMARK_RADIUS, orbit.altitude, z + Math.cos(angle) * LANDMARK_RADIUS);
+        desiredLook.set(x, y, z);
+        break;
+      }
+
       case 'scenic': {
         const shot = getScenicCamera(preset.id, elapsed);
         desiredPos.set(...shot.position);
@@ -290,7 +322,7 @@ class CameraSystem {
         throw new Error(`Unhandled camera preset: ${this.activePresetId}`);
     }
 
-    if (!this.initialized || mode === 'pov' || mode === 'chase') {
+    if (!this.initialized || mode === 'pov' || mode === 'chase' || mode === LANDMARK_ORBIT.id) {
       this.currentPos.copy(desiredPos);
       this.currentLookAt.copy(desiredLook);
       this.initialized = true;
