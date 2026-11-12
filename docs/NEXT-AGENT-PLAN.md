@@ -1,5 +1,7 @@
 # 下一位 agent 执行计划
 
+当前实施顺序和状态见 [HANDOFF](HANDOFF.md) 与 [TASKS](TASKS.md)。本文保留形成时的方案、分支安排和验证证据。
+
 **当前执行顺序（2026-11-10 晚）**：
 
 - 功能修复以 [REVIEW-FOLLOWUP 第 4 节](REVIEW-FOLLOWUP-2026-11-10.md#4-下一批按这个顺序执行) 为准，第一项是自动裙房占道。

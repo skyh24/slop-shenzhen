@@ -36,23 +36,20 @@
 
 ```mermaid
 flowchart TD
-  fetch[fetch.py_download_and_hash] --> osm[import_osm.py]
-  osm --> roads[roads.py_graph_and_surfaces]
-  osm --> land[land.py_coast_water_parks]
-  osm --> bosm[OSM_buildings]
-  ov[Overture_jsonl] --> merge[buildings.py_merge_dedupe]
-  bosm --> merge
-  gb[GloBFP_shapefiles] --> merge
-  dem[HGT_tiles] --> terrain[terrain.py_masked_hills]
-  roads --> blocks[land_minus_roads_equals_blocks]
-  land --> blocks
-  merge --> pack[pack.py_SZB1]
-  roads --> geo[sz-geodata.json.gz]
-  blocks --> geo
-  terrain --> geo
-  land --> geo
-  lmk[landmarks.json] --> merge
+  manifest["sources.json 锁定路径和 SHA-256"] --> build["tools/sz/build.py 校验输入"]
+  build --> osm["同一份 OSM PBF：道路、地铁、海岸、街景"]
+  build --> buildings["Overture JSONL 与 GloBFP ZIP"]
+  osm --> buildings
+  build --> dem["Copernicus DSM，路面走廊另用已核 FABDEM"]
+  osm --> payload["共享城市载荷 JSON v2"]
+  buildings --> payload
+  dem --> payload
+  payload --> json["sz-city.json.gz 正式入口"]
+  payload --> fast["sz-city.szc.gz 本机对照"]
+  payload --> reports["构建与校验报告"]
 ```
+
+`.venv/bin/python tools/sz/build.py` 读取清单中已校验的 OSM、Overture 和 GloBFP 文件。OSM 解析缓存以 PBF SHA-256、范围和版本为键，GloBFP 提取缓存以 ZIP SHA-256 和提取版本为键。`--no-cache` 重新生成 OSM、地铁和 GloBFP 派生缓存。
 
 ### 1. 坐标
 
@@ -69,7 +66,7 @@ z = −(lat − lat0) · KY
 
 - 路网道路：`motorway`、`trunk`、`primary`、`secondary`、`tertiary`、`unclassified`、`residential`、`living_street` 和各级 `_link`
 - 不进可驾驶路网：`service`、`footway`、`cycleway`、`path`、`steps`，以及明确禁止车辆通行的道路。桥梁、隧道和非零层路段保留拓扑与来源标签；标高未核实前为 `unresolved`，不能当成已建好的可通行结构。
-- 按 OSM 共享节点连接，不把平面交叉或相近的跨层道路拼接。`oneway=-1`、显式双向和环岛保留方向；按机动车访问标签优先级过滤。转向限制与条件通行仍待导入。
+- 按 OSM 共享节点连接，不把平面交叉或相近的跨层道路拼接。`oneway=-1`、显式双向和环岛保留方向；按机动车访问标签优先级过滤。已导入适用的 OSM 转向限制，条件通行仍待导入。
 - 实现入口：`tools/sz/roadgraph.py`，输出 nodes/links/names 以及 nodeIds/metadata；构建报告列强连通统计和宽度来源。
 - 宽度：OSM `width`；没有就按 `lanes × 3.25 m`；再没有就按等级估算（trunk 22、primary 16、secondary 12、tertiary 9、residential 7、link 6 米）
 - 输出纽约 `roadGraph` 格式：`nodes [x, z, ...]`、`links [a, b, 名称序号, 宽度, 车道数, 方向, 内部形状点]`、`names`
@@ -81,8 +78,7 @@ z = −(lat − lat0) · KY
 - 内陆水体：`natural=water`、`waterway=riverbank`
 - 公园和绿地：`leisure=park`、`landuse=grass`、`natural=wood` 等
 - 路面：可驾驶道路中心线按宽度缓冲后合并
-- 街区（人行道抬高面）：陆地减去路面、减去水体，抬高 0.18 米
-- 全部按 500 米网格裁切，方便剔除
+- 正式地面用陆地和水体轮廓裁切生成三角面，内河水面尚未生成。街区规划见 [27 号](27-REGION-DATA-PLAN.md)。
 
 ### 4. 建筑合并与楼高
 
@@ -113,9 +109,10 @@ z = −(lat − lat0) · KY
 
 ### 6. 打包
 
-- `js/sz-geodata.json.gz`：路网、陆地、海、街区、公园、山体、地标、地名、树点、地铁出入口
-- `js/sz-buildings.bin.gz`：`SZB1` 格式，沿用纽约 `NYB1` 的元数据流加 X、Z 坐标差分流（zigzag varint），每栋多存用途、立面类型、高度来源三个字节
-- 浏览器读到字节后看 gzip 魔数判断是否还需解压，兼容服务器自动解压的情况
+- `js/sz-city.json.gz` 是正式共享 JSON v2，包含地形、海面、道路、建筑、地标及地铁等。
+- `js/sz-city.szc.gz` 是同载荷的无损编码。仅本机 `?qa=1&data=szc` 选用。
+- `--repack-existing` 先用校验报告核对正式 JSON 的解压 SHA-256 和来源快照，再生成 SZC1。载荷或输入 SHA 不一致时执行完整构建。
+- 浏览器识别 gzip 魔数，兼容服务器已解压响应。
 
 ## 许可
 
