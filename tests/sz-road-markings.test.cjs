@@ -5,12 +5,28 @@ const { join } = require('node:path');
 const { loadModule } = require('./helpers/module.cjs');
 const roads = require('./helpers/roads.cjs');
 
-const { createLanePlan, createMarkingLayout } = loadModule(
+const { createDeckLanePlan, createLanePlan, createMarkingLayout } = loadModule(
   readFileSync(join(__dirname, '../js/sz-road-markings.js'), 'utf8'), { imports: { './sz-roads.js': roads } });
 
 const GROUND = { osmId: 'way/1', highway: 'primary', widthSource: 'estimate-from-class',
   heightSource: 'terrain', bridge: false, tunnel: false, layer: 0 };
 const LONGITUDINAL = new Set(['edge-left', 'edge-right', 'center-left', 'center-right', 'lane']);
+
+test('deck paint distinguishes single ramps, measured wide ramps and tagged carriageways', () => {
+  const ramp = { highway: 'primary_link', widthSource: 'estimate-from-class' };
+  const plan = (width, lanes, direction, metadata = ramp) =>
+    createDeckLanePlan([0, 1, 0, width, lanes, direction, []], metadata, Math.max(width, 6.5), 0.35);
+  assert.equal(plan(6.5, 0, 1).laneCount, 1);
+  assert.equal(plan(4, 0, 1, { ...ramp, widthSource: 'osm-width' }).lines.length, 2);
+  const two = plan(7, 0, 1, { ...ramp, widthSource: 'osm-width' });
+  assert.equal(two.laneCount, 2);
+  assert.equal(two.laneSource, 'width-estimate');
+  assert.deepEqual(JSON.parse(JSON.stringify(two.lines[2])), { offset: 0, duty: 0.32, color: 'white' });
+  const three = plan(9.8, 3, 1);
+  assert.equal(three.laneSource, 'osm-lanes');
+  assert.equal(three.lines.filter(line => line.duty < 1).length, 2);
+  assert.equal(plan(7, 2, 0).lines[2].color, 'yellow');
+});
 
 function graphFor(points, { width = 12, lanes = 0, direction = 0, metadata = {} } = {}) {
   const inner = [];

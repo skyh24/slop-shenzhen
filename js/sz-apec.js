@@ -21,13 +21,9 @@ export const APEC_COLORS = {
   bed: 0x2f4a2a,
   truck: 0xe6e2da
 };
-export const BANNER_SPACING_M = 40;
-export const BANNER_JUNCTION_GAP_M = 15;
-export const BANNER_SIDE_OFFSET_M = 1;
 export const BANNER_WIDTH_M = 0.9;
 export const BANNER_HEIGHT_M = 1.6;
-export const BANNER_BOTTOM_M = 2.6;
-export const POLE_HEIGHT_M = 4.5;
+export const BANNER_BOTTOM_M = 3.25;
 const FLOWER_COLORS = [0xc8102e, 0x6d3f8f, 0xd9b45b, 0xf0e8dc];
 
 // ---------- 纯函数：日期、路名、布点（不依赖渲染器，可在 node 测试） ----------
@@ -55,140 +51,9 @@ export function isApecBannerRoad(name, roads = APEC_BANNER_ROADS) {
   return roads.some((road) => name.includes(road));
 }
 
-export function graphPoint(graph, index) {
-  return { x: graph.nodes[index * 2], z: graph.nodes[index * 2 + 1] };
-}
-
-// 路网 link：[起点, 终点, 路名索引, 路宽, 车道数, 方向, 中间点...]
-export function linkPoints(graph, link) {
-  const points = [graphPoint(graph, link[0])];
-  for (let i = 6; i + 1 < link.length; i += 2) points.push({ x: link[i], z: link[i + 1] });
-  points.push(graphPoint(graph, link[1]));
-  return points.filter((point, index) => !index
-    || point.x !== points[index - 1].x || point.z !== points[index - 1].z);
-}
-
-export function polylineLength(points) {
-  let total = 0;
-  for (let i = 1; i < points.length; i++) total += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
-  return total;
-}
-
-// 沿线取点，返回位置和该处的切线方向（单位向量，x 向东、z 向南）
-export function samplePolyline(points, distance) {
-  let travelled = 0;
-  for (let i = 1; i < points.length; i++) {
-    const a = points[i - 1];
-    const b = points[i];
-    const length = Math.hypot(b.x - a.x, b.z - a.z);
-    if (length <= 0) continue;
-    if (distance <= travelled + length) {
-      const t = (distance - travelled) / length;
-      return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t,
-        dx: (b.x - a.x) / length, dz: (b.z - a.z) / length };
-    }
-    travelled += length;
-  }
-  const a = points[points.length - 2];
-  const b = points[points.length - 1];
-  const length = Math.hypot(b.x - a.x, b.z - a.z) || 1;
-  return { x: b.x, z: b.z, dx: (b.x - a.x) / length, dz: (b.z - a.z) / length };
-}
-
-export function junctionNodeIndices(graph) {
-  const degrees = new Map();
-  for (const link of graph.links) {
-    for (const node of [link[0], link[1]]) degrees.set(node, (degrees.get(node) ?? 0) + 1);
-  }
-  const junctions = new Set();
-  for (const [node, degree] of degrees) if (degree >= 3) junctions.add(node);
-  return junctions;
-}
-
-// 悬浮桥面和隧道不挂道旗；地表道路才代表行人看到的路侧
-export function isGroundRoadLink(metadata) {
-  if (!metadata) return true;
-  if (metadata.bridge === true || metadata.tunnel === true) return false;
-  if (metadata.layer !== undefined && metadata.layer !== 0) return false;
-  return true;
-}
-
-// 路口点做网格索引，避免每个候选位置都遍历全部路口（真实路网有数千个路口）
-function junctionGrid(junctions, cellSize) {
-  const grid = new Map();
-  for (const junction of junctions) {
-    const key = `${Math.floor(junction.x / cellSize)},${Math.floor(junction.z / cellSize)}`;
-    if (!grid.has(key)) grid.set(key, []);
-    grid.get(key).push(junction);
-  }
-  return grid;
-}
-
-function nearJunction(grid, cellSize, x, z, gap) {
-  if (grid === null) return false;
-  const cx = Math.floor(x / cellSize);
-  const cz = Math.floor(z / cellSize);
-  for (let ix = cx - 1; ix <= cx + 1; ix++) {
-    for (let iz = cz - 1; iz <= cz + 1; iz++) {
-      const bucket = grid.get(`${ix},${iz}`);
-      if (!bucket) continue;
-      for (const junction of bucket) {
-        if (Math.hypot(junction.x - x, junction.z - z) <= gap) return true;
-      }
-    }
-  }
-  return false;
-}
-
-// 沿指定主干道两侧每 40 米摆一处道旗；路口 15 米内不摆。返回确定性顺序的站点表。
-export function bannerSites(graph, {
-  spacingM = BANNER_SPACING_M,
-  junctionGapM = BANNER_JUNCTION_GAP_M,
-  sideOffsetM = BANNER_SIDE_OFFSET_M,
-  roads = APEC_BANNER_ROADS
-} = {}) {
-  if (!graph || !Array.isArray(graph.links) || !Array.isArray(graph.nodes)) {
-    throw new Error('APEC banner placement requires a road graph');
-  }
-  if (!(spacingM > 0) || !(junctionGapM >= 0) || !(sideOffsetM >= 0)) {
-    throw new Error('APEC banner spacing options must be positive');
-  }
-  const junctions = [...junctionNodeIndices(graph)].map((node) => graphPoint(graph, node));
-  const cellSize = Math.max(junctionGapM, 1);
-  const grid = junctionGapM > 0 ? junctionGrid(junctions, cellSize) : null;
-  const sites = [];
-  for (let index = 0; index < graph.links.length; index++) {
-    const link = graph.links[index];
-    if (!isGroundRoadLink(graph.metadata?.[index])) continue;
-    const name = graph.names?.[link[2]] ?? '';
-    if (!isApecBannerRoad(name, roads)) continue;
-    const points = linkPoints(graph, link);
-    if (points.length < 2) continue;
-    const total = polylineLength(points);
-    if (total < spacingM) continue;
-    const width = Number.isFinite(link[3]) ? link[3] : 0;
-    const lateral = width / 2 + sideOffsetM;
-    for (let distance = spacingM; distance <= total - 1; distance += spacingM) {
-      const sample = samplePolyline(points, distance);
-      if (nearJunction(grid, cellSize, sample.x, sample.z, junctionGapM)) continue;
-      // 左侧 = 行进方向逆时针 90°，与 js/sz-geometry.js 的 addRibbon 一致
-      const leftX = sample.dz;
-      const leftZ = -sample.dx;
-      const yaw = Math.atan2(sample.dx, sample.dz);
-      for (const side of [1, -1]) {
-        sites.push({
-          x: sample.x + leftX * lateral * side,
-          z: sample.z + leftZ * lateral * side,
-          yaw,
-          side,
-          distanceM: distance,
-          roadName: name,
-          linkIndex: index
-        });
-      }
-    }
-  }
-  return sites;
+// 只挂在已生成的路灯上，沿用灯杆位置、朝向和接触面标高。
+export function bannerSites(lampSites) {
+  return lampSites.filter(site => isApecBannerRoad(site.roadName));
 }
 
 // 固定哈希，替代随机数；同一输入每次结果一致
@@ -338,8 +203,8 @@ export function apecFlowerBeds({ landmarks = [], area = null, anchors = null } =
 }
 
 // 计划层：只做布点和来源标注，不建几何；测试和统计都用它
-export function planApecTheme({ roadGraph = null, landmarks = [], buildings = [], area = null, anchors = null } = {}) {
-  const banners = roadGraph ? bannerSites(roadGraph) : [];
+export function planApecTheme({ lampSites = [], landmarks = [], buildings = [], area = null, anchors = null } = {}) {
+  const banners = bannerSites(lampSites);
   const signs = apecSignSites({ landmarks, buildings, area, anchors });
   return { banners, signs, trucks: apecSupportVehicles(signs),
     flowerBeds: apecFlowerBeds({ landmarks, area, anchors }) };
@@ -356,10 +221,7 @@ export function summarizeApecPlan(plan, { enabled = false } = {}) {
     banners: {
       count: plan.banners.length,
       roads,
-      poles: plan.banners.length,
-      spacingM: BANNER_SPACING_M,
-      junctionGapM: BANNER_JUNCTION_GAP_M,
-      sideOffsetM: BANNER_SIDE_OFFSET_M,
+      mount: 'street-lamps',
       texture: 'runtime-canvas',
       source: 'osm-road-names'
     },
@@ -478,8 +340,6 @@ function bannerGeometry() {
 
 export function createApecGeometry() {
   const banner = bannerGeometry();
-  const pole = new THREE.CylinderGeometry(0.055, 0.075, POLE_HEIGHT_M, 6);
-  pole.translate(0, POLE_HEIGHT_M / 2, 0);
   const signBoard = new THREE.PlaneGeometry(1, 1);
   const signFrame = new THREE.BoxGeometry(1, 1, 0.12);
   const post = new THREE.BoxGeometry(0.18, 1, 0.18);
@@ -488,33 +348,24 @@ export function createApecGeometry() {
   const bed = new THREE.CircleGeometry(1, 28);
   bed.rotateX(-Math.PI / 2);
   const truckBody = new THREE.BoxGeometry(1, 1, 1);
-  return { banner, pole, signBoard, signFrame, post, flower, bed, truckBody };
+  return { banner, signBoard, signFrame, post, flower, bed, truckBody };
 }
 
 // ---------- 各图层：返回 group 节点、材质和 update 钩子 ----------
 
-function buildBannerLayer(group, geometry, texture, sites, groundY) {
-  if (sites.length === 0) return null;
-  const bannerMaterial = new THREE.MeshStandardNodeMaterial({
-    map: texture, roughness: 0.82, metalness: 0.02
-  });
-  const poleMaterial = new THREE.MeshStandardNodeMaterial({ color: APEC_COLORS.pole, roughness: 0.6, metalness: 0.45 });
-  const banners = new THREE.InstancedMesh(geometry.banner, bannerMaterial, sites.length);
-  const poles = new THREE.InstancedMesh(geometry.pole, poleMaterial, sites.length);
+function buildBannerLayer(group, geometry, material, sites) {
+  const banners = new THREE.InstancedMesh(geometry.banner, material, sites.length);
   banners.name = 'apec-banners';
-  poles.name = 'apec-banner-poles';
   const matrix = new THREE.Matrix4();
   const quaternion = new THREE.Quaternion();
   const oneVector = new THREE.Vector3(1, 1, 1);
   const yAxis = new THREE.Vector3(0, 1, 0);
   const records = sites.map((site, index) => ({
-    position: new THREE.Vector3(site.x, groundY(site.x, site.z), site.z),
+    position: new THREE.Vector3(site.x, site.y, site.z),
     yaw: site.yaw,
-    phase: hash01(index * 1.37 + site.distanceM * 0.013) * Math.PI * 2
+    phase: hash01(index * 1.37 + site.stationM * 0.013) * Math.PI * 2
   }));
   records.forEach((record, index) => {
-    matrix.compose(record.position, new THREE.Quaternion(), oneVector);
-    poles.setMatrixAt(index, matrix);
     quaternion.setFromAxisAngle(yAxis, record.yaw);
     matrix.compose(record.position, quaternion, oneVector);
     banners.setMatrixAt(index, matrix);
@@ -522,14 +373,13 @@ function buildBannerLayer(group, geometry, texture, sites, groundY) {
   banners.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   // 实例矩阵每帧由本模块改写，不能被场景静态剔除系统拆成空间分块，否则动画会写回已移除的网格
   banners.frustumCulled = false;
-  group.add(poles, banners);
+  group.add(banners);
   let parity = 0;
   return {
-    objects: [poles, banners],
-    materials: [bannerMaterial, poleMaterial],
+    objects: [banners],
     update(elapsed) {
       // 轻微摆动：绕灯杆轴 ±0.09 弧度，相位由确定性哈希给出。
-      // 全城近四千面道旗，隔帧各更新一半（视觉上 30 帧），把每帧矩阵成本压到一半。
+      // 隔帧更新一半实例，控制每帧矩阵更新成本。
       parity ^= 1;
       for (let index = parity; index < records.length; index += 2) {
         const record = records[index];
@@ -645,7 +495,8 @@ function buildTruckLayer(group, geometry, trucks, groundY) {
 // ---------- 对外入口 ----------
 
 export function buildApecTheme(scene, {
-  roadGraph = null, terrain = null, landmarks = [], buildings = [], area = null, now = null, anchors = null
+  lampSites = [], lampChunkVisible = () => true, terrain = null, landmarks = [], buildings = [], area = null,
+  now = null, anchors = null
 } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('APEC theme requires a scene');
   const group = new THREE.Group();
@@ -653,7 +504,7 @@ export function buildApecTheme(scene, {
   group.visible = false;
   scene.add(group);
 
-  const plan = planApecTheme({ roadGraph, landmarks, buildings, area, anchors });
+  const plan = planApecTheme({ lampSites, landmarks, buildings, area, anchors });
   const initialEnabled = isApecEnabledAt(now ?? new Date());
   const statistics = summarizeApecPlan(plan, { enabled: initialEnabled });
   const geometries = createApecGeometry();
@@ -666,13 +517,23 @@ export function buildApecTheme(scene, {
   const layers = [];
   const materials = [];
   const lit = [];
-  let banners = null;
+  const bannerChunks = new Map();
   // 没有道旗站点时不建贴图，空场景也能在无 canvas 的环境里构建和销毁
   if (plan.banners.length > 0) {
     const bannerTexture = createCanvasTexture(256, 512, drawBannerFace);
     textures.push(bannerTexture);
-    banners = buildBannerLayer(group, geometries, bannerTexture, plan.banners, groundY);
-    if (banners) { layers.push(banners); materials.push(...banners.materials); }
+    const bannerMaterial = new THREE.MeshStandardNodeMaterial({ map: bannerTexture, roughness: 0.82, metalness: 0.02 });
+    materials.push(bannerMaterial);
+    const sitesByChunk = new Map();
+    for (const site of plan.banners) {
+      if (!sitesByChunk.has(site.chunkKey)) sitesByChunk.set(site.chunkKey, []);
+      sitesByChunk.get(site.chunkKey).push(site);
+    }
+    for (const [key, sites] of sitesByChunk) {
+      const layer = buildBannerLayer(group, geometries, bannerMaterial, sites);
+      bannerChunks.set(key, layer);
+      layers.push(layer);
+    }
   }
 
   const signTextures = new Map();
@@ -714,7 +575,11 @@ export function buildApecTheme(scene, {
     update(dt) {
       if (!enabled) return;
       elapsed += Math.min(Math.max(Number.isFinite(dt) ? dt : 0, 0), 0.05);
-      if (banners) banners.update(elapsed);
+      for (const [key, layer] of bannerChunks) {
+        const [mesh] = layer.objects;
+        mesh.visible = lampChunkVisible(key);
+        if (mesh.visible) layer.update(elapsed);
+      }
       // 日夜系数直接读全局 uniform，入口不再逐个模块转抄。
       const nightValue = sceneUniforms.night.value;
       const night = Number.isFinite(nightValue) ? Math.min(Math.max(nightValue, 0), 1) : 0;

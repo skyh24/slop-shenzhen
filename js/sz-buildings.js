@@ -235,11 +235,12 @@ function podiumBlocked(context, building, outer, holes, baseY, top) {
 // 解析：普通高层“塔楼+裙房”中的裙房计划：在可用范围内取最大可行外扩。
 // 输入：候选建筑、其占用上下文、塔楼放置结果（提供世界坐标下界）。
 // 输出：{ outer, holes, height }，放不下返回 null（保留原塔楼）；显示与碰撞共用该外环。
-function podiumPlan(candidate, context, placement) {
+function podiumPlan(candidate, context, placement, roadClearance) {
   const { building, polygon, top, desired } = candidate;
   for (let expand = desired; expand >= PODIUM_EXPAND_MIN_M - 1e-9; expand -= PODIUM_EXPAND_STEP_M) {
     const outer = expandRing(polygon.outer, expand);
     if (podiumBlocked(context, building, outer, polygon.holes ?? [], placement.minY, top)) continue;
+    if (roadClearance?.({ outer, holes: polygon.holes ?? [] }, ringBounds(outer), placement.minY, placement.minY + top, true)) continue;
     return { outer, holes: polygon.holes ?? [], height: top, expand };
   }
   return null;
@@ -389,6 +390,7 @@ export function buildCityBlocks(scene, options = {}) {
   const terrain = options.terrain ?? GEO?.terrain;
   const skipIds = options.skipIds ?? new Set();
   const renderChunkSize = options.renderChunkSize ?? BUILDING_RENDER_CHUNK_SIZE;
+  const roadClearance = options.roadClearance;
   // 裙房净空输入：地形起伏的地面道路与真实入口点，缺省取共享包里的路侧入口和地铁出入口。
   const roadGraph = options.roadGraph ?? GEO?.roadGraph ?? null;
   const entrances = options.entrances ?? [
@@ -402,10 +404,19 @@ export function buildCityBlocks(scene, options = {}) {
   const batches = new Map();
   const colliders = [];
   const allBlocks = [];
+  const roadConflicts = [];
   for (let buildingIndex = 0; buildingIndex < buildings.length; buildingIndex++) {
     const building = buildings[buildingIndex];
     if (skipIds.has(building.id)) continue;
     const placement = buildingPlacement(building, terrain);
+    if (roadClearance && !building.landmark && /^(?:globfp|overture)\//.test(building.id)) {
+      const conflict = building.polygons.map(polygon =>
+        roadClearance(polygon, ringBounds(polygon.outer), placement.minY, placement.maxY)).find(Boolean);
+      if (conflict) {
+        roadConflicts.push({ buildingId: building.id, road: conflict });
+        continue;
+      }
+    }
     const key = `${Math.floor(building.cx / renderChunkSize)},${Math.floor(building.cz / renderChunkSize)}`;
     if (!batches.has(key)) batches.set(key, new GeoBuilder(true));
     const batch = batches.get(key);
@@ -421,7 +432,8 @@ export function buildCityBlocks(scene, options = {}) {
     }
     colliders.push(...placement.colliders);
     const candidateIndex = candidateByBuilding.get(buildingIndex);
-    const podium = candidateIndex === undefined ? null : podiumPlan(candidates[candidateIndex], occupancy[candidateIndex], placement);
+    const podium = candidateIndex === undefined ? null
+      : podiumPlan(candidates[candidateIndex], occupancy[candidateIndex], placement, roadClearance);
     if (podium) {
       const rings = [podium.outer, ...podium.holes].map(flatRing);
       const top = placement.minY + podium.height;
@@ -458,7 +470,8 @@ export function buildCityBlocks(scene, options = {}) {
     group.add(mesh);
   }
   scene.add(group);
-  return { group, colliders, allBlocks, roofs: allBlocks.filter(block => !block.isPodium && block.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M).length,
+  return { group, colliders, allBlocks, roadConflicts,
+    roofs: allBlocks.filter(block => !block.isPodium && block.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M).length,
     update() {},
     dispose() {
       group.traverse(o => { if (o.isMesh) o.geometry.dispose(); });

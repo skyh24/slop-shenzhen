@@ -13,6 +13,8 @@ import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads, planStreetTreeSides } from './sz-roads.js';
 import { buildSzRoadFrontage } from './sz-road-frontage.js';
 import { buildSzRoadPaint } from './sz-road-paint.js';
+import { createRoadBuildingClearance } from './sz-road-building-clearance.js';
+import { createSurfaceResolver } from './sz-controller-surfaces.js';
 import { buildSzStreetscape } from './sz-streetscape.js';
 import { buildSzStreetLamps } from './sz-street-lamps.js';
 import { buildSzTrees } from './sz-trees.js';
@@ -191,7 +193,7 @@ async function initApp() {
   const roadFrontage = buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, site);
   const roadPaint = qa.stage('paint', () =>
     buildSzRoadPaint(scene, GEO.roadGraph, { ...site, intersections: roadFrontage.control.intersections,
-      frontage: GEO.roadFrontage }));
+      frontage: GEO.roadFrontage, decks: elevatedRoads.links }));
   // 路缘接触和绘制共用同一份三角面，未覆盖的位置沿用源地形。
   site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? ground.groundHeight(x, z);
   site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
@@ -203,18 +205,20 @@ async function initApp() {
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
   const cityBlocks = qa.stage('blocks', () =>
-    buildCityBlocks(scene, { skipIds: landmarks.skipIds, renderChunkSize: qa.chunkSize }));
+    buildCityBlocks(scene, { skipIds: landmarks.skipIds, renderChunkSize: qa.chunkSize,
+      roadClearance: createRoadBuildingClearance(site.roadGraph, site.roadHeight, elevatedRoads.links) }));
+  const detailSkipIds = new Set([...landmarks.skipIds, ...(cityBlocks.roadConflicts ?? []).map(row => row.buildingId)]);
   // 福田中心区夜景灯光秀：只给已建成普通高层加灯带，颜色/节奏为展示估计；白天隐藏。
   // 地标源对象已由专模打光，排除它们；地标外露钢架（平安 8 根巨柱）单独沿柱轴生成灯带。
   const landmarkBands = planLandmarkBands(landmarks.colliders);
   const lightShow = qa.stage('lightshow', () =>
     buildSzLightShow(scene, { buildings: site.buildings, terrain: site.terrain,
-      excludeIds: landmarks.skipIds, landmarkBands }));
+      excludeIds: detailSkipIds, landmarkBands }));
   const buildingSigns = qa.stage('signs', () =>
     buildBuildingSigns(scene, { buildings: cityBlocks.allBlocks, roadGraph: site.roadGraph }));
   // 屋顶/阳台/空调/雨棚只在近景流式生成，不参与碰撞，也不改楼高和足迹。
   const buildingDetails = qa.stage('details', () =>
-    buildBuildingDetails(scene, { ...site, skipIds: landmarks.skipIds }));
+    buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds }));
   markInit('blocks');
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders];
   site.colliders = buildings;
@@ -222,10 +226,15 @@ async function initApp() {
   site.pathAt = streetscape.pathAt;
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
-  // 路灯从道路断面派生，样区的次干路及支路按单侧放置。
-  const streetLamps = qa.stage('lamps', () => buildSzStreetLamps(scene, site.roadGraph, {
-    ...site, minorRoadBounds
-  }));
+  // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
+  const streetLamps = qa.stage('lamps', () => {
+    const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: elevatedRoads.surfaces });
+    return buildSzStreetLamps(scene, site.roadGraph, {
+      ...site, medianHeight: roadFrontage.medianHeight,
+      deckOccupied: (x, z, bottom, top) =>
+        deck.at(x, z).some(surface => surface.height + 4.5 > bottom && surface.height - 0.35 < top)
+    });
+  });
   // 树木：OSM 来源点加带标注的模拟行道树/公园树，接触面与铺装/建筑冲突在运行时复核。
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
     ...site, streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
@@ -237,7 +246,8 @@ async function initApp() {
   };
   // APEC 周城市元素：会期内默认打开，模块内所有几何都在主题开关下。
   const apecTheme = qa.stage('apec', () =>
-    buildApecTheme(scene, { ...site, landmarks: GEO.landmarks, area: GEO.bounds, anchors }));
+    buildApecTheme(scene, { ...site, lampSites: streetLamps.sites, lampChunkVisible: streetLamps.chunkVisible,
+      landmarks: GEO.landmarks, area: GEO.bounds, anchors }));
   // APEC 城市元素：路侧 LED 大屏、会场巡逻机器人、西丽站围挡公益广告，随主题开关显隐。
   const apecCity = qa.stage('apecCity', () =>
     buildApecCityElements(scene, { ...site, landmarks: GEO.landmarks, anchors }));
@@ -256,7 +266,7 @@ async function initApp() {
   const xiliConstruction = stations?.xili ?? null;
   // 无人机航线：端点来自 air 段公开来源；航迹示意，会期低空管控时停在站点。
   const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, terrain: site.terrain }));
-  const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...trees.colliders,
+  const colliders = [...buildings, ...streetscape.colliders, ...roadFrontage.colliders, ...(streetLamps.colliders ?? []), ...trees.colliders,
     ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? []),
     ...elevatedRoads.colliders];
   site.colliders = colliders;

@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
-import { createMarkingLayout } from './sz-road-markings.js';
+import { createDeckLanePlan, createMarkingLayout } from './sz-road-markings.js';
 import { createSzRoadPaintMaterial } from './sz-road-material.js';
+import { ELEVATED_BARRIER_WIDTH_M } from './sz-elevated-roads.js';
 
 // 标线是静态几何，按 2.4 km 合并成块：出生点 1484 次绘制里有 246 次来自标线 600 m 分块，
 // 放大到 2.4 km 后同一视野内的块数约降到 1/16，三角形不变。
@@ -10,6 +11,12 @@ const HEIGHT = 0.055;
 function colorFor(name) {
   if (name === 'yellow') return new THREE.Color(0xf0b81e);
   return new THREE.Color(0xf1eee4);
+}
+
+function paintCell(cells, x, z) {
+  const key = `${Math.floor(x / CELL)},${Math.floor(z / CELL)}`;
+  if (!cells.has(key)) cells.set(key, { position: [], color: [], paint: [], index: [] });
+  return cells.get(key);
 }
 
 function buildChunks(strips, roadHeight) {
@@ -22,9 +29,7 @@ function buildChunks(strips, roadHeight) {
     const y1 = roadHeight(strip.bx, strip.bz);
     if (!Number.isFinite(y0) || !Number.isFinite(y1)) continue;
     const sx = -uz / length * strip.width / 2, sz = ux / length * strip.width / 2;
-    const key = `${Math.floor((strip.ax + strip.bx) / 2 / CELL)},${Math.floor((strip.az + strip.bz) / 2 / CELL)}`;
-    let cell = cells.get(key);
-    if (!cell) cells.set(key, cell = { position: [], color: [], paint: [], index: [] });
+    const cell = paintCell(cells, (strip.ax + strip.bx) / 2, (strip.az + strip.bz) / 2);
     const color = colorFor(strip.color);
     const base = cell.position.length / 3;
     for (const [x, y, z, side, u] of [[strip.ax, y0 + HEIGHT, strip.az, -1, strip.phase],
@@ -40,10 +45,48 @@ function buildChunks(strips, roadHeight) {
   return cells;
 }
 
-export function buildSzRoadPaint(scene, graph, { roadHeight, intersections = [], frontage } = {}) {
+function addDeckPaint(cells, graph, decks) {
+  const statistics = { links: 0, laneCounts: {}, dashedLines: 0 };
+  for (const deck of decks) {
+    const plan = createDeckLanePlan(graph.links[deck.index], graph.metadata[deck.index], deck.width, ELEVATED_BARRIER_WIDTH_M);
+    statistics.links++;
+    statistics.laneCounts[plan.laneCount] = (statistics.laneCounts[plan.laneCount] ?? 0) + 1;
+    statistics.dashedLines += plan.laneCount - 1;
+    for (let i = 1; i < deck.frames.length; i++) {
+      const a = deck.frames[i - 1], b = deck.frames[i];
+      const cell = paintCell(cells, (a.x + b.x) / 2, (a.z + b.z) / 2);
+      // 桥面分成两个三角面。标线在同一条对角线处切开，弯坡上也贴着实际桥面。
+      const [leftA, rightA, rightB] = deck.topTriangles[i * 2];
+      const [, , leftB] = deck.topTriangles[i * 2 + 1];
+      const vertex = (p, q, t, station, color, duty) => {
+        cell.position.push(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t + HEIGHT, p.z + (q.z - p.z) * t);
+        cell.paint.push(station, 10, duty);
+        cell.color.push(color.r, color.g, color.b);
+      };
+      for (const line of plan.lines) {
+        const color = colorFor(line.color);
+        const lo = 0.5 + (line.offset - 0.09) / deck.width;
+        const hi = 0.5 + (line.offset + 0.09) / deck.width;
+        const base = cell.position.length / 3;
+        vertex(leftA, rightA, lo, a.d, color, line.duty);
+        vertex(leftA, rightA, hi, a.d, color, line.duty);
+        vertex(leftA, rightB, hi, a.d + (b.d - a.d) * hi, color, line.duty);
+        vertex(leftA, rightB, lo, a.d + (b.d - a.d) * lo, color, line.duty);
+        vertex(leftB, rightB, hi, b.d, color, line.duty);
+        vertex(leftB, rightB, lo, b.d, color, line.duty);
+        cell.index.push(base, base + 1, base + 2, base, base + 2, base + 3,
+          base + 3, base + 2, base + 4, base + 3, base + 4, base + 5);
+      }
+    }
+  }
+  return statistics;
+}
+
+export function buildSzRoadPaint(scene, graph, { roadHeight, intersections = [], frontage, decks = [] } = {}) {
   if (typeof roadHeight !== 'function') throw new Error('Road paint requires rendered road height');
   const layout = createMarkingLayout(graph, { intersections, frontage });
   const cells = buildChunks(layout.strips, roadHeight);
+  const elevated = addDeckPaint(cells, graph, decks);
   const group = new THREE.Group();
   group.name = 'shenzhen-road-markings';
   const material = createSzRoadPaintMaterial();
@@ -65,7 +108,7 @@ export function buildSzRoadPaint(scene, graph, { roadHeight, intersections = [],
     meshes.push(mesh);
   }
   scene.add(group);
-  return { group, meshes, statistics: { ...layout.statistics, chunks: meshes.length },
+  return { group, meshes, statistics: { ...layout.statistics, elevated, chunks: meshes.length },
     // 材质是模块级单例，只销毁本次几何。
     dispose() { scene.remove(group); for (const mesh of meshes) mesh.geometry.dispose(); } };
 }

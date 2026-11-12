@@ -33,6 +33,7 @@ test('street lamps are spaced along both sides of ground primary roads', () => {
   for (const site of plan.sites) {
     assert.ok(Number.isFinite(site.x) && Number.isFinite(site.z) && Number.isFinite(site.yaw));
     assert.equal(site.class, 'primary');
+    assert.equal(site.style, 'T');
   }
   const north = plan.sites.filter(site => site.side === 1).map(site => site.x).sort((a, b) => a - b);
   for (let i = 1; i < north.length; i++) assert.ok(Math.abs(north[i] - north[i - 1] - 22) < 1.5);
@@ -58,16 +59,31 @@ test('street lamps skip bridges, tunnels, layered roads and motorways', () => {
   assert.ok(plan.rejected.unsupportedClass >= 1);
 });
 
-test('minor links light one physical curb and use the reviewed asymmetric section', () => {
-  const m = { ...ground(), highway: 'secondary', crossSection: { points: [0, 0, 4, 300, 0, 5] } };
-  const forward = lamps.planLampSites(graph([[0, 1, 0, 12, 2, 0, []]], [m]));
-  const backward = lamps.planLampSites(graph([[1, 0, 0, 12, 2, 0, []]], [{
-    ...m, crossSection: { points: [300, 0, 7, 0, 0, 8] }
-  }]));
-  assert.ok(forward.sites.length > 0 && backward.sites.length > 0);
-  assert.ok(forward.sites.every(site => site.side === 1 && site.z > -5.9 && site.z < -4.9));
-  assert.ok(backward.sites.every(site => site.side === -1 && site.z > -5.9 && site.z < -4.9));
-  assert.equal(forward.sites[1].stationM - forward.sites[0].stationM, 34);
+test('small roads use inward-facing L lamps on both asymmetric curbs', () => {
+  const m = { ...ground(), highway: 'residential', crossSection: { points: [0, 0, 2, 300, 0, 3] } };
+  const { sites } = lamps.planLampSites(graph([[0, 1, 0, 7, 2, 0, []]], [m]));
+  assert.ok(sites.length > 0);
+  assert.ok(sites.every(site => site.style === 'L'));
+  for (const side of [1, -1]) {
+    const curb = sites.filter(site => site.side === side);
+    assert.ok(curb.length > 2);
+    assert.equal(curb[1].stationM - curb[0].stationM, 50);
+    assert.ok(curb.every(site => side === 1 ? site.z > -3.9 && site.z < -2.9 : site.z > 4.9 && site.z < 5.9));
+    assert.ok(curb.every(site => Math.sign(Math.sin(site.yaw)) === -side));
+  }
+});
+
+test('opposing carriageways share one centered T lamp row in a narrow median', () => {
+  const divided = {
+    nodes: [0, 0, 300, 0, 300, 18, 0, 18], names: ['Test Road'],
+    links: [[0, 1, 0, 12, 3, 1, []], [2, 3, 0, 12, 3, 1, []]], metadata: [ground(), ground()]
+  };
+  const sites = lamps.planLampSites(divided, { medianHeight: (x, z) => z === 9 ? 0.2 : null }).sites;
+  const median = sites.filter(site => site.median);
+  assert.ok(median.length > 5);
+  assert.ok(median.every(site => site.z === 9 && site.style === 'T' && site.linkIndex === 0));
+  assert.ok(median.every(site => site.median === 'documented' && site.armLengthM > 3));
+  assert.ok(sites.filter(site => !site.median).every(site => site.z < 0 || site.z > 18));
 });
 
 test('street lamp planning is deterministic and chunk grouping keeps every site', () => {
@@ -104,6 +120,7 @@ test('real Three street lamps cull halo points per chunk and dispose their group
     createGlowTexture: () => ({ isTexture: true, dispose() {} })
   });
   assert.ok(model.sites.length > 0);
+  assert.equal(model.colliders.length, model.sites.length);
   const chunked = runtime.groupLampSites(model.sites);
   assert.ok(chunked.size >= 2, `chunks=${chunked.size}`);
   assert.equal(model.group.children.length, chunked.size);
@@ -118,7 +135,7 @@ test('real Three street lamps cull halo points per chunk and dispose their group
     haloCount++;
     assert.equal(halo.name, `lamps:${key}:halos`);
     assert.equal(halo.frustumCulled, true);
-    assert.equal(halo.geometry.attributes.position.count, sites.length);
+    assert.equal(halo.geometry.attributes.position.count, sites.length * 2);
     const sphere = halo.geometry.boundingSphere;
     assert.ok(sphere, 'halo geometry keeps a bounding sphere for frustum culling');
     assert.ok(Number.isFinite(sphere.radius) && sphere.radius > 0);
@@ -131,7 +148,7 @@ test('real Three street lamps cull halo points per chunk and dispose their group
       const mesh = chunkGroup.children.find(child => child.name === `lamps:${key}:${kind}`);
       assert.ok(mesh?.isInstancedMesh, `lamps:${key}:${kind} stays instanced`);
       assert.equal(mesh.frustumCulled, true);
-      assert.equal(mesh.count, sites.length);
+      assert.equal(mesh.count, kind === 'heads' ? sites.length * 2 : sites.length);
     }
   }
   assert.equal(haloCount, chunked.size);
