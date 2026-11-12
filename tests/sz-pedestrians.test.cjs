@@ -190,6 +190,32 @@ test('side tracks are offset outside the carriageway and follow heightAt', () =>
   assert.equal(built.statistics.tracks, 2);
 });
 
+test('an asymmetric section keeps the raised sidewalk inside a focus window beyond the centreline', () => {
+  const graph = straightGraph(100, 12);
+  graph.metadata[0].highway = 'trunk';
+  graph.metadata[0].crossSection = { points: [0, 0, 2, 100, 0, 2] };
+  const built = buildWalkTracks(graph, {
+    bounds: { minX: 20, minZ: 11, maxX: 80, maxZ: 13 },
+    heightAt: (_, z) => z >= 11 && z <= 13 ? 0.12 : 0,
+    groundHeight: () => 0
+  });
+  assert.equal(built.tracks.length, 1);
+  const { points } = built.tracks[0];
+  assert.equal(points[0].x, 20);
+  assert.equal(points.at(-1).x, 80);
+  assert.ok(points.every(point => Math.abs(point.z - 12.1) < 1e-6 && point.y === 0.12));
+});
+
+test('a raised source sidewalk carries the walk track without drawing a second pavement', () => {
+  const graph = straightGraph(100, 10);
+  graph.metadata[0].highway = 'trunk';
+  const heightAt = (_, z) => z <= -6.5 && z >= -6.9 ? 0.12 : 0;
+  const result = buildWalkTracks(graph, { heightAt, groundHeight: () => 0 });
+  assert.equal(result.tracks.length, 1);
+  assert.ok(result.tracks[0].points.every(point => point.y === 0.12));
+  assert.equal(result.pavement.statistics.triangles, 0);
+});
+
 test('a collider splits a side track, and a fully blocked side is rejected', () => {
   const graph = straightGraph(200);
   const half = 200;
@@ -433,6 +459,21 @@ test('factory validates its injected dependencies', () => {
   assert.throws(() => createSzPedestrians(sceneStub(), straightGraph(), { colliders: [] }));
   assert.throws(() => createSzPedestrians(sceneStub(), null, { heightAt: flatHeight, colliders: [] }));
   assert.throws(() => buildWalkTracks(straightGraph(), { heightAt: undefined }));
+});
+
+test('carriageway barrier uses the terminal section at a right-angle junction', () => {
+  const graph = roadGraph([2, 8, 10, 8, 10, 16], [4, 4]);
+  const grid = { x0: 0, z0: 0, step: 20, nx: 2, nz: 2 };
+  const terrain = { version: 1, grid, chunks: [{ id: 'flat', origin: [0, 0],
+    positions: [0, 5, 0, 20, 5, 0, 0, 5, 20, 20, 5, 20],
+    indices: [0, 2, 1, 1, 2, 3], cellRanges: [0, 0, 6] }] };
+  const { chunks } = roads.createRoadSurfaceLayout(graph, terrain);
+  const asphaltHeight = roads.createRoadHeightSampler(chunks, grid);
+  const barrier = createCarriagewayBarrier(graph);
+  for (const [x, z] of [[10.8, 7.2], [11.2, 7.5]]) {
+    assert.equal(asphaltHeight(x, z), 5);
+    assert.equal(barrier.contains(x, z), true);
+  }
 });
 
 test('carriageway barrier is the rendered road geometry plus a positive margin', () => {

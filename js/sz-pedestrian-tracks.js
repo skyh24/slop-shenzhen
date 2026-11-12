@@ -1,4 +1,4 @@
-import { convexHull, isGroundRoad, roadLinkPoints } from './sz-roads.js';
+import { convexHull, isGroundRoad, roadSectionPoints } from './sz-roads.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 
 // 深圳没有全城实测的人行道网格：本模块沿地面道路中心线两侧偏移出“模拟步行带”（walk track），
@@ -47,7 +47,7 @@ function boundsOverlap(a, b) {
 
 const LINK_BOUNDS_CACHE = new WeakMap();
 
-function linkBounds(graph, link) {
+function linkBounds(graph, link, metadata) {
   const bounds = { minX: Infinity, minZ: Infinity, maxX: -Infinity, maxZ: -Infinity };
   const add = (x, z) => {
     if (x < bounds.minX) bounds.minX = x;
@@ -55,9 +55,7 @@ function linkBounds(graph, link) {
     if (z < bounds.minZ) bounds.minZ = z;
     if (z > bounds.maxZ) bounds.maxZ = z;
   };
-  add(graph.nodes[link[0] * 2], graph.nodes[link[0] * 2 + 1]);
-  add(graph.nodes[link[1] * 2], graph.nodes[link[1] * 2 + 1]);
-  for (let i = 0; i < link[6].length; i += 2) add(link[6][i], link[6][i + 1]);
+  for (const { x, z } of roadSectionPoints(graph, link, metadata)) add(x, z);
   return bounds;
 }
 
@@ -66,7 +64,7 @@ function linkBoundsCache(graph) {
   let cache = LINK_BOUNDS_CACHE.get(graph);
   if (cache) return cache;
   cache = new Array(graph.links.length);
-  for (let i = 0; i < graph.links.length; i++) cache[i] = linkBounds(graph, graph.links[i]);
+  for (let i = 0; i < graph.links.length; i++) cache[i] = linkBounds(graph, graph.links[i], graph.metadata[i]);
   LINK_BOUNDS_CACHE.set(graph, cache);
   return cache;
 }
@@ -145,7 +143,7 @@ export function resamplePolyline(points, stepM) {
 }
 
 // 左侧法向 (dz, -dx)：side = +1 是该侧，side = -1 是对侧。
-export function offsetPolyline(points, offsetM) {
+function sidewalkPolyline(points, side, widthM, marginM) {
   const result = [];
   for (let i = 0; i < points.length; i++) {
     const previous = points[Math.max(0, i - 1)];
@@ -155,7 +153,9 @@ export function offsetPolyline(points, offsetM) {
     const length = Math.hypot(dx, dz) || 1;
     dx /= length;
     dz /= length;
-    result.push({ x: points[i].x + dz * offsetM, z: points[i].z - dx * offsetM });
+    const { x, z, leftM = widthM / 2 } = points[i];
+    const offset = side * ((side === 1 ? leftM : widthM - leftM) + marginM);
+    result.push({ x: x + dz * offset, z: z - dx * offset });
   }
   return result;
 }
@@ -274,17 +274,6 @@ function turn(a, b, c) {
 // 与 js/sz-roads.js 的路面网格同源：有复核断面的路按 crossSection 的左右边取宽度，
 // 共用 OSM 节点的路口按各臂端断面的凸包补面，相邻段外侧再补斜接三角形。
 // 这样人物避让的车行道范围与实际画出来的沥青是同一份几何，不会在路口切过路面。
-function roadSectionStations(graph, link, metadata) {
-  if (!metadata.crossSection) {
-    const points = roadLinkPoints(graph, link);
-    return points.map(point => ({ x: point.x, z: point.z, leftM: link[3] / 2 }));
-  }
-  const source = metadata.crossSection.points;
-  const points = [];
-  for (let i = 0; i < source.length; i += 3) points.push({ x: source[i], z: source[i + 1], leftM: source[i + 2] });
-  return points;
-}
-
 // ux、uz 是单位方向；leftM 是该站点到左路缘的米数（无复核断面时取半宽）。
 function sectionEdges(point, ux, uz, widthM) {
   const left = point.leftM ?? widthM / 2;
@@ -375,7 +364,7 @@ export function createCarriagewayBarrier(graph, options = {}) {
   }
   for (const index of included) {
     const link = graph.links[index];
-    const stations = roadSectionStations(graph, link, graph.metadata[index]);
+    const stations = roadSectionPoints(graph, link, graph.metadata[index]);
     if (stations.length < 2) continue;
     let previous = null;
     for (let i = 1; i < stations.length; i++) {
@@ -408,20 +397,20 @@ export function createCarriagewayBarrier(graph, options = {}) {
       if (!isGroundRoad(metadata)) continue;
       const link = graph.links[index];
       if (!touched.has(link[0]) && !touched.has(link[1])) continue;
-      const stations = roadSectionStations(graph, link, metadata);
+      const stations = roadSectionPoints(graph, link, metadata);
       if (stations.length < 2) continue;
-      const addArm = (from, to, node) => {
+      const addArm = (from, to, atStart, node) => {
         const dx = to.x - from.x;
         const dz = to.z - from.z;
         const length = Math.hypot(dx, dz);
         if (length < EPSILON) return;
-        const points = sectionEdges(from, dx / length, dz / length, link[3]);
+        const points = sectionEdges(atStart ? from : to, dx / length, dz / length, link[3]);
         let list = arms.get(node);
         if (!list) arms.set(node, list = []);
         list.push(...points);
       };
-      if (touched.has(link[0])) addArm(stations[0], stations[1], link[0]);
-      if (touched.has(link[1])) addArm(stations[stations.length - 2], stations[stations.length - 1], link[1]);
+      if (touched.has(link[0])) addArm(stations[0], stations[1], true, link[0]);
+      if (touched.has(link[1])) addArm(stations.at(-2), stations.at(-1), false, link[1]);
     }
     for (const points of arms.values()) {
       if (points.length < 4) continue;
@@ -459,13 +448,31 @@ function makeTrack(points, kind, extra) {
   return { kind, points, cum, length, ends: [[], []], ...extra };
 }
 
-function walkableRuns(points, cfg, heightAt, colliderIndex, barrier, statistics) {
+function onRaisedSidewalk({ heightAt, groundHeight }, x, z) {
+  if (typeof groundHeight !== 'function') return false;
+  const base = groundHeight(x, z), top = heightAt(x, z);
+  return Number.isFinite(base) && Number.isFinite(top) && top - base >= 0.06 && top - base <= 0.18;
+}
+
+function walkableRuns(points, cfg, heightAt, colliderIndex, barrier, statistics, raisedOnly = false) {
   const runs = [];
   let current = [];
   let lastY = null;
-  for (const point of points) {
+  for (let i = 0; i < points.length; i++) {
+    let point = points[i];
+    let raised = onRaisedSidewalk(cfg, point.x, point.z);
+    if (!raised && typeof cfg.groundHeight === 'function') {
+      const tangent = tangentAt(points, i);
+      for (const offset of [0.5, -0.5, 1, -1]) {
+        const x = point.x + tangent.dz * offset, z = point.z - tangent.dx * offset;
+        if (barrier?.contains(x, z, cfg.carriagewayClearanceM) || !onRaisedSidewalk(cfg, x, z)) continue;
+        point = { x, z };
+        raised = true;
+        break;
+      }
+    }
     const y = heightAt(point.x, point.z);
-    let blocked = !Number.isFinite(y);
+    let blocked = !Number.isFinite(y) || (raisedOnly && !raised);
     if (!blocked && lastY !== null && Math.abs(y - lastY) > cfg.maxStepRiseM) blocked = true;
     if (!blocked && barrier && barrier.contains(point.x, point.z, cfg.carriagewayClearanceM)) {
       blocked = true;
@@ -520,28 +527,35 @@ export function buildSidewalkTracks(graph, options = {}) {
     const metadata = graph.metadata[index];
     if (!isGroundRoad(metadata)) continue;
     statistics.groundLinks++;
-    if (excluded.has(metadata.highway)) continue;
+    const raisedOnly = excluded.has(metadata.highway);
+    if (raisedOnly && typeof cfg.groundHeight !== 'function') continue;
     const link = graph.links[index];
     if (!(link[3] > 0)) continue;
-    if (bounds && !boundsOverlap(boxes[index], bounds)) continue;
+    const widthM = link[3];
+    if (bounds) {
+      const box = boxes[index];
+      const pad = widthM + cfg.walkMarginM;
+      if (!boundsOverlap({ minX: box.minX - pad, maxX: box.maxX + pad,
+        minZ: box.minZ - pad, maxZ: box.maxZ + pad }, bounds)) continue;
+    }
     statistics.candidateLinks++;
-    const centerline = roadLinkPoints(graph, link);
+    const centerline = roadSectionPoints(graph, link, metadata);
     if (centerline.length < 2) continue;
-    const runs = bounds ? clipPolyline(centerline, bounds) : [centerline];
-    statistics.clippedRuns += runs.length;
-    const offset = link[3] / 2 + cfg.walkMarginM;
-    for (const run of runs) {
-      if (trackLength(run) < 0.5) continue;
-      for (const side of [1, -1]) {
-        const line = resamplePolyline(offsetPolyline(run, side * offset), cfg.sampleStepM);
-        for (const points of walkableRuns(line, cfg, cfg.heightAt, colliderIndex, barrier, statistics)) {
+    for (const side of [1, -1]) {
+      const sidewalk = sidewalkPolyline(centerline, side, widthM, cfg.walkMarginM);
+      const runs = bounds ? clipPolyline(sidewalk, bounds) : [sidewalk];
+      statistics.clippedRuns += runs.length;
+      for (const run of runs) {
+        if (trackLength(run) < 0.5) continue;
+        const line = resamplePolyline(run, cfg.sampleStepM);
+        for (const points of walkableRuns(line, cfg, cfg.heightAt, colliderIndex, barrier, statistics, raisedOnly)) {
           const length = trackLength(points);
           if (length < cfg.minRunLengthM) {
             statistics.rejectedRuns++;
             continue;
           }
           tracks.push(makeTrack(points, 'sidewalk', { id: `walk:${nextId++}`, linkIndex: index, side,
-            highway: metadata.highway, widthM: link[3], offsetM: offset }));
+            highway: metadata.highway, widthM }));
           statistics.walkableMeters += length;
         }
       }
@@ -719,10 +733,10 @@ export function buildPavementRibbons(legs, options = {}) {
       const leftY = cfg.heightAt(leftX, leftZ);
       const rightY = cfg.heightAt(rightX, rightZ);
       // 整条带（两边 + 中线）都必须离沥青有正间隙，才把这一排画出来。
-      const blocked = barrier
-        ? barrier.contains(leftX, leftZ, clearance) || barrier.contains(rightX, rightZ, clearance)
-          || barrier.contains(point.x, point.z, clearance)
-        : false;
+      const blocked = onRaisedSidewalk(cfg, point.x, point.z) || onRaisedSidewalk(cfg, leftX, leftZ)
+        || onRaisedSidewalk(cfg, rightX, rightZ)
+        || (barrier && (barrier.contains(leftX, leftZ, clearance) || barrier.contains(rightX, rightZ, clearance)
+          || barrier.contains(point.x, point.z, clearance)));
       rows.push({
         left: { x: leftX, z: leftZ, y: (Number.isFinite(leftY) ? leftY : y) + rise, width: leftWidth },
         right: { x: rightX, z: rightZ, y: (Number.isFinite(rightY) ? rightY : y) + rise, width: rightWidth },
