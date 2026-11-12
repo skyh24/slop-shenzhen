@@ -50,8 +50,8 @@ export function createCitySpatial(geo) {
     return { id: i, name: graph.names[name], w: width, lanes, dir: direction, pts, ...graph.metadata[i] };
   });
   const roadIndex = spatialIndex(roads, r => r.pts);
-  function nearestRoads(x, z, radius = 160) {
-    if (!inBounds(x, z) || !Number.isFinite(radius) || radius < 0) return [];
+  function nearestRoads(x, z, radius = 160, { allowOutside = false } = {}) {
+    if (![x, z, radius].every(Number.isFinite) || radius < 0 || (!allowOutside && !inBounds(x, z))) return [];
     const found = [];
     for (const road of roadIndex(x, z, radius)) {
       let best = null;

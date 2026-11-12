@@ -47,6 +47,7 @@ const BOARDING_SECONDS = 0.35;
 const ALIGHTING_SECONDS = 0.3;
 const FLIGHT_START_ALTITUDE = 200;
 const FLIGHT_START_CLEARANCE = 12;
+const FLIGHT_LANDING_MAX_GRADE = 0.06;
 // 坐姿手臂 IK 的下段长度沿用 pedestrians.js ride() 的 FOREARM + 0.07，
 // 让手能落到方向盘/操纵台抓握点，不另造一套骨架常量。
 const SEAT_ARM_LOWER = 0.325;
@@ -177,6 +178,7 @@ class ThirdPersonControllerManager {
     this.groundHeight = options.groundHeight ?? terrainHeight;
     this.surfaceResolver = createSurfaceResolver({ groundHeight: this.groundHeight, surfaces: options.surfaces ?? [] });
     this.nearTraffic = options.nearTraffic;
+    this.roadHeight = options.roadHeight;
     this.spawnPoint = options.spawnPoint ?? SPAWN_POINT;
     if (!this.spawnPoint) throw new Error('No sourced ground spawn is available');
     this.maxFlightAltitude = options.maxFlightAltitude ?? EVTOL_DRIVE.altitude;
@@ -334,7 +336,7 @@ class ThirdPersonControllerManager {
       && (this.occupant.state === OCCUPANT_STATES.BOARDING || this.occupant.state === OCCUPANT_STATES.SEATED);
   }
 
-  // 模式切换复用当前位置；只有地图传送和存档恢复会传入已核验的目的地。
+  // 优先原地切换，飞行转地面模式受阻时才搜索附近路面。
   setMode(mode, destination = null) {
     if (!Object.hasOwn(this.entities, mode)) return false;
     const previous = this.activeMode;
@@ -342,7 +344,9 @@ class ThirdPersonControllerManager {
       this._applyModeVisibility();
       return true;
     }
-    const point = destination ?? this.findModePosition(mode);
+    const active = this.getActiveEntity();
+    const point = destination ?? this.findModePosition(mode, active)
+      ?? (previous === 'helicopter' && mode !== 'helicopter' ? this.findFlightGroundArrival(mode, active.position) : null);
     if (!point) return false;
 
     this.activeMode = mode;
@@ -384,6 +388,27 @@ class ThirdPersonControllerManager {
     if (this.nearColliders(x, z, reach).some(c => buildingContact(c, x, height, z, body))) return null;
     return { x, y: height, z, heading, surfaceId,
       takeoff: flying && active.type !== 'helicopter' && previous ? { x, z, support: previous } : null };
+  }
+
+  findFlightGroundArrival(mode, target) {
+    if (!this.roadHeight || ![target.x, target.z].every(Number.isFinite)) return null;
+    const { minX, maxX, minZ, maxZ } = ISLAND_BOUNDS;
+    const farthest = Math.hypot(Math.max(target.x - minX, maxX - target.x), Math.max(target.z - minZ, maxZ - target.z));
+    let point = null;
+    const isClear = ({ x, z, heading }) => {
+      const body = collisionBody(mode, mode === 'cyclist' ? 1 : 0.48, heading, 0.05, this.entities[mode].collisionBounds);
+      const support = this.supportedFootprint(x, z, body, null, true);
+      if (!support || this.nearColliders(x, z, Math.max(body.extX, body.extZ))
+        .some(c => buildingContact(c, x, support.height, z, body))) return false;
+      point = { x, y: support.height, z, heading, surfaceId: support.surfaceId };
+      return true;
+    };
+    // 从飞行器的实际位置逐步向外找，海上和覆盖边界外也按水平距离比较。
+    for (let radius = 128; !point; radius *= 4) {
+      findGroundArrival(target, mode, { radius: Math.min(radius, farthest), forFlight: true, isClear });
+      if (radius >= farthest) break;
+    }
+    return point;
   }
 
   _applyModeVisibility() {
@@ -842,11 +867,11 @@ class ThirdPersonControllerManager {
     })?.height ?? null;
   }
 
-  supportedFootprint(x, z, body, entity) {
+  supportedFootprint(x, z, body, entity, landingOnRoad = false) {
     const previous = entity?._support;
     const options = { previousY: previous?.height ?? null, previousSurfaceId: previous?.surfaceId ?? null };
     const center = this.surfaceResolver.resolve(x, z, options);
-    if (!center) return null;
+    if (!center || (landingOnRoad && !this.isRoadContact(x, z, center.height))) return null;
     const halfX = body.car ? body.hx : body.extX, halfZ = body.car ? body.hz : body.extZ;
     const sin = body.car ? body.sin : 0, cos = body.car ? body.cos : 1;
     for (const dx of [-halfX, 0, halfX]) {
@@ -855,11 +880,22 @@ class ThirdPersonControllerManager {
         // 圆形脚印的对角采样沿圆周，矩形车身仍检查四角。
         const scale = !body.car && dx !== 0 && dz !== 0 ? Math.SQRT1_2 : 1;
         const offsetX = dx * scale, offsetZ = dz * scale;
-        const support = this.surfaceResolver.resolve(x + offsetX * cos + offsetZ * sin, z - offsetX * sin + offsetZ * cos, options);
-        if (!support || Math.abs(support.height - center.height) > 1.5) return null;
+        const sampleX = x + offsetX * cos + offsetZ * sin;
+        const sampleZ = z - offsetX * sin + offsetZ * cos;
+        const support = this.surfaceResolver.resolve(sampleX, sampleZ, options);
+        if (!support) return null;
+        const maxRise = landingOnRoad ? Math.hypot(offsetX, offsetZ) * FLIGHT_LANDING_MAX_GRADE : 1.5;
+        if (Math.abs(support.height - center.height) > maxRise) return null;
+        if (landingOnRoad && !this.isRoadContact(sampleX, sampleZ, support.height)) return null;
       }
     }
     return center;
+  }
+
+  isRoadContact(x, z, height) {
+    const roadHeight = this.roadHeight(x, z);
+    // 沥青采样使用 Float32 网格，允许数值误差，排除被人行道或中央分隔带覆盖的点。
+    return Number.isFinite(roadHeight) && Math.abs(roadHeight - height) <= 0.01;
   }
 
   // Static colliders within `r` of (x, z), kept in their original order and indexed once into 48 m cells.

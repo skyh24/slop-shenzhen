@@ -63,7 +63,10 @@ function bodyFor(mode) {
   }
 }
 
-function roadCandidates(road, target, radius) {
+const ARRIVAL_OFFSETS = [-24, -16, -8, 8, 16, 24];
+const FLIGHT_ARRIVAL_OFFSETS = [-24, -16, -8, -4, -2, 2, 4, 8, 16, 24];
+
+function roadCandidates(road, target, radius, forFlight) {
   const out = [];
   for (let i = 1; i < road.pts.length; i++) {
     const a = road.pts[i - 1], b = road.pts[i];
@@ -72,16 +75,19 @@ function roadCandidates(road, target, radius) {
     if (length < 0.01) continue;
     const nearest = Math.max(0, Math.min(length, ((target.x - a.x) * dx + (target.z - a.z) * dz) / length));
     const along = new Set([nearest]);
-    for (const offset of [-24, -16, -8, 8, 16, 24]) along.add(Math.max(0, Math.min(length, nearest + offset)));
-    const direction = road.dir === -1 ? -1 : 1;
-    const heading = Math.atan2(dx * direction, dz * direction);
+    const offsets = forFlight ? FLIGHT_ARRIVAL_OFFSETS : ARRIVAL_OFFSETS;
+    for (const offset of offsets) along.add(Math.max(0, Math.min(length, nearest + offset)));
+    const directions = forFlight && road.dir === 0 ? [1, -1] : [road.dir === -1 ? -1 : 1];
     // 双向道路靠各自右侧到达；偏移由道路宽度派生，不声明为实测车道中心。
     const laneOffset = road.dir === 0 ? road.w / 4 : 0;
-    for (const s of along) {
-      const x = a.x + dx * s / length - dz * direction / length * laneOffset;
-      const z = a.z + dz * s / length + dx * direction / length * laneOffset;
-      const distance = Math.hypot(x - target.x, z - target.z);
-      if (distance <= radius) out.push({ x, z, heading, distance, road });
+    for (const direction of directions) {
+      const heading = Math.atan2(dx * direction, dz * direction);
+      for (const s of along) {
+        const x = a.x + dx * s / length - dz * direction / length * laneOffset;
+        const z = a.z + dz * s / length + dx * direction / length * laneOffset;
+        const distance = Math.hypot(x - target.x, z - target.z);
+        if (distance <= radius) out.push({ x, z, heading, distance, road });
+      }
     }
   }
   return out;
@@ -100,6 +106,7 @@ export function createCityConfig(geo, buildings = [], labels = STR) {
     highway: ['motorway', 'motorway_link', 'trunk', 'trunk_link'].includes(road.highway),
     highwayClass: road.highway }));
   const roadById = new Map(roads.map(road => [road.id, road]));
+  const maxLaneOffset = roads.reduce((largest, road) => road.dir === 0 ? Math.max(largest, road.w / 4) : largest, 0);
 
   function nearestRoads(x, z, radius = 160) {
     const names = new Set();
@@ -181,16 +188,20 @@ export function createCityConfig(geo, buildings = [], labels = STR) {
 
   function findGroundArrival(target, mode = 'car', options = {}) {
     bodyFor(mode);
-    if (!target || !Number.isFinite(target.x) || !Number.isFinite(target.z) || !spatial.inBounds(target.x, target.z)) return null;
+    const { forFlight = false, isClear } = options;
     const radius = options.radius ?? 600;
-    if (!Number.isFinite(radius) || radius < 0 || radius > 2000) throw new Error('Invalid arrival search radius');
-    const candidates = spatial.nearestRoads(target.x, target.z, radius)
+    if (!target || !Number.isFinite(target.x) || !Number.isFinite(target.z)
+      || (!forFlight && !spatial.inBounds(target.x, target.z))) return null;
+    if (!Number.isFinite(radius) || radius < 0 || (!forFlight && radius > 2000)) throw new Error('Invalid arrival search radius');
+    // 用实际车道点的距离筛选，先把可能落在搜索圈内的车道对应的中心线都取到。
+    const queryRadius = forFlight ? radius + maxLaneOffset : radius;
+    const candidates = spatial.nearestRoads(target.x, target.z, queryRadius, { allowOutside: forFlight })
       .filter(hit => hit.road.heightSource === 'terrain' && !hit.road.bridge && !hit.road.tunnel && !hit.road.layer)
-      .flatMap(hit => roadCandidates(hit.road, target, radius))
+      .flatMap(hit => roadCandidates(hit.road, target, radius, forFlight))
       .sort((a, b) => a.distance - b.distance || a.road.id - b.road.id || a.x - b.x || a.z - b.z);
     for (const candidate of candidates) {
       const y = spatial.groundHeight(candidate.x, candidate.z);
-      if (y === null || !clearArrival({ ...candidate, y }, mode, options.isClear)) continue;
+      if (y === null || !clearArrival({ ...candidate, y }, mode, isClear)) continue;
       return { x: candidate.x, y, z: candidate.z, heading: candidate.heading,
         bearing: bearingFromHeading(candidate.heading), sourceRoadId: candidate.road.osmId,
         widthSource: candidate.road.widthSource, placement: 'derived-road-arrival',

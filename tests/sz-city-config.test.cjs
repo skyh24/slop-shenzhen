@@ -72,6 +72,19 @@ test('derived arrivals exclude unresolved bridges, water and building footprints
   assert.throws(() => city.findGroundArrival({ x: 0, z: 0 }, 'helicopter'), /Unsupported ground arrival/);
 });
 
+test('flight road arrival can start outside coverage and considers the nearer lane', async () => {
+  const { createCityConfig } = await modulePromise;
+  const city = createCityConfig(fixture, [building]);
+  const target = { x: -105, z: -1.75 };
+  assert.equal(city.findGroundArrival(target, 'car'), null);
+  const arrival = city.findGroundArrival(target, 'car', { forFlight: true, radius: 15 });
+  assert.equal(arrival.sourceRoadId, 'way/1');
+  assert.equal(arrival.z, -1.75);
+  assert.equal(arrival.x, -90);
+  assert.equal(arrival.heading, -Math.PI / 2);
+  assert.equal(arrival.distance, 15);
+});
+
 test('bearing conversion preserves north and east while retaining New York controller headings', async () => {
   const { headingFromBearing, bearingFromHeading } = await modulePromise;
   assert.equal(headingFromBearing(0), Math.PI);

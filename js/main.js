@@ -274,6 +274,7 @@ async function initApp() {
   await showLoadingStage(STR.startup.controllers, 'controllers');
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
     groundHeight: site.heightAt,
+    roadHeight: roads.roadHeight,
     surfaces: [...landmarks.surfaces, ...elevatedRoads.surfaces],
     nearTraffic: traffic.nearColliders
   });

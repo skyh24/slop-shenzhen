@@ -36,7 +36,11 @@ function loadControllers(THREE, world) {
         ISLAND_BOUNDS: { minX: -2000, maxX: 2000, minZ: -2000, maxZ: 2000, sidewalkHeight: 0 },
         SPAWN_POINT: { x: 0, y: 0, z: 0, heading: 0 },
         terrainHeight: () => 0,
-        findGroundArrival: () => ({ x: 0, y: 0, z: 0, heading: 0 }),
+        findGroundArrival: (target, _mode, { radius, isClear }) => world.roads
+          .map(point => ({ ...point, distance: Math.hypot(point.x - target.x, point.z - target.z) }))
+          .filter(point => point.distance <= radius)
+          .sort((a, b) => a.distance - b.distance)
+          .find(isClear) ?? null,
         isTypingInField: () => false,
         isWater: (x, z) => world.water(x, z)
       },
@@ -81,7 +85,7 @@ function mockRig(THREE, rideCalls) {
 }
 
 function createHarness(THREE, overrides = {}) {
-  const state = { water: () => false, traffic: () => [], colliders: [], ground: () => 0, ...overrides };
+  const state = { water: () => false, traffic: () => [], colliders: [], ground: () => 0, roads: [], ...overrides };
   const loaded = loadControllers(THREE, state);
   // 未导出时退回契约字面量，让缺特性版本继续跑到真正的行为断言，而不是在装配期抛 TypeError。
   const OCCUPANT_STATES = loaded.OCCUPANT_STATES ??
@@ -156,6 +160,7 @@ function createHarness(THREE, overrides = {}) {
   controller.scene = new THREE.Scene();
   controller.colliders = state.colliders;
   controller.nearTraffic = (x, z, r) => state.traffic(x, z, r);
+  controller.roadHeight = state.roadHeight ?? (() => null);
   controller.keys = Object.fromEntries(['forward', 'backward', 'left', 'right', 'up', 'down', 'boost', 'brake'].map((key) => [key, false]));
   controller.activeMode = 'person';
   controller.occupant = { state: OCCUPANT_STATES.WALKING, mode: null, timer: 0 };
@@ -311,6 +316,35 @@ test('a blocked destination keeps the active mode and position', { skip }, async
   h.state.traffic = () => [];
   assert.equal(h.controller.setMode('person'), true);
   assert.deepEqual(h.person.position.toArray(), [4, 0, -3]);
+});
+
+test('blocked flight switches to the nearest flat road with clearance for the requested mode', { skip }, async () => {
+  const THREE = await threeReady;
+  const heading = Math.PI / 2;
+  const ground = x => {
+    if (x < 1) return null;
+    if (Math.abs(x - 10) < 3) return 8 + (x - 10) * 0.18;
+    return 8;
+  };
+  for (const mode of ['person', 'car', 'cyclist']) {
+    const h = createHarness(THREE, {
+      water: x => x < 0,
+      roads: [50, 40, 30, 20, 10].map(x => ({ x, y: 2, z: 0, heading })),
+      traffic: () => [{ minX: 17, maxX: 23, minY: 8, maxY: 10, minZ: -1, maxZ: 1 }],
+      ground: (x, z) => x === 0 && z === 0 ? 0 : ground(x),
+      roadHeight: (x, z) => Math.abs(x - 30) < 3 && Math.hypot(x - 30, z) > 0.3 ? null : ground(x)
+    });
+    boardAndSit(h, 'helicopter');
+    h.helicopter.position.set(-1, 200, 0);
+    h.helicopter.speed = 40;
+    assert.equal(h.controller.setMode(mode), true, mode);
+    const active = h.controller.getActiveEntity();
+    assert.deepEqual(active.position.toArray(), [40, 8, 0]);
+    assert.equal(active.heading, heading);
+    assert.equal(active.speed, 0);
+    assert.equal(active._support.surfaceId, 'terrain');
+    assert.equal(h.helicopter.mesh.visible, false);
+  }
 });
 
 test('airborne boarding hides the pilot and the seat follows tiltPivot', { skip }, async () => {
