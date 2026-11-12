@@ -101,6 +101,7 @@ test('preset and map teleports share arrival resets and mark only a resolved lan
     cameraSystem: { resetForTeleport: () => calls.push(['camera']) },
     selectCamera: (...args) => calls.push(['selectCamera', ...args]),
     autoDrive: { stop: () => {} },
+    laneAssist: { cancel: () => calls.push(['laneCancel']) },
     getLocationLabel: (x, z) => `${x}, ${z}`,
     inBounds: x => x < 9000,
     SZMapSystem: class {
@@ -122,7 +123,7 @@ test('preset and map teleports share arrival resets and mark only a resolved lan
     handlers.get(name)();
     assert.deepEqual(calls, [
       ['teleport', point.x, point.z, point.heading, null, true],
-      ['touch'], ['gamepad'], ['camera'], ['selectCamera', 'chase', true]
+      ['laneCancel'], ['touch'], ['gamepad'], ['camera'], ['selectCamera', 'chase', true]
     ]);
     assert.equal(map.waypoint.x, landed.x);
     assert.equal(map.waypoint.z, landed.z);

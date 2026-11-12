@@ -154,7 +154,7 @@ export function wirePopovers() {
 
 // 全局快捷键：模式 1–4、相机 V 与 5–0、HUD H、声音 N、喇叭 B；输入框内的按键不拦截。
 // 按键码是开放集合，默认分支静默忽略，不按有限取值的 switch 抛错。
-export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, onToggleSound, onHonk }) {
+export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, onToggleSound, onHonk, onLane, onLaneCancel, onToggleLane, onToggleEmergencyBrake }) {
   window.addEventListener('keydown', (e) => {
     if (isTypingInField(e)) return;
     switch (e.code) {
@@ -200,10 +200,74 @@ export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, on
       case 'KeyB':
         if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) onHonk();
         break;
+      case 'KeyJ':
+      case 'KeyL':
+        if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) onLane?.(e.code === 'KeyJ' ? 1 : -1);
+        break;
+      case 'KeyK':
+        if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) onToggleLane?.();
+        break;
+      case 'KeyU':
+        if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) onToggleEmergencyBrake?.();
+        break;
+      case 'Escape':
+        onLaneCancel?.();
+        break;
       default:
         break;
     }
   });
+}
+
+export function wireDrivingAssists(controller, lane) {
+  const message = document.getElementById('assist-status');
+  const storageKey = 'sz-driving-assists';
+  const labels = STR.assists;
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey));
+    controller.emergencyBrakeEnabled = saved?.brake !== false;
+    lane.enabled = saved?.lane !== false;
+  } catch { /* 浏览器存储不可用时使用默认设置。 */ }
+
+  function save() {
+    try { localStorage.setItem(storageKey, JSON.stringify({ brake: controller.emergencyBrakeEnabled, lane: lane.enabled })); }
+    catch { /* 浏览器存储不可用时本次仍生效。 */ }
+  }
+
+  let lastStatus, visible = false, feedbackTimer;
+  function show(text, persistent = false) {
+    clearTimeout(feedbackTimer);
+    message.textContent = text ?? '';
+    message.hidden = !visible || !text;
+    if (!persistent && text) feedbackTimer = setTimeout(() => {
+      message.textContent = lane.active ? labels.status[lane.status] : '';
+      message.hidden = !visible || !message.textContent;
+    }, 3200);
+  }
+
+  return {
+    render(active, showStatus = false) {
+      if (visible !== active) {
+        visible = active;
+        message.hidden = !active || !message.textContent;
+      }
+      if (showStatus || lastStatus !== lane.status) {
+        lastStatus = lane.status;
+        show(labels.status[lastStatus], lane.active);
+      }
+    },
+    toggleLane() {
+      lane.enabled = !lane.enabled;
+      save();
+      lastStatus = lane.status;
+      show(lane.enabled ? labels.laneOn : labels.laneOff);
+    },
+    toggleEmergencyBrake() {
+      controller.emergencyBrakeEnabled = !controller.emergencyBrakeEnabled;
+      save();
+      show(controller.emergencyBrakeEnabled ? labels.brakeOn : labels.brakeOff);
+    }
+  };
 }
 
 // HUD 位置读数：街角/道路名加就近楼名。楼名只作定位提示，普通楼没有名称时退回附近地标名。

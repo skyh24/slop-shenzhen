@@ -3,6 +3,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const driving = require('./helpers/driving.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const source = readFileSync(join(__dirname, '../js/controllers.js'), 'utf8');
@@ -46,6 +47,7 @@ function keyboardHarness(nyc = {}) {
   const { ThirdPersonControllerManager, PLAYER_SPEED_LIMITS } = loadModule(source, {
     globals: { window, document },
     imports: {
+      ...driving,
       'three/webgpu': {},
       './sz-city-config.js': config,
       './sz-controller-surfaces.js': {},
@@ -382,24 +384,20 @@ test('releasing car steering settles smoothly and suspension leans outward', () 
   assert.ok(Math.abs(sim.car.steerAngle) < 0.001);
 });
 
-test('braking while turning initiates a slide that recovers on release', () => {
+test('S and Space have the same grip and steering through service braking', () => {
   for (const speed of [15, 25]) {
-    for (const turn of ['left', 'right']) {
-      const braking = carDynamicsHarness({ speed });
-      const coasting = carDynamicsHarness({ speed });
-      braking.controller.keys.backward = true;
-      for (const sim of [braking, coasting]) {
-        sim.controller.keys[turn] = true;
-        sim.advance(0.75);
-      }
-      const slip = (car) => Math.atan2(Math.hypot(car.vx, car.vz), Math.abs(car.speed));
-      assert.ok(slip(braking.car) > slip(coasting.car) * 1.5, 'the handbrake lets the rear slide out');
-      assert.ok(Math.hypot(...carVelocity(braking.car)) < speed, 'the slide cannot add momentum');
-      braking.controller.keys.backward = false;
-      braking.controller.keys[turn] = false;
-      braking.advance(2);
-      assert.ok(Math.hypot(braking.car.vx, braking.car.vz) < 0.1, 'grip returns smoothly after releasing the brake');
+    const backward = carDynamicsHarness({ speed });
+    const space = carDynamicsHarness({ speed });
+    backward.controller.keys.backward = true;
+    space.controller.keys.brake = true;
+    for (const sim of [backward, space]) {
+      sim.controller.keys.left = true;
+      sim.advance(0.75);
     }
+    assert.deepEqual(carVelocity(backward.car), carVelocity(space.car));
+    assert.equal(backward.car.heading, space.car.heading);
+    assert.ok(backward.car.heading > 0.03, 'steering stays available under braking');
+    assert.ok(Math.hypot(...carVelocity(backward.car)) < speed);
   }
 });
 
@@ -1224,4 +1222,181 @@ test('speed telemetry uses the physical maximum for each mode and reports speed 
     const fill = Number(els.speedMeter.style.transform.match(/^scaleX\((.+)\)$/)?.[1]);
     assert.ok(Math.abs(fill - expectedFill) < 1e-9, mode + ' at ' + speedKmh + ' km/h');
   }
+});
+
+function contactCar({ speed = 0, heading = 0, colliders = [], y = 0 } = {}) {
+  const { controller, ent: car } = teleportHarness('car', colliders);
+  const origin = { x: 0, y, z: 0 };
+  Object.assign(car, { heading, speed, vx: 0, vz: 0, angularVel: 0, steerAngle: 0, pitchVel: 0, rollVel: 0,
+    heaveVel: 0, heaveY: 0, _safePosition: { ...origin }, _support: { height: y, surfaceId: 'terrain' } });
+  Object.assign(car.position, origin);
+  car.collisionBounds = { min: { x: -1.1, y: 0, z: -2.37 }, max: { x: 1.1, y: 1.8, z: 2.38 } };
+  controller.emergencyBrakeEnabled = false;
+  return { controller, car };
+}
+
+test('a thin wall stops the 80 and 120 km/h car and sustained throttle cannot bounce it', () => {
+  for (const speed of [80 / 3.6, 120 / 3.6, -9]) {
+    const sign = Math.sign(speed);
+    const wall = { minX: -20, maxX: 20, minY: 0, maxY: 3,
+      minZ: sign > 0 ? 4 : -4.12, maxZ: sign > 0 ? 4.12 : -4 };
+    const { controller, car } = contactCar({ speed, colliders: [wall] });
+    let impacts = 0;
+    controller.setCollisionListener(() => impacts++);
+    controller.keys[sign > 0 ? 'forward' : 'backward'] = true;
+    controller.keys.boost = speed > 30;
+    for (let i = 0; i < 80; i++) {
+      controller.updateCar(0.05);
+      assert.ok(sign * carVelocity(car)[1] >= -1e-8, 'contact cannot reverse world velocity');
+      assert.ok(sign * car.position.z <= 1.64, 'the bumper remains on the entry side of the wall');
+    }
+    assert.ok(Math.abs(car.position.z) > 1.5);
+    assert.ok(Math.hypot(...carVelocity(car)) < 1e-7);
+    assert.equal(impacts, 1, 'holding against the wall emits a single impact');
+  }
+});
+
+test('an oblique wall strike sheds the inward velocity and preserves bounded tangential travel', () => {
+  const { controller, car } = contactCar({ speed: 120 / 3.6, heading: 0.72,
+    colliders: [{ minX: -20, maxX: 100, minZ: 4, maxZ: 4.12, minY: 0, maxY: 3 }] });
+  for (let i = 0; i < 8; i++) controller.updateCar(0.05);
+  const [vx, vz] = carVelocity(car);
+  assert.ok(car.position.x > 3 && vx > 0);
+  assert.ok(Math.abs(vz) < 0.2);
+  assert.ok(car.position.z < 1.5);
+  assert.ok(Math.hypot(vx, vz) < 120 / 3.6);
+});
+
+test('manual car contact still stops for pedestrians with emergency braking disabled and ignores another deck', () => {
+  const { writePedestrianCollider } = driving['./sz-driving-motion.js'];
+  for (const height of [0, 5]) {
+    const { controller, car } = contactCar({ speed: 120 / 3.6 });
+    const person = writePedestrianCollider({}, 0, height, 6, Math.PI / 2, 0);
+    controller.nearPedestrians = () => [person];
+    controller.keys.forward = controller.keys.boost = true;
+    for (let i = 0; i < 20; i++) controller.updateCar(0.05);
+    if (height === 0) {
+      assert.ok(car.position.z > 3.1 && car.position.z < 3.31);
+      assert.ok(Math.abs(car.speed) < 1e-7);
+    } else assert.ok(car.position.z > 30);
+  }
+});
+
+test('a rear-end contact matches the lead normal velocity while an approaching car cannot launch the player backwards', () => {
+  const { writeEntityCollider } = driving['./sz-driving-motion.js'];
+  for (const leadSpeed of [0, 6, -6]) {
+    const { controller, car } = contactCar({ speed: 18 });
+    const lead = writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: 5.1 }, heading: 0, speed: leadSpeed });
+    controller.nearTraffic = () => [lead];
+    controller.updateCar(0.05);
+    assert.ok(Math.abs(car.speed - Math.max(leadSpeed, 0)) < 0.1);
+    assert.ok(car.position.z < 0.56);
+  }
+});
+
+test('manual emergency brake intervenes before contact and can be switched off', () => {
+  const { writeEntityCollider } = driving['./sz-driving-motion.js'];
+  const leader = writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: 20 }, heading: 0, speed: 0 });
+  const speeds = [true, false].map(enabled => {
+    const { controller, car } = contactCar({ speed: 22 });
+    controller.emergencyBrakeEnabled = enabled;
+    controller.nearTraffic = () => [leader];
+    controller.keys.forward = true;
+    controller.updateCar(0.05);
+    assert.ok(car.position.z < 1.2);
+    return car.speed;
+  });
+  assert.ok(speeds[0] < 22 && speeds[1] > 22);
+});
+
+const loadDrive = (name, imports = {}) => loadModule(readFileSync(join(__dirname, '../js', name), 'utf8'), {
+  imports: { ...driving, ...imports }
+});
+const laneMarkings = loadDrive('sz-road-markings.js', { './sz-roads.js': {} });
+const autoLaneHelpers = loadDrive('sz-auto-drive.js', {
+  './sz-intersection-control.js': {}, './sz-traffic.js': driving['./sz-driving-motion.js']
+});
+const { createLaneAssist } = loadDrive('sz-lane-assist.js', {
+  './sz-road-markings.js': laneMarkings, './sz-auto-drive.js': autoLaneHelpers
+});
+
+function laneHarness(speed, { supported = true, junction = false, lanes = 3 } = {}) {
+  const { controller, car } = carDynamicsHarness({ speed, position: { x: 0, y: 0, z: 25 } });
+  car._support = { height: 0, surfaceId: supported ? 'terrain' : 'deck' };
+  const edge = { sourceIndex: 0, sign: 1, width: 10.5, segments: [{ x: 0, z: 0, dx: 0, dz: 1, length: 240 }] };
+  const graph = { links: [[0, 1, 0, 10.5, lanes, 1]], metadata: [{ highway: 'primary' }] };
+  const traffic = [];
+  const assist = createLaneAssist({ graph, model: { hx: 1.1, hz: 2.4, halfWheelbase: 1.4,
+    corners: [[1.1, 2.4], [1.1, -2.4], [-1.1, 2.4], [-1.1, -2.4]] },
+    network: { nearSegments: () => [{ edge, segment: 0 }] }, roadHeight: x => Math.abs(x) < 5.25 ? 0 : null,
+    control: { contains: () => junction }, isClear: () => true, nearTraffic: () => traffic });
+  return { assist, controller, car, traffic };
+}
+
+test('lane assist steers at several speeds and finishes aligned without snapping or queuing requests', () => {
+  for (const speed of [5, 11, 80 / 3.6, 120 / 3.6]) {
+    const { assist, controller, car } = laneHarness(speed);
+    assert.equal(assist.request(car, 1, false), true);
+    assert.equal(assist.request(car, -1, false), false, 'an active request cannot queue an opposite move');
+    let peakYaw = 0;
+    let peakLateralAcceleration = 0;
+    for (let i = 0; i < 370 && assist.active; i++) {
+      const { x, z } = car.position;
+      const vx = carVelocity(car)[0];
+      const input = assist.update(car);
+      controller.updateCar(1 / 60, input);
+      peakYaw = Math.max(peakYaw, Math.abs(car.heading));
+      peakLateralAcceleration = Math.max(peakLateralAcceleration, Math.abs(carVelocity(car)[0] - vx) * 60);
+      assert.ok(Math.hypot(car.position.x - x, car.position.z - z) < speed / 60 + 0.05);
+    }
+    assert.equal(assist.status, 'complete', `lane alignment at ${speed} m/s`);
+    assert.ok(peakYaw > 0.05);
+    assert.ok(peakLateralAcceleration < 2.3, `lateral acceleration at ${speed} m/s: ${peakLateralAcceleration}`);
+    assert.ok(Math.abs(car.position.x - 3.5) < 0.23);
+    assert.ok(Math.abs(car.heading) < 0.05);
+  }
+});
+
+test('lane assist rejects an occupied target, unreliable surface and junction, and hands control back immediately', () => {
+  for (const options of [{ supported: false }, { junction: true }, { lanes: 0 }]) {
+    const { assist, car } = laneHarness(11, options);
+    assert.equal(assist.request(car, 1, false), false);
+  }
+  const { assist, car, traffic, controller } = laneHarness(11);
+  const { writeEntityCollider } = driving['./sz-driving-motion.js'];
+  const fastRear = writeEntityCollider({}, { type: 'car', position: { x: 3.5, y: 0, z: 2 }, heading: 0, speed: 22 });
+  traffic.push(fastRear);
+  assert.equal(assist.request(car, 1, false), false);
+  assert.equal(assist.status, 'occupied');
+  traffic.length = 0;
+  assert.equal(assist.request(car, 1, false), true);
+  for (let i = 0; i < 65; i++) controller.updateCar(1 / 60, assist.update(car));
+  const interrupted = car.position.x;
+  traffic.push(writeEntityCollider({}, { type: 'car',
+    position: { x: 3.5, y: 0, z: car.position.z + 14 }, heading: 0, speed: 0 }));
+  const input = assist.update(car);
+  assert.equal(assist.status, 'waiting');
+  assert.ok(input.brake > 0 && input.throttle === 0);
+  controller.updateCar(1 / 60, input);
+  assert.ok(car.position.x >= interrupted - 0.01, 'a newly occupied gap does not snap back');
+  assert.equal(assist.update(car, { manual: true }), null);
+  assert.equal(assist.status, 'cancelled');
+  assert.equal(assist.active, false);
+});
+
+test('lane shortcuts request one direction and leave typing, modifiers and repeated keydown alone', () => {
+  const window = eventTarget();
+  const { wireShortcuts } = loadModule(readFileSync(join(__dirname, '../js/sz-ui.js'), 'utf8'), {
+    imports: { './sz-strings.js': {}, './sz-city-config.js': { isTypingInField: e => e.target?.tagName === 'INPUT' } },
+    globals: { window }
+  });
+  const calls = [];
+  wireShortcuts({ onLane: direction => calls.push(direction), onLaneCancel: () => calls.push('cancel'),
+    onToggleLane: () => calls.push('lane toggle'), onToggleEmergencyBrake: () => calls.push('brake toggle') });
+  for (const event of [{ code: 'KeyJ' }, { code: 'KeyL' }, { code: 'KeyJ', repeat: true },
+    { code: 'KeyL', ctrlKey: true }, { code: 'KeyJ', target: { tagName: 'INPUT' } }, { code: 'Escape' },
+    { code: 'KeyK' }, { code: 'KeyU' }, { code: 'KeyU', metaKey: true }, { code: 'KeyK', repeat: true }]) {
+    window.dispatch('keydown', event);
+  }
+  assert.deepEqual(calls, [1, -1, 'cancel', 'lane toggle', 'brake toggle']);
 });

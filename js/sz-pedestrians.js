@@ -2,6 +2,8 @@ import * as THREE from 'three/webgpu';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { buildWalkTracks, createColliderGrid, sampleTrack } from './sz-pedestrian-tracks.js';
 import { polygonContains } from './sz-polygon.js';
+import { contactTime, writeEntityCollider, writePedestrianCollider } from './sz-driving-motion.js';
+import { vehicleContact } from './vehicle-physics.js';
 
 // 正式深圳场景的环境人群：复用纽约的 PersonRig / PersonCrowd（步态、脚底接地、远近 LOD），
 // 但不搬纽约的人行道/斑马线数据。深圳没有全城铺装人行道网格，行走位置来自
@@ -209,7 +211,8 @@ function createPed(id, cfg) {
     speed: cfg.targetSpeedMin + (cfg.targetSpeedMax - cfg.targetSpeedMin) * hash(id, 3),
     lateral: 0,
     pause: 0,
-    restAt: 0
+    restAt: 0,
+    collider: { id: `pedestrian:${id}` }
   };
 }
 
@@ -275,6 +278,8 @@ export function createSzPedestrians(scene, graph, options = {}) {
   const nearPeds = [];
   const queueSpeeds = new Float64Array(cfg.maxPeds);
   const avoidance = [];
+  const vehicleProbe = {}, walkProbe = {}, walkContact = {};
+  const nearbyVehicles = [];
   let region = null;
   let lastFocus = null;
   let clock = 0;
@@ -285,7 +290,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     regionBuilds: 0, regionBuildMs: 0, tracks: 0, connectors: 0, walkableMeters: 0,
     pavementTriangles: 0, pavementAreaM2: 0, pavementCarriagewaySkipped: 0,
     carriagewayBlockedSamples: 0, barrierPolygons: 0, colliderIndexed: 0,
-    targetPeds: 0, spawnCapacity: 0, density: 0, densityBuildings: densityModel.statistics.buildings,
+    vehicleYields: 0, targetPeds: 0, spawnCapacity: 0, density: 0, densityBuildings: densityModel.statistics.buildings,
     densityGreenPolygons: densityModel.statistics.greenPolygons
   };
 
@@ -385,7 +390,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     if (!Array.isArray(players)) return;
     for (const entity of players) {
       const position = entity?.position;
-      if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) continue;
+      if (!position || entity.type === 'car' || !Number.isFinite(position.x) || !Number.isFinite(position.z)) continue;
       const height = cfg.heightAt(position.x, position.z);
       if (!Number.isFinite(height) || !(Math.abs(position.y - height) < 3)) continue;
       avoidance.push({ x: position.x, z: position.z, radius: entity.type === 'person' ? 1.1 : 2.6 });
@@ -415,6 +420,8 @@ export function createSzPedestrians(scene, graph, options = {}) {
       for (const player of avoidance) {
         if (squareDistance(scratch.x, scratch.z, player.x, player.z) < (player.radius + 1) ** 2) { blocked = true; break; }
       }
+      writePedestrianCollider(walkProbe, scratch.x, scratch.y, scratch.z, 0, 0);
+      if (nearbyVehicles.some(body => Number.isFinite(contactTime(walkProbe, body, 1)))) blocked = true;
       if (blocked || crowded(scratch.x, scratch.z)) continue;
       ped.leg = track;
       ped.s = s;
@@ -484,6 +491,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
   }
 
   function advance(ped, dt, queueSpeed) {
+    const vehicles = nearbyVehicles.filter(body => Math.abs(body.x - ped.x) < 42 && Math.abs(body.z - ped.z) < 42);
     if (ped.pause > 0) {
       ped.pause = Math.max(0, ped.pause - dt);
       ped.v = 0;
@@ -505,10 +513,38 @@ export function createSzPedestrians(scene, graph, options = {}) {
       ped.restAt = clock + cfg.restMinS + random() * (cfg.restMaxS - cfg.restMinS);
       target = 0;
     }
+    let lateralTarget = cfg.keepRightM * ped.dir;
+    if (vehicles.length) {
+      writePedestrianCollider(walkProbe, ped.x, ped.y, ped.z, ped.heading, Math.max(ped.v, target));
+      const threat = vehicles.find(body => {
+        const time = contactTime(walkProbe, body, 1.05, undefined, undefined, 0.12);
+        if (!Number.isFinite(time)) return false;
+        // 已在来车路径上时，停在原地并不能腾出车道；继续走到安全位置。
+        const standing = contactTime(walkProbe, body, 1.05, -(body.vx ?? 0), -(body.vz ?? 0));
+        return time < 0.28 || !Number.isFinite(standing) || standing > time + 0.3;
+      });
+      if (threat) {
+        statistics.vehicleYields++;
+        target = 0;
+        sampleTrack(ped.leg, ped.s, scratch);
+        // 在当前步行带内试小幅让开；每个子步另查实际通行面和车身。
+        for (const side of [0.68 * ped.dir, -0.68 * ped.dir]) {
+          const x = scratch.x + scratch.dz * side, z = scratch.z - scratch.dx * side;
+          const y = region.walkableHeight(x, z, scratch.y);
+          if (y === null) continue;
+          writePedestrianCollider(walkProbe, x, y, z, ped.heading, 0);
+          if (vehicles.every(body => !Number.isFinite(contactTime(walkProbe, body, 1.05, undefined, undefined, 0.12)))) {
+            lateralTarget = side;
+            break;
+          }
+        }
+      }
+    }
+    const previous = vehicles.length ? { x: ped.x, y: ped.y, z: ped.z, heading: ped.heading, s: ped.s,
+      leg: ped.leg, dir: ped.dir, fromLeg: ped.fromLeg, lateral: ped.lateral, pause: ped.pause } : null;
     const acceleration = target > ped.v ? 1.7 : 3.2;
     ped.v = clamp(ped.v + clamp(target - ped.v, -acceleration * dt, acceleration * dt), 0, ped.speed);
     // 侧向让线：靠右走，转角/端点处回到中线，避免变道时脚底打滑。
-    const lateralTarget = cfg.keepRightM * ped.dir;
     ped.lateral += clamp(lateralTarget - ped.lateral, -2.2 * dt, 2.2 * dt);
     let remaining = ped.v * dt;
     let guard = 0;
@@ -526,9 +562,27 @@ export function createSzPedestrians(scene, graph, options = {}) {
     }
     sampleTrack(ped.leg, ped.s, scratch);
     processPose(ped, scratch);
+    if (previous) {
+      const y = region.walkableHeight(ped.x, ped.z, scratch.y);
+      writePedestrianCollider(walkProbe, previous.x, previous.y, previous.z, ped.heading, 0);
+      const dx = ped.x - previous.x, dz = ped.z - previous.z;
+      const blocked = vehicles.some(body => {
+        const time = contactTime(walkProbe, body, 1, dx, dz);
+        if (!Number.isFinite(time)) return false;
+        // 模式切换或支撑切换造成的初始交叠允许走出，禁止继续向车内移动。
+        if (time === 0 && vehicleContact(walkProbe, body, walkContact)) {
+          return dx * walkContact.nx + dz * walkContact.nz <= 0;
+        }
+        return true;
+      });
+      if (y === null || blocked) {
+        Object.assign(ped, previous);
+        ped.v = 0;
+      } else ped.y = y;
+    }
   }
 
-  function update(dt, focus, elapsed, isVisible = null, players = null) {
+  function update(dt, focus, elapsed, isVisible = null, players = null, traffic = []) {
     if (!focus || !Number.isFinite(focus.x) || !Number.isFinite(focus.z)) return;
     dt = Math.max(0, Math.min(Number.isFinite(dt) ? dt : 0, 0.05));
     clock = Number.isFinite(elapsed) ? elapsed : clock + dt;
@@ -538,6 +592,10 @@ export function createSzPedestrians(scene, graph, options = {}) {
     }
     lastFocus = { x: focus.x, z: focus.z };
     collectAvoidance(players);
+    nearbyVehicles.length = 0;
+    nearbyVehicles.push(...traffic);
+    const car = players?.find(entity => entity.type === 'car');
+    if (car) nearbyVehicles.push(writeEntityCollider(vehicleProbe, car));
     // 远处回收：保证活动区人数只受 focus 附近轨道容量限制。
     const recycleSq = cfg.recycleRadiusM ** 2;
     let placedNow = 0;
@@ -600,8 +658,14 @@ export function createSzPedestrians(scene, graph, options = {}) {
     for (let i = 0; i < nearPeds.length; i++) queueSpeeds[i] = aheadSpeed(nearPeds[i]);
     for (let i = 0; i < nearPeds.length; i++) {
       const ped = nearPeds[i];
-      const distanceSq = squareDistance(ped.x, ped.z, focus.x, focus.z);
+      const { x, z } = ped;
+      const distanceSq = squareDistance(x, z, focus.x, focus.z);
       advance(ped, dt, queueSpeeds[i]);
+      writePedestrianCollider(ped.collider, ped.x, ped.y, ped.z, ped.heading, ped.v);
+      if (dt) {
+        ped.collider.vx = (ped.x - x) / dt;
+        ped.collider.vz = (ped.z - z) / dt;
+      }
       const draw = !isVisible || isVisible(ped.x, ped.z, 7, ped.y);
       if (draw) drawn++;
       // 隐藏但离得近的人仍然推进步态；超过 50 m 且看不见则等待重新落地，省掉骨骼计算。
@@ -615,6 +679,11 @@ export function createSzPedestrians(scene, graph, options = {}) {
     statistics.placed = placed;
     statistics.near = nearPeds.length;
     statistics.drawn = drawn;
+  }
+
+  function nearColliders(x, z, radius) {
+    return nearPeds.filter(ped => Math.abs(ped.x - x) < radius + 0.4 && Math.abs(ped.z - z) < radius + 0.4)
+      .map(ped => ped.collider);
   }
 
   function dispose() {
@@ -634,6 +703,6 @@ export function createSzPedestrians(scene, graph, options = {}) {
     region = null;
   }
 
-  return { group, meshes: crowd.meshes, update, statistics, dispose, peds, densityAt,
+  return { group, meshes: crowd.meshes, update, nearColliders, statistics, dispose, peds, densityAt,
     densityModel, get region() { return region; } };
 }

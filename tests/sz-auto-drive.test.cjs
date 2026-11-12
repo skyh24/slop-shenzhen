@@ -4,6 +4,7 @@ const { join } = require('node:path');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const driving = require('./helpers/driving.cjs');
 const { runInNewContext } = require('node:vm');
 const polygonModule = require('./helpers/polygon.cjs');
 
@@ -13,15 +14,14 @@ const signalApi = load('sz-intersection-control.js');
 const surface = load('sz-controller-surfaces.js');
 const roads = load('sz-roads.js', { 'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) } });
 const collision = load('building-collision.js', { './sz-polygon.js': polygonModule });
-const physics = load('vehicle-physics.js');
 const traffic = load('sz-traffic.js', { 'three/webgpu': {}, './sz-intersection-control.js': signalApi,
   './sz-roads.js': roads,
   // 路线规划只用到 sz-traffic 的纯函数；车队涂装用到的 carStyleCode 给一个等价替身。
   './sz-vehicles.js': { carStyleCode: ({ livery = 0, metallic = 0, trim = 0, wheel = 0 }) =>
     (livery & 7) + ((metallic & 1) << 3) + ((trim & 3) << 4) + ((wheel & 3) << 6) },
-  './building-collision.js': collision, './vehicle-physics.js': physics });
+  './building-collision.js': collision, ...driving });
 const { createAutoDrive, hasRoadFootprint } = load('sz-auto-drive.js', {
-  './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic, './vehicle-physics.js': physics
+  './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic, ...driving
 });
 const { createDrivePlanner, createTurnFilter } = load('sz-drive-route.js', {
   './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic
@@ -35,7 +35,7 @@ const rule = (restriction, from, to, via, viaWays = []) => ({ osmId: 'relation/1
 
 test('brake and boost inputs cancel automatic driving through the frame wiring', () => {
   const main = read('main.js');
-  const start = main.indexOf('    const { forward, backward, left, right');
+  const start = main.indexOf('    const { forward, backward, left, right', main.indexOf('  function renderFrame'));
   const end = main.indexOf('    controllerManager.update(', start);
   assert.ok(start >= 0 && end > start);
   const wiring = main.slice(start, end);
@@ -46,7 +46,7 @@ test('brake and boost inputs cancel automatic driving through the frame wiring',
     const autoDrive = createAutoDrive({ model, roadHeight: () => 0, nearTraffic: () => [] });
     assert.equal(autoDrive.start(route, car, 'car'), true);
     const controllerManager = { activeMode: 'car', keys: { [action]: true } };
-    const context = { controllerManager, autoDrive, driveCar: car, dt: 1 / 60, elapsed: 0,
+    const context = { controllerManager, autoDrive, laneAssist: { update: () => null }, driveCar: car, dt: 1 / 60, elapsed: 0,
       mapSystem: { isFullMapOpen: false } };
     assert.equal(runInNewContext(`${wiring}\ndriveInput;`, context), null);
     assert.equal(autoDrive.status, 'manual');
@@ -190,7 +190,7 @@ test('the player car uses existing physics on the sourced eastbound Shennan sign
     ISLAND_BOUNDS: { minX: geo.bounds[0], minZ: geo.bounds[1], maxX: geo.bounds[2], maxZ: geo.bounds[3] }
   }, './sz-controller-surfaces.js': surface, './sz-park-arrivals.js': {}, './sz-strings.js': {}, './city-lighting-materials.js': {},
   './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } }, './pedestrians.js': {},
-  './vehicle-lights.js': {}, './building-collision.js': collision });
+  './vehicle-lights.js': {}, './building-collision.js': collision, ...driving });
   const car = { type: 'car', collisionBounds: bounds, chassisPivot: { rotation: { x: 0, z: 0 }, position: { y: 0 } }, wheels: [],
     position: {}, speed: 0, vx: 0, vz: 0, angularVel: 0, pitchVel: 0, rollVel: 0, heaveY: 0, heaveVel: 0, steerAngle: 0, wheelSpin: 0 };
   const controller = Object.assign(Object.create(ThirdPersonControllerManager.prototype), { entities: { car }, activeMode: 'car', keys: {},
