@@ -11,11 +11,11 @@ from shapely.geometry import box
 from beihuan import apply_beihuan_sections
 from bridges import build_bridges
 from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, ROLES,
-                       UPSTREAM_FAMILIES, build_buildings)
+                       UPSTREAM_FAMILIES, build_buildings, ensure_globfp)
 from geo import ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local, project
 from land import build_land
 from landmark_sites import build_landmark_sites
-from osm import PBF, read_osm
+from osm import read_osm
 from parks import build_parks
 from road_frontage import build_road_frontage
 from roads import CLASSES, build_roads
@@ -30,7 +30,7 @@ from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
 from fastpack import encode_city
-from package_validation import CORE_SOURCES, audit_payload, verify_sources
+from package_validation import CORE_SOURCES, audit_payload, require_matching_snapshot, verify_sources
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'js/sz-city.json.gz'
@@ -90,7 +90,7 @@ def write_fast_package(payload, raw, sources):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--no-cache', action='store_true', help='re-read the OSM PBF instead of the pickle cache')
+    ap.add_argument('--no-cache', action='store_true', help='rebuild OSM and GloBFP extraction caches from the verified snapshots')
     ap.add_argument('--without-building-use-review', action='store_true',
                     help='reproduce the pre-review appearance for the scoped building pilot')
     ap.add_argument('--terrain-source', choices=['copernicus', 'hgt'], default='copernicus',
@@ -105,20 +105,27 @@ def main():
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
         sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
-        print(json.dumps(write_fast_package(payload, raw, sources), indent=2))
+        report = json.loads(VALIDATION_REPORT.read_text())
+        require_matching_snapshot(raw, report, sources)
+        print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
         return
 
     terrain_ids = ('copernicus-dem-N22E113', 'copernicus-dem-N22E114') if args.terrain_source == 'copernicus' else ('terrain-N22E113', 'terrain-N22E114')
     sources = verify_sources(source_ids=(*CORE_SOURCES, *terrain_ids))
+    inputs = {source['id']: source for source in sources}
+    osm_source = inputs['osm-guangdong']
+    pbf = ROOT / osm_source['file']
 
     t0 = time.time()
     report = {'formatVersion': FORMAT_VERSION, 'origin': [ORIGIN_LON, ORIGIN_LAT], 'bbox': PHASE1_BBOX}
     clip = phase1_clip_local()
-    osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache)
+    osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=pbf, source_sha256=osm_source['sha256'])
     print(f'osm loaded in {time.time() - t0:.1f}s', flush=True)
 
     buildings = build_buildings(osm, clip, report, reviewed_parent_uses=not args.without_building_use_review,
-                                include_remote_footprints=args.footprint_source == 'all')
+                                include_remote_footprints=args.footprint_source == 'all',
+                                overture_path=ROOT / inputs['overture-buildings']['file'],
+                                globfp_path=ensure_globfp(inputs, use_cache=not args.no_cache))
     print(f'buildings: {len(buildings)} in {time.time() - t0:.1f}s', flush=True)
     land, water, wetland, green = build_land(osm, clip, buildings, report)
     roads = build_roads(osm, clip, report)
@@ -126,24 +133,24 @@ def main():
     sea_surface = build_sea_surface(osm, clip, land, terrain, report)
     road_graph = build_roadgraph(osm, clip, report)
     apply_beihuan_sections(road_graph, report)
-    road_graph['turnRestrictions'] = build_turn_restrictions(PBF, road_graph, report)
+    road_graph['turnRestrictions'] = build_turn_restrictions(pbf, road_graph, report)
     # 春茧两座封闭厅是已核实的地面裁除区：派生路面不得改写馆内格点，先按原始 DSM 求出并复用。
     exclusions = chunjian_exclusions(buildings, terrain, osm['roads'])
     # 路面走廊用 FABDEM 基线派生平滑高程；原始 DSM 在走廊外不变，报告记录逐段前后高差。
     terrain = build_road_surface(terrain, road_graph, report,
                                  excluded_polygons=[exclusion['poly'] for exclusion in exclusions])
-    road_frontage = build_road_frontage(PBF, osm, road_graph, buildings, report)
+    road_frontage = build_road_frontage(pbf, osm, road_graph, buildings, report)
     terrain_surface = build_terrain_surface(terrain, clip, land, water, report, green=green, wetland=wetland,
                                           exclusions=exclusions)
-    metro = build_metro(clip, report, use_cache=not args.no_cache)
+    metro = build_metro(clip, report, use_cache=not args.no_cache, pbf=pbf, verified_source=osm_source)
 
     landmark_manifest = json.loads(LANDMARKS.read_text())['landmarks']
     landmarks = landmark_entries(landmark_manifest)
     parks = build_parks(landmark_manifest, green, land, water, report)
-    streetscape = build_streetscape(PBF, osm, parks, report)
+    streetscape = build_streetscape(pbf, osm, parks, report)
     trees = build_trees(osm, clip, land, water, wetland, green, parks, streetscape, buildings, report,
-                        pbf=PBF, road_graph=road_graph)
-    bridges = build_bridges(PBF, landmark_manifest, report)
+                        pbf=pbf, road_graph=road_graph)
+    bridges = build_bridges(pbf, landmark_manifest, report)
     sites = build_landmark_sites(landmark_manifest, report)
     lm_index = {lm['id']: i for i, lm in enumerate(landmarks)}
 

@@ -37,11 +37,10 @@ class BuildingTests(unittest.TestCase):
             globfp_file.write_text('\n'.join(map(json.dumps, globfp)))
             reviews_file = Path(directory) / 'reviews.json'
             reviews_file.write_text(json.dumps({'version': 1, 'globfpExclusions': reviews}))
-            with (patch('buildings.OVERTURE', overture_file), patch('buildings.GLOBFP_SZ', globfp_file),
-                  patch('buildings.FOOTPRINT_REVIEWS', reviews_file),
+            with (patch('buildings.FOOTPRINT_REVIEWS', reviews_file),
                   patch('buildings.load_landmark_bindings', return_value=bindings or {})):
                 output = build_buildings(osm, box(-1, -1, 200, 200), report,
-                                         height_overrides=height_overrides,
+                                         height_overrides=height_overrides, overture_path=overture_file, globfp_path=globfp_file,
                                          include_remote_footprints=include_remote_footprints)
         return {item['id']: item for item in output}, report
 

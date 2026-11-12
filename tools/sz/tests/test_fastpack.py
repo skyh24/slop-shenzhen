@@ -10,7 +10,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastpack import encode_city
-from package_validation import CORE_SOURCES, verify_sources
+from package_validation import CORE_SOURCES, require_matching_snapshot, verify_sources
 
 
 class FastpackTest(unittest.TestCase):
@@ -40,10 +40,22 @@ class FastpackTest(unittest.TestCase):
             entries = [{'id': identity, 'file': 'source', 'bytes': 5,
                         'sha256': hashlib.sha256(b'first').hexdigest()} for identity in CORE_SOURCES]
             (root / 'data/source/sources.json').write_text(json.dumps({'sources': entries}))
-            self.assertEqual(len(verify_sources(root)), len(CORE_SOURCES))
+            verified = verify_sources(root)
+            self.assertEqual([root / entry['file'] for entry in verified], [root / 'source'] * len(CORE_SOURCES))
             (root / 'source').write_bytes(b'other')
             with self.assertRaisesRegex(ValueError, 'checksum'):
                 verify_sources(root)
+
+
+    def test_repack_requires_the_same_payload_and_source_snapshots(self):
+        raw = b'old city'
+        source = {'id': 'osm-guangdong', 'sha256': 'old source', 'bytes': 7}
+        report = {'payloadSha256': hashlib.sha256(raw).hexdigest(), 'sourceIntegrity': [source]}
+        require_matching_snapshot(raw, report, [dict(source, file='renamed.pbf')])
+        with self.assertRaisesRegex(ValueError, 'different snapshots'):
+            require_matching_snapshot(raw, report, [dict(source, sha256='new source')])
+        with self.assertRaisesRegex(ValueError, 'does not match its validation report'):
+            require_matching_snapshot(b'new city', report, [source])
 
 
 if __name__ == '__main__':

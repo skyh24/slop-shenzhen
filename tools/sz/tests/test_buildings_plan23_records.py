@@ -88,10 +88,10 @@ class _RecordBuildMixin:
             globfp_file.write_text('\n'.join(map(json.dumps, globfp)))
             reviews_file = directory / 'reviews.json'
             reviews_file.write_text(json.dumps({'version': 1, 'globfpExclusions': list(reviews)}))
-            with (patch('buildings.OVERTURE', overture_file), patch('buildings.GLOBFP_SZ', globfp_file),
-                  patch('buildings.FOOTPRINT_REVIEWS', reviews_file),
+            with (patch('buildings.FOOTPRINT_REVIEWS', reviews_file),
                   patch('buildings.load_landmark_bindings', return_value={})):
-                output = build_buildings(osm, box(*clip), report, height_overrides=height_overrides)
+                output = build_buildings(osm, box(*clip), report, height_overrides=height_overrides,
+                                         overture_path=overture_file, globfp_path=globfp_file)
         return {item['id']: item for item in output}, output, report
 
     def pending_objects(self, report):

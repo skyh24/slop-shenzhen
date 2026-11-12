@@ -2,6 +2,7 @@
 
 import pickle
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import osmium
 from shapely import wkb
@@ -9,6 +10,7 @@ from shapely.geometry import LineString, Polygon, box
 from shapely.ops import unary_union
 
 from geo import BAY_CONTEXT_BBOX
+from package_validation import sha256
 
 ROOT = Path(__file__).resolve().parents[2]
 PBF = ROOT / 'data/raw/guangdong-latest.osm.pbf'
@@ -54,12 +56,14 @@ def _classify_area(t):
     return None
 
 
-def read_osm(bbox, use_cache=True):
+def read_osm(bbox, use_cache=True, *, pbf=None, source_sha256=None):
+    pbf = PBF if pbf is None else Path(pbf)
+    source_sha256 = source_sha256 if source_sha256 is not None else sha256(pbf)
     if use_cache and CACHE.exists():
         with CACHE.open('rb') as f:
             cached = pickle.load(f)
         if (cached.get('bbox') == bbox and cached.get('bayContextBbox') == BAY_CONTEXT_BBOX
-                and cached.get('cacheVersion') == CACHE_VERSION):
+                and cached.get('cacheVersion') == CACHE_VERSION and cached.get('sourceSha256') == source_sha256):
             return cached
 
     w, s, e, n = bbox
@@ -67,7 +71,8 @@ def read_osm(bbox, use_cache=True):
     bay_context = box(*BAY_CONTEXT_BBOX)
     coastal_coverage = unary_union([clip, bay_context])
     wkbf = osmium.geom.WKBFactory()
-    out = {'cacheVersion': CACHE_VERSION, 'bbox': bbox, 'bayContextBbox': BAY_CONTEXT_BBOX,
+    out = {'cacheVersion': CACHE_VERSION, 'sourceSha256': source_sha256, 'bbox': bbox,
+           'bayContextBbox': BAY_CONTEXT_BBOX,
            'roads': [], 'coastline': [], 'bayCoastline': [], 'shoreWetlands': [],
            'buildings': [], 'water': [], 'wetland': [], 'green': [], 'plaza': []}
     # 闭合的 highway=pedestrian 面可能同时以 area 和 way 出现，按 OSM id 去重并保留面积更大的面
@@ -83,7 +88,7 @@ def read_osm(bbox, use_cache=True):
     keys = ('building', 'building:part', 'highway', 'natural', 'water', 'leisure', 'landuse', 'waterway',
             'place')
 
-    fp = (osmium.FileProcessor(str(PBF))
+    fp = (osmium.FileProcessor(str(pbf))
           .with_locations()
           .with_areas()
           .with_filter(osmium.filter.EntityFilter(osmium.osm.WAY | osmium.osm.AREA | osmium.osm.RELATION))
@@ -144,8 +149,11 @@ def read_osm(bbox, use_cache=True):
     out['plaza'] = list(plazas.values())
 
     CACHE.parent.mkdir(parents=True, exist_ok=True)
-    with CACHE.open('wb') as f:
-        pickle.dump(out, f)
+    with TemporaryDirectory(dir=CACHE.parent) as directory:
+        temporary = Path(directory) / CACHE.name
+        with temporary.open('wb') as f:
+            pickle.dump(out, f)
+        temporary.replace(CACHE)
     return out
 
 

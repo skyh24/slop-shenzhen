@@ -1,11 +1,13 @@
 """合并 OSM 和 Overture 建筑轮廓，按优先级确定楼高，并给出用途和立面类型。"""
 
+import hashlib
 import json
 import math
 import random
 import re
 import subprocess
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from shapely import STRtree
 from shapely.geometry import MultiPolygon, Polygon, box, shape
@@ -15,12 +17,17 @@ from shapely.validation import make_valid
 
 from building_parent_review import apply_reviewed_building_parent_uses
 from geo import project
+from package_validation import verify_sources
 from roads import CLASS_OF, DEFAULT_WIDTH, LANE_WIDTH
 
 ROOT = Path(__file__).resolve().parents[2]
-OVERTURE = ROOT / 'data/raw/overture/buildings-2026-10-21.0.jsonl'
 GLOBFP_DIR = ROOT / 'data/raw/globfp'
-GLOBFP_SZ = GLOBFP_DIR / 'globfp-sz.jsonl'
+GLOBFP_SHP = {
+    'globfp-2265': '2265_113.75_22.5_115.0_23.75_HKMacauCN_guangdongCN.shp',
+    'globfp-2269': '2269_112.5_20.0_115.0_22.5_HKMacauCN_guangdongCN.shp',
+}
+# 提取条件变化时更新版本，以免复用旧 JSONL。
+GLOBFP_EXTRACT_VERSION = 1
 LANDMARKS = ROOT / 'data/source/landmarks.json'
 FOOTPRINT_REVIEWS = ROOT / 'data/source/building-footprint-reviews.json'
 HEIGHT_OVERRIDES = ROOT / 'data/source/building-height-overrides.json'
@@ -385,27 +392,37 @@ def load_height_overrides(path=HEIGHT_OVERRIDES):
     return overrides
 
 
-def ensure_globfp():
-    if GLOBFP_SZ.exists():
-        return
-    shp = {
-        '2265': '2265_113.75_22.5_115.0_23.75_HKMacauCN_guangdongCN.shp',
-        '2269': '2269_112.5_20.0_115.0_22.5_HKMacauCN_guangdongCN.shp',
-    }
+def ensure_globfp(sources, use_cache=True):
+    signature = [GLOBFP_EXTRACT_VERSION, [(key, sources[key]['sha256']) for key in GLOBFP_SHP]]
+    digest = hashlib.sha256(json.dumps(signature).encode()).hexdigest()
+    target = GLOBFP_DIR / f'globfp-sz-{digest}.jsonl'
+    if use_cache and target.is_file():
+        return target
+
+    def sql_path(path):
+        return str(path).replace("'", "''")
+
     reads = ' UNION ALL '.join(
-        f"SELECT 'globfp-{k}' AS sourceId, OGC_FID, Height, geom "
-        f"FROM ST_Read('/vsizip/{GLOBFP_DIR / (k + '.zip')}/{v}')" for k, v in shp.items())
-    sql = (
-        "INSTALL spatial; LOAD spatial; "
-        f"COPY (SELECT sourceId, OGC_FID, Height, ST_AsGeoJSON(geom) AS g FROM ({reads}) "
-        "WHERE ST_XMin(geom) < 114.135 AND ST_XMax(geom) > 113.88 AND ST_YMin(geom) < 22.60 AND ST_YMax(geom) > 22.455) "
-        f"TO '{GLOBFP_SZ}' (FORMAT JSON);"
-    )
-    subprocess.run(['duckdb', '-c', sql], check=True)
+        f"SELECT '{key}' AS sourceId, OGC_FID, Height, geom "
+        f"FROM ST_Read('/vsizip/{sql_path(ROOT / sources[key]['file'])}/{member}')"
+        for key, member in GLOBFP_SHP.items())
+    GLOBFP_DIR.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(dir=GLOBFP_DIR) as directory:
+        temporary = Path(directory) / target.name
+        sql = (
+            "INSTALL spatial; LOAD spatial; "
+            f"COPY (SELECT sourceId, OGC_FID, Height, ST_AsGeoJSON(geom) AS g FROM ({reads}) "
+            "WHERE ST_XMin(geom) < 114.135 AND ST_XMax(geom) > 113.88 AND ST_YMin(geom) < 22.60 AND ST_YMax(geom) > 22.455) "
+            f"TO '{sql_path(temporary)}' (FORMAT JSON);"
+        )
+        subprocess.run(['duckdb', '-c', sql], check=True)
+        temporary.replace(target)
+    return target
 
 
-def load_globfp(clip_local, report):
-    ensure_globfp()
+def load_globfp(clip_local, report, path=None):
+    if path is None:
+        path = ensure_globfp({source['id']: source for source in verify_sources(source_ids=GLOBFP_SHP)})
     manifest = json.loads(FOOTPRINT_REVIEWS.read_text())
     if manifest['version'] != 1:
         raise ValueError('Unsupported building footprint review version')
@@ -415,7 +432,7 @@ def load_globfp(clip_local, report):
     excluded = set()
     audit = []
     matched = set()
-    with GLOBFP_SZ.open() as f:
+    with path.open() as f:
         for line in f:
             rec = json.loads(line)
             h = rec.get('Height')
@@ -625,7 +642,7 @@ def build_pending_review(buildings, road_lines, globfp_deferred, overture_deferr
 
 
 def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, height_overrides=None,
-                    include_remote_footprints=True):
+                    include_remote_footprints=True, overture_path=None, globfp_path=None):
     bindings = load_landmark_bindings()
     overrides = load_height_overrides() if height_overrides is None else height_overrides
     report['remoteFootprints'] = {'enabled': include_remote_footprints}
@@ -724,7 +741,9 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
     duplicates = 0
     overture_candidates = []
     if include_remote_footprints:
-        with OVERTURE.open() as f:
+        if overture_path is None:
+            overture_path = ROOT / verify_sources(source_ids=('overture-buildings',))[0]['file']
+        with overture_path.open() as f:
             for line in f:
                 rec = json.loads(line)
                 if rec.get('is_underground'):
@@ -749,7 +768,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
                     overture_candidates.append(record)
     report['overtureDuplicates'] = duplicates
 
-    gb_polys, gb_heights, gb_excluded = load_globfp(clip_local, report)
+    gb_polys, gb_heights, gb_excluded = load_globfp(clip_local, report, globfp_path)
     gb_tree = STRtree(gb_polys)
     report['globfpCandidates'] = len(gb_polys)
 

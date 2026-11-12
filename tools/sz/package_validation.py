@@ -29,10 +29,21 @@ def verify_sources(root=ROOT, source_ids=CORE_SOURCES):
         if actual != entry['sha256'] or path.stat().st_size != entry['bytes']:
             raise ValueError(f'Source checksum or size mismatch: {identity}')
         verified.append({'id': identity, 'sha256': actual, 'bytes': path.stat().st_size,
+                         'file': entry['file'], 'url': entry.get('resolved', entry.get('url')),
+                         'snapshotAt': entry.get('lastModified'),
                          'release': entry.get('release', entry.get('lastModified')),
                          'referenceYear': 2020 if identity.startswith('globfp-') else None,
                          'observedAt': entry.get('acquiredAt')})
     return verified
+
+
+def require_matching_snapshot(raw, report, sources):
+    if report.get('payloadSha256') != hashlib.sha256(raw).hexdigest():
+        raise ValueError('Existing city payload does not match its validation report; run a full build')
+    recorded = {entry['id']: (entry['sha256'], entry['bytes']) for entry in report.get('sourceIntegrity', [])}
+    verified = {entry['id']: (entry['sha256'], entry['bytes']) for entry in sources}
+    if recorded != verified:
+        raise ValueError('Existing city payload was built from different snapshots; run a full build')
 
 
 def ring_points(flat):

@@ -1,6 +1,5 @@
 """从锁定 OSM 快照生成深圳地铁；成员身份是关联依据，不按最近车站硬配。"""
 
-import hashlib
 import json
 import pickle
 import re
@@ -11,6 +10,7 @@ import osmium
 from shapely.geometry import LineString, Point, Polygon
 
 from geo import project
+from package_validation import sha256
 
 ROOT = Path(__file__).resolve().parents[2]
 PBF = ROOT / 'data/raw/guangdong-latest.osm.pbf'
@@ -49,15 +49,17 @@ def _is_entrance(tags):
 def _snapshot(pbf, source_manifest):
     data = json.loads(Path(source_manifest).read_text())
     source = next(s for s in data['sources'] if s['id'] == 'osm-guangdong')
-    digest = hashlib.sha256(Path(pbf).read_bytes()).hexdigest()
+    digest = sha256(Path(pbf))
     if source['sha256'] != digest:
         raise ValueError('Metro OSM snapshot hash mismatch')
     return {'sourceId': source['id'], 'sha256': digest, 'bytes': Path(pbf).stat().st_size,
             'snapshotAt': source.get('lastModified'), 'url': source.get('resolved', source['url'])}
 
 
-def read_metro(pbf=PBF, use_cache=True, cache=CACHE, source_manifest=ROOT / 'data/source/sources.json'):
-    source = _snapshot(pbf, source_manifest)
+def read_metro(pbf=PBF, use_cache=True, cache=CACHE, source_manifest=ROOT / 'data/source/sources.json',
+               *, source=None):
+    if source is None:
+        source = _snapshot(pbf, source_manifest)
     cache = Path(cache)
     if use_cache and cache.exists():
         with cache.open('rb') as stream:
@@ -295,8 +297,13 @@ def compile_metro(raw, clip, report):
     return result
 
 
-def build_metro(clip, report, use_cache=True):
-    return compile_metro(read_metro(use_cache=use_cache), clip, report)
+def build_metro(clip, report, use_cache=True, *, pbf=PBF, verified_source=None):
+    snapshot = None
+    if verified_source is not None:
+        snapshot = {'sourceId': verified_source['id'], 'sha256': verified_source['sha256'],
+                    'bytes': verified_source['bytes'], 'snapshotAt': verified_source['snapshotAt'],
+                    'url': verified_source['url']}
+    return compile_metro(read_metro(pbf, use_cache=use_cache, source=snapshot), clip, report)
 
 
 if __name__ == '__main__':

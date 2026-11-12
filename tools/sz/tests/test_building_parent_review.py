@@ -108,9 +108,15 @@ class BuildingParentReviewTests(unittest.TestCase):
             with patch('osm.PBF', pbf), patch('osm.CACHE', cache):
                 parsed = read_osm(PHASE1_BBOX)
                 self.assertEqual(parsed['cacheVersion'], CACHE_VERSION)
-            with patch('osm.PBF', directory / 'missing.osm.pbf'), patch('osm.CACHE', cache):
                 cached = read_osm(PHASE1_BBOX)
-            self.assertEqual(parsed, cached)
+                self.assertEqual(parsed, cached)
+                changed = directory / 'changed.osm.pbf'
+                with osmium.SimpleWriter(str(changed)) as writer:
+                    writer.add_node(osmium.osm.mutable.Node(id=1, version=1, location=(ORIGIN_LON, ORIGIN_LAT)))
+                changed.replace(pbf)
+                refreshed = read_osm(PHASE1_BBOX)
+                self.assertNotEqual(parsed['sourceSha256'], refreshed['sourceSha256'])
+                self.assertEqual(refreshed['buildings'], [])
             self.assertEqual({row['id']: row['tags']['building:use'] for row in parsed['buildings']
                               if 'building:use' in row['tags']}, uses)
 
@@ -119,10 +125,10 @@ class BuildingParentReviewTests(unittest.TestCase):
             overture = directory / 'overture.jsonl'
             overture.touch()
             report = {}
-            with (patch('building_parent_review.MANIFEST', manifest), patch('buildings.OVERTURE', overture),
+            with (patch('building_parent_review.MANIFEST', manifest),
                   patch('buildings.load_globfp', return_value=([], [], set())),
                   patch('buildings.load_landmark_bindings', return_value={})):
-                built = build_buildings(cached, box(-1, -1, 38, 21), report)
+                built = build_buildings(cached, box(-1, -1, 38, 21), report, overture_path=overture)
         by_id = {row['id']: row['category'] for row in built}
         self.assertEqual(by_id, {PART_IDS[0]: 'unknown', PART_IDS[1]: 'unknown', PART_IDS[2]: 'commercial',
                                  'way/9999': 'unknown'})

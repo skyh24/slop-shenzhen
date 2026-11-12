@@ -201,11 +201,11 @@ class OvertureMisidentifiedBuildTests(unittest.TestCase):
             globfp_file.write_text('')
             reviews_file = Path(directory) / 'reviews.json'
             reviews_file.write_text(json.dumps({'version': 1, 'globfpExclusions': []}))
-            with (patch('buildings.OVERTURE', overture_file), patch('buildings.GLOBFP_SZ', globfp_file),
-                  patch('buildings.FOOTPRINT_REVIEWS', reviews_file),
+            with (patch('buildings.FOOTPRINT_REVIEWS', reviews_file),
                   patch('buildings.load_landmark_bindings', return_value={})):
                 output = build_buildings({'buildings': list(osm_buildings), 'green': list(green),
-                                          'plaza': list(plaza), 'roads': list(roads)}, clip, report)
+                                          'plaza': list(plaza), 'roads': list(roads)}, clip, report,
+                                         overture_path=overture_file, globfp_path=globfp_file)
         return {item['id']: item for item in output}, report
 
     def test_overture_only_small_boxes_in_park_and_plaza_are_dropped_and_reported(self):
