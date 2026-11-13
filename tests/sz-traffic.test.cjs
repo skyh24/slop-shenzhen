@@ -631,5 +631,32 @@ test('a source-connected tunnel route stays on its own floor across every seam a
   });
   const drive = planner.route(planner.snap(-9600, 2622.37), planner.snap(-7940, 2605));
   assert.ok(drive && chain.every(edge => drive.edges.includes(edge)));
+  for (const id of ['nanping-xili-east', 'nanping-xili-west', 'nanguang-south', 'nanguang-north',
+    'huanggang-binhe-north', 'huanggang-binhe-south', 'beihuan-shahe-east', 'beihuan-shahe-west',
+    'nanping-branch-north', 'nanping-branch-south']) {
+    const records = geo.roadStructures.records.filter(row => row.route === id);
+    assert.ok(records.length >= 3, id);
+    const routeEdges = records.map(record => network.edges.find(edge => edge.sourceIndex === record.index));
+    assert.ok(routeEdges.every((edge, i) => edge && (!i || routeEdges[i - 1].next.includes(edge))), id);
+    const parts = records.map(record => built.links.find(link => link.index === record.index));
+    for (const [i, part] of parts.entries()) {
+      if (i) {
+        assert.deepEqual(part.frames[0].left, parts[i - 1].frames.at(-1).left, id);
+        assert.deepEqual(part.frames[0].right, parts[i - 1].frames.at(-1).right, id);
+      }
+      for (const frame of part.frames) {
+        const height = built.heightAt(frame.x, frame.z, part.surfaceId);
+        assert.ok(height !== null && Math.abs(height - frame.y) < 1e-5, `${part.osmId} @ ${frame.d}: ${height} vs ${frame.y}`);
+      }
+    }
+    if (id.startsWith('nanping-xili')) {
+      const first = routeEdges[0].segments[0];
+      const last = routeEdges.at(-1).segments.at(-1);
+      const from = planner.snap(first.x + first.dx * 14, first.z + first.dz * 14);
+      const to = planner.snap(last.x + last.dx * (last.length - 14), last.z + last.dz * (last.length - 14));
+      const full = from && to && planner.route(from, to);
+      assert.ok(full && routeEdges.every(edge => full.edges.includes(edge)), id);
+    }
+  }
   built.dispose();
 });

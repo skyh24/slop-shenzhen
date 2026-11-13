@@ -400,6 +400,8 @@ export function poseOnRoute(samples, s, model, roadHeight, pose) {
     if (index > 0) edges.unshift(edges.splice(index, 1)[0]);
   }
   let centerEdge = null;
+  const supportedSlabs = pose.supportedSlabs ??= new Set();
+  supportedSlabs.clear();
   const heightAt = (px, pz) => {
     const wx = x + px * cos + pz * sin;
     const wz = z - px * sin + pz * cos;
@@ -407,6 +409,7 @@ export function poseOnRoute(samples, s, model, roadHeight, pose) {
       const height = roadHeight(wx, wz, edge);
       if (Number.isFinite(height)) {
         if (px === 0 && pz === 0) centerEdge = edge;
+        if (edge?.surfaceId) supportedSlabs.add(edge.surfaceId);
         return height;
       }
     }
@@ -459,7 +462,7 @@ function makeObstacleIndex(colliders) {
       for (let z = Math.floor(body.minZ / BODY_CELL); z <= Math.floor(body.maxZ / BODY_CELL); z++) {
         for (const candidate of cells.get(cellKey(x, z)) ?? []) {
           if (!intersects(body, candidate)) continue;
-          if (candidate.type === 'bridge-slab' && (candidate.name === body.surfaceId
+          if (candidate.type === 'bridge-slab' && (body.supportedSlabs?.has(candidate.name)
             || (candidate.roadAccess && body.minY >= candidate.maxY - 0.28))) continue;
           if (!candidate.polygon) return candidate;
           let polygon = candidate.polygon;
@@ -644,7 +647,7 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
   function blockerOnRoute(actor, route, s, includeTraffic) {
     if (!poseOnRoute(route, s, actor.model, heightFor, scratch)) return { kind: 'road-contact', atS: s };
     const body = writeTrafficCollider(probe, actor.model, scratch);
-    body.surfaceId = scratch.edge?.surfaceId;
+    body.supportedSlabs = scratch.supportedSlabs;
     const blocker = blockedByBuilding(body) || (includeTraffic ? collides(body, actor) : null);
     return blocker ? { kind: blocker.type ?? 'static', id: blocker.id ?? blocker.sourceId ?? blocker.name ?? null,
       part: blocker.part ?? null, atS: s } : null;
@@ -686,6 +689,7 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
       if (signals?.contains(actor.pose.x, actor.pose.z, model.hz + 0.5)) continue;
       writeTrafficCollider(actor.collider, model, actor.pose);
       actor.collider.surfaceId = actor.pose.edge?.surfaceId;
+      actor.collider.supportedSlabs = actor.pose.supportedSlabs;
       if (blockedByBuilding(actor.collider) || collides(actor.collider, actor)) continue;
       const rearMargin = Math.hypot(model.hx, model.hz) + Math.abs(model.z) + 0.5;
       const routeStops = routeSignalStops(samples, signals, rearMargin).filter(stop => stop.s >= first);

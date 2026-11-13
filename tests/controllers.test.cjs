@@ -968,6 +968,21 @@ test('controller surface queries retain resolved elevated support and unknown re
   assert.equal(controller.getGroundHeight(20, 0), null);
 });
 
+test('a car spanning connected slab sections keeps contact and clears their shared seam', () => {
+  const { controller } = teleportHarness('car');
+  function slab(id, from, to, successor) {
+    const points = [[-3, from], [3, from], [3, to], [-3, to]].map(([x, z]) => ({ x, z, y: 4 + z * 0.045 }));
+    return { id, heightSource: 'estimate', structured: true, modes: ['car'], driveSuccessors: [successor, 'terrain'],
+      triangles: [[points[0], points[1], points[2]], [points[0], points[2], points[3]]] };
+  }
+  const first = slab('first', -12, 0, 'second'), second = slab('second', 0, 12, 'first');
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => 3.2, surfaces: [first, second] });
+  controller.colliders = [{ type: 'bridge-slab', name: 'second', minX: -3, maxX: 3, minZ: 0, maxZ: 12,
+    minY: 3.8, maxY: 4.54 }];
+  assert.equal(controller.isClearCarPose({ x: 0, y: 3.955, z: -1, heading: 0, surfaceId: 'first' }), true);
+  assert.equal(controller.isClearCarPose({ x: 0, y: 3.2, z: 5, heading: 0, surfaceId: 'terrain' }), false);
+});
+
 test('stationary player tires follow the four active contacts on a sloped deck and the road beneath', () => {
   const { controller } = keyboardHarness();
   const ground = (x, z) => 0.06 * x + 0.03 * z;

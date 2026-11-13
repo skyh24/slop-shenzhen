@@ -8,9 +8,9 @@ const PALETTE = { asphalt: 0x34393b, concrete: 0xb3bbb8, lining: 0x686d70, light
 
 export function graphWithRoadStructures(graph, plan) {
   if (!plan?.records.length) return graph;
-  const approaches = new Set(plan.records.filter(record => record.kind === 'tunnel').map(record => record.index));
+  const approaches = new Set(plan.records.map(record => record.index));
   return { ...graph, metadata: graph.metadata.map((meta, i) =>
-    approaches.has(i) && !meta.tunnel ? { ...meta, heightSource: 'structure-approach' } : meta) };
+    approaches.has(i) && meta.heightSource === 'terrain' ? { ...meta, heightSource: 'structure-approach' } : meta) };
 }
 
 function readFrames(stations) {
@@ -162,7 +162,17 @@ export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAl
     }
     const id = `sz-road-structure:${index}`;
     const tunnel = kind === 'tunnel';
+    const approach = kind === 'approach';
     const sideAllowance = tunnel ? 0.6 : 0.35;
+    // 长平接段可能远在坡脚之前就进入计划。接地权限沿共面段延续至刚开始抬升的位置。
+    const accessEnd = (fromEnd) => {
+      if (!approach || !groundHeight) return 13;
+      const ordered = fromEnd ? [...frames].reverse() : frames;
+      const gradeBreak = ordered.find(p => Math.abs(p.y - groundHeight(p.x, p.z)) > 0.08);
+      return gradeBreak ? Math.abs(gradeBreak.d - ordered[0].d) + 5 : last.d;
+    };
+    const startAccessM = sharedStart ? accessEnd(false) : 0;
+    const endAccessM = sharedEnd ? accessEnd(true) : 0;
 
     const topTriangles = [];
     const roofTriangles = [];
@@ -180,8 +190,8 @@ export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAl
       const floor = quad([a.left, a.right, b.right, b.left]);
       topTriangles.push(...floor);
       batch.asphalt.push(...floor);
-      const entry = sharedStart && a.d < 13;
-      const exit = sharedEnd && b.d > last.d - 13;
+      const entry = sharedStart && a.d < startAccessM;
+      const exit = sharedEnd && b.d > last.d - endAccessM;
       if (entry || exit) accessTriangles.push(...floor);
 
       if (tunnel) {
@@ -220,6 +230,11 @@ export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAl
           }
           nextLight += 18;
         }
+      } else if (approach) {
+        const soil = footprint.map(p => (groundHeight?.(p.x, p.z) ?? p.y) - p.y);
+        if (soil.some(y => y < -0.04)) {
+          solid(batch.concrete, colliders, 'bridge-slab', id, footprint, soil.map(y => Math.min(0, y)), [0, 0, 0, 0], entry || exit, false);
+        }
       } else {
         solid(batch.concrete, colliders, 'bridge-slab', id, footprint, Array(4).fill(-plan.bridgeSlabM), [0, 0, 0, 0], entry || exit, false);
         if (!entry && !exit) for (const [side, opposite] of [['left', 'right'], ['right', 'left']]) {
@@ -239,10 +254,19 @@ export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAl
           nextPier += 42;
         }
       }
+      const withinGroundApron = (sharedStart && a.d < openApronM - 1e-5)
+        || (sharedEnd && b.d > last.d - openApronM + 1e-5);
+      if (!tunnel && groundHeight && !withinGroundApron) {
+        for (const [side, opposite] of [['left', 'right'], ['right', 'left']]) {
+          const wall = [a[side], b[side], inset(b[side], b[opposite], 0.25), inset(a[side], a[opposite], 0.25)];
+          const height = wall.map(p => Math.max(0, groundHeight(p.x, p.z) - p.y));
+          if (Math.max(...height) > 0.06) solid(batch.concrete, colliders, 'road-cut-wall', id, wall, [0, 0, 0, 0], height);
+        }
+      }
     }
     const surface = { id, heightSource: 'estimate', triangles: topTriangles, accessTriangles,
       modes: ['car'], driveSuccessors: [], structured: true };
-    const road = { index, osmId: record.way, name: graph.names[link[2]], direction: link[5], layer: tunnel ? -1 : 1,
+    const road = { index, osmId: record.way, name: graph.names[link[2]], direction: link[5], layer: record.layer ?? (tunnel ? -1 : 1),
       width: widthM, lanes, laneSource: lanes && !link[4] ? 'municipal-design' : undefined,
       barrierWidthM: sideAllowance, frames, points: roadLinkPoints(graph, link),
       topTriangles, surfaceId: id, startNode: link[0], endNode: link[1], sharedStart, sharedEnd,

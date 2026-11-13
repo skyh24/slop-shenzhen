@@ -1,6 +1,7 @@
 """由已审核的源边编译桥隧纵断面及同源洞口边界。"""
 
 import math
+from bisect import bisect_right
 from collections import defaultdict
 
 from shapely import make_valid
@@ -43,7 +44,11 @@ def station_frames(points, events, profile, width_at):
     for a, b in zip(points, points[1:]):
         corners.append(corners[-1] + math.dist(a, b))
     # 源折点和洞顶起终点为固定站，细分其间距离后仍保留源中心线。
-    distances = sorted(set(round(s, 6) for s in [*events, *corners]))
+    distances = [0.]
+    for s in sorted(set(round(s, 6) for s in [*events, *corners[1:-1]])):
+        if s - distances[-1] >= 0.025 and line.length - s >= 0.025:
+            distances.append(s)
+    distances.append(round(line.length, 6))
     runs = []
     for a, b in zip(distances, distances[1:]):
         steps = math.ceil((b - a) / 4)
@@ -69,22 +74,119 @@ def strip(frames, extra=0):
         width = math.hypot(px - x, pz - z)
         return px + (px - x) / width * extra, pz + (pz - z) / width * extra
 
-    return unary_union([Polygon([edge(a, 4), edge(b, 4), edge(b, 6), edge(a, 6)])
-                        for a, b in zip(frames, frames[1:])])
+    triangles = []
+    for a, b in zip(frames, frames[1:]):
+        left_a, right_a, left_b, right_b = edge(a, 4), edge(a, 6), edge(b, 4), edge(b, 6)
+        triangles.extend((Polygon([left_a, right_a, right_b]), Polygon([left_a, right_b, left_b])))
+    return unary_union([triangle for triangle in triangles if triangle.area > 1e-9])
 
 
-def compile_route(route, graph, grid, by_way, config):
+def resolve_route(route, graph, by_way):
     nodes = graph['nodeIds']
+    if path := route.get('pathNodes'):
+        if len(path) != len(route['ways']) + 1 or [path[0], path[-1]] != route['portalNodes']:
+            raise ValueError('Reviewed path does not match route endpoints')
+        indices = []
+        for way, a, b in zip(route['ways'], path, path[1:]):
+            matches = [i for i in by_way[way] if [nodes[n] for n in graph['links'][i][:2]] == [a, b]]
+            if len(matches) != 1:
+                raise ValueError(f'Reviewed way and nodes do not identify one link: {way}')
+            indices.extend(matches)
+        return indices
     paths_by_end = {nodes.index(route['portalNodes'][0]): []}
     for way in route['ways']:
         paths_by_end = {graph['links'][i][1]: [*paths_by_end[graph['links'][i][0]], i]
                         for i in by_way[way] if graph['links'][i][0] in paths_by_end}
-    indices = paths_by_end.get(nodes.index(route['portalNodes'][1]))
+    return paths_by_end.get(nodes.index(route['portalNodes'][1]))
+
+
+def sampled_grade(frames):
+    return max(abs(b[2] - a[2]) / max(1e-9, math.hypot(b[x] - a[x], b[z] - a[z]))
+               for a, b in zip(frames, frames[1:]) for x, z in ((1, 3), (4, 5), (6, 7)))
+
+
+def compile_reviewed_profile(route, graph, grid, indices, config):
+    links = [graph['links'][i] for i in indices]
+    lines = [LineString(source_points(graph, link)) for link in links]
+    total = sum(line.length for line in lines)
+    station, heights = map(list, zip(*route['profileM']))
+    shared = [not graph['nodeIds'][node].startswith('clip/') for node in (links[0][0], links[-1][1])]
+    if station[0] != 0 or abs(station[-1] - total) > 0.05 or any(a >= b for a, b in zip(station, station[1:])):
+        raise ValueError('Reviewed profile stations no longer match the source route')
+    station[-1] = total
+    for i, line in enumerate((lines[0], lines[-1])):
+        endpoint = 0 if i == 0 else -1
+        if shared[i]:
+            expected = ground_height(grid, *line.coords[endpoint])
+            if abs(expected - heights[endpoint]) > 0.05:
+                raise ValueError('Reviewed profile does not meet the existing road at its endpoint')
+            heights[endpoint] = expected
+    if any(abs(b - a) * 1.5 / (end - start) > config['maxGrade'] for a, b, start, end in
+           zip(heights, heights[1:], station, station[1:])):
+        raise ValueError('Reviewed vertical curve exceeds maximum grade')
+
+    def profile(s):
+        i = max(0, min(len(station) - 2, bisect_right(station, s) - 1))
+        return heights[i] + (heights[i + 1] - heights[i]) * ease((s - station[i]) / (station[i + 1] - station[i]))
+
+    records, openings, envelope = [], [], []
+    distance = 0
+    portal_ways = set(route.get('portalApproachWays', []))
+    for j, (index, link, line) in enumerate(zip(indices, links, lines, strict=True)):
+        meta = graph['metadata'][index]
+        tunnel = bool(meta['tunnel'])
+        portal = meta['osmId'] in portal_ways
+        bridge = bool(meta['bridge'])
+        if tunnel and meta['osmId'] not in route.get('boreWays', []):
+            raise ValueError(f"Unreviewed tunnel in profile: {meta['osmId']}")
+        if not (tunnel or bridge or meta['heightSource'] == 'terrain'):
+            raise ValueError(f"Unknown elevation on reviewed route: {meta['osmId']}")
+        width, lanes = link[3:5]
+        events = [s - distance for s in station if distance < s < distance + line.length]
+        start_apron = route.get('groundApronM', [0, 0])[0] if j == 0 and shared[0] else 0
+        end_apron = route.get('groundApronM', [0, 0])[1] if j == len(links) - 1 and shared[1] else 0
+        events.extend([start_apron, line.length - end_apron])
+        frames = station_frames(list(line.coords), events, lambda s: profile(distance + s), lambda _: width)
+        grade = sampled_grade(frames)
+        if grade > config['maxGrade']:
+            raise ValueError(f"Rendered longitudinal grade exceeds cap: {meta['osmId']} {grade:.5f}")
+        if tunnel:
+            # 洞顶按纵断面求标高，地形仅用来校验覆土。
+            roof = config['tunnelClearanceM'] + config['tunnelRoofM']
+            for frame in frames:
+                if min(ground_height(grid, frame[k], frame[k + 1]) for k in (4, 6)) < frame[2] + roof - 0.03:
+                    raise ValueError(f"Insufficient cover at reviewed mountain bore: {meta['osmId']}")
+            envelope.append(strip(frames, config['tunnelWallM']))
+        else:
+            # 挖方仅裁去路线实际低于地坪的断面。高出地坪的部分由实体路基承托。
+            for a, b in zip(frames, frames[1:]):
+                if a[0] < start_apron or b[0] > frames[-1][0] - end_apron + 1e-5:
+                    continue
+                if any(ground_height(grid, frame[k], frame[k + 1]) > frame[2] + 0.015
+                       for frame in (a, b) for k in (4, 6)):
+                    openings.append(strip([a, b]))
+            if portal:
+                envelope.append(strip(frames, config['tunnelWallM']))
+        kind = 'tunnel' if tunnel or portal else 'bridge' if bridge else 'approach'
+        records.append({'index': index, 'way': meta['osmId'], 'route': route['id'], 'kind': kind,
+                        'layer': meta['layer'], 'heightSource': 'project-design-estimate',
+                        'stations': [value for frame in frames for value in frame], 'stationOffsetM': round(distance, 6),
+                        'widthM': width, 'lanes': lanes, 'sharedStart': j == 0 and shared[0],
+                        'sharedEnd': j == len(links) - 1 and shared[1], 'coverM': [0, frames[-1][0]] if tunnel else [0, 0] if portal else None,
+                        'openApronM': max(start_apron, end_apron), 'maxGrade': round(grade, 6)})
+        distance += line.length
+    return records, unary_union(openings), unary_union(envelope)
+
+
+def compile_route(route, graph, grid, by_way, config):
+    indices = resolve_route(route, graph, by_way)
     if not indices:
         raise ValueError('Reviewed way sequence does not connect both endpoint nodes')
     links = [graph['links'][i] for i in indices]
     if any(link[5] != 1 for link in links) or any(a[1] != b[0] for a, b in zip(links, links[1:])):
         raise ValueError('Route must have continuous, forward source nodes')
+    if route.get('profileM'):
+        return compile_reviewed_profile(route, graph, grid, indices, config)
     tunnel = route['kind'] == 'tunnel'
     if tunnel and any(graph['metadata'][i]['tunnel'] != (graph['metadata'][i]['osmId'] == route['boreWay']) for i in indices):
         raise ValueError('Reviewed tunnel source tags have changed')
@@ -132,10 +234,7 @@ def compile_route(route, graph, grid, by_way, config):
 
         events = [value - distance for value in (apron, transition, total - transition, total - apron) if distance < value < distance + length]
         frames = station_frames(path, events, lambda s: profile(distance + s), width_at)
-        max_grade = 0
-        for a, b in zip(frames, frames[1:]):
-            for ax, az in ((1, 3), (4, 5), (6, 7)):
-                max_grade = max(max_grade, abs(b[2] - a[2]) / max(1e-9, math.hypot(b[ax] - a[ax], b[az] - a[az])))
+        max_grade = sampled_grade(frames)
         if max_grade > config['maxGrade']:
             raise ValueError(f'Rendered longitudinal grade exceeds cap: {max_grade:.5f}')
         cover = [max(0, transition - distance), min(length, total - transition - distance)]
@@ -197,52 +296,61 @@ def compile_road_structures(payload, manifest, report, *, base=None):
     grid = payload['terrain']
     road_lines = [LineString(source_points(graph, link)) for link in graph['links']]
     road_tree = STRtree(road_lines)
-    routes, records, openings, envelopes, conflicts = [], [], [], [], []
-    clearances = []
+    accepted, conflicts = [], []
     for route in manifest['routes']:
         try:
             parts, opening, envelope = compile_route(route, graph, grid, by_way, manifest)
-            if route['kind'] == 'bridge':
-                clearance, crossings = bridge_crossing_clearance(parts[0], graph, grid, road_lines, road_tree,
-                                                                  manifest['bridgeSlabM'])
+            clearances = []
+            for part in parts:
+                if part['kind'] != 'bridge':
+                    continue
+                clearance, crossings = bridge_crossing_clearance(part, graph, grid, road_lines, road_tree, manifest['bridgeSlabM'])
                 if clearance is not None and clearance < manifest['minimumVehicleClearanceM']:
                     raise ValueError(f'Bridge underside clearance is insufficient: {clearance:.3f} m')
-                clearances.append({'route': route['id'], 'minimumM': clearance, 'crossingWays': crossings})
-            if not envelope.is_empty and any(envelope.intersection(other).area > 0.01 for other in envelopes):
+                clearances.append({'route': route['id'], 'way': part['way'], 'minimumM': clearance, 'crossingWays': crossings})
+            if not envelope.is_empty and any(envelope.intersection(other).area > 0.01 for _, _, _, other, _ in accepted):
                 raise ValueError('Adjacent bore envelopes overlap')
         except ValueError as error:
             conflicts.append({'route': route['id'], 'ways': route['ways'], 'reason': str(error)})
             continue
-        routes.append(route)
-        records.extend(parts)
-        openings.append(opening)
-        envelopes.append(envelope)
-    # 只在审核路线的敞开段裁地形，已覆盖段继续由原地表承托上方道路。
-    mask = unary_union(openings)
-    if not mask.is_empty:
-        # 洞口不能切进相邻地面道路或建筑轮廓。
-        replacements = {r['index'] for r in records if r['kind'] == 'tunnel'}
-        temp_graph = {**graph, 'metadata': [dict(m, heightSource='structure-approach') if i in replacements else m
-                                         for i, m in enumerate(graph['metadata'])]}
-        carriageway, details = ground_carriageway_mask(mask, temp_graph)
-        building_shapes = []
+        accepted.append((route, parts, opening, envelope, clearances))
+    # 仅剔除发生冲突的开挖路线。被剔除的路线恢复为原始地面后，再校验剩余洞口。
+    if any(not opening.is_empty for _, _, opening, _, _ in accepted):
+        bounds = unary_union([opening for _, _, opening, _, _ in accepted]).bounds
         b = payload['buildings']
+        building_shapes = []
         for i, rings in enumerate(b['rings']):
             outer = ring_points(rings[0])
-            min_x, min_z, max_x, max_z = mask.bounds
+            min_x, min_z, max_x, max_z = bounds
             if max(x for x, _ in outer) < min_x or min(x for x, _ in outer) > max_x \
                 or max(z for _, z in outer) < min_z or min(z for _, z in outer) > max_z:
                 continue
             building_shapes.append((b['id'][i], make_valid(Polygon(outer, [ring_points(r) for r in rings[1:]]))))
-        blocked = [source_id for source_id, shape in building_shapes if shape.intersection(mask).area > 0.01]
-        if carriageway.area > 0.05 or blocked:
-            reason = {'groundRoads': details['roadOsmIds'], 'roadOverlapM2': round(carriageway.area, 3),
-                      'buildings': sorted(set(blocked))}
-            conflicts.extend({'route': r['id'], 'ways': r['ways'], 'reason': reason}
-                             for r in routes if r['kind'] == 'tunnel')
-            routes = [r for r in routes if r['kind'] != 'tunnel']
-            records = [r for r in records if r['kind'] != 'tunnel']
-            mask = Polygon()
+        building_tree = STRtree([shape for _, shape in building_shapes])
+    while any(not opening.is_empty for _, _, opening, _, _ in accepted):
+        replacements = {part['index'] for _, parts, _, _, _ in accepted for part in parts}
+        temp_graph = {**graph, 'metadata': [dict(m, heightSource='structure-approach') if i in replacements else m
+                                         for i, m in enumerate(graph['metadata'])]}
+        keep = []
+        for candidate in accepted:
+            route, _, opening, _, _ = candidate
+            if not opening.is_empty:
+                carriageway, details = ground_carriageway_mask(opening, temp_graph)
+                blocked = [building_shapes[i][0] for i in building_tree.query(opening, predicate='intersects')
+                           if building_shapes[i][1].intersection(opening).area > 0.01]
+                if carriageway.area > 0.05 or blocked:
+                    reason = {'groundRoads': details['roadOsmIds'], 'roadOverlapM2': round(carriageway.area, 3),
+                              'buildings': sorted(set(blocked))}
+                    conflicts.append({'route': route['id'], 'ways': route['ways'], 'reason': reason})
+                    continue
+            keep.append(candidate)
+        if len(keep) == len(accepted):
+            break
+        accepted = keep
+    routes = [route for route, _, _, _, _ in accepted]
+    records = [part for _, parts, _, _, _ in accepted for part in parts]
+    clearances = [row for _, _, _, _, clearances in accepted for row in clearances]
+    mask = unary_union([opening for _, _, opening, _, _ in accepted])
     previous = payload.get('roadStructures')
     configuration = {key: value for key, value in manifest.items() if key not in ('routes', 'landscape')}
     landscape = compile_landscape(payload, manifest.get('landscape'), graph, road_lines)

@@ -707,15 +707,17 @@ export function validateCityPayload(raw) {
     const routes = new Map(structures.routes.map(route => [route.id, route]));
     const seen = new Set();
     for (const row of structures.records) {
+      const route = routes.get(row?.route);
       requireData(Number.isInteger(row?.index) && graph.metadata[row.index]?.osmId === row.way && !seen.has(row.index)
-        && ['bridge', 'tunnel'].includes(row.kind) && routes.get(row.route)?.kind === row.kind
-        && routes.get(row.route).ways?.includes(row.way)
+        && ['bridge', 'tunnel', 'approach'].includes(row.kind)
+        && (route?.kind === row.kind || route?.kind === 'mixed' || (route?.kind === 'bridge' && row.kind === 'approach'))
+        && route?.ways?.includes(row.way) && (row.layer === undefined || Number.isFinite(row.layer))
         && Number.isFinite(row.widthM) && row.widthM > 0 && Number.isInteger(row.lanes) && row.lanes >= 0
         && Number.isFinite(row.stationOffsetM) && row.stationOffsetM >= 0
         && Number.isFinite(row.maxGrade) && row.maxGrade >= 0 && row.maxGrade <= structures.maxGrade
         && Number.isFinite(row.openApronM) && row.openApronM >= 0
         && typeof row.sharedStart === 'boolean' && typeof row.sharedEnd === 'boolean'
-        && (row.kind === 'bridge' ? row.coverM === null : row.coverM?.length === 2 && row.coverM.every(Number.isFinite))
+        && (row.kind !== 'tunnel' ? row.coverM === null : row.coverM?.length === 2 && row.coverM.every(Number.isFinite))
         && Array.isArray(row.stations) && row.stations.length >= 16 && row.stations.length % 8 === 0
         && row.stations[0] === 0 && row.stations.every((value, i) => Number.isFinite(value)
           && (i < 8 || i % 8 !== 0 || value > row.stations[i - 8])), 'structure stations');

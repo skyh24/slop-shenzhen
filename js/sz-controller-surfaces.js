@@ -142,7 +142,11 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
     if (structured.has(previousSurfaceId)) {
       if (same) return same;
       const successors = driveSuccessors.get(previousSurfaceId) ?? [];
-      return reachable.find(c => successors.includes(c.surfaceId)) ?? null;
+      for (const id of successors) {
+        const next = reachable.find(c => c.surfaceId === id);
+        if (next) return next;
+      }
+      return null;
     }
     if (previousSurfaceId === 'terrain' && mode === 'car') {
       const access = reachable.find(c => c.roadAccess && (!same || c.height > same.height + 1e-5));

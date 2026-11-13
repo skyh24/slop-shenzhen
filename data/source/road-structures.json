@@ -71,6 +71,562 @@
       "exitWidthM": 16.2,
       "depthSource": "project-estimate-for-vehicle-clearance-under-existing-ground",
       "requestedDepthM": 3
+    },
+    {
+      "id": "huanggang-binhe-north",
+      "kind": "bridge",
+      "source": "https://jtys.sz.gov.cn/attachment/0/776/776712/8769001.pdf",
+      "ways": [
+        "way/997152261",
+        "way/41019622",
+        "way/41019786"
+      ],
+      "pathNodes": [
+        "node/14331300079",
+        "node/500021304",
+        "node/500023063",
+        "node/500023064"
+      ],
+      "portalNodes": [
+        "node/14331300079",
+        "node/500023064"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          162,
+          13
+        ],
+        [
+          319.2526,
+          13
+        ],
+        [
+          531.2852,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-with-5m-first-bridge-level"
+    },
+    {
+      "id": "huanggang-binhe-south",
+      "kind": "bridge",
+      "source": "https://jtys.sz.gov.cn/attachment/0/776/776712/8769001.pdf",
+      "ways": [
+        "way/1216685968",
+        "way/41019785",
+        "way/74017037"
+      ],
+      "pathNodes": [
+        "node/500023088",
+        "node/500021302",
+        "node/500021006",
+        "node/500021035"
+      ],
+      "portalNodes": [
+        "node/500023088",
+        "node/500021035"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          210,
+          13
+        ],
+        [
+          379.9762,
+          13
+        ],
+        [
+          568.9106,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-with-5m-first-bridge-level"
+    },
+    {
+      "id": "nanping-branch-north",
+      "kind": "mixed",
+      "source": "https://www.sz.gov.cn/cn/xxgk/zfxxgj/tzgg/content/mpost_8387208.html",
+      "ways": [
+        "way/249534268",
+        "way/495113720",
+        "way/96327293",
+        "way/96327311"
+      ],
+      "pathNodes": [
+        "node/1824576249",
+        "node/1824576252",
+        "node/1116448854",
+        "node/1116448445",
+        "node/2550463337"
+      ],
+      "portalNodes": [
+        "node/1824576249",
+        "node/2550463337"
+      ],
+      "profileM": [
+        [
+          0,
+          48.7925
+        ],
+        [
+          130,
+          52.9
+        ],
+        [
+          1519.914,
+          69.4
+        ],
+        [
+          1919.914,
+          69.0371
+        ]
+      ],
+      "profileSource": "project-design-estimate-from-source-portals",
+      "boreWays": [
+        "way/96327293"
+      ],
+      "portalApproachWays": [
+        "way/495113720",
+        "way/96327311"
+      ],
+      "groundApronM": [
+        0,
+        8
+      ]
+    },
+    {
+      "id": "nanping-branch-south",
+      "kind": "mixed",
+      "source": "https://www.sz.gov.cn/cn/xxgk/zfxxgj/tzgg/content/mpost_8387208.html",
+      "ways": [
+        "way/248224196",
+        "way/96327299",
+        "way/96327303"
+      ],
+      "pathNodes": [
+        "node/2367043556",
+        "node/1116449041",
+        "node/1116448622",
+        "node/1824576240"
+      ],
+      "portalNodes": [
+        "node/2367043556",
+        "node/1824576240"
+      ],
+      "profileM": [
+        [
+          0,
+          44.8716
+        ],
+        [
+          735,
+          66
+        ],
+        [
+          2100,
+          62
+        ],
+        [
+          2444,
+          50.7
+        ],
+        [
+          2515.3046,
+          50.4756
+        ]
+      ],
+      "profileSource": "project-design-estimate-from-source-portals",
+      "boreWays": [
+        "way/96327299"
+      ],
+      "portalApproachWays": [
+        "way/248224196",
+        "way/96327303"
+      ],
+      "groundApronM": [
+        0,
+        8
+      ]
+    },
+    {
+      "id": "beihuan-shahe-east",
+      "kind": "bridge",
+      "source": "https://szjj.sz.gov.cn/m/YD_ZWGK/YD_ZCFG/YD_JCJD234/content/post_12991777.html",
+      "ways": [
+        "way/1466213100",
+        "way/25529163",
+        "way/1463622147"
+      ],
+      "pathNodes": [
+        "node/277189225",
+        "node/277189226",
+        "node/278219336",
+        "node/5903376013"
+      ],
+      "portalNodes": [
+        "node/277189225",
+        "node/5903376013"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          395.0458,
+          13
+        ],
+        [
+          598.7384,
+          13
+        ],
+        [
+          1120.2868,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-with-5m-first-bridge-level"
+    },
+    {
+      "id": "beihuan-shahe-west",
+      "kind": "bridge",
+      "source": "https://szjj.sz.gov.cn/m/YD_ZWGK/YD_ZCFG/YD_JCJD234/content/post_12991777.html",
+      "ways": [
+        "way/1463622136",
+        "way/220885821",
+        "way/220885830"
+      ],
+      "pathNodes": [
+        "node/1116415143",
+        "node/2299641583",
+        "node/2299641590",
+        "node/2397987741"
+      ],
+      "portalNodes": [
+        "node/1116415143",
+        "node/2397987741"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          489.3232,
+          13
+        ],
+        [
+          692.6904,
+          13
+        ],
+        [
+          1162.9344,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-with-5m-first-bridge-level"
+    },
+    {
+      "id": "nanping-xili-east",
+      "kind": "mixed",
+      "source": "https://jtys.sz.gov.cn/ydmh/xxgk/qt_179794/zdjsxm_179796/content/post_4435419.html",
+      "ways": [
+        "way/963403144",
+        "way/375061135",
+        "way/375061135",
+        "way/963575158",
+        "way/963575158",
+        "way/963575160",
+        "way/374380004",
+        "way/1125426272",
+        "way/374379998",
+        "way/581971318",
+        "way/221018213",
+        "way/221018208",
+        "way/581971317",
+        "way/227775718",
+        "way/227775718",
+        "way/377693334"
+      ],
+      "pathNodes": [
+        "node/8911560198",
+        "node/8911556597",
+        "node/9722598837",
+        "node/8911556590",
+        "node/4816427539",
+        "node/3784468312",
+        "node/2364454574",
+        "node/2364454543",
+        "node/2364454544",
+        "node/2300712835",
+        "node/2300712962",
+        "node/2300712874",
+        "node/5567120473",
+        "node/2364352866",
+        "node/2300712922",
+        "node/2550319130",
+        "node/1597581718"
+      ],
+      "portalNodes": [
+        "node/8911560198",
+        "node/1597581718"
+      ],
+      "profileM": [
+        [
+          0,
+          8
+        ],
+        [
+          490,
+          23
+        ],
+        [
+          4080,
+          23
+        ],
+        [
+          4400,
+          18
+        ],
+        [
+          7980,
+          18
+        ],
+        [
+          8850.04,
+          44
+        ],
+        [
+          9439.78,
+          46.5
+        ],
+        [
+          10320,
+          68
+        ],
+        [
+          11680,
+          68
+        ],
+        [
+          12296.08,
+          61
+        ],
+        [
+          12894.1214,
+          58.4321
+        ]
+      ],
+      "profileSource": "project-design-estimate-with-10m-first-bridge-level",
+      "groundApronM": [
+        0,
+        8
+      ],
+      "boreWays": [
+        "way/221018213"
+      ],
+      "portalApproachWays": [
+        "way/581971318",
+        "way/221018208"
+      ]
+    },
+    {
+      "id": "nanping-xili-west",
+      "kind": "mixed",
+      "source": "https://jtys.sz.gov.cn/ydmh/xxgk/qt_179794/zdjsxm_179796/content/post_4435419.html",
+      "ways": [
+        "way/683489208",
+        "way/248200241",
+        "way/248200241",
+        "way/227775714",
+        "way/581971316",
+        "way/221018212",
+        "way/221018211",
+        "way/227785952",
+        "way/227785952",
+        "way/374380001",
+        "way/374380001",
+        "way/374380001",
+        "way/963575161",
+        "way/963575161",
+        "way/377809340",
+        "way/377809340",
+        "way/377809340",
+        "way/963403135"
+      ],
+      "pathNodes": [
+        "node/6401878660",
+        "node/1824576263",
+        "node/1824576273",
+        "node/2300712872",
+        "node/2300712910",
+        "node/2300712851",
+        "node/2300712936",
+        "node/2300712892",
+        "node/2364441092",
+        "node/2364441057",
+        "node/2364441056",
+        "node/3784468309",
+        "node/3784468316",
+        "node/8450019267",
+        "node/3812076431",
+        "node/11198155306",
+        "node/11198155305",
+        "node/3812076382",
+        "node/8909579642"
+      ],
+      "portalNodes": [
+        "node/6401878660",
+        "node/8909579642"
+      ],
+      "profileM": [
+        [
+          0,
+          56.9871
+        ],
+        [
+          330,
+          63
+        ],
+        [
+          1188.6195156537167,
+          66
+        ],
+        [
+          2398.6195156537165,
+          66
+        ],
+        [
+          3068.6195156537165,
+          52
+        ],
+        [
+          3485.6295156537167,
+          47
+        ],
+        [
+          4091.4495156537164,
+          44
+        ],
+        [
+          4968.369515653717,
+          18
+        ],
+        [
+          8508.369515653716,
+          18
+        ],
+        [
+          8798.369515653716,
+          23
+        ],
+        [
+          12418.369515653716,
+          23
+        ],
+        [
+          12911.421,
+          8
+        ]
+      ],
+      "profileSource": "project-design-estimate-with-10m-first-bridge-level",
+      "groundApronM": [
+        8,
+        0
+      ],
+      "boreWays": [
+        "way/221018212"
+      ],
+      "portalApproachWays": [
+        "way/581971316",
+        "way/221018211"
+      ]
+    },
+    {
+      "id": "nanguang-south",
+      "kind": "bridge",
+      "source": "https://jtys.sz.gov.cn/zwgk/ggqsydw/gsgl/",
+      "ways": [
+        "way/1206538156",
+        "way/238682062",
+        "way/479637183"
+      ],
+      "pathNodes": [
+        "clip/way/1206538156/4/0/a",
+        "node/2464843175",
+        "node/2464843146",
+        "node/277486152"
+      ],
+      "portalNodes": [
+        "clip/way/1206538156/4/0/a",
+        "node/277486152"
+      ],
+      "profileM": [
+        [
+          0,
+          13
+        ],
+        [
+          250,
+          13
+        ],
+        [
+          590,
+          8
+        ],
+        [
+          1029.937,
+          8
+        ]
+      ],
+      "profileSource": "project-design-estimate-with-5m-first-bridge-level"
+    },
+    {
+      "id": "nanguang-north",
+      "kind": "bridge",
+      "source": "https://jtys.sz.gov.cn/zwgk/ggqsydw/gsgl/",
+      "ways": [
+        "way/478028558",
+        "way/238682064",
+        "way/1206538157"
+      ],
+      "pathNodes": [
+        "node/1795586964",
+        "node/1795586988",
+        "node/2464842963",
+        "clip/way/1206538157/0/0/b"
+      ],
+      "portalNodes": [
+        "node/1795586964",
+        "clip/way/1206538157/0/0/b"
+      ],
+      "profileM": [
+        [
+          0,
+          8
+        ],
+        [
+          560,
+          8
+        ],
+        [
+          903,
+          13
+        ],
+        [
+          1155.1605,
+          13
+        ]
+      ],
+      "profileSource": "project-design-estimate-with-5m-first-bridge-level"
     }
   ],
   "minimumVehicleClearanceM": 3.7,

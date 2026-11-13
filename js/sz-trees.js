@@ -438,7 +438,8 @@ export function buildSzTrees(scene, payload, options = {}) {
     const habit = CROWN_SPECIES[crownTemplate];
     const trunkHeight = height * habit.trunkRatio;
     const trunkRadius = crown * habit.trunkRadiusRatio;
-    if (options.carriagewayOccupied?.(x, z, trunkRadius)) {
+    if (options.carriagewayOccupied?.(x, z, trunkRadius) || (sourceName.startsWith('simulated-')
+      && probes.some(([dx, dz]) => options.deckOccupied?.(x + dx * trunkRadius, z + dz * trunkRadius, baseY, baseY + height)))) {
       skipped.roadConflict++;
       continue;
     }

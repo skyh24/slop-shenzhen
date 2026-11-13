@@ -119,7 +119,7 @@ function collisionBody(mode, radius, heading, margin = 0, bounds = null) {
 
 // 运动和传送共用脚印碰撞。人物使用圆，车辆和飞行器使用从模型提取的定向矩形。
 function buildingContact(c, x, y, z, body, contact) {
-  if (c.type === 'bridge-slab' && body.mode === 'car' && (c.name === body.surfaceId
+  if (c.type === 'bridge-slab' && body.mode === 'car' && (body.supportedSlabs?.has(c.name)
     || (c.roadAccess && y >= c.maxY - 0.28))) return false;
   if (y + body.bottom >= c.maxY || y + body.top <= (c.minY ?? 0)) return false;
   if (x + body.extX <= c.minX || x - body.extX >= c.maxX || z + body.extZ <= c.minZ || z - body.extZ >= c.maxZ) return false;
@@ -895,6 +895,7 @@ class ThirdPersonControllerManager {
   }
 
   supportedFootprint(x, z, body, entity, landingOnRoad = false) {
+    body.supportedSlabs = null;
     const previous = entity?._support;
     const options = { previousY: previous?.height ?? null, previousSurfaceId: previous?.surfaceId ?? null, mode: body.mode };
     const center = this.surfaceResolver.resolve(x, z, options);
@@ -902,6 +903,7 @@ class ThirdPersonControllerManager {
     if (this.groundAccess && !this.groundAccess(body.mode, x, z, center.surfaceId)) return null;
     const halfX = body.car ? body.hx : body.extX, halfZ = body.car ? body.hz : body.extZ;
     const sin = body.car ? body.sin : 0, cos = body.car ? body.cos : 1;
+    const supportedSlabs = body.mode === 'car' ? new Set([center.surfaceId]) : null;
     for (const dx of [-halfX, 0, halfX]) {
       for (const dz of [-halfZ, 0, halfZ]) {
         if (dx === 0 && dz === 0) continue;
@@ -915,8 +917,10 @@ class ThirdPersonControllerManager {
         const maxRise = landingOnRoad ? Math.hypot(offsetX, offsetZ) * FLIGHT_LANDING_MAX_GRADE : 1.5;
         if (Math.abs(support.height - center.height) > maxRise) return null;
         if (landingOnRoad && !this.isRoadContact(sampleX, sampleZ, support.height)) return null;
+        supportedSlabs?.add(support.surfaceId);
       }
     }
+    body.supportedSlabs = supportedSlabs;
     return center;
   }
 
@@ -978,7 +982,6 @@ class ThirdPersonControllerManager {
     const exact = this.surfaceResolver.at(x, z, 'car').find(candidate => candidate.surfaceId === surfaceId);
     if (surfaceId && !exact) return false;
     const support = this.supportedFootprint(x, z, body, exact ? { _support: exact } : null);
-    body.surfaceId = support?.surfaceId;
     return Boolean(support && Math.abs(support.height - y) <= 0.26
       && !this.nearColliders(x, z, Math.max(body.extX, body.extZ), false)
         .some(c => buildingContact(c, x, support.height, z, body)));
@@ -1032,7 +1035,6 @@ class ThirdPersonControllerManager {
     }
     if (carEntity && support) {
       pos.y = support.height;
-      body.surfaceId = support.surfaceId;
     }
     const { extX, extZ } = body;
     const contact = this._buildingContact ??= { nx: 0, nz: 0, depth: 0 };

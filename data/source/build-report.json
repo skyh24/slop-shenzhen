@@ -2241,6 +2241,59 @@
       "id": "globfp/38139",
       "heightSource": "globfp",
       "match": "source-tile-fid-and-bounds"
+    },
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 233384,
+      "bboxWgs84": [
+        113.92646086867947,
+        22.56733828907563,
+        113.92852889569743,
+        22.567686392992872
+      ],
+      "rawHeightM": 22.73639199999999,
+      "reason": "reviewed-nantou-open-viaduct",
+      "checkedAt": "2026-11-13",
+      "description": "南头立交西侧，轮廓沿南坪双幅桥面展开，影像中可见连续行车道与标线。",
+      "osmWayIds": [
+        "way/963575158",
+        "way/963575161"
+      ],
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "release": 43291,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/world_imagery/mapserver/tile/43291/18/114196/214031",
+        "imageSha256": "7328d8316d875e38297899f39e8e933907893afdb519b472065b0f2719604a0a"
+      },
+      "id": "globfp/44405",
+      "heightSource": "globfp",
+      "match": "source-tile-fid-and-bounds"
+    },
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 233403,
+      "bboxWgs84": [
+        113.92973967954345,
+        22.56730214650966,
+        113.93014643616254,
+        22.567532143673454
+      ],
+      "rawHeightM": 34.817592000000005,
+      "reason": "reviewed-nantou-open-viaduct",
+      "checkedAt": "2026-11-13",
+      "description": "南头立交东侧，轮廓落在南坪北幅桥面内，影像中为开敞车道。",
+      "osmWayIds": [
+        "way/963575161"
+      ],
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "release": 43291,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/world_imagery/mapserver/tile/43291/18/114196/214033",
+        "imageSha256": "f79986f1324d75e84ea49031bd1b99012e4e57c2b99bc11360d0531c86813203"
+      },
+      "id": "globfp/44424",
+      "heightSource": "globfp",
+      "match": "source-tile-fid-and-bounds"
     }
   ],
   "globfpCandidates": 106486,
@@ -7640,7 +7693,7 @@
     "kept": 12014,
     "truncated": true
   },
-  "globfpAdded": 12014,
+  "globfpAdded": 12012,
   "overtureMisidentified": {
     "rule": "Overture-only (no OSM building), area<300 m2, and (>= 60% inside OSM plaza/green or >= 80% inside ground carriageway buffer 1 m)",
     "count": 2433,
@@ -33050,14 +33103,14 @@
       ]
     }
   },
-  "buildings": 76024,
+  "buildings": 76022,
   "heightSources": {
     "landmark": 7,
     "osm-height": 1605,
     "osm-levels": 8575,
     "overture-height": 2,
     "overture-floors": 3,
-    "globfp": 28443,
+    "globfp": 28441,
     "estimate": 37385,
     "published": 4
   },
@@ -73026,31 +73079,31 @@
       "podium": 20,
       "canopy": 320,
       "bridge": 20,
-      "unknown": 47791
+      "unknown": 47789
     },
     "upstreamFamilies": {
       "osm": 29225,
       "overture-eastasia": 20369,
-      "globfp-eastasia": 11330,
+      "globfp-eastasia": 11328,
       "eastasia-shared": 15100,
       "unknown": 0
     },
     "confidence": {
       "footprint": {
         "unknown": 0,
-        "low": 46799,
+        "low": 46797,
         "medium": 29225,
         "high": 0
       },
       "height": {
         "unknown": 0,
-        "low": 65828,
+        "low": 65826,
         "medium": 10192,
         "high": 4
       },
       "era": {
         "unknown": 35469,
-        "low": 11330,
+        "low": 11328,
         "medium": 29225,
         "high": 0
       }
@@ -79872,17 +79925,17 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7651,
-    "metadataBytes": 16744235,
-    "numericBytes": 33757688,
-    "uncompressedBytes": 50501976,
+    "columns": 7710,
+    "metadataBytes": 16773559,
+    "numericBytes": 34391648,
+    "uncompressedBytes": 51165256,
     "lossless": true,
-    "compressedBytes": 11458338,
-    "compressedSha256": "be4f4f9f3a4fccefe39927b1a841ce2a8132b0913cfd17c2c501c942eb4af6c8"
+    "compressedBytes": 11971564,
+    "compressedSha256": "31e6366d10e3b96df81042c4335eeb40235b6a4890dc1c444c42aec1fd891c7b"
   },
-  "outputBytes": 11420228,
-  "outputSha256": "398350b14eae473e01dd7ee333cb83c9816f3a233b4174071149fdd366a113d9",
-  "seconds": 83.7,
+  "outputBytes": 11849556,
+  "outputSha256": "d76af150ec253ed3f676ea5bba9891a4f508f184740991f2a920dcd3bf9ac397",
+  "seconds": 58.3,
   "frontageRebuild": {
     "basePayloadSha256": "4e3b12051e426ab4f1e5c30d9a1f8acb04343339a8e4a4611a23963fdad78b89",
     "corridors": [
@@ -85682,7 +85735,7 @@
     "terrainAndBuildingsChanged": false
   },
   "roadStructures": {
-    "portalCutM2": 9691.769,
+    "portalCutM2": 31651.525,
     "landscape": {
       "patches": [
         "beihuan-xinzhou:flower-bed",
@@ -85833,12 +85886,569 @@
         "exitWidthM": 16.2,
         "depthSource": "project-estimate-for-vehicle-clearance-under-existing-ground",
         "requestedDepthM": 3
+      },
+      {
+        "id": "huanggang-binhe-north",
+        "kind": "bridge",
+        "source": "https://jtys.sz.gov.cn/attachment/0/776/776712/8769001.pdf",
+        "ways": [
+          "way/997152261",
+          "way/41019622",
+          "way/41019786"
+        ],
+        "pathNodes": [
+          "node/14331300079",
+          "node/500021304",
+          "node/500023063",
+          "node/500023064"
+        ],
+        "portalNodes": [
+          "node/14331300079",
+          "node/500023064"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            162,
+            13
+          ],
+          [
+            319.2526,
+            13
+          ],
+          [
+            531.2852,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-with-5m-first-bridge-level"
+      },
+      {
+        "id": "huanggang-binhe-south",
+        "kind": "bridge",
+        "source": "https://jtys.sz.gov.cn/attachment/0/776/776712/8769001.pdf",
+        "ways": [
+          "way/1216685968",
+          "way/41019785",
+          "way/74017037"
+        ],
+        "pathNodes": [
+          "node/500023088",
+          "node/500021302",
+          "node/500021006",
+          "node/500021035"
+        ],
+        "portalNodes": [
+          "node/500023088",
+          "node/500021035"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            210,
+            13
+          ],
+          [
+            379.9762,
+            13
+          ],
+          [
+            568.9106,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-with-5m-first-bridge-level"
+      },
+      {
+        "id": "nanping-branch-north",
+        "kind": "mixed",
+        "source": "https://www.sz.gov.cn/cn/xxgk/zfxxgj/tzgg/content/mpost_8387208.html",
+        "ways": [
+          "way/249534268",
+          "way/495113720",
+          "way/96327293",
+          "way/96327311"
+        ],
+        "pathNodes": [
+          "node/1824576249",
+          "node/1824576252",
+          "node/1116448854",
+          "node/1116448445",
+          "node/2550463337"
+        ],
+        "portalNodes": [
+          "node/1824576249",
+          "node/2550463337"
+        ],
+        "profileM": [
+          [
+            0,
+            48.7925
+          ],
+          [
+            130,
+            52.9
+          ],
+          [
+            1519.914,
+            69.4
+          ],
+          [
+            1919.914,
+            69.0371
+          ]
+        ],
+        "profileSource": "project-design-estimate-from-source-portals",
+        "boreWays": [
+          "way/96327293"
+        ],
+        "portalApproachWays": [
+          "way/495113720",
+          "way/96327311"
+        ],
+        "groundApronM": [
+          0,
+          8
+        ]
+      },
+      {
+        "id": "nanping-branch-south",
+        "kind": "mixed",
+        "source": "https://www.sz.gov.cn/cn/xxgk/zfxxgj/tzgg/content/mpost_8387208.html",
+        "ways": [
+          "way/248224196",
+          "way/96327299",
+          "way/96327303"
+        ],
+        "pathNodes": [
+          "node/2367043556",
+          "node/1116449041",
+          "node/1116448622",
+          "node/1824576240"
+        ],
+        "portalNodes": [
+          "node/2367043556",
+          "node/1824576240"
+        ],
+        "profileM": [
+          [
+            0,
+            44.8716
+          ],
+          [
+            735,
+            66
+          ],
+          [
+            2100,
+            62
+          ],
+          [
+            2444,
+            50.7
+          ],
+          [
+            2515.3046,
+            50.4756
+          ]
+        ],
+        "profileSource": "project-design-estimate-from-source-portals",
+        "boreWays": [
+          "way/96327299"
+        ],
+        "portalApproachWays": [
+          "way/248224196",
+          "way/96327303"
+        ],
+        "groundApronM": [
+          0,
+          8
+        ]
+      },
+      {
+        "id": "beihuan-shahe-east",
+        "kind": "bridge",
+        "source": "https://szjj.sz.gov.cn/m/YD_ZWGK/YD_ZCFG/YD_JCJD234/content/post_12991777.html",
+        "ways": [
+          "way/1466213100",
+          "way/25529163",
+          "way/1463622147"
+        ],
+        "pathNodes": [
+          "node/277189225",
+          "node/277189226",
+          "node/278219336",
+          "node/5903376013"
+        ],
+        "portalNodes": [
+          "node/277189225",
+          "node/5903376013"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            395.0458,
+            13
+          ],
+          [
+            598.7384,
+            13
+          ],
+          [
+            1120.2868,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-with-5m-first-bridge-level"
+      },
+      {
+        "id": "beihuan-shahe-west",
+        "kind": "bridge",
+        "source": "https://szjj.sz.gov.cn/m/YD_ZWGK/YD_ZCFG/YD_JCJD234/content/post_12991777.html",
+        "ways": [
+          "way/1463622136",
+          "way/220885821",
+          "way/220885830"
+        ],
+        "pathNodes": [
+          "node/1116415143",
+          "node/2299641583",
+          "node/2299641590",
+          "node/2397987741"
+        ],
+        "portalNodes": [
+          "node/1116415143",
+          "node/2397987741"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            489.3232,
+            13
+          ],
+          [
+            692.6904,
+            13
+          ],
+          [
+            1162.9344,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-with-5m-first-bridge-level"
+      },
+      {
+        "id": "nanping-xili-east",
+        "kind": "mixed",
+        "source": "https://jtys.sz.gov.cn/ydmh/xxgk/qt_179794/zdjsxm_179796/content/post_4435419.html",
+        "ways": [
+          "way/963403144",
+          "way/375061135",
+          "way/375061135",
+          "way/963575158",
+          "way/963575158",
+          "way/963575160",
+          "way/374380004",
+          "way/1125426272",
+          "way/374379998",
+          "way/581971318",
+          "way/221018213",
+          "way/221018208",
+          "way/581971317",
+          "way/227775718",
+          "way/227775718",
+          "way/377693334"
+        ],
+        "pathNodes": [
+          "node/8911560198",
+          "node/8911556597",
+          "node/9722598837",
+          "node/8911556590",
+          "node/4816427539",
+          "node/3784468312",
+          "node/2364454574",
+          "node/2364454543",
+          "node/2364454544",
+          "node/2300712835",
+          "node/2300712962",
+          "node/2300712874",
+          "node/5567120473",
+          "node/2364352866",
+          "node/2300712922",
+          "node/2550319130",
+          "node/1597581718"
+        ],
+        "portalNodes": [
+          "node/8911560198",
+          "node/1597581718"
+        ],
+        "profileM": [
+          [
+            0,
+            8
+          ],
+          [
+            490,
+            23
+          ],
+          [
+            4080,
+            23
+          ],
+          [
+            4400,
+            18
+          ],
+          [
+            7980,
+            18
+          ],
+          [
+            8850.04,
+            44
+          ],
+          [
+            9439.78,
+            46.5
+          ],
+          [
+            10320,
+            68
+          ],
+          [
+            11680,
+            68
+          ],
+          [
+            12296.08,
+            61
+          ],
+          [
+            12894.1214,
+            58.4321
+          ]
+        ],
+        "profileSource": "project-design-estimate-with-10m-first-bridge-level",
+        "groundApronM": [
+          0,
+          8
+        ],
+        "boreWays": [
+          "way/221018213"
+        ],
+        "portalApproachWays": [
+          "way/581971318",
+          "way/221018208"
+        ]
+      },
+      {
+        "id": "nanping-xili-west",
+        "kind": "mixed",
+        "source": "https://jtys.sz.gov.cn/ydmh/xxgk/qt_179794/zdjsxm_179796/content/post_4435419.html",
+        "ways": [
+          "way/683489208",
+          "way/248200241",
+          "way/248200241",
+          "way/227775714",
+          "way/581971316",
+          "way/221018212",
+          "way/221018211",
+          "way/227785952",
+          "way/227785952",
+          "way/374380001",
+          "way/374380001",
+          "way/374380001",
+          "way/963575161",
+          "way/963575161",
+          "way/377809340",
+          "way/377809340",
+          "way/377809340",
+          "way/963403135"
+        ],
+        "pathNodes": [
+          "node/6401878660",
+          "node/1824576263",
+          "node/1824576273",
+          "node/2300712872",
+          "node/2300712910",
+          "node/2300712851",
+          "node/2300712936",
+          "node/2300712892",
+          "node/2364441092",
+          "node/2364441057",
+          "node/2364441056",
+          "node/3784468309",
+          "node/3784468316",
+          "node/8450019267",
+          "node/3812076431",
+          "node/11198155306",
+          "node/11198155305",
+          "node/3812076382",
+          "node/8909579642"
+        ],
+        "portalNodes": [
+          "node/6401878660",
+          "node/8909579642"
+        ],
+        "profileM": [
+          [
+            0,
+            56.9871
+          ],
+          [
+            330,
+            63
+          ],
+          [
+            1188.6195156537167,
+            66
+          ],
+          [
+            2398.6195156537165,
+            66
+          ],
+          [
+            3068.6195156537165,
+            52
+          ],
+          [
+            3485.6295156537167,
+            47
+          ],
+          [
+            4091.4495156537164,
+            44
+          ],
+          [
+            4968.369515653717,
+            18
+          ],
+          [
+            8508.369515653716,
+            18
+          ],
+          [
+            8798.369515653716,
+            23
+          ],
+          [
+            12418.369515653716,
+            23
+          ],
+          [
+            12911.421,
+            8
+          ]
+        ],
+        "profileSource": "project-design-estimate-with-10m-first-bridge-level",
+        "groundApronM": [
+          8,
+          0
+        ],
+        "boreWays": [
+          "way/221018212"
+        ],
+        "portalApproachWays": [
+          "way/581971316",
+          "way/221018211"
+        ]
+      },
+      {
+        "id": "nanguang-south",
+        "kind": "bridge",
+        "source": "https://jtys.sz.gov.cn/zwgk/ggqsydw/gsgl/",
+        "ways": [
+          "way/1206538156",
+          "way/238682062",
+          "way/479637183"
+        ],
+        "pathNodes": [
+          "clip/way/1206538156/4/0/a",
+          "node/2464843175",
+          "node/2464843146",
+          "node/277486152"
+        ],
+        "portalNodes": [
+          "clip/way/1206538156/4/0/a",
+          "node/277486152"
+        ],
+        "profileM": [
+          [
+            0,
+            13
+          ],
+          [
+            250,
+            13
+          ],
+          [
+            590,
+            8
+          ],
+          [
+            1029.937,
+            8
+          ]
+        ],
+        "profileSource": "project-design-estimate-with-5m-first-bridge-level"
+      },
+      {
+        "id": "nanguang-north",
+        "kind": "bridge",
+        "source": "https://jtys.sz.gov.cn/zwgk/ggqsydw/gsgl/",
+        "ways": [
+          "way/478028558",
+          "way/238682064",
+          "way/1206538157"
+        ],
+        "pathNodes": [
+          "node/1795586964",
+          "node/1795586988",
+          "node/2464842963",
+          "clip/way/1206538157/0/0/b"
+        ],
+        "portalNodes": [
+          "node/1795586964",
+          "clip/way/1206538157/0/0/b"
+        ],
+        "profileM": [
+          [
+            0,
+            8
+          ],
+          [
+            560,
+            8
+          ],
+          [
+            903,
+            13
+          ],
+          [
+            1155.1605,
+            13
+          ]
+        ],
+        "profileSource": "project-design-estimate-with-5m-first-bridge-level"
       }
     ],
     "conflicts": [],
     "bridgeClearance": [
       {
         "route": "beihuan-keyuan-west",
+        "way": "way/231405164",
         "minimumM": 4.2956,
         "crossingWays": [
           {
@@ -85853,6 +86463,7 @@
       },
       {
         "route": "beihuan-keyuan-east",
+        "way": "way/231405168",
         "minimumM": 4.2962,
         "crossingWays": [
           {
@@ -85862,6 +86473,640 @@
           {
             "way": "way/1052673726",
             "clearanceM": 4.316
+          }
+        ]
+      },
+      {
+        "route": "huanggang-binhe-north",
+        "way": "way/41019622",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/25423077",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1183851123",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1382209055",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/997152262",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "huanggang-binhe-south",
+        "way": "way/41019785",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/25423077",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1183851123",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1382209055",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/997152262",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "beihuan-shahe-east",
+        "way": "way/25529163",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1466176547",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1290625199",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1463622150",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1050765298",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "beihuan-shahe-west",
+        "way": "way/220885821",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1466176547",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1290625199",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1463622150",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1050765298",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-east",
+        "way": "way/375061135",
+        "minimumM": 7.0083,
+        "crossingWays": [
+          {
+            "way": "way/780057682",
+            "clearanceM": 9.3932
+          },
+          {
+            "way": "way/1256092753",
+            "clearanceM": 7.0083
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-east",
+        "way": "way/375061135",
+        "minimumM": 14.35,
+        "crossingWays": [
+          {
+            "way": "way/1029213837",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/498477953",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/498477955",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/582000080",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/953806719",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/51191095",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/582000079",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/25436150",
+            "clearanceM": 14.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-east",
+        "way": "way/963575158",
+        "minimumM": 14.35,
+        "crossingWays": [
+          {
+            "way": "way/208129568",
+            "clearanceM": 14.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-east",
+        "way": "way/963575158",
+        "minimumM": 10.4787,
+        "crossingWays": [
+          {
+            "way": "way/1467810781",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/25447653",
+            "clearanceM": 14.3319
+          },
+          {
+            "way": "way/264599756",
+            "clearanceM": 14.1954
+          },
+          {
+            "way": "way/40422222",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/1228227479",
+            "clearanceM": 11.032
+          },
+          {
+            "way": "way/1228227477",
+            "clearanceM": 10.4787
+          },
+          {
+            "way": "way/25507345",
+            "clearanceM": 14.1863
+          },
+          {
+            "way": "way/264597271",
+            "clearanceM": 14.3027
+          },
+          {
+            "way": "way/687529427",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/227852267",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/264599758",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/40422222",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/25481858",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/361923353",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/925257622",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/770697248",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/565480542",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/1215581874",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/264306572",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/264306568",
+            "clearanceM": 14.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-east",
+        "way": "way/963575160",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "nanping-xili-east",
+        "way": "way/374380004",
+        "minimumM": 9.35,
+        "crossingWays": [
+          {
+            "way": "way/1050765277",
+            "clearanceM": 9.35
+          },
+          {
+            "way": "way/1081087772",
+            "clearanceM": 9.35
+          },
+          {
+            "way": "way/636236891",
+            "clearanceM": 9.35
+          },
+          {
+            "way": "way/636237028",
+            "clearanceM": 9.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-east",
+        "way": "way/1125426272",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "nanping-xili-east",
+        "way": "way/374379998",
+        "minimumM": 9.35,
+        "crossingWays": [
+          {
+            "way": "way/238681528",
+            "clearanceM": 14.1895
+          },
+          {
+            "way": "way/671753463",
+            "clearanceM": 14.4819
+          },
+          {
+            "way": "way/246260674",
+            "clearanceM": 9.35
+          },
+          {
+            "way": "way/246260683",
+            "clearanceM": 9.35
+          },
+          {
+            "way": "way/581971333",
+            "clearanceM": 9.35
+          },
+          {
+            "way": "way/581971338",
+            "clearanceM": 9.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-east",
+        "way": "way/581971317",
+        "minimumM": 18.1056,
+        "crossingWays": [
+          {
+            "way": "way/860549496",
+            "clearanceM": 18.1056
+          },
+          {
+            "way": "way/183920377",
+            "clearanceM": 22.061
+          },
+          {
+            "way": "way/495113719",
+            "clearanceM": 18.1757
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-east",
+        "way": "way/377693334",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "nanping-xili-west",
+        "way": "way/683489208",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "nanping-xili-west",
+        "way": "way/227775714",
+        "minimumM": 16.6957,
+        "crossingWays": [
+          {
+            "way": "way/860549496",
+            "clearanceM": 16.6957
+          },
+          {
+            "way": "way/183920377",
+            "clearanceM": 21.5361
+          },
+          {
+            "way": "way/495113719",
+            "clearanceM": 17.0313
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-west",
+        "way": "way/227785952",
+        "minimumM": 9.35,
+        "crossingWays": [
+          {
+            "way": "way/238681528",
+            "clearanceM": 15.3094
+          },
+          {
+            "way": "way/671753463",
+            "clearanceM": 15.6321
+          },
+          {
+            "way": "way/246260674",
+            "clearanceM": 9.35
+          },
+          {
+            "way": "way/246260683",
+            "clearanceM": 9.35
+          },
+          {
+            "way": "way/581971333",
+            "clearanceM": 9.35
+          },
+          {
+            "way": "way/581971338",
+            "clearanceM": 9.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-west",
+        "way": "way/227785952",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "nanping-xili-west",
+        "way": "way/374380001",
+        "minimumM": 9.35,
+        "crossingWays": [
+          {
+            "way": "way/1050765277",
+            "clearanceM": 9.35
+          },
+          {
+            "way": "way/1228227475",
+            "clearanceM": 9.35
+          },
+          {
+            "way": "way/636237028",
+            "clearanceM": 9.35
+          },
+          {
+            "way": "way/636236891",
+            "clearanceM": 9.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-west",
+        "way": "way/374380001",
+        "minimumM": 9.35,
+        "crossingWays": [
+          {
+            "way": "way/1081087772",
+            "clearanceM": 9.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-west",
+        "way": "way/374380001",
+        "minimumM": 9.35,
+        "crossingWays": [
+          {
+            "way": "way/1228227477",
+            "clearanceM": 9.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-west",
+        "way": "way/963575161",
+        "minimumM": 9.8262,
+        "crossingWays": [
+          {
+            "way": "way/1467810781",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/264599756",
+            "clearanceM": 14.3311
+          },
+          {
+            "way": "way/1495608244",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/40422222",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/1228227479",
+            "clearanceM": 10.5834
+          },
+          {
+            "way": "way/1228227477",
+            "clearanceM": 9.8262
+          },
+          {
+            "way": "way/25507345",
+            "clearanceM": 14.3123
+          },
+          {
+            "way": "way/687529427",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/227852267",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/925257622",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/770697248",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/565480542",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/264306572",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/264306568",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/208129568",
+            "clearanceM": 14.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-west",
+        "way": "way/963575161",
+        "minimumM": 14.35,
+        "crossingWays": [
+          {
+            "way": "way/264746466",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/208129568",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/208129568",
+            "clearanceM": 14.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-west",
+        "way": "way/377809340",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "nanping-xili-west",
+        "way": "way/377809340",
+        "minimumM": 14.35,
+        "crossingWays": [
+          {
+            "way": "way/1029213837",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/498477953",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/974379908",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/498477955",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/582000080",
+            "clearanceM": 14.35
+          },
+          {
+            "way": "way/51191095",
+            "clearanceM": 14.35
+          }
+        ]
+      },
+      {
+        "route": "nanping-xili-west",
+        "way": "way/377809340",
+        "minimumM": 7.0233,
+        "crossingWays": [
+          {
+            "way": "way/780057682",
+            "clearanceM": 9.4541
+          },
+          {
+            "way": "way/1256092753",
+            "clearanceM": 7.0233
+          }
+        ]
+      },
+      {
+        "route": "nanguang-south",
+        "way": "way/238682062",
+        "minimumM": 4.3233,
+        "crossingWays": [
+          {
+            "way": "way/392864876",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1278544815",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/768006234",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/677567613",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1213921298",
+            "clearanceM": 4.3233
+          }
+        ]
+      },
+      {
+        "route": "nanguang-north",
+        "way": "way/238682064",
+        "minimumM": 4.2177,
+        "crossingWays": [
+          {
+            "way": "way/392864876",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1278544815",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/768006234",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/677567613",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1213921298",
+            "clearanceM": 4.2177
           }
         ]
       }
@@ -85932,7 +87177,7 @@
           1058.05309
         ],
         "openApronM": 8,
-        "maxGrade": 0
+        "maxGrade": 0.0
       },
       {
         "index": 21966,
@@ -85986,7 +87231,7 @@
           1058.971203
         ],
         "openApronM": 8,
-        "maxGrade": 0
+        "maxGrade": 0.0
       },
       {
         "index": 15993,
@@ -86005,6 +87250,986 @@
         ],
         "openApronM": 8,
         "maxGrade": 0.047731
+      },
+      {
+        "index": 17633,
+        "way": "way/997152261",
+        "route": "huanggang-binhe-north",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.047019
+      },
+      {
+        "index": 899,
+        "way": "way/41019622",
+        "route": "huanggang-binhe-north",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 179.618906,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 901,
+        "way": "way/41019786",
+        "route": "huanggang-binhe-north",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 307.252592,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.035356
+      },
+      {
+        "index": 21334,
+        "way": "way/1216685968",
+        "route": "huanggang-binhe-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.03571
+      },
+      {
+        "index": 900,
+        "way": "way/41019785",
+        "route": "huanggang-binhe-south",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 236.602274,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 1341,
+        "way": "way/74017037",
+        "route": "huanggang-binhe-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 364.976188,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.041321
+      },
+      {
+        "index": 5941,
+        "way": "way/249534268",
+        "route": "nanping-branch-north",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.047387
+      },
+      {
+        "index": 8621,
+        "way": "way/495113720",
+        "route": "nanping-branch-north",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 119.430344,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.011963
+      },
+      {
+        "index": 1431,
+        "way": "way/96327293",
+        "route": "nanping-branch-north",
+        "kind": "tunnel",
+        "layer": -3.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 154.090145,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          1717.803248
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.017807
+      },
+      {
+        "index": 1464,
+        "way": "way/96327311",
+        "route": "nanping-branch-north",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1871.893393,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 8,
+        "maxGrade": 0.000556
+      },
+      {
+        "index": 5845,
+        "way": "way/248224196",
+        "route": "nanping-branch-south",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.04743
+      },
+      {
+        "index": 1441,
+        "way": "way/96327299",
+        "route": "nanping-branch-south",
+        "kind": "tunnel",
+        "layer": -3.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 739.92811,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          1704.186408
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.04927
+      },
+      {
+        "index": 1444,
+        "way": "way/96327303",
+        "route": "nanping-branch-south",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2444.114518,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 8,
+        "maxGrade": 0.004701
+      },
+      {
+        "index": 23849,
+        "way": "way/1466213100",
+        "route": "beihuan-shahe-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 22,
+        "lanes": 0,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.019709
+      },
+      {
+        "index": 151,
+        "way": "way/25529163",
+        "route": "beihuan-shahe-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 415.045761,
+        "widthM": 22,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 23708,
+        "way": "way/1463622147",
+        "route": "beihuan-shahe-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 568.738399,
+        "widthM": 22,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.01456
+      },
+      {
+        "index": 23703,
+        "way": "way/1463622136",
+        "route": "beihuan-shahe-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 22,
+        "lanes": 0,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.015327
+      },
+      {
+        "index": 3289,
+        "way": "way/220885821",
+        "route": "beihuan-shahe-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 509.323176,
+        "widthM": 22,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 3294,
+        "way": "way/220885830",
+        "route": "beihuan-shahe-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 662.69036,
+        "widthM": 22,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.016684
+      },
+      {
+        "index": 15657,
+        "way": "way/963403144",
+        "route": "nanping-xili-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.027077
+      },
+      {
+        "index": 7812,
+        "way": "way/375061135",
+        "route": "nanping-xili-east",
+        "kind": "bridge",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 90.023226,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.047497
+      },
+      {
+        "index": 7813,
+        "way": "way/375061135",
+        "route": "nanping-xili-east",
+        "kind": "bridge",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 528.474782,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 15661,
+        "way": "way/963575158",
+        "route": "nanping-xili-east",
+        "kind": "bridge",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1589.21753,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 15662,
+        "way": "way/963575158",
+        "route": "nanping-xili-east",
+        "kind": "bridge",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1823.946019,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.023708
+      },
+      {
+        "index": 15663,
+        "way": "way/963575160",
+        "route": "nanping-xili-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 4329.295578,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.015812
+      },
+      {
+        "index": 7799,
+        "way": "way/374380004",
+        "route": "nanping-xili-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 5179.234107,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 20020,
+        "way": "way/1125426272",
+        "route": "nanping-xili-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 6714.820847,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 7795,
+        "way": "way/374379998",
+        "route": "nanping-xili-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 7153.741782,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.047548
+      },
+      {
+        "index": 10222,
+        "way": "way/581971318",
+        "route": "nanping-xili-east",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 8802.191633,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.008951
+      },
+      {
+        "index": 3315,
+        "way": "way/221018213",
+        "route": "nanping-xili-east",
+        "kind": "tunnel",
+        "layer": -1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 8850.044208,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          589.736733
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.006359
+      },
+      {
+        "index": 3312,
+        "way": "way/221018208",
+        "route": "nanping-xili-east",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 9439.780942,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.038584
+      },
+      {
+        "index": 10221,
+        "way": "way/581971317",
+        "route": "nanping-xili-east",
+        "kind": "bridge",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 9999.276108,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.033853
+      },
+      {
+        "index": 3669,
+        "way": "way/227775718",
+        "route": "nanping-xili-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 12060.64522,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.016043
+      },
+      {
+        "index": 3670,
+        "way": "way/227775718",
+        "route": "nanping-xili-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 12296.080359,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.006618
+      },
+      {
+        "index": 7867,
+        "way": "way/377693334",
+        "route": "nanping-xili-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 12780.007999,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.003925
+      },
+      {
+        "index": 11965,
+        "way": "way/683489208",
+        "route": "nanping-xili-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.02468
+      },
+      {
+        "index": 5820,
+        "way": "way/248200241",
+        "route": "nanping-xili-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 115.619516,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.02733
+      },
+      {
+        "index": 5821,
+        "way": "way/248200241",
+        "route": "nanping-xili-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 618.896915,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.005349
+      },
+      {
+        "index": 3666,
+        "way": "way/227775714",
+        "route": "nanping-xili-west",
+        "kind": "bridge",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 829.543235,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.033137
+      },
+      {
+        "index": 10220,
+        "way": "way/581971316",
+        "route": "nanping-xili-west",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2885.836488,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.024708
+      },
+      {
+        "index": 3314,
+        "way": "way/221018212",
+        "route": "nanping-xili-west",
+        "kind": "tunnel",
+        "layer": -1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 3486.158564,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          605.816689
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.007428
+      },
+      {
+        "index": 3313,
+        "way": "way/221018211",
+        "route": "nanping-xili-west",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 4091.975253,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.007961
+      },
+      {
+        "index": 3671,
+        "way": "way/227785952",
+        "route": "nanping-xili-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 4134.565159,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.047418
+      },
+      {
+        "index": 3672,
+        "way": "way/227785952",
+        "route": "nanping-xili-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 5739.87065,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 7796,
+        "way": "way/374380001",
+        "route": "nanping-xili-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 6179.225639,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 7797,
+        "way": "way/374380001",
+        "route": "nanping-xili-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 6754.686718,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 7798,
+        "way": "way/374380001",
+        "route": "nanping-xili-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 7722.508227,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.015084
+      },
+      {
+        "index": 15664,
+        "way": "way/963575161",
+        "route": "nanping-xili-west",
+        "kind": "bridge",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 8561.67524,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.026428
+      },
+      {
+        "index": 15665,
+        "way": "way/963575161",
+        "route": "nanping-xili-west",
+        "kind": "bridge",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 10983.93576,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 7939,
+        "way": "way/377809340",
+        "route": "nanping-xili-west",
+        "kind": "bridge",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 11320.338668,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 7940,
+        "way": "way/377809340",
+        "route": "nanping-xili-west",
+        "kind": "bridge",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 11519.621294,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 7941,
+        "way": "way/377809340",
+        "route": "nanping-xili-west",
+        "kind": "bridge",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 12378.594555,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.047729
+      },
+      {
+        "index": 15648,
+        "way": "way/963403135",
+        "route": "nanping-xili-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 12822.068491,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.026623
+      },
+      {
+        "index": 20968,
+        "way": "way/1206538156",
+        "route": "nanguang-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 4824,
+        "way": "way/238682062",
+        "route": "nanguang-south",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 37.747701,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.009508
+      },
+      {
+        "index": 8426,
+        "way": "way/479637183",
+        "route": "nanguang-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 293.76325,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.022055
+      },
+      {
+        "index": 8393,
+        "way": "way/478028558",
+        "route": "nanguang-north",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.021864
+      },
+      {
+        "index": 4826,
+        "way": "way/238682064",
+        "route": "nanguang-north",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 841.885855,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.01249
+      },
+      {
+        "index": 20969,
+        "way": "way/1206538157",
+        "route": "nanguang-north",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1097.874308,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
       }
     ]
   }

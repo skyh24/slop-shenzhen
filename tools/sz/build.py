@@ -249,10 +249,10 @@ def write_city_packages(payload, report, sources, started, *, structure_base=Non
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
-def remove_reviewed_civic_footprints(payload, report, clip, inputs):
+def remove_reviewed_globfp_footprints(payload, report, clip, inputs, reason):
     audit = {}
     load_globfp(clip, audit, ensure_globfp(inputs))
-    reviewed = [row for row in audit['excludedGlobfpFootprints'] if row['reason'] == 'reviewed-shennan-median-lawn']
+    reviewed = [row for row in audit['excludedGlobfpFootprints'] if row['reason'] == reason]
     excluded = {row['id'] for row in reviewed}
     buildings = payload['buildings']
     removed = [i for i, identity in enumerate(buildings['id']) if identity in excluded]
@@ -260,7 +260,7 @@ def remove_reviewed_civic_footprints(payload, report, clip, inputs):
     stats = report['buildingRecords']
     for i in removed:
         if buildings['name'][i] >= 0 or buildings['lm'][i] >= 0 or buildings['lv'][i] >= 0:
-            raise ValueError(f'Civic footprint is not an anonymous supplemental volume: {buildings["id"][i]}')
+            raise ValueError(f'Reviewed footprint is not an anonymous supplemental volume: {buildings["id"][i]}')
         report['heightSources'][enums['heightSource'][buildings['src'][i]]] -= 1
         stats['upstreamFamilies'][enums['upstreamFamily'][buildings['upstream'][i]]] -= 1
         stats['roles'][enums['buildingRole'][buildings['role'][i]]] -= 1
@@ -348,7 +348,8 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     civic = civic_paving(osm, manifest['civicPaving'])
     changed = ['terrain', 'terrainSurface']
     if civic_review:
-        removed_buildings = remove_reviewed_civic_footprints(payload, report, clip, {row['id']: row for row in sources})
+        removed_buildings = remove_reviewed_globfp_footprints(payload, report, clip, {row['id']: row for row in sources},
+                                                           'reviewed-shennan-median-lawn')
         removed_trees = remove_civic_paving_trees(payload['trees'], report, civic)
         # 仅重编码与铺装相交的绿地，其他地区保持原包的分米轮廓。
         clipped = []
@@ -554,7 +555,11 @@ def main():
                                                   for key in ('origin', 'coverage', 'terrain', 'roadGraph')):
                     raise ValueError('Portal rebuild requires the matching uncut city surface')
                 structure_base = base['terrainSurface']
-            write_city_packages(payload, json.loads(REPORT.read_text()), sources, started, structure_base=structure_base)
+            build_report = json.loads(REPORT.read_text())
+            if args.rebuild_road_structures:
+                remove_reviewed_globfp_footprints(payload, build_report, phase1_clip_local(),
+                                                {row['id']: row for row in sources}, 'reviewed-nantou-open-viaduct')
+            write_city_packages(payload, build_report, sources, started, structure_base=structure_base)
         else:
             print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
         return

@@ -271,26 +271,26 @@ async function initApp() {
   };
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
+  const exposedStructures = new Set(roadStructures.links.filter(link => !link.tunnel).map(link => link.surfaceId));
+  const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: [...elevatedRoads.surfaces,
+    ...roadStructures.surfaces.filter(surface => exposedStructures.has(surface.id))] });
+  const deckOccupied = (x, z, bottom, top) => deck.at(x, z).some(surface => surface.height + 4.5 > bottom
+    && surface.height - (exposedStructures.has(surface.surfaceId) ? GEO.roadStructures.bridgeSlabM : 0.35) < top);
   // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
-    ...site, carriagewayOccupied, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
+    ...site, carriagewayOccupied, deckOccupied, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
     reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r)
       || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
     observedTrees: streetscape.observedTrees, pilotTrees: [...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
-  const streetLamps = qa.stage('lamps', () => {
-    const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: [...elevatedRoads.surfaces, ...roadStructures.surfaces.filter(surface =>
-      roadStructures.links.some(link => !link.tunnel && link.surfaceId === surface.id))] });
-    return buildSzStreetLamps(scene, site.roadGraph, {
-      ...site, roadStyle: site.style.road, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk, relocateSite: iec?.relocateLamp,
-      reserveCrossing: roadFrontage.reserveWalk,
-      placementObstacles: [...buildings, ...trees.colliders],
-      deckOccupied: (x, z, bottom, top) =>
-        deck.at(x, z).some(surface => surface.height + 4.5 > bottom && surface.height - 0.35 < top)
-    });
-  });
+  const streetLamps = qa.stage('lamps', () => buildSzStreetLamps(scene, site.roadGraph, {
+    ...site, roadStyle: site.style.road, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk, relocateSite: iec?.relocateLamp,
+    reserveCrossing: roadFrontage.reserveWalk,
+    placementObstacles: [...buildings, ...trees.colliders],
+    deckOccupied
+  }));
   const anchors = iec?.anchors;
   // APEC 周城市元素：会期内默认打开，模块内所有几何都在主题开关下。
   const apecTheme = qa.stage('apec', () =>
