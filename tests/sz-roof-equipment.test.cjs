@@ -237,9 +237,7 @@ const LEGACY_WITNESS = {
 test('roof equipment on real way/135961006 stays inside its irregular tower footprint', () => {
   const building = realBuilding('way/135961006');
   const polygon = building.polygons[0];
-  // 23 号第 1 步删除 GloBFP 半覆盖继承后，这栋楼不再借 61.4 m，改走 estimate（36.3 m）。
-  // 用例仍验证同一块真实不规则屋面的设备摆放，不再断言它是高层。
-  assert.ok(building.height >= 30, 'the sample keeps a real mid-rise roof above the equipment height');
+  // 删除 GloBFP 半覆盖继承后，楼高可能随街区样本变化；此处保护真实屋面轮廓。
   assert.equal(building.heightSource, 'estimate', 'the removed overlap fallback leaves no inherited height');
   // 检查器自检：修复前的设备块必须被判为越界，否则下面的空结果会失去意义。
   const witness = LEGACY_WITNESS[building.id];
@@ -247,9 +245,8 @@ test('roof equipment on real way/135961006 stays inside its irregular tower foot
     'checker rejects the pre-fix placement that hung off the tower footprint');
   assert.ok(outsideArea(polygon, witness) > 0, 'checker measures the pre-fix bottom face outside the roof');
 
-  const units = planRoof(building).equipment;
-  // 这栋楼按 estimate 只剩 36.3 m，低于放设备的层高门槛，允许空计划；
-  // 真高楼放设备仍由 relation/17457833 与 150 m 合成屋面两个用例覆盖。
+  // 用固定的测试高度触发设备布局，保留正式足迹和位置。
+  const units = planRoof({ ...building, height: 93.4 }).equipment;
   assert.ok(units.length <= 3, 'equipment count stays within the budget');
   assertUnitsInside(polygon, units, 0.5, building.id);
   units.forEach((unit, index) => {
