@@ -106,7 +106,7 @@ class CameraSystem {
       pointer.y = e.clientY;
 
       if (this.droneFollow) {
-        this.droneFollow.yaw = THREE.MathUtils.clamp(this.droneFollow.yaw - dx * 0.0065, -1.3, 1.3);
+        this.droneFollow.yaw -= dx * 0.0065;
         this.droneFollow.pitch = THREE.MathUtils.clamp(this.droneFollow.pitch + dy * 0.005, -0.12, 0.48);
       } else if (pair) {
         const distance = Math.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y);
@@ -229,7 +229,7 @@ class CameraSystem {
   applyGamepadInput(lookX, lookY, zoom, dt) {
     if (!(dt > 0) || !Number.isFinite(dt)) return;
     if (this.droneFollow) {
-      this.droneFollow.yaw = THREE.MathUtils.clamp(this.droneFollow.yaw - lookX * 2 * dt, -1.3, 1.3);
+      this.droneFollow.yaw -= lookX * 2 * dt;
       this.droneFollow.pitch = THREE.MathUtils.clamp(this.droneFollow.pitch + lookY * dt, -0.12, 0.48);
       return;
     }

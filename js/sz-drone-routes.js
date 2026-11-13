@@ -529,7 +529,7 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
     if (!active || active.pose.phase === 'complete' && active !== following || active.demo !== demo) {
       const fromEnd = stationId === state.route.to.id;
       record.mission = { routeId: state.route.id, droneId: record.aircraft.group.name, stationId, demo,
-        fromEnd, elapsed: 0, pose: dronePoseAt(record.path, fromEnd, 0) };
+        fromEnd, elapsed: 0, playbackRate: 1, pose: dronePoseAt(record.path, fromEnd, 0) };
     }
     following = record.mission;
     showLines();
@@ -562,7 +562,23 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
       return cameraClearFraction(target, desired, cameraObstacles, flightHeightAt);
     },
     preview(stationId) { preview = byStation.get(stationId)?.route.id ?? null; showLines(); },
-    stopFollowing() { following = null; showLines(); },
+    stopFollowing({ stopSimulation = false } = {}) {
+      if (following) {
+        following.playbackRate = 1;
+        const record = records.get(following.routeId);
+        if (stopSimulation && following.demo && record?.mission === following) {
+          record.mission = null;
+          clearAircraft(record);
+        }
+      }
+      following = null;
+      showLines();
+    },
+    setFastForward(mission, enabled) {
+      if (mission !== following || !mission?.demo || !this.isActive(mission)) return false;
+      mission.playbackRate = enabled ? 10 : 1;
+      return true;
+    },
     isActive(mission) { return !disposed && records.get(mission.routeId)?.mission === mission
       && records.get(mission.routeId).aircraft?.group.parent === group && group.parent === scene; },
     repeat(mission) {
@@ -587,7 +603,8 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
           clearAircraft(record);
           continue;
         }
-        mission.elapsed += step;
+        // 只推进当前模拟班次；镜头、转桨和其他班次仍使用普通帧间隔。
+        mission.elapsed += step * (mission === following ? mission.playbackRate : 1);
         const pose = dronePoseAt(record.path, mission.fromEnd, mission.elapsed, mission.pose, mission.turnAtHome);
         aircraft.group.visible = mission === following || !camera || pose.position.distanceToSquared(camera) < 550 ** 2;
         aircraft.group.position.copy(pose.position);

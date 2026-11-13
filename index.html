@@ -583,7 +583,10 @@
   <div id="drone-follow-hud" class="panel drive-hud" hidden>
     <span id="drone-follow-status" role="status"></span>
     <button id="drone-follow-repeat" class="tool-btn" type="button" data-text="drones.repeat" hidden></button>
-    <button id="drone-follow-exit" class="tool-btn" type="button"><span data-text="drones.exit"></span> <kbd>Esc</kbd></button>
+    <button id="drone-follow-fast" class="tool-btn" type="button" data-text="drones.fastForward"
+      data-label="drones.fastForwardLabel" aria-pressed="false" hidden></button>
+    <button id="drone-follow-exit" class="tool-btn" type="button"><span id="drone-follow-exit-label" data-text="drones.exit"></span> <kbd>Esc</kbd></button>
+    <span id="drone-follow-drag" data-text="drones.dragView" hidden></span>
   </div>
 
   <!-- Bottom-Center: Third-Person Mode Switcher & Controls Guide -->
@@ -774,7 +777,7 @@
           <p id="map-drone-status" role="status"></p>
           <div class="map-transport-actions">
             <button id="map-drone-approach" class="tool-btn" type="button" data-text="drones.approach" hidden></button>
-            <button id="map-drone-follow" class="tool-btn map-transport-primary" type="button" data-text="map.visit" disabled></button>
+            <button id="map-drone-follow" class="tool-btn map-transport-primary" type="button" data-text="drones.startSimulation" disabled></button>
           </div>
         </section>
         <section id="map-drive-panel" class="map-transport-page" role="tabpanel" aria-labelledby="map-plan-drive" hidden>

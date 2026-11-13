@@ -189,7 +189,7 @@ export const STR = {
       'meituan-lianhuashan': '莲花山公园'
     },
     noStations: '暂无可定位的无人机站点。',
-    visitSimulation: '参观（模拟）',
+    startSimulation: '模拟',
     visitUnavailable: '暂时无法开始跟拍，请稍后再试。',
     statusSuspended: '会期低空管控 · 停运',
     receiver: '无人机接收点 · 估计站位',
@@ -207,6 +207,10 @@ export const STR = {
     followMode: '配送跟随',
     repeat: '再看一轮',
     exit: '退出跟随',
+    stopSimulation: '停止模拟',
+    fastForward: '10×',
+    fastForwardLabel: '10 倍速',
+    dragView: '拖动画面旋转视角',
     returning: phase => `返航 · ${phase}`,
     phase: { loading: '待命 / 装载', takeoff: '起飞', cruise: '巡航', descent: '下降', delivery: '到站交付', complete: '已返回起点' }
   },

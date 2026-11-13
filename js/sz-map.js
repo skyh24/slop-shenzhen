@@ -536,9 +536,7 @@ class NYCMapSystem {
     });
     ui.follow.addEventListener('click', async () => {
       const station = this.droneStation;
-      const { suspended, route } = this.droneControls.status(station.id);
-      const demo = suspended || Boolean(route?.simulationOnly);
-      if (await this.droneControls.follow(station, demo, { remote: true,
+      if (await this.droneControls.follow(station, true, { remote: true,
         current: () => this.isFullMapOpen && station === this.droneStation })) this.toggleFullMap(false);
       else {
         this.droneFeedback = STR.drones.visitUnavailable;
@@ -592,7 +590,6 @@ class NYCMapSystem {
     if (!this.droneStation || !this.dronesVisible || !this.isFullMapOpen) return;
     const ui = this.droneUI, strings = STR.drones;
     const { route, suspended, mission, available, failed, blocked, canApproach } = this.droneControls.status(this.droneStation.id);
-    const demo = suspended || Boolean(route?.simulationOnly);
     const active = mission && mission.pose.phase !== 'complete';
     const phase = active && strings.phase[mission.pose.phase];
     const loading = !failed && route?.path.points && !route.path.reason;
@@ -603,13 +600,11 @@ class NYCMapSystem {
       .filter(Boolean);
     const status = lines.join(' / ') || strings.phase.loading;
     if (ui.status.textContent !== status) ui.status.textContent = status;
-    const label = demo ? strings.visitSimulation : STR.map.visit;
-    if (ui.follow.textContent !== label) ui.follow.textContent = label;
     const name = station => strings.stationNames[station.id] ?? station.name;
     const routeLabel = route?.from && route.to ? name(route.from) + ' ⇄ ' + name(route.to) + ' · ' + strings.estimate : strings.estimate;
     if (ui.route.textContent !== routeLabel) ui.route.textContent = routeLabel;
     ui.approach.hidden = !this.droneStation.approach || !canApproach;
-    ui.follow.disabled = !available || blocked || Boolean(active && mission.demo !== demo);
+    ui.follow.disabled = !available || blocked || Boolean(active && !mission.demo);
   }
 
   toggleFullMap(open) {

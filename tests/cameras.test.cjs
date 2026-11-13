@@ -14,6 +14,7 @@ class Vector3 {
   sub(v) { return this.set(this.x - v.x, this.y - v.y, this.z - v.z); }
   subVectors(a, b) { return this.copy(a).sub(b); }
   lerp(v, t) { return this.set(this.x + (v.x - this.x) * t, this.y + (v.y - this.y) * t, this.z + (v.z - this.z) * t); }
+  length() { return Math.hypot(this.x, this.y, this.z); }
 }
 
 class PerspectiveCamera {
@@ -64,7 +65,7 @@ function cameraHarness(entity = {
   };
   const { CAMERA_PRESETS, CameraSystem } = loadModule(source, {
     globals: { window, document },
-    imports: { 'three/webgpu': { Vector3, PerspectiveCamera }, './sz-camera-presets.js': { getScenicCamera },
+    imports: { 'three/webgpu': { Vector3, PerspectiveCamera, MathUtils: { clamp: (n, min, max) => Math.max(min, Math.min(max, n)) } }, './sz-camera-presets.js': { getScenicCamera },
       './sz-strings.js': { STR: { cameraNames: {} } }, './sz-landmark-views.js': { LANDMARK_RADIUS: 200 } }
   });
   const camera = new CameraSystem(canvas, { getActiveEntity: () => entity });
@@ -100,6 +101,21 @@ test('every scenic preset updates the rendered camera with its position and targ
     assert.equal(camera.camera.fov, preset.fov);
   }
   assert.equal(scenicCalls.length, presets.length);
+});
+
+test('dragging the drone camera can orbit to its front and releases pointer capture', () => {
+  const h = cameraHarness();
+  h.camera.setCameraPreset('action');
+  const pose = { position: new Vector3(5, 20, 10), yaw: 0, speed: 0 };
+  h.camera.startDroneFollow(pose, () => 1);
+  assert.equal(h.camera.updateDroneFollow(1 / 60), true);
+  assert.ok(h.camera.camera.position.z < pose.position.z);
+  h.pointer(h.canvas, 'pointerdown', 1, 0, 0, 'mouse');
+  h.pointer(h.canvas, 'pointermove', 1, (Math.PI + 0.48) / 0.0065, 0, 'mouse');
+  h.pointer(h.canvas, 'pointerup', 1, 550, 0, 'mouse');
+  for (let i = 0; i < 60; i++) h.camera.updateDroneFollow(1 / 60);
+  assert.ok(h.camera.camera.position.z > pose.position.z + 4);
+  assert.equal(h.captured.has(1), false);
 });
 
 test('UI touches neither move nor release an active canvas orbit', () => {

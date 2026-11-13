@@ -1997,6 +1997,22 @@ body[data-cruising] #drive-hud {
   transform: translateX(-50%);
   max-width: calc(100% - 16px);
   width: max-content;
+  justify-content: center;
+  pointer-events: none;
+}
+
+#drone-follow-hud .tool-btn { pointer-events: auto; }
+
+#drone-follow-fast[aria-pressed="true"] {
+  background: #c9dff7;
+  color: #112337;
+}
+
+#drone-follow-drag {
+  flex-basis: 100%;
+  text-align: center;
+  color: var(--text-2);
+  font-size: 11px;
 }
 
 body.touch-enabled .map-transport-actions .tool-btn,

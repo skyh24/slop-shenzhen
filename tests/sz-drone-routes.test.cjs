@@ -174,6 +174,7 @@ test('suspended operations, manual simulation, following visibility and disposal
   assert.equal(system.start(a.id, false, b), null);
   const normal = system.start(b.id, false, a, { remote: true });
   assert.equal(normal.stationId, b.id);
+  assert.equal(system.setFastForward(normal, true), false);
   assert.ok(normal.pose.position.equals(new THREE.Vector3(b.x, b.y, b.z)));
   now = '2026-11-06T16:00:00Z';
   system.update(0.05);
@@ -186,15 +187,30 @@ test('suspended operations, manual simulation, following visibility and disposal
   assert.equal(system.start(b.id, true, b), demo);
   assert.equal(demo.stationId, a.id);
   const far = new THREE.Vector3(8000, 8000, 8000);
+  assert.equal(system.setFastForward(demo, true), true);
+  for (let frame = 0; frame < 10; frame++) system.update(0.05, far);
+  assert.ok(Math.abs(demo.elapsed - 5) < 1e-9);
+  assert.equal(demo.pose.phase, 'takeoff');
+  assert.equal(system.setFastForward(demo, false), true);
   system.update(0.05, far);
+  assert.ok(Math.abs(demo.elapsed - 5.05) < 1e-9);
   assert.equal(aircraft.visible, true);
   system.preview(null);
   assert.equal(line.visible, true);
+  system.setFastForward(demo, true);
   system.stopFollowing();
+  assert.equal(system.setFastForward(demo, true), false);
   system.update(0.05, far);
+  assert.ok(Math.abs(demo.elapsed - 5.1) < 1e-9);
   assert.equal(aircraft.visible, false);
   assert.equal(line.visible, false);
   assert.equal(system.start(a.id, true, a), demo);
+  system.stopFollowing({ stopSimulation: true });
+  assert.equal(system.isActive(demo), false);
+  assert.equal(aircraft.visible, false);
+  const restarted = system.start(a.id, true, a);
+  assert.equal(restarted.elapsed, 0);
+  assert.equal(restarted.playbackRate, 1);
   let geometryReleases = 0;
   const geometries = new Set();
   system.group.traverse(({ geometry }) => { if (geometry) geometries.add(geometry); });
@@ -225,7 +241,8 @@ test('watching restores the same player after Escape and uses a safe fallback af
   const sessions = loadModule(readFileSync(join(__dirname, '../js/sz-observation-session.js'), 'utf8'));
   const nodes = new Map();
   const document = { body: { dataset: {} }, getElementById(id) {
-    if (!nodes.has(id)) nodes.set(id, { hidden: true, addEventListener(type, listener) { this[type] = listener; }, focus() {} });
+    if (!nodes.has(id)) nodes.set(id, { hidden: true, addEventListener(type, listener) { this[type] = listener; },
+      setAttribute(name, value) { this[name] = value; }, focus() {} });
     return nodes.get(id);
   } };
   const window = { addEventListener(type, listener) { this[type] = listener; } };
@@ -234,14 +251,16 @@ test('watching restores the same player after Escape and uses a safe fallback af
   const person = { position: { x: 8, y: 4, z: 6 }, heading: 2, speed: 0 };
   const original = structuredClone(person);
   const station = { id: 'a', approach: { x: 11, y: 4, z: 6, heading: 1 } };
-  const mission = { pose: { phase: 'cruise' }, demo: true };
+  const mission = { pose: { phase: 'cruise' }, demo: true, playbackRate: 1 };
   let safety = true, active = true, fallback;
   const camera = { startDroneFollow(pose) { this.target = pose; }, stopDroneFollow() { this.target = null; },
     updateDroneFollow: () => true, getActivePreset: () => ({ name: 'Prior camera' }), resetForTeleport() {} };
   const touch = { setEnabled(enabled) { this.enabled = enabled; } };
   const labels = [];
   const watch = wireDroneWatch({
-    drones: { stations: [station], routes: [], start: () => mission, isActive: () => active, stopFollowing() {} },
+    drones: { stations: [station], routes: [], start: () => mission, isActive: () => active,
+      stopFollowing({ stopSimulation }) { assert.equal(stopSimulation, true); mission.playbackRate = 1; },
+      setFastForward(target, enabled) { assert.equal(target, mission); target.playbackRate = enabled ? 10 : 1; return true; } },
     controllerManager: { activeMode: 'person', getActiveEntity: () => person, occupant: { timer: 0 },
       resetInput() {}, findModePosition: () => safety,
       teleportActiveTo(x, z) { fallback = { x, z }; return fallback; } },
@@ -254,9 +273,16 @@ test('watching restores the same player after Escape and uses a safe fallback af
   assert.equal(camera.target, mission.pose);
   assert.equal(watch.map.followedMission, mission);
   assert.equal(touch.enabled, false);
+  const fast = nodes.get('drone-follow-fast');
+  assert.equal(fast.hidden, false);
+  assert.equal(nodes.get('drone-follow-exit-label').textContent, strings.STR.drones.stopSimulation);
+  fast.click();
+  assert.equal(fast['aria-pressed'], 'true');
+  assert.equal(mission.playbackRate, 10);
   window.keydown({ code: 'Escape' });
   assert.deepEqual(person, original);
   assert.equal(watch.active, false);
+  assert.equal(fast.hidden, true);
   assert.equal(touch.enabled, true);
   assert.equal(camera.target, null);
   assert.equal(watch.map.followedMission, null);

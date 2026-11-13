@@ -7,6 +7,9 @@ export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchC
   const droneStatus = document.getElementById('drone-follow-status');
   const droneRepeat = document.getElementById('drone-follow-repeat');
   const droneExit = document.getElementById('drone-follow-exit');
+  const droneExitLabel = document.getElementById('drone-follow-exit-label');
+  const droneFast = document.getElementById('drone-follow-fast');
+  const droneDrag = document.getElementById('drone-follow-drag');
   const player = () => controllerManager.getActiveEntity();
   const inputs = { controllerManager, touchControls, gamepadControls };
   let feedbackTimer;
@@ -39,6 +42,10 @@ export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchC
     onCameraLabel(STR.drones.followMode);
     clearTimeout(feedbackTimer);
     droneExit.hidden = false;
+    droneExitLabel.textContent = target.mission.demo ? STR.drones.stopSimulation : STR.drones.exit;
+    droneFast.hidden = !target.mission.demo;
+    droneFast.setAttribute('aria-pressed', 'false');
+    droneDrag.hidden = false;
     droneHud.hidden = false;
     document.body.dataset.droneFollow = '';
     droneExit.focus({ preventScroll: true });
@@ -46,12 +53,14 @@ export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchC
 
   function endWatch({ station, safe }, _snapshot, reason) {
     const failed = reason === 'lost-target';
-    drones.stopFollowing();
+    drones.stopFollowing({ stopSimulation: true });
     cameraSystem.stopDroneFollow();
     setObservationInputBlocked(inputs, mapOpen());
     droneHud.hidden = !failed;
     droneExit.hidden = failed;
     droneRepeat.hidden = true;
+    droneFast.hidden = true;
+    droneDrag.hidden = true;
     delete document.body.dataset.droneFollow;
     if (safe && !controllerManager.findModePosition(controllerManager.activeMode)) {
       const { position, heading } = player();
@@ -70,6 +79,11 @@ export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchC
     session.exit(failed ? 'lost-target' : 'cancelled');
   }
   droneExit.addEventListener('click', () => stop());
+  droneFast.addEventListener('click', () => {
+    const mission = session.target?.mission;
+    const enabled = mission?.playbackRate !== 10;
+    if (drones.setFastForward(mission, enabled)) droneFast.setAttribute('aria-pressed', String(enabled));
+  });
   window.addEventListener('keydown', event => {
     if (event.code === 'Escape') stop();
   });
