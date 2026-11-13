@@ -36,6 +36,7 @@ from terrain import build_terrain
 from terrain_exclusions import chunjian_exclusions
 from terrain_surface import apply_city_datum, apply_urban_datum, build_terrain_surface
 from road_surface import build_road_surface
+from road_structures import compile_road_structures
 from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
@@ -49,6 +50,7 @@ REPORT = ROOT / 'data/source/build-report.json'
 LANDMARKS = ROOT / 'data/source/landmarks.json'
 AIR = ROOT / 'data/source/air-routes.json'
 URBAN_DATUM = ROOT / 'data/source/urban-datum.json'
+ROAD_STRUCTURES = ROOT / 'data/source/road-structures.json'
 FAST_OUT = ROOT / 'js/sz-city.szc.gz'
 VALIDATION_REPORT = ROOT / 'data/source/data-validation-report.json'
 
@@ -222,11 +224,12 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
     return terrain, apply_commercial_carriageway(surface, manifest, graph, report)
 
 
-def write_city_packages(payload, report, sources, started):
+def write_city_packages(payload, report, sources, started, *, structure_base=None):
     payload.pop('roads', None)
     osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
     regions = build_map_regions(payload, osm_source, enc_poly)
     payload['mapRegions'] = regions
+    compile_road_structures(payload, json.loads(ROAD_STRUCTURES.read_text()), report, base=structure_base)
     report['mapRegions'] = {key: regions[key] for key in ('version', 'source', 'pilot', 'coverage')}
     payload['airCruises'], report['airCruises'] = build_air_cruises(payload['roadGraph'], osm_source)
     OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -373,6 +376,7 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     report['groundRebuild'] = {'basePayloadSha256': validation['payloadSha256'],
         'changedSections': changed, 'rebuiltChunks': [chunk['id'] for chunk in surface['chunks']]}
     payload['terrain'], payload['terrainSurface'] = terrain, surface
+    payload.pop('roadStructures', None)
     build_shenzhen_golf(payload, osm, pbf, report)
     payload.pop('shenzhenBay', None)
     build_shenzhen_bay(payload, osm, pbf, report)
@@ -507,6 +511,8 @@ def main():
                       help='write the offline OSM road preview audit as JSON to stdout')
     mode.add_argument('--rebuild-map-regions', action='store_true',
                       help='regenerate map regions from the verified city package and OSM snapshot')
+    mode.add_argument('--rebuild-road-structures', type=Path, nargs='?', const=True, metavar='UNCUT_CITY_PACKAGE',
+                      help='compile reviewed structures and cut portals into the verified city surface')
     mode.add_argument('--rebuild-air-cruises', action='store_true',
                       help='regenerate air cruises from the verified city road graph')
     mode.add_argument('--rebuild-ground', action='store_true',
@@ -533,15 +539,22 @@ def main():
         export_road_preview(not args.no_cache)
         return
 
-    if args.repack_existing or args.rebuild_map_regions or args.rebuild_air_cruises:
+    if args.repack_existing or args.rebuild_map_regions or args.rebuild_air_cruises or args.rebuild_road_structures:
         started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
         sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
         report = json.loads(VALIDATION_REPORT.read_text())
         require_matching_snapshot(raw, report, sources)
-        if 'roads' in payload or args.rebuild_map_regions or args.rebuild_air_cruises:
-            write_city_packages(payload, json.loads(REPORT.read_text()), sources, started)
+        if 'roads' in payload or args.rebuild_map_regions or args.rebuild_air_cruises or args.rebuild_road_structures:
+            structure_base = None
+            if isinstance(args.rebuild_road_structures, Path):
+                base = json.loads(gzip.decompress(args.rebuild_road_structures.read_bytes()))
+                if 'roadStructures' in base or any(base.get(key) != payload.get(key)
+                                                  for key in ('origin', 'coverage', 'terrain', 'roadGraph')):
+                    raise ValueError('Portal rebuild requires the matching uncut city surface')
+                structure_base = base['terrainSurface']
+            write_city_packages(payload, json.loads(REPORT.read_text()), sources, started, structure_base=structure_base)
         else:
             print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
         return

@@ -5,7 +5,7 @@ import { createGroundSurfaceSampler } from './sz-ground-surface.js';
 import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
 
 // 立交桥面高程没有实测纵断面，按 layer 的估算层高派生，接触面与显示几何共用同一批三角面。
-const LAYER_HEIGHT_M = 4.8;
+const LAYER_HEIGHT_M = 5;
 const GIRDER_DEPTH_M = 0.35;
 const DECK_STEP_M = 4;
 const PIER_SPACING_M = 28;
@@ -27,7 +27,7 @@ const ELEVATED_JOIN_TOLERANCE_M = 0.35;
 // 游戏车身高度余量，用于判断护栏是否侵入相邻支道。
 const JUNCTION_BARRIER_CLEARANCE_M = 2;
 // 车行链路只接受可驾驶的估计纵坡；更陡的派生桥面是未核实断面，不接入车流/自动导航。
-export const ELEVATED_DRIVE_MAX_GRADE = 0.12;
+export const ELEVATED_DRIVE_MAX_GRADE = 0.05;
 export const ELEVATED_BARRIER_HEIGHT_M = BARRIER_HEIGHT_M;
 
 const DEFAULT_ELEVATED_AREA = Object.freeze({ minX: -3800, maxX: -2500, minZ: 500, maxZ: 1300 });
@@ -62,12 +62,12 @@ export const SHENZHEN_INTERCHANGES = Object.freeze([
 ]);
 
 const LIMITATIONS = [
-  '桥面高度按 OSM layer 每层 4.8 m 估算，没有实测纵断面或设计线形校正。',
-  '匝道与地面道路共享节点处按地形高程落地，坡度为两端线性插值，不是测量坡度。',
+  '桥面高度按 OSM layer 每层 5 m 估算，没有实测纵断面或设计线形校正。',
+  '匝道与地面道路共享节点处按地形高程落地，坡度按实际生成纵断面检查，不是测量坡度。',
   '只建 OSM 已有 bridge、layer 和匝道来源的桥面；OSM tunnel 链路只做离线审核，不摊成贴地桥面。',
   '桥墩按约 28 m 间距估计布置，只在净空大于 2 m 时设墩，墩位与基础未做地勘核实。',
   '护栏按 0.95 m 高、0.35 m 宽的混凝土护栏估计，仅桥面离开地面 0.75 m 以上的段落连续设置；不是深圳设计图尺寸。',
-  '车行链路只接受非隧道、layer>0 且派生纵坡不超过 12% 的桥面；高程未知或层间不连续的链路不接入车流和自动导航。'
+  '车行链路只接受非隧道、layer>0 且派生纵坡不超过 5% 的桥面；高程未知或层间不连续的链路不接入车流和自动导航。'
 ];
 
 function normalizeArea(area) {
@@ -288,7 +288,7 @@ function pierSpacing(record) {
 }
 
 /** 解析：单条高架/匝道链路 → 桥面缎带、护栏、桥墩、可站立三角面。
- *  高度：与地面道路共享的端点落地为地形；其余端点按 `layer×4.8 m` 估计，沿线线性插值，
+ *  高度：与地面道路共享的端点落地为地形；其余端点按 `layer×5 m` 估计，沿线使用平滑竖曲线，
  *        内部再用中心+两侧地形采样做下限，避免桥面埋入地面。
  *  显示和接触同源：桥面顶面三角面给控制器当可站立面，护栏与桥墩的接触体从同一批顶点生成。
  *  输出：{ frames, geometry, topTriangles, barriers, BarrierColliders, PierColliders, surfaceId, ... }。 */
@@ -301,8 +301,8 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
   const startGround = groundHeight(points[0].x, points[0].z);
   const endGround = groundHeight(points[points.length - 1].x, points[points.length - 1].z);
   if (!Number.isFinite(startGround) || !Number.isFinite(endGround)) return null;
-  const layer = Number.isFinite(metadata.layer) ? metadata.layer : 0;
-  const lift = LAYER_HEIGHT_M * Math.max(0, layer);
+  const layer = metadata.layer || (metadata.bridge ? 1 : 0);
+  const lift = LAYER_HEIGHT_M * Math.max(0, layer) + (/(南坪快速|南光高速)/.test(graph.names[link[2]] ?? '') ? 5 : 0);
   const sharedStart = groundNodes.has(start);
   const sharedEnd = groundNodes.has(end);
   const startY = sharedStart ? startGround : startGround + lift;
@@ -313,7 +313,10 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
   // （round 35 诊断）；6.5 m 在双向匝道与视觉合理之间折中（10 m 会与测试面积口径冲突）。
   const width = Math.max(link[3], 6.5);
   const frames = stationFrames(stations, width);
-  const deckHeightAt = distance => startY + (endY - startY) * Math.min(1, distance / length);
+  const deckHeightAt = distance => {
+    const t = Math.min(1, distance / length);
+    return startY + (endY - startY) * t * t * (3 - 2 * t);
+  };
   const half = Math.max(0.7, Math.min(1.4, width * 0.08));
   const geometry = [];
   const topTriangles = [];
@@ -323,6 +326,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
   const osmId = metadata.osmId ?? null;
   let areaM2 = 0;
   let maxClearanceM = 0;
+  let maxGrade = 0;
 
   for (const frame of frames) {
     // 端点之间按直线坡度插值；地形在 link 中部抬升时以地面为下限，避免桥面埋入地下。
@@ -334,6 +338,13 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
     const floor = Math.max(centerGround ?? -Infinity, ...edgeGrounds);
     frame.y = Math.max(linearY, Number.isFinite(floor) ? floor : linearY);
     if (Number.isFinite(centerGround)) maxClearanceM = Math.max(maxClearanceM, frame.y - centerGround);
+  }
+  for (let i = 1; i < frames.length; i++) {
+    const a = frames[i - 1], b = frames[i];
+    for (const side of ['left', 'right']) {
+      const run = Math.hypot(b[side].x - a[side].x, b[side].z - a[side].z);
+      maxGrade = Math.max(maxGrade, Math.abs(b.y - a.y) / Math.max(EPSILON, run));
+    }
   }
   // 端部各外延 4 m 平段，让相邻链路/地面路的接触面在节点处有重叠，避免车辆在
   // 链路交界因支撑高度跳变 >1.5 m 被判定“无支撑”而刹停（round 30/34 诊断）。
@@ -425,11 +436,12 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
     lengthM: length,
     areaM2,
     maxClearanceM,
-    maxGrade: Math.abs(endY - startY) / length,
+    maxGrade,
     points,
     frames,
     geometry,
     topTriangles,
+    leadingOverlapFrames: 1,
     piers: pierRecords,
     pierColliders,
     surfaceId
@@ -585,113 +597,6 @@ function buildChunks(records) {
 }
 
 
-// 跨层连接坡道：相邻高架链路共享节点但 layer 估计不同（如 layer1=4.8 m、layer2=9.6 m）时，
-// 桥面会出现 4.8 m 台阶，车辆爬不上去。这里在两条链路各退 ~18 m 处拉一条渐变坡道，坡度控制在 35% 内。
-const CONNECTOR_RAMP_M = 18;
-const CONNECTOR_MAX_GRADE = 0.35;
-const CONNECTOR_SEGMENTS = 10;
-
-function connectorBackFrame(record, end) {
-  const frames = record.frames;
-  if (frames.length < 4) return null;
-  const step = record.lengthM / (frames.length - 1);
-  const back = Math.max(1, Math.min(frames.length - 2, Math.round(CONNECTOR_RAMP_M / Math.max(step, 0.5))));
-  const frame = end === 'start' ? frames[back] : frames[frames.length - 1 - back];
-  return frame ? { frame, width: record.width } : null;
-}
-
-/** 解析：在两条高架链路各退约 18 m 处拉一条渐变坡道（顶面 + 可站立三角面）。
- *  输入：低/高层链路端点帧与坡度是否合规标记。
- *  输出：与链路记录同构的坡道记录；宽度取两条链路的 0.85、只生成顶面。 */
-function makeConnectorRamp(node, serial, low, high, gradeOK) {
-  const a = low.frame, b = high.frame;
-  const width = Math.min(low.width, high.width) * 0.85;
-  const half = width / 2;
-  const dx = b.x - a.x, dz = b.z - a.z;
-  const length = Math.hypot(dx, dz);
-  if (!(length > 6) || !Number.isFinite(length)) return null;
-  const px = dz / length, pz = -dx / length;
-  const frames = [];
-  for (let i = 0; i <= CONNECTOR_SEGMENTS; i++) {
-    const t = i / CONNECTOR_SEGMENTS;
-    const x = a.x + dx * t, z = a.z + dz * t;
-    const y = a.y + (b.y - a.y) * t;
-    frames.push({ x, z, y, left: { x: x + px * half, z: z + pz * half }, right: { x: x - px * half, z: z - pz * half } });
-  }
-  const geometry = [];
-  const topTriangles = [];
-  for (let i = 1; i < frames.length; i++) {
-    const p = frames[i - 1], q = frames[i];
-    pushTopQuad(geometry, topTriangles,
-      { x: p.left.x, y: p.y, z: p.left.z }, { x: p.right.x, y: p.y, z: p.right.z },
-      { x: q.right.x, y: q.y, z: q.right.z }, { x: q.left.x, y: q.y, z: q.left.z });
-  }
-  const areaM2 = length * width;
-  return {
-    index: 100000 + serial,
-    osmId: null,
-    name: `connector:${node}`,
-    width,
-    lanes: 1,
-    direction: 0,
-    bridge: true,
-    tunnel: false,
-    layer: Math.max(low.layer ?? 0, high.layer ?? 0),
-    startNode: node,
-    endNode: node,
-    sharedStart: false,
-    sharedEnd: false,
-    startGroundHeight: null,
-    endGroundHeight: null,
-    startDeckY: a.y,
-    endDeckY: b.y,
-    lengthM: length,
-    areaM2,
-    maxClearanceM: 0,
-    points: [{ x: a.x, z: a.z }, { x: b.x, z: b.z }],
-    frames,
-    geometry,
-    topTriangles,
-    piers: [],
-    surfaceId: `sz-elevated-ramp:${node}`,
-    grade: gradeOK,
-    connector: true
-  };
-}
-
-/** 解析：识别相邻高架链路在共享节点处的 layer 高差（如 4.8 m vs 9.6 m），生成连接坡道。
- *  输入：已规划的链路记录（含 startNode/endNode 与端部高度）。
- *  输出：坡道记录（几何 + 独立 surfaceId `sz-elevated-ramp:<node>`），坡度按 35% 上限标记。 */
-function planConnectorRamps(records) {
-  const byNode = new Map();
-  for (const record of records) {
-    for (const [end, node] of [['start', record.startNode], ['end', record.endNode]]) {
-      if (!byNode.has(node)) byNode.set(node, []);
-      byNode.get(node).push({ record, end, y: end === 'start' ? record.startDeckY : record.endDeckY });
-    }
-  }
-  const ramps = [];
-  for (const [node, entries] of [...byNode.entries()].sort((a, b) => a[0] - b[0])) {
-    if (entries.length < 2) continue;
-    entries.sort((a, b) => a.y - b.y);
-    for (let i = 1; i < entries.length; i++) {
-      const low = entries[i - 1], high = entries[i];
-      const rise = high.y - low.y;
-      if (rise < 0.6) continue;
-      const lowFrame = connectorBackFrame(low.record, low.end);
-      const highFrame = connectorBackFrame(high.record, high.end);
-      if (!lowFrame || !highFrame) continue;
-      const lowX = lowFrame.frame.x, lowY = lowFrame.frame.y;
-      const highX = highFrame.frame.x, highY = highFrame.frame.y;
-      const run = Math.hypot(highX - lowX, highFrame.frame.z - lowFrame.frame.z);
-      const gradeOK = run > 0 && rise / run <= CONNECTOR_MAX_GRADE;
-      const ramp = makeConnectorRamp(node, ramps.length, lowFrame, highFrame, gradeOK);
-      if (ramp) ramps.push(ramp);
-    }
-  }
-  return ramps;
-}
-
 /** 解析：按立交分区的桥面、护栏、桥墩总计划（纯函数）。
  *  选区：bridge=true 或 |layer|>0、与任一分区矩形相交的链路；一条链路只规划一次，
  *        归给分区列表里第一个命中的立交，避免相邻立交重复出桥面。
@@ -728,7 +633,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
   for (let index = 0; index < graph.links.length; index++) {
     const link = graph.links[index];
     const metadata = graph.metadata[index];
-    if (!metadata || (metadata.bridge !== true && !(Math.abs(metadata.layer ?? 0) > 0))) continue;
+    if (!metadata || options?.exclude?.has(index) || (metadata.bridge !== true && !(Math.abs(metadata.layer ?? 0) > 0))) continue;
     if (isGroundRoad(metadata)) continue;
     const points = roadLinkPoints(graph, link);
     const owner = interchanges.find(entry => polylineIntersectsArea(points, entry.area));
@@ -752,7 +657,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     recordsByInterchange.get(owner.id).push(record);
   }
 
-  const connectors = planConnectorRamps(records);
+
   // 车行链路：高程来自本计划同一批桥面三角面、纵坡可驾驶且非隧道；连接在车流图里再按共享节点高差复核。
   const driveLinks = records.filter(record => !record.tunnel && record.layer > 0
     && record.maxGrade <= ELEVATED_DRIVE_MAX_GRADE);
@@ -783,7 +688,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     candidates.sort((a, b) => b.dot - a.dot || a.id.localeCompare(b.id));
     successors.set(record.surfaceId, candidates.map(candidate => candidate.id));
   }
-  const surfaces = [...records, ...connectors].map(record => ({
+  const surfaces = driveLinks.map(record => ({
     id: record.surfaceId,
     heightSource: 'estimate',
     triangles: record.topTriangles,
@@ -791,7 +696,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     climbableFromGround: true,
     driveSuccessors: successors.get(record.surfaceId) ?? []
   }));
-  const chunks = buildChunks([...records, ...connectors]);
+  const chunks = buildChunks(records);
   // 护栏和桥墩的接触体都来自显示几何同一批顶点；桥面本身仍只登记顶面三角面。
   const colliders = records.flatMap(record => [...record.barrierColliders, ...record.pierColliders]);
   const interchangeSummaries = interchanges.map(entry => {
@@ -816,12 +721,13 @@ export function planElevatedRoads(graph, terrainSurface, options) {
   });
   const statistics = {
     links: records.length,
-    connectors: connectors.length,
-    connectorLengthM: connectors.reduce((sum, record) => sum + record.lengthM, 0),
+    connectors: 0,
+    connectorLengthM: 0,
+    gradeConflicts: records.filter(record => record.maxGrade > ELEVATED_DRIVE_MAX_GRADE).map(record => record.index),
     deckLengthM: records.reduce((sum, record) => sum + record.lengthM, 0),
-    areaM2: records.reduce((sum, record) => sum + record.areaM2, 0) + connectors.reduce((sum, record) => sum + record.areaM2, 0),
+    areaM2: records.reduce((sum, record) => sum + record.areaM2, 0),
     surfaces: surfaces.length,
-    triangles: [...records, ...connectors].reduce((sum, record) => sum + record.geometry.length / 9, 0),
+    triangles: records.reduce((sum, record) => sum + record.geometry.length / 9, 0),
     piers: records.reduce((sum, record) => sum + record.piers.length, 0),
     barriers: records.reduce((sum, record) => sum + record.barriers.length, 0),
     barrierLengthM: records.reduce((sum, record) => sum + record.barrierLengthM, 0),
@@ -847,9 +753,9 @@ export function planElevatedRoads(graph, terrainSurface, options) {
  *  输入：roadGraph、terrainSurface（GEO 里的派生地形），以及 area（旧接口）或 interchanges（多立交分区）。
  *  输出：{ group, meshes, surfaces, colliders, interchanges, statistics, links, update, dispose }。
  *  约束：桥面高度、护栏尺寸、桥墩间距和连接坡道均为 estimate；不导入外部模型。 */
-export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, interchanges } = {}) {
+export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, interchanges, exclude } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('A THREE scene is required');
-  const options = area ? area : interchanges ? { interchanges } : undefined;
+  const options = area ? area : { interchanges, exclude };
   const plan = planElevatedRoads(graph, terrainSurface, options);
   // 车行网络复用渲染桥面的顶面三角面：车轮接触、自动规划和渲染桥面同源，桥下层不串到上层。
   const driveSurfaceIds = new Set(plan.driveLinks.map(record => record.surfaceId));

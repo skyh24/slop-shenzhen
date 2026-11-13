@@ -15,7 +15,7 @@ const STAGE_STUBS = {
   signs: () => ({ group: emptyGroup(), update: () => {}, nearestName: () => null, statistics: {} }),
   details: () => ({ group: emptyGroup(), update: () => {}, statistics: {} }),
   paint: () => ({ group: emptyGroup() }),
-  elevated: () => ({ group: emptyGroup(), surfaces: [], colliders: [] }),
+  elevated: () => ({ group: emptyGroup(), links: [], surfaces: [], colliders: [], drive: { links: [], heightAt: () => null } }),
   streetscape: () => ({ group: emptyGroup(), observedTrees: [], findArrival: () => null, pathAt: () => [], statistics: {}, dispose() {} }),
   lamps: () => ({ group: emptyGroup(), update: () => {} }),
   trees: () => ({ group: emptyGroup(), colliders: [], update: () => {}, statistics: {} }),
@@ -225,6 +225,7 @@ class QaSession {
     if (modules.drones?.statistics) console.info('[drone routes]', JSON.stringify(modules.drones.statistics));
     window.__szLightShow = modules.lightShow;
     window.__szElevatedRoads = modules.elevatedRoads;
+    window.__szRoadStructures = modules.roadStructures;
     window.__szMetroEntrances = modules.metroEntrances;
     window.__szFutian = modules.futian;
     window.__szXili = modules.xili;
@@ -274,7 +275,7 @@ class QaSession {
     window.__szDebug = {
       scene: this.runtime.scene, renderer: this.runtime.renderer, camera: this.runtime.cameraSystem.camera,
       signs: this.runtime.buildingSigns, details: this.runtime.buildingDetails,
-      controllerManager, teleport, pedestrians: this.runtime.pedestrians
+      controllerManager, teleport, pedestrians: this.runtime.pedestrians, mapSystem: this.runtime.mapSystem
     };
   }
 
@@ -379,7 +380,8 @@ class QaSession {
       },
       mode: controllerManager.activeMode,
       entities: Object.fromEntries(Object.entries(controllerManager.entities).map(([mode, entity]) => [mode, {
-        x: entity.position.x, y: entity.position.y, z: entity.position.z, heading: entity.heading, speed: entity.speed
+        x: entity.position.x, y: entity.position.y, z: entity.position.z, heading: entity.heading, speed: entity.speed,
+        surfaceId: entity._support?.surfaceId ?? null
       }])),
       camera: { id: cameraSystem.activePresetId, position: cameraSystem.camera.position.toArray() },
       time: lightingSystem.activePresetId,

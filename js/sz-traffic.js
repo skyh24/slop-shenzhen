@@ -5,7 +5,7 @@ import { getDeckSection, getRoadSection, usableWidth } from './sz-road-section.j
 import {
   carStyleCode, createTrafficCarBody, createTrafficVehicleGeometry, createTrafficWheels, VEHICLE_SPECS
 } from './sz-vehicles.js';
-import { polygonBoxOverlaps } from './building-collision.js';
+import { polygonBoxOverlaps, roofPanelContactPolygon, spanContactPolygon } from './building-collision.js';
 import { vehicleContact } from './vehicle-physics.js';
 import { boxDimensions, followingReach, routeLeader, writeEntityCollider, writeTrafficCollider } from './sz-driving-motion.js';
 
@@ -143,6 +143,7 @@ export function createTrafficGraph(graph, { canTurn = () => true, elevated = nul
       const to = sign === 1 ? record.endNode : record.startNode;
       const edge = { from, to, sign, section,
         name: record.name ?? '', osmId: record.osmId, highway: null, sourceIndex: record.index,
+        structureNeighbors: record.structureNeighbors, tunnel: record.tunnel === true,
         segments: [], next: [], surfaceId: section.surfaceId, elevated: true,
         startDeckY: sign === 1 ? record.startDeckY : record.endDeckY,
         endDeckY: sign === 1 ? record.endDeckY : record.startDeckY,
@@ -181,6 +182,8 @@ export function createTrafficGraph(graph, { canTurn = () => true, elevated = nul
       if (next.sourceIndex === edge.sourceIndex || next.to === edge.from
         || last.dx * first.dx + last.dz * first.dz <= -0.45 || !canTurn(edge, next)) return false;
       // 高程衔接：地面↔桥面只走链路的落地端；两条桥面链路则要求共享节点估计桥面高差在容差内。
+      if (edge.structureNeighbors && !edge.structureNeighbors.includes(next.surfaceId ?? 'terrain')) return false;
+      if (next.structureNeighbors && !next.structureNeighbors.includes(edge.surfaceId ?? 'terrain')) return false;
       if (next.elevated || edge.elevated) {
         if (next.elevated && edge.elevated) {
           return Math.abs(edge.endDeckY - next.startDeckY) <= ELEVATED_HEIGHT_TOLERANCE;
@@ -301,9 +304,9 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice) 
     const halfWidth = edge.section.travelWidthM / 2;
     const lanes = offsets.filter(offset => Math.abs(offset) + model.hx + 0.08 <= halfWidth);
     const offset = lanes[Math.min(lanes.length - 1, Math.floor(laneChoice * lanes.length))] ?? 0;
-    for (; index < edge.segments.length && remaining > 0; index++) {
+    for (; index < edge.segments.length && (remaining > 0 || edge.tunnel); index++) {
       const segment = edge.segments[index];
-      const length = Math.min(segment.length - start, remaining);
+      const length = edge.tunnel ? segment.length - start : Math.min(segment.length - start, remaining);
       if (length > 0) segments.push({ ...segment, length,
         x: segment.x + segment.dx * start - segment.dz * offset,
         z: segment.z + segment.dz * start + segment.dx * offset, edge });
@@ -316,6 +319,7 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice) 
       && (!edge.section.reviewed || outerLane || !isTrunkRamp(next)));
     const next = choices[Math.floor(random() * choices.length)];
     if (isTrunkRamp(edge) && next?.section.reviewed) laneChoice = 1;
+    if (edge.tunnel && next) remaining = Math.max(remaining, next.tunnel ? 1 : 55);
     edge = next;
     index = 0;
   }
@@ -395,12 +399,16 @@ export function poseOnRoute(samples, s, model, roadHeight, pose) {
     const index = edges.indexOf(first);
     if (index > 0) edges.unshift(edges.splice(index, 1)[0]);
   }
+  let centerEdge = null;
   const heightAt = (px, pz) => {
     const wx = x + px * cos + pz * sin;
     const wz = z - px * sin + pz * cos;
     for (const edge of edges) {
       const height = roadHeight(wx, wz, edge);
-      if (Number.isFinite(height)) return height;
+      if (Number.isFinite(height)) {
+        if (px === 0 && pz === 0) centerEdge = edge;
+        return height;
+      }
     }
     return null;
   };
@@ -420,7 +428,7 @@ export function poseOnRoute(samples, s, model, roadHeight, pose) {
   const y = (leftFront + rightFront + leftRear + rightRear) / 4;
   if (Math.abs(pitch) > 0.28 || Math.abs(roll) > 0.2 || Math.abs(center - y) > 0.26
     || Math.abs(leftFront + rightRear - rightFront - leftRear) > 0.44) return false;
-  Object.assign(pose, { x, y, z, heading, pitch, roll, sin, cos, index: lo, edge: t < 0.5 ? a.edge : b.edge });
+  Object.assign(pose, { x, y, z, heading, pitch, roll, sin, cos, index: lo, edge: centerEdge });
   return true;
 }
 
@@ -451,7 +459,13 @@ function makeObstacleIndex(colliders) {
       for (let z = Math.floor(body.minZ / BODY_CELL); z <= Math.floor(body.maxZ / BODY_CELL); z++) {
         for (const candidate of cells.get(cellKey(x, z)) ?? []) {
           if (!intersects(body, candidate)) continue;
-          if (!candidate.polygon || polygonBoxOverlaps(candidate.polygon, body.x, body.z,
+          if (candidate.type === 'bridge-slab' && (candidate.name === body.surfaceId
+            || (candidate.roadAccess && body.minY >= candidate.maxY - 0.28))) continue;
+          if (!candidate.polygon) return candidate;
+          let polygon = candidate.polygon;
+          if (candidate.roofPanel) polygon = roofPanelContactPolygon(candidate.roofPanel, body.minY, body.maxY);
+          else if (candidate.verticalSpan) polygon = spanContactPolygon(polygon, candidate.verticalSpan, body.minY, body.maxY);
+          if (polygon && polygonBoxOverlaps(polygon, body.x, body.z,
             body.halfW, body.halfL, body.cos, body.sin)) return candidate;
         }
       }
@@ -630,6 +644,7 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
   function blockerOnRoute(actor, route, s, includeTraffic) {
     if (!poseOnRoute(route, s, actor.model, heightFor, scratch)) return { kind: 'road-contact', atS: s };
     const body = writeTrafficCollider(probe, actor.model, scratch);
+    body.surfaceId = scratch.edge?.surfaceId;
     const blocker = blockedByBuilding(body) || (includeTraffic ? collides(body, actor) : null);
     return blocker ? { kind: blocker.type ?? 'static', id: blocker.id ?? blocker.sourceId ?? blocker.name ?? null,
       part: blocker.part ?? null, atS: s } : null;
@@ -670,6 +685,7 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
       if (limit < first + 42 || !poseOnRoute(samples, first, model, heightFor, actor.pose)) continue;
       if (signals?.contains(actor.pose.x, actor.pose.z, model.hz + 0.5)) continue;
       writeTrafficCollider(actor.collider, model, actor.pose);
+      actor.collider.surfaceId = actor.pose.edge?.surfaceId;
       if (blockedByBuilding(actor.collider) || collides(actor.collider, actor)) continue;
       const rearMargin = Math.hypot(model.hx, model.hz) + Math.abs(model.z) + 0.5;
       const routeStops = routeSignalStops(samples, signals, rearMargin).filter(stop => stop.s >= first);
@@ -809,7 +825,8 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
     for (const actor of vehicles) {
       if (!actor.route) continue;
       const distance = squareDistance(actor.pose.x, actor.pose.z, focus);
-      const outside = distance > DESPAWN_RADIUS ** 2;
+      const inBore = actor.pose.edge?.tunnel === true;
+      const outside = !inBore && distance > DESPAWN_RADIUS ** 2;
       const terminal = actor.s >= actor.end - 1e-6 && distance > RECYCLE_CLEARANCE ** 2;
       const blocked = actor.stalled > 5 && distance > 130 ** 2;
       // 视锥内保留实体和碰撞；未提供视锥时只按远距上限回收。

@@ -119,6 +119,8 @@ function collisionBody(mode, radius, heading, margin = 0, bounds = null) {
 
 // 运动和传送共用脚印碰撞。人物使用圆，车辆和飞行器使用从模型提取的定向矩形。
 function buildingContact(c, x, y, z, body, contact) {
+  if (c.type === 'bridge-slab' && body.mode === 'car' && (c.name === body.surfaceId
+    || (c.roadAccess && y >= c.maxY - 0.28))) return false;
   if (y + body.bottom >= c.maxY || y + body.top <= (c.minY ?? 0)) return false;
   if (x + body.extX <= c.minX || x - body.extX >= c.maxX || z + body.extZ <= c.minZ || z - body.extZ >= c.maxZ) return false;
   if (c.polygon) {
@@ -888,16 +890,16 @@ class ThirdPersonControllerManager {
     const entity = this.entities?.[mode];
     const support = entity?._support;
     return this.surfaceResolver.resolve(x, z, {
-      previousY: support?.height ?? null, previousSurfaceId: support?.surfaceId ?? null
+      previousY: support?.height ?? null, previousSurfaceId: support?.surfaceId ?? null, mode
     })?.height ?? null;
   }
 
   supportedFootprint(x, z, body, entity, landingOnRoad = false) {
-    if (this.groundAccess && !this.groundAccess(body.mode, x, z)) return null;
     const previous = entity?._support;
-    const options = { previousY: previous?.height ?? null, previousSurfaceId: previous?.surfaceId ?? null };
+    const options = { previousY: previous?.height ?? null, previousSurfaceId: previous?.surfaceId ?? null, mode: body.mode };
     const center = this.surfaceResolver.resolve(x, z, options);
     if (!center || (landingOnRoad && !this.isRoadContact(x, z, center.height))) return null;
+    if (this.groundAccess && !this.groundAccess(body.mode, x, z, center.surfaceId)) return null;
     const halfX = body.car ? body.hx : body.extX, halfZ = body.car ? body.hz : body.extZ;
     const sin = body.car ? body.sin : 0, cos = body.car ? body.cos : 1;
     for (const dx of [-halfX, 0, halfX]) {
@@ -971,9 +973,12 @@ class ThirdPersonControllerManager {
       || (mode === 'person' && (this.nearWalkers?.(x, z, reach + 0.5) ?? []).some(touching));
   }
 
-  isClearCarPose({ x, y, z, heading }) {
+  isClearCarPose({ x, y, z, heading, surfaceId }) {
     const body = collisionBody('car', 1.35, heading, 0.05, this.entities.car.collisionBounds);
-    const support = this.supportedFootprint(x, z, body, null);
+    const exact = this.surfaceResolver.at(x, z, 'car').find(candidate => candidate.surfaceId === surfaceId);
+    if (surfaceId && !exact) return false;
+    const support = this.supportedFootprint(x, z, body, exact ? { _support: exact } : null);
+    body.surfaceId = support?.surfaceId;
     return Boolean(support && Math.abs(support.height - y) <= 0.26
       && !this.nearColliders(x, z, Math.max(body.extX, body.extZ), false)
         .some(c => buildingContact(c, x, support.height, z, body)));
@@ -1025,7 +1030,10 @@ class ThirdPersonControllerManager {
         if (!support) { restore(); return; }
       }
     }
-    if (carEntity && support) pos.y = support.height;
+    if (carEntity && support) {
+      pos.y = support.height;
+      body.surfaceId = support.surfaceId;
+    }
     const { extX, extZ } = body;
     const contact = this._buildingContact ??= { nx: 0, nz: 0, depth: 0 };
 
@@ -1318,7 +1326,7 @@ class ThirdPersonControllerManager {
     const center = car._support;
     if (!center || !car.wheels?.length) return;
     const sin = Math.sin(car.heading), cos = Math.cos(car.heading);
-    const previous = { previousY: center.height, previousSurfaceId: center.surfaceId };
+    const previous = { previousY: center.height, previousSurfaceId: center.surfaceId, mode: 'car' };
     for (const { steerPivot, restY } of car.wheels) {
       const { x, z } = steerPivot.position;
       // 与车身承托使用同一面解析；坡面和桥头不能用车心的单一高度画四个轮胎。

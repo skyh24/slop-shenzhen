@@ -84,6 +84,7 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
   if (typeof groundHeight !== 'function') throw new Error('A terrain contact function is required');
   const cells = new Map();
   const driveSuccessors = new Map();
+  const structured = new Set();
   for (const surface of surfaces) {
     if (!surface.id || !surface.heightSource || surface.heightSource === 'unresolved') {
       throw new Error('A rendered surface requires identity and resolved height provenance');
@@ -91,13 +92,16 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
     if (Array.isArray(surface.driveSuccessors) && surface.driveSuccessors.length > 0) {
       driveSuccessors.set(surface.id, surface.driveSuccessors);
     }
+    if (surface.structured) structured.add(surface.id);
+    const access = new Set(surface.accessTriangles);
     for (const triangle of surface.triangles) {
       if (triangle.length !== 3 || triangle.some(p => ![p.x, p.y, p.z].every(Number.isFinite))) {
         throw new Error(`Invalid contact triangle: ${surface.id}`);
       }
       const xs = triangle.map(p => p.x), zs = triangle.map(p => p.z);
       const row = { surfaceId: surface.id, heightSource: surface.heightSource, triangle,
-        climbableFromGround: surface.climbableFromGround === true };
+        climbableFromGround: surface.climbableFromGround === true, modes: surface.modes,
+        roadAccess: access.has(triangle) };
       for (let ix = Math.floor(Math.min(...xs) / CELL); ix <= Math.floor(Math.max(...xs) / CELL); ix++) {
         for (let iz = Math.floor(Math.min(...zs) / CELL); iz <= Math.floor(Math.max(...zs) / CELL); iz++) {
           const key = `${ix},${iz}`;
@@ -108,12 +112,13 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
     }
   }
 
-  function at(x, z) {
+  function at(x, z, mode = null) {
     if (!Number.isFinite(x) || !Number.isFinite(z)) return [];
     const candidates = new Map();
     const ground = groundHeight(x, z);
     if (Number.isFinite(ground)) candidates.set('terrain', { height: ground, surfaceId: 'terrain', heightSource: 'terrain' });
     for (const row of cells.get(`${Math.floor(x / CELL)},${Math.floor(z / CELL)}`) || []) {
+      if (row.modes && mode && !row.modes.includes(mode)) continue;
       const height = triangleHeight(row.triangle, x, z);
       if (height === null) continue;
       const previous = candidates.get(row.surfaceId);
@@ -121,23 +126,34 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
         throw new Error(`Overlapping levels share a surface identity: ${row.surfaceId}`);
       }
       candidates.set(row.surfaceId, { height, surfaceId: row.surfaceId, heightSource: row.heightSource,
-        climbableFromGround: row.climbableFromGround });
+        climbableFromGround: row.climbableFromGround, roadAccess: row.roadAccess || previous?.roadAccess });
     }
     return [...candidates.values()].sort((a, b) => a.height - b.height || a.surfaceId.localeCompare(b.surfaceId));
   }
 
-  function resolve(x, z, { previousY = null, previousSurfaceId = null, maxStepUp = 0.6, maxDrop = 1.5 } = {}) {
+  function resolve(x, z, { previousY = null, previousSurfaceId = null, mode = null, maxStepUp = 0.6, maxDrop = 1.5 } = {}) {
     if (![maxStepUp, maxDrop].every(v => Number.isFinite(v) && v >= 0)) throw new Error('Invalid surface step limits');
-    const candidates = at(x, z);
+    const candidates = at(x, z, mode);
     // 没有上一次接触高度时只返回真实地面，防止传送到桥下却自动吸到桥面。
     if (previousY === null) return candidates.find(c => c.surfaceId === 'terrain') ?? null;
     if (!Number.isFinite(previousY)) return null;
     const reachable = candidates.filter(c => c.height <= previousY + maxStepUp && c.height >= previousY - maxDrop);
     const same = reachable.find(c => c.surfaceId === previousSurfaceId);
+    if (structured.has(previousSurfaceId)) {
+      if (same) return same;
+      const successors = driveSuccessors.get(previousSurfaceId) ?? [];
+      return reachable.find(c => successors.includes(c.surfaceId)) ?? null;
+    }
+    if (previousSurfaceId === 'terrain' && mode === 'car') {
+      const access = reachable.find(c => c.roadAccess && (!same || c.height > same.height + 1e-5));
+      if (access) return access;
+    }
+    // 封闭的结构面只能从同源路口或该路线的相邻路段进入。
+    const ordinary = reachable.filter(c => !structured.has(c.surfaceId));
     if (same) {
       // 下坡跨过已建平台时先接触较高的上表面。桥下仍沿当前地面，不向上吸附。
       // 地面走到桥头时，只有显式声明可接地、且高差在抬脚高度内的桥面才允许踏上（桥面比地面高 4.8 m 时不可达）。
-      const raised = reachable.findLast(c => c.height > same.height + 1e-7
+      const raised = ordinary.findLast(c => c.height > same.height + 1e-7
         && (c.height <= previousY + 1e-7
           || (same.surfaceId === 'terrain' && c.climbableFromGround && c.height <= previousY + maxStepUp)));
       return raised ?? same;
@@ -148,17 +164,17 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
     if (successors) {
       // 按计划给出的走向顺序取第一条可达链路，避免在重叠缎带里吸附到相邻层。
       for (const surfaceId of successors) {
-        const candidate = reachable.find(c => c.surfaceId === surfaceId);
+        const candidate = ordinary.find(c => c.surfaceId === surfaceId);
         if (candidate) return candidate;
       }
     }
-    return reachable.sort((a, b) => Math.abs(a.height - previousY) - Math.abs(b.height - previousY)
+    return ordinary.sort((a, b) => Math.abs(a.height - previousY) - Math.abs(b.height - previousY)
       || a.surfaceId.localeCompare(b.surfaceId))[0] ?? null;
   }
 
   function below(x, z, y) {
     if (!Number.isFinite(y)) return null;
-    return at(x, z).filter(c => c.height <= y + 1e-7).at(-1) ?? null;
+    return at(x, z, 'helicopter').filter(c => c.height <= y + 1e-7).at(-1) ?? null;
   }
 
   function footing(x, z, radius, minY, maxY) {
@@ -166,7 +182,8 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
     let best = null;
     for (let ix = Math.floor((x - radius) / CELL); ix <= Math.floor((x + radius) / CELL); ix++) {
       for (let iz = Math.floor((z - radius) / CELL); iz <= Math.floor((z + radius) / CELL); iz++) {
-        for (const { surfaceId, heightSource, triangle } of cells.get(`${ix},${iz}`) || []) {
+        for (const { surfaceId, heightSource, triangle, modes } of cells.get(`${ix},${iz}`) || []) {
+          if (modes && !modes.includes('person')) continue;
           const height = heightInDisc(triangle, x, z, radius);
           if (height >= minY - 1e-7 && height <= maxY + 1e-7 && (!best || height > best.height)) {
             best = { height, surfaceId, heightSource };

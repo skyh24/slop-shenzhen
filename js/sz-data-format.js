@@ -680,6 +680,48 @@ export function validateCityPayload(raw) {
         && stations.at(-3) === graph.nodes[b * 2] && stations.at(-2) === graph.nodes[b * 2 + 1], 'road graph cross section');
     }
   }
+  const structures = raw.roadStructures;
+  if (structures !== undefined) {
+    requireData(structures?.version === 1 && ['verticalStepM', 'maxGrade', 'bridgeSlabM', 'tunnelRoofM',
+      'tunnelClearanceM', 'tunnelLightDepthM', 'tunnelWallM'].every(key => Number.isFinite(structures[key]) && structures[key] > 0)
+      && Array.isArray(structures.routes) && Array.isArray(structures.records), 'road structures');
+    validateIds(structures.routes.map(route => route?.id), 'structure route identity');
+    const landscape = structures.landscape;
+    if (landscape != null) {
+      requireData(Array.isArray(landscape.patches) && Array.isArray(landscape.trees)
+        && landscape.publicPath?.mode === 'walk' && Number.isFinite(landscape.publicPath.widthM)
+        && landscape.publicPath.widthM > 0 && Array.isArray(landscape.publicPath.points)
+        && landscape.publicPath.points.length > 1 && landscape.publicPath.points.every(point =>
+          Array.isArray(point) && point.length === 2 && point.every(Number.isFinite)), 'road landscape path');
+      validateIds(landscape.patches.map(patch => patch?.id), 'road landscape patch identity');
+      validateIds(landscape.trees.map(tree => tree?.id), 'road landscape tree identity');
+      for (const patch of landscape.patches) {
+        requireData(['flowers', 'grass', 'path'].includes(patch.color) && Number.isFinite(patch.offsetM)
+          && Array.isArray(patch.trianglesXZ) && patch.trianglesXZ.length > 0 && patch.trianglesXZ.length % 6 === 0
+          && patch.trianglesXZ.every(Number.isFinite) && Array.isArray(patch.sourceIds)
+          && patch.sourceIds.every(isOsmId), 'road landscape patch');
+      }
+      requireData(landscape.trees.every(tree => [tree.x, tree.z, tree.height, tree.crown].every(Number.isFinite)
+        && tree.height > 0 && tree.crown > 0 && typeof tree.speciesName === 'string'), 'road landscape trees');
+    }
+    const routes = new Map(structures.routes.map(route => [route.id, route]));
+    const seen = new Set();
+    for (const row of structures.records) {
+      requireData(Number.isInteger(row?.index) && graph.metadata[row.index]?.osmId === row.way && !seen.has(row.index)
+        && ['bridge', 'tunnel'].includes(row.kind) && routes.get(row.route)?.kind === row.kind
+        && routes.get(row.route).ways?.includes(row.way)
+        && Number.isFinite(row.widthM) && row.widthM > 0 && Number.isInteger(row.lanes) && row.lanes >= 0
+        && Number.isFinite(row.stationOffsetM) && row.stationOffsetM >= 0
+        && Number.isFinite(row.maxGrade) && row.maxGrade >= 0 && row.maxGrade <= structures.maxGrade
+        && Number.isFinite(row.openApronM) && row.openApronM >= 0
+        && typeof row.sharedStart === 'boolean' && typeof row.sharedEnd === 'boolean'
+        && (row.kind === 'bridge' ? row.coverM === null : row.coverM?.length === 2 && row.coverM.every(Number.isFinite))
+        && Array.isArray(row.stations) && row.stations.length >= 16 && row.stations.length % 8 === 0
+        && row.stations[0] === 0 && row.stations.every((value, i) => Number.isFinite(value)
+          && (i < 8 || i % 8 !== 0 || value > row.stations[i - 8])), 'structure stations');
+      seen.add(row.index);
+    }
+  }
   validateIds(roadEdges, 'road edge identity');
   validateAirCruises(raw.airCruises, graph);
   if (graph.turnRestrictions !== undefined) {
@@ -758,6 +800,7 @@ export function decodeCityPayload(raw, metrics = null) {
     coverage: raw.coverage.map(polygon), land: raw.land.map(polygon), water: raw.water.map(polygon),
     wetland: raw.wetland.map(polygon), green: raw.green.map(polygon),
     roadGraph: raw.roadGraph, terrain: raw.terrain, terrainSurface: raw.terrainSurface,
+    roadStructures: raw.roadStructures ?? null,
     roadFrontage: raw.roadFrontage ?? null,
     mapRegions: raw.mapRegions ? { ...raw.mapRegions, regions: raw.mapRegions.regions.map(decodeMapRegion) } : null,
     shenzhenBay: raw.shenzhenBay ?? null,

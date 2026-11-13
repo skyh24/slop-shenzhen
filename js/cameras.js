@@ -36,9 +36,10 @@ const LANDMARK_ORBIT = { id: 'landmarkOrbit', name: STR.cameraNames.landmarkOrbi
 const ORBIT_SECONDS = 120;
 
 class CameraSystem {
-  constructor(domElement, controllerManager) {
+  constructor(domElement, controllerManager, constrainRoadCamera = null) {
     this.domElement = domElement;
     this.controllerManager = controllerManager;
+    this.constrainRoadCamera = constrainRoadCamera;
 
     this.camera = new THREE.PerspectiveCamera(
       56,
@@ -411,6 +412,9 @@ class CameraSystem {
       this.currentLookAt.lerp(desiredLook, k);
     }
 
+    if (!cruiseEntity && preset.category === 'follow' && !this.landmarkOrbit) {
+      this.constrainRoadCamera?.(entity, this.currentPos, this.currentLookAt);
+    }
     this.camera.position.copy(this.currentPos);
     this.camera.lookAt(this.currentLookAt);
   }

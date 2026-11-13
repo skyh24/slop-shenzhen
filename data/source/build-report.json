@@ -79351,17 +79351,17 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7630,
-    "metadataBytes": 16718892,
-    "numericBytes": 33623736,
-    "uncompressedBytes": 50342680,
+    "columns": 7642,
+    "metadataBytes": 16737885,
+    "numericBytes": 33721608,
+    "uncompressedBytes": 50459544,
     "lossless": true,
-    "compressedBytes": 11384910,
-    "compressedSha256": "bcd223eba66dc3e5437d50a0220e61153f753c551c3d3de1bea8f5141d4323fb"
+    "compressedBytes": 11449142,
+    "compressedSha256": "a22f15eab8038d3a2a7244dad01f6ad777a8b5d817147b71b6a0b44102c44e26"
   },
-  "outputBytes": 11354870,
-  "outputSha256": "6925c920c6bf66c9391ae356297e2fd4500ebb26e693e59d3a4ed8034e127ea7",
-  "seconds": 80.4,
+  "outputBytes": 11412854,
+  "outputSha256": "32929396b22c3dfe055c78fd9c89cb060ef78fcb7dafff81c0e7955642d52d62",
+  "seconds": 80.2,
   "frontageRebuild": {
     "basePayloadSha256": "6357ca9673bd5bbbb1e7532d96314cb3bc4372b97c659466565df89307ca30cb",
     "corridors": [
@@ -85162,5 +85162,332 @@
       "way/571169638"
     ],
     "terrainAndBuildingsChanged": false
+  },
+  "roadStructures": {
+    "portalCutM2": 9691.769,
+    "landscape": {
+      "patches": [
+        "beihuan-xinzhou:flower-bed",
+        "beihuan-xinzhou-south-tree-belt",
+        "beihuan-xinzhou-north-tree-belt",
+        "binhai-superhq-cover-walk"
+      ],
+      "estimatedTrees": 66,
+      "sources": {
+        "treeBelts": [
+          {
+            "id": "beihuan-xinzhou-south-tree-belt",
+            "axes": [
+              [
+                "way/1468770634"
+              ],
+              [
+                "way/545681203"
+              ]
+            ],
+            "boundsXZ": [
+              -2720,
+              -1795,
+              -1900,
+              -1615
+            ],
+            "source": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.0318%2C22.5622%2C19"
+          },
+          {
+            "id": "beihuan-xinzhou-north-tree-belt",
+            "axes": [
+              [
+                "way/1466159024"
+              ],
+              [
+                "way/1052079689"
+              ]
+            ],
+            "boundsXZ": [
+              -2720,
+              -1810,
+              -2290,
+              -1640
+            ],
+            "source": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.0318%2C22.5622%2C19"
+          }
+        ],
+        "park": {
+          "id": "binhai-superhq-cover-walk",
+          "areaWay": "way/1479496039",
+          "connectionWay": "way/574956527",
+          "source": "https://cgj.sz.gov.cn/xsmh/gysz/gydt/content/post_12919159.html",
+          "pathSource": "project-design-between-sourced-cover-park-and-coastal-connection",
+          "pathXZ": [
+            [
+              -8652,
+              2600
+            ],
+            [
+              -8540,
+              2600
+            ],
+            [
+              -8431,
+              2600
+            ],
+            [
+              -8410,
+              2605
+            ],
+            [
+              -8406.43,
+              2620
+            ],
+            [
+              -8406.43,
+              2645.93
+            ],
+            [
+              -8405.94,
+              2673.84
+            ]
+          ]
+        }
+      }
+    },
+    "routes": [
+      {
+        "id": "beihuan-keyuan-west",
+        "kind": "bridge",
+        "source": "https://pnr.sz.gov.cn/ywzy/ghzs/dlql/table10.html",
+        "ways": [
+          "way/231405164"
+        ],
+        "portalNodes": [
+          "node/2397987735",
+          "node/277667745"
+        ]
+      },
+      {
+        "id": "beihuan-keyuan-east",
+        "kind": "bridge",
+        "source": "https://pnr.sz.gov.cn/ywzy/ghzs/dlql/table10.html",
+        "ways": [
+          "way/231405168"
+        ],
+        "portalNodes": [
+          "node/277189220",
+          "node/2397987759"
+        ]
+      },
+      {
+        "id": "binhai-superhq-west",
+        "kind": "tunnel",
+        "source": "https://jtys.sz.gov.cn/pcjt/tsjt/content/post_12123186.html",
+        "ways": [
+          "way/1265685869",
+          "way/1265685866",
+          "way/1265685870"
+        ],
+        "portalNodes": [
+          "node/3629038959",
+          "node/13920707003"
+        ],
+        "boreWay": "way/1265685866",
+        "lanes": 4,
+        "entryWidthM": 16.2,
+        "exitWidthM": 22,
+        "depthSource": "project-estimate-for-vehicle-clearance-under-existing-ground",
+        "requestedDepthM": 3
+      },
+      {
+        "id": "binhai-superhq-east",
+        "kind": "tunnel",
+        "source": "https://jtys.sz.gov.cn/pcjt/tsjt/content/post_12123186.html",
+        "ways": [
+          "way/1527595760",
+          "way/1265685867",
+          "way/974372182"
+        ],
+        "portalNodes": [
+          "node/13920707004",
+          "node/11941419557"
+        ],
+        "boreWay": "way/1265685867",
+        "lanes": 4,
+        "entryWidthM": 13,
+        "exitWidthM": 16.2,
+        "depthSource": "project-estimate-for-vehicle-clearance-under-existing-ground",
+        "requestedDepthM": 3
+      }
+    ],
+    "conflicts": [],
+    "bridgeClearance": [
+      {
+        "route": "beihuan-keyuan-west",
+        "minimumM": 4.2956,
+        "crossingWays": [
+          {
+            "way": "way/1463632272",
+            "clearanceM": 4.2956
+          },
+          {
+            "way": "way/1052673726",
+            "clearanceM": 4.3301
+          }
+        ]
+      },
+      {
+        "route": "beihuan-keyuan-east",
+        "minimumM": 4.2962,
+        "crossingWays": [
+          {
+            "way": "way/1463632272",
+            "clearanceM": 4.2962
+          },
+          {
+            "way": "way/1052673726",
+            "clearanceM": 4.316
+          }
+        ]
+      }
+    ],
+    "tunnelMinimumClearanceM": 4.38,
+    "segments": [
+      {
+        "index": 3932,
+        "way": "way/231405164",
+        "route": "beihuan-keyuan-west",
+        "kind": "bridge",
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 22,
+        "lanes": 0,
+        "sharedStart": true,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.047731
+      },
+      {
+        "index": 3938,
+        "way": "way/231405168",
+        "route": "beihuan-keyuan-east",
+        "kind": "bridge",
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 22,
+        "lanes": 0,
+        "sharedStart": true,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.047731
+      },
+      {
+        "index": 21965,
+        "way": "way/1265685869",
+        "route": "binhai-superhq-west",
+        "kind": "tunnel",
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 15.2,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": [
+          165,
+          384.994139
+        ],
+        "openApronM": 8,
+        "maxGrade": 0.047744
+      },
+      {
+        "index": 21963,
+        "way": "way/1265685866",
+        "route": "binhai-superhq-west",
+        "kind": "tunnel",
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 384.994139,
+        "widthM": 15.2,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          1058.05309
+        ],
+        "openApronM": 8,
+        "maxGrade": 0
+      },
+      {
+        "index": 21966,
+        "way": "way/1265685870",
+        "route": "binhai-superhq-west",
+        "kind": "tunnel",
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1443.047229,
+        "widthM": 15.2,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": [
+          0,
+          105.064859
+        ],
+        "openApronM": 8,
+        "maxGrade": 0.047731
+      },
+      {
+        "index": 24194,
+        "way": "way/1527595760",
+        "route": "binhai-superhq-east",
+        "kind": "tunnel",
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 15.2,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": [
+          165,
+          270.427769
+        ],
+        "openApronM": 8,
+        "maxGrade": 0.047731
+      },
+      {
+        "index": 21964,
+        "way": "way/1265685867",
+        "route": "binhai-superhq-east",
+        "kind": "tunnel",
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 270.427769,
+        "widthM": 15.2,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          1058.971203
+        ],
+        "openApronM": 8,
+        "maxGrade": 0
+      },
+      {
+        "index": 15993,
+        "way": "way/974372182",
+        "route": "binhai-superhq-east",
+        "kind": "tunnel",
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1329.398972,
+        "widthM": 15.2,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": [
+          0,
+          75.234021
+        ],
+        "openApronM": 8,
+        "maxGrade": 0.047731
+      }
+    ]
   }
 }

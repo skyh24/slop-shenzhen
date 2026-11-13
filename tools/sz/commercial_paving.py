@@ -34,7 +34,7 @@ def ground_carriageway_mask(parcel, graph):
     }
 
 
-def _cut_chunk(chunk, mask):
+def _cut_chunk(chunk, mask, *, opening=False):
     ox, oz = chunk['origin']
     original_positions, original_kinds = chunk['positions'], chunk['kinds']
     positions, kinds = original_positions.copy(), original_kinds.copy()
@@ -56,7 +56,7 @@ def _cut_chunk(chunk, mask):
         first = len(indices)
         for i in range(start, start + count, 3):
             face = original_indices[i:i + 3]
-            if any(original_kinds[v] != 3 for v in face):
+            if not opening and any(original_kinds[v] != 3 for v in face):
                 indices.extend(face)
                 continue
             points = [(original_positions[3 * v] + ox, original_positions[3 * v + 1],
@@ -68,10 +68,14 @@ def _cut_chunk(chunk, mask):
                 continue
             removed_area += overlap.area
             if mask.covers(triangle):
-                indices.extend(vertex(x, y, z, 0) for x, y, z in points)
+                if not opening:
+                    indices.extend(vertex(x, y, z, 0) for x, y, z in points)
                 continue
             # 沿原三角面的高程平面切分，保留两侧支撑及分块内现有网格索引顺序。
-            for pieces, kind in ((triangle.difference(mask), 3), (overlap, 0)):
+            pieces_by_kind = [(triangle.difference(mask), original_kinds[face[0]])]
+            if not opening:
+                pieces_by_kind.append((overlap, 0))
+            for pieces, kind in pieces_by_kind:
                 for piece in _polygons(pieces):
                     for part in constrained_delaunay_triangles(piece).geoms:
                         if part.area <= 1e-10:
@@ -79,14 +83,14 @@ def _cut_chunk(chunk, mask):
                         a, b, c = list(part.exterior.coords)[:-1]
                         oriented = (a, c, b) if part.exterior.is_ccw else (a, b, c)
                         indices.extend(vertex(x, _triangle_height(points, x, z), z, kind) for x, z in oriented)
-        ranges.extend([cell, first, len(indices) - first])
+        if len(indices) > first:
+            ranges.extend([cell, first, len(indices) - first])
     if not removed_area:
         return chunk, 0.0
     return {**chunk, 'positions': positions, 'kinds': kinds, 'indices': indices, 'cellRanges': ranges}, removed_area
 
 
-def cut_commercial_paving(surface, mask):
-    """只把目标车行范围内的铺装面改为普通地面，底面位置不变。"""
+def _cut_surface(surface, mask, *, opening):
     if mask.is_empty:
         return surface, 0.0
     prepare(mask)
@@ -95,7 +99,17 @@ def cut_commercial_paving(surface, mask):
     for chunk in surface['chunks']:
         ox, oz = chunk['origin']
         if mask.intersects(box(ox, oz, ox + size, oz + size)):
-            chunk, area = _cut_chunk(chunk, mask)
+            chunk, area = _cut_chunk(chunk, mask, opening=opening)
             removed_area += area
         chunks.append(chunk)
     return {**surface, 'chunks': chunks}, removed_area
+
+
+def cut_commercial_paving(surface, mask):
+    """只把目标车行范围内的铺装面改为普通地面，底面位置不变。"""
+    return _cut_surface(surface, mask, opening=False)
+
+
+def cut_ground_openings(surface, mask):
+    """按洞口边界裁开原网格，保留裁切外的三角面平面和单元索引。"""
+    return _cut_surface(surface, mask, opening=True)

@@ -118,7 +118,8 @@ function laneSegments({ path, start, end }, roads) {
 
 // 高架段的车轮接触已由 poseOnRoute 按桥面三角面逐轮复核；isClear 依赖地面支撑和建筑净空，
 // 对桥面高度会误判为“无支撑”。桥面只跳过这一项，运行时碰撞仍由车辆控制器执行。
-const elevatedPose = pose => Boolean(pose.edge?.surfaceId);
+const clearsPose = (pose, isClear) => (pose.edge?.surfaceId && !pose.edge.structureNeighbors)
+  || isClear({ ...pose, surfaceId: pose.edge?.surfaceId ?? 'terrain' });
 
 function validateSamples(samples, model, roadHeight, isClear, stops) {
   const limits = samples.map(() => CRUISE);
@@ -147,7 +148,7 @@ function validateSamples(samples, model, roadHeight, isClear, stops) {
     for (let i = 0; i <= steps; i++) {
       const s = first + (last - first) * i / steps;
       if (!poseOnRoute(samples, s, model, roadHeight, pose)
-        || (!elevatedPose(pose) && !isClear(pose))) return { failedAt: s };
+        || !clearsPose(pose, isClear)) return { failedAt: s };
     }
   }
   limits[limits.length - 1] = 0;
@@ -212,7 +213,7 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
     const pose = {};
     const near = candidates.filter(item => item.error <= candidates[0].error + SNAP_ALTERNATIVES).filter(p => {
       const ahead = { ...p, x: p.x + p.dx, z: p.z + p.dz, s: p.s + 1 };
-      return poseOnRoute([p, ahead], p.s, model, roadHeight, pose) && (elevatedPose(pose) || isClear(pose));
+      return poseOnRoute([p, ahead], p.s, model, roadHeight, pose) && clearsPose(pose, isClear);
     }).slice(0, 4);
     return near.length ? { x: near[0].x, z: near[0].z, candidates: near } : null;
   }

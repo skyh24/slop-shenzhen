@@ -61,14 +61,16 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
 
   // 取当前进度前后 ±8 m 内的路段表面，与 poseOnRoute 在衔接处的取边窗口一致；
   // 地面与高架端头各自只覆盖到自己的端头，四角需要能回退到相邻段的表面。
-  function routeEdges(route, index) {
+  function routeEdges(route, index, position) {
     const list = [];
-    const center = route.samples[index]?.s ?? 0;
+    const reach = Math.hypot(model.hx, model.hz) + 2;
     for (let i = Math.max(0, index - 6); i <= Math.min(route.samples.length - 1, index + 6); i++) {
       const sample = route.samples[i];
-      if (!sample || Math.abs(sample.s - center) > 8) continue;
+      if (!sample || Math.hypot(sample.x - position.x, sample.z - position.z) > reach + 3) continue;
       const edge = sample.edge;
-      if (edge && !list.includes(edge)) list.push(edge);
+      for (const candidate of [edge, route.samples[i + 1]?.edge]) {
+        if (candidate && !list.includes(candidate)) list.push(candidate);
+      }
     }
     return list;
   }
@@ -163,7 +165,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
 
     const demand = targetSpeed - speed;
     // 许可检查沿用当前路线采样点及其相邻段的表面身份：地面/高架衔接处四角逐点回退，避免误判无路面。
-    const contactEdges = routeEdges(route, run.index);
+    const contactEdges = routeEdges(route, run.index, car.position);
     return {
       throttle: clamp(demand * 0.52, 0, 1),
       brake: car.speed < -0.05 ? 1 : clamp(-demand * 0.5, 0, 1),
