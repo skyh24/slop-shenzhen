@@ -188,6 +188,7 @@ class ThirdPersonControllerManager {
     this.nearPedestrians = options.nearPedestrians;
     this.nearWalkers = options.nearWalkers;
     this.emergencyBrakeEnabled = true;
+    this.carCruiseSpeed = null;
     this.roadHeight = options.roadHeight;
     this.spawnPoint = options.spawnPoint ?? SPAWN_POINT;
     if (!this.spawnPoint) throw new Error('No sourced ground spawn is available');
@@ -336,6 +337,7 @@ class ThirdPersonControllerManager {
   }
 
   resetInput() {
+    this.carCruiseSpeed = null;
     this._pressedCodes.clear();
     this._keyboardKeys = {};
     this._touchKeys = {};
@@ -560,6 +562,7 @@ class ThirdPersonControllerManager {
   }
 
   _placeActiveAt(point, heading, support = null, turnOnEntry = false) {
+    this.carCruiseSpeed = null;
     const ent = this.getActiveEntity();
     const heli = this.activeMode === 'helicopter';
     ent.position.x = point.x;
@@ -1111,7 +1114,10 @@ class ThirdPersonControllerManager {
 
   applyCarContact(car, obstacle, kind, nx, nz, x, z) {
     const closing = constrainContactVelocity(car, nx, nz, kind === 'building' ? null : obstacle);
-    if (closing > 0) car.angularVel *= 0.4;
+    if (closing > 0) {
+      this.carCruiseSpeed = null;
+      car.angularVel *= 0.4;
+    }
     if (closing < 1.4 || car.contactCooldown > 0) return;
     car.contactCooldown = 0.18;
     const strength = Math.min(8, closing);
@@ -1351,6 +1357,16 @@ class ThirdPersonControllerManager {
     }
   }
 
+  canSetCarCruise() {
+    return this.activeMode === 'car' && this.occupant.state === OCCUPANT_STATES.SEATED
+      && this.entities.car.speed >= 1 / 3.6 && !this.keys.brake && !this.keys.backward;
+  }
+
+  toggleCarCruise() {
+    if (this.carCruiseSpeed != null) this.carCruiseSpeed = null;
+    else if (this.canSetCarCruise()) this.carCruiseSpeed = Math.min(this.entities.car.speed, CAR_DRIVE.boostSpeed);
+  }
+
   updateCar(dt, driveInput = null) {
     if (dt <= 0) return;
     const c = this.entities.car;
@@ -1368,6 +1384,7 @@ class ThirdPersonControllerManager {
     const assistance = this.emergencyBrakeEnabled && !driveInput && obstacles.length
       ? emergencyBrake(writeEntityCollider(this._carBrakeBody ??= {}, c), obstacles) : 0;
     const serviceBrake = Math.max(driveInput?.brake ?? 0, this.keys.brake ? 1 : 0, assistance);
+    if (driveInput || serviceBrake || this.keys.backward) this.carCruiseSpeed = null;
     c.contactCooldown = Math.max(0, (c.contactCooldown ?? 0) - dt);
     const braking = serviceBrake > 0 || c.speed * throttle < 0;
     // 手动驾驶按住 Shift 时可到 120 km/h；自动驾驶仍用自身限速。
@@ -1393,9 +1410,13 @@ class ThirdPersonControllerManager {
       const vx = sin * c.speed + c.vx, vz = cos * c.speed + c.vz;
       const forward = vx * sin + vz * cos;
       const sideways = vx * cos - vz * sin;
-      let speed = driveSpeed(forward, throttle, step, drive, serviceBrake);
+      const target = this.carCruiseSpeed;
+      // 定速只控制纵向动力，车轮仍按驾驶者的转向和正常抓地力推进。
+      let speed = target == null ? driveSpeed(forward, throttle, step, drive, serviceBrake)
+        : forward < target ? Math.min(target, driveSpeed(forward, 1, step, CAR_BOOST_DRIVE))
+          : Math.max(target, driveSpeed(forward, 0, step, CAR_DRIVE));
       // 松开 Shift 后从加力区回落到常规上限，制动和碰撞仍按原有方式处理。
-      if (!driveInput && !boost && !braking && speed > CAR_DRIVE.speed) {
+      if (target == null && !driveInput && !boost && !braking && speed > CAR_DRIVE.speed) {
         speed = Math.max(CAR_DRIVE.speed, speed - CAR_DRIVE.boostDeceleration * step);
       }
       const acceleration = (speed - forward) / step;
@@ -1434,6 +1455,7 @@ class ThirdPersonControllerManager {
       c.position.x = nextX;
       c.position.z = nextZ;
       if (this.resolveHorizontalCollision(c.position, 1.35, c, c, driveInput?.avoidContact) === false) {
+        this.carCruiseSpeed = null;
         driveInput?.rejectMove?.('surface');
         c.heading = previousHeading;
         break;

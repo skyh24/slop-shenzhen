@@ -1036,9 +1036,25 @@ body.hud-minimized .icon-show {
   transition: opacity 0.3s ease;
 }
 
+body[data-mode='car'] .gauge-alt { display: none; }
+
 body[data-mode='helicopter'] .gauge-alt {
   opacity: 1;
 }
+
+.gauge-cruise {
+  flex: none;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--divider);
+  font-size: 11px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.gauge-cruise[hidden] { display: none; }
+.gauge-cruise:disabled { opacity: 0.55; cursor: default; }
+.gauge-cruise[aria-pressed='true'] { background: var(--taxi); color: var(--taxi-ink); }
 
 .gauge-alt-label {
   font-size: 10.5px;
@@ -1781,6 +1797,9 @@ body.touch-enabled .gauge,
 body.touch-enabled kbd,
 body.touch-enabled .toolbar-divider,
 body.touch-enabled .seg-label { display: none; }
+
+.gauge:has(.gauge-cruise:not([hidden])) { display: block; }
+body.touch-enabled .gauge-cruise { min-height: 44px; }
 
 body.touch-enabled .hud-top-right { top: max(var(--edge), env(safe-area-inset-top)); right: max(var(--edge), env(safe-area-inset-right)); }
 body.touch-enabled .toolbar { gap: 2px; padding: 4px; }

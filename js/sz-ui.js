@@ -432,7 +432,7 @@ export function wireDrivingAssists(controller, lane) {
       lane.enabled = !lane.enabled;
       save();
       lastStatus = lane.status;
-      show(lane.enabled ? labels.laneOn : labels.laneOff);
+      show(lane.enabled ? labels.laneOn : lane.active ? labels.laneFinishing : labels.laneOff);
     },
     toggleEmergencyBrake() {
       controller.emergencyBrakeEnabled = !controller.emergencyBrakeEnabled;
@@ -442,8 +442,37 @@ export function wireDrivingAssists(controller, lane) {
   };
 }
 
+export function wireCarCruise(controller, available) {
+  const button = document.getElementById('car-cruise');
+  let previous;
+  function render() {
+    const visible = available();
+    const speed = controller.carCruiseSpeed;
+    const active = speed != null;
+    const ready = visible && (active || controller.canSetCarCruise());
+    const state = `${visible}/${active}/${ready}/${speed}`;
+    if (state === previous) return;
+    previous = state;
+    button.hidden = !visible;
+    button.disabled = !ready;
+    button.textContent = active ? STR.carCruise.set(Math.round(speed * 3.6)) : STR.carCruise.label;
+    button.title = active ? STR.carCruise.cancel : ready ? STR.carCruise.capture : STR.carCruise.moving;
+    button.setAttribute('aria-pressed', String(active));
+  }
+  button.addEventListener('click', () => {
+    if (available()) controller.toggleCarCruise();
+    render();
+  });
+  // 空格仍是刹车；键盘聚焦按钮后可用回车切换。
+  button.addEventListener('keydown', event => {
+    if (event.code === 'Space') event.preventDefault();
+  });
+  return render;
+}
+
 export function renderControlHints(el, mode) {
   if (!el) return;
+  el.dataset.mode = mode;
   const items = (STR.controlHints[mode] || []).map(([keys, action]) => {
     const item = document.createElement('span');
     item.className = 'hint';

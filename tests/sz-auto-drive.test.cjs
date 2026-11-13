@@ -24,6 +24,9 @@ const traffic = load('sz-traffic.js', { 'three/webgpu': {}, './sz-intersection-c
 const { createAutoDrive, hasRoadFootprint } = load('sz-auto-drive.js', {
   './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic, ...driving
 });
+const { createLaneAssist } = load('sz-lane-assist.js', {
+  './sz-auto-drive.js': { hasRoadFootprint }, ...driving
+});
 const { createDrivePlanner, createTurnFilter } = load('sz-drive-route.js', {
   './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic, './sz-road-section.js': sections
 });
@@ -49,7 +52,7 @@ test('brake and boost inputs cancel automatic driving through the frame wiring',
     let appliedInput;
     const controllerManager = { activeMode: 'car', keys: { [action]: true },
       update: (_dt, _elapsed, input) => { appliedInput = input; } };
-    const context = { controllerManager, autoDrive, laneAssist: { update: () => null }, driveCar: car, dt: 1 / 60, elapsed: 0,
+    const context = { controllerManager, autoDrive, driveCar: car, dt: 1 / 60, elapsed: 0,
       mapSystem: { isFullMapOpen: false }, cruise: { active: false }, droneWatch: { active: false } };
     runInNewContext(wiring, context);
     assert.equal(appliedInput, null);
@@ -69,6 +72,63 @@ const deckLink = (overrides = {}) => ({ index: 1, osmId: 'way/900', surfaceId: D
   width: 7, lanes: 2, direction: 1, startDeckY: 20, endDeckY: 20, sharedStart: false, sharedEnd: false, ...overrides });
 const emptyGraph = () => ({ nodes: [], nodeIds: ['node/1', 'node/2'], names: [], links: [], metadata: [],
   turnRestrictions: { rules: [] } });
+
+test('lane requests require an active route and keep the same destination after passing and returning', () => {
+  const graph = { nodes: [0, 0, 0, 240], nodeIds: ['node/1', 'node/2'], names: ['Road'],
+    links: [[0, 1, 0, 10.5, 3, 1, []]], metadata: [{ ...groundRoad(1), maxspeed: '40' }] };
+  const network = traffic.createTrafficGraph(graph);
+  const roadHeight = (x, z) => Math.abs(x) <= 5.25 && z >= 0 && z <= 240 ? 0 : null;
+  const isClear = () => true;
+  const bodies = [];
+  const nearTraffic = () => bodies;
+  const laneAssist = createLaneAssist({ model, roadHeight, isClear, nearTraffic });
+  const planner = createDrivePlanner(network, graph, { model, roadHeight, isClear });
+  const route = planner.route(planner.snap(0, 10), planner.snap(0, 225));
+  assert.ok(route);
+  const auto = createAutoDrive({ model, roadHeight, nearTraffic, laneAssist });
+  const { controller, car } = playerCarFixture(() => 0);
+  placeAtStart(car, route, roadHeight);
+  assert.equal(auto.requestLane(car, 1), false);
+  assert.equal(auto.start(route, car, 'car'), true);
+  let elapsed = 0;
+  const dt = 1 / 60;
+  function tick(manual = false) {
+    const input = auto.update(car, { dt, elapsed, mode: 'car', manual });
+    controller.updateCar(dt, input);
+    elapsed += dt;
+  }
+  while (car.position.z < 28 && elapsed < 8) tick();
+  assert.ok(car.speed > 4);
+  const leader = { type: 'car', position: { x: car.position.x + 3.5, y: 0, z: car.position.z + 10 }, heading: 0, speed: 0 };
+  bodies.push(driving['./sz-driving-motion.js'].writeEntityCollider({}, leader));
+  assert.equal(auto.requestLane(car, 1), false);
+  assert.equal(laneAssist.status, 'occupied');
+  bodies.length = 0;
+  assert.equal(auto.requestLane(car, 1), true);
+  assert.equal(auto.requestLane(car, -1), false);
+  assert.ok(auto.statistics.routeLength > route.length);
+  assert.equal(auto.route.to, route.to);
+  leader.position.z = car.position.z - 7;
+  leader.speed = 19;
+  bodies.push(driving['./sz-driving-motion.js'].writeEntityCollider({}, leader));
+  const waiting = auto.update(car, { dt, elapsed, mode: 'car', manual: false });
+  assert.equal(laneAssist.status, 'waiting');
+  assert.equal(waiting.throttle, 0);
+  assert.ok(waiting.brake > 0);
+  bodies.length = 0;
+  let outward = false, returning = false;
+  while (elapsed < 32 && auto.active) {
+    tick();
+    assert.ok(Math.abs(car.position.x) < 4.2);
+    if (car.position.x > route.from.x + 3.2) outward = true;
+    if (outward && Math.abs(car.position.x - route.from.x) < 0.25) returning = true;
+  }
+  assert.ok(outward && returning);
+  assert.equal(auto.status, 'arrived');
+  assert.ok(Math.hypot(car.position.x - route.to.x, car.position.z - route.to.z) < 0.7);
+  assert.equal(auto.requestLane(car, 1), false);
+  assert.equal(laneAssist.active, false);
+});
 
 test('route planning respects directed links, actual pavement, and source turn restrictions', () => {
   const graph = { nodes: [0, 0, 75, 0, 150, 0, 225, 0, 75, 55], nodeIds: ['node/1', 'node/2', 'node/3', 'node/4', 'node/5'],

@@ -2,7 +2,7 @@ import { STR } from './sz-strings.js';
 import { captureCameraState, restoreCameraState, setObservationInputBlocked, setObservationPanel } from './sz-observation-session.js';
 
 export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSystem, touchControls, gamepadControls,
-  laneAssist, observationSessions, selectCamera, closePopovers, modeLabel, cameraLabel, buildingDetails }) {
+  observationSessions, selectCamera, closePopovers, modeLabel, cameraLabel, buildingDetails }) {
   const words = STR.cruise;
   const menu = document.getElementById('btn-air-cruise');
   const list = document.getElementById('air-cruise-routes');
@@ -34,7 +34,6 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
         selectCamera('chase', true, true);
         modeLabel.textContent = cameraLabel.textContent = words.label;
         setObservationInputBlocked(inputs, true);
-        laneAssist.cancel();
         document.body.dataset.cruising = '';
       }
       closePopovers();

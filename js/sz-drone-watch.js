@@ -2,7 +2,7 @@ import { STR } from './sz-strings.js';
 import { setObservationInputBlocked } from './sz-observation-session.js';
 
 export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchControls, gamepadControls,
-  laneAssist, autoDrive, observationSessions, closePopovers, mapOpen, teleport, onCameraLabel }) {
+  autoDrive, observationSessions, closePopovers, mapOpen, teleport, onCameraLabel }) {
   const droneHud = document.getElementById('drone-follow-hud');
   const droneStatus = document.getElementById('drone-follow-status');
   const droneRepeat = document.getElementById('drone-follow-repeat');
@@ -32,7 +32,6 @@ export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchC
 
   function start(target) {
     target.safe = Boolean(controllerManager.findModePosition(controllerManager.activeMode));
-    laneAssist.cancel();
     setObservationInputBlocked(inputs, true);
     closePopovers();
     cameraSystem.startDroneFollow(target.mission.pose, (origin, desired) =>

@@ -140,8 +140,7 @@ test('map travel resolves a walking pose before closing and leaves the map open 
     gamepadControls: { reset: () => calls.push(['gamepad']) },
     cameraSystem: { resetForTeleport: () => calls.push(['camera']) },
     selectCamera: (...args) => calls.push(['selectCamera', ...args]),
-    autoDrive: { stop: () => {} },
-    laneAssist: { cancel: () => calls.push(['laneCancel']) },
+    autoDrive: { stop: reason => calls.push(['autoStop', reason]) },
     getLocationLabel: (x, z) => `${x}, ${z}`,
     inBounds: x => x < 9000,
     SZMapSystem: class {
@@ -169,7 +168,7 @@ test('map travel resolves a walking pose before closing and leaves the map open 
     handlers.get(name)();
     assert.deepEqual(calls, [
       ['teleport', point.x, point.z, point.heading, null, true, false],
-      ['laneCancel'], ['touch'], ['gamepad'], ['camera'], ['selectCamera', 'chase', true]
+      ['autoStop', 'manual'], ['touch'], ['gamepad'], ['camera'], ['selectCamera', 'chase', true]
     ]);
     assert.equal(map.waypoint.x, landed.x);
     assert.equal(map.waypoint.z, landed.z);
@@ -185,7 +184,7 @@ test('map travel resolves a walking pose before closing and leaves the map open 
   assert.equal(mode, 'person');
   assert.equal(map.open, false);
   assert.deepEqual(calls, [['mode', 'person', 100, 8, 200, Math.PI],
-    ['laneCancel'], ['touch'], ['gamepad'], ['camera'], ['selectCamera', 'chase', true], ['map', false]]);
+    ['autoStop', 'manual'], ['touch'], ['gamepad'], ['camera'], ['selectCamera', 'chase', true], ['map', false]]);
   assert.equal(map.waypoint.x, 100);
   assert.equal(map.waypoint.name, '100, 200');
 

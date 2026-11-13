@@ -133,7 +133,9 @@ export const STR = {
   controlHints: {
     person: [[['W', 'S'], '走 / 跑'], [['A', 'D'], '转向'], [['空格'], '跳跃'], [['拖动'], '环视']],
     car: [[['W', 'S'], '前进 / 倒车'], [['A', 'D'], '转向'], [['Shift'], '加力'], [['空格'], '刹车'], [['B'], '鸣笛'],
-      [['J', 'L'], '左 / 右换道'], [['K', 'U'], '换道 / 紧急制动开关'], [['拖动'], '环视']],
+      [['U'], '紧急制动开关'], [['拖动'], '环视']],
+    autoCar: [[['J', 'L'], '左 / 右换道'], [['K'], '换道辅助开关'],
+      [['W', 'A', 'S', 'D', '空格'], '手动接管'], [['拖动'], '环视']],
     cyclist: [[['W', 'S'], '踩踏 / 刹车'], [['空格'], '刹车'], [['A', 'D'], '转向'], [['拖动'], '环视']],
     helicopter: [[['W', 'S'], '俯仰'], [['A', 'D'], '转向'], [['空格', 'E'], '上升'], [['Q', 'C'], '下降']]
   },
@@ -292,19 +294,25 @@ export const STR = {
   assists: {
     laneOn: '换道辅助已开启',
     laneOff: '换道辅助已关闭',
+    laneFinishing: '本次完成后关闭换道辅助',
     brakeOn: '紧急制动已开启',
     brakeOff: '紧急制动已关闭',
     status: {
       disabled: '换道辅助已关闭',
-      release: '松开驾驶键后再请求换道',
       slow: '车速过低，暂无法辅助换道',
       unavailable: '当前路段没有可用的相邻车道',
       occupied: '目标车道间隙不足',
-      changing: '正在换道 · Esc 取消',
-      waiting: '前后间隙不足，正在减速 · Esc 取消',
-      complete: '换道完成',
-      cancelled: '已交回手动驾驶'
+      changing: '正在辅助换道 · Esc 接管',
+      waiting: '换道间隙不足，正在减速 · Esc 接管',
+      complete: '已回到规划车道'
     }
+  },
+  carCruise: {
+    label: '定速巡航',
+    set: kmh => `定速 ${kmh} km/h`,
+    capture: '保持当前车速',
+    moving: '车辆前进后可开启定速巡航',
+    cancel: '取消定速巡航'
   },
   modeUnavailable: '当前位置无法安全切换，请稍候或移动到开阔处。',
   modeNames: { person: '步行', car: '深圳蓝色出租车', cyclist: '共享单车', helicopter: '载人飞行器' },

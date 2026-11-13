@@ -1354,80 +1354,47 @@ test('manual emergency brake intervenes before contact and can be switched off',
   assert.ok(speeds[0] < 22 && speeds[1] > 22);
 });
 
-const loadDrive = (name, imports = {}) => loadModule(readFileSync(join(__dirname, '../js', name), 'utf8'), {
-  imports: { ...driving, ...imports }
-});
-const { getRoadSection } = loadDrive('sz-road-section.js');
-const autoLaneHelpers = loadDrive('sz-auto-drive.js', {
-  './sz-intersection-control.js': {}, './sz-traffic.js': driving['./sz-driving-motion.js']
-});
-const { createLaneAssist } = loadDrive('sz-lane-assist.js', {
-  './sz-auto-drive.js': autoLaneHelpers
-});
-
-function laneHarness(speed, { supported = true, junction = false, lanes = 3 } = {}) {
-  const { controller, car } = carDynamicsHarness({ speed, position: { x: 0, y: 0, z: 25 } });
-  car._support = { height: 0, surfaceId: supported ? 'terrain' : 'deck' };
-  const graph = { links: [[0, 1, 0, 10.5, lanes, 1]], metadata: [{ highway: 'primary' }] };
-  const edge = { sourceIndex: 0, sign: 1, section: getRoadSection(graph, 0),
-    segments: [{ x: 0, z: 0, dx: 0, dz: 1, length: 240 }] };
-  const traffic = [];
-  const assist = createLaneAssist({ model: { hx: 1.1, hz: 2.4, halfWheelbase: 1.4,
-    corners: [[1.1, 2.4], [1.1, -2.4], [-1.1, 2.4], [-1.1, -2.4]] },
-    network: { nearSegments: () => [{ edge, segment: 0 }] }, roadHeight: x => Math.abs(x) < 5.25 ? 0 : null,
-    control: { contains: () => junction }, isClear: () => true, nearTraffic: () => traffic });
-  return { assist, controller, car, traffic };
-}
-
-test('lane assist steers at several speeds and finishes aligned without snapping or queuing requests', () => {
-  for (const speed of [5, 11, 80 / 3.6, 120 / 3.6]) {
-    const { assist, controller, car } = laneHarness(speed);
-    assert.equal(assist.request(car, 1, false), true);
-    assert.equal(assist.request(car, -1, false), false, 'an active request cannot queue an opposite move');
-    let peakYaw = 0;
-    let peakLateralAcceleration = 0;
-    for (let i = 0; i < 370 && assist.active; i++) {
-      const { x, z } = car.position;
-      const vx = carVelocity(car)[0];
-      const input = assist.update(car);
-      controller.updateCar(1 / 60, input);
-      peakYaw = Math.max(peakYaw, Math.abs(car.heading));
-      peakLateralAcceleration = Math.max(peakLateralAcceleration, Math.abs(carVelocity(car)[0] - vx) * 60);
-      assert.ok(Math.hypot(car.position.x - x, car.position.z - z) < speed / 60 + 0.05);
+test('manual cruise holds the captured speed under steering and releases on brake, reverse or input reset', () => {
+  for (const speed of [9.5, 120 / 3.6]) {
+    const { controller, car } = contactCar({ speed });
+    controller.occupant = { state: 'seated' };
+    controller.toggleCarCruise();
+    assert.equal(controller.carCruiseSpeed, speed);
+    for (let i = 0; i < 240; i++) {
+      controller.keys.left = i > 120 ? 0.1 : false;
+      controller.updateCar(1 / 60);
     }
-    assert.equal(assist.status, 'complete', `lane alignment at ${speed} m/s`);
-    assert.ok(peakYaw > 0.05);
-    assert.ok(peakLateralAcceleration < 2.3, `lateral acceleration at ${speed} m/s: ${peakLateralAcceleration}`);
-    assert.ok(Math.abs(car.position.x - 3.5) < 0.23);
-    assert.ok(Math.abs(car.heading) < 0.05);
+    assert.ok(Math.abs(car.speed - speed) < 0.03);
+    assert.ok(car.position.x > 0.1);
+    assert.ok(car.heading > 0);
+    controller.keys.brake = true;
+    controller.updateCar(1 / 60);
+    assert.equal(controller.carCruiseSpeed, null);
+    assert.ok(car.speed < speed);
+    controller.keys.brake = false;
+    controller.toggleCarCruise();
+    controller.keys.backward = true;
+    controller.updateCar(1 / 60);
+    assert.equal(controller.carCruiseSpeed, null);
+    controller.keys.backward = false;
+    controller.toggleCarCruise();
+    assert.ok(controller.carCruiseSpeed > 0);
+    controller.resetInput();
+    assert.equal(controller.carCruiseSpeed, null);
   }
-});
-
-test('lane assist rejects an occupied target, unreliable surface and junction, and hands control back immediately', () => {
-  for (const options of [{ supported: false }, { junction: true }, { lanes: 0 }]) {
-    const { assist, car } = laneHarness(11, options);
-    assert.equal(assist.request(car, 1, false), false);
-  }
-  const { assist, car, traffic, controller } = laneHarness(11);
+  const { controller, car } = contactCar({ speed: -4 });
+  controller.occupant = { state: 'seated' };
+  controller.carCruiseSpeed = null;
+  controller.toggleCarCruise();
+  assert.equal(controller.carCruiseSpeed, null);
+  car.speed = 20;
+  controller.emergencyBrakeEnabled = true;
   const { writeEntityCollider } = driving['./sz-driving-motion.js'];
-  const fastRear = writeEntityCollider({}, { type: 'car', position: { x: 3.5, y: 0, z: 2 }, heading: 0, speed: 22 });
-  traffic.push(fastRear);
-  assert.equal(assist.request(car, 1, false), false);
-  assert.equal(assist.status, 'occupied');
-  traffic.length = 0;
-  assert.equal(assist.request(car, 1, false), true);
-  for (let i = 0; i < 65; i++) controller.updateCar(1 / 60, assist.update(car));
-  const interrupted = car.position.x;
-  traffic.push(writeEntityCollider({}, { type: 'car',
-    position: { x: 3.5, y: 0, z: car.position.z + 14 }, heading: 0, speed: 0 }));
-  const input = assist.update(car);
-  assert.equal(assist.status, 'waiting');
-  assert.ok(input.brake > 0 && input.throttle === 0);
-  controller.updateCar(1 / 60, input);
-  assert.ok(car.position.x >= interrupted - 0.01, 'a newly occupied gap does not snap back');
-  assert.equal(assist.update(car, { manual: true }), null);
-  assert.equal(assist.status, 'cancelled');
-  assert.equal(assist.active, false);
+  controller.nearTraffic = () => [writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: 16 }, heading: 0, speed: 0 })];
+  controller.toggleCarCruise();
+  controller.updateCar(1 / 60);
+  assert.equal(controller.carCruiseSpeed, null);
+  assert.ok(car.speed < 20);
 });
 
 test('lane shortcuts request one direction and leave typing, modifiers and repeated keydown alone', () => {

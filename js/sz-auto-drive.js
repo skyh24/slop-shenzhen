@@ -51,7 +51,7 @@ function frontDistance(approach, model, x, z, heading) {
     + Math.abs(along) * model.hz + Math.abs(across) * model.hx + model.z * along + model.x * across;
 }
 
-export function createAutoDrive({ model, roadHeight, control, nearTraffic = () => [], replan = () => null }) {
+export function createAutoDrive({ model, roadHeight, control, nearTraffic = () => [], replan = () => null, laneAssist }) {
   let run = null;
   let departure = null;
   let activeRoute = null;
@@ -117,6 +117,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     if (run || departure || reason === 'idle') status = reason;
     run = null;
     departure = null;
+    laneAssist?.cancel();
     if (reason === 'idle') activeRoute = null;
   }
 
@@ -141,6 +142,16 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     if (!run?.paused || status !== 'paused') return;
     run.paused = false;
     status = 'driving';
+  }
+
+  function requestLane(car, direction) {
+    if (!run || run.paused || run.unsafe || reservation) return false;
+    const stop = run.route.stops[run.stopIndex];
+    const route = laneAssist?.request(run.route, car, direction, run.index, stop?.s ?? run.route.length);
+    if (!route) return false;
+    run.route = route;
+    statistics.routeLength = route.length;
+    return true;
   }
 
   function canReplace(next, car, mode) {
@@ -225,8 +236,10 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     const remaining = Math.max(0, lastStop - run.s);
     const speedIndex = sampleAhead(route.samples, run.index, Math.min(route.length, run.s + speed * dt)).i;
     const limit = route.limits[speedIndex];
-    const targetSpeed = run.paused ? 0 : Math.min(limit, Math.sqrt(3.3 * remaining), leader.limit);
+    const laneWaiting = laneAssist?.update(car, run.s);
+    const targetSpeed = run.paused || laneWaiting ? 0 : Math.min(limit, Math.sqrt(3.3 * remaining), leader.limit);
     let state = leader.limit < Math.min(2.8, limit) ? 'traffic' : 'driving';
+    if (laneWaiting) state = 'traffic';
     if (held && stopAt - run.s < 4) {
       const { sourceIndex, to } = signal.approach;
       state = control.approachState(sourceIndex, to, elapsed).phase === 'green' ? 'intersection' : 'signal';
@@ -284,7 +297,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     };
   }
 
-  return { start, queue, pause, resume, stop, update, canStart,
+  return { start, queue, pause, resume, stop, update, canStart, requestLane,
     get active() { return Boolean(run || departure); },
     get status() { return status; },
     get route() { return activeRoute; },

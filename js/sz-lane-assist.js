@@ -20,47 +20,22 @@ function laneFrame(segment, x, z) {
 }
 
 // 五次曲线的起终点与车道切线相同，横向加速度在起终点平滑归零。
-function lanePose(run, s) {
-  const { segment, start, length, from, to } = run;
-  const t = clamp((s - start) / length, 0, 1);
-  const offset = from + (to - from) * t ** 3 * (10 - 15 * t + 6 * t * t);
-  const slope = (to - from) * 30 * t * t * (1 - t) ** 2 / length;
-  return { x: segment.x + segment.dx * s + segment.dz * offset,
-    z: segment.z + segment.dz * s - segment.dx * offset,
-    heading: Math.atan2(segment.dx, segment.dz) + Math.atan(slope), offset };
-}
-
-function straightSpan(edge, index) {
-  const first = edge.segments[index];
-  let length = first.length;
-  // 连续、几乎共线的采样点属于同一车道；遇到曲率或拓扑变化在该段内收尾。
-  for (let i = index + 1; i < edge.segments.length; i++) {
-    const part = edge.segments[i];
-    if (Math.abs(laneFrame(first, part.x, part.z).offset) > 0.28
-      || Math.abs(first.dz * part.dx - first.dx * part.dz) > 0.015
-      || first.dx * part.dx + first.dz * part.dz <= 0) break;
-    length += part.length;
-  }
-  return { ...first, length };
-}
-
-export function createLaneAssist({ network, model, roadHeight, control, isClear, nearTraffic }) {
+export function createLaneAssist({ model, roadHeight, control, isClear, nearTraffic }) {
   let run = null;
   let status = 'idle';
   let enabled = true;
   const ego = {};
 
-  function roadAllows(plan, x, z, heading) {
+  function roadAllows(edge, x, z, heading) {
     const margin = Math.hypot(model.hx, model.hz) + 0.8;
     if (control?.contains(x, z, margin)) return false;
-    return hasRoadFootprint(roadHeight, model, x, z, heading, plan.edge);
+    const y = roadHeight(x, z, edge);
+    return hasRoadFootprint(roadHeight, model, x, z, heading, edge) && isClear({ x, y, z, heading, edge });
   }
 
-  function conflict(plan, car, s) {
-    const { segment, to, start, length, speed } = plan;
-    const horizon = clamp((start + length - s) / Math.max(speed, MIN_SPEED) + 0.6, 0.7, 4.5);
-    const reach = 48 + Math.max(speed, car.speed) * horizon;
-    const bodies = nearTraffic(car.position.x, car.position.z, reach);
+  function conflict(segment, car, to, speed, horizon) {
+    const { s } = laneFrame(segment, car.position.x, car.position.z);
+    const bodies = nearTraffic(car.position.x, car.position.z, 48 + speed * horizon);
     writeEntityCollider(ego, car);
     for (const body of bodies) {
       if (!sameTrafficLevel(ego, body)) continue;
@@ -80,91 +55,97 @@ export function createLaneAssist({ network, model, roadHeight, control, isClear,
     return false;
   }
 
-  function request(car, direction, manual) {
-    if (run) return false;
-    if (!enabled) { status = 'disabled'; return false; }
-    if (manual) { status = 'release'; return false; }
-    if (car.speed < MIN_SPEED) { status = 'slow'; return false; }
+  function request(route, car, direction, index, limitS) {
+    if (run) return null;
+    if (!enabled) { status = 'disabled'; return null; }
+    if (car.speed < MIN_SPEED) { status = 'slow'; return null; }
     status = 'unavailable';
-    if (!network || (car._support?.surfaceId ?? 'terrain') !== 'terrain') return false;
+    const { samples, limits } = route;
+    const first = index + 1;
+    const start = samples[first];
+    if (!start?.edge || (car._support?.surfaceId ?? 'terrain') !== 'terrain') return null;
+    const { edge } = start;
     const { x, y, z } = car.position;
-    let selected = null;
-    for (const { edge, segment: index } of network.nearSegments(x, z, 24)) {
-      const segment = edge.segments[index];
-      const { s, offset } = laneFrame(segment, x, z);
-      const heading = Math.atan2(segment.dx, segment.dz);
-      if (s < 0 || s > segment.length || Math.abs(offset) > edge.section.travelWidthM / 2
-        || Math.abs(angle(heading, car.heading)) > 0.16) continue;
-      if (!hasRoadFootprint(roadHeight, model, x, z, car.heading, edge, y)) continue;
-      const lanes = laneCenters(edge, model);
-      const lane = lanes.reduce((best, center, i) => Math.abs(center - offset) < Math.abs(lanes[best] - offset) ? i : best, 0);
-      const error = Math.abs(lanes[lane] - offset);
-      if (!(error < 0.95) || (selected && error >= selected.error)) continue;
-      selected = { edge, index, s, offset, to: lanes[lane + direction], error };
+    const centers = laneCenters(edge, model);
+    if (centers.length < 2 || Math.abs(angle(Math.atan2(start.dx, start.dz), car.heading)) > 0.16
+      || !hasRoadFootprint(roadHeight, model, x, z, car.heading, edge, y)) return null;
+    const segment = edge.segments.find(segment => {
+      const { s } = laneFrame(segment, start.x, start.z);
+      return s >= 0 && s <= segment.length && start.dx * segment.dx + start.dz * segment.dz > 0.9999;
+    });
+    if (!segment) return null;
+    const { offset: from } = laneFrame(segment, start.x, start.z);
+    const lane = centers.findIndex(center => Math.abs(center - from) < 0.65);
+    const to = centers[lane + direction];
+    if (lane < 0 || !Number.isFinite(to)) return null;
+
+    // 仅改动同一条直路的内部采样点；过路口、转弯和停靠前回到规划车道。
+    let last = first;
+    for (let i = first + 1; i < samples.length - 1; i++) {
+      const point = samples[i];
+      if (point.edge !== edge || point.s >= limitS - 12
+        || Math.abs(laneFrame(segment, point.x, point.z).offset - from) > 0.12
+        || point.dx * segment.dx + point.dz * segment.dz < 0.9999) break;
+      last = i;
     }
-    if (!selected || !Number.isFinite(selected.to)) return false;
-    const segment = straightSpan(selected.edge, selected.index);
-    const { s: start, offset: from, to, edge } = selected;
-    const speed = car.speed;
-    const duration = Math.max(2.7, Math.sqrt(5.78 * Math.abs(to - from) / 1.65));
-    const length = speed * duration;
-    const plan = { segment, start, from, to, length, edge, speed };
-    // 预留对正和车辆净空。未核实的下一条边、分岔与桥面不跨越。
-    const last = start + length + Math.max(10, speed * 1.1);
-    if ((selected.index === 0 && start < 8 + model.hz) || last > segment.length - 8 - model.hz) return false;
-    for (let s = start; s <= last; s = Math.min(s + 1.5, last)) {
-      const pose = lanePose(plan, s);
-      const height = roadHeight(pose.x, pose.z, edge);
-      if (!roadAllows(plan, pose.x, pose.z, pose.heading) || !isClear({ ...pose, y: height })) return false;
-      if (s === last) break;
+    let speed = car.speed;
+    for (let i = first; i <= last; i++) speed = Math.max(speed, limits[i]);
+    const delta = to - from;
+    const length = speed * Math.max(2.7, Math.sqrt(5.78 * Math.abs(delta) / 1.65));
+    const end = samples[last].s;
+    if (end - start.s < length * 2 + speed * 1.25) return null;
+    if (conflict(segment, car, to, speed, Math.min(4.5, length / speed + 0.6))) {
+      status = 'occupied';
+      return null;
     }
-    if (conflict(plan, car, start)) { status = 'occupied'; return false; }
-    run = plan;
+
+    const shifted = samples.slice(0, first);
+    const smooth = t => t ** 3 * (10 - 15 * t + 6 * t ** 2);
+    const shiftAt = s => Math.min(clamp((s - start.s) / length, 0, 1), clamp((end - s) / length, 0, 1));
+    let returnS = start.s, outS = start.s;
+    for (let i = first; i <= last; i++) {
+      const point = samples[i];
+      const t = shiftAt(point.s);
+      const offset = delta * smooth(t);
+      const slope = delta * 30 * t ** 2 * (1 - t) ** 2 / length * (point.s < end - length ? 1 : -1);
+      const heading = Math.atan2(point.dx, point.dz) + Math.atan(slope);
+      const pose = { ...point, x: point.x + segment.dz * offset, z: point.z - segment.dx * offset,
+        dx: Math.sin(heading), dz: Math.cos(heading) };
+      const previous = shifted.at(-1);
+      const step = Math.hypot(pose.x - previous.x, pose.z - previous.z);
+      if (!roadAllows(edge, pose.x, pose.z, heading)
+        || (i > first && !roadAllows(edge, (pose.x + previous.x) / 2, (pose.z + previous.z) / 2, heading))) return null;
+      pose.s = previous.s + step;
+      if (point.s <= start.s + length) outS = pose.s;
+      if (point.s <= end - length) returnS = pose.s;
+      shifted.push(pose);
+    }
+    const endS = shifted.at(-1).s;
+    const extra = endS - end;
+    for (let i = last + 1; i < samples.length; i++) shifted.push({ ...samples[i], s: samples[i].s + extra });
+    const stops = route.stops.map(stop => stop.s >= end ? { ...stop, s: stop.s + extra, clearS: stop.clearS + extra } : stop);
+    run = { segment, from, to, speed, outS, returnS, endS };
     status = 'changing';
-    return true;
+    return { ...route, samples: shifted, stops, length: route.length + extra, to: shifted.at(-1) };
   }
 
-  function cancel(reason = 'cancelled') {
-    if (!run) return;
+  function cancel(reason = 'idle') {
     run = null;
     status = reason;
   }
 
-  function update(car, { manual = false } = {}) {
-    if (manual) cancel();
-    if (!run) return null;
-    const plan = run;
-    const { segment, start, length, to, speed } = plan;
-    const { s, offset } = laneFrame(segment, car.position.x, car.position.z);
-    const tangent = Math.atan2(segment.dx, segment.dz);
-    if (s >= start + length && Math.abs(offset - to) < 0.18 && Math.abs(angle(tangent, car.heading)) < 0.012
-      && Math.abs(car.angularVel ?? 0) < 0.04) {
-      cancel('complete');
-      return null;
-    }
-    const blocked = s > segment.length - model.hz - 9 || conflict(plan, car, s);
-    status = blocked ? 'waiting' : 'changing';
-    const target = lanePose(plan, Math.min(segment.length - model.hz, s + Math.max(3.5, car.speed * 0.44)));
-    const dx = target.x - car.position.x, dz = target.z - car.position.z;
-    const lateral = dx * Math.cos(car.heading) - dz * Math.sin(car.heading);
-    const demand = speed - car.speed;
-    return {
-      throttle: blocked ? 0 : clamp(demand * 0.55, 0, 1),
-      brake: blocked ? 0.68 : clamp(-demand * 0.55, 0, 1),
-      steerAngle: Math.atan2(4 * model.halfWheelbase * lateral, dx * dx + dz * dz),
-      permitMove(x, z, heading) {
-        if (roadAllows(plan, x, z, heading)) return true;
-        cancel('unavailable');
-        return false;
-      }
-    };
+  // 换道时仍由自动驾驶跟车、过信号和扫掠接触；临近并入时再复核目标车道后方。
+  function update(car, s) {
+    if (!run) return false;
+    const { segment, from, to, speed, outS, returnS, endS } = run;
+    if (s >= endS) { cancel('complete'); return false; }
+    const check = s < outS + 2 ? to : s >= returnS - Math.max(8, car.speed ** 2 / 9) ? from : null;
+    const waiting = check !== null && conflict(segment, car, check, speed, 3.5);
+    status = waiting ? 'waiting' : 'changing';
+    return waiting;
   }
 
   return { request, cancel, update, get active() { return Boolean(run); }, get status() { return status; },
     get enabled() { return enabled; },
-    set enabled(value) {
-      enabled = value;
-      if (!enabled) cancel('disabled');
-      else if (status === 'disabled') status = 'idle';
-    } };
+    set enabled(value) { enabled = value; } };
 }
