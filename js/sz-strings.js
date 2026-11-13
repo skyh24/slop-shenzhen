@@ -47,7 +47,7 @@ export const STR = {
     repository: '在新标签页打开 Slop Shenzhen 的 GitHub 仓库',
     timeGroup: '选择时段',
     teleport: '传送',
-    teleportTitle: '传送至地标',
+    teleportTitle: '传送至地点',
     map: '地图',
     openMap: '打开地图 [M]',
     muteSound: '关闭声音',
@@ -156,6 +156,9 @@ export const STR = {
     seaWalk: '海上世界 · 观船广场', octWalk: '华侨城创意园 · B10 步道', nantouWalk: '南头古城 · 南牌坊外'
   },
   teleport: {
+    filterLabel: '传送地点分类',
+    filters: { all: '全选', landmark: '地标', retail: '商圈', park: '公园',
+      culture: '文化街区', amusement: '游乐场', sports: '体育场' },
     cocoParkApproach: 'COCO Park 一期东南门前场',
     cocoParkApproachDetail: '福华三路北侧步行起点',
     cocoParkEntrance: '一期东南门前场',

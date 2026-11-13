@@ -188,6 +188,7 @@ export function planVegetationPilots(geo, site, beds, existingTrees) {
             item.supportY = y;
             if (site.deckOccupied(x, z, item.y, item.y + height)) continue;
           }
+          if (kind === 'tree' && site.reserveView?.(x, z, pad, item.y + height)) continue;
           if (obstacles(x, z, pad, item.y - 0.3, item.y + height)
             || trees(x, z, kind === 'tree' ? Math.max(2.8, radius * 0.78) : pad, item.y - 0.6, item.y + height)
             || !fitsSpacing(item)) continue;

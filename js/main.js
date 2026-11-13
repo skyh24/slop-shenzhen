@@ -425,7 +425,7 @@ async function initApp() {
   const parkArrivals = createBayParkArrivals(bayPark, GEO.parks, bayArrival ?? streetscapeArrival,
     findGroundArrival, getLocationLabel);
   const { entries: teleportEntries, buttons: teleportButtons, syncWalkApproach } = createTeleportMenu(
-    TELEPORT_LOCATIONS, bayPark, getLocationLabel, districts.arrivals);
+    TELEPORT_LOCATIONS, bayPark, getLocationLabel, districts.arrivals, GEO.mapRegions?.regions);
   const parkButton = teleportButtons.find(button => button.dataset.teleport === bayPark?.id);
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
   const placeModeIndicator = createModeIndicator(document.getElementById('mode-switch'));

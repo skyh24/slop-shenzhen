@@ -63,12 +63,12 @@ function localizeInterface() {
 
 if (typeof document !== 'undefined') localizeInterface();
 
-export function populateTeleportMenu(locations, locationLabel) {
+export function populateTeleportMenu(locations, locationLabel, categories) {
   const menu = document.getElementById('teleport-popover');
   const feedback = document.getElementById('teleport-feedback');
   const existing = new Map([...menu.querySelectorAll('[data-teleport]')].map(button => [button.dataset.teleport, button]));
   for (const button of existing.values()) button.hidden = !locations[button.dataset.teleport];
-  return Object.entries(locations).map(([key, location]) => {
+  const buttons = Object.entries(locations).map(([key, location]) => {
     let button = existing.get(key);
     if (!button) {
       button = document.createElement('button');
@@ -88,6 +88,34 @@ export function populateTeleportMenu(locations, locationLabel) {
     button.querySelector('.pop-sub').textContent = detail === location.name ? '' : detail;
     return button;
   });
+
+  const filters = [...menu.querySelectorAll('[data-teleport-filter]')];
+  const all = filters.find(button => button.dataset.teleportFilter === 'all');
+  const groups = filters.filter(button => button !== all);
+  const selection = new Set();
+  const show = [...buttons, document.getElementById('tp-talent-show')];
+  function apply() {
+    all.setAttribute('aria-pressed', String(!selection.size));
+    for (const button of groups) {
+      button.setAttribute('aria-pressed', String(selection.has(button.dataset.teleportFilter)));
+    }
+    for (const button of show) {
+      const keys = button.dataset.teleport ? categories.get(button.dataset.teleport) : ['park'];
+      button.hidden = selection.size > 0 && !keys?.some(key => selection.has(key));
+    }
+  }
+  for (const button of filters) button.addEventListener('click', () => {
+    const key = button.dataset.teleportFilter;
+    if (button === all) selection.clear();
+    else if (selection.has(key)) selection.delete(key);
+    else selection.add(key);
+    if (selection.size === groups.length) selection.clear();
+    feedback.hidden = true;
+    menu.scrollTop = 0;
+    apply();
+  });
+  apply();
+  return buttons;
 }
 
 export function wireMetroMenu(mapSystem, sourceLines) {

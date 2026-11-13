@@ -535,6 +535,15 @@
   <!-- Teleport Destinations (native popover: light-dismiss & Esc) -->
   <div id="teleport-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" data-label="ui.teleportTitle">
     <div class="pop-title" data-text="ui.teleportTitle"></div>
+    <div class="teleport-filters" role="group" data-label="teleport.filterLabel">
+      <button type="button" data-teleport-filter="all" data-text="teleport.filters.all" aria-pressed="true"></button>
+      <button type="button" data-teleport-filter="landmark" data-text="teleport.filters.landmark" aria-pressed="false"></button>
+      <button type="button" data-teleport-filter="retail" data-text="teleport.filters.retail" aria-pressed="false"></button>
+      <button type="button" data-teleport-filter="park" data-text="teleport.filters.park" aria-pressed="false"></button>
+      <button type="button" data-teleport-filter="culture" data-text="teleport.filters.culture" aria-pressed="false"></button>
+      <button type="button" data-teleport-filter="amusement" data-text="teleport.filters.amusement" aria-pressed="false"></button>
+      <button type="button" data-teleport-filter="sports" data-text="teleport.filters.sports" aria-pressed="false"></button>
+    </div>
     <button id="tp-empire" class="pop-item tp-btn" data-teleport="ping-an" type="button"><span class="pop-name"></span><span class="pop-sub"></span></button>
     <button id="tp-timessq" class="pop-item tp-btn" data-teleport="huaqiangbei" type="button"><span class="pop-name"></span><span class="pop-sub"></span></button>
     <button id="tp-chrysler" class="pop-item tp-btn" data-teleport="chunsun" type="button"><span class="pop-name"></span><span class="pop-sub"></span></button>

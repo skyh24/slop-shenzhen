@@ -23,7 +23,7 @@ import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzLightShow, planLandmarkBands } from './sz-light-show.js';
 import { createCbdProgram, isCbdProgramBuilding } from './sz-cbd-program.js';
-import { buildLianhuashanSummit, reviewedParkOmissions, SUMMIT_ARRIVAL } from './sz-lianhuashan.js';
+import { buildLianhuashanSummit, reviewedParkOmissions, summitViewObstructed, SUMMIT_ARRIVAL } from './sz-lianhuashan.js';
 import { buildIecGrounds } from './sz-landmarks/iec-grounds.js';
 import { buildNorthStation } from './sz-rail/station.js';
 import { northBridgeProfile } from './sz-rail/geometry.js';
@@ -171,6 +171,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     ...site, carriagewayOccupied, deckOccupied, excludedSite: themeParks.reserved, woodlandTrees: planWoodlandTrees(), simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
     reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r)
       || northStation?.reserves(x, z, r) || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
+    reserveView: summit.group ? summitViewObstructed : null,
     observedTrees: streetscape.observedTrees, pilotTrees: [...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees, ...districts.trees, ...urbanPaving.trees],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds),
     arterialTreeAllowed: createArterialTreeFilter(nearRoadsForFrontage, roadFrontage.arterialMedianAt)

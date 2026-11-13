@@ -14,6 +14,15 @@ const STATUE = { x: -18.00, z: -1068.40 };
 export const SUMMIT_ARRIVAL = Object.freeze({ x: -18.55, z: -1028.8, y: SUMMIT_DECK_Y, heading: 0,
   surfaceId: SUMMIT_SURFACE_ID });
 
+// 保留南向平台前景及节目楼群的低处视线。越过近坡后保留正常林冠。
+export function summitViewObstructed(x, z, radius, topY) {
+  const depth = z - SUMMIT_ARRIVAL.z;
+  if (depth <= -radius || depth >= 130 + radius) return false;
+  const halfWidth = 12 + 0.76 * Math.max(0, depth);
+  if (Math.abs(x - SUMMIT_ARRIVAL.x) >= halfWidth + radius) return false;
+  return depth < 24 + radius || topY > SUMMIT_DECK_Y + 1.68 - 0.14 * (depth + radius);
+}
+
 const points = rows => rows.map(([x, z]) => ({ x, z }));
 const rim = points([
   [-49.79, -1056.84], [-49.19, -1050.1], [-47.66, -1044.92], [-45.64, -1040.72],

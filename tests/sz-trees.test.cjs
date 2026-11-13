@@ -142,6 +142,33 @@ test('tree LOD keeps near crowns under 180 m and hides beyond 900 m', () => {
 
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 
+test('summit lookout clears crown and collision together while retaining side and lower-slope trees', { skip: !threeDir }, async () => {
+  const [THREE, TSL] = await Promise.all(['three.webgpu.js', 'three.tsl.js']
+    .map(file => import(pathToFileURL(join(threeDir, 'build', file)))));
+  const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
+  const model = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
+    './sz-tree-crown.js': crown } });
+  const { summitViewObstructed, SUMMIT_ARRIVAL: view } = loadModule(read('sz-lianhuashan.js')
+    .replace(/^import source.*\n/m, ''), {
+    imports: { 'three/webgpu': {}, 'three/tsl': {}, './sz-paving.js': {}, './sz-polygon.js': {},
+      './sz-landmarks/parts.js': {}, './sz-landmarks/render.js': {}, './sz-strings.js': {} }
+  });
+  const payload = makePayload([
+    { x: -185, z: -10000, osm: 'node/1', source: 'osm-node' },
+    { x: 550, z: -10000, osm: 'node/2', source: 'osm-node' },
+    { x: -185, z: -9500, osm: 'node/3', source: 'osm-node' },
+    { x: -185, z: -10800, osm: 'node/4', source: 'osm-node' }
+  ]);
+  const built = model.buildSzTrees(new THREE.Scene(), payload, {
+    groundHeight: (_x, z) => z > -980 ? 70 : 108,
+    reserveView: summitViewObstructed
+  });
+  assert.deepEqual(Array.from(built.colliders, tree => tree.sourceId), ['node/2', 'node/3', 'node/4']);
+  assert.equal(built.flightObstacles({ minX: view.x, maxX: view.x, minZ: -1010, maxZ: -988 }).length, 0);
+  assert.equal(built.statistics.placed, 3);
+  built.dispose();
+});
+
 test('woodland batches stay lightweight and preserve existing trees and circulation', { skip: !threeDir }, async () => {
   const { planWoodlandTrees } = await import('../js/sz-woodlands.js');
   const groves = planWoodlandTrees();

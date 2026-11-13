@@ -447,6 +447,11 @@ export function buildSzTrees(scene, payload, options = {}) {
       skipped[reason] += 1;
       continue;
     }
+    // 在创建树干、树冠和碰撞体前统一退让，计入远近树冠和摆动。
+    if (options.reserveView?.(x, z, crown * 0.75 + 0.35, baseY + height + 0.5)) {
+      skipped.reservedWalk++;
+      continue;
+    }
     const speciesName = extra?.speciesName ?? trees.speciesNames[trees.species[index]] ?? 'ficus';
     const style = speciesStyle(speciesName);
     // 未知树种退回 ficus 叶卡形态，颜色仍用该树种的调色板。
