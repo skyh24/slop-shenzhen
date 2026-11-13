@@ -10,6 +10,8 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost']);
 // 跳过只用于启动/帧时二分，不保证被跳过的系统还能正常游玩。
 const STAGE_STUBS = {
   landmarks: () => ({ group: emptyGroup(), colliders: [], surfaces: [], skipIds: new Set(), dispose: () => {} }),
+  themeParks: () => ({ group: emptyGroup(), colliders: [], surfaces: [], skipIds: new Set(), trees: [],
+    pathAt: () => [], reserved: () => false, update() {}, snapshot: () => null, dispose() {} }),
   blocks: () => ({ group: emptyGroup(), colliders: [], allBlocks: [] }),
   lightshow: () => ({ group: emptyGroup(), update: () => {} }),
   signs: () => ({ group: emptyGroup(), update: () => {}, nearestName: () => null, statistics: {} }),
@@ -246,6 +248,8 @@ class QaSession {
     window.__szNearTraffic = (x, z, radius = 12) => (traffic.nearColliders(x, z, radius) ?? []).map(item => ({
       x: Math.round(item.x ?? item.minX ?? 0), z: Math.round(item.z ?? item.minZ ?? 0), kind: item.kind ?? item.type ?? 'vehicle'
     }));
+    // QA：同一次场景加载可以切换固定机位；null 恢复游戏相机。
+    window.__szSetCamera = (camera) => { this.camera = parseCamera(camera); };
     // QA：查询某点的接触候选面（地形/地标/高架），用于诊断载具卡住。
     window.__szSurfaceAt = (x, z) => controllerManager.surfaceResolver.at(x, z);
     // QA：把车辆放到最近的源路网节点（道路中心），用于自动驾驶/连续驾驶验收。
@@ -364,6 +368,7 @@ class QaSession {
     const program = modules?.cbdProgram;
     return {
       talentShow: this.talentSnapshot(),
+      themeParks: modules?.themeParks?.snapshot(),
       summitProgram: program && {
         active: program.active, paused: program.paused, time: program.time, cue: program.cue,
         ...program.statistics, participants: modules.programIds,

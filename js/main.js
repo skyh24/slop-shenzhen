@@ -36,6 +36,7 @@ import { buildIecGrounds } from './sz-landmarks/iec-grounds.js';
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
+import { buildThemeParks } from './sz-theme-parks/index.js';
 import { buildShenzhenBayBridge, buildYanjiangExpressway } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { buildSzElevatedRoads } from './sz-elevated-roads.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
@@ -225,9 +226,10 @@ async function initApp() {
     ? buildIecGrounds(scene, { ...site, roadSurfaces: roads.surfaces, water: GEO.water, paths: GEO.iecPaths }) : null;
   const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
   const yanjiang = buildYanjiangExpressway(scene, GEO.yanjiangExpressway);
+  const themeParks = qa.stage('themeParks', () => buildThemeParks(scene, { ...site, mapRegions: GEO.mapRegions }));
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
-  const sceneSkipIds = new Set([...landmarks.skipIds, ...parkOmissions]);
+  const sceneSkipIds = new Set([...landmarks.skipIds, ...themeParks.skipIds, ...parkOmissions]);
   const cityBlocks = qa.stage('blocks', () =>
     buildCityBlocks(scene, { skipIds: sceneSkipIds, renderChunkSize: qa.chunkSize,
       programEmission: cbdProgram.emission, programParticipant: isCbdProgramBuilding,
@@ -245,12 +247,14 @@ async function initApp() {
   const buildingDetails = qa.stage('details', () =>
     buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds, roofPlans: cityBlocks.roofPlans }));
   markInit('blocks');
-  const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders];
+  const buildings = [...landmarks.colliders, ...themeParks.colliders, ...cityBlocks.colliders, ...summit.colliders];
   site.colliders = buildings;
   const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
   const talentPark = prepareTalentPark(qa, scene, GEO, site);
   const { waterfront } = talentPark;
   site.pathAt = (x, z) => {
+    const parkPaths = themeParks.pathAt(x, z);
+    if (parkPaths.length) return parkPaths;
     const summitPaths = summit.pathAt(x, z);
     if (summitPaths.length) return summitPaths;
     const waterfrontPaths = waterfront?.pathAt(x, z);
@@ -261,9 +265,9 @@ async function initApp() {
   // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
   const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
-    ...site, carriagewayOccupied, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
+    ...site, carriagewayOccupied, excludedSite: themeParks.reserved, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
     reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r),
-    observedTrees: streetscape.observedTrees, pilotTrees: [...publicWalk.trees, ...(waterfront?.pilotTrees ?? [])],
+    observedTrees: streetscape.observedTrees, pilotTrees: [...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? [])],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
@@ -323,7 +327,7 @@ async function initApp() {
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
-    surfaces: [...cityBlocks.surfaces, ...landmarks.surfaces, ...elevatedRoads.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
+    surfaces: [...cityBlocks.surfaces, ...landmarks.surfaces, ...themeParks.surfaces, ...elevatedRoads.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
     nearTraffic: traffic.nearColliders, nearWalkers: talentPeople?.nearColliders, flightSettings: GEO.airCruises?.flight,
     groundAccess: bayWaterfront.allowsGroundMode
   });
@@ -430,6 +434,7 @@ async function initApp() {
     talentPeople?.dispose();
     publicWalk.dispose();
     streetscape.dispose();
+    themeParks.dispose();
     trees.dispose?.();
     waterfront?.dispose();
     iec?.dispose();
@@ -448,7 +453,7 @@ async function initApp() {
       else firstByMaterial.set(chunk.material, chunk);
     }
   }
-  setupSceneCulling(scene, [...cullingRoots, landmarks.group, summit.group, iec?.group, bridge.group, yanjiang, streetscape.group, publicWalk.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
+  setupSceneCulling(scene, [...cullingRoots, landmarks.group, themeParks.group, summit.group, iec?.group, bridge.group, yanjiang, streetscape.group, publicWalk.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
     futianStation?.group, xiliConstruction?.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [
@@ -801,7 +806,7 @@ async function initApp() {
       buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, streetscapeArrival, sea, bridge, publicWalk,
       colliders,
       modules: {
-        lamps: streetLamps, trees, apec: apecTheme, apecCity, drones, lightShow,
+        lamps: streetLamps, trees, themeParks, apec: apecTheme, apecCity, drones, lightShow,
         summit, cbdProgram, waterfront, talentProgram, talentPeople, programIds: cityBlocks.programIds ?? [], parkOmissions,
         elevatedRoads, metroEntrances, futian: futianStation, xili: xiliConstruction
       },
@@ -950,6 +955,7 @@ async function initApp() {
     apecCity.update(dt);
     showSession.update(rawDt);
     lightShow.update();
+    themeParks.update(now * 0.001, sceneUniforms.night.value >= 0.5, cameraSystem.camera.position);
     metroEntrances.update(cameraSystem.camera.position);
     bayWaterfront.update(cameraSystem.camera.position);
     futianStation?.update(cameraSystem.camera.position);

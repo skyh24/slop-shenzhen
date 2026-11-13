@@ -394,6 +394,10 @@ export function buildSzTrees(scene, payload, options = {}) {
     const locationId = `tree:${x},${z}`;
     const id = extra?.id ?? (osmId?.startsWith('node/') ? osmId : `${osmId ?? sourceName}:${locationId}`);
     const sourceId = extra?.id ? id : legacyId;
+    if (options.excludedSite?.(x, z, crown / 2)) {
+      skipped.reservedWalk++;
+      continue;
+    }
     if (sourceName.startsWith('simulated-') && Number.isFinite(shennanMedianHeight(x, z))) {
       skipped.openMedian++;
       continue;
