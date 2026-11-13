@@ -39,6 +39,7 @@ from road_surface import build_road_surface
 from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
+from urban_paving import compile_urban_paving
 from yanjiang import build_yanjiang
 from fastpack import encode_city
 from package_validation import CORE_SOURCES, audit_payload, require_matching_snapshot, ring_points, verify_sources
@@ -222,13 +223,14 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
     return terrain, apply_commercial_carriageway(surface, manifest, graph, report)
 
 
-def write_city_packages(payload, report, sources, started):
+def write_city_packages(payload, report, sources, started, *, refresh_regions=True):
     payload.pop('roads', None)
-    osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
-    regions = build_map_regions(payload, osm_source, enc_poly)
-    payload['mapRegions'] = regions
-    report['mapRegions'] = {key: regions[key] for key in ('version', 'source', 'pilot', 'coverage')}
-    payload['airCruises'], report['airCruises'] = build_air_cruises(payload['roadGraph'], osm_source)
+    if refresh_regions:
+        osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
+        regions = build_map_regions(payload, osm_source, enc_poly)
+        payload['mapRegions'] = regions
+        report['mapRegions'] = {key: regions[key] for key in ('version', 'source', 'pilot', 'coverage')}
+        payload['airCruises'], report['airCruises'] = build_air_cruises(payload['roadGraph'], osm_source)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
     compressed = gzip.compress(raw, 9, mtime=0)
@@ -376,6 +378,9 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     build_shenzhen_golf(payload, osm, pbf, report)
     payload.pop('shenzhenBay', None)
     build_shenzhen_bay(payload, osm, pbf, report)
+    payload.pop('urbanPaving', None)
+    compile_urban_paving(payload, osm_source, report)
+    changed.append('urbanPaving')
     write_city_packages(payload, report, sources, started)
 
 
@@ -525,7 +530,13 @@ def main():
                       help='add reviewed Xiangmi Lake paths and reflecting pool to the current verified snapshot')
     mode.add_argument('--rebuild-talent-park', action='store_true',
                       help='compile the reviewed Talent Park waterfront on the verified package')
+    mode.add_argument('--rebuild-urban-paving', action='store_true',
+                      help='apply reviewed ground-cover sites to the verified package')
+    ap.add_argument('--urban-paving-pilot-only', action='store_true',
+                    help='with --rebuild-urban-paving, compile only the three comparison sites')
     args = ap.parse_args()
+    if args.urban_paving_pilot_only and not args.rebuild_urban_paving:
+        ap.error('--urban-paving-pilot-only requires --rebuild-urban-paving')
     if args.refresh_frontage_crossing_axes and not args.rebuild_road_frontage:
         ap.error('--refresh-frontage-crossing-axes requires --rebuild-road-frontage')
 
@@ -549,6 +560,18 @@ def main():
     if args.rebuild_road_frontage:
         rebuild_road_frontage(args.rebuild_road_frontage, crossing_axis_ids=args.refresh_frontage_crossing_axes,
                               use_cache=not args.no_cache)
+        return
+
+    if args.rebuild_urban_paving:
+        started = time.time()
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        report = json.loads(REPORT.read_text())
+        osm_source = next(source for source in sources if source['id'] == 'osm-guangdong')
+        compile_urban_paving(payload, osm_source, report, pilot_only=args.urban_paving_pilot_only)
+        write_city_packages(payload, report, sources, started, refresh_regions=False)
         return
 
     if args.rebuild_talent_park:
@@ -711,6 +734,7 @@ def main():
 
     build_shenzhen_golf(payload, osm, pbf, report)
     build_shenzhen_bay(payload, osm, pbf, report)
+    compile_urban_paving(payload, osm_source, report)
     write_city_packages(payload, report, sources, t0)
 
 

@@ -614,6 +614,17 @@ export function validateCityPayload(raw) {
   validateTrees(raw.trees);
   validateSites(raw.sites);
   validateAir(raw.air);
+  if (raw.urbanPaving !== undefined) {
+    const { version, manifestSha256, pilotOnly, publicRoutes, trees } = raw.urbanPaving ?? {};
+    requireData(version === 1 && typeof manifestSha256 === 'string' && /^[a-f0-9]{64}$/.test(manifestSha256)
+      && typeof pilotOnly === 'boolean' && Array.isArray(publicRoutes) && Array.isArray(trees), 'urban paving');
+    requireData(publicRoutes.every(route => typeof route?.id === 'string' && typeof route.evidence === 'string'
+      && Number.isFinite(route.widthM) && route.widthM > 0 && Number.isFinite(route.lateralM)
+      && route.lateralM >= 0 && route.lateralM <= 0.38 && Array.isArray(route.pointsXZ) && route.pointsXZ.length >= 2
+      && route.pointsXZ.every(p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite))), 'urban paving walks');
+    requireData(trees.every(tree => typeof tree?.id === 'string' && typeof tree.speciesName === 'string'
+      && [tree.x, tree.z, tree.height, tree.crown].every(Number.isFinite) && tree.height > 0 && tree.crown > 0), 'urban paving trees');
+  }
   validateShenzhenBay(raw.shenzhenBay, raw.parks ?? [], raw.seaSurface);
   for (let i = 0; i < buildings.h.length; i++) {
     requireData(typeof buildings.id[i] === 'string' && buildings.id[i].length > 0, 'building identity');
@@ -760,7 +771,7 @@ export function decodeCityPayload(raw, metrics = null) {
     roadGraph: raw.roadGraph, terrain: raw.terrain, terrainSurface: raw.terrainSurface,
     roadFrontage: raw.roadFrontage ?? null,
     mapRegions: raw.mapRegions ? { ...raw.mapRegions, regions: raw.mapRegions.regions.map(decodeMapRegion) } : null,
-    shenzhenBay: raw.shenzhenBay ?? null,
+    shenzhenBay: raw.shenzhenBay ?? null, urbanPaving: raw.urbanPaving ?? null,
     metro: raw.metro, landmarks: raw.landmarks,
     bridges: raw.bridges ?? [], yanjiangExpressway: raw.yanjiangExpressway ?? null,
     seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },

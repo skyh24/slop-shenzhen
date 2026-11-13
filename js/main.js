@@ -22,6 +22,7 @@ import { buildSzStreetscape } from './sz-streetscape.js';
 import { prepareTalentPark } from './sz-talent-park.js';
 import { createTeleportMenu } from './sz-coco-park-approach.js';
 import { buildSzStreetLamps } from './sz-street-lamps.js';
+import { createUrbanPavingWalk } from './sz-urban-paving.js';
 import { buildSzTrees } from './sz-trees.js';
 import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
@@ -212,6 +213,7 @@ async function initApp() {
   const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface, site.style);
   site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? publicWalk.heightAt(x, z) ?? ground.groundHeight(x, z);
   site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
+  const urbanPaving = createUrbanPavingWalk(GEO.urbanPaving, site.heightAt);
   const bayPaths = createBayPathLookup(GEO.shenzhenBay?.paths);
   site.reserveBayWalk = (x, z, radius) => bayPaths(x, z, radius).length > 0;
   markInit('roads');
@@ -259,11 +261,12 @@ async function initApp() {
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
   // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
-  const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
+  const carriageway = createCarriagewayBarrier(site.roadGraph);
+  const carriagewayOccupied = carriageway.contains;
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
     ...site, carriagewayOccupied, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
-    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r),
-    observedTrees: streetscape.observedTrees, pilotTrees: [...publicWalk.trees, ...(waterfront?.pilotTrees ?? [])],
+    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || urbanPaving.reserves(x, z, r) || waterfront?.reserves(x, z, r),
+    observedTrees: streetscape.observedTrees, pilotTrees: [...publicWalk.trees, ...urbanPaving.trees, ...(waterfront?.pilotTrees ?? [])],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
@@ -271,7 +274,7 @@ async function initApp() {
     const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: elevatedRoads.surfaces });
     return buildSzStreetLamps(scene, site.roadGraph, {
       ...site, roadStyle: site.style.road, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk, relocateSite: iec?.relocateLamp,
-      placementObstacles: [...buildings, ...trees.colliders],
+      placementObstacles: [...buildings, ...trees.colliders], reserveWalk: urbanPaving.reserves,
       deckOccupied: (x, z, bottom, top) =>
         deck.at(x, z).some(surface => surface.height + 4.5 > bottom && surface.height - 0.35 < top)
     });
@@ -352,14 +355,14 @@ async function initApp() {
   const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, GEO.roadGraph, {
     ...site,
     publicRoute: publicWalk.route(colliders),
-    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || waterfront?.reserves(x, z, 2),
+    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || urbanPaving.reserves(x, z, 2) || waterfront?.reserves(x, z, 2),
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
     localWalk: iec?.walk, blockGenericWalk: iec?.blockGenericWalk,
     spawnMinM: 8,
     spawnMaxM: 160,
-    publicRoutes: bayWaterfront.publicRoutes
+    publicRoutes: [...bayWaterfront.publicRoutes, ...urbanPaving.connect(colliders, carriageway)]
   }));
   roadFrontage.update(0);
   traffic.update(0, loadingFocus, [controllerManager.getActiveEntity()], 0);

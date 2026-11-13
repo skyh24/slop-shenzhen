@@ -78049,8 +78049,8 @@
   },
   "terrainSurface": {
     "chunks": 1264,
-    "vertices": 552987,
-    "triangles": 950902,
+    "vertices": 556692,
+    "triangles": 954160,
     "areaKm2": 279.61691,
     "areaErrorM2": -1.97e-06,
     "seconds": 7.46,
@@ -79352,16 +79352,16 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7630,
-    "metadataBytes": 16718892,
-    "numericBytes": 33623736,
-    "uncompressedBytes": 50342680,
+    "metadataBytes": 16719438,
+    "numericBytes": 33685808,
+    "uncompressedBytes": 50405296,
     "lossless": true,
-    "compressedBytes": 11384910,
-    "compressedSha256": "bcd223eba66dc3e5437d50a0220e61153f753c551c3d3de1bea8f5141d4323fb"
+    "compressedBytes": 11419214,
+    "compressedSha256": "1490887fef968ea6ebc467098b01ad1e234d3927b620a617af8f0ecbf89a3280"
   },
-  "outputBytes": 11354870,
-  "outputSha256": "6925c920c6bf66c9391ae356297e2fd4500ebb26e693e59d3a4ed8034e127ea7",
-  "seconds": 80.4,
+  "outputBytes": 11398724,
+  "outputSha256": "3a7372e6422bbb14945ce9970c44122e22a0998d8f9a627adebe301e2ea68511",
+  "seconds": 187.0,
   "frontageRebuild": {
     "basePayloadSha256": "6357ca9673bd5bbbb1e7532d96314cb3bc4372b97c659466565df89307ca30cb",
     "corridors": [
@@ -85162,5 +85162,207 @@
       "way/571169638"
     ],
     "terrainAndBuildingsChanged": false
+  },
+  "urbanPaving": {
+    "version": 1,
+    "manifestSha256": "195586a3b9d500c7e909c39c2ffa4cb74083e40c3e206afdbce91bd86d235ecf",
+    "pilotOnly": false,
+    "publicRoutes": [
+      {
+        "id": "coco-park-southeast-stone",
+        "pointsXZ": [
+          [
+            -498.3,
+            1201.7
+          ],
+          [
+            -498.3,
+            1177.2
+          ]
+        ],
+        "widthM": 1.36,
+        "lateralM": 0.09,
+        "evidence": "data/source/coco-park-entrance-evidence.md"
+      }
+    ],
+    "trees": [
+      {
+        "id": "qiaoxiang-third-lawn:tree-1",
+        "x": -4953.7,
+        "z": -340.36,
+        "height": 6.5,
+        "crown": 4.2,
+        "speciesName": "camphor"
+      },
+      {
+        "id": "hongbao-lianyi-lawn:tree-1",
+        "x": 5104.57,
+        "z": -363.68,
+        "height": 6.5,
+        "crown": 4.2,
+        "speciesName": "camphor"
+      }
+    ],
+    "sites": [
+      {
+        "id": "baishi-haiyuan-lawn",
+        "name": "白石路与海园一路围合空地",
+        "kind": "lawn",
+        "seedXZ": [
+          -6865.9,
+          1827.5
+        ],
+        "roads": [
+          "way/895941563",
+          "way/1332832715",
+          "way/227699545",
+          "way/777650576"
+        ],
+        "pilot": true,
+        "status": "built",
+        "candidateAreaM2": 2927.13,
+        "protectedAreaM2": 2106.83,
+        "overlapM2": 0.0,
+        "builtAreaM2": 763.89
+      },
+      {
+        "id": "coco-park-southeast-stone",
+        "name": "福田 COCO Park 东南侧临街铺装",
+        "kind": "stone",
+        "parcel": "way/546582690",
+        "seedXZ": [
+          -498.3,
+          1189
+        ],
+        "publicRoute": {
+          "pointsXZ": [
+            [
+              -498.3,
+              1201.7
+            ],
+            [
+              -498.3,
+              1177.2
+            ]
+          ],
+          "widthM": 1.36,
+          "lateralM": 0.09,
+          "evidence": "data/source/coco-park-entrance-evidence.md"
+        },
+        "pilot": true,
+        "status": "built",
+        "candidateAreaM2": 5822.01,
+        "protectedAreaM2": 2622.93,
+        "overlapM2": 0.0,
+        "builtAreaM2": 3199.08
+      },
+      {
+        "id": "shennan-xiangmei-divider",
+        "name": "深南大道香梅路西侧主辅路分隔带",
+        "kind": "divider",
+        "seedXZ": [
+          -2320,
+          571
+        ],
+        "roads": [
+          "way/536764372",
+          "way/892901021"
+        ],
+        "pilot": true,
+        "status": "built",
+        "candidateAreaM2": 2902.88,
+        "protectedAreaM2": 1967.59,
+        "overlapM2": 0.0,
+        "builtAreaM2": 921.7
+      },
+      {
+        "id": "qiaoxiang-third-lawn",
+        "name": "侨香路与侨香三道围合空地",
+        "kind": "lawn",
+        "seedXZ": [
+          -4958,
+          -330
+        ],
+        "roads": [
+          "way/971043222",
+          "way/633620739",
+          "way/633620741",
+          "way/119460304"
+        ],
+        "status": "built",
+        "candidateAreaM2": 2816.63,
+        "protectedAreaM2": 1178.58,
+        "overlapM2": 0.0,
+        "builtAreaM2": 1638.05
+      },
+      {
+        "id": "hongbao-lianyi-lawn",
+        "name": "红宝路与联益巷围合空地",
+        "kind": "lawn",
+        "seedXZ": [
+          5105,
+          -359
+        ],
+        "roads": [
+          "way/775651072",
+          "way/775651090",
+          "way/775651073",
+          "way/31354891"
+        ],
+        "status": "built",
+        "candidateAreaM2": 1960.07,
+        "protectedAreaM2": 803.15,
+        "overlapM2": 0.0,
+        "builtAreaM2": 1156.91
+      },
+      {
+        "id": "binhe-xinzhou-divider",
+        "name": "滨河大道新洲路西侧主辅路分隔带",
+        "kind": "divider",
+        "seedXZ": [
+          -2440,
+          1754
+        ],
+        "roads": [
+          "way/135913061",
+          "way/25423077"
+        ],
+        "status": "built",
+        "candidateAreaM2": 4289.8,
+        "protectedAreaM2": 3228.79,
+        "overlapM2": 0.0,
+        "builtAreaM2": 1050.18
+      },
+      {
+        "id": "shopping-park-stone",
+        "name": "购物公园临街铺装",
+        "kind": "stone",
+        "parcel": "way/529086160",
+        "seedXZ": [
+          -560,
+          980
+        ],
+        "status": "built",
+        "candidateAreaM2": 7069.68,
+        "protectedAreaM2": 4374.45,
+        "overlapM2": 0.0,
+        "builtAreaM2": 2669.82
+      }
+    ],
+    "rebuiltChunks": [
+      "-1,2",
+      "-10,-1",
+      "-11,-1",
+      "-14,3",
+      "-2,1",
+      "-2,2",
+      "-5,1",
+      "-5,3",
+      "-6,3",
+      "10,-1"
+    ],
+    "groundHeightSource": "original-terrain-triangle",
+    "materialSource": "simulation-estimate",
+    "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3"
   }
 }

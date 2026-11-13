@@ -214,7 +214,7 @@ function processPose(ped, sampled) {
   const isPublic = ped.leg.kind === 'public-walk';
   const fade = isPublic ? 1
     : Math.max(0, Math.min(1, ped.s / 2.5, (ped.leg.length - ped.s) / 2.5));
-  const publicLimit = ped.leg.restSide ? 1.45 : 0.38;
+  const publicLimit = ped.leg.lateralM ?? (ped.leg.restSide ? 1.45 : 0.38);
   const lateral = isPublic ? clamp(ped.lateral, -publicLimit, publicLimit) : ped.lateral * (ped.leg.publicHeight ? 1 : fade);
   ped.x = sampled.x + (isPublic ? sampled.rightX : sampled.dz) * lateral;
   ped.z = sampled.z + (isPublic ? sampled.rightZ : -sampled.dx) * lateral;
@@ -430,6 +430,8 @@ export function createSzPedestrians(scene, graph, options = {}) {
     for (let attempt = 0; attempt < 8; attempt++) {
       const track = pickTrack(region, random);
       if (!track || track.length < 2) continue;
+      // 窄巷内留出单人通行净宽，环境行人逐个进入。
+      if (track.singleFile && peds.some(other => other.placed && other.leg === track)) continue;
       const s = 0.6 + random() * Math.max(0, track.length - 1.2);
       sampleTrack(track, s, scratch);
       const distance = Math.hypot(scratch.x - focus.x, scratch.z - focus.z);
