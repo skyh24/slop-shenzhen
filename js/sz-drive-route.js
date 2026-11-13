@@ -137,6 +137,7 @@ function validateSamples(samples, model, roadHeight, isClear, stops) {
     const edge = samples[i].edge;
     // 高架保留以桥面铺装宽分档的限速；护栏净宽用于车道和车身余量。
     const width = edge?.elevated ? edge.section.pavementWidthM : edge?.section.travelWidthM ?? 0;
+    if (edge?.rampSpeed) limits[i] = Math.min(limits[i], edge.rampSpeed);
     if (width > 0 && width < 6.5) limits[i] = Math.min(limits[i], width < 4.5 ? 4 : 5.5);
   }
   const pose = {};

@@ -120,6 +120,7 @@ function collisionBody(mode, radius, heading, margin = 0, bounds = null) {
 // 运动和传送共用脚印碰撞。人物使用圆，车辆和飞行器使用从模型提取的定向矩形。
 function buildingContact(c, x, y, z, body, contact) {
   if (c.type === 'bridge-slab' && body.mode === 'car' && (body.supportedSlabs?.has(c.name)
+    || (body.supportedSlabs?.size && y + body.bottom >= c.maxY - 0.02)
     || (c.roadAccess && y >= c.maxY - 0.28))) return false;
   if (y + body.bottom >= c.maxY || y + body.top <= (c.minY ?? 0)) return false;
   if (x + body.extX <= c.minX || x - body.extX >= c.maxX || z + body.extZ <= c.minZ || z - body.extZ >= c.maxZ) return false;

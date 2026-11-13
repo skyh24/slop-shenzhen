@@ -79925,17 +79925,17 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7710,
-    "metadataBytes": 16773559,
-    "numericBytes": 34391648,
-    "uncompressedBytes": 51165256,
+    "columns": 7716,
+    "metadataBytes": 16778094,
+    "numericBytes": 34419872,
+    "uncompressedBytes": 51198016,
     "lossless": true,
-    "compressedBytes": 11971564,
-    "compressedSha256": "31e6366d10e3b96df81042c4335eeb40235b6a4890dc1c444c42aec1fd891c7b"
+    "compressedBytes": 11995607,
+    "compressedSha256": "93484eaab979d577e7fb6a71283434fe4d4175eb28a57f19823a39b47768f3d3"
   },
-  "outputBytes": 11849556,
-  "outputSha256": "d76af150ec253ed3f676ea5bba9891a4f508f184740991f2a920dcd3bf9ac397",
-  "seconds": 58.3,
+  "outputBytes": 11867347,
+  "outputSha256": "c6a0b99fbd4287dc1bbf43b0e870d924aa3a879ec97fba3e32d49191c52eb9a6",
+  "seconds": 61.5,
   "frontageRebuild": {
     "basePayloadSha256": "4e3b12051e426ab4f1e5c30d9a1f8acb04343339a8e4a4611a23963fdad78b89",
     "corridors": [
@@ -86442,6 +86442,118 @@
           ]
         ],
         "profileSource": "project-design-estimate-with-5m-first-bridge-level"
+      },
+      {
+        "id": "huanggang-north-loop-on",
+        "kind": "ramp",
+        "source": "https://pnr.sz.gov.cn/ywzy/ghzs/dlql/table10.html",
+        "ways": [
+          "way/25584098"
+        ],
+        "portalNodes": [
+          "node/500021305",
+          "node/500021304"
+        ],
+        "pathNodes": [
+          "node/500021305",
+          "node/500021304"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "loop",
+          "node": "node/500021304",
+          "mainline": "huanggang-binhe-north"
+        }
+      },
+      {
+        "id": "huanggang-north-loop-off",
+        "kind": "ramp",
+        "source": "https://pnr.sz.gov.cn/ywzy/ghzs/dlql/table10.html",
+        "ways": [
+          "way/25584036"
+        ],
+        "portalNodes": [
+          "node/500023063",
+          "node/6033482430"
+        ],
+        "pathNodes": [
+          "node/500023063",
+          "node/6033482430"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "loop",
+          "node": "node/500023063",
+          "mainline": "huanggang-binhe-north"
+        }
+      },
+      {
+        "id": "huanggang-south-loop-on",
+        "kind": "ramp",
+        "source": "https://pnr.sz.gov.cn/ywzy/ghzs/dlql/table10.html",
+        "ways": [
+          "way/25423324"
+        ],
+        "portalNodes": [
+          "node/500023096",
+          "node/500021302"
+        ],
+        "pathNodes": [
+          "node/500023096",
+          "node/500021302"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "loop",
+          "node": "node/500021302",
+          "mainline": "huanggang-binhe-south"
+        }
+      },
+      {
+        "id": "huanggang-south-loop-off",
+        "kind": "ramp",
+        "source": "https://pnr.sz.gov.cn/ywzy/ghzs/dlql/table10.html",
+        "ways": [
+          "way/25584034"
+        ],
+        "portalNodes": [
+          "node/500021006",
+          "node/500021022"
+        ],
+        "pathNodes": [
+          "node/500021006",
+          "node/500021022"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "loop",
+          "node": "node/500021006",
+          "mainline": "huanggang-binhe-south"
+        }
+      },
+      {
+        "id": "xincheng-east-side-on",
+        "kind": "ramp",
+        "source": "https://www.sz.gov.cn/cn/xxgk/zfxxgj/tpxw/content/mpost_11170030.html",
+        "ways": [
+          "way/1051266597",
+          "way/963403145"
+        ],
+        "portalNodes": [
+          "node/11198157275",
+          "node/9722598837"
+        ],
+        "pathNodes": [
+          "node/11198157275",
+          "node/9660672245",
+          "node/9722598837"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "side",
+          "node": "node/9722598837",
+          "mainline": "nanping-xili-east"
+        }
       }
     ],
     "conflicts": [],
@@ -87107,6 +87219,51 @@
           {
             "way": "way/1213921298",
             "clearanceM": 4.2177
+          }
+        ]
+      },
+      {
+        "route": "huanggang-north-loop-on",
+        "way": "way/25584098",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "huanggang-north-loop-off",
+        "way": "way/25584036",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "huanggang-south-loop-on",
+        "way": "way/25423324",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "huanggang-south-loop-off",
+        "way": "way/25584034",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "xincheng-east-side-on",
+        "way": "way/1051266597",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "xincheng-east-side-on",
+        "way": "way/963403145",
+        "minimumM": 8.7099,
+        "crossingWays": [
+          {
+            "way": "way/780057682",
+            "clearanceM": 10.1027
+          },
+          {
+            "way": "way/1256092753",
+            "clearanceM": 8.7099
           }
         ]
       }
@@ -88230,6 +88387,134 @@
         "coverM": null,
         "openApronM": 0,
         "maxGrade": 0.0
+      },
+      {
+        "index": 214,
+        "way": "way/25584098",
+        "route": "huanggang-north-loop-on",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.03635
+      },
+      {
+        "index": 213,
+        "way": "way/25584036",
+        "route": "huanggang-north-loop-off",
+        "kind": "ramp",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.034032
+      },
+      {
+        "index": 39,
+        "way": "way/25423324",
+        "route": "huanggang-south-loop-on",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.030575
+      },
+      {
+        "index": 212,
+        "way": "way/25584034",
+        "route": "huanggang-south-loop-off",
+        "kind": "ramp",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.032289
+      },
+      {
+        "index": 18637,
+        "way": "way/1051266597",
+        "route": "xincheng-east-side-on",
+        "kind": "ramp",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.025596
+      },
+      {
+        "index": 15658,
+        "way": "way/963403145",
+        "route": "xincheng-east-side-on",
+        "kind": "ramp",
+        "layer": 2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 31.773124,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.044719
+      }
+    ],
+    "connections": [
+      {
+        "ramp": 214,
+        "incoming": 17633,
+        "outgoing": 899,
+        "template": "loop"
+      },
+      {
+        "ramp": 213,
+        "incoming": 899,
+        "outgoing": 901,
+        "template": "loop"
+      },
+      {
+        "ramp": 39,
+        "incoming": 21334,
+        "outgoing": 900,
+        "template": "loop"
+      },
+      {
+        "ramp": 212,
+        "incoming": 900,
+        "outgoing": 1341,
+        "template": "loop"
+      },
+      {
+        "ramp": 15658,
+        "incoming": 7812,
+        "outgoing": 7813,
+        "template": "side"
       }
     ]
   }

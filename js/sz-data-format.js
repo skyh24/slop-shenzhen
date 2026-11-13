@@ -709,7 +709,7 @@ export function validateCityPayload(raw) {
     for (const row of structures.records) {
       const route = routes.get(row?.route);
       requireData(Number.isInteger(row?.index) && graph.metadata[row.index]?.osmId === row.way && !seen.has(row.index)
-        && ['bridge', 'tunnel', 'approach'].includes(row.kind)
+        && ['bridge', 'tunnel', 'approach', 'ramp'].includes(row.kind)
         && (route?.kind === row.kind || route?.kind === 'mixed' || (route?.kind === 'bridge' && row.kind === 'approach'))
         && route?.ways?.includes(row.way) && (row.layer === undefined || Number.isFinite(row.layer))
         && Number.isFinite(row.widthM) && row.widthM > 0 && Number.isInteger(row.lanes) && row.lanes >= 0
@@ -722,6 +722,17 @@ export function validateCityPayload(raw) {
         && row.stations[0] === 0 && row.stations.every((value, i) => Number.isFinite(value)
           && (i < 8 || i % 8 !== 0 || value > row.stations[i - 8])), 'structure stations');
       seen.add(row.index);
+    }
+    if (structures.connections !== undefined) {
+      const records = new Map(structures.records.map(row => [row.index, row]));
+      requireData(Array.isArray(structures.connections) && structures.connections.every(row => {
+        const { ramp, incoming, outgoing, template } = row ?? {};
+        if (records.get(ramp)?.kind !== 'ramp' || !records.has(incoming) || !records.has(outgoing)
+          || new Set([ramp, incoming, outgoing]).size !== 3 || !['loop', 'side'].includes(template)) return false;
+        const node = graph.links[incoming][1];
+        return graph.links[outgoing][0] === node && graph.links[ramp].slice(0, 2).includes(node);
+      }), 'road structure connections');
+      validateIds(structures.connections.map(row => String(row.ramp)), 'ramp connection identity');
     }
   }
   validateIds(roadEdges, 'road edge identity');

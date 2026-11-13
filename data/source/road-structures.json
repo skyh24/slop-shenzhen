@@ -627,6 +627,118 @@
         ]
       ],
       "profileSource": "project-design-estimate-with-5m-first-bridge-level"
+    },
+    {
+      "id": "huanggang-north-loop-on",
+      "kind": "ramp",
+      "source": "https://pnr.sz.gov.cn/ywzy/ghzs/dlql/table10.html",
+      "ways": [
+        "way/25584098"
+      ],
+      "portalNodes": [
+        "node/500021305",
+        "node/500021304"
+      ],
+      "pathNodes": [
+        "node/500021305",
+        "node/500021304"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "loop",
+        "node": "node/500021304",
+        "mainline": "huanggang-binhe-north"
+      }
+    },
+    {
+      "id": "huanggang-north-loop-off",
+      "kind": "ramp",
+      "source": "https://pnr.sz.gov.cn/ywzy/ghzs/dlql/table10.html",
+      "ways": [
+        "way/25584036"
+      ],
+      "portalNodes": [
+        "node/500023063",
+        "node/6033482430"
+      ],
+      "pathNodes": [
+        "node/500023063",
+        "node/6033482430"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "loop",
+        "node": "node/500023063",
+        "mainline": "huanggang-binhe-north"
+      }
+    },
+    {
+      "id": "huanggang-south-loop-on",
+      "kind": "ramp",
+      "source": "https://pnr.sz.gov.cn/ywzy/ghzs/dlql/table10.html",
+      "ways": [
+        "way/25423324"
+      ],
+      "portalNodes": [
+        "node/500023096",
+        "node/500021302"
+      ],
+      "pathNodes": [
+        "node/500023096",
+        "node/500021302"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "loop",
+        "node": "node/500021302",
+        "mainline": "huanggang-binhe-south"
+      }
+    },
+    {
+      "id": "huanggang-south-loop-off",
+      "kind": "ramp",
+      "source": "https://pnr.sz.gov.cn/ywzy/ghzs/dlql/table10.html",
+      "ways": [
+        "way/25584034"
+      ],
+      "portalNodes": [
+        "node/500021006",
+        "node/500021022"
+      ],
+      "pathNodes": [
+        "node/500021006",
+        "node/500021022"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "loop",
+        "node": "node/500021006",
+        "mainline": "huanggang-binhe-south"
+      }
+    },
+    {
+      "id": "xincheng-east-side-on",
+      "kind": "ramp",
+      "source": "https://www.sz.gov.cn/cn/xxgk/zfxxgj/tpxw/content/mpost_11170030.html",
+      "ways": [
+        "way/1051266597",
+        "way/963403145"
+      ],
+      "portalNodes": [
+        "node/11198157275",
+        "node/9722598837"
+      ],
+      "pathNodes": [
+        "node/11198157275",
+        "node/9660672245",
+        "node/9722598837"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "side",
+        "node": "node/9722598837",
+        "mainline": "nanping-xili-east"
+      }
     }
   ],
   "minimumVehicleClearanceM": 3.7,

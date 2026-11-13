@@ -658,5 +658,25 @@ test('a source-connected tunnel route stays on its own floor across every seam a
       assert.ok(full && routeEdges.every(edge => full.edges.includes(edge)), id);
     }
   }
+  const movements = [
+    [[1471.03, 1638.98], [1462.70, 1585.62], [17634, 214, 899, 213, 20449]],
+    [[1363.03, 1587.73], [1371.42, 1640.25], [20449, 39, 900, 212, 17634]],
+    [[-16184.84, -56.31], [-15726.49, -386.61], [18636, 18637, 15658, 7813]],
+    [[1348.42, 1640.55], [1487.03, 1638.77], [17634]]
+  ];
+  for (const [from, to, indices] of movements) {
+    const route = planner.route(planner.snap(...from), planner.snap(...to));
+    assert.ok(route);
+    assert.deepEqual(Array.from(route.edges, edge => edge.sourceIndex), indices);
+    for (const [i, sample] of route.samples.entries()) {
+      if (sample.edge.rampSpeed) assert.ok(route.limits[i] <= 6.5);
+    }
+  }
+  for (const { ramp, incoming, outgoing } of geo.roadStructures.connections) {
+    const rows = [ramp, incoming, outgoing].map(index => built.links.find(link => link.index === index));
+    assert.ok(rows[0].openings.size > 0);
+    assert.ok(rows[1].openings.size + rows[2].openings.size > 0);
+    assert.equal(rows[0].structureNeighbors.includes('terrain'), rows[0].sharedStart || rows[0].sharedEnd);
+  }
   built.dispose();
 });

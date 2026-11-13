@@ -69,18 +69,20 @@ function addDeckPaint(cells, graph, decks) {
         cell.color.push(color.r, color.g, color.b);
       };
       for (const line of lines) {
+        const side = line.offset < 0 ? 'left' : 'right';
+        const duty = line.duty === 1 && deck.openings?.get(i - 1)?.has(side) ? 0.32 : line.duty;
         const color = colorFor(line.color);
         const center = 0.5 + line.offset / section.pavementWidthM;
         const loA = center - 0.09 / widthA, loB = center - 0.09 / widthB;
         const hiA = center + 0.09 / widthA, hiB = center + 0.09 / widthB;
         const lo = loA / (1 + loA - loB), hi = hiA / (1 + hiA - hiB);
         const base = cell.position.length / 3;
-        vertex(leftA, rightA, loA, a.d, color, line.duty);
-        vertex(leftA, rightA, hiA, a.d, color, line.duty);
-        vertex(leftA, rightB, hi, a.d + (b.d - a.d) * hi, color, line.duty);
-        vertex(leftA, rightB, lo, a.d + (b.d - a.d) * lo, color, line.duty);
-        vertex(leftB, rightB, hiB, b.d, color, line.duty);
-        vertex(leftB, rightB, loB, b.d, color, line.duty);
+        vertex(leftA, rightA, loA, a.d, color, duty);
+        vertex(leftA, rightA, hiA, a.d, color, duty);
+        vertex(leftA, rightB, hi, a.d + (b.d - a.d) * hi, color, duty);
+        vertex(leftA, rightB, lo, a.d + (b.d - a.d) * lo, color, duty);
+        vertex(leftB, rightB, hiB, b.d, color, duty);
+        vertex(leftB, rightB, loB, b.d, color, duty);
         cell.index.push(base, base + 1, base + 2, base, base + 2, base + 3,
           base + 3, base + 2, base + 4, base + 3, base + 4, base + 5);
       }

@@ -143,7 +143,7 @@ export function createTrafficGraph(graph, { canTurn = () => true, elevated = nul
       const to = sign === 1 ? record.endNode : record.startNode;
       const edge = { from, to, sign, section,
         name: record.name ?? '', osmId: record.osmId, highway: null, sourceIndex: record.index,
-        structureNeighbors: record.structureNeighbors, tunnel: record.tunnel === true,
+        structureNeighbors: record.structureNeighbors, tunnel: record.tunnel === true, rampSpeed: record.ramp ? 6.5 : undefined,
         segments: [], next: [], surfaceId: section.surfaceId, elevated: true,
         startDeckY: sign === 1 ? record.startDeckY : record.endDeckY,
         endDeckY: sign === 1 ? record.endDeckY : record.startDeckY,
@@ -463,6 +463,7 @@ function makeObstacleIndex(colliders) {
         for (const candidate of cells.get(cellKey(x, z)) ?? []) {
           if (!intersects(body, candidate)) continue;
           if (candidate.type === 'bridge-slab' && (body.supportedSlabs?.has(candidate.name)
+            || (body.supportedSlabs?.size && body.minY >= candidate.maxY - 0.02)
             || (candidate.roadAccess && body.minY >= candidate.maxY - 0.28))) continue;
           if (!candidate.polygon) return candidate;
           let polygon = candidate.polygon;
@@ -770,7 +771,11 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
     if (!actor.blocker && leader.blocker && leader.limit < actor.desiredSpeed) {
       actor.blocker = { kind: leader.blocker.type, id: leader.blocker.id };
     }
-    const desired = Math.min(actor.desiredSpeed, leader.limit);
+    let rampSpeed = Infinity;
+    for (let i = actor.pose.index; i < route.length && route[i].s <= actor.s + 22; i++) {
+      rampSpeed = Math.min(rampSpeed, route[i].edge.rampSpeed ?? Infinity);
+    }
+    const desired = Math.min(actor.desiredSpeed, leader.limit, rampSpeed);
     const deceleration = leader.gap < 4 ? 7.5 : 3.6;
     const speed = Math.min(brakingSpeed, actor.speed + Math.max(-deceleration * dt, Math.min(2.2 * dt, desired - actor.speed)));
     const next = Math.min(actor.end, actor.s + speed * dt, held ? Math.max(actor.s, stoppingAt) : Infinity);
