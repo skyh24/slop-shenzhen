@@ -191,6 +191,21 @@ function validateWaterfront(site, raw) {
       && positive(row.spacingM) && positive(row.widthM))
     && Array.isArray(network.waters) && network.waters.every(w => waterIndex(w.waterIndex)
       && Number.isFinite(w.heightM) && w.heightSource === 'estimate'), 'park waterfront fixtures');
+  if (site.dasha) {
+    const { routes, lamps, trees, shrubs, rails, waters, banks } = site.dasha;
+    requireData(Array.isArray(routes) && routes.every(r => typeof r.id === 'string'
+      && ['east', 'west'].includes(r.bank) && polyline(r.points) && positive(r.lengthM)
+      && r.paths?.length === 1 && r.paths.every(p => way.test(p.osmId) && mode(p.mode)
+        && positive(p.widthM) && p.points?.length >= 2 && p.points.every(xz => xz.length === 2 && xz.every(Number.isFinite)))),
+    'Dasha greenway paths');
+    requireData(sites(lamps) && sites(trees) && sites(shrubs)
+      && Array.isArray(rails) && rails.every(r => typeof r.id === 'string' && Array.isArray(r.stations)
+        && r.stations.every(p => p === null || xyz(p)))
+      && Array.isArray(waters) && waters.every(w => /^(way|relation)\/\d+$/.test(w.id)
+        && waterIndex(w.waterIndex) && Number.isFinite(w.heightM) && w.heightSource === 'estimate'), 'Dasha greenway fixtures');
+    requireData(Array.isArray(banks) && banks.every(bank => /^(way|relation)\/\d+$/.test(bank.waterId)
+      && Number.isFinite(bank.heightM) && sites(bank.stations) && bank.stations.length >= 2), 'Dasha bank faces');
+  }
 }
 
 function validateTrees(trees) {

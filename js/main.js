@@ -379,7 +379,8 @@ async function initApp() {
   site.colliders = colliders;
   colliders.push(...bayWaterfront.colliders);
   const shoreSamples = qa.measureBuild('shoreSamples', () => buildSzWaterfront(scene, GEO.waterfront, {
-    water: GEO.water, network: waterfrontPaths, elevated: elevatedRoads, heightAt: site.heightAt, obstacles: colliders
+    water: GEO.water, network: waterfrontPaths, elevated: elevatedRoads, heightAt: site.heightAt, obstacles: colliders,
+    deckOccupied, carriagewayOccupied
   }));
   colliders.push(...shoreSamples.colliders);
   const { people: talentPeople, program: talentProgram, show: talentShow, update: updateTalentPark } = talentPark.connect(colliders);

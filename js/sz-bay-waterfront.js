@@ -1,8 +1,8 @@
 import * as THREE from 'three/webgpu';
-import { color, smoothstep, uv } from 'three/tsl';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { sceneUniforms } from './sz-materials.js';
-import { createFixtureBatches, planBench, planLantern, planRail } from './sz-site-fixtures.js';
+import { addGreenwayLightPool, buildGreenwayLightPool, createFixtureBatches, createGreenwayLightMaterial,
+  GREENWAY_LAMP, GREENWAY_RAIL, planBench, planLantern, planRail } from './sz-site-fixtures.js';
 import { STR } from './sz-strings.js';
 
 const CELL = 110;
@@ -125,7 +125,7 @@ export function planCoastalGuardrail(sections, { heightAt, isWater, nearCycle, b
       toNext = 0;
       continue;
     }
-    bars.push(...planRail(a, b, [[0.55, 0.068, 0.068], [1.07, 0.077, 0.077]]));
+    bars.push(...planRail(a, b, GREENWAY_RAIL));
     while (toNext <= length) {
       posts.push(pointAt(a, b, toNext / length));
       toNext += 3;
@@ -141,25 +141,6 @@ function safeFootprint(x, z, radius, obstacles) {
   return !obstacles.some(c => c.minX < x + radius && c.maxX > x - radius
     && c.minZ < z + radius && c.maxZ > z - radius
     && (!c.polygon || polygonBoxOverlaps(c.polygon, x, z, radius, radius)));
-}
-
-function addLightPool(batch, center, heightAt) {
-  const vertices = [[0, 0]];
-  for (let i = 0; i < 16; i++) {
-    const angle = i * Math.PI / 8;
-    vertices.push([Math.cos(angle), Math.sin(angle)]);
-  }
-  const rows = vertices.map(([u, v]) => {
-    const x = center.x + 2.35 * u, z = center.z + 2.35 * v;
-    return { x, z, u, v, y: heightAt(x, z) };
-  });
-  if (rows.some(row => !Number.isFinite(row.y))) return;
-  for (let i = 1; i < rows.length; i++) {
-    for (const { x, z, u, v, y } of [rows[0], rows[i % 16 + 1], rows[i]]) {
-      batch.poolPositions.push(x, y + 0.035, z);
-      batch.poolUvs.push(0.5 + 0.5 * u, 0.5 + 0.5 * v);
-    }
-  }
 }
 
 function addWayfinding(group, point, tangent) {
@@ -219,9 +200,7 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
 
   const shoreMaterial = new THREE.MeshStandardNodeMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.96 });
   const fixtureBatches = createFixtureBatches(group, 'bay');
-  const poolMaterial = new THREE.MeshBasicNodeMaterial({ color: 0xffd9a1, transparent: true, depthWrite: false,
-    blending: THREE.AdditiveBlending });
-  poolMaterial.opacityNode = smoothstep(0.06, 0.5, uv().sub(0.5).length()).oneMinus().mul(sceneUniforms.night).mul(0.26);
+  const poolMaterial = createGreenwayLightMaterial();
   const stone = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.96 });
   const rockGeometry = new THREE.IcosahedronGeometry(1, 0);
   const coastCycle = createBayPathLookup((parkNetwork?.bayPaths ?? []).filter(p => !p.bridge && p.mode !== 'walk'));
@@ -281,7 +260,7 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
         const p = offset(a.crest, a.normal, -0.19), q = offset(b.crest, b.normal, -0.19);
         p.y = heightAt(p.x, p.z) ?? a.crest.y;
         q.y = heightAt(q.x, q.z) ?? b.crest.y;
-        for (const { a, b, height, width } of planRail(p, q, [[0.57, 0.075, 0.075], [1.05, 0.075, 0.075]])) {
+        for (const { a, b, height, width } of planRail(p, q, GREENWAY_RAIL)) {
           addBox(batch.metal, a, b, height, width, 'bay-rail');
         }
         addBox(batch.metal, p, { ...p, y: p.y + 1.1 }, 0.09, 0.09, 'bay-rail-post');
@@ -358,7 +337,7 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
       batch.light.push(lamp);
       // 光斑顺地形落在路缘，灯头发光，场景不增加实时点光源。
       const side = Math.sign((p.x - a.x) * normal.x + (p.z - a.z) * normal.z);
-      addLightPool(batch, offset(a, normal, side * 0.88), heightAt);
+      addGreenwayLightPool(batch, offset(a, normal, side * 0.88), heightAt);
       statistics.lamps++;
     }
     fixtures.push(...colliders.slice(before));
@@ -368,11 +347,10 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
     if (pathsNear(x, z, 0.55).length || reserveWalk(x, z, 0.55)
       || fixtureBlocked(x, z, 0.55, y, y + 4.2)) continue;
     const batch = bucket(x, z);
-    const { pole, lamp } = planLantern({ x, y, z }, { poleBottomM: -0.04, poleTopM: 3.68,
-      headBottomM: 3.64, headTopM: 3.82, headWidthM: 0.31 });
+    const { pole, lamp } = planLantern({ x, y, z }, GREENWAY_LAMP);
     addBox(batch.metal, pole.a, pole.b, pole.height, pole.width, 'bay-lamp');
     batch.light.push(lamp);
-    addLightPool(batch, { x: pathX, z: pathZ }, heightAt);
+    addGreenwayLightPool(batch, { x: pathX, z: pathZ }, heightAt);
     statistics.lamps++;
   }
 
@@ -392,15 +370,8 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
     fixtureBatches.build(batch.metal, 'steel', `shenzhen-bay-steel:${batch.id}`);
     fixtureBatches.build(batch.wood, 'wood', `shenzhen-bay-timber:${batch.id}`);
     fixtureBatches.build(batch.light, 'lamp', `shenzhen-bay-lamps:${batch.id}`);
-    if (batch.poolPositions.length) {
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(batch.poolPositions, 3));
-      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(batch.poolUvs, 2));
-      batch.pool = new THREE.Mesh(geometry, poolMaterial);
-      batch.pool.name = `shenzhen-bay-path-light:${batch.id}`;
-      batch.pool.visible = false;
-      group.add(batch.pool);
-    }
+    batch.pool = buildGreenwayLightPool(batch, poolMaterial, `shenzhen-bay-path-light:${batch.id}`);
+    if (batch.pool) group.add(batch.pool);
   }
 
   function update({ x, z }) {

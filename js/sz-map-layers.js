@@ -278,7 +278,8 @@ function mapLayers() {
   const relocated = new Set(bayPaths.filter(path => path.sourcePoints).map(path => path.osmId));
   const shorePaths = [...(GEO.shenzhenBay?.paths ?? []),
     ...(GEO.waterfront?.parkNetwork?.lakePaths ?? []),
-    ...[...(GEO.waterfront?.routes ?? []), ...(GEO.waterfront?.extensions ?? [])].flatMap(route => route.paths),
+    ...[...(GEO.waterfront?.routes ?? []), ...(GEO.waterfront?.extensions ?? []),
+      ...(GEO.waterfront?.dasha?.routes ?? [])].flatMap(route => route.paths),
     ...[...(GEO.talentPark?.route ?? []), ...(GEO.talentPark?.entrances ?? [])].map(path => ({ ...path, mode: 'walk' }))];
   layers.waterfront = [...shorePaths.filter(path => !relocated.has(path.osmId)), ...bayPaths].map(row => {
     const points = row.points.flat();

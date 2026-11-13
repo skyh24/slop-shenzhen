@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { color } from 'three/tsl';
+import { color, smoothstep, uv } from 'three/tsl';
 import { sceneUniforms } from './sz-materials.js';
 
 const palette = {
@@ -21,6 +21,41 @@ const X = new THREE.Vector3(1, 0, 0), UP = new THREE.Vector3(0, 1, 0);
 const atHeight = (p, h) => ({ ...p, y: p.y + h });
 const beam = (a, b, width, height) => ({ a, b, width, height });
 export const planRail = (a, b, bars) => bars.map(([h, width, height]) => beam(atHeight(a, h), atHeight(b, h), width, height));
+export const GREENWAY_RAIL = [[0.55, 0.068, 0.068], [1.07, 0.077, 0.077]];
+export const GREENWAY_LAMP = { poleBottomM: -0.04, poleTopM: 3.68, headBottomM: 3.64, headTopM: 3.82, headWidthM: 0.31 };
+
+export function createGreenwayLightMaterial() {
+  const material = new THREE.MeshBasicNodeMaterial({ color: 0xffd9a1, transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending });
+  material.opacityNode = smoothstep(0.06, 0.5, uv().sub(0.5).length()).oneMinus().mul(sceneUniforms.night).mul(0.26);
+  return material;
+}
+
+export function addGreenwayLightPool(batch, center, heightAt) {
+  const ring = Array.from({ length: 16 }, (_, i) => [Math.cos(i * Math.PI / 8), Math.sin(i * Math.PI / 8)]);
+  const rows = [[0, 0], ...ring].map(([u, v]) => {
+    const x = center.x + 2.35 * u, z = center.z + 2.35 * v;
+    return { x, z, u, v, y: heightAt(x, z) };
+  });
+  if (rows.some(row => !Number.isFinite(row.y))) return;
+  for (let i = 1; i < rows.length; i++) {
+    for (const { x, z, u, v, y } of [rows[0], rows[i % 16 + 1], rows[i]]) {
+      batch.poolPositions.push(x, y + 0.035, z);
+      batch.poolUvs.push(0.5 + 0.5 * u, 0.5 + 0.5 * v);
+    }
+  }
+}
+
+export function buildGreenwayLightPool(batch, material, name) {
+  if (!batch.poolPositions.length) return null;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(batch.poolPositions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(batch.poolUvs, 2));
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = name;
+  mesh.visible = sceneUniforms.night.value > 0.025;
+  return mesh;
+}
 
 export function planBench(p, dx, dz, { halfLengthM, seatHeightM, seatWidthM, legBottomM, legTopM,
   legWidthM, legDepthM, back }) {

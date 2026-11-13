@@ -136,12 +136,19 @@ export function planVegetationPilots(geo, site, beds, existingTrees) {
     .filter(path => !path.bridge && path.mode !== 'walk'));
   // 先保留规划的陆侧树列，再在间隙放灌木和公园林地。
   const random = vegetationRandom(732841);
-  for (const [kind, sites] of [['tree', parkNetwork?.bayTrees], ['shrub', parkNetwork?.bayPlants]]) {
+  const river = geo.waterfront?.dasha;
+  const rows = [
+    ['bay-shore', 'relation/7289235', 'tree', parkNetwork?.bayTrees],
+    ['bay-shore', 'relation/7289235', 'shrub', parkNetwork?.bayPlants],
+    ['dasha', 'relation/19551546', 'tree', river?.trees],
+    ['dasha', 'relation/19551546', 'shrub', river?.shrubs]
+  ];
+  for (const [key, sourceId, kind, sites] of rows) {
     for (const [i, [x, y, z]] of (sites ?? []).entries()) {
       const size = random();
       const radius = kind === 'tree' ? 1.65 + size * 0.72 : 1.05 + size * 0.42;
       const height = kind === 'tree' ? 4.6 + size * 2.7 : 0.82 + size * 0.67;
-      const item = { id: `vegetation:bay-shore:${kind}:${i}`, siteId: 'bay', sourceId: 'relation/7289235',
+      const item = { id: `vegetation:${key}:${kind}:${i}`, siteId: key === 'dasha' ? 'dasha' : 'bay', sourceId,
         kind, x, y: y - 0.08, z, supportY: y, radius, height, shape: i % 2, turn: TAU * random(), tint: random() };
       if (site.isWater(x, z) !== false || site.reserveWalk(x, z, radius + 0.25)
         || site.carriagewayOccupied(x, z, radius) || site.deckOccupied(x, z, y, y + height)

@@ -17,6 +17,7 @@ from shenzhen_bay import PAVING, PUBLIC, _lines, _polygon, _shore_stations, _sna
 from waterfront import _clip_terrain, _height_rows, _line, _points, _profile, _water
 
 MANIFEST = Path(__file__).resolve().parents[2] / 'data/source/waterfront-park-network.json'
+GREENWAY_PAVING = ('dark-asphalt', 9)
 
 
 def _valid(shape):
@@ -70,7 +71,7 @@ def _bay_routes(plan, osm, pbf, sample, wet, sea_height):
                'widthSource': 'osm' if width else 'estimate', 'material': path_material(tags),
                'bridge': bridge, 'heightSource': 'portal-estimate' if bridge else 'terrain-derived-estimate'}
         if bicycle:
-            row['appearanceMaterial'] = 'dark-asphalt'
+            row['appearanceMaterial'] = GREENWAY_PAVING[0]
         if bridge:
             try:
                 height_at = _profile(line, sea_height, sample)
@@ -234,7 +235,7 @@ def _lake_routes(specs, payload, osm, sample, obstacles):
     return routes, lamps, waters, report
 
 
-def _bay_fixtures(rows, coastline, clearance, wet, park, sample, plan):
+def greenway_fixtures(rows, coastline, clearance, wet, park, sample, plan):
     lines = unary_union([line for row, line in rows if row['mode'] != 'walk' and not row['bridge']])
     park = park.buffer(2)
     lamps, trees, plants = [], [], []
@@ -333,7 +334,7 @@ def compile_waterfront_parks(payload, osm, pbf, report):
                                                                unary_union([wet, road_mask, *buildings]))
     # 深色骑行面为深圳湾的场景外观；来源材质与通行权限仍分别保留。
     cycle_mask = unary_union([line.buffer(row['widthM'] / 2, quad_segs=6) for row, line in bay_routes
-                              if not row['bridge'] and row.get('appearanceMaterial') == 'dark-asphalt'])
+                              if not row['bridge'] and row.get('appearanceMaterial') == GREENWAY_PAVING[0]])
     cycle_mask = cycle_mask.difference(road_mask).difference(wet)
     masks = {}
     all_paths = [(row, line) for row, line in bay_routes if not row['bridge']] + lake_paths
@@ -346,14 +347,14 @@ def compile_waterfront_parks(payload, osm, pbf, report):
     vacated = previous_cycle.difference(cycle_mask).difference(unary_union(list(masks.values())))
     surface, restored, _ = _clip_terrain(surface, {1: vacated}, [], replace_kinds={4, 5, 7, 8, 9})
     surface, changed, _ = _clip_terrain(surface, masks, [], replace_kinds={0, 1, 2, 3, 8, 9, 10, 11})
-    surface, cycled, _ = _clip_terrain(surface, {9: cycle_mask}, [], replace_kinds={0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11})
+    surface, cycled, _ = _clip_terrain(surface, {GREENWAY_PAVING[1]: cycle_mask}, [], replace_kinds={0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11})
     payload['terrainSurface'] = surface
     bay_data['shore'].extend(shore)
     waterfront['footbridges'].extend(bridges)
     moved_ids = {row['osmId'] for row, _ in bay_routes if row.get('sourcePoints')}
     avoid = bay_strips.union(unary_union([LineString(p['points']).buffer(p['widthM'] / 2) for p in bay_data['paths']
                                          if p['osmId'] not in moved_ids]))
-    bay_lamps, trees, plants = _bay_fixtures(bay_routes, coast, avoid.union(road_mask), wet, park, sample, bay)
+    bay_lamps, trees, plants = greenway_fixtures(bay_routes, coast, avoid.union(road_mask), wet, park, sample, bay)
     bay_paths = [{**row, 'points': [list(p) for p in line.coords]} for row, line in bay_routes]
     lake_overlay = [{**row, 'points': [list(p) for p in line.coords]} for row, line in lake_paths
                     if row.get('geometrySource') == 'shore-outline-design']

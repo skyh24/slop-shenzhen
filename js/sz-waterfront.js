@@ -2,7 +2,10 @@ import * as THREE from 'three/webgpu';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { createBayPathLookup } from './sz-bay-waterfront.js';
 import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
-import { createFixtureBatches, planLantern, planRail } from './sz-site-fixtures.js';
+import { addGreenwayLightPool, buildGreenwayLightPool, createFixtureBatches, createGreenwayLightMaterial,
+  GREENWAY_LAMP, GREENWAY_RAIL, planLantern, planRail } from './sz-site-fixtures.js';
+import { sceneUniforms } from './sz-materials.js';
+import { createColliderIndex } from './sz-trees.js';
 import { buildSzSea } from './sz-sea.js';
 
 const DETAIL_CELL = 95;
@@ -31,7 +34,7 @@ export function createWaterfrontAccess(source, network, now = Date.now) {
   const paths = network.routes.filter(route => !source?.parkNetwork || route.id !== 'central-bay-cycleway'
     && route.id !== 'central-bay-promenade').flatMap(route => route.paths.filter(path => !path.bridge).map(path => ({
     ...path, mode: route.bank === 'west' || route.id === 'west-bank' ? `west:${path.mode}`
-      : route.id === 'east-bank' ? `east:${path.mode}`
+      : route.bank === 'east' || route.id === 'east-bank' ? `east:${path.mode}`
         : route.openingHours === '06:00–23:00' ? `park:${path.mode}` : path.mode
   })));
   paths.push(...(source?.parkNetwork?.bayPaths ?? []).filter(path => !path.bridge)
@@ -43,7 +46,7 @@ export function createWaterfrontAccess(source, network, now = Date.now) {
   return (mode, x, z, surface) => {
     const id = surface?.surfaceId;
     const bridge = bridges.get(id);
-    const modes = bridge ? [bridge.coastal ? 'park:' + bridge.mode
+    const modes = bridge ? [bridge.bank ? `${bridge.bank}:${bridge.mode}` : bridge.coastal ? 'park:' + bridge.mode
       : bridge.waterIndex === source.waters?.[1]?.waterIndex ? 'west:' + bridge.mode : bridge.mode]
       : !id || surface?.heightSource === 'terrain' || id === 'terrain' ? accessAt(x, z) : [];
     if (surface?.surfaceId === 'waterfront:bay-lower' && mode !== 'person') return false;
@@ -71,7 +74,7 @@ export function createWaterfrontPaths(source) {
   const relocated = relocatedBayPathIds(source?.parkNetwork);
   const activeRoutes = routes => routes.map(route => ({ ...route, paths: route.paths.filter(p => !relocated.has(p.osmId)) }));
   const extended = activeRoutes(source?.extensions ?? []);
-  const routes = [...activeRoutes(source?.routes ?? []), ...extended];
+  const routes = [...activeRoutes(source?.routes ?? []), ...extended, ...(source?.dasha?.routes ?? [])];
   const paths = [...routes.flatMap(route => route.paths), ...(source?.parkNetwork?.lakePaths ?? [])];
   const lookup = createBayPathLookup(paths);
   const groundPaths = createBayPathLookup(paths.filter(path => !path.bridge));
@@ -126,36 +129,75 @@ function beamCollider({ a, b, width, height }, type) {
     maxZ: Math.max(...outer.map(p => p.z)), minY: Math.min(a.y, b.y) - verticalPad, maxY: Math.max(a.y, b.y) + verticalPad };
 }
 
-export function buildSzWaterfront(scene, source, { water, network, elevated, heightAt, obstacles }) {
+export function buildSzWaterfront(scene, source, { water, network, elevated, heightAt, obstacles,
+  deckOccupied = () => false, carriagewayOccupied = () => false }) {
   const group = new THREE.Group();
   group.name = 'shenzhen-waterfront-samples';
-  const waters = [...(source?.waters ?? []), ...(source?.extensionWaters ?? []), ...(source?.parkNetwork?.waters ?? [])].map(row => buildSzSea(group, {
+  const waters = [...(source?.waters ?? []), ...(source?.extensionWaters ?? []),
+    ...(source?.parkNetwork?.waters ?? []), ...(source?.dasha?.waters ?? [])].map(row => buildSzSea(group, {
     polygons: [water[row.waterIndex]], heightM: row.heightM, source: row.id
   }, { name: `waterfront-water:${row.id}`, coastal: false, cityReflection: false }));
+  const banks = [];
+  if (source?.dasha?.banks?.length) {
+    const positions = new Map();
+    for (const { stations, heightM, waterId } of source.dasha.banks) {
+      if (!positions.has(waterId)) positions.set(waterId, []);
+      const vertices = positions.get(waterId);
+      for (let i = 1; i < stations.length; i++) {
+        const a = stations[i - 1], b = stations[i];
+        const toeA = [a[3], heightM, a[4]], toeB = [b[3], heightM, b[4]];
+        vertices.push(...a.slice(0, 3), ...b.slice(0, 3), ...toeA, ...toeA, ...b.slice(0, 3), ...toeB);
+      }
+    }
+    const material = new THREE.MeshStandardNodeMaterial({ color: 0x89857b, roughness: 0.96, side: THREE.DoubleSide });
+    for (const [id, vertices] of positions) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      geometry.computeVertexNormals();
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = `dasha-bank:${id}`;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+      banks.push(mesh);
+    }
+  }
   const colliders = [];
   const allowsGroundMode = createWaterfrontAccess(source, network);
   const buckets = new Map();
-  function add(row, material, type) {
-    const ix = Math.floor(row.a.x / DETAIL_CELL), iz = Math.floor(row.a.z / DETAIL_CELL);
+  const poolMaterial = source?.dasha ? createGreenwayLightMaterial() : null;
+  function fixtureBucket(x, z) {
+    const ix = Math.floor(x / DETAIL_CELL), iz = Math.floor(z / DETAIL_CELL);
     const key = `${ix},${iz}`;
     if (!buckets.has(key)) buckets.set(key, { key, x: (ix + 0.5) * DETAIL_CELL, z: (iz + 0.5) * DETAIL_CELL,
-      steel: [], lamp: [], live: null });
-    buckets.get(key)[material].push(row);
+      steel: [], lamp: [], poolPositions: [], poolUvs: [], pool: null, live: null });
+    return buckets.get(key);
+  }
+  function add(row, material, type) {
+    fixtureBucket(row.a.x, row.a.z)[material].push(row);
     if (type) colliders.push(beamCollider(row, type));
   }
-  for (const rail of source?.rails ?? []) {
+  const hitsObstacle = createColliderIndex(obstacles);
+  for (const rail of [...(source?.rails ?? []), ...(source?.dasha?.rails ?? [])]) {
+    const isGreenway = rail.id.startsWith('dasha-rail:');
     let previous = null;
     for (const entry of rail.stations) {
       if (!entry) { previous = null; continue; }
       const p = point(entry);
-      if (network.groundPaths(p.x, p.z, 0.1).length) { previous = null; continue; }
-      add({ a: p, b: { ...p, y: p.y + 1.08 }, width: 0.08, height: 0.08 }, 'steel', 'waterfront-post');
-      add({ a: p, b: { ...p, y: p.y + 0.11 }, width: 0.18, height: 0.18 }, 'steel', 'waterfront-rail-base');
+      if (network.groundPaths(p.x, p.z, 0.1).length || isGreenway
+        && (carriagewayOccupied(p.x, p.z, 0.32) || hitsObstacle(p.x, p.z, 0.12, p.y, p.y + 1.12))) {
+        previous = null;
+        continue;
+      }
+      add({ a: p, b: { ...p, y: p.y + 1.12 }, width: 0.09, height: 0.09 }, 'steel', 'waterfront-post');
+      if (!isGreenway) add({ a: p, b: { ...p, y: p.y + 0.11 }, width: 0.18, height: 0.18 }, 'steel', 'waterfront-rail-base');
       const span = previous ? distance(previous, p) : 0;
       const samples = Math.ceil(span / 0.3);
-      if (span > 0.05 && !Array.from({ length: samples }, (_, i) => (i + 0.5) / samples)
-        .some(t => network.groundPaths(previous.x + (p.x - previous.x) * t, previous.z + (p.z - previous.z) * t, 0.18).length)) {
-        for (const bar of planRail(previous, p, [[0.49, 0.07, 0.07], [1.03, 0.085, 0.075]])) {
+      if (span > 0.05 && (!isGreenway || Math.abs(p.y - previous.y) < 0.5)
+        && !Array.from({ length: samples }, (_, i) => (i + 0.5) / samples).some(t => {
+          const x = previous.x + (p.x - previous.x) * t, z = previous.z + (p.z - previous.z) * t;
+          return network.groundPaths(x, z, 0.18).length || isGreenway && carriagewayOccupied(x, z, 0.30);
+        })) {
+        for (const bar of planRail(previous, p, GREENWAY_RAIL)) {
           add(bar, 'steel', 'waterfront-rail');
         }
       }
@@ -164,10 +206,8 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
   }
 
   const bridgeHeight = createSurfaceHeightAt(elevated.surfaces.filter(s => s.id.startsWith('waterfront-bridge:')));
-  const fixtureBlocked = (x, y, z, radius, height) => obstacles.some(c => c.minY < y + height && c.maxY > y
-    && c.minX < x + radius && c.maxX > x - radius && c.minZ < z + radius && c.maxZ > z - radius
-    && (!c.polygon || polygonBoxOverlaps(c.polygon, x, z, radius, radius)));
-  for (const route of network.routes.filter(r => ['west-bank', 'east-bank'].includes(r.id)
+  const fixtureBlocked = (x, y, z, radius, height) => hitsObstacle(x, z, radius, y, y + height);
+  for (const route of network.routes.filter(r => !source?.dasha && ['west-bank', 'east-bank'].includes(r.id)
     || !source?.parkNetwork && r.id === 'lychee-loop')) {
     let length = 0, last = 12;
     const points = route.points.map(point);
@@ -193,6 +233,15 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
         break;
       }
     }
+  }
+
+  for (const [x, y, z, pathX, pathZ] of source?.dasha?.lamps ?? []) {
+    if (network.reserves(x, z, 0.55) || carriagewayOccupied(x, z, 0.55)
+      || fixtureBlocked(x, y, z, 0.55, 4.2) || deckOccupied(x, z, y, y + 4.2)) continue;
+    const { pole, lamp } = planLantern({ x, y, z }, GREENWAY_LAMP);
+    add(pole, 'steel', 'waterfront-lamp');
+    add(lamp, 'lamp');
+    addGreenwayLightPool(fixtureBucket(x, z), { x: pathX, z: pathZ }, heightAt);
   }
 
   for (const route of source?.parkNetwork?.lakeLamps ?? []) {
@@ -250,6 +299,11 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
   });
   scene.add(group);
   const statistics = { fixtureChunks: buckets.size, activeFixtureChunks: 0, colliders: colliders.length };
+  function disposePool(batch) {
+    batch.pool?.removeFromParent();
+    batch.pool?.geometry.dispose();
+    batch.pool = null;
+  }
   let disposed = false;
   return {
     group, colliders, publicRoutes, statistics,
@@ -259,22 +313,32 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
         const d = Math.hypot(batch.x - x, batch.z - z);
         if (batch.live && d > 335) {
           batch.live.dispose();
+          disposePool(batch);
           batch.live = null;
           statistics.activeFixtureChunks--;
         } else if (!batch.live && d < 275) {
           batch.live = createFixtureBatches(group, 'bay', 'z');
           batch.live.build(batch.steel, 'steel', `waterfront-steel:${batch.key}`);
           batch.live.build(batch.lamp, 'lamp', `waterfront-lamps:${batch.key}`);
+          batch.pool = poolMaterial ? buildGreenwayLightPool(batch, poolMaterial, `waterfront-path-light:${batch.key}`) : null;
+          if (batch.pool) group.add(batch.pool);
           statistics.activeFixtureChunks++;
         }
+        if (batch.pool) batch.pool.visible = sceneUniforms.night.value > 0.025;
       }
     },
     allowsGroundMode,
     dispose() {
       if (disposed) return;
       disposed = true;
-      for (const batch of buckets.values()) batch.live?.dispose();
+      for (const batch of buckets.values()) {
+        batch.live?.dispose();
+        disposePool(batch);
+      }
+      poolMaterial?.dispose();
       for (const water of waters) water.dispose();
+      banks[0]?.material.dispose();
+      for (const bank of banks) bank.geometry.dispose();
       group.removeFromParent();
     }
   };

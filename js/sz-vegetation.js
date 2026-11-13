@@ -20,6 +20,7 @@ const TREE_SPECIES = ['ficus', 'camphor', 'ficus'];
 const PALETTE = {
   hill: [0x345d31, 0x71914e],
   bay: [0x3d663b, 0x839857],
+  dasha: [0x3d663b, 0x839857],
   mangrove: [0x3c643c, 0x809353],
   shrub: [0x466634, 0x95a660],
   rock: [0x77736b, 0xb9a991],
