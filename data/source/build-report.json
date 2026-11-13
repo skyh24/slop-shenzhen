@@ -79925,17 +79925,17 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7769,
-    "metadataBytes": 16802454,
-    "numericBytes": 34825704,
-    "uncompressedBytes": 51628208,
+    "columns": 7789,
+    "metadataBytes": 16813637,
+    "numericBytes": 35023184,
+    "uncompressedBytes": 51836872,
     "lossless": true,
-    "compressedBytes": 12337072,
-    "compressedSha256": "9feda73d3ccd5c3fd66f2093ca2e733198620a583ac6b9fe8fedf2d9f1ef4d59"
+    "compressedBytes": 12516911,
+    "compressedSha256": "fed1b6d7fd54ebd876c1146f2baf5f2c0f4e6d2a8028896b8584a79af348b37f"
   },
-  "outputBytes": 12161859,
-  "outputSha256": "788a0eee8cf0694af752a667583a20e084d4a715291b2d6177f40d62b857a239",
-  "seconds": 71.8,
+  "outputBytes": 12325581,
+  "outputSha256": "88e45701f18ab54cbdb267e4e42c8259bfb2b1271cc503d973a24f2a24e1fd01",
+  "seconds": 66.4,
   "frontageRebuild": {
     "basePayloadSha256": "4e3b12051e426ab4f1e5c30d9a1f8acb04343339a8e4a4611a23963fdad78b89",
     "corridors": [
@@ -85735,7 +85735,7 @@
     "terrainAndBuildingsChanged": false
   },
   "roadStructures": {
-    "portalCutM2": 76524.258,
+    "portalCutM2": 109922.458,
     "landscape": {
       "patches": [
         "beihuan-xinzhou:flower-bed",
@@ -86863,6 +86863,160 @@
         "approachWidthsM": {
           "way/862777456": 9.8
         }
+      },
+      {
+        "id": "meiguan-north",
+        "kind": "mixed",
+        "source": "https://www.sz.gov.cn/zfgb/2016/gb960/content/post_4983148.html",
+        "ways": [
+          "way/25422255",
+          "way/25422255",
+          "way/25422255",
+          "way/377732299",
+          "way/996597662",
+          "way/479417864"
+        ],
+        "pathNodes": [
+          "node/875924131",
+          "node/11819473663",
+          "node/2889695389",
+          "node/504648401",
+          "node/3811248398",
+          "node/504648427",
+          "node/504648550"
+        ],
+        "portalNodes": [
+          "node/875924131",
+          "node/504648550"
+        ],
+        "profileM": [
+          [
+            0,
+            17.314
+          ],
+          [
+            1135,
+            63.5
+          ],
+          [
+            1695,
+            63.5
+          ],
+          [
+            2978.065,
+            113.715
+          ]
+        ],
+        "profileSource": "project-design-level-road-with-source-bridge-and-terrain-cuts",
+        "groundApronM": [
+          25,
+          18
+        ],
+        "lanes": 3,
+        "verticalCurveM": 90,
+        "approachWidthsM": {
+          "way/25422255": 9.8,
+          "way/996597662": 9.8,
+          "way/479417864": 9.8
+        },
+        "bridgeWidthsM": {
+          "way/377732299": 9.8
+        }
+      },
+      {
+        "id": "meiguan-south",
+        "kind": "mixed",
+        "source": "https://www.sz.gov.cn/zfgb/2016/gb960/content/post_4983148.html",
+        "ways": [
+          "way/638246754",
+          "way/1049968046",
+          "way/377732300",
+          "way/377732301",
+          "way/377732301",
+          "way/1059172733",
+          "way/1059172733",
+          "way/74033690",
+          "way/74033690",
+          "way/1463915893",
+          "way/41275555",
+          "way/41275555",
+          "way/1131695092",
+          "way/1131695092",
+          "way/1057874093",
+          "way/1057874093"
+        ],
+        "pathNodes": [
+          "node/504650814",
+          "node/504650854",
+          "node/3811248396",
+          "node/3811248395",
+          "node/504650862",
+          "node/504650872",
+          "node/2787087445",
+          "node/875924182",
+          "node/2889086261",
+          "node/504640660",
+          "node/504640652",
+          "node/6043430510",
+          "node/504634828",
+          "node/504640847",
+          "node/2377771325",
+          "node/12902212956",
+          "node/7947470101"
+        ],
+        "portalNodes": [
+          "node/504650814",
+          "node/7947470101"
+        ],
+        "profileM": [
+          [
+            0,
+            114.823
+          ],
+          [
+            1280,
+            63.5
+          ],
+          [
+            1860,
+            63.5
+          ],
+          [
+            2180,
+            53.8
+          ],
+          [
+            2490,
+            53.8
+          ],
+          [
+            3330,
+            20.9
+          ],
+          [
+            3734.032,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-level-road-with-source-bridge-and-terrain-cuts",
+        "groundApronM": [
+          25,
+          15
+        ],
+        "lanes": 3,
+        "verticalCurveM": 90,
+        "approachWidthsM": {
+          "way/638246754": 9.8,
+          "way/1049968046": 9.8,
+          "way/377732301": 9.8,
+          "way/1059172733": 9.8,
+          "way/74033690": 9.8,
+          "way/1463915893": 9.8
+        },
+        "bridgeWidthsM": {
+          "way/377732300": 9.8,
+          "way/41275555": 9.8
+        }
       }
     ],
     "conflicts": [],
@@ -87769,6 +87923,57 @@
           {
             "way": "way/1256092753",
             "clearanceM": 8.7099
+          }
+        ]
+      },
+      {
+        "route": "meiguan-north",
+        "way": "way/377732299",
+        "minimumM": 7.454,
+        "crossingWays": [
+          {
+            "way": "way/74033703",
+            "clearanceM": 8.9925
+          },
+          {
+            "way": "way/44419876",
+            "clearanceM": 7.454
+          }
+        ]
+      },
+      {
+        "route": "meiguan-south",
+        "way": "way/377732300",
+        "minimumM": 9.7182,
+        "crossingWays": [
+          {
+            "way": "way/74033703",
+            "clearanceM": 10.6531
+          },
+          {
+            "way": "way/44419876",
+            "clearanceM": 9.7182
+          }
+        ]
+      },
+      {
+        "route": "meiguan-south",
+        "way": "way/41275555",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "meiguan-south",
+        "way": "way/41275555",
+        "minimumM": 7.3201,
+        "crossingWays": [
+          {
+            "way": "way/1055004290",
+            "clearanceM": 7.8238
+          },
+          {
+            "way": "way/1055004296",
+            "clearanceM": 7.3201
           }
         ]
       }
@@ -89854,6 +90059,358 @@
         "coverM": null,
         "openApronM": 5,
         "maxGrade": 0.032253
+      },
+      {
+        "index": 19,
+        "way": "way/25422255",
+        "route": "meiguan-north",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 25,
+        "maxGrade": 0.047006
+      },
+      {
+        "index": 20,
+        "way": "way/25422255",
+        "route": "meiguan-north",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 830.990458,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.044197
+      },
+      {
+        "index": 21,
+        "way": "way/25422255",
+        "route": "meiguan-north",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 855.957196,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.046305
+      },
+      {
+        "index": 7923,
+        "way": "way/377732299",
+        "route": "meiguan-north",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1135.885494,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 17125,
+        "way": "way/996597662",
+        "route": "meiguan-north",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1316.661819,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 8421,
+        "way": "way/479417864",
+        "route": "meiguan-north",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1484.905165,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 18,
+        "maxGrade": 0.044919
+      },
+      {
+        "index": 11346,
+        "way": "way/638246754",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 25,
+        "maxGrade": 0.046342
+      },
+      {
+        "index": 17925,
+        "way": "way/1049968046",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1541.975161,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 7924,
+        "way": "way/377732300",
+        "route": "meiguan-south",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1678.337339,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 7925,
+        "way": "way/377732301",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1855.227389,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.044516
+      },
+      {
+        "index": 7926,
+        "way": "way/377732301",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2162.670446,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.007308
+      },
+      {
+        "index": 19424,
+        "way": "way/1059172733",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2494.929662,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.023035
+      },
+      {
+        "index": 19425,
+        "way": "way/1059172733",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2539.233803,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.046366
+      },
+      {
+        "index": 1345,
+        "way": "way/74033690",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2977.557775,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.043867
+      },
+      {
+        "index": 1346,
+        "way": "way/74033690",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2985.279232,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.047559
+      },
+      {
+        "index": 23797,
+        "way": "way/1463915893",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 3010.099889,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.045335
+      },
+      {
+        "index": 933,
+        "way": "way/41275555",
+        "route": "meiguan-south",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 3157.056521,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.043867
+      },
+      {
+        "index": 934,
+        "way": "way/41275555",
+        "route": "meiguan-south",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 3197.20531,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.043867
+      },
+      {
+        "index": 20104,
+        "way": "way/1131695092",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 3323.627969,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.023836
+      },
+      {
+        "index": 20105,
+        "way": "way/1131695092",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 3384.158052,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.041079
+      },
+      {
+        "index": 19293,
+        "way": "way/1057874093",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 3466.682798,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.041079
+      },
+      {
+        "index": 19294,
+        "way": "way/1057874093",
+        "route": "meiguan-south",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 3488.224833,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 15,
+        "maxGrade": 0.041681
       }
     ],
     "connections": [

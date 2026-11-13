@@ -1048,6 +1048,160 @@
       "approachWidthsM": {
         "way/862777456": 9.8
       }
+    },
+    {
+      "id": "meiguan-north",
+      "kind": "mixed",
+      "source": "https://www.sz.gov.cn/zfgb/2016/gb960/content/post_4983148.html",
+      "ways": [
+        "way/25422255",
+        "way/25422255",
+        "way/25422255",
+        "way/377732299",
+        "way/996597662",
+        "way/479417864"
+      ],
+      "pathNodes": [
+        "node/875924131",
+        "node/11819473663",
+        "node/2889695389",
+        "node/504648401",
+        "node/3811248398",
+        "node/504648427",
+        "node/504648550"
+      ],
+      "portalNodes": [
+        "node/875924131",
+        "node/504648550"
+      ],
+      "profileM": [
+        [
+          0,
+          17.314
+        ],
+        [
+          1135,
+          63.5
+        ],
+        [
+          1695,
+          63.5
+        ],
+        [
+          2978.065,
+          113.715
+        ]
+      ],
+      "profileSource": "project-design-level-road-with-source-bridge-and-terrain-cuts",
+      "groundApronM": [
+        25,
+        18
+      ],
+      "lanes": 3,
+      "verticalCurveM": 90,
+      "approachWidthsM": {
+        "way/25422255": 9.8,
+        "way/996597662": 9.8,
+        "way/479417864": 9.8
+      },
+      "bridgeWidthsM": {
+        "way/377732299": 9.8
+      }
+    },
+    {
+      "id": "meiguan-south",
+      "kind": "mixed",
+      "source": "https://www.sz.gov.cn/zfgb/2016/gb960/content/post_4983148.html",
+      "ways": [
+        "way/638246754",
+        "way/1049968046",
+        "way/377732300",
+        "way/377732301",
+        "way/377732301",
+        "way/1059172733",
+        "way/1059172733",
+        "way/74033690",
+        "way/74033690",
+        "way/1463915893",
+        "way/41275555",
+        "way/41275555",
+        "way/1131695092",
+        "way/1131695092",
+        "way/1057874093",
+        "way/1057874093"
+      ],
+      "pathNodes": [
+        "node/504650814",
+        "node/504650854",
+        "node/3811248396",
+        "node/3811248395",
+        "node/504650862",
+        "node/504650872",
+        "node/2787087445",
+        "node/875924182",
+        "node/2889086261",
+        "node/504640660",
+        "node/504640652",
+        "node/6043430510",
+        "node/504634828",
+        "node/504640847",
+        "node/2377771325",
+        "node/12902212956",
+        "node/7947470101"
+      ],
+      "portalNodes": [
+        "node/504650814",
+        "node/7947470101"
+      ],
+      "profileM": [
+        [
+          0,
+          114.823
+        ],
+        [
+          1280,
+          63.5
+        ],
+        [
+          1860,
+          63.5
+        ],
+        [
+          2180,
+          53.8
+        ],
+        [
+          2490,
+          53.8
+        ],
+        [
+          3330,
+          20.9
+        ],
+        [
+          3734.032,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-level-road-with-source-bridge-and-terrain-cuts",
+      "groundApronM": [
+        25,
+        15
+      ],
+      "lanes": 3,
+      "verticalCurveM": 90,
+      "approachWidthsM": {
+        "way/638246754": 9.8,
+        "way/1049968046": 9.8,
+        "way/377732301": 9.8,
+        "way/1059172733": 9.8,
+        "way/74033690": 9.8,
+        "way/1463915893": 9.8
+      },
+      "bridgeWidthsM": {
+        "way/377732300": 9.8,
+        "way/41275555": 9.8
+      }
     }
   ],
   "minimumVehicleClearanceM": 3.7,

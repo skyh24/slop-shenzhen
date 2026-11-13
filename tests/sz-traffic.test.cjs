@@ -633,7 +633,8 @@ test('a source-connected tunnel route stays on its own floor across every seam a
   assert.ok(drive && chain.every(edge => drive.edges.includes(edge)));
   for (const id of ['nanping-xili-east', 'nanping-xili-west', 'nanguang-south', 'nanguang-north',
     'huanggang-binhe-north', 'huanggang-binhe-south', 'beihuan-shahe-east', 'beihuan-shahe-west',
-    'nanping-branch-north', 'nanping-branch-south', 'guimiao-east', 'guimiao-west']) {
+    'nanping-branch-north', 'nanping-branch-south', 'guimiao-east', 'guimiao-west',
+    'meiguan-north', 'meiguan-south']) {
     const records = geo.roadStructures.records.filter(row => row.route === id);
     assert.ok(records.length >= 3, id);
     const routeEdges = records.map(record => network.edges.find(edge => edge.sourceIndex === record.index));
@@ -679,6 +680,14 @@ test('a source-connected tunnel route stays on its own floor across every seam a
         });
         assert.ok(contact && Math.abs(contact.height - frame.y) < 0.025, `${id} ${part.osmId} @ ${frame.d}`);
       }
+    }
+    if (id.startsWith('meiguan')) {
+      const bridge = parts.find(part => part.osmId === (id.endsWith('north') ? 'way/377732299' : 'way/377732300'));
+      assert.ok(bridge?.frames.every(frame => Math.abs(frame.y - 63.5) < 1e-5), id);
+      assert.ok(built.colliders.some(c => c.name === bridge.surfaceId && c.type === 'bridge-slab'), id);
+      assert.ok(records.every(record => record.maxGrade <= 0.05), id);
+      assert.ok(network.edges.some(edge => !edge.elevated && edge.next.includes(routeEdges[0])), id);
+      assert.ok(routeEdges.at(-1).next.some(edge => !edge.elevated), id);
     }
   }
   const movements = [
