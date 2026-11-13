@@ -79925,17 +79925,17 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7789,
-    "metadataBytes": 16813637,
-    "numericBytes": 35023184,
-    "uncompressedBytes": 51836872,
+    "columns": 7883,
+    "metadataBytes": 16866306,
+    "numericBytes": 35339168,
+    "uncompressedBytes": 52205528,
     "lossless": true,
-    "compressedBytes": 12516911,
-    "compressedSha256": "fed1b6d7fd54ebd876c1146f2baf5f2c0f4e6d2a8028896b8584a79af348b37f"
+    "compressedBytes": 12777728,
+    "compressedSha256": "e63466bd834384198990e199b726320e3cb6f0c77026d53ad512e46668439471"
   },
-  "outputBytes": 12325581,
-  "outputSha256": "88e45701f18ab54cbdb267e4e42c8259bfb2b1271cc503d973a24f2a24e1fd01",
-  "seconds": 66.4,
+  "outputBytes": 12521822,
+  "outputSha256": "ee80008aa9d64775656be704512ce6186951d7840fb7767617ebe377028034f4",
+  "seconds": 120.2,
   "frontageRebuild": {
     "basePayloadSha256": "4e3b12051e426ab4f1e5c30d9a1f8acb04343339a8e4a4611a23963fdad78b89",
     "corridors": [
@@ -85735,7 +85735,7 @@
     "terrainAndBuildingsChanged": false
   },
   "roadStructures": {
-    "portalCutM2": 109922.458,
+    "portalCutM2": 111575.858,
     "landscape": {
       "patches": [
         "beihuan-xinzhou:flower-bed",
@@ -86195,7 +86195,13 @@
           "way/497325748",
           "way/497325750",
           "way/306304911",
-          "way/306304914"
+          "way/306304914",
+          "way/306304905",
+          "way/497322876",
+          "way/221892582",
+          "way/221892578",
+          "way/306304906",
+          "way/306304906"
         ],
         "pathNodes": [
           "node/8911560198",
@@ -86240,11 +86246,17 @@
           "node/4889021088",
           "node/1943411314",
           "node/1943411318",
-          "node/1943411319"
+          "node/1943411319",
+          "node/3111781464",
+          "node/2308748044",
+          "node/1943411347",
+          "node/3111781452",
+          "node/6796972977",
+          "node/3111789263"
         ],
         "portalNodes": [
           "node/8911560198",
-          "node/1943411319"
+          "node/3111789263"
         ],
         "profileM": [
           [
@@ -86338,6 +86350,22 @@
           [
             20515.2395,
             122.801
+          ],
+          [
+            20785.2395,
+            123
+          ],
+          [
+            21225.2395,
+            121
+          ],
+          [
+            21515.2395,
+            113
+          ],
+          [
+            21811.642018,
+            105.58968
           ]
         ],
         "profileSource": "project-design-estimate-with-10m-first-bridge-level",
@@ -86347,7 +86375,8 @@
         ],
         "boreWays": [
           "way/221018213",
-          "way/497325748"
+          "way/497325748",
+          "way/221892582"
         ],
         "portalApproachWays": [
           "way/581971318",
@@ -86746,18 +86775,24 @@
           "way/1547392146",
           "way/1031889492",
           "way/636282333",
-          "way/739020654"
+          "way/739020654",
+          "way/862777455",
+          "way/894814743",
+          "way/739020657"
         ],
         "pathNodes": [
           "node/9527226895",
           "node/2410576952",
           "node/9527226868",
           "node/6000337047",
-          "node/6919638857"
+          "node/6919638857",
+          "node/8037688088",
+          "node/8037682062",
+          "node/8162585536"
         ],
         "portalNodes": [
           "node/9527226895",
-          "node/6919638857"
+          "node/8162585536"
         ],
         "profileM": [
           [
@@ -86777,11 +86812,15 @@
             3
           ],
           [
-            2229,
-            8
+            2294.918731,
+            13
           ],
           [
-            2264.919,
+            2784.919,
+            13
+          ],
+          [
+            3093.748018,
             8.0
           ]
         ],
@@ -86797,7 +86836,9 @@
         "approachWidthsM": {
           "way/1547392146": 9.8,
           "way/1031889492": 9.8,
-          "way/739020654": 9.8
+          "way/739020654": 9.8,
+          "way/894814743": 9.8,
+          "way/739020657": 9.8
         },
         "portalApproachWays": [
           "way/1031889492",
@@ -86808,46 +86849,57 @@
             0,
             30
           ]
-        }
+        },
+        "verticalCurveM": 60
       },
       {
         "id": "guimiao-east",
         "kind": "mixed",
         "source": "https://jtys.sz.gov.cn/pcjt/tsjt/content/post_10495077.html",
         "ways": [
+          "way/636258646",
+          "way/894814744",
+          "way/862777458",
           "way/862777456",
           "way/862777450",
           "way/983602901"
         ],
         "pathNodes": [
+          "node/6000019200",
+          "node/8037688092",
+          "node/7223736252",
           "node/8037682052",
           "node/8037682050",
           "node/6000019226",
           "node/9094348426"
         ],
         "portalNodes": [
-          "node/8037682052",
+          "node/6000019200",
           "node/9094348426"
         ],
         "profileM": [
           [
             0,
-            8.0
-          ],
-          [
-            37,
             8
           ],
           [
-            230,
+            180,
+            13
+          ],
+          [
+            828.78378,
+            13
+          ],
+          [
+            1093.78378,
             3
           ],
           [
-            3170,
+            4003.78378,
             3
           ],
           [
-            3402.477,
+            4236.261044,
             8.0
           ]
         ],
@@ -86861,8 +86913,11 @@
         ],
         "lanes": 3,
         "approachWidthsM": {
-          "way/862777456": 9.8
-        }
+          "way/862777456": 9.8,
+          "way/636258646": 9.8,
+          "way/894814744": 9.8
+        },
+        "verticalCurveM": 43
       },
       {
         "id": "meiguan-north",
@@ -87017,6 +87072,853 @@
           "way/377732300": 9.8,
           "way/41275555": 9.8
         }
+      },
+      {
+        "id": "beihuan-nanhai-west",
+        "kind": "mixed",
+        "source": "https://www.openstreetmap.org/way/26968127",
+        "ways": [
+          "way/1425580651",
+          "way/570468187",
+          "way/26968127",
+          "way/1467797282",
+          "way/582000074"
+        ],
+        "pathNodes": [
+          "node/13103729339",
+          "node/277049991",
+          "node/278869513",
+          "node/5567304157",
+          "node/278869516",
+          "node/1768207197"
+        ],
+        "portalNodes": [
+          "node/13103729339",
+          "node/1768207197"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            150,
+            13
+          ],
+          [
+            475,
+            13
+          ],
+          [
+            675,
+            8
+          ],
+          [
+            1543.66094,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+        "lanes": 4,
+        "approachWidthsM": {
+          "way/1425580651": 14,
+          "way/570468187": 14,
+          "way/1467797282": 14,
+          "way/582000074": 14
+        },
+        "bridgeWidthsM": {
+          "way/26968127": 14
+        }
+      },
+      {
+        "id": "beihuan-nanhai-east",
+        "kind": "mixed",
+        "source": "https://www.openstreetmap.org/way/165265283",
+        "ways": [
+          "way/329066212",
+          "way/329066212",
+          "way/165265283",
+          "way/165265283",
+          "way/582000075"
+        ],
+        "pathNodes": [
+          "node/5776735563",
+          "node/279073806",
+          "node/279073807",
+          "node/279073591",
+          "node/5567304161",
+          "node/277189210"
+        ],
+        "portalNodes": [
+          "node/5776735563",
+          "node/277189210"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            210,
+            13
+          ],
+          [
+            615,
+            13
+          ],
+          [
+            790,
+            8
+          ],
+          [
+            847.75747,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+        "lanes": 4,
+        "approachWidthsM": {
+          "way/329066212": 14,
+          "way/582000075": 14
+        },
+        "bridgeWidthsM": {
+          "way/165265283": 14
+        }
+      },
+      {
+        "id": "shennan-shahe-east",
+        "kind": "mixed",
+        "source": "https://www.openstreetmap.org/way/25529353",
+        "ways": [
+          "way/1050765265",
+          "way/633620762",
+          "way/25529353",
+          "way/25529353",
+          "way/25529347",
+          "way/557222376",
+          "way/557222376"
+        ],
+        "pathNodes": [
+          "node/1944028258",
+          "node/1931997259",
+          "node/267602600",
+          "node/1931995550",
+          "node/278220673",
+          "node/1931988604",
+          "node/6302207448",
+          "node/278222580"
+        ],
+        "portalNodes": [
+          "node/1944028258",
+          "node/278222580"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            200,
+            13
+          ],
+          [
+            725,
+            13
+          ],
+          [
+            1085.7725,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain"
+      },
+      {
+        "id": "shennan-shahe-west",
+        "kind": "mixed",
+        "source": "https://www.openstreetmap.org/way/220882377",
+        "ways": [
+          "way/633753644",
+          "way/633753644",
+          "way/220882377",
+          "way/1052247913",
+          "way/1050765268",
+          "way/633620706"
+        ],
+        "pathNodes": [
+          "node/2458963383",
+          "node/2397991627",
+          "node/2299613379",
+          "node/1931994712",
+          "node/2299613327",
+          "node/278220530",
+          "node/8905924274"
+        ],
+        "portalNodes": [
+          "node/2458963383",
+          "node/8905924274"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            180,
+            13
+          ],
+          [
+            735,
+            13
+          ],
+          [
+            885.06859,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain"
+      },
+      {
+        "id": "shennan-xinzhou-west",
+        "kind": "mixed",
+        "source": "https://www.openstreetmap.org/way/1050511757",
+        "ways": [
+          "way/1050725164",
+          "way/996625933",
+          "way/1050511757",
+          "way/1050511757",
+          "way/96334028",
+          "way/996625934",
+          "way/996625934",
+          "way/1050511761",
+          "way/96334031"
+        ],
+        "pathNodes": [
+          "node/2750667755",
+          "node/499543283",
+          "node/6302207410",
+          "node/6467166907",
+          "node/499478813",
+          "node/6467166929",
+          "node/499478538",
+          "node/1116501297",
+          "node/7973099538",
+          "node/1116492767"
+        ],
+        "portalNodes": [
+          "node/2750667755",
+          "node/1116492767"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            170,
+            13
+          ],
+          [
+            465,
+            13
+          ],
+          [
+            643.84385,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain"
+      },
+      {
+        "id": "shennan-xinzhou-east",
+        "kind": "mixed",
+        "source": "https://www.openstreetmap.org/way/996625935",
+        "ways": [
+          "way/1050261077",
+          "way/1050511760",
+          "way/996625935",
+          "way/996625935",
+          "way/245389549",
+          "way/245389549",
+          "way/245389549",
+          "way/1050511758",
+          "way/996625938"
+        ],
+        "pathNodes": [
+          "node/7973099504",
+          "node/1491845610",
+          "node/1116501223",
+          "node/499478765",
+          "node/1116501237",
+          "node/2525990704",
+          "node/2525990691",
+          "node/2525990692",
+          "node/499543123",
+          "node/2750667601"
+        ],
+        "portalNodes": [
+          "node/7973099504",
+          "node/2750667601"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            310,
+            13
+          ],
+          [
+            540,
+            13
+          ],
+          [
+            707.60827,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain"
+      },
+      {
+        "id": "binhai-shahe-east",
+        "kind": "mixed",
+        "source": "https://www.openstreetmap.org/way/101316668",
+        "ways": [
+          "way/1031889490",
+          "way/101316668",
+          "way/974372180",
+          "way/1287096255"
+        ],
+        "pathNodes": [
+          "node/1925242423",
+          "node/1768207177",
+          "node/5604256130",
+          "node/296024714",
+          "node/2045551725"
+        ],
+        "portalNodes": [
+          "node/1925242423",
+          "node/2045551725"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            515,
+            13
+          ],
+          [
+            950,
+            13
+          ],
+          [
+            1120,
+            8
+          ],
+          [
+            1181.43828,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+        "lanes": 5,
+        "approachWidthsM": {
+          "way/1031889490": 18.5
+        },
+        "bridgeWidthsM": {
+          "way/101316668": 18.5
+        }
+      },
+      {
+        "id": "binhai-shahe-west",
+        "kind": "mixed",
+        "source": "https://www.openstreetmap.org/way/101316998",
+        "ways": [
+          "way/1382209008",
+          "way/1468004414",
+          "way/101316998",
+          "way/995989149"
+        ],
+        "pathNodes": [
+          "node/277323803",
+          "node/5604256145",
+          "node/5604256128",
+          "node/1768207180",
+          "node/1925243312"
+        ],
+        "portalNodes": [
+          "node/277323803",
+          "node/1925243312"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            245,
+            13
+          ],
+          [
+            650,
+            13
+          ],
+          [
+            850,
+            8
+          ],
+          [
+            918.91956,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+        "lanes": 5,
+        "bridgeWidthsM": {
+          "way/101316998": 18.5
+        },
+        "approachWidthsM": {
+          "way/995989149": 18.5
+        }
+      },
+      {
+        "id": "beihuan-nanhai-east-loop-off",
+        "kind": "ramp",
+        "source": "https://www.openstreetmap.org/way/101316531",
+        "ways": [
+          "way/101316531",
+          "way/582000076"
+        ],
+        "pathNodes": [
+          "node/279073591",
+          "node/279073696",
+          "node/5567304339"
+        ],
+        "portalNodes": [
+          "node/279073591",
+          "node/5567304339"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "loop",
+          "node": "node/279073591",
+          "mainline": "beihuan-nanhai-east"
+        }
+      },
+      {
+        "id": "shennan-shahe-east-loop-on",
+        "kind": "ramp",
+        "source": "https://www.openstreetmap.org/way/374508069",
+        "ways": [
+          "way/182832354",
+          "way/374508069"
+        ],
+        "pathNodes": [
+          "node/11162381640",
+          "node/2299613354",
+          "node/1931995550"
+        ],
+        "portalNodes": [
+          "node/11162381640",
+          "node/1931995550"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "loop",
+          "node": "node/1931995550",
+          "mainline": "shennan-shahe-east",
+          "mergeM": 53
+        },
+        "rampWidthsM": {
+          "way/182832354": 4.4,
+          "way/374508069": 4.4
+        }
+      },
+      {
+        "id": "shennan-shahe-west-loop-off",
+        "kind": "ramp",
+        "source": "https://www.openstreetmap.org/way/91743153",
+        "ways": [
+          "way/91743153",
+          "way/374508070"
+        ],
+        "pathNodes": [
+          "node/1931994712",
+          "node/2299613385",
+          "node/1066120241"
+        ],
+        "portalNodes": [
+          "node/1931994712",
+          "node/1066120241"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "loop",
+          "node": "node/1931994712",
+          "mainline": "shennan-shahe-west",
+          "mergeM": 65
+        },
+        "rampWidthsM": {
+          "way/91743153": 4.4,
+          "way/374508070": 4.4
+        }
+      },
+      {
+        "id": "shennan-xinzhou-50",
+        "kind": "ramp",
+        "source": "https://www.openstreetmap.org/way/25435186",
+        "ways": [
+          "way/25435186",
+          "way/545784771"
+        ],
+        "pathNodes": [
+          "node/2525990704",
+          "node/499478692",
+          "node/499478696"
+        ],
+        "portalNodes": [
+          "node/2525990704",
+          "node/499478696"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "loop",
+          "node": "node/2525990704",
+          "mainline": "shennan-xinzhou-east"
+        }
+      },
+      {
+        "id": "shennan-xinzhou-139",
+        "kind": "ramp",
+        "source": "https://www.openstreetmap.org/way/25508410",
+        "ways": [
+          "way/25508410",
+          "way/545784770"
+        ],
+        "pathNodes": [
+          "node/6467166929",
+          "node/499478598",
+          "node/499478603"
+        ],
+        "portalNodes": [
+          "node/6467166929",
+          "node/499478603"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "loop",
+          "node": "node/6467166929",
+          "mainline": "shennan-xinzhou-west"
+        }
+      },
+      {
+        "id": "shennan-xinzhou-51",
+        "kind": "ramp",
+        "source": "https://www.openstreetmap.org/way/545784772",
+        "ways": [
+          "way/25435194",
+          "way/545784772"
+        ],
+        "pathNodes": [
+          "node/499478701",
+          "node/5274730003",
+          "node/1116501237"
+        ],
+        "portalNodes": [
+          "node/499478701",
+          "node/1116501237"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "loop",
+          "node": "node/1116501237",
+          "mainline": "shennan-xinzhou-east"
+        }
+      },
+      {
+        "id": "shennan-xinzhou-138",
+        "kind": "ramp",
+        "source": "https://www.openstreetmap.org/way/545784773",
+        "ways": [
+          "way/25508277",
+          "way/545784773"
+        ],
+        "pathNodes": [
+          "node/499478798",
+          "node/499478803",
+          "node/499478813"
+        ],
+        "portalNodes": [
+          "node/499478798",
+          "node/499478813"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "loop",
+          "node": "node/499478813",
+          "mainline": "shennan-xinzhou-west"
+        }
+      },
+      {
+        "id": "nanping-new-town-east-on",
+        "kind": "ramp",
+        "source": "https://www.openstreetmap.org/way/377812320",
+        "ways": [
+          "way/377812319",
+          "way/377812320"
+        ],
+        "pathNodes": [
+          "node/5600855597",
+          "node/5569751890",
+          "node/2364454544"
+        ],
+        "portalNodes": [
+          "node/5600855597",
+          "node/2364454544"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "side",
+          "node": "node/2364454544",
+          "mainline": "nanping-xili-east",
+          "mergeM": 220
+        }
+      },
+      {
+        "id": "shennan-baoan-west",
+        "kind": "mixed",
+        "source": "https://www.openstreetmap.org/way/165265299",
+        "ways": [
+          "way/1049950459",
+          "way/575168590",
+          "way/165265299",
+          "way/231787772",
+          "way/231787772",
+          "way/1467797281",
+          "way/377809348",
+          "way/377809348"
+        ],
+        "pathNodes": [
+          "node/277336626",
+          "node/1768207260",
+          "node/267602501",
+          "node/267602507",
+          "node/2401176953",
+          "node/5559614251",
+          "node/1768207379",
+          "node/2467655663",
+          "node/3812076440"
+        ],
+        "portalNodes": [
+          "node/277336626",
+          "node/3812076440"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            175,
+            13
+          ],
+          [
+            1540,
+            13
+          ],
+          [
+            1752.31161,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+        "verticalCurveM": 45,
+        "lanes": 4,
+        "bridgeWidthsM": {
+          "way/165265299": 13,
+          "way/231787772": 13,
+          "way/1467797281": 13
+        }
+      },
+      {
+        "id": "shennan-baoan-east",
+        "kind": "mixed",
+        "source": "https://www.openstreetmap.org/way/101317038",
+        "ways": [
+          "way/101317038",
+          "way/101317038",
+          "way/101317038",
+          "way/580915671",
+          "way/182832519"
+        ],
+        "pathNodes": [
+          "node/277336402",
+          "node/277336405",
+          "node/2457761603",
+          "node/1169593590",
+          "node/277336408",
+          "node/1768207256"
+        ],
+        "portalNodes": [
+          "node/277336402",
+          "node/1768207256"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            185,
+            13
+          ],
+          [
+            1010,
+            13
+          ],
+          [
+            1213.32408,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+        "groundApronM": [
+          8,
+          85
+        ],
+        "lanes": 4,
+        "bridgeWidthsM": {
+          "way/101317038": 13,
+          "way/580915671": 13
+        }
+      },
+      {
+        "id": "shennan-baoan-west-side-on",
+        "kind": "ramp",
+        "source": "https://www.openstreetmap.org/way/165265363",
+        "ways": [
+          "way/165265337",
+          "way/165265363"
+        ],
+        "pathNodes": [
+          "node/1768207287",
+          "node/1768207286",
+          "node/267602507"
+        ],
+        "portalNodes": [
+          "node/1768207287",
+          "node/267602507"
+        ],
+        "profileSource": "project-design-estimate",
+        "junction": {
+          "template": "side",
+          "node": "node/267602507",
+          "mainline": "shennan-baoan-west"
+        }
+      },
+      {
+        "id": "shennan-qiaocheng-east",
+        "kind": "mixed",
+        "source": "https://www.openstreetmap.org/way/51190861",
+        "ways": [
+          "way/572963457",
+          "way/51190861",
+          "way/633620761"
+        ],
+        "pathNodes": [
+          "node/2184437884",
+          "node/653124766",
+          "node/653124592",
+          "node/2184437863"
+        ],
+        "portalNodes": [
+          "node/2184437884",
+          "node/2184437863"
+        ],
+        "profileM": [
+          [
+            0,
+            8.0
+          ],
+          [
+            280,
+            12
+          ],
+          [
+            430,
+            16
+          ],
+          [
+            620,
+            16
+          ],
+          [
+            850,
+            15
+          ],
+          [
+            951.3683,
+            14.08136
+          ]
+        ],
+        "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+        "lanes": 4,
+        "approachWidthsM": {
+          "way/572963457": 13
+        },
+        "groundApronM": [
+          5,
+          47
+        ]
+      },
+      {
+        "id": "shennan-qiaocheng-west",
+        "kind": "mixed",
+        "source": "https://www.openstreetmap.org/way/51190882",
+        "ways": [
+          "way/985389863",
+          "way/51190882",
+          "way/1049950449"
+        ],
+        "pathNodes": [
+          "node/2458960409",
+          "node/653124767",
+          "node/653124587",
+          "node/277183820"
+        ],
+        "portalNodes": [
+          "node/2458960409",
+          "node/277183820"
+        ],
+        "profileM": [
+          [
+            0,
+            16.113
+          ],
+          [
+            85,
+            16.5
+          ],
+          [
+            395,
+            16.5
+          ],
+          [
+            703.32247,
+            8.0
+          ]
+        ],
+        "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+        "lanes": 4,
+        "approachWidthsM": {
+          "way/1049950449": 13
+        },
+        "groundApronM": [
+          46,
+          5
+        ]
       }
     ],
     "conflicts": [],
@@ -87488,6 +88390,18 @@
         "crossingWays": []
       },
       {
+        "route": "nanping-xili-east",
+        "way": "way/306304905",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "nanping-xili-east",
+        "way": "way/221892578",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
         "route": "nanping-xili-west",
         "way": "way/221894936",
         "minimumM": 28.3549,
@@ -87927,6 +88841,68 @@
         ]
       },
       {
+        "route": "guimiao-west",
+        "way": "way/862777455",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/862777457",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1006938315",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1547392145",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1547392144",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/933959949",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/862777463",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "guimiao-east",
+        "way": "way/862777458",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/862777457",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1006938315",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1547392145",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1547392144",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/933959949",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/862777463",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
         "route": "meiguan-north",
         "way": "way/377732299",
         "minimumM": 7.454,
@@ -87974,6 +88950,511 @@
           {
             "way": "way/1055004296",
             "clearanceM": 7.3201
+          }
+        ]
+      },
+      {
+        "route": "beihuan-nanhai-west",
+        "way": "way/26968127",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/498477955",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/25436150",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/953806720",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "beihuan-nanhai-east",
+        "way": "way/165265283",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/498477955",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/25436150",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/953806720",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "beihuan-nanhai-east",
+        "way": "way/165265283",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-shahe-east",
+        "way": "way/25529353",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/231408865",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-shahe-east",
+        "way": "way/25529353",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1050765273",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1204352832",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1050765270",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-shahe-west",
+        "way": "way/220882377",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1050765273",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1204352832",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1050765270",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-shahe-west",
+        "way": "way/1052247913",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/231408865",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-xinzhou-west",
+        "way": "way/1050511757",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-west",
+        "way": "way/1050511757",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/245389400",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-xinzhou-west",
+        "way": "way/96334028",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1050511756",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/996625937",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-xinzhou-west",
+        "way": "way/996625934",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-west",
+        "way": "way/996625934",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-east",
+        "way": "way/996625935",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-east",
+        "way": "way/996625935",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-east",
+        "way": "way/245389549",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1050511756",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/996625937",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-xinzhou-east",
+        "way": "way/245389549",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/245389400",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-xinzhou-east",
+        "way": "way/245389549",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "binhai-shahe-east",
+        "way": "way/101316668",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1467797291",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "binhai-shahe-west",
+        "way": "way/101316998",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1467797291",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "beihuan-nanhai-east-loop-off",
+        "way": "way/101316531",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "beihuan-nanhai-east-loop-off",
+        "way": "way/582000076",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-shahe-east-loop-on",
+        "way": "way/182832354",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-shahe-east-loop-on",
+        "way": "way/374508069",
+        "minimumM": 4.3322,
+        "crossingWays": [
+          {
+            "way": "way/231408865",
+            "clearanceM": 4.3322
+          }
+        ]
+      },
+      {
+        "route": "shennan-shahe-west-loop-off",
+        "way": "way/91743153",
+        "minimumM": 4.3495,
+        "crossingWays": [
+          {
+            "way": "way/231408865",
+            "clearanceM": 4.3495
+          }
+        ]
+      },
+      {
+        "route": "shennan-shahe-west-loop-off",
+        "way": "way/374508070",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-50",
+        "way": "way/25435186",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-50",
+        "way": "way/545784771",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-139",
+        "way": "way/25508410",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-139",
+        "way": "way/545784770",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-51",
+        "way": "way/25435194",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-51",
+        "way": "way/545784772",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-138",
+        "way": "way/25508277",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-xinzhou-138",
+        "way": "way/545784773",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "nanping-new-town-east-on",
+        "way": "way/377812319",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "nanping-new-town-east-on",
+        "way": "way/377812320",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-baoan-west",
+        "way": "way/165265299",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1052231182",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/690978993",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/690978996",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/165265387",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-baoan-west",
+        "way": "way/231787772",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/582000074",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/165265378",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/165265380",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/329066212",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-baoan-west",
+        "way": "way/231787772",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1256092746",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1256092752",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/582000081",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-baoan-west",
+        "way": "way/1467797281",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/780057682",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-baoan-east",
+        "way": "way/101317038",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-baoan-east",
+        "way": "way/101317038",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/582000074",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/165265378",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/165265380",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/329066212",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-baoan-east",
+        "way": "way/101317038",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-baoan-east",
+        "way": "way/580915671",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1052231182",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/690978993",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/690978996",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/165265387",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-baoan-west-side-on",
+        "way": "way/165265337",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "shennan-baoan-west-side-on",
+        "way": "way/165265363",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/690978996",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/165265387",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "shennan-qiaocheng-east",
+        "way": "way/51190861",
+        "minimumM": 6.2251,
+        "crossingWays": [
+          {
+            "way": "way/996263614",
+            "clearanceM": 6.3081
+          },
+          {
+            "way": "way/25435061",
+            "clearanceM": 6.2251
+          }
+        ]
+      },
+      {
+        "route": "shennan-qiaocheng-west",
+        "way": "way/51190882",
+        "minimumM": 6.2557,
+        "crossingWays": [
+          {
+            "way": "way/996263614",
+            "clearanceM": 6.7979
+          },
+          {
+            "way": "way/25435061",
+            "clearanceM": 6.2557
           }
         ]
       }
@@ -89109,7 +90590,7 @@
         "sharedEnd": false,
         "coverM": null,
         "openApronM": 0,
-        "maxGrade": 0.023827
+        "maxGrade": 0.023825
       },
       {
         "index": 7382,
@@ -89122,10 +90603,109 @@
         "widthM": 13.0,
         "lanes": 4,
         "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.027198
+      },
+      {
+        "index": 7377,
+        "way": "way/306304905",
+        "route": "nanping-xili-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 20515.239481,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.00261
+      },
+      {
+        "index": 8635,
+        "way": "way/497322876",
+        "route": "nanping-xili-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 20834.301633,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.006332
+      },
+      {
+        "index": 3352,
+        "way": "way/221892582",
+        "route": "nanping-xili-east",
+        "kind": "tunnel",
+        "layer": -1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 20948.486269,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          221.08800284049804
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.006818
+      },
+      {
+        "index": 3349,
+        "way": "way/221892578",
+        "route": "nanping-xili-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 21169.574272,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.041376
+      },
+      {
+        "index": 7378,
+        "way": "way/306304906",
+        "route": "nanping-xili-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 21450.091275,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.028218
+      },
+      {
+        "index": 7379,
+        "way": "way/306304906",
+        "route": "nanping-xili-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 21567.287907,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
         "sharedEnd": true,
         "coverM": null,
         "openApronM": 5,
-        "maxGrade": 0.0272
+        "maxGrade": 0.041675
       },
       {
         "index": 8642,
@@ -89969,7 +91549,7 @@
           0
         ],
         "openApronM": 0,
-        "maxGrade": 0.042196
+        "maxGrade": 0.042291
       },
       {
         "index": 11298,
@@ -90001,17 +91581,65 @@
         "widthM": 9.8,
         "lanes": 3,
         "sharedStart": false,
-        "sharedEnd": true,
+        "sharedEnd": false,
         "coverM": [
           0,
           30
         ],
-        "openApronM": 5,
-        "maxGrade": 0.038476
+        "openApronM": 0,
+        "maxGrade": 0.049796
       },
       {
-        "index": 14223,
-        "way": "way/862777456",
+        "index": 14222,
+        "way": "way/862777455",
+        "route": "guimiao-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2264.918731,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.023342
+      },
+      {
+        "index": 14822,
+        "way": "way/894814743",
+        "route": "guimiao-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2778.555046,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.003764
+      },
+      {
+        "index": 12747,
+        "way": "way/739020657",
+        "route": "guimiao-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2797.76264,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 5,
+        "maxGrade": 0.020783
+      },
+      {
+        "index": 11297,
+        "way": "way/636258646",
         "route": "guimiao-east",
         "kind": "approach",
         "layer": 0,
@@ -90023,7 +91651,55 @@
         "sharedEnd": false,
         "coverM": null,
         "openApronM": 5,
-        "maxGrade": 0.038855
+        "maxGrade": 0.038359
+      },
+      {
+        "index": 14823,
+        "way": "way/894814744",
+        "route": "guimiao-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 300.492451,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 14225,
+        "way": "way/862777458",
+        "route": "guimiao-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 319.165579,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.003928
+      },
+      {
+        "index": 14223,
+        "way": "way/862777456",
+        "route": "guimiao-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 833.78378,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.045045
       },
       {
         "index": 14220,
@@ -90032,7 +91708,7 @@
         "kind": "tunnel",
         "layer": -1.0,
         "heightSource": "project-design-estimate",
-        "stationOffsetM": 261.364141,
+        "stationOffsetM": 1095.147921,
         "widthM": 9.8,
         "lanes": 3,
         "sharedStart": false,
@@ -90051,14 +91727,14 @@
         "kind": "approach",
         "layer": 0,
         "heightSource": "project-design-estimate",
-        "stationOffsetM": 3115.387301,
+        "stationOffsetM": 3949.171081,
         "widthM": 9.8,
         "lanes": 3,
         "sharedStart": false,
         "sharedEnd": true,
         "coverM": null,
         "openApronM": 5,
-        "maxGrade": 0.032253
+        "maxGrade": 0.026389
       },
       {
         "index": 19,
@@ -90411,6 +92087,1382 @@
         "coverM": null,
         "openApronM": 15,
         "maxGrade": 0.041681
+      },
+      {
+        "index": 23262,
+        "way": "way/1425580651",
+        "route": "beihuan-nanhai-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 14,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.02637
+      },
+      {
+        "index": 9976,
+        "way": "way/570468187",
+        "route": "beihuan-nanhai-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 25.254665,
+        "widthM": 14,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.049987
+      },
+      {
+        "index": 288,
+        "way": "way/26968127",
+        "route": "beihuan-nanhai-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 92.283585,
+        "widthM": 14,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.04671
+      },
+      {
+        "index": 23912,
+        "way": "way/1467797282",
+        "route": "beihuan-nanhai-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 556.122143,
+        "widthM": 14,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.038364
+      },
+      {
+        "index": 10258,
+        "way": "way/582000074",
+        "route": "beihuan-nanhai-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 647.87903,
+        "widthM": 14,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.016534
+      },
+      {
+        "index": 7503,
+        "way": "way/329066212",
+        "route": "beihuan-nanhai-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 14,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.037709
+      },
+      {
+        "index": 7504,
+        "way": "way/329066212",
+        "route": "beihuan-nanhai-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 134.440313,
+        "widthM": 14,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.032533
+      },
+      {
+        "index": 2605,
+        "way": "way/165265283",
+        "route": "beihuan-nanhai-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 208.701689,
+        "widthM": 14,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.00044
+      },
+      {
+        "index": 2606,
+        "way": "way/165265283",
+        "route": "beihuan-nanhai-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 534.417261,
+        "widthM": 14,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.033454
+      },
+      {
+        "index": 10259,
+        "way": "way/582000075",
+        "route": "beihuan-nanhai-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 663.390496,
+        "widthM": 14,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.042845
+      },
+      {
+        "index": 18234,
+        "way": "way/1050765265",
+        "route": "shennan-shahe-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.044863
+      },
+      {
+        "index": 11018,
+        "way": "way/633620762",
+        "route": "shennan-shahe-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 244.580318,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 160,
+        "way": "way/25529353",
+        "route": "shennan-shahe-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 318.073296,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 161,
+        "way": "way/25529353",
+        "route": "shennan-shahe-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 496.965799,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.019643
+      },
+      {
+        "index": 159,
+        "way": "way/25529347",
+        "route": "shennan-shahe-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 865.004089,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.020787
+      },
+      {
+        "index": 9714,
+        "way": "way/557222376",
+        "route": "shennan-shahe-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 980.410328,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.017005
+      },
+      {
+        "index": 9715,
+        "way": "way/557222376",
+        "route": "shennan-shahe-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1007.377734,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.01391
+      },
+      {
+        "index": 11055,
+        "way": "way/633753644",
+        "route": "shennan-shahe-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.023512
+      },
+      {
+        "index": 11056,
+        "way": "way/633753644",
+        "route": "shennan-shahe-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 32.401883,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.042035
+      },
+      {
+        "index": 3269,
+        "way": "way/220882377",
+        "route": "shennan-shahe-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 180.923086,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 19121,
+        "way": "way/1052247913",
+        "route": "shennan-shahe-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 544.581511,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 18235,
+        "way": "way/1050765268",
+        "route": "shennan-shahe-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 724.518803,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.049949
+      },
+      {
+        "index": 10962,
+        "way": "way/633620706",
+        "route": "shennan-shahe-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 818.650912,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.048974
+      },
+      {
+        "index": 18129,
+        "way": "way/1050725164",
+        "route": "shennan-xinzhou-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.044108
+      },
+      {
+        "index": 17159,
+        "way": "way/996625933",
+        "route": "shennan-xinzhou-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 98.238592,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.042705
+      },
+      {
+        "index": 18002,
+        "way": "way/1050511757",
+        "route": "shennan-xinzhou-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 144.578537,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.021095
+      },
+      {
+        "index": 18003,
+        "way": "way/1050511757",
+        "route": "shennan-xinzhou-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 171.822091,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 1569,
+        "way": "way/96334028",
+        "route": "shennan-xinzhou-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 225.975835,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 17160,
+        "way": "way/996625934",
+        "route": "shennan-xinzhou-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 330.29406,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 17161,
+        "way": "way/996625934",
+        "route": "shennan-xinzhou-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 389.81556,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 18007,
+        "way": "way/1050511761",
+        "route": "shennan-xinzhou-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 419.936454,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.041913
+      },
+      {
+        "index": 1572,
+        "way": "way/96334031",
+        "route": "shennan-xinzhou-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 554.602058,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.041906
+      },
+      {
+        "index": 17933,
+        "way": "way/1050261077",
+        "route": "shennan-xinzhou-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.024191
+      },
+      {
+        "index": 18006,
+        "way": "way/1050511760",
+        "route": "shennan-xinzhou-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 162.032016,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.024111
+      },
+      {
+        "index": 17162,
+        "way": "way/996625935",
+        "route": "shennan-xinzhou-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 290.049654,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.005279
+      },
+      {
+        "index": 17163,
+        "way": "way/996625935",
+        "route": "shennan-xinzhou-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 310.003867,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 5216,
+        "way": "way/245389549",
+        "route": "shennan-xinzhou-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 377.806331,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 5217,
+        "way": "way/245389549",
+        "route": "shennan-xinzhou-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 474.343023,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.000633
+      },
+      {
+        "index": 5218,
+        "way": "way/245389549",
+        "route": "shennan-xinzhou-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 541.191471,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.019114
+      },
+      {
+        "index": 18004,
+        "way": "way/1050511758",
+        "route": "shennan-xinzhou-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 562.12883,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.042789
+      },
+      {
+        "index": 17169,
+        "way": "way/996625938",
+        "route": "shennan-xinzhou-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 608.230092,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.044717
+      },
+      {
+        "index": 17724,
+        "way": "way/1031889490",
+        "route": "binhai-shahe-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 18.5,
+        "lanes": 5,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.014685
+      },
+      {
+        "index": 2008,
+        "way": "way/101316668",
+        "route": "binhai-shahe-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 529.760087,
+        "widthM": 18.5,
+        "lanes": 5,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 15990,
+        "way": "way/974372180",
+        "route": "binhai-shahe-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 936.415648,
+        "widthM": 16.2,
+        "lanes": 5,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.042021
+      },
+      {
+        "index": 22169,
+        "way": "way/1287096255",
+        "route": "binhai-shahe-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1018.402879,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.044104
+      },
+      {
+        "index": 22814,
+        "way": "way/1382209008",
+        "route": "binhai-shahe-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 16.2,
+        "lanes": 5,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.030607
+      },
+      {
+        "index": 23964,
+        "way": "way/1468004414",
+        "route": "binhai-shahe-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 141.313559,
+        "widthM": 16.2,
+        "lanes": 5,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.02973
+      },
+      {
+        "index": 2077,
+        "way": "way/101316998",
+        "route": "binhai-shahe-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 239.152161,
+        "widthM": 18.5,
+        "lanes": 5,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.002152
+      },
+      {
+        "index": 16400,
+        "way": "way/995989149",
+        "route": "binhai-shahe-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 646.00457,
+        "widthM": 18.5,
+        "lanes": 5,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.037493
+      },
+      {
+        "index": 1984,
+        "way": "way/101316531",
+        "route": "beihuan-nanhai-east-loop-off",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.032456
+      },
+      {
+        "index": 10260,
+        "way": "way/582000076",
+        "route": "beihuan-nanhai-east-loop-off",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 103.967344,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.031874
+      },
+      {
+        "index": 2767,
+        "way": "way/182832354",
+        "route": "shennan-shahe-east-loop-on",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 4.4,
+        "lanes": 1,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.029961
+      },
+      {
+        "index": 7801,
+        "way": "way/374508069",
+        "route": "shennan-shahe-east-loop-on",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 71.002147,
+        "widthM": 4.4,
+        "lanes": 1,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.030628
+      },
+      {
+        "index": 1356,
+        "way": "way/91743153",
+        "route": "shennan-shahe-west-loop-off",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 4.4,
+        "lanes": 1,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.02962
+      },
+      {
+        "index": 7802,
+        "way": "way/374508070",
+        "route": "shennan-shahe-west-loop-off",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 249.945401,
+        "widthM": 4.4,
+        "lanes": 1,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.023488
+      },
+      {
+        "index": 50,
+        "way": "way/25435186",
+        "route": "shennan-xinzhou-50",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.044118
+      },
+      {
+        "index": 9557,
+        "way": "way/545784771",
+        "route": "shennan-xinzhou-50",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 168.046174,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.036091
+      },
+      {
+        "index": 139,
+        "way": "way/25508410",
+        "route": "shennan-xinzhou-139",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.036731
+      },
+      {
+        "index": 9556,
+        "way": "way/545784770",
+        "route": "shennan-xinzhou-139",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 171.710665,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.038828
+      },
+      {
+        "index": 51,
+        "way": "way/25435194",
+        "route": "shennan-xinzhou-51",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.036885
+      },
+      {
+        "index": 9558,
+        "way": "way/545784772",
+        "route": "shennan-xinzhou-51",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 56.258086,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.039188
+      },
+      {
+        "index": 138,
+        "way": "way/25508277",
+        "route": "shennan-xinzhou-138",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.038841
+      },
+      {
+        "index": 9559,
+        "way": "way/545784773",
+        "route": "shennan-xinzhou-138",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 64.086338,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.039973
+      },
+      {
+        "index": 7946,
+        "way": "way/377812319",
+        "route": "nanping-new-town-east-on",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.023021
+      },
+      {
+        "index": 7947,
+        "way": "way/377812320",
+        "route": "nanping-new-town-east-on",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 153.887701,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.024372
+      },
+      {
+        "index": 17897,
+        "way": "way/1049950459",
+        "route": "shennan-baoan-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.038461
+      },
+      {
+        "index": 10042,
+        "way": "way/575168590",
+        "route": "shennan-baoan-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 50.190806,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.041516
+      },
+      {
+        "index": 2617,
+        "way": "way/165265299",
+        "route": "shennan-baoan-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 169.515003,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.003516
+      },
+      {
+        "index": 4084,
+        "way": "way/231787772",
+        "route": "shennan-baoan-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 819.387506,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 4085,
+        "way": "way/231787772",
+        "route": "shennan-baoan-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 933.398073,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 23911,
+        "way": "way/1467797281",
+        "route": "shennan-baoan-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1490.520457,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.029884
+      },
+      {
+        "index": 7942,
+        "way": "way/377809348",
+        "route": "shennan-baoan-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1617.83279,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.029884
+      },
+      {
+        "index": 7943,
+        "way": "way/377809348",
+        "route": "shennan-baoan-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1656.749302,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.029885
+      },
+      {
+        "index": 2087,
+        "way": "way/101317038",
+        "route": "shennan-baoan-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.044264
+      },
+      {
+        "index": 2088,
+        "way": "way/101317038",
+        "route": "shennan-baoan-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 246.546831,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 2089,
+        "way": "way/101317038",
+        "route": "shennan-baoan-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 315.461805,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 10114,
+        "way": "way/580915671",
+        "route": "shennan-baoan-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 378.23501,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 2768,
+        "way": "way/182832519",
+        "route": "shennan-baoan-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 994.997681,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 85,
+        "maxGrade": 0.036877
+      },
+      {
+        "index": 2622,
+        "way": "way/165265337",
+        "route": "shennan-baoan-west-side-on",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.023417
+      },
+      {
+        "index": 2630,
+        "way": "way/165265363",
+        "route": "shennan-baoan-west-side-on",
+        "kind": "ramp",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 70.23269,
+        "widthM": 6.5,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.023352
+      },
+      {
+        "index": 10027,
+        "way": "way/572963457",
+        "route": "shennan-qiaocheng-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 5,
+        "maxGrade": 0.039968
+      },
+      {
+        "index": 1260,
+        "way": "way/51190861",
+        "route": "shennan-qiaocheng-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 363.061425,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.039298
+      },
+      {
+        "index": 11016,
+        "way": "way/633620761",
+        "route": "shennan-qiaocheng-east",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 490.307498,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 47,
+        "maxGrade": 0.013571
+      },
+      {
+        "index": 16207,
+        "way": "way/985389863",
+        "route": "shennan-qiaocheng-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 46,
+        "maxGrade": 0.006955
+      },
+      {
+        "index": 1261,
+        "way": "way/51190882",
+        "route": "shennan-qiaocheng-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 300.531692,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.014321
+      },
+      {
+        "index": 17885,
+        "way": "way/1049950449",
+        "route": "shennan-qiaocheng-west",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 426.494342,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 5,
+        "maxGrade": 0.041347
       }
     ],
     "connections": [
@@ -90442,6 +93494,60 @@
         "ramp": 15658,
         "incoming": 7812,
         "outgoing": 7813,
+        "template": "side"
+      },
+      {
+        "ramp": 1984,
+        "incoming": 2605,
+        "outgoing": 2606,
+        "template": "loop"
+      },
+      {
+        "ramp": 7801,
+        "incoming": 160,
+        "outgoing": 161,
+        "template": "loop"
+      },
+      {
+        "ramp": 1356,
+        "incoming": 3269,
+        "outgoing": 19121,
+        "template": "loop"
+      },
+      {
+        "ramp": 50,
+        "incoming": 5216,
+        "outgoing": 5217,
+        "template": "loop"
+      },
+      {
+        "ramp": 139,
+        "incoming": 1569,
+        "outgoing": 17160,
+        "template": "loop"
+      },
+      {
+        "ramp": 9558,
+        "incoming": 17163,
+        "outgoing": 5216,
+        "template": "loop"
+      },
+      {
+        "ramp": 9559,
+        "incoming": 18003,
+        "outgoing": 1569,
+        "template": "loop"
+      },
+      {
+        "ramp": 7947,
+        "incoming": 20020,
+        "outgoing": 7795,
+        "template": "side"
+      },
+      {
+        "ramp": 2630,
+        "incoming": 2617,
+        "outgoing": 4084,
         "template": "side"
       }
     ]

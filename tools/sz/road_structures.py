@@ -71,7 +71,9 @@ def compile_interchange_ramp(route, graph, grid, indices, config, accepted):
     length = sum(lengths)
     ground_y = ground_height(grid, *(paths[0][0] if end_at_deck else paths[-1][-1]))
     apron = 8
-    merge = {'loop': 30, 'side': 105}[junction['template']]
+    merge = junction.get('mergeM', {'loop': 30, 'side': 105}[junction['template']])
+    if not math.isfinite(merge) or merge <= 0:
+        raise ValueError('Reviewed ramp merge length must be positive')
     run = length - merge - apron
     curve = min(36, run / 3)
     if run <= 0 or abs(deck_y - ground_y) / (run - curve) > config['maxGrade']:
@@ -87,6 +89,12 @@ def compile_interchange_ramp(route, graph, grid, indices, config, accepted):
     breaks = [apron, apron + curve, length - merge - curve, length - merge]
     for i, (index, path, span) in enumerate(zip(indices, paths, lengths, strict=True)):
         width, lanes = links[i][3:5]
+        meta = graph['metadata'][index]
+        if meta['osmId'] in route.get('rampWidthsM', {}):
+            estimate = route['rampWidthsM'][meta['osmId']]
+            if meta['widthSource'] not in ('estimate-from-class', 'estimate-from-lanes') or not width <= estimate <= width + 2:
+                raise ValueError(f"Reviewed ramp width would overwrite source dimensions: {meta['osmId']}")
+            width = estimate
         events = [(s if end_at_deck else length - s) - station for s in breaks]
         frames = station_frames(path, [s for s in events if 0 < s < span], lambda s: profile(station + s), lambda _: width,
                                 tangent_span=3.0)

@@ -634,7 +634,10 @@ test('a source-connected tunnel route stays on its own floor across every seam a
   for (const id of ['nanping-xili-east', 'nanping-xili-west', 'nanguang-south', 'nanguang-north',
     'huanggang-binhe-north', 'huanggang-binhe-south', 'beihuan-shahe-east', 'beihuan-shahe-west',
     'nanping-branch-north', 'nanping-branch-south', 'guimiao-east', 'guimiao-west',
-    'meiguan-north', 'meiguan-south']) {
+    'meiguan-north', 'meiguan-south', 'beihuan-nanhai-east', 'beihuan-nanhai-west',
+    'shennan-shahe-east', 'shennan-shahe-west', 'shennan-xinzhou-east', 'shennan-xinzhou-west',
+    'shennan-baoan-east', 'shennan-baoan-west', 'shennan-qiaocheng-east', 'shennan-qiaocheng-west',
+    'binhai-shahe-east', 'binhai-shahe-west']) {
     const records = geo.roadStructures.records.filter(row => row.route === id);
     assert.ok(records.length >= 3, id);
     const routeEdges = records.map(record => network.edges.find(edge => edge.sourceIndex === record.index));
@@ -667,7 +670,7 @@ test('a source-connected tunnel route stays on its own floor across every seam a
       assert.equal(bore.lanes, 3, id);
       assert.ok(bore.coverM[1] > 1600, id);
       assert.ok(built.colliders.some(c => c.name === `sz-road-structure:${bore.index}` && c.type === 'tunnel-roof'), id);
-      // 两向均接滨海大道东侧；西端相邻跨线桥另有独立高程待核。
+      assert.ok(parts.some(part => part.osmId === (id.endsWith('west') ? 'way/862777455' : 'way/862777458')), id);
       if (id.endsWith('west')) {
         assert.ok(network.edges.some(edge => !edge.elevated && edge.next.includes(routeEdges[0])), id);
       } else {
@@ -680,6 +683,11 @@ test('a source-connected tunnel route stays on its own floor across every seam a
         });
         assert.ok(contact && Math.abs(contact.height - frame.y) < 0.025, `${id} ${part.osmId} @ ${frame.d}`);
       }
+    }
+    if (id === 'nanping-xili-east') {
+      const newBore = records.find(record => record.way === 'way/221892582');
+      assert.ok(newBore?.coverM?.[1] > 220);
+      assert.ok(built.colliders.some(c => c.name === `sz-road-structure:${newBore.index}` && c.type === 'tunnel-roof'));
     }
     if (id.startsWith('meiguan')) {
       const bridge = parts.find(part => part.osmId === (id.endsWith('north') ? 'way/377732299' : 'way/377732300'));
@@ -694,7 +702,16 @@ test('a source-connected tunnel route stays on its own floor across every seam a
     [[1471.03, 1638.98], [1462.70, 1585.62], [17634, 214, 899, 213, 20449]],
     [[1363.03, 1587.73], [1371.42, 1640.25], [20449, 39, 900, 212, 17634]],
     [[-16184.84, -56.31], [-15726.49, -386.61], [18636, 18637, 15658, 7813]],
-    [[1348.42, 1640.55], [1487.03, 1638.77], [17634]]
+    [[1348.42, 1640.55], [1487.03, 1638.77], [17634]],
+    [[-15015.39, -555.70], [-15042.28, -526.05], [2605, 1984, 10260, 8687]],
+    [[-10338.15, 420.78], [-10313.66, 342.07], [18237, 2767, 7801, 161]],
+    [[-10318.65, 313.39], [-10341.11, 249.72], [3269, 1356, 7802, 18237]],
+    [[-1021.64, 442.36], [-1032.76, 521.74], [5216, 50, 9557, 18001]],
+    [[-10436.82, -1747.69], [-9863.84, -1890.33], [20018, 7946, 7947, 7795]],
+    [[-14955.36, 165.10], [-15385.70, 183.52], [12221, 23776, 2622, 2630, 4084]],
+    [[-10953.09, 2472.81], [-10486.96, 2530.27], [17724, 2008, 15990]],
+    [[-14974.59, 2255.99], [-15830.63, 2258.30], [11298, 12746, 14222, 14822, 12747]],
+    [[810.29, -6520.95], [1398.15, -6859.29], [7377, 8635, 3352, 3349, 7378]]
   ];
   for (const [from, to, indices] of movements) {
     const route = planner.route(planner.snap(...from), planner.snap(...to));
