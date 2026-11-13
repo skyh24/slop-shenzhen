@@ -28,7 +28,8 @@ LINE_WALKS = {'footway', 'path', 'cycleway', 'pedestrian', 'steps', 'track', 'br
 AREA_AMENITIES = {'parking', 'parking_space', 'bicycle_parking', 'school', 'kindergarten', 'hospital',
                   'fuel', 'marketplace', 'bus_station', 'fountain', 'grave_yard', 'place_of_worship'}
 AREA_KEYS = ('access', 'foot', 'natural', 'leisure', 'landuse', 'amenity', 'highway', 'railway',
-             'waterway', 'aeroway', 'tourism', 'man_made', 'military', 'sport', 'barrier')
+             'waterway', 'aeroway', 'tourism', 'man_made', 'military', 'sport', 'barrier',
+             'place', 'surface', 'opening_hours')
 
 
 def _at_grade(tags):
@@ -49,7 +50,8 @@ def _known_area(tags):
             or tags.get('highway') in LINE_WALKS or tags.get('railway') not in (None, 'abandoned', 'razed')
             or tags.get('barrier') in ('fence', 'wall', 'hedge')
             or tags.get('man_made') in ('planter', 'pier', 'wastewater_plant')
-            or tags.get('tourism') in ('camp_site', 'caravan_site', 'picnic_site'))
+            or tags.get('tourism') in ('camp_site', 'caravan_site', 'picnic_site')
+            or tags.get('place') in ('square', 'plaza'))
 
 
 def _line_width(tags):
@@ -74,7 +76,7 @@ def _line_width(tags):
     return None
 
 
-def _source_masks(pbf, frame, parcels):
+def _source_masks(pbf, frame, parcels, *, frontage_uses=(), walk_exclusions=None):
     bounds = [(ORIGIN_LON + a / KX, ORIGIN_LAT - d / KY, ORIGIN_LON + c / KX, ORIGIN_LAT - b / KY)
               for a, b, c, d in (part.bounds for part in parts(frame))]
 
@@ -108,21 +110,32 @@ def _source_masks(pbf, frame, parcels):
                 continue
             points = [project(*p) for p in coords]
             if width:
-                paths.append(LineString(points).buffer(width, cap_style='square'))
+                shape = LineString(points).buffer(width, cap_style='square')
+                paths.append(shape)
+                if walk_exclusions is not None and (_restricted(tags) or tags.get('barrier') or
+                        tags.get('railway') or tags.get('waterway')):
+                    walk_exclusions.append(shape.intersection(frame))
             else:
                 portals.extend(Point(p).buffer(12) for p in (points[0], points[-1]))
         elif item.is_area():
             identity = f"{'way' if item.from_way() else 'relation'}/{item.orig_id()}"
+            frontage = tags.get('landuse') in frontage_uses
             if (not _at_grade(tags) or tags.get('area') == 'no'
-                    or not (identity in parcels or _restricted(tags) or _known_area(tags))):
+                    or not (identity in parcels or frontage or _restricted(tags) or _known_area(tags))):
                 continue
             if not any(near([(n.lon, n.lat) for n in ring if n.location.valid()]) for ring in item.outer_rings()):
                 continue
             shape = valid_area(_to_local(wkb.loads(factory.create_multipolygon(item), hex=True)))
-            if identity in parcels:
+            if identity in parcels or frontage:
                 records[identity] = (shape, tags)
             if _restricted(tags) or _known_area(tags):
                 areas.append(shape.intersection(frame))
+            if walk_exclusions is not None and (_restricted(tags)
+                    or tags.get('leisure') in ('pitch', 'nature_reserve', 'golf_course', 'playground')
+                    or tags.get('landuse') in ('construction', 'military', 'railway', 'flowerbed', 'allotments')
+                    or tags.get('amenity') in ('parking', 'parking_space', 'fountain')
+                    or tags.get('man_made') == 'planter' or tags.get('barrier') in ('fence', 'wall', 'hedge')):
+                walk_exclusions.append(shape.intersection(frame))
     return records, union_all(areas), union_all([shape.intersection(frame) for shape in paths + portals])
 
 
@@ -149,17 +162,20 @@ def _divider(graph, ids, frame):
     return union_all(strips).intersection(frame)
 
 
-def _frontage_reservations(payload, frame):
+def _frontage_reservations(payload, frame, *, include_paths=True):
     shapes = []
     frontage = payload.get('roadFrontage', {})
-    for feature in frontage.get('features', []):
+    for feature in [*frontage.get('features', []),
+                    *(payload.get('roadStructures', {}).get('landscape') or {}).get('patches', [])]:
+        if feature['kind'] == 'paint':
+            continue
         coords = feature['trianglesXZ']
         for i in range(0, len(coords), 6):
             tri = coords[i:i + 6]
             shape = Polygon(zip(tri[::2], tri[1::2], strict=True))
             if frame.intersects(shape):
                 shapes.append(shape)
-    for corridor in frontage.get('corridors', []):
+    for corridor in frontage.get('corridors', []) if include_paths else []:
         for axis in corridor.get('crossingAxes', []):
             points = axis.get('points', [])
             if len(points) >= 2 and isinstance(points[0], list):
@@ -168,6 +184,15 @@ def _frontage_reservations(payload, frame):
         for segment in path['segments']:
             if len(segment['points']) >= 2:
                 shapes.append(LineString(segment['points']).buffer(path['widthM'] / 2 + .25))
+    paths = [*payload.get('shenzhenBay', {}).get('paths', []), *payload.get('iecPaths', []),
+             *(p for route in payload.get('waterfront', {}).get('routes', []) for p in route['paths'])]
+    if path := (payload.get('roadStructures', {}).get('landscape') or {}).get('publicPath'):
+        paths.append(path)
+    for path in paths:
+        if not path.get('bridge') and len(path['points']) >= 2:
+            line = LineString(path['points'])
+            if frame.intersects(line):
+                shapes.append(line.buffer(path['widthM'] / 2))
     # 已建中心二路西侧至东南门的独立步行面和花箱，沿相同的设计线预留。
     shapes.extend([LineString([(-467.2, 1142), (-465.3, 1152), (-463.4, 1171), (-464.1, 1177.4),
                                (-488.6, 1164.2), (-489.65, 1163.65)]).buffer(2.2),
@@ -282,16 +307,17 @@ def _partition(chunk, candidates, covered):
         for i in range(start, start + count, 3):
             face = original[i:i + 3]
             face_kinds = {kinds[v] for v in face}
-            if len(face_kinds) != 1 or not face_kinds <= {0, 3}:
+            base = next(iter(face_kinds)) if len(face_kinds) == 1 else (None if face_kinds <= {0, 1} else -1)
+            if not any(base in spec.get('baseKinds', (0, 3)) for spec, _ in candidates):
                 indices.extend(face)
                 continue
-            base = kinds[face[0]]
             plane = [(ox + positions[3 * v], positions[3 * v + 1], oz + positions[3 * v + 2]) for v in face]
             triangle = Polygon([(x, z) for x, _, z in plane])
             remaining = triangle
             for spec, mask in candidates:
-                kind = STONE if spec['kind'] == 'stone' else LAWN
-                if (base == 3 and kind == LAWN) or not mask.intersects(remaining):
+                kind = spec.get('surfaceKind', STONE if spec['kind'] == 'stone' else LAWN)
+                if (base not in spec.get('baseKinds', (0, 3)) or base == kind
+                        or (base == 3 and kind == LAWN) or not mask.intersects(remaining)):
                     continue
                 overlap = remaining.intersection(mask)
                 if overlap.area <= 1e-10:
@@ -303,7 +329,8 @@ def _partition(chunk, candidates, covered):
                 indices.extend(face)
             else:
                 changed = True
-                emit(remaining, plane, base)
+                # 地形的绿地边沿可能共享不同色的顶点；切分后保留绿地侧的底色。
+                emit(remaining, plane, base if base is not None else 1)
         ranges.extend([cell, first, len(indices) - first])
     return ({**chunk, 'positions': positions, 'kinds': kinds, 'indices': indices, 'cellRanges': ranges}
             if changed else chunk)

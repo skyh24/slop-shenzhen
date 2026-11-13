@@ -23,6 +23,10 @@
       "roadNames": ["深南大道", "深南大道辅路"],
       "sidewalks": ["way/958548497", "way/1221006219", "way/1416551430", "way/1348679787"],
       "crossings": ["way/1416551427", "way/1416551428", "way/1348679788"],
+      "junctionDesign": {
+        "walkCrossings": ["way/1416551427", "way/1416551428"],
+        "signalizedCrossings": []
+      },
       "median": {
         "opposingWayIds": ["way/40978183", "way/892901021"],
         "bounds": [114.0184, 22.538, 114.0238, 22.5397],

@@ -1,0 +1,5 @@
+{
+  "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+  "roadOsmIds": ["way/895941563", "way/1332832715", "way/958548497", "way/971043222", "way/775651072"],
+  "parkOsmIds": ["way/178426795", "way/440551685"]
+}

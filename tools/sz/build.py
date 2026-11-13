@@ -20,6 +20,7 @@ from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, R
 from commercial_paving import cut_commercial_paving, ground_carriageway_mask
 from geo import (HONG_KONG_BOUNDARY_ID, ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local,
                  project, project_coords)
+from ground_walk import compile_ground_walk
 from land import _polys, _to_local, build_land
 from landmark_sites import build_landmark_sites, read_site_areas
 from osm import read_osm
@@ -438,7 +439,8 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     compile_waterfront(payload, osm, pbf, report)
     payload.pop('urbanPaving', None)
     compile_urban_paving(payload, osm_source, report)
-    changed.append('urbanPaving')
+    compile_ground_walk(payload, osm, osm_source, report)
+    changed.extend(('urbanPaving', 'groundWalk'))
     write_city_packages(payload, report, sources, started)
 
 
@@ -600,6 +602,8 @@ def main():
                       help='compile the reviewed lake, bay and river samples on the verified package')
     mode.add_argument('--rebuild-urban-paving', action='store_true',
                       help='apply reviewed ground-cover sites to the verified package')
+    mode.add_argument('--rebuild-ground-walk', action='store_true',
+                      help='apply source-bound street infill and park paths to the verified package')
     ap.add_argument('--urban-paving-pilot-only', action='store_true',
                     help='with --rebuild-urban-paving, compile only the three comparison sites')
     args = ap.parse_args()
@@ -656,6 +660,22 @@ def main():
         report = json.loads(REPORT.read_text())
         osm_source = next(source for source in sources if source['id'] == 'osm-guangdong')
         compile_urban_paving(payload, osm_source, report, pilot_only=args.urban_paving_pilot_only)
+        write_city_packages(payload, report, sources, started, refresh_regions=False)
+        return
+
+    if args.rebuild_ground_walk:
+        started = time.time()
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        report = json.loads(REPORT.read_text())
+        if 'groundWalk' in report:
+            raise ValueError('Use the underlying ground build before replacing park and street infill')
+        osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
+        osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=ROOT / osm_source['file'],
+                       source_sha256=osm_source['sha256'])
+        compile_ground_walk(payload, osm, osm_source, report)
         write_city_packages(payload, report, sources, started, refresh_regions=False)
         return
 
@@ -853,6 +873,7 @@ def main():
     payload.pop('waterfront', None)
     compile_waterfront(payload, osm, pbf, report)
     compile_urban_paving(payload, osm_source, report)
+    compile_ground_walk(payload, osm, osm_source, report)
     write_city_packages(payload, report, sources, t0, appearance_osm=osm)
 
 

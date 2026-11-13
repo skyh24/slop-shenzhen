@@ -201,6 +201,12 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   assert.ok(greenA.emissiveIntensity > 0);
   assert.equal(model.walkLegs.filter(row => row.crossing).length, 9);
   assert.equal(model.walkLegs.filter(row => row.crossing && !row.signal).length, 2);
+  for (const leg of model.walkLegs.filter(row => row.crossing)) {
+    for (const { x, z } of [leg.points[0], leg.points.at(-1)]) {
+      assert.equal(roadHeight(x, z), null, `Waiting inside the carriageway: ${leg.id}`);
+      assert.ok(Number.isFinite(model.contactHeight(x, z)), `Missing landing: ${leg.id}`);
+    }
+  }
   assert.equal(model.colliders.filter(row => row.type === 'planted-island').length, 3);
   let checkedPaint = 0, checkedRaised = 0;
   for (const mesh of model.group.children) {
@@ -213,7 +219,7 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
       const y = (p[i + 1] + p[i + 4] + p[i + 7]) / 3;
       const z = (p[i + 2] + p[i + 5] + p[i + 8]) / 3 + mesh.position.z;
       if (paint) {
-        assert.ok(Number.isFinite(roadHeight(x, z)));
+        assert.ok(Number.isFinite(roadHeight(x, z)), `Off-road paint: ${mesh.name} at ${x}, ${z} (${Array.from(p.slice(i, i + 9))})`);
         checkedPaint++;
       }
       if (raised) {

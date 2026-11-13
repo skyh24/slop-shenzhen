@@ -109,6 +109,8 @@ def _clip_terrain(surface, masks, grades):
                     pieces, rest = [], tri
                     old_kind = max(kinds[v] for v in face)
                     for kind, mask in masks.items():
+                        if kind == old_kind:
+                            continue
                         piece = rest.intersection(mask)
                         if piece.area > 1e-10:
                             totals[kind] += piece.area
@@ -272,11 +274,9 @@ def compile_waterfront(payload, osm, pbf, report):
         return line.buffer(width/2, quad_segs=6)
     lake_paths = unary_union([strip(row['line'], row['widthM']) for row in lake_rows if not row['bridge']]).difference(lake_water)
     bank_paths = unary_union([strip(row['line'], row['widthM']) for rows in banks.values() for row in rows]).difference(river_water)
-    coastal_walk = unary_union([strip(LineString(p['points']), p['widthM']) for p in bay['paths'] if p['mode'] == 'walk'])
-    coastal_cycle = unary_union([strip(LineString(p['points']), p['widthM']) for p in bay['paths'] if p['mode'] == 'cycle'])
     road_mask, _ = ground_carriageway_mask(lake_paths, graph)
-    masks = {8: lake_paths.difference(road_mask).union(coastal_walk.difference(coastal_cycle)),
-             9: bank_paths.union(coastal_cycle.difference(coastal_walk))}
+    # 中湾既有步骑材质不参与重新分类；下沉高程仍沿同一条岸路调整。
+    masks = {4: lake_paths.difference(road_mask), 9: bank_paths}
     for shape in masks.values():
         prepare(shape)
     grades = [(bay_influence, bay_grade), *((bank_influence[k], bank_grade(k, v)) for k, v in bank_lines.items())]

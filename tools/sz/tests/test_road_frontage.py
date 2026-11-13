@@ -7,7 +7,7 @@ from pathlib import Path
 from shapely import LineString, Point, Polygon, box, unary_union
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from road_frontage import _buffer, _hongshulin_walk_surfaces
+from road_frontage import _buffer, _junction_walk_surfaces
 
 
 class HongshulinWalkSurfaceTest(unittest.TestCase):
@@ -18,8 +18,8 @@ class HongshulinWalkSurfaceTest(unittest.TestCase):
         ]
         crossings = [('way/3', _buffer(LineString([(0, 0), (0, 12)]), 3))]
         buildings = box(5, 11, 6, 13)
-        result = list(_hongshulin_walk_surfaces(paving, crossings, box(-12, -2, 12, 14), buildings,
-                                              {'sidewalkRiseM': 0.12}))
+        result = list(_junction_walk_surfaces('sample', paving, crossings, box(-12, -2, 12, 14), buildings,
+                                              Polygon(), {'sidewalkRiseM': 0.12}))
         self.assertEqual([f['id'].split(':')[-1] for f in result], ['sidewalk', 'ramp', 'paving'])
         self.assertTrue(all(f['clipToRoadComplement'] for f in result))
         self.assertEqual(result[2]['sourceIds'], ['way/1', 'way/2', 'way/3'])

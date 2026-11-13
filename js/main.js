@@ -326,7 +326,8 @@ async function initApp() {
       const placed = iec ? iec.relocateLamp(candidate) : candidate;
       return placed && !landmarks.reservesApproach?.(placed.x, placed.z, 0.34) ? placed : null;
     },
-    reserveWalk: urbanPaving.reserves, reserveCrossing: roadFrontage.reserveWalk,
+    reserveWalk: (x, z, r) => urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || site.reserveBayWalk(x, z, r),
+    reserveCrossing: roadFrontage.reserveWalk,
     placementObstacles: [...buildings, ...trees.colliders],
     deckOccupied
   }));

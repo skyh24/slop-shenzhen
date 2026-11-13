@@ -294,7 +294,8 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const planting = [];
   const plantingSurfaces = [];
   const roadside = source.features.filter(feature => feature.clipToRoadComplement);
-  const treatment = roadside.length ? createRoadsideSurfaceTreatment(graph, terrain.grid, roadside) : null;
+  const paint = source.features.filter(feature => feature.kind === 'paint');
+  const treatment = roadside.length || paint.length ? createRoadsideSurfaceTreatment(graph, terrain.grid, roadside, paint) : null;
   for (const feature of source.features) {
     const corridor = medians.get(feature.id);
     const verifiedMedian = corridor && feature.kind === 'median'
@@ -308,7 +309,8 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     const mat = preset ? paving.get(preset) : feature.plantSites ? islandSoil : planted ? grass : style[feature.kind];
     if (!mat) throw new Error(`Unknown frontage surface: ${feature.kind}`);
     const useTreatment = feature.clipToRoadComplement ? treatment : null;
-    const layout = createRoadPolygonLayout(feature, terrain, useTreatment);
+    const layout = createRoadPolygonLayout(feature, terrain, useTreatment, null,
+      feature.kind === 'paint' ? treatment?.roadCells : null);
     const offset = feature.surfaceOffsetM ?? feature.riseM;
     for (const chunk of layout.chunks) {
       const positions = chunk.positions;

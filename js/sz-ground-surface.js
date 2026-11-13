@@ -1,5 +1,6 @@
 export const URBAN_STONE_KIND = 10;
 export const URBAN_LAWN_KIND = 11;
+export const PARK_GRAVEL_KIND = 12;
 
 const recordUnpack = typeof location !== 'undefined'
   && ['127.0.0.1', 'localhost'].includes(location.hostname)
@@ -23,7 +24,7 @@ export function unpackSurface(surface) {
       || source.kinds.length !== source.positions.length / 3 || source.origin.length !== 2
       || source.origin.some(value => !Number.isFinite(value)) || chunks.has(source.id)
       || source.positions.some(value => !Number.isFinite(value))
-      || source.kinds.some(kind => !Number.isInteger(kind) || kind < 0 || (kind > 9 && kind !== URBAN_STONE_KIND && kind !== URBAN_LAWN_KIND))
+      || source.kinds.some(kind => !Number.isInteger(kind) || kind < 0 || kind > PARK_GRAVEL_KIND)
       || source.indices.some(index => !Number.isInteger(index) || index < 0 || index >= source.kinds.length)) {
       throw new Error(`Invalid terrain surface chunk: ${source.id}`);
     }

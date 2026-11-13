@@ -329,7 +329,7 @@ function subtractFootprint(polygon, footprint, result) {
   result.push(...(hasArea(inside) ? pieces : [polygon]));
 }
 
-function appendTriangles(vertices, polygon, [originX, originZ], plane, treatment) {
+function appendTriangles(vertices, polygon, [originX, originZ], plane, treatment, minTwiceArea = EPSILON) {
   const local = polygon.map(p => {
     const x = Math.fround(p.x - originX);
     const z = Math.fround(p.z - originZ);
@@ -343,7 +343,7 @@ function appendTriangles(vertices, polygon, [originX, originZ], plane, treatment
     const b = local[i];
     const c = local[i + 1];
     const twiceArea = -turn(a, b, c);
-    if (twiceArea <= EPSILON) continue;
+    if (twiceArea <= minTwiceArea) continue;
     vertices.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
     area += twiceArea / 2;
   }
@@ -367,7 +367,7 @@ function appendTriangles(vertices, polygon, [originX, originZ], plane, treatment
   return area;
 }
 
-function appendRoadTriangle(vertices, sources, triangle, footprints, origin, union, treatment, exclusions) {
+function appendRoadTriangle(vertices, sources, triangle, footprints, origin, union, treatment, exclusions, roadMask) {
   const [a, b, c] = triangle;
   const determinant = turn(a, b, c);
   if (determinant >= -EPSILON) return 0;
@@ -384,6 +384,26 @@ function appendRoadTriangle(vertices, sources, triangle, footprints, origin, uni
     const polygon = intersectFootprint(triangle, footprint);
     if (!hasArea(polygon)) continue;
     for (const source of footprint.sources) sources.set(source.linkIndex, source);
+    if (roadMask) {
+      const roadPieces = [];
+      for (const road of roadMask) {
+        if (!overlaps(footprint.bounds, road.bounds)) continue;
+        const clipped = intersectFootprint(polygon, road);
+        if (!hasArea(clipped)) continue;
+        let remaining = [clipped];
+        for (const prior of roadPieces) {
+          if (!overlaps(road.bounds, prior.bounds)) continue;
+          const remainder = [];
+          for (const piece of remaining) subtractFootprint(piece, prior, remainder);
+          remaining = remainder;
+          if (!remaining.length) break;
+        }
+        // 舍弃浮点裁切在路边产生的亚厘米标线碎屑。
+        for (const piece of remaining) area += appendTriangles(vertices, piece, origin, plane, null, 0.0002);
+        roadPieces.push(road);
+      }
+      continue;
+    }
     if (!union && !treatment && !exclusions?.length) {
       area += appendTriangles(vertices, polygon, origin, plane);
       continue;
@@ -404,7 +424,7 @@ function appendRoadTriangle(vertices, sources, triangle, footprints, origin, uni
   return area;
 }
 
-function clippedSurface(cells, terrainSurface, id, statistics, union = true, treatment = null, exclusions) {
+function clippedSurface(cells, terrainSurface, id, statistics, union = true, treatment = null, exclusions, roadMask) {
   const chunks = [];
 
   for (const chunk of terrainSurface.chunks) {
@@ -419,7 +439,8 @@ function clippedSurface(cells, terrainSurface, id, statistics, union = true, tre
     const sources = new Map();
     for (let i = 0; i < cellRanges.length; i += 3) {
       const footprints = cells[cellRanges[i]];
-      if (!footprints) continue;
+      const allowedRoad = roadMask?.[cellRanges[i]];
+      if (!footprints || (roadMask && !allowedRoad)) continue;
       positions ??= new Float32Array(chunk.positions);
       const start = cellRanges[i + 1];
       const end = start + cellRanges[i + 2];
@@ -433,7 +454,8 @@ function clippedSurface(cells, terrainSurface, id, statistics, union = true, tre
           const offset = indices[index + j] * 3;
           triangle.push({ x: positions[offset] + originX, y: positions[offset + 1], z: positions[offset + 2] + originZ });
         }
-        statistics.areaM2 += appendRoadTriangle(vertices, sources, triangle, footprints, chunk.origin, union, cellTreatment, exclusions?.[cellRanges[i]]);
+        statistics.areaM2 += appendRoadTriangle(vertices, sources, triangle, footprints, chunk.origin, union,
+          cellTreatment, exclusions?.[cellRanges[i]], allowedRoad);
       }
       if (vertices.length > firstVertex) roadRanges.push(cellRanges[i], firstVertex, vertices.length);
     }
@@ -499,10 +521,10 @@ function addFeatureFootprints(feature, index) {
   }
 }
 
-export function createRoadsideSurfaceTreatment(graph, grid, features) {
+export function createRoadsideSurfaceTreatment(graph, grid, features, paint = []) {
   const walk = footprintIndex(grid);
   const road = footprintIndex(grid);
-  const points = features.flatMap(({ trianglesXZ }) => Array.from({ length: trianglesXZ.length / 2 }, (_, i) =>
+  const points = [...features, ...paint].flatMap(({ trianglesXZ }) => Array.from({ length: trianglesXZ.length / 2 }, (_, i) =>
     ({ x: trianglesXZ[i * 2], z: trianglesXZ[i * 2 + 1] })));
   const bounds = boundsOf(points);
   for (const feature of features) addFeatureFootprints(feature, walk);
@@ -528,7 +550,7 @@ export function createRoadsideSurfaceTreatment(graph, grid, features) {
   return { roadCells: road.cells, hasWalkSurface };
 }
 
-export function createRoadPolygonLayout(feature, terrainSurface, treatment, exclusionChunks) {
+export function createRoadPolygonLayout(feature, terrainSurface, treatment, exclusionChunks, roadMask) {
   if (terrainSurface?.version !== 1 || !terrainSurface.grid) {
     throw new Error('Attributed road polygons and rendered terrain surface are required');
   }
@@ -546,7 +568,7 @@ export function createRoadPolygonLayout(feature, terrainSurface, treatment, excl
     }
   }
   const statistics = { triangles: 0, areaM2: 0 };
-  return { chunks: clippedSurface(index.cells, terrainSurface, feature.id, statistics, false, treatment, exclusions.cells), statistics };
+  return { chunks: clippedSurface(index.cells, terrainSurface, feature.id, statistics, false, treatment, exclusions.cells, roadMask), statistics };
 }
 
 function sampleRoadCell({ positions, origin }, start, end, worldX, worldZ) {

@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { attribute, color, distance, floor, vec2, fract, fwidth, max, min, mix, positionWorld, smoothstep, vec3 } from 'three/tsl';
-import { copyGroundChunksForRender, createGroundSurfaceSampler, URBAN_STONE_KIND, URBAN_LAWN_KIND } from './sz-ground-surface.js';
+import { copyGroundChunksForRender, createGroundSurfaceSampler, URBAN_STONE_KIND, URBAN_LAWN_KIND, PARK_GRAVEL_KIND } from './sz-ground-surface.js';
 
 // 静态地表按 2.4 km 超块合并（与 sz-roads.js 同款逻辑）：页面只需给每个分块一份带位置/法线/颜色/索引的
 // BufferGeometry 和世界原点，合并时把原点烘焙进顶点位置。三角形不变，只牺牲更粗的视锥剔除。
@@ -74,7 +74,7 @@ function groundMaterial(frontageLight) {
   const noise = fract(floor(grainUV).dot(vec2(0.754877, 0.56984)).mul(28.718));
   const grainFade = smoothstep(0.3, 1.4, max(fwidth(grainUV.x), fwidth(grainUV.y))).oneMinus();
   const asphalt = noise.sub(0.5).mul(0.18).mul(grainFade).mul(attribute('asphalt', 'float')).add(1);
-    const variation = fract(floor(grid.x).mul(0.618).add(floor(grid.y).mul(0.414))).sub(0.5);
+  const variation = fract(floor(grid.x).mul(0.618).add(floor(grid.y).mul(0.414))).sub(0.5);
   const tileTone = variation.mul(0.095).mul(stone).mul(smoothstep(0.1, 0.45, pixel).oneMinus());
   material.colorNode = vec3(joint.mul(-0.20).mul(min(1, paving)).add(1).add(tileTone).mul(asphalt));
   if (frontageLight) {
@@ -90,6 +90,7 @@ export function buildSzGround(scene, surface, options = {}) {
   const palette = COLORS.map(value => new THREE.Color(value));
   palette[URBAN_STONE_KIND] = new THREE.Color(0xc0c0b9);
   palette[URBAN_LAWN_KIND] = new THREE.Color(0x748e50);
+  palette[PARK_GRAVEL_KIND] = new THREE.Color(0xa99b86);
   const material = options.material ?? groundMaterial(options.frontageLight);
   const group = new THREE.Group();
   group.name = 'shenzhen-ground';
@@ -109,7 +110,7 @@ export function buildSzGround(scene, surface, options = {}) {
         for (let channel = 0; channel < 3; channel++) colors[i * 3 + channel] *= tint;
       }
       paved[i] = kind === URBAN_STONE_KIND ? 2 : Number(kind === 3 || kind === 4 || kind === 7);
-      asphalt[i] = Number(kind === 8 || kind === 9);
+      asphalt[i] = kind === PARK_GRAVEL_KIND ? 1.35 : Number(kind === 5 || kind === 8 || kind === 9);
     });
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(chunk.positions, 3));

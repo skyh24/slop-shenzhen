@@ -298,11 +298,10 @@ def _pedestrian_features(spec, osm_ways, way_tags, clip, asphalt, buildings, sty
     return paving, crossings, raised, flush, unary_union(zebra), cross_shape, unresolved, crossing_axes
 
 
-def _hongshulin_walk_surfaces(paving, crossings, clip, buildings, style):
-    # 过街源线经过的安全岛、中央带与接近段使用推定铺装；运行时由共享车行面精确挖除沥青。
-    # 收圆端点只用来接合已核步道，不将其解释为现状铺装边缘或无障碍坡道。
+def _junction_walk_surfaces(identity, paving, crossings, clip, buildings, waiting, style):
+    # 安全岛、中央带和接近段共用地形；坡道的降高从同一过街范围派生。
     cross_shape = unary_union([poly.buffer(0.25) for _, poly in crossings])
-    walk_shape = unary_union([poly for _, poly in paving]).union(cross_shape).intersection(clip).difference(buildings)
+    walk_shape = unary_union([poly for _, poly in paving] + [cross_shape, waiting]).intersection(clip).difference(buildings)
     flush_limit = cross_shape.buffer(1.25)
     raised_limit = cross_shape.buffer(3.25)
     rise = style['sidewalkRiseM']
@@ -330,38 +329,73 @@ def _hongshulin_walk_surfaces(paving, crossings, clip, buildings, style):
                     value = rise * min(1, max(0, (cross_shape.distance(point) - 1.25) / 2))
                 offsets.append(round(value, 6))
             feature['vertexRisesM'] = offsets
-        yield {'id': f'shennan-hongshulin:{suffix}', 'surfaceTreatment': 'crossing-approach-design-estimate',
+        yield {'id': f'{identity}:{suffix}', 'surfaceTreatment': 'crossing-approach-design-estimate',
                'clipToRoadComplement': True, **feature}
 
 
 def _junction_design(spec, osm_ways, ground, asphalt, buildings, clip, control, style):
     design = spec['junctionDesign']
-    source_ids = spec['sidewalks'] + spec['crossings']
+    crossing_ids = set(design.get('walkCrossings', spec['crossings']))
+    source_ids = [*spec['sidewalks'], *sorted(crossing_ids)]
     axes = {identity: _way_line(osm_ways[identity]).intersection(clip) for identity in source_ids}
     if not all(not axis.is_empty for axis in axes.values()):
         raise ValueError(f"Reviewed walking axis leaves its corridor: {spec['id']}")
+    safe = asphalt.union(buildings)
+    sidewalks = [line for i in spec['sidewalks'] for line in _lines(axes[i])]
+
+    def clear_landing(end, neighbor):
+        point = Point(end)
+        if safe.distance(point) >= 0.5:
+            return end
+        # 断面估计可能盖过源共节点。只沿相接的人行道寻找最近的安全落脚点。
+        candidates = []
+        for sidewalk in sidewalks:
+            if sidewalk.distance(point) > 0.002:
+                continue
+            station = sidewalk.project(point)
+            for sign in (-1, 1):
+                for step in range(1, 9):
+                    s = station + sign * step * 0.35
+                    if not 0 <= s <= sidewalk.length:
+                        break
+                    q = sidewalk.interpolate(s)
+                    if safe.distance(q) >= 0.7 and not LineString([point, q]).intersects(buildings):
+                        candidates.append((point.distance(q), -q.distance(Point(neighbor)), tuple(q.coords[0])))
+                        break
+        return min(candidates)[2] if candidates else end
+
+    for identity in sorted(crossing_ids):
+        if axes[identity].geom_type != 'LineString':
+            continue
+        points = list(axes[identity].coords)
+        a, b = clear_landing(points[0], points[1]), clear_landing(points[-1], points[-2])
+        axes[identity] = LineString(
+            ([a] if a != points[0] else []) + points + ([b] if b != points[-1] else []))
     walk = unary_union([_buffer(axis, style['sidewalkWidthM']) for axis in axes.values()])
     # 共享源端点围合的空地才是候选岛。平面相交不会新建节点或围合种植区。
-    plots = []
-    slip = set(design['slipWays'])
+    plots, waiting = [], []
+    slip = set(design.get('slipWays', []))
+    cross_buffer = unary_union([axes[i].buffer(style['crossingWidthM'] / 2 + 1.65) for i in crossing_ids])
     for island in polygonize([row['line'] for row in ground]):
         if not clip.covers(island):
             continue
         edges = {row['meta']['osmId'] for row in ground if island.boundary.intersection(row['line']).length > 1}
-        if not edges & slip and not (len(edges) >= 3 and island.area < 450):
+        if not edges & slip and not (slip and len(edges) >= 3 and island.area < 450):
             continue
-        free = island.difference(asphalt.buffer(0.8).union(buildings).union(walk.buffer(1.8)))
+        dry = island.difference(asphalt.buffer(0.08).union(buildings))
+        waiting.append(dry.intersection(cross_buffer))
+        free = dry.difference(asphalt.buffer(0.8).union(walk.buffer(1.8)).union(cross_buffer.buffer(0.55)))
         for part in _polys(free.buffer(-0.75).buffer(0.75)):
             if part.area >= 8:
                 plots.append((edges, part))
 
     legs, zebras = [], []
-    coords = {point for identity, axis in axes.items() if identity in spec['crossings']
+    coords = {point for identity, axis in axes.items() if identity in crossing_ids
               for line in _lines(axis) for point in (line.coords[0], line.coords[-1])}
     for identity, axis in axes.items():
         for line in _lines(axis):
             spans = []
-            if identity in spec['crossings']:
+            if identity in crossing_ids:
                 crossing = line.intersection(asphalt)
                 for span in _lines(linemerge(crossing) if crossing.geom_type == 'MultiLineString' else crossing):
                     if span.length < 2.5:
@@ -377,7 +411,16 @@ def _junction_design(spec, osm_ways, ground, asphalt, buildings, clip, control, 
                     if control and identity in design['signalizedCrossings']:
                         match = max(control['approaches'], key=lambda a: abs(dx * a['dx'] + dz * a['dz']))
                         group = 1 - match['group']
-                    spans.append((max(0, start - 0.65), min(line.length, end + 0.65), group))
+                    # 候车点必须在车行面外，且能容纳行人。端部未接安全地面时只保留已知标线。
+                    approach, departure = max(0, start - 0.75), min(line.length, end + 0.75)
+                    # 斜向进出时沿线退距与横向净距不同，继续退到有净空的位置。
+                    for _ in range(6):
+                        if safe.distance(line.interpolate(approach)) < 0.50:
+                            approach = max(0, approach - 0.35)
+                        if safe.distance(line.interpolate(departure)) < 0.50:
+                            departure = min(line.length, departure + 0.35)
+                    if min(safe.distance(line.interpolate(s)) for s in (approach, departure)) >= 0.50:
+                        spans.append((approach, departure, group))
                     local_pavement = asphalt.intersection(_buffer(span, 4.6).buffer(0.4))
                     # 条纹长轴跟随车流，间距沿实际步行轴排列。
                     bars = max(2, math.floor(span.length / 0.82))
@@ -400,7 +443,7 @@ def _junction_design(spec, osm_ways, ground, asphalt, buildings, clip, control, 
                 points = [[round(x, 3), round(z, 3)] for x, z in part.coords]
                 legs.append({'osmId': identity, 'points': points, 'crossing': span is not None,
                              **({'signalGroup': span[2]} if span and span[2] is not None else {})})
-    return legs, unary_union(zebras), plots
+    return legs, unary_union(zebras), plots, unary_union(waiting)
 
 
 def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, report):
@@ -427,16 +470,22 @@ def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, repo
         crossings_ids = [identity for identity, _ in crossings]
         preserve = cross_shape.buffer(0.6)
         junction_design = spec.get('junctionDesign')
-        plots = []
+        plots, waiting = [], Polygon()
         if junction_design:
-            ground_links = [link for link in links if _ground(link['meta']) and link['line'].intersects(clip)]
+            local_ground = [link for link in links if _ground(link['meta']) and link['line'].intersects(clip)]
+            if junction_design.get('slipWays'):
+                ground_links = local_ground
             control = next((row for row in intersections if row['id'] == spec['id']), None)
-            walk_legs, zebra, plots = _junction_design(spec, osm_ways, ground_links, asphalt, building_mask, clip, control, style)
-            if not set(spec['crossings']) <= {leg['osmId'] for leg in walk_legs if leg['crossing']}:
-                raise ValueError(f"A reviewed crossing no longer spans ground pavement: {spec['id']}")
+            walk_legs, junction_zebra, plots, waiting = _junction_design(
+                spec, osm_ways, local_ground, asphalt, building_mask, clip, control, style)
+            selected_crossings = set(junction_design.get('walkCrossings', spec['crossings']))
+            missing_crossings = selected_crossings - {leg['osmId'] for leg in walk_legs if leg['crossing']}
+            selected_area = unary_union([p.buffer(1.5) for identity, p in crossings if identity in selected_crossings])
+            zebra = junction_zebra.union(zebra.difference(selected_area))
             preserve = unary_union([preserve, zebra.buffer(0.55), *(mask for mask in junction_masks if mask.intersects(clip)),
                                     *[bar.buffer(0.8) for bar in stop_bars if bar.intersects(clip)]])
-        marks, road_ids = _lane_paint(ground_links, clip, preserve, style['markingWidthM'], bool(junction_design))
+        marks, road_ids = _lane_paint(ground_links, clip, preserve, style['markingWidthM'],
+                                     bool(junction_design and junction_design.get('slipWays')))
         corridor = {'id': spec['id'], 'bounds': list(clip.bounds), 'roadIds': sorted(set(road_ids)),
                     'unresolvedVerticalWays': sorted({link['meta']['osmId'] for link in local_links if not _ground(link['meta'])}),
                     'sidewalkIds': pavement_ids, 'crossingIds': crossings_ids}
@@ -444,6 +493,8 @@ def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, repo
             corridor['crossingAxes'] = crossing_axes
         if junction_design:
             corridor['walkLegs'] = walk_legs
+            corridor['unresolvedCrossingLandings'] = sorted(missing_crossings)
+            corridor['waitingAreaM2'] = round(waiting.area, 2)
             corridor['plantingSource'] = 'estimated-from-same-level-road-enclosures'
             for i, (edge_ids, plot) in enumerate(plots):
                 for kind, area, rise in [('median', plot, 0.16), ('flower-band', plot.buffer(-0.33), 0)]:
@@ -465,6 +516,8 @@ def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, repo
             # 只补草地的走廊也按源车道取边界，无需加入标线重绘范围。
             median_links = ground_links if spec['roadNames'] else [link for link in links if _ground(link['meta'])]
             island = _median(median, median_clip, osm_ways, asphalt.union(building_mask), median_links)
+            if junction_design and not cross_shape.is_empty:
+                island = island.difference(cross_shape.buffer(2))
             # 去掉路缘处由窄缝形成的零碎孤岛。
             if median.get('planting') == 'open-lawn':
                 island = unary_union([part for part in _polys(island) if part.area >= 40])
@@ -484,8 +537,8 @@ def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, repo
                 features.append({'id': f"{spec['id']}:flower-band", 'surfaceOffsetM': style['medianRiseM'], **flower})
                 corridor['medianSource'].update({'boundarySource': 'imagery-reviewed-road-edge-estimate',
                                                  'imageryReview': review, 'flowerBandAreaM2': round(band.area, 2)})
-        if spec['id'] == 'shennan-hongshulin':
-            features.extend(_hongshulin_walk_surfaces(paving, crossings, clip, building_mask, style))
+        if junction_design:
+            features.extend(_junction_walk_surfaces(spec['id'], paving, crossings, clip, building_mask, waiting, style))
             polygons = [row for row in polygons if row[0] not in ('sidewalk', 'paving')]
         for kind, ids, polygon, rise in polygons:
             feature = _encode_surface(kind, ids, polygon, rise)

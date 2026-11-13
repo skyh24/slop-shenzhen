@@ -73,6 +73,16 @@ def _paths(manifest, osm, pbf):
     return paths
 
 
+def bay_paving_masks(paths):
+    """保持原始步行、骑行材质及两者交汇处的优先级。"""
+    strips = {kind: unary_union([LineString(path['points']).buffer(path['widthM'] / 2, quad_segs=8)
+                                 for path in paths if path['material'] == kind])
+              for kind in ('walk', 'cycle', 'cycle-stone')}
+    crossing = strips['walk'].intersection(strips['cycle'].union(strips['cycle-stone']))
+    return {'crossing': crossing, 'walk': strips['walk'].difference(crossing),
+            'cycle': strips['cycle'].difference(crossing), 'cycle-stone': strips['cycle-stone'].difference(crossing)}
+
+
 def _terrain_boundary(surface, extent):
     faces = []
     size = surface['chunkSize']
@@ -264,16 +274,10 @@ def build_shenzhen_bay(payload, osm, pbf, report):
     if arrival_gap > 8 or any(LineString(path['points']).difference(park_area.buffer(8)).length > 0.01
                              for path in paths[1:]):
         raise ValueError('Waterfront path leaves the reviewed park or station approach')
-    strips = {kind: unary_union([LineString(path['points']).buffer(path['widthM'] / 2, quad_segs=8)
-                                 for path in paths if path['material'] == kind])
-              for kind in ('walk', 'cycle', 'cycle-stone')}
-    pavement = unary_union(list(strips.values()))
+    masks = bay_paving_masks(paths)
+    pavement = unary_union(list(masks.values()))
     road_mask, roads = ground_carriageway_mask(pavement, payload['roadGraph'])
-    crossing = strips['walk'].intersection(strips['cycle'].union(strips['cycle-stone']))
-    masks = {mode: strip.difference(road_mask) for mode, strip in
-             (('crossing', crossing), ('walk', strips['walk'].difference(crossing)),
-              ('cycle', strips['cycle'].difference(crossing)),
-              ('cycle-stone', strips['cycle-stone'].difference(crossing)))}
+    masks = {mode: strip.difference(road_mask) for mode, strip in masks.items()}
     for mask in masks.values():
         prepare(mask)
 
