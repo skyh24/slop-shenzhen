@@ -22,6 +22,7 @@ test('the production pack fits all three parks and preserves ground access', asy
   const { createGroundSurfaceSampler } = await import('../js/sz-ground-surface.js');
   const { distanceToRing, polygonContainsInclusive, ringArea } = await import('../js/sz-polygon.js');
   const { buildThemeParks } = await import('../js/sz-theme-parks/index.js');
+  const { sampleFootprint } = await import('../js/sz-theme-parks/parts.js');
   const raw = JSON.parse(gunzipSync(readFileSync(resolve(__dirname, '../js/sz-city.json.gz'))));
   const { geo, buildings } = decodeCityPayload(raw);
   const scene = new Scene();
@@ -54,11 +55,18 @@ test('the production pack fits all three parks and preserves ground access', asy
   assert.equal(summary.flowerBeds.length, 5);
   assert.ok(summary.flowerBeds.includes('expo-flower-apec'));
   assert.ok(summary.flowerBeds.every(id => parks.group.getObjectByName(`${id}:blooms`)?.count > 100));
-  const bedArea = id => ringArea(parks.colliders.find(c => c.sourceId === id).polygon.outer);
-  assert.ok(summary.flowerBeds.filter(id => id.startsWith('expo-')).reduce((sum, id) => sum + bedArea(id), 0) > 4200);
-  assert.ok(bedArea('china-flower-peony') > 800);
-  assert.ok(parks.reserved(-6985, 1434, 1) && parks.reserved(-5904, 1140, 1));
+  const bedFootprint = id => parks.colliders.find(c => c.sourceId === id).polygon;
+  const expoBeds = summary.flowerBeds.filter(id => id.startsWith('expo-')).map(bedFootprint);
+  assert.ok(expoBeds.reduce((sum, bed) => sum + ringArea(bed.outer), 0) > 4200);
+  for (const [i, bed] of expoBeds.entries()) {
+    assert.ok(expoBeds.slice(0, i).every(other => sampleFootprint(bed.outer, (x, z) =>
+      !polygonContainsInclusive(other, x, z) && distanceToRing(other.outer, x, z) >= 30)),
+    'keep at least 30 metres between the Expo flower beds');
+  }
+  assert.ok(ringArea(bedFootprint('china-flower-peony').outer) > 800);
+  assert.ok(parks.reserved(-6985, 1434, 1) && parks.reserved(-5895, 1190, 1));
   assert.ok(!parks.reserved(-5944, 1120, 1), 'keep the source service path clear between flower beds');
+  assert.ok(!parks.reserved(-5899.7, 1168.1, 4), 'keep the south pedestrian path clear of the APEC bed');
   const barrier = createCarriagewayBarrier(geo.roadGraph);
   for (const [i, key] of ['world', 'china', 'valley'].entries()) {
     const walls = parks.colliders.filter(c => c.sourceId === `theme-${key}-perimeter`);

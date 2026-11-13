@@ -3,18 +3,26 @@ import { distanceToRing, polygonContainsInclusive } from '../sz-polygon.js';
 import { disk, parkParts, rectangle, sampleFootprint } from './parts.js';
 
 export const FLOWER_EXPO_ID = 'osm:way/207170378';
-// OSM way/450262071 穿过南区花圃之间，沿原通道预留空间。
-const EXPO_SERVICE_PATH = [
-  [-5924.7, 1171.7], [-5934.5, 1151.2], [-5943.6, 1129.8], [-5945.3, 1118.3], [-5944.4, 1106.8],
-  [-5940.5, 1094.4], [-5932.4, 1080.2], [-5921, 1064.2], [-5912.8, 1049.2], [-5905.4, 1033.6], [-5899.7, 1014.7]
+// 保留南区花圃附近的 OSM 服务通道及南侧步行线。
+const EXPO_PATHS = [
+  // way/450262071
+  [[-5924.7, 1171.7], [-5934.5, 1151.2], [-5943.6, 1129.8], [-5945.3, 1118.3], [-5944.4, 1106.8],
+    [-5940.5, 1094.4], [-5932.4, 1080.2], [-5921, 1064.2], [-5912.8, 1049.2], [-5905.4, 1033.6], [-5899.7, 1014.7]],
+  // way/450262060 与 way/1275488523
+  [[-5985.5, 1177.3], [-5976.1, 1177.1], [-5967.4, 1176.5], [-5937, 1173.5], [-5924.7, 1171.7],
+    [-5899.7, 1168.1], [-5863.3, 1161], [-5831.8, 1150.7]],
+  // way/1241802793
+  [[-6042.7, 1234.3], [-5991.9, 1227.7], [-5939.7, 1221], [-5788, 1196]]
 ];
 
-function nearExpoServicePath(x, z) {
-  for (let i = 1; i < EXPO_SERVICE_PATH.length; i++) {
-    const [ax, az] = EXPO_SERVICE_PATH[i - 1], [bx, bz] = EXPO_SERVICE_PATH[i];
-    const dx = bx - ax, dz = bz - az;
-    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
-    if (Math.hypot(x - ax - t * dx, z - az - t * dz) < 4) return true;
+function nearExpoPath(x, z) {
+  for (const path of EXPO_PATHS) {
+    for (let i = 1; i < path.length; i++) {
+      const [ax, az] = path[i - 1], [bx, bz] = path[i];
+      const dx = bx - ax, dz = bz - az;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+      if ((x - ax - t * dx) ** 2 + (z - az - t * dz) ** 2 < 4 ** 2) return true;
+    }
   }
   return false;
 }
@@ -121,7 +129,7 @@ function ribbon(ground) {
 }
 
 function apecBed(ground) {
-  const x = -5904, z = 1140;
+  const x = -5895, z = 1190;
   const widthScale = 1.39, depthScale = 1.48;
   const outline = (u, v, w, d) => rectangle(x + u * widthScale, z + v * depthScale, w * widthScale, d * depthScale);
   const p = planter('expo-flower-apec', ground);
@@ -155,10 +163,10 @@ export function planExpoFlowerBeds({ mapRegions, groundHeight, isWater }, buildi
   const boundary = mapRegions?.regions.find(r => r.id === FLOWER_EXPO_ID)?.polygons[0];
   if (!boundary) return { beds: [], rejected: [] };
   const beds = [], rejected = [];
-  for (const p of [rosette('expo-flower-rosette', groundHeight, -5962, 1085, 1.56), terraces(groundHeight),
+  for (const p of [rosette('expo-flower-rosette', groundHeight, -6030, 1090, 1.56), terraces(groundHeight),
     ribbon(groundHeight), apecBed(groundHeight)]) {
     const fits = p.parts.every(part => sampleFootprint(part.polygon.outer, (x, z) =>
-      polygonContainsInclusive(boundary, x, z) && !barrier.contains(x, z, 2) && !isWater(x, z) && !nearExpoServicePath(x, z)
+      polygonContainsInclusive(boundary, x, z) && !barrier.contains(x, z, 2) && !isWater(x, z) && !nearExpoPath(x, z)
         && !buildings.some(b => x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ
           && polygonContainsInclusive(b.polygon, x, z)), 1.25));
     if (fits) beds.push(p);
