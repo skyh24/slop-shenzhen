@@ -110,6 +110,19 @@ function toVec2(ring, wantPositive) {
   return pts;
 }
 
+// 屋面裁切使用与直接绘制相同的凹多边形和带孔三角化。
+export function triangulateFootprint({ outer, holes = [] }) {
+  const flat = ring => ring.flatMap(p => [p.x, p.z]);
+  const boundary = toVec2(flat(outer), true);
+  const inner = holes.map(ring => toVec2(flat(ring), false));
+  const faces = THREE.ShapeUtils.triangulateShape(boundary, inner);
+  const points = boundary.concat(...inner).map(({ x, y }) => ({ x, z: y }));
+  return faces.map(face => {
+    const [a, b, c] = face.map(index => points[index]);
+    return (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x) > 0 ? [a, b, c] : [a, c, b];
+  });
+}
+
 // 水平面保留内院；架空实体底盖朝下，不能靠双面材质掩盖缺失的实体边界。
 export function addFlatPolygon(b, rings, y, meta, uvScale = 1, facing = 1) {
   if (facing !== 1 && facing !== -1) throw new Error(`Invalid polygon facing: ${facing}`);
@@ -130,10 +143,11 @@ export function addFlatPolygon(b, rings, y, meta, uvScale = 1, facing = 1) {
 
 // 外墙：u 是每面墙自己的累计长度（米，从墙角 0 起，便于按墙拟合整数开间），v 是离地高度（米）。
 // meta 为 [立面编号, 种子, 0, 楼高]；顶点级 meta.z 改写为该面墙的长度，meta.w 保持楼高。
-export function addWalls(b, rings, y0, y1, meta, uvOriginY = 0, replaceEdge = null) {
-  const v1 = y1 - uvOriginY;
+export function addWalls(b, rings, y0, y1, meta, uvOriginY = 0, replaceEdge = null, clipEdge = null) {
   // 每面墙复用同一份 meta 数组，GeoBuilder 会立刻拷贝数值，不能跨顶点保留引用。
   const wallMeta = meta ? meta.slice() : null;
+  const fullWall = { u0: 0, u1: 0, y0, y1 };
+  const fullSpan = [fullWall];
   rings.forEach((ring, ri) => {
     const n = ring.length / 2;
     if (n < 3) return;
@@ -148,17 +162,25 @@ export function addWalls(b, rings, y0, y1, meta, uvOriginY = 0, replaceEdge = nu
       const len = Math.hypot(dx, dz);
       if (len < 0.05) continue;
       const nx = dz / len, nz = -dx / len;
-      const wallBottom = ri === 0 && replaceEdge
+      const slices = clipEdge?.(ax, az, bx, bz, nx, nz, len, y0, y1);
+      const wallBottom = !slices && ri === 0 && replaceEdge
         ? replaceEdge(ax, az, bx, bz, nx, nz, len) ?? y0 : y0;
       if (wallBottom >= y1) continue;
-      const v0 = wallBottom - uvOriginY;
       if (wallMeta) wallMeta[2] = len;
-      const a0 = b.vertex(ax, wallBottom, az, nx, 0, nz, 0, v0, wallMeta);
-      const b0 = b.vertex(bx, wallBottom, bz, nx, 0, nz, len, v0, wallMeta);
-      const b1 = b.vertex(bx, y1, bz, nx, 0, nz, len, v1, wallMeta);
-      const a1 = b.vertex(ax, y1, az, nx, 0, nz, 0, v1, wallMeta);
-      b.tri(a0, b1, b0);
-      b.tri(a0, a1, b1);
+      fullWall.u1 = len;
+      fullWall.y0 = wallBottom;
+      for (const span of slices ?? fullSpan) {
+        const { u0, u1 } = span;
+        const x0 = u0 === 0 ? ax : ax + dx * (u0 / len), z0 = u0 === 0 ? az : az + dz * (u0 / len);
+        const x1 = u1 === len ? bx : ax + dx * (u1 / len), z1 = u1 === len ? bz : az + dz * (u1 / len);
+        const v0 = span.y0 - uvOriginY, v1 = span.y1 - uvOriginY;
+        const a0 = b.vertex(x0, span.y0, z0, nx, 0, nz, u0, v0, wallMeta);
+        const b0 = b.vertex(x1, span.y0, z1, nx, 0, nz, u1, v0, wallMeta);
+        const b1 = b.vertex(x1, span.y1, z1, nx, 0, nz, u1, v1, wallMeta);
+        const a1 = b.vertex(x0, span.y1, z0, nx, 0, nz, u0, v1, wallMeta);
+        b.tri(a0, b1, b0);
+        b.tri(a0, a1, b1);
+      }
     }
   });
 }

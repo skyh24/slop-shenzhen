@@ -73,6 +73,8 @@ function makeScene() {
 function loadCityBlocks(THREE) {
   const geometry = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } });
   return loadModule(read('sz-buildings.js'), { imports: {
+    './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+    './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
     './sz-geodata.js': {},

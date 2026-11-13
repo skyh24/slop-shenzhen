@@ -253,7 +253,7 @@ async function initApp() {
   // 近景补足屋顶和立面细节，避开基础屋顶已绘制的构件。
   const buildingDetails = qa.stage('details', () =>
     buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds, roofPlans: cityBlocks.roofPlans,
-      retailBuildingIds: cityBlocks.retailBuildingIds }));
+      retailBuildingIds: cityBlocks.retailBuildingIds, envelopePlans: cityBlocks.envelopePlans }));
   markInit('blocks');
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders];
   site.colliders = buildings;

@@ -3,6 +3,8 @@ import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
 import { GeoBuilder, addWalls, addFlatPolygon, readTriangles } from './sz-geometry.js';
 import { createBuildingMaterial } from './sz-materials.js';
 import { facadeIndex } from './sz-facade-profiles.js';
+import { createBuildingEnvelopes } from './sz-building-envelope.js';
+import { polygonBoxOverlaps } from './building-collision.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
 import { ringArea, ringContains, polygonContains, orientedBoxRing } from './sz-polygon.js';
 import { createRetailFrontage } from './sz-retail-frontage.js';
@@ -398,10 +400,10 @@ export function buildCityBlocks(scene, options = {}) {
   const candidates = collectPodiumCandidates(buildings);
   const occupancy = candidates.length ? buildPodiumOccupancy(buildings, terrain, roadGraph, entrances, candidates) : [];
   const candidateByBuilding = new Map(candidates.map((candidate, index) => [candidate.buildingIndex, index]));
-  const entranceHost = options.retail && buildings.find(b => b.id === options.retail.entrance?.buildingId);
+  const envelopes = createBuildingEnvelopes(buildings.filter(building => !skipIds.has(building.id)),
+    building => buildingPlacement(building, terrain), options.envelopeGroups);
   const frontage = options.retail && buildings.some(building => building.retailFloors)
-    ? createRetailFrontage(buildings, { ...options.retail,
-      entranceTopY: entranceHost && buildingPlacement(entranceHost, terrain).maxY }) : null;
+    ? createRetailFrontage(buildings, options.retail) : null;
   const group = new THREE.Group();
   group.name = 'ShenzhenCityBlocks';
   const batches = new Map();
@@ -442,18 +444,30 @@ export function buildCityBlocks(scene, options = {}) {
       : podiumPlan(candidates[candidateIndex], occupancy[candidateIndex], placement, roadClearance);
     const retailEdge = frontage && building.retailFloors && building.minHeight === 0 && !building.landmark
       ? (bounds, ...edge) => frontage.edge(building, bounds, ...edge) : null;
-    const replaceEdge = frontage && ((retailEdge && !podium) || frontage.isSharedPart(building))
-      ? (...edge) => frontage.sharedWallBottom(building, placement, ...edge) ?? retailEdge?.(placement, ...edge)
-      : null;
+    const replaceEdge = retailEdge && !podium ? (...edge) => retailEdge(placement, ...edge) : null;
+    const addCap = (polygon, rings, y, facing, index) => {
+      const pieces = envelopes.get(polygon)?.cap(y, facing);
+      const firstIndex = batch.idx.length;
+      if (pieces) {
+        for (const piece of pieces) addFlatPolygon(batch, [flatRing(piece)], y, meta, 1, facing);
+      } else {
+        addFlatPolygon(batch, rings, y, meta, 1, facing);
+      }
+      if (facing === 1 && batch.idx.length > firstIndex) {
+        surfaces.push({ id: `${building.id}:roof:${index}`, heightSource: building.heightSource,
+          triangles: readTriangles(batch, firstIndex) });
+      }
+    };
     for (const [index, polygon] of building.polygons.entries()) {
       const rings = [polygon.outer, ...polygon.holes].map(flatRing);
       if (placement.foundationBottomY !== null) {
         addWalls(foundations, rings, placement.foundationBottomY, placement.baseY);
       }
-      addWalls(batch, rings, placement.minY, placement.maxY, meta, placement.baseY, replaceEdge);
-      addRoof(rings, placement.maxY, `${building.id}:roof:${index}`, building.heightSource);
-      if (building.minHeight > 0) addFlatPolygon(batch, rings, placement.minY, meta, 1, -1);
+      addWalls(batch, rings, placement.minY, placement.maxY, meta, placement.baseY, replaceEdge, envelopes.get(polygon)?.wall);
+      addCap(polygon, rings, placement.maxY, 1, index);
+      if (building.minHeight > 0) addCap(polygon, rings, placement.minY, -1, index);
     }
+    // 原多棱柱的并集即组合体量。保留各源碰撞体的足迹和竖向范围，屋顶支撑取裁切后的显示三角面。
     colliders.push(...placement.colliders);
     if (podium) {
       const rings = [podium.outer, ...podium.holes].map(flatRing);
@@ -473,20 +487,33 @@ export function buildCityBlocks(scene, options = {}) {
         baseY: placement.baseY, minY: placement.minY, maxY: top });
     }
     const roofPolygon = building.polygons[0];
+    const envelope = envelopes.get(roofPolygon);
     const roof = roofPlan(building, roofPolygon);
     if (roof.parapet > 0) {
-      // 同一条女儿墙边界给内外两面，俯视时仍能看到屋面内侧。
+      // 女儿墙仍在原外环，避开实际占用这个高度的塔楼。
       const boundary = flatRing(roofPolygon.outer);
-      addWalls(batch, [boundary, boundary], placement.maxY, placement.maxY + roof.parapet, meta, placement.baseY);
+      const top = Math.fround(placement.maxY + roof.parapet);
+      const clip = envelope ? (...args) => envelope.wall(...args, true) : null;
+      addWalls(batch, [boundary, boundary], placement.maxY, top, meta, placement.baseY, null, clip);
       for (let i = 0; i < roofPolygon.outer.length; i++) {
-        const outer = [roofPolygon.outer[i], roofPolygon.outer[(i + 1) % roofPolygon.outer.length]];
-        colliders.push({ type: 'roof-parapet', name: `${building.id}:parapet:${i}`, sourceId: building.id,
-          polygon: { outer, holes: [] }, ...ringBounds(outer),
-          minY: placement.maxY, maxY: Math.fround(placement.maxY + roof.parapet), heightSource: 'estimate' });
+        const a = roofPolygon.outer[i], b = roofPolygon.outer[(i + 1) % roofPolygon.outer.length];
+        const dx = b.x - a.x, dz = b.z - a.z, length = Math.hypot(dx, dz);
+        if (length < 0.05) continue;
+        const spans = clip?.(a.x, a.z, b.x, b.z, dz / length, -dx / length, length, placement.maxY, top)
+          ?? [{ u0: 0, u1: length, y0: placement.maxY, y1: top }];
+        for (const [part, { u0, u1, y0, y1 }] of spans.entries()) {
+          const outer = [u0, u1].map(u => ({ x: Math.fround(a.x + dx * (u / length)), z: Math.fround(a.z + dz * (u / length)) }));
+          const id = part ? `${building.id}:parapet:${i}:${part}` : `${building.id}:parapet:${i}`;
+          colliders.push({ type: 'roof-parapet', name: id, sourceId: building.id,
+            polygon: { outer, holes: [] }, ...ringBounds(outer), minY: y0, maxY: y1, heightSource: 'estimate' });
+        }
       }
     }
     const equipmentFootprints = [];
+    const roofCovers = envelope?.coversRoof(placement.maxY) ?? [];
     for (const [index, unit] of roof.equipment.entries()) {
+      if (roofCovers.some(poly => polygonBoxOverlaps(poly, unit.x, unit.z,
+        unit.sizeX / 2 + 0.05, unit.sizeZ / 2 + 0.05, Math.cos(unit.yaw), -Math.sin(unit.yaw)))) continue;
       const outer = roofUnitRing(unit);
       const base = flatRing(outer);
       addWalls(batch, [base], placement.maxY, placement.maxY + unit.height, meta, placement.baseY);
@@ -527,7 +554,7 @@ export function buildCityBlocks(scene, options = {}) {
   }
   const retailMaterial = frontage?.finish(group);
   scene.add(group);
-  return { group, colliders, surfaces, allBlocks, roadConflicts, roofPlans, programIds,
+  return { group, colliders, surfaces, allBlocks, roadConflicts, roofPlans, envelopePlans: envelopes, programIds,
     retailDoors: frontage?.doors ?? [], retailBuildingIds: frontage?.buildingsWithFrontage ?? new Set(),
     roofs: allBlocks.filter(block => !block.isPodium && block.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M).length,
     update() {},
@@ -538,6 +565,7 @@ export function buildCityBlocks(scene, options = {}) {
       foundationMaterial?.dispose();
       programMaterial?.dispose();
       roofPlans.clear();
+      envelopes.clear();
       surfaces.length = 0;
       scene.remove(group);
     }

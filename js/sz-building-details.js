@@ -332,16 +332,26 @@ function planRoofParts(building, polygon, placement, rand, profile, options) {
   return { parts, aerialLights };
 }
 
-function planParapet(polygon, polygonEdges, building, rand) {
+function planParapet(polygonEdges, building, rand, roofY, envelope) {
   if (building.height < 8) return { height: 0, parts: [] };
   const height = 0.8 + rand() * 0.4;
   const parts = [];
   for (const edge of polygonEdges) {
     // 沿外环内缩 0.15 m，留出屋面滴水边；厚度 0.2 m。
     const offset = PARAPET_INSET + PARAPET_THICKNESS / 2;
-    const x = edge.mx + edge.inX * offset;
-    const z = edge.mz + edge.inZ * offset;
-    parts.push({ x, z, w: edge.length + PARAPET_THICKNESS, yaw: edge.yaw });
+    const spans = envelope?.wall(edge.ax, edge.az, edge.bx, edge.bz, edge.outX, edge.outZ,
+      edge.length, roofY, roofY + height, true);
+    if (!spans) {
+      parts.push({ x: edge.mx + edge.inX * offset, z: edge.mz + edge.inZ * offset,
+        w: edge.length + PARAPET_THICKNESS, yaw: edge.yaw });
+      continue;
+    }
+    for (const { u0, u1, y0, y1 } of spans) {
+      const middle = (u0 + u1) / 2;
+      parts.push({ x: edge.ax + middle * edge.ux + edge.inX * offset,
+        z: edge.az + middle * edge.uz + edge.inZ * offset,
+        w: u1 - u0, y0, y1, yaw: edge.yaw });
+    }
   }
   return { height, thickness: PARAPET_THICKNESS, inset: PARAPET_INSET, parts };
 }
@@ -511,12 +521,24 @@ export function planBuildingDetails(building, placement, options = {}) {
       : (Array.isArray(spanSource) ? spanSource : null);
   const sample = FACADE_SAMPLE_PROFILES[building.id];
   const planOptions = { ...options, neighbours: neighbourSpans, polygonEdges: edges, baseRoof, sample };
+  const envelope = options.envelopePlans?.get(polygon);
+  const wallExposed = (part, halfWidth, y0, y1) => {
+    if (!envelope) return true;
+    const edge = edges.find(item => Math.abs((part.x - item.ax) * item.outX + (part.z - item.az) * item.outZ) < 1e-6
+      && Math.abs(item.outX - part.outX) < 1e-6 && Math.abs(item.outZ - part.outZ) < 1e-6
+      && Math.abs((part.x - item.mx) * item.ux + (part.z - item.mz) * item.uz) <= item.length / 2 + 1e-6);
+    if (!edge) return false;
+    const u = (part.x - edge.ax) * edge.ux + (part.z - edge.az) * edge.uz;
+    const spans = envelope.wall(edge.ax, edge.az, edge.bx, edge.bz, edge.outX, edge.outZ, edge.length, y0, y1);
+    return !spans || spans.some(span => span.u0 <= u - halfWidth + 1e-6 && span.u1 >= u + halfWidth - 1e-6
+      && span.y0 <= y0 + 1e-6 && span.y1 >= y1 - 1e-6);
+  };
   const rand = createRandom(buildingSeed(building.id));
   const { floorHeight, floors } = floorMetrics(building, profile);
   const allowFacadeDetails = options.allowFacadeDetails !== false;
   const allowRoofEquipment = options.allowRoofEquipment !== false;
   const parapet = baseRoof?.parapet > 0 ? { height: 0, parts: [] }
-    : planParapet(polygon, edges, building, createRandom(buildingSeed(building.id) * 0.71 + 0.13));
+    : planParapet(edges, building, createRandom(buildingSeed(building.id) * 0.71 + 0.13), placement.maxY, envelope);
   const roof = allowRoofEquipment
     ? planRoofParts(building, polygon, placement, createRandom(buildingSeed(building.id) * 0.37 + 0.29), profile, planOptions)
     : { parts: [], aerialLights: [] };
@@ -530,6 +552,19 @@ export function planBuildingDetails(building, placement, options = {}) {
     if (!options.retailBuildingIds?.has(building.id)) {
       canopy = planCanopy(building, edges, placement, floorHeight, planOptions, plan.usedEdges);
     }
+  }
+  if (envelope) {
+    balconies = balconies.filter(part => wallExposed(part, part.w / 2, part.y - 0.2, part.y + 1.1));
+    acUnits = acUnits.filter(part => wallExposed(part, part.w / 2, part.y - part.h / 2, part.y + part.h / 2));
+    if (canopy && !wallExposed(canopy, canopy.w / 2, canopy.y - 0.7, canopy.y + 0.15)) canopy = null;
+    // 廉价远景计划也必须避开组合体量的实际屋面遮挡。
+    const covers = envelope.coversRoof(placement.maxY);
+    const covered = part => covers.some(polygon => polygonBoxOverlaps(polygon, part.x, part.z,
+      (part.w ?? part.radius * 2) / 2 + 0.1, (part.d ?? part.radius * 2) / 2 + 0.1,
+      Math.cos(part.yaw), -Math.sin(part.yaw)));
+    roof.parts = roof.parts.filter(part => !covered(part));
+    roof.aerialLights = roof.aerialLights.filter(light => roof.parts.some(part => part.kind === 'antenna'
+      && part.x === light.x && part.z === light.z));
   }
   return {
     id: building.id, facade, bucket, roofY: placement.maxY, baseY: placement.minY,
@@ -614,7 +649,8 @@ function addOctagonPrism(b, x, y, z, radius, height, yaw) {
 
 function appendParapet(b, parapet, roofY) {
   for (const part of parapet.parts) {
-    addBox(b, part.x, roofY + parapet.height / 2, part.z, part.w, parapet.height, parapet.thickness, part.yaw);
+    const y0 = part.y0 ?? roofY, y1 = part.y1 ?? roofY + parapet.height;
+    addBox(b, part.x, (y0 + y1) / 2, part.z, part.w, y1 - y0, parapet.thickness, part.yaw);
   }
 }
 
@@ -724,7 +760,7 @@ export function buildBuildingDetails(scene, options = {}) {
 
   const index = new NeighbourIndex(buildings, terrain);
   // 地标专模自己会建屋顶和设备，地标覆盖的普通楼一律不出细节，避免重叠。
-  const { retailBuildingIds } = options;
+  const { retailBuildingIds, envelopePlans } = options;
   const shouldSkip = building => skipIds.has(building.id) || building.facade === 'landmark' || Boolean(building.landmark);
   const chunkIndex = new Map();
   for (const building of buildings) {
@@ -860,7 +896,8 @@ export function buildBuildingDetails(scene, options = {}) {
       if (budget <= 0) break;
       const placement = index.placementOf(building);
       const minimal = fullDetailBuildings >= maxFullDetailBuildings;
-      const planOptions = { neighbours: index, playerPosition, retailBuildingIds, baseRoof: roofPlans?.get(building.id) };
+      const planOptions = { neighbours: index, playerPosition, retailBuildingIds,
+        baseRoof: roofPlans?.get(building.id), envelopePlans };
       const minimalOptions = { ...planOptions, allowFacadeDetails: false, cheapRoof: true };
       let plan = minimal ? planBuildingDetails(building, placement, minimalOptions) : planBuildingDetails(building, placement, planOptions);
       if (!plan) continue;

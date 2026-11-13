@@ -232,6 +232,8 @@ test('the rendered roof plan removes duplicate Shenzhen roof equipment while kee
   const { geo, buildings } = loadModule(read('sz-data-format.js')).decodeCityPayload(raw);
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+    './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
     './sz-geodata.js': {},

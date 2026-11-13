@@ -14,23 +14,10 @@ const SHOP_MIN_M = 4.4;
 const CANOPY_CLEARANCE_M = 3.05;
 const FRONTAGE_REACH_M = 34;
 const CHUNK_M = 600;
-const COCO_PARK_ROUND_PART = 'way/539435437';
-const COCO_PARK_BASE = 'way/238825588';
-const edgeKey = (ax, az, bx, bz) => [`${ax},${az}`, `${bx},${bz}`].sort().join('|');
-
-export function createRetailFrontage(buildings, { regions = [], nearRoads, pavementAt, carriageway, entrance, entranceTopY } = {}) {
+export function createRetailFrontage(buildings, { regions = [], nearRoads, pavementAt, carriageway, entrance } = {}) {
   const retailAreas = spatialIndex(regions.filter(region => region.type === 'retail').flatMap(region => region.polygons), p => p.outer);
   const shapes = buildings.filter(b => b.minHeight < 1.9).flatMap(building => building.polygons.map(polygon => ({ building, polygon })));
   const occupied = spatialIndex(shapes, row => row.polygon.outer);
-  const sharedEdges = new Set();
-  const host = buildings.find(building => building.id === COCO_PARK_BASE);
-  // 东南圆筒源部件与底座共边，同一标高范围由底座出面。
-  for (const { outer } of host?.polygons ?? []) {
-    for (let i = 0; i < outer.length; i++) {
-      const a = outer[i], b = outer[(i + 1) % outer.length];
-      sharedEdges.add(edgeKey(a.x, a.z, b.x, b.z));
-    }
-  }
   const batches = new Map(), buildingsWithFrontage = new Set(), doors = [];
 
   function clear(building, x, z) {
@@ -126,12 +113,6 @@ export function createRetailFrontage(buildings, { regions = [], nearRoads, pavem
   }
 
   return { edge, doors, buildingsWithFrontage,
-    isSharedPart: building => building.id === COCO_PARK_ROUND_PART && sharedEdges.size > 0,
-    sharedWallBottom(building, placement, ax, az, bx, bz) {
-      if (building.id === COCO_PARK_ROUND_PART && sharedEdges.has(edgeKey(ax, az, bx, bz))
-        && Number.isFinite(entranceTopY)) return Math.max(placement.minY, entranceTopY);
-      return null;
-    },
     finish(group) {
       if (!batches.size) return null;
       const material = createRetailMaterial();

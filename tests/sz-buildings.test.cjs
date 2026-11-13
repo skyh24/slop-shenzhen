@@ -43,6 +43,8 @@ test('raised building soffits face the passage and preserve courtyard holes and 
   { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
     const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
     const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+      './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+      './building-collision.js': {},
       './sz-retail-frontage.js': {},
       'three/webgpu': THREE,
       './sz-geodata.js': {},
@@ -88,6 +90,8 @@ test('one-kilometre building batches preserve every triangle attribute and colli
     Mesh: class { constructor(geometry) { this.geometry = geometry; } }
   };
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+    './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
     './sz-geodata.js': {},
@@ -129,6 +133,8 @@ test('one-kilometre building batches preserve every triangle attribute and colli
 test('tall ordinary towers gain an estimated podium with matching display and collision', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+    './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
     './sz-geodata.js': {},
@@ -155,6 +161,8 @@ test('tall ordinary towers gain an estimated podium with matching display and co
 test('ordinary roof equipment and parapets share rendered contact geometry', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+    './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
     './sz-geodata.js': {},
@@ -200,6 +208,8 @@ test('retail walls replace only street-facing lower geometry and retain the clos
       './sz-spatial.js': { spatialIndex: items => () => items }
     } });
     const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+      './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+      './building-collision.js': {},
       ...imports, './sz-retail-frontage.js': retail, './sz-geodata.js': {}, './sz-geometry.js': geometry,
       './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
       './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
@@ -223,5 +233,60 @@ test('retail walls replace only street-facing lower geometry and retain the clos
     assert.equal(collision.polygonContains(blocks.colliders[0].polygon, door.x, door.z + 0.5), true);
     assert.equal(collision.polygonContains(blocks.colliders[0].polygon, door.x, door.z - 0.5), false);
     assert.equal(blocks.colliders[0].maxY, blocks.surfaces[0].triangles[0][0].y);
+    blocks.dispose();
+  });
+
+test('reviewed envelopes keep partial wall ownership, exposed roofs and raised clearance across batches',
+  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+    const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
+    const imports = { 'three/webgpu': THREE };
+    const geometry = loadModule(read('sz-geometry.js'), { imports });
+    const envelopes = loadModule(read('sz-building-envelope.js'), { imports: {
+      './sz-geometry.js': geometry, './sz-polygon.js': polygonModule
+    } });
+    const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+      ...imports, './sz-building-envelope.js': envelopes, './building-collision.js': collision,
+      './sz-retail-frontage.js': {}, './sz-geodata.js': {}, './sz-geometry.js': geometry,
+      './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
+      './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
+      './sz-building-layout.js': { buildingPlacement, buildingSeed },
+      './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
+    } });
+    const ring = (x0, z0, x1, z1) => [{ x: x0, z: z0 }, { x: x1, z: z0 }, { x: x1, z: z1 }, { x: x0, z: z1 }];
+    const volume = (id, minX, minZ, maxX, maxZ, height, minHeight = 0, holes = []) => ({
+      id, minX, maxX, minZ, maxZ, cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2, height, minHeight,
+      facade: 'office', heightSource: 'osm-height', polygons: [{ outer: ring(minX, minZ, maxX, maxZ), holes }]
+    });
+    const base = volume('base', -20, -10, 20, 20, 8, 0, [ring(-16, 3, -12, 9)]);
+    const tower = volume('tower', -4, -10, 10, 6, 18, 3);
+    const raised = volume('raised', 12, -10, 18, 6, 19, 12);
+    const buildings = [tower, raised, base];
+    const scene = new THREE.Scene();
+    const blocks = buildCityBlocks(scene, { buildings, terrain: grid, renderChunkSize: 4,
+      envelopeGroups: [[base.id, tower.id, raised.id]] });
+    scene.updateMatrixWorld(true);
+    const wall = (x, y) => new THREE.Raycaster(new THREE.Vector3(x, y, -14),
+      new THREE.Vector3(0, 0, 1), 0, 4.001).intersectObjects(blocks.group.children);
+    const seed = hit => hit.object.geometry.attributes.bmeta.getY(hit.face.a);
+    for (const [x, y, owner] of [[1, 11, base], [1, 16, base], [1, 23, tower], [-8, 16, base], [15, 16, base], [15, 24, raised]]) {
+      const hits = wall(x, y);
+      assert.equal(hits.length, 1, `wall at ${x},${y}`);
+      assert.equal(seed(hits[0]), Math.fround(buildingSeed(owner.id) * 10));
+    }
+    assert.notEqual(wall(1, 16)[0].object, wall(1, 23)[0].object);
+    assert.equal(wall(15, 20).length, 0, 'vertical separation retains the opening');
+    const roof = createSurfaceResolver({ groundHeight: () => 10, surfaces: blocks.surfaces });
+    assert.equal(roof.below(1, 1, 19).height, 10, 'roof inside the tower is omitted');
+    assert.equal(roof.below(1, 1, 29).height, 28);
+    assert.equal(roof.below(-8, 1, 19).height, 18);
+    assert.equal(roof.below(-14, 6, 19).height, 10, 'courtyard retains its opening');
+    assert.equal(roof.below(15, 1, 21).height, 18, 'roof under an elevated part remains exposed');
+    const soffit = (x, y) => new THREE.Raycaster(new THREE.Vector3(x, y, 1),
+      new THREE.Vector3(0, 1, 0), 0, 3).intersectObjects(blocks.group.children);
+    assert.equal(soffit(1, 12).length, 0, 'embedded underside is removed');
+    assert.equal(soffit(15, 19)[0].face.normal.y, -1, 'elevated underside is visible');
+    assert.deepEqual(Array.from(blocks.colliders, item => [item.sourceId, item.minY, item.maxY]),
+      [['tower', 13, 28], ['raised', 22, 29], ['base', 10, 18]]);
+    assert.equal(blocks.allBlocks.length, buildings.length);
     blocks.dispose();
   });

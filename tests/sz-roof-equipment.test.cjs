@@ -14,6 +14,8 @@ const layout = loadModule(read('sz-building-layout.js'), { imports: {
   './sz-terrain.js': loadModule(read('sz-terrain.js'))
 } });
 const buildingsModule = loadModule(read('sz-buildings.js'), { imports: {
+  './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+  './building-collision.js': {},
   './sz-retail-frontage.js': {},
   'three/webgpu': emptyThree,
   './sz-geodata.js': {},
