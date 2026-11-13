@@ -75,7 +75,7 @@ test('touch selects without travel, hover leaves selection intact, and drag and 
     constructor() { this.events = {}; this.style = { setProperty() {} }; this.classList = { toggle() {}, add() {}, remove() {} }; }
     addEventListener(name, fn) { this.events[name] = fn; }
     fire(name, x, z, type = 'mouse') { this.events[name]({ preventDefault() {}, clientX: x, clientY: z,
-      pointerId: 1, pointerType: type, button: 0 }); }
+      timeStamp: 100, pointerId: 1, pointerType: type, button: 0 }); }
     setAttribute() {}
     append() {}
     appendChild() {}
@@ -119,7 +119,10 @@ test('touch selects without travel, hover leaves selection intact, and drag and 
   canvas.fire('pointerup', 59, 110);
   flush();
   assert.equal(inspection.selection.x, 100);
-  els.get('map-selection-go').fire('click');
+  for (let i = 0; i < 2; i++) {
+    canvas.fire('pointerdown', 100, 25, 'touch');
+    canvas.fire('pointerup', 100, 25, 'touch');
+  }
   assert.equal(arrive.length, 1);
   assert.equal(arrive[0][0], 100);
   assert.equal(inspection.selection, null);

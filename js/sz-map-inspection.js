@@ -9,10 +9,10 @@ function wireMapInspection(map) {
   const get = id => document.getElementById(id);
   const selectionPanel = get('map-selection');
   const selectionText = get('map-selection-text');
-  const go = get('map-selection-go');
   const legend = get('map-region-legend-list');
   const label = region => STR.map.regionInfo(regionName(region), STR.map.regionTypes[region.type]);
 
+  let lastTap = null;
   let pointer = null;
   let hover = null;
   let selected = null;
@@ -94,9 +94,10 @@ function wireMapInspection(map) {
       region: pointerType === 'mouse' ? null : region };
     feedback = '';
     updateSelection();
+    return true;
   }
 
-  go.addEventListener('click', () => {
+  function travel() {
     if (!selected || map.isPlanningDrive) return;
     const { x, z, landmarkId } = selected;
     if (map.onTeleport?.(x, z, undefined, { landmarkId })) {
@@ -107,7 +108,7 @@ function wireMapInspection(map) {
     }
     updateSelection();
     map.renderFullMap();
-  });
+  }
 
   get('map-selection-clear').addEventListener('click', () => {
     selected = null;
@@ -148,6 +149,7 @@ function wireMapInspection(map) {
   }
 
   function resetInput() {
+    lastTap = null;
     cancelPan();
     pointer = null;
     clearTimeout(wheelTimer);
@@ -192,7 +194,18 @@ function wireMapInspection(map) {
     cancelPan();
     const point = readPointer(e);
     pointer = e.pointerType === 'mouse' && point ? e : null;
-    if (clicked && point) pick(point, e.pointerType);
+    if (clicked && point) {
+      const doubleTap = lastTap && e.timeStamp - lastTap.time < 350
+        && e.pointerType === lastTap.type && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) <= 12;
+      const picked = pick(point, e.pointerType);
+      if (!picked) lastTap = null;
+      else if (doubleTap && !map.isPlanningDrive) {
+        travel();
+        lastTap = null;
+      } else {
+        lastTap = { time: e.timeStamp, x: e.clientX, y: e.clientY, type: e.pointerType };
+      }
+    } else lastTap = null;
     queueFrame(true);
   });
 
@@ -213,6 +226,7 @@ function wireMapInspection(map) {
 
   canvas.addEventListener('wheel', e => {
     e.preventDefault();
+    lastTap = null;
     if (pan) return;
     const point = readPointer(e);
     if (!point) return;
