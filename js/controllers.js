@@ -7,7 +7,8 @@ import { cityUniforms, createContactShadowMaterial } from './city-lighting-mater
 import { VEHICLE_SPECS, createShenzhenCarMesh, createSharedCycleMesh, createEvtolMesh } from './sz-vehicles.js';
 import { PersonCrowd, PersonRig, PERSON_BONES } from './pedestrians.js';
 import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
-import { loftContactPolygon, polygonContact, roofPanelContactPolygon, spanContactPolygon } from './building-collision.js';
+import { loftContactPolygon, polygonContact, roofPanelContactPolygon, spanContactPolygon,
+  SURFACE_CONTACT_EPSILON_M } from './building-collision.js';
 import { vehicleContact } from './vehicle-physics.js';
 import { constrainContactVelocity, contactTime, emergencyBrake, writeEntityCollider } from './sz-driving-motion.js';
 import { FLIGHT_ENTRY_SECONDS, FLIGHT_FORWARD_ACCELERATION, flightEntryYaw, flightEnvelopeRadius } from './sz-flight-motion.js';
@@ -117,14 +118,17 @@ function collisionBody(mode, radius, heading, margin = 0, bounds = null) {
 
 // 运动和传送共用脚印碰撞。人物使用圆，车辆和飞行器使用从模型提取的定向矩形。
 function buildingContact(c, x, y, z, body, contact) {
-  // 已确认承托的桥板可连续进入；齐平桥头只忽略浮点尾差，斜板仍逐段判断。
-  if ((c.type === 'bridge-slab' || c.type === 'elevated-slab') && (body.supportedSlabs?.has(c.name)
-    || (c.verticalSpan && c.verticalSpan[2] === c.verticalSpan[3]
-      && y + body.bottom >= c.maxY - CONTACT_EPSILON))) return false;
-  if (c.type === 'bridge-slab' && body.mode === 'car'
+  // 已确认承托的桥板可连续进入；车底与碰撞体顶面齐平的数值尾差由下方统一容差处理。
+  if ((c.type === 'bridge-slab' || c.type === 'elevated-slab') && body.supportedSlabs?.has(c.name)) return false;
+  // 桥头进出口允许跨过既有 2 cm 桥板唇口和 roadAccess 的 28 cm 入户台阶；这是 bridge-slab
+  // 专有的进出门槛，不是齐平容差，不随路面数值精度调整。elevated-slab 由可接地支撑面进入。
+  if (body.mode === 'car' && c.type === 'bridge-slab'
     && ((body.supportedSlabs?.size && y + body.bottom >= c.maxY - 0.02)
       || (c.roadAccess && y >= c.maxY - 0.28))) return false;
-  if (y + body.bottom >= c.maxY || y + body.top <= (c.minY ?? 0)) return false;
+  // 顶面按每块碰撞体的局部上界判断；支撑面与顶面齐平时只差浮点尾差，不能算侧撞。
+  // 斜面仍交给 span/roof 裁切按所在位置的高度逐段判断。
+  if (y + body.bottom >= c.maxY - SURFACE_CONTACT_EPSILON_M
+    || y + body.top <= (c.minY ?? 0) + SURFACE_CONTACT_EPSILON_M) return false;
   if (x + body.extX <= c.minX || x - body.extX >= c.maxX || z + body.extZ <= c.minZ || z - body.extZ >= c.maxZ) return false;
   if (c.polygon) {
     const bottom = y + body.bottom;
@@ -908,10 +912,19 @@ class ThirdPersonControllerManager {
     body.supportedSlabs = null;
     const previous = entity?._support;
     const options = { previousY: previous?.height ?? null, previousSurfaceId: previous?.surfaceId ?? null, mode: body.mode };
-    const center = surfaceId === null ? this.surfaceResolver.resolve(x, z, options)
+    let center = surfaceId === null ? this.surfaceResolver.resolve(x, z, options)
       : this.surfaceResolver.at(x, z, body.mode).find(surface => surface.surfaceId === surfaceId);
     if (!center || (landingOnRoad && !this.isRoadContact(x, z, center.height))) return null;
-    if (this.groundAccess && !this.groundAccess(body.mode, x, z, center)) return null;
+    if (this.groundAccess && !this.groundAccess(body.mode, x, z, center)) {
+      // 桥头与地面同高时，湿地/公园规则可能拒绝地面承托。若同一位置有同高的结构面可用，
+      // 按实际承托身份继续，避免把齐平桥面当成不可通行边界。
+      if (surfaceId !== null) return null;
+      const floor = center.height;
+      center = this.surfaceResolver.at(x, z, body.mode).filter(surface =>
+        surface.heightSource !== 'terrain' && Math.abs(surface.height - floor) <= SURFACE_CONTACT_EPSILON_M
+        && this.groundAccess(body.mode, x, z, surface)).at(-1) ?? null;
+      if (!center) return null;
+    }
     const halfX = body.car ? body.hx : body.extX, halfZ = body.car ? body.hz : body.extZ;
     const sin = body.car ? body.sin : 0, cos = body.car ? body.cos : 1;
     const keepSlab = id => body.mode === 'car' || this.surfaceResolver.isFlightRoadDeck?.(id)

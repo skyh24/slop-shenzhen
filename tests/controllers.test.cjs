@@ -985,6 +985,48 @@ test('a car spanning connected slab sections keeps contact and clears their shar
   assert.equal(controller.isClearCarPose({ x: 0, y: 3.2, z: 5, heading: 0, surfaceId: 'terrain' }), false);
 });
 
+test('a car on a flush elevated slab seam takes no phantom side push', () => {
+  const makeCollider = () => {
+    const outer = [[-6, -20], [6, -20], [6, 20], [-6, 20]].map(([x, z]) => ({ x, z }));
+    return { type: 'elevated-slab', name: 'deck', minX: -6, maxX: 6, minZ: -20, maxZ: 20,
+      minY: 7.35, maxY: 8, verticalSpan: [7.35, 7.35, 8, 8], polygon: { outer, holes: [] } };
+  };
+  const run = groundHeight => {
+    const { controller, ent } = teleportHarness('car', [makeCollider()]);
+    controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => groundHeight });
+    delete controller.getGroundHeight;
+    Object.assign(ent, { heading: Math.PI / 2, speed: 8, vx: 0, vz: 0, angularVel: 0 });
+    Object.assign(ent.position, { x: 0, y: groundHeight, z: 0 });
+    ent._safePosition = { x: 0, y: groundHeight, z: 0 };
+    ent._support = { height: groundHeight, surfaceId: 'terrain' };
+    controller.resolveHorizontalCollision(ent.position, 1.35, ent);
+    return { x: ent.position.x, z: ent.position.z };
+  };
+  for (const groundHeight of [7.999999999999999, 8 - 1e-6, 8]) {
+    assert.deepEqual(run(groundHeight), { x: 0, z: 0 }, `flush seam at ${groundHeight}`);
+  }
+  const stepped = run(7.99);
+  assert.ok(Math.hypot(stepped.x, stepped.z) > 0.5, 'a 1 cm step below the deck top is still a side wall');
+});
+
+test('a flush deck supplies support where the ground is denied at a wetland portal', () => {
+  const { controller, ent } = teleportHarness('cyclist');
+  const height = 8;
+  const corners = [[-6, -6], [6, -6], [6, 6], [-6, 6]].map(([x, z]) => ({ x, y: height, z }));
+  const deck = { id: 'deck', heightSource: 'estimate', solidDeck: true, climbableFromGround: true,
+    modes: ['cyclist'], triangles: [[corners[0], corners[1], corners[2]], [corners[0], corners[2], corners[3]]] };
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => height, surfaces: [deck] });
+  delete controller.getGroundHeight;
+  controller.groundAccess = (mode, x, z, surface) => surface.surfaceId !== 'terrain';
+  Object.assign(ent.position, { x: 0, y: height, z: 0 });
+  ent._support = { height, surfaceId: 'terrain' };
+  const body = { car: false, radius: 0.65, extX: 0.65, extZ: 0.65, mode: 'cyclist',
+    bottom: 0, top: 1.9, sin: 0, cos: 1 };
+  const support = controller.supportedFootprint(0, 0, body, ent);
+  assert.equal(support.surfaceId, 'deck');
+  assert.ok(body.supportedSlabs?.has('deck'), 'the accepted deck is registered as support');
+});
+
 test('stationary player tires follow the four active contacts on a sloped deck and the road beneath', () => {
   const { controller } = keyboardHarness();
   const ground = (x, z) => 0.06 * x + 0.03 * z;

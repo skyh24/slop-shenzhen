@@ -5,7 +5,8 @@ import { getDeckSection, getRoadSection, usableWidth } from './sz-road-section.j
 import {
   carStyleCode, createTrafficCarBody, createTrafficVehicleGeometry, createTrafficWheels, VEHICLE_SPECS
 } from './sz-vehicles.js';
-import { polygonBoxOverlaps, roofPanelContactPolygon, spanContactPolygon } from './building-collision.js';
+import { polygonBoxOverlaps, roofPanelContactPolygon, spanContactPolygon,
+  SURFACE_CONTACT_EPSILON_M } from './building-collision.js';
 import { vehicleContact } from './vehicle-physics.js';
 import { boxDimensions, followingReach, routeLeader, writeEntityCollider, writeTrafficCollider } from './sz-driving-motion.js';
 
@@ -465,14 +466,19 @@ export function trafficModelBounds(box, spec) {
 }
 
 function intersects(a, b) {
-  return a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ && a.minY < b.maxY && a.maxY > b.minY;
+  // 与控制器共用 1 mm 表面容差：NPC 车底与桥面顶面齐平时不算侧撞。
+  return a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ
+    && a.minY < b.maxY - SURFACE_CONTACT_EPSILON_M
+    && a.maxY > b.minY + SURFACE_CONTACT_EPSILON_M;
 }
 
 function touchesObstacle(body, candidate) {
   if (!intersects(body, candidate)) return false;
-  if (candidate.type === 'bridge-slab' && (body.supportedSlabs?.has(candidate.name)
-    || (body.supportedSlabs?.size && body.minY >= candidate.maxY - 0.02)
-    || (candidate.roadAccess && body.minY >= candidate.maxY - 0.28))) return false;
+  if ((candidate.type === 'bridge-slab' || candidate.type === 'elevated-slab')
+    && body.supportedSlabs?.has(candidate.name)) return false;
+  if (candidate.type === 'bridge-slab'
+    && ((body.supportedSlabs?.size && body.minY >= candidate.maxY - 0.02)
+      || (candidate.roadAccess && body.minY >= candidate.maxY - 0.28))) return false;
   if (!candidate.polygon) return true;
   let polygon = candidate.polygon;
   if (candidate.roofPanel) polygon = roofPanelContactPolygon(candidate.roofPanel, body.minY, body.maxY);

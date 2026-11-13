@@ -5,7 +5,8 @@ const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
-const { polygonContains, polygonBoxOverlaps, polygonContact, polygonSegmentFraction } = loadModule(
+const { polygonContains, polygonBoxOverlaps, polygonContact, polygonSegmentFraction,
+  roofPanelContactPolygon, spanContactPolygon } = loadModule(
   readFileSync(join(__dirname, '../js/building-collision.js'), 'utf8'),
   { imports: { './sz-polygon.js': polygonModule } });
 const ring = (points) => points.map(([x, z]) => ({ x, z }));
@@ -122,6 +123,44 @@ test('grazing walls, tight two-wall corners and degenerate polygons never produc
     assert.ok(Number.isFinite(c.nx * c.depth) && Number.isFinite(c.nz * c.depth));
     assert.equal(polygonContact(bad, 0, 0, circle, c), false);
   }
+});
+
+const deck = { outer: ring([[0, 0], [8, 0], [8, 20], [0, 20]]), holes: [] };
+const roofPanel = (topA, topB, girder = 0.65) => ({
+  outer: deck.outer,
+  top: [topA, topB, topB, topA],
+  bottom: [topA - girder, topB - girder, topB - girder, topA - girder]
+});
+
+test('a flush deck top is not a side wall, while a real side hit still resolves', () => {
+  const flat = [7.35, 7.35, 8, 8];
+  for (const bottom of [8, 8 - 1e-15, 8 - 1e-6, 8 - 9e-4]) {
+    assert.equal(spanContactPolygon(deck, flat, bottom, bottom + 1.8), null, `span flush at ${bottom}`);
+    assert.equal(roofPanelContactPolygon(roofPanel(8, 8), bottom, bottom + 1.8), null, `roof flush at ${bottom}`);
+  }
+  for (const bottom of [8 - 0.01, 7.9, 7.35]) {
+    const slice = spanContactPolygon(deck, flat, bottom, bottom + 1.8);
+    assert.ok(slice && polygonContact(slice, 4, 10, car(0)), `span side wall at ${bottom}`);
+    const roof = roofPanelContactPolygon(roofPanel(8, 8), bottom, bottom + 1.8);
+    assert.ok(roof && polygonContact(roof, 4, 10, car(0)), `roof side wall at ${bottom}`);
+  }
+});
+
+test('a graded deck uses the local top height instead of the maximum', () => {
+  // 顶面沿 x 从 8 m 升到 9 m；8.2 m 的车底只在桥面升到它上方后才碰撞。
+  const grade = [7.35, 8.35, 8, 9];
+  const slice = spanContactPolygon(deck, grade, 8.2, 10);
+  assert.ok(slice);
+  assert.equal(polygonContact(slice, 0.05, 10, { car: false, radius: 0.1 }), false);
+  assert.equal(polygonContact(slice, 4, 10, { car: false, radius: 0.1 }), true);
+  const roof = roofPanelContactPolygon(roofPanel(8, 9), 8.2, 10);
+  assert.ok(roof);
+  assert.equal(polygonContact(roof, 0.05, 10, { car: false, radius: 0.1 }), false);
+  assert.equal(polygonContact(roof, 4, 10, { car: false, radius: 0.1 }), true);
+  // 高于局部最高点、或整车从梁底以下通过时都不碰；车顶伸进梁底才碰。
+  assert.equal(spanContactPolygon(deck, grade, 9.0005, 10.8), null);
+  assert.equal(spanContactPolygon(deck, grade, 6, 6.5), null);
+  assert.ok(spanContactPolygon(deck, grade, 6, 7.5));
 });
 
 test('acoustic rays measure occupied wall thickness, leaving courtyards open', () => {

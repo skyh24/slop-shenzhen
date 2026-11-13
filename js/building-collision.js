@@ -1,8 +1,16 @@
 import { polygonContains } from './sz-polygon.js';
 
+// 路面与实体顶面同高时仍会有浮点尾差（实测约 1e-15 m）。1 mm 远低于 2 cm 桥头台阶和
+// 6 cm 路缘，只吸收米制几何的数值误差，不把真实高差当成齐平。
+const SURFACE_CONTACT_EPSILON_M = 1e-3;
+
 // 斜梁和桥面沿四边形两条侧边升降。只对实际高度落在实体内的范围做平面碰撞。
-function spanContactPolygon(polygon, verticalSpan, minY, maxY) {
+// 高度区间向实体内部收 1 mm：局部顶面与车底齐平时不算侧撞，斜面仍按所在位置的顶面裁切。
+function spanContactPolygon(polygon, verticalSpan, minY, maxY,
+  epsilon = SURFACE_CONTACT_EPSILON_M) {
   const [bottomA, bottomB, topA, topB] = verticalSpan;
+  minY += epsilon;
+  maxY -= epsilon;
   if (minY >= Math.max(topA, topB) || maxY <= Math.min(bottomA, bottomB)) return null;
   let from = 0, to = 1;
   const riseTop = topB - topA;
@@ -50,7 +58,9 @@ function loftContactPolygon({ lower, upper, minY, maxY }, bottom, top) {
 }
 
 // 薄屋面采用三角棱柱，按人物上下界切裁顶面和底面；斜屋面下方仍可通行。
-function roofPanelContactPolygon({ outer, bottom, top }, minY, maxY) {
+// 与 spanContactPolygon 使用同一容差，局部顶面和车底齐平时不产生侧壁。
+function roofPanelContactPolygon({ outer, bottom, top }, minY, maxY,
+  epsilon = SURFACE_CONTACT_EPSILON_M) {
   function clip(ring, distance) {
     const result = [];
     for (let i = 0; i < ring.length; i++) {
@@ -65,7 +75,9 @@ function roofPanelContactPolygon({ outer, bottom, top }, minY, maxY) {
     return result;
   }
   const ring = outer.map((p, i) => ({ ...p, bottom: bottom[i], top: top[i] }));
-  const overlap = convexHull(clip(clip(ring, p => p.top - minY), p => maxY - p.bottom));
+  // 两半平面同样内收 1 mm，避免局部顶面与车底齐平时整块屋面仍被判为实体。
+  const overlap = convexHull(clip(clip(ring, p => p.top - (minY + epsilon)),
+    p => (maxY - epsilon) - p.bottom));
   return overlap.length >= 3 ? { outer: overlap, holes: [] } : null;
 }
 
@@ -271,4 +283,4 @@ function polygonSegmentFraction(polygon, ax, az, dx, dz, enter, exit) {
 }
 
 export { convexHull, loftContactPolygon, polygonContains, polygonBoxOverlaps, polygonContact, polygonSegmentFraction,
-  roofPanelContactPolygon, spanContactPolygon };
+  roofPanelContactPolygon, spanContactPolygon, SURFACE_CONTACT_EPSILON_M };
