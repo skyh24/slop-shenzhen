@@ -155,7 +155,7 @@ function farCrownHalfHeight({ height, trunkHeight, style }) {
 }
 
 // 静态碰撞体一次性索引到 48 m 网格，避免每棵树都扫全城建筑。
-function createColliderIndex(colliders) {
+export function createColliderIndex(colliders) {
   const cells = new Map();
   const cellKey = (ix, iz) => `${ix},${iz}`;
   for (const collider of colliders) {
@@ -169,9 +169,7 @@ function createColliderIndex(colliders) {
       }
     }
   }
-  let stamp = 0;
   return (x, z, radius, minY, maxY) => {
-    const queryStamp = ++stamp;
     const fromX = Math.floor((x - radius) / COLLIDER_CELL_M);
     const toX = Math.floor((x + radius) / COLLIDER_CELL_M);
     const fromZ = Math.floor((z - radius) / COLLIDER_CELL_M);
@@ -181,8 +179,6 @@ function createColliderIndex(colliders) {
         const list = cells.get(cellKey(ix, iz));
         if (!list) continue;
         for (const collider of list) {
-          if (collider._treeSeen === queryStamp) continue;
-          collider._treeSeen = queryStamp;
           if (collider.maxY <= minY || collider.minY >= maxY) continue;
           if (collider.maxX < x - radius || collider.minX > x + radius
             || collider.maxZ < z - radius || collider.minZ > z + radius) continue;
@@ -206,7 +202,7 @@ function speciesStyle(name) {
   return SPECIES_STYLE[name] ?? DEFAULT_SPECIES_STYLE;
 }
 
-function colliderPolygon(x, z, radius) {
+export function colliderPolygon(x, z, radius) {
   const outer = [];
   for (let i = 0; i < TRUNK_SIDES; i++) {
     const angle = (i / TRUNK_SIDES) * Math.PI * 2;

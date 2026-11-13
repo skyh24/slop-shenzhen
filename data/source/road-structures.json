@@ -380,7 +380,13 @@
         "way/497325748",
         "way/497325750",
         "way/306304911",
-        "way/306304914"
+        "way/306304914",
+        "way/306304905",
+        "way/497322876",
+        "way/221892582",
+        "way/221892578",
+        "way/306304906",
+        "way/306304906"
       ],
       "pathNodes": [
         "node/8911560198",
@@ -425,11 +431,17 @@
         "node/4889021088",
         "node/1943411314",
         "node/1943411318",
-        "node/1943411319"
+        "node/1943411319",
+        "node/3111781464",
+        "node/2308748044",
+        "node/1943411347",
+        "node/3111781452",
+        "node/6796972977",
+        "node/3111789263"
       ],
       "portalNodes": [
         "node/8911560198",
-        "node/1943411319"
+        "node/3111789263"
       ],
       "profileM": [
         [
@@ -523,6 +535,22 @@
         [
           20515.2395,
           122.801
+        ],
+        [
+          20785.2395,
+          123
+        ],
+        [
+          21225.2395,
+          121
+        ],
+        [
+          21515.2395,
+          113
+        ],
+        [
+          21811.642018,
+          105.58968
         ]
       ],
       "profileSource": "project-design-estimate-with-10m-first-bridge-level",
@@ -532,7 +560,8 @@
       ],
       "boreWays": [
         "way/221018213",
-        "way/497325748"
+        "way/497325748",
+        "way/221892582"
       ],
       "portalApproachWays": [
         "way/581971318",
@@ -931,18 +960,24 @@
         "way/1547392146",
         "way/1031889492",
         "way/636282333",
-        "way/739020654"
+        "way/739020654",
+        "way/862777455",
+        "way/894814743",
+        "way/739020657"
       ],
       "pathNodes": [
         "node/9527226895",
         "node/2410576952",
         "node/9527226868",
         "node/6000337047",
-        "node/6919638857"
+        "node/6919638857",
+        "node/8037688088",
+        "node/8037682062",
+        "node/8162585536"
       ],
       "portalNodes": [
         "node/9527226895",
-        "node/6919638857"
+        "node/8162585536"
       ],
       "profileM": [
         [
@@ -962,11 +997,15 @@
           3
         ],
         [
-          2229,
-          8
+          2294.918731,
+          13
         ],
         [
-          2264.919,
+          2784.919,
+          13
+        ],
+        [
+          3093.748018,
           8.0
         ]
       ],
@@ -982,7 +1021,9 @@
       "approachWidthsM": {
         "way/1547392146": 9.8,
         "way/1031889492": 9.8,
-        "way/739020654": 9.8
+        "way/739020654": 9.8,
+        "way/894814743": 9.8,
+        "way/739020657": 9.8
       },
       "portalApproachWays": [
         "way/1031889492",
@@ -993,46 +1034,57 @@
           0,
           30
         ]
-      }
+      },
+      "verticalCurveM": 60
     },
     {
       "id": "guimiao-east",
       "kind": "mixed",
       "source": "https://jtys.sz.gov.cn/pcjt/tsjt/content/post_10495077.html",
       "ways": [
+        "way/636258646",
+        "way/894814744",
+        "way/862777458",
         "way/862777456",
         "way/862777450",
         "way/983602901"
       ],
       "pathNodes": [
+        "node/6000019200",
+        "node/8037688092",
+        "node/7223736252",
         "node/8037682052",
         "node/8037682050",
         "node/6000019226",
         "node/9094348426"
       ],
       "portalNodes": [
-        "node/8037682052",
+        "node/6000019200",
         "node/9094348426"
       ],
       "profileM": [
         [
           0,
-          8.0
-        ],
-        [
-          37,
           8
         ],
         [
-          230,
+          180,
+          13
+        ],
+        [
+          828.78378,
+          13
+        ],
+        [
+          1093.78378,
           3
         ],
         [
-          3170,
+          4003.78378,
           3
         ],
         [
-          3402.477,
+          4236.261044,
           8.0
         ]
       ],
@@ -1046,8 +1098,1012 @@
       ],
       "lanes": 3,
       "approachWidthsM": {
-        "way/862777456": 9.8
+        "way/862777456": 9.8,
+        "way/636258646": 9.8,
+        "way/894814744": 9.8
+      },
+      "verticalCurveM": 43
+    },
+    {
+      "id": "meiguan-north",
+      "kind": "mixed",
+      "source": "https://www.sz.gov.cn/zfgb/2016/gb960/content/post_4983148.html",
+      "ways": [
+        "way/25422255",
+        "way/25422255",
+        "way/25422255",
+        "way/377732299",
+        "way/996597662",
+        "way/479417864"
+      ],
+      "pathNodes": [
+        "node/875924131",
+        "node/11819473663",
+        "node/2889695389",
+        "node/504648401",
+        "node/3811248398",
+        "node/504648427",
+        "node/504648550"
+      ],
+      "portalNodes": [
+        "node/875924131",
+        "node/504648550"
+      ],
+      "profileM": [
+        [
+          0,
+          17.314
+        ],
+        [
+          1135,
+          63.5
+        ],
+        [
+          1695,
+          63.5
+        ],
+        [
+          2978.065,
+          113.715
+        ]
+      ],
+      "profileSource": "project-design-level-road-with-source-bridge-and-terrain-cuts",
+      "groundApronM": [
+        25,
+        18
+      ],
+      "lanes": 3,
+      "verticalCurveM": 90,
+      "approachWidthsM": {
+        "way/25422255": 9.8,
+        "way/996597662": 9.8,
+        "way/479417864": 9.8
+      },
+      "bridgeWidthsM": {
+        "way/377732299": 9.8
       }
+    },
+    {
+      "id": "meiguan-south",
+      "kind": "mixed",
+      "source": "https://www.sz.gov.cn/zfgb/2016/gb960/content/post_4983148.html",
+      "ways": [
+        "way/638246754",
+        "way/1049968046",
+        "way/377732300",
+        "way/377732301",
+        "way/377732301",
+        "way/1059172733",
+        "way/1059172733",
+        "way/74033690",
+        "way/74033690",
+        "way/1463915893",
+        "way/41275555",
+        "way/41275555",
+        "way/1131695092",
+        "way/1131695092",
+        "way/1057874093",
+        "way/1057874093"
+      ],
+      "pathNodes": [
+        "node/504650814",
+        "node/504650854",
+        "node/3811248396",
+        "node/3811248395",
+        "node/504650862",
+        "node/504650872",
+        "node/2787087445",
+        "node/875924182",
+        "node/2889086261",
+        "node/504640660",
+        "node/504640652",
+        "node/6043430510",
+        "node/504634828",
+        "node/504640847",
+        "node/2377771325",
+        "node/12902212956",
+        "node/7947470101"
+      ],
+      "portalNodes": [
+        "node/504650814",
+        "node/7947470101"
+      ],
+      "profileM": [
+        [
+          0,
+          114.823
+        ],
+        [
+          1280,
+          63.5
+        ],
+        [
+          1860,
+          63.5
+        ],
+        [
+          2180,
+          53.8
+        ],
+        [
+          2490,
+          53.8
+        ],
+        [
+          3330,
+          20.9
+        ],
+        [
+          3734.032,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-level-road-with-source-bridge-and-terrain-cuts",
+      "groundApronM": [
+        25,
+        15
+      ],
+      "lanes": 3,
+      "verticalCurveM": 90,
+      "approachWidthsM": {
+        "way/638246754": 9.8,
+        "way/1049968046": 9.8,
+        "way/377732301": 9.8,
+        "way/1059172733": 9.8,
+        "way/74033690": 9.8,
+        "way/1463915893": 9.8
+      },
+      "bridgeWidthsM": {
+        "way/377732300": 9.8,
+        "way/41275555": 9.8
+      }
+    },
+    {
+      "id": "beihuan-nanhai-west",
+      "kind": "mixed",
+      "source": "https://www.openstreetmap.org/way/26968127",
+      "ways": [
+        "way/1425580651",
+        "way/570468187",
+        "way/26968127",
+        "way/1467797282",
+        "way/582000074"
+      ],
+      "pathNodes": [
+        "node/13103729339",
+        "node/277049991",
+        "node/278869513",
+        "node/5567304157",
+        "node/278869516",
+        "node/1768207197"
+      ],
+      "portalNodes": [
+        "node/13103729339",
+        "node/1768207197"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          150,
+          13
+        ],
+        [
+          475,
+          13
+        ],
+        [
+          675,
+          8
+        ],
+        [
+          1543.66094,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+      "lanes": 4,
+      "approachWidthsM": {
+        "way/1425580651": 14,
+        "way/570468187": 14,
+        "way/1467797282": 14,
+        "way/582000074": 14
+      },
+      "bridgeWidthsM": {
+        "way/26968127": 14
+      }
+    },
+    {
+      "id": "beihuan-nanhai-east",
+      "kind": "mixed",
+      "source": "https://www.openstreetmap.org/way/165265283",
+      "ways": [
+        "way/329066212",
+        "way/329066212",
+        "way/165265283",
+        "way/165265283",
+        "way/582000075"
+      ],
+      "pathNodes": [
+        "node/5776735563",
+        "node/279073806",
+        "node/279073807",
+        "node/279073591",
+        "node/5567304161",
+        "node/277189210"
+      ],
+      "portalNodes": [
+        "node/5776735563",
+        "node/277189210"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          210,
+          13
+        ],
+        [
+          615,
+          13
+        ],
+        [
+          790,
+          8
+        ],
+        [
+          847.75747,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+      "lanes": 4,
+      "approachWidthsM": {
+        "way/329066212": 14,
+        "way/582000075": 14
+      },
+      "bridgeWidthsM": {
+        "way/165265283": 14
+      }
+    },
+    {
+      "id": "shennan-shahe-east",
+      "kind": "mixed",
+      "source": "https://www.openstreetmap.org/way/25529353",
+      "ways": [
+        "way/1050765265",
+        "way/633620762",
+        "way/25529353",
+        "way/25529353",
+        "way/25529347",
+        "way/557222376",
+        "way/557222376"
+      ],
+      "pathNodes": [
+        "node/1944028258",
+        "node/1931997259",
+        "node/267602600",
+        "node/1931995550",
+        "node/278220673",
+        "node/1931988604",
+        "node/6302207448",
+        "node/278222580"
+      ],
+      "portalNodes": [
+        "node/1944028258",
+        "node/278222580"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          200,
+          13
+        ],
+        [
+          725,
+          13
+        ],
+        [
+          1085.7725,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain"
+    },
+    {
+      "id": "shennan-shahe-west",
+      "kind": "mixed",
+      "source": "https://www.openstreetmap.org/way/220882377",
+      "ways": [
+        "way/633753644",
+        "way/633753644",
+        "way/220882377",
+        "way/1052247913",
+        "way/1050765268",
+        "way/633620706"
+      ],
+      "pathNodes": [
+        "node/2458963383",
+        "node/2397991627",
+        "node/2299613379",
+        "node/1931994712",
+        "node/2299613327",
+        "node/278220530",
+        "node/8905924274"
+      ],
+      "portalNodes": [
+        "node/2458963383",
+        "node/8905924274"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          180,
+          13
+        ],
+        [
+          735,
+          13
+        ],
+        [
+          885.06859,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain"
+    },
+    {
+      "id": "shennan-xinzhou-west",
+      "kind": "mixed",
+      "source": "https://www.openstreetmap.org/way/1050511757",
+      "ways": [
+        "way/1050725164",
+        "way/996625933",
+        "way/1050511757",
+        "way/1050511757",
+        "way/96334028",
+        "way/996625934",
+        "way/996625934",
+        "way/1050511761",
+        "way/96334031"
+      ],
+      "pathNodes": [
+        "node/2750667755",
+        "node/499543283",
+        "node/6302207410",
+        "node/6467166907",
+        "node/499478813",
+        "node/6467166929",
+        "node/499478538",
+        "node/1116501297",
+        "node/7973099538",
+        "node/1116492767"
+      ],
+      "portalNodes": [
+        "node/2750667755",
+        "node/1116492767"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          170,
+          13
+        ],
+        [
+          465,
+          13
+        ],
+        [
+          643.84385,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain"
+    },
+    {
+      "id": "shennan-xinzhou-east",
+      "kind": "mixed",
+      "source": "https://www.openstreetmap.org/way/996625935",
+      "ways": [
+        "way/1050261077",
+        "way/1050511760",
+        "way/996625935",
+        "way/996625935",
+        "way/245389549",
+        "way/245389549",
+        "way/245389549",
+        "way/1050511758",
+        "way/996625938"
+      ],
+      "pathNodes": [
+        "node/7973099504",
+        "node/1491845610",
+        "node/1116501223",
+        "node/499478765",
+        "node/1116501237",
+        "node/2525990704",
+        "node/2525990691",
+        "node/2525990692",
+        "node/499543123",
+        "node/2750667601"
+      ],
+      "portalNodes": [
+        "node/7973099504",
+        "node/2750667601"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          310,
+          13
+        ],
+        [
+          540,
+          13
+        ],
+        [
+          707.60827,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain"
+    },
+    {
+      "id": "binhai-shahe-east",
+      "kind": "mixed",
+      "source": "https://www.openstreetmap.org/way/101316668",
+      "ways": [
+        "way/1031889490",
+        "way/101316668",
+        "way/974372180",
+        "way/1287096255"
+      ],
+      "pathNodes": [
+        "node/1925242423",
+        "node/1768207177",
+        "node/5604256130",
+        "node/296024714",
+        "node/2045551725"
+      ],
+      "portalNodes": [
+        "node/1925242423",
+        "node/2045551725"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          515,
+          13
+        ],
+        [
+          950,
+          13
+        ],
+        [
+          1120,
+          8
+        ],
+        [
+          1181.43828,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+      "lanes": 5,
+      "approachWidthsM": {
+        "way/1031889490": 18.5
+      },
+      "bridgeWidthsM": {
+        "way/101316668": 18.5
+      }
+    },
+    {
+      "id": "binhai-shahe-west",
+      "kind": "mixed",
+      "source": "https://www.openstreetmap.org/way/101316998",
+      "ways": [
+        "way/1382209008",
+        "way/1468004414",
+        "way/101316998",
+        "way/995989149"
+      ],
+      "pathNodes": [
+        "node/277323803",
+        "node/5604256145",
+        "node/5604256128",
+        "node/1768207180",
+        "node/1925243312"
+      ],
+      "portalNodes": [
+        "node/277323803",
+        "node/1925243312"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          245,
+          13
+        ],
+        [
+          650,
+          13
+        ],
+        [
+          850,
+          8
+        ],
+        [
+          918.91956,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+      "lanes": 5,
+      "bridgeWidthsM": {
+        "way/101316998": 18.5
+      },
+      "approachWidthsM": {
+        "way/995989149": 18.5
+      }
+    },
+    {
+      "id": "beihuan-nanhai-east-loop-off",
+      "kind": "ramp",
+      "source": "https://www.openstreetmap.org/way/101316531",
+      "ways": [
+        "way/101316531",
+        "way/582000076"
+      ],
+      "pathNodes": [
+        "node/279073591",
+        "node/279073696",
+        "node/5567304339"
+      ],
+      "portalNodes": [
+        "node/279073591",
+        "node/5567304339"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "loop",
+        "node": "node/279073591",
+        "mainline": "beihuan-nanhai-east"
+      }
+    },
+    {
+      "id": "shennan-shahe-east-loop-on",
+      "kind": "ramp",
+      "source": "https://www.openstreetmap.org/way/374508069",
+      "ways": [
+        "way/182832354",
+        "way/374508069"
+      ],
+      "pathNodes": [
+        "node/11162381640",
+        "node/2299613354",
+        "node/1931995550"
+      ],
+      "portalNodes": [
+        "node/11162381640",
+        "node/1931995550"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "loop",
+        "node": "node/1931995550",
+        "mainline": "shennan-shahe-east",
+        "mergeM": 53
+      },
+      "rampWidthsM": {
+        "way/182832354": 4.4,
+        "way/374508069": 4.4
+      }
+    },
+    {
+      "id": "shennan-shahe-west-loop-off",
+      "kind": "ramp",
+      "source": "https://www.openstreetmap.org/way/91743153",
+      "ways": [
+        "way/91743153",
+        "way/374508070"
+      ],
+      "pathNodes": [
+        "node/1931994712",
+        "node/2299613385",
+        "node/1066120241"
+      ],
+      "portalNodes": [
+        "node/1931994712",
+        "node/1066120241"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "loop",
+        "node": "node/1931994712",
+        "mainline": "shennan-shahe-west",
+        "mergeM": 65
+      },
+      "rampWidthsM": {
+        "way/91743153": 4.4,
+        "way/374508070": 4.4
+      }
+    },
+    {
+      "id": "shennan-xinzhou-50",
+      "kind": "ramp",
+      "source": "https://www.openstreetmap.org/way/25435186",
+      "ways": [
+        "way/25435186",
+        "way/545784771"
+      ],
+      "pathNodes": [
+        "node/2525990704",
+        "node/499478692",
+        "node/499478696"
+      ],
+      "portalNodes": [
+        "node/2525990704",
+        "node/499478696"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "loop",
+        "node": "node/2525990704",
+        "mainline": "shennan-xinzhou-east"
+      }
+    },
+    {
+      "id": "shennan-xinzhou-139",
+      "kind": "ramp",
+      "source": "https://www.openstreetmap.org/way/25508410",
+      "ways": [
+        "way/25508410",
+        "way/545784770"
+      ],
+      "pathNodes": [
+        "node/6467166929",
+        "node/499478598",
+        "node/499478603"
+      ],
+      "portalNodes": [
+        "node/6467166929",
+        "node/499478603"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "loop",
+        "node": "node/6467166929",
+        "mainline": "shennan-xinzhou-west"
+      }
+    },
+    {
+      "id": "shennan-xinzhou-51",
+      "kind": "ramp",
+      "source": "https://www.openstreetmap.org/way/545784772",
+      "ways": [
+        "way/25435194",
+        "way/545784772"
+      ],
+      "pathNodes": [
+        "node/499478701",
+        "node/5274730003",
+        "node/1116501237"
+      ],
+      "portalNodes": [
+        "node/499478701",
+        "node/1116501237"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "loop",
+        "node": "node/1116501237",
+        "mainline": "shennan-xinzhou-east"
+      }
+    },
+    {
+      "id": "shennan-xinzhou-138",
+      "kind": "ramp",
+      "source": "https://www.openstreetmap.org/way/545784773",
+      "ways": [
+        "way/25508277",
+        "way/545784773"
+      ],
+      "pathNodes": [
+        "node/499478798",
+        "node/499478803",
+        "node/499478813"
+      ],
+      "portalNodes": [
+        "node/499478798",
+        "node/499478813"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "loop",
+        "node": "node/499478813",
+        "mainline": "shennan-xinzhou-west"
+      }
+    },
+    {
+      "id": "nanping-new-town-east-on",
+      "kind": "ramp",
+      "source": "https://www.openstreetmap.org/way/377812320",
+      "ways": [
+        "way/377812319",
+        "way/377812320"
+      ],
+      "pathNodes": [
+        "node/5600855597",
+        "node/5569751890",
+        "node/2364454544"
+      ],
+      "portalNodes": [
+        "node/5600855597",
+        "node/2364454544"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "side",
+        "node": "node/2364454544",
+        "mainline": "nanping-xili-east",
+        "mergeM": 220
+      }
+    },
+    {
+      "id": "shennan-baoan-west",
+      "kind": "mixed",
+      "source": "https://www.openstreetmap.org/way/165265299",
+      "ways": [
+        "way/1049950459",
+        "way/575168590",
+        "way/165265299",
+        "way/231787772",
+        "way/231787772",
+        "way/1467797281",
+        "way/377809348",
+        "way/377809348"
+      ],
+      "pathNodes": [
+        "node/277336626",
+        "node/1768207260",
+        "node/267602501",
+        "node/267602507",
+        "node/2401176953",
+        "node/5559614251",
+        "node/1768207379",
+        "node/2467655663",
+        "node/3812076440"
+      ],
+      "portalNodes": [
+        "node/277336626",
+        "node/3812076440"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          175,
+          13
+        ],
+        [
+          1540,
+          13
+        ],
+        [
+          1752.31161,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+      "verticalCurveM": 45,
+      "lanes": 4,
+      "bridgeWidthsM": {
+        "way/165265299": 13,
+        "way/231787772": 13,
+        "way/1467797281": 13
+      }
+    },
+    {
+      "id": "shennan-baoan-east",
+      "kind": "mixed",
+      "source": "https://www.openstreetmap.org/way/101317038",
+      "ways": [
+        "way/101317038",
+        "way/101317038",
+        "way/101317038",
+        "way/580915671",
+        "way/182832519"
+      ],
+      "pathNodes": [
+        "node/277336402",
+        "node/277336405",
+        "node/2457761603",
+        "node/1169593590",
+        "node/277336408",
+        "node/1768207256"
+      ],
+      "portalNodes": [
+        "node/277336402",
+        "node/1768207256"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          185,
+          13
+        ],
+        [
+          1010,
+          13
+        ],
+        [
+          1213.32408,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+      "groundApronM": [
+        8,
+        85
+      ],
+      "lanes": 4,
+      "bridgeWidthsM": {
+        "way/101317038": 13,
+        "way/580915671": 13
+      }
+    },
+    {
+      "id": "shennan-baoan-west-side-on",
+      "kind": "ramp",
+      "source": "https://www.openstreetmap.org/way/165265363",
+      "ways": [
+        "way/165265337",
+        "way/165265363"
+      ],
+      "pathNodes": [
+        "node/1768207287",
+        "node/1768207286",
+        "node/267602507"
+      ],
+      "portalNodes": [
+        "node/1768207287",
+        "node/267602507"
+      ],
+      "profileSource": "project-design-estimate",
+      "junction": {
+        "template": "side",
+        "node": "node/267602507",
+        "mainline": "shennan-baoan-west"
+      }
+    },
+    {
+      "id": "shennan-qiaocheng-east",
+      "kind": "mixed",
+      "source": "https://www.openstreetmap.org/way/51190861",
+      "ways": [
+        "way/572963457",
+        "way/51190861",
+        "way/633620761"
+      ],
+      "pathNodes": [
+        "node/2184437884",
+        "node/653124766",
+        "node/653124592",
+        "node/2184437863"
+      ],
+      "portalNodes": [
+        "node/2184437884",
+        "node/2184437863"
+      ],
+      "profileM": [
+        [
+          0,
+          8.0
+        ],
+        [
+          280,
+          12
+        ],
+        [
+          430,
+          16
+        ],
+        [
+          620,
+          16
+        ],
+        [
+          850,
+          15
+        ],
+        [
+          951.3683,
+          14.08136
+        ]
+      ],
+      "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+      "lanes": 4,
+      "approachWidthsM": {
+        "way/572963457": 13
+      },
+      "groundApronM": [
+        5,
+        47
+      ]
+    },
+    {
+      "id": "shennan-qiaocheng-west",
+      "kind": "mixed",
+      "source": "https://www.openstreetmap.org/way/51190882",
+      "ways": [
+        "way/985389863",
+        "way/51190882",
+        "way/1049950449"
+      ],
+      "pathNodes": [
+        "node/2458960409",
+        "node/653124767",
+        "node/653124587",
+        "node/277183820"
+      ],
+      "portalNodes": [
+        "node/2458960409",
+        "node/277183820"
+      ],
+      "profileM": [
+        [
+          0,
+          16.113
+        ],
+        [
+          85,
+          16.5
+        ],
+        [
+          395,
+          16.5
+        ],
+        [
+          703.32247,
+          8.0
+        ]
+      ],
+      "profileSource": "project-design-estimate-using-pinned-source-ways-and-engineering-terrain",
+      "lanes": 4,
+      "approachWidthsM": {
+        "way/1049950449": 13
+      },
+      "groundApronM": [
+        46,
+        5
+      ]
     }
   ],
   "minimumVehicleClearanceM": 3.7,

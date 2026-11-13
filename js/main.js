@@ -26,6 +26,7 @@ import { buildSzStreetLamps } from './sz-street-lamps.js';
 import { createUrbanPavingWalk } from './sz-urban-paving.js';
 import { buildSzTrees } from './sz-trees.js';
 import { planWoodlandTrees } from './sz-woodlands.js';
+import { buildVegetationPilots } from './sz-vegetation.js';
 import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzDroneRoutes } from './sz-drone-routes.js';
@@ -307,13 +308,14 @@ async function initApp() {
   const deckOccupied = (x, z, bottom, top) => deck.at(x, z).some(surface => surface.height + 4.5 > bottom
     && surface.height - (exposedStructures.has(surface.surfaceId) ? GEO.roadStructures.bridgeSlabM : 0.35) < top);
   // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
-  const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
+  const treeSite = {
     ...site, carriagewayOccupied, deckOccupied, excludedSite: themeParks.reserved, woodlandTrees: planWoodlandTrees(), simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
     reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r)
       || northStation?.reserves(x, z, r) || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
     observedTrees: streetscape.observedTrees, pilotTrees: [...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees, ...districts.trees, ...urbanPaving.trees],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
-  }));
+  };
+  const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, treeSite));
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
   const streetLamps = qa.stage('lamps', () => buildSzStreetLamps(scene, site.roadGraph, {
     ...site, roadStyle: site.style.road, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk, relocateSite: candidate => {
@@ -349,12 +351,19 @@ async function initApp() {
     ...elevatedRoads.colliders, ...roadStructures.colliders, ...(waterfront?.colliders ?? [])];
   const planter = publicWalk.placePlanter(colliders, site.heightAt);
   if (planter) colliders.push(planter);
-  const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, site,
-    obstacles: colliders, treeObstacles: trees.flightObstacles }));
-  colliders.push(...drones.colliders);
-  site.colliders = colliders;
   const bayWaterfront = qa.measureBuild('bayWaterfront', () =>
     buildSzBayWaterfront(scene, GEO.shenzhenBay, { ...site, pathsNear: bayPaths }));
+  const vegetation = qa.measureBuild('vegetation', () => buildVegetationPilots(scene, GEO, {
+    ...treeSite, colliders: [...colliders, ...bayWaterfront.colliders], pavedAt: retail.pavementAt,
+    nearRoads: nearRoadsForFrontage,
+    reserveWalk: (x, z, r) => treeSite.reserveWalk(x, z, r) || site.reserveBayWalk(x, z, r)
+  }, trees.colliders));
+  colliders.push(...vegetation.colliders);
+  const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, site,
+    obstacles: colliders, treeObstacles: bounds =>
+      [...(trees.flightObstacles?.(bounds) ?? []), ...vegetation.flightObstacles(bounds)] }));
+  colliders.push(...drones.colliders);
+  site.colliders = colliders;
   colliders.push(...bayWaterfront.colliders);
   const shoreSamples = qa.measureBuild('shoreSamples', () => buildSzWaterfront(scene, GEO.waterfront, {
     water: GEO.water, network: waterfrontPaths, elevated: elevatedRoads, heightAt: site.heightAt, obstacles: colliders
@@ -502,6 +511,7 @@ async function initApp() {
     streetscape.dispose();
     themeParks.dispose();
     trees.dispose?.();
+    vegetation.dispose();
     waterfront?.dispose();
     iec?.dispose();
     bayWaterfront.dispose();
@@ -903,7 +913,7 @@ async function initApp() {
       buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, streetscapeArrival, sea, bridge, publicWalk,
       colliders, cityBlocks,
       modules: {
-        lamps: streetLamps, trees, themeParks, apec: apecTheme, apecCity, drones, lightShow,
+        lamps: streetLamps, trees, vegetation, themeParks, apec: apecTheme, apecCity, drones, lightShow,
         summit, cbdProgram, waterfront, talentProgram, talentPeople, programIds: cityBlocks.programIds ?? [], parkOmissions,
         elevatedRoads, roadStructures, metroEntrances, futian: futianStation, xili: xiliConstruction, northStation
       },
@@ -1052,6 +1062,7 @@ async function initApp() {
     qa.applyCamera(cameraSystem.camera);
     streetLamps.update(cameraSystem.camera.position);
     trees.update(cameraSystem.camera.position);
+    vegetation.update(cameraSystem.camera.position);
     districts.update(cameraSystem.camera.position);
     apecTheme.update(dt);
     apecCity.update(dt);

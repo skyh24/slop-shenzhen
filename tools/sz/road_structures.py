@@ -38,6 +38,16 @@ def ease(t):
     return t * t * (3 - 2 * t)
 
 
+def eased_grade_run(distance, length, curve):
+    # 两端以抛物线接水平路面，中段保持常坡。
+    d = min(length, max(0, distance))
+    if d < curve:
+        return d * d / (2 * curve)
+    if d > length - curve:
+        return length - curve - (length - d) ** 2 / (2 * curve)
+    return d - curve / 2
+
+
 def compile_interchange_ramp(route, graph, grid, indices, config, accepted):
     junction = route['junction']
     links = [graph['links'][i] for i in indices]
@@ -61,21 +71,17 @@ def compile_interchange_ramp(route, graph, grid, indices, config, accepted):
     length = sum(lengths)
     ground_y = ground_height(grid, *(paths[0][0] if end_at_deck else paths[-1][-1]))
     apron = 8
-    merge = {'loop': 30, 'side': 105}[junction['template']]
+    merge = junction.get('mergeM', {'loop': 30, 'side': 105}[junction['template']])
+    if not math.isfinite(merge) or merge <= 0:
+        raise ValueError('Reviewed ramp merge length must be positive')
     run = length - merge - apron
     curve = min(36, run / 3)
     if run <= 0 or abs(deck_y - ground_y) / (run - curve) > config['maxGrade']:
         raise ValueError('Insufficient source length for a gradual interchange ramp')
 
     def profile(s):
-        # 两端以抛物线接水平路面，中段保持常坡。折算里程始终从地面端起算。
-        d = min(run, max(0, (s if end_at_deck else length - s) - apron))
-        if d < curve:
-            rise = d * d / (2 * curve)
-        elif d > run - curve:
-            rise = run - curve - (run - d) ** 2 / (2 * curve)
-        else:
-            rise = d - curve / 2
+        # 折算里程始终从地面端起算。
+        rise = eased_grade_run((s if end_at_deck else length - s) - apron, run, curve)
         return ground_y + (deck_y - ground_y) * rise / (run - curve)
 
     parts, openings = [], []
@@ -83,6 +89,12 @@ def compile_interchange_ramp(route, graph, grid, indices, config, accepted):
     breaks = [apron, apron + curve, length - merge - curve, length - merge]
     for i, (index, path, span) in enumerate(zip(indices, paths, lengths, strict=True)):
         width, lanes = links[i][3:5]
+        meta = graph['metadata'][index]
+        if meta['osmId'] in route.get('rampWidthsM', {}):
+            estimate = route['rampWidthsM'][meta['osmId']]
+            if meta['widthSource'] not in ('estimate-from-class', 'estimate-from-lanes') or not width <= estimate <= width + 2:
+                raise ValueError(f"Reviewed ramp width would overwrite source dimensions: {meta['osmId']}")
+            width = estimate
         events = [(s if end_at_deck else length - s) - station for s in breaks]
         frames = station_frames(path, [s for s in events if 0 < s < span], lambda s: profile(station + s), lambda _: width,
                                 tangent_span=3.0)
@@ -190,19 +202,31 @@ def compile_reviewed_profile(route, graph, grid, indices, config):
             if abs(expected - heights[endpoint]) > 0.05:
                 raise ValueError('Reviewed profile does not meet the existing road at its endpoint')
             heights[endpoint] = expected
-    if any(abs(b - a) * 1.5 / (end - start) > config['maxGrade'] for a, b, start, end in
-           zip(heights, heights[1:], station, station[1:])):
+    curve_m = route.get('verticalCurveM')
+    if curve_m is not None and (not math.isfinite(curve_m) or curve_m <= 0):
+        raise ValueError('Reviewed vertical curve length must be positive')
+    spans = [end - start for start, end in zip(station, station[1:])]
+    curves = [min(curve_m, span / 2) if curve_m is not None else None for span in spans]
+    runs = [span - curve if curve is not None else span / 1.5 for span, curve in zip(spans, curves, strict=True)]
+    if any(abs(b - a) / run > config['maxGrade'] for a, b, run in zip(heights, heights[1:], runs)):
         raise ValueError('Reviewed vertical curve exceeds maximum grade')
 
     def profile(s):
         i = max(0, min(len(station) - 2, bisect_right(station, s) - 1))
-        return heights[i] + (heights[i + 1] - heights[i]) * ease((s - station[i]) / (station[i + 1] - station[i]))
+        span, curve = spans[i], curves[i]
+        d = s - station[i]
+        if curve is None:
+            weight = ease(d / span)
+        else:
+            weight = eased_grade_run(d, span, curve) / runs[i]
+        return heights[i] + (heights[i + 1] - heights[i]) * weight
 
     records, openings, envelope = [], [], []
     distance = 0
     portal_ways = set(route.get('portalApproachWays', []))
     portal_cover = route.get('portalCoverM', {})
-    section_widths = route.get('approachWidthsM', {})
+    bridge_widths = route.get('bridgeWidthsM', {})
+    section_widths = {**route.get('approachWidthsM', {}), **bridge_widths}
     widths = [section_widths.get(graph['metadata'][index]['osmId'], link[3])
               for index, link in zip(indices, links, strict=True)]
     for j, (index, link, line) in enumerate(zip(indices, links, lines, strict=True)):
@@ -217,10 +241,14 @@ def compile_reviewed_profile(route, graph, grid, indices, config):
             raise ValueError(f"Unknown elevation on reviewed route: {meta['osmId']}")
         width, lanes = widths[j], link[4]
         if meta['osmId'] in section_widths:
-            if tunnel or bridge or meta['widthSource'] != 'estimate-from-class' or not 6 <= width <= link[3]:
-                raise ValueError(f"Reviewed approach width would overwrite source dimensions: {meta['osmId']}")
+            if (tunnel or bridge != (meta['osmId'] in bridge_widths)
+                    or meta['widthSource'] != 'estimate-from-class' or not 6 <= width <= link[3]):
+                raise ValueError(f"Reviewed section width would overwrite source dimensions: {meta['osmId']}")
             lanes = route['lanes']
         events = [s - distance for s in station if distance < s < distance + line.length]
+        for s, end, curve in zip(station, station[1:], curves):
+            if curve is not None:
+                events.extend(p - distance for p in (s + curve, end - curve) if distance < p < distance + line.length)
         start_apron = route.get('groundApronM', [0, 0])[0] if j == 0 and shared[0] else 0
         end_apron = route.get('groundApronM', [0, 0])[1] if j == len(links) - 1 and shared[1] else 0
         events.extend([start_apron, line.length - end_apron])
@@ -235,7 +263,8 @@ def compile_reviewed_profile(route, graph, grid, indices, config):
             return width + (before - width) * (1 - ease(s / taper)) \
                 + (after - width) * (1 - ease((line.length - s) / taper))
 
-        frames = station_frames(list(line.coords), events, lambda s: profile(distance + s), width_at)
+        frames = station_frames(list(line.coords), events, lambda s: profile(distance + s), width_at,
+                                tangent_span=3.0 if curve_m is not None else 0.005)
         grade = sampled_grade(frames)
         if grade > config['maxGrade']:
             raise ValueError(f"Rendered longitudinal grade exceeds cap: {meta['osmId']} {grade:.5f}")
