@@ -118,9 +118,11 @@ def compile_ground_walk(payload, osm, source, report):
     # 旧包迁移只重标滨水生成器覆盖的三角面；新包已保留中湾材质。
     bay, _, _ = bay_paving(payload['shenzhenBay']['paths'], payload['roadGraph'])
     bay_candidates = [f'bay-{name}' for name, kind in PAVING.items() if kind != 8]
+    # 已建绿道的深色铺装由滨水网络拥有，旧包迁移只处理尚未明确材质的面。
+    bay_base_kinds = (8,) if payload['waterfront'].get('parkNetwork') else (8, 9)
     for name, kind in PAVING.items():
         if kind != 8:
-            candidates.append(_candidate(f'bay-{name}', bay[kind], kind, (8, 9)))
+            candidates.append(_candidate(f'bay-{name}', bay[kind], kind, bay_base_kinds))
     # 沿既有环线换面，保持桥面、道路、树灯位置和岸线高程。
     for route in payload['waterfront']['routes']:
         if route['id'].startswith('lychee-'):

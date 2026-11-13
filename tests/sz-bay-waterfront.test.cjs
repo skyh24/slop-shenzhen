@@ -19,18 +19,13 @@ const { createCitySpatial } = loadModule(read('sz-spatial.js'), { imports: {
 } });
 const spatial = createCitySpatial(geo);
 
-test('lowering the shore retains mapped stone and asphalt and the existing lake loop stays paved', () => {
-  for (const [path, kind] of [
-    [bay.paths.find(p => p.osmId === 'way/255653770'), 7],
-    [bay.paths.find(p => p.osmId === 'way/357765495'), 5],
-    [geo.waterfront.routes.find(r => r.id === 'lychee-loop').paths.find(p => !p.bridge), 4]
-  ]) {
-    const support = ground.createGroundSurfaceSampler(geo.terrainSurface, k => k === kind);
-    const stations = path.points.slice(1).map(([x, z], i) => [
-      (x + path.points[i][0]) / 2, (z + path.points[i][1]) / 2
-    ]);
-    assert.ok(stations.filter(([x, z]) => Number.isFinite(support(x, z))).length >= stations.length * 0.9, path.osmId);
-  }
+test('the existing lake loop retains source stone paving after the waterfront extension', () => {
+  const path = geo.waterfront.routes.find(r => r.id === 'lychee-loop').paths.find(p => !p.bridge);
+  const support = ground.createGroundSurfaceSampler(geo.terrainSurface, kind => kind === 7);
+  const stations = path.points.slice(1).map(([x, z], i) => [
+    (x + path.points[i][0]) / 2, (z + path.points[i][1]) / 2
+  ]);
+  assert.ok(stations.filter(([x, z]) => Number.isFinite(support(x, z))).length >= stations.length * 0.9);
 });
 
 test('the city package retains source waterfront paving across the usable width', () => {
