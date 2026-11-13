@@ -15,6 +15,13 @@ const layout = loadModule(read('sz-building-layout.js'), { imports: { './sz-terr
 const parts = loadModule(readLandmark('parts.js'), { imports: {
   '../building-collision.js': collision, '../sz-building-layout.js': layout
 } });
+const culturalGeometry = loadModule(readLandmark('cultural-geometry.js'), { imports: { './parts.js': parts } });
+const loadCultural = name => loadModule(readLandmark(name), { imports: {
+  './parts.js': parts, './cultural-geometry.js': culturalGeometry
+} });
+const museum = loadCultural('qianhai-museum.js');
+const opera = loadCultural('bay-opera.js');
+const mocape = loadCultural('mocape.js');
 const tencent = loadModule(readLandmark('tencent-binhai.js'), { imports: { './parts.js': parts } });
 const dji = loadModule(readLandmark('dji-sky-city.js'), { imports: { '../building-collision.js': collision, './parts.js': parts } });
 const pingAn = loadModule(readLandmark('ping-an.js'), { imports: { './parts.js': parts } });
@@ -49,6 +56,7 @@ const superHq = loadSuperHq({});
 const culture = loadCulture({});
 const upperhills = loadUpperhills({});
 const loadPlan = (cultureModule, upperhillsModule = upperhills, iecModule = iec, superHqModule = superHq) => loadModule(readLandmark('layout.js'), { imports: {
+  './qianhai-museum.js': museum, './bay-opera.js': opera, './mocape.js': mocape,
   './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun,
   './civic-center.js': civic, './chunjian.js': stadium, './shenzhen-bay-culture-square.js': cultureModule,
   './convention-center.js': convention, './upperhills.js': upperhillsModule, './nonferrous-tower.js': nonferrous,
@@ -79,6 +87,7 @@ test('the Shenzhen press tower renders an open crown and a spire rather than a s
 test('landmarks retire only the explicit source objects and keep the fallback on incomplete snapshots', () => {
   const verifiedDuplicates = [...civic.optionalSkipIds, ...nonferrous.optionalSkipIds, ...pressTower.optionalSkipIds].filter(id => byId.has(id));
   assert.deepEqual([...plan.skipIds].sort(), [...tencent.sourceIds, ...dji.sourceIds, ...pingAn.sourceIds, ...chunsun.sourceIds,
+    ...museum.sourceIds, ...opera.sourceIds, ...mocape.sourceIds,
     ...civic.sourceIds, ...verifiedDuplicates, ...stadium.sourceIds, ...convention.sourceIds, ...nonferrous.sourceIds, ...pressTower.sourceIds].sort());
   assert.ok(byLandmark.has('civic-center'));
   assert.ok(byLandmark.has('chunjian'));
@@ -95,6 +104,47 @@ test('landmarks retire only the explicit source objects and keep the fallback on
   assert.equal(plan.skipIds.has('way/1253254379'), false);
   assert.equal(plan.skipIds.has('way/529272469'), false);
   assert.equal(plan.skipIds.has('way/1441599159'), false);
+});
+
+test('the cultural landmarks preserve the verified sites, roof profiles and entrance gaps', () => {
+  const front = byId.get(museum.sourceIds[0]);
+  const museumParts = byLandmark.get('qianhai-museum');
+  const lobby = museumParts.find(part => part.style === 'cultureDarkGlass');
+  const eaves = museumParts.filter(part => /^qianhai-museum:eave:\d+$/.test(part.id));
+  assert.equal(eaves.length, 5);
+  assert.ok(eaves.every((part, i) => i === 0 || part.maxX > eaves[i - 1].maxX));
+  assert.equal(eaves.at(-1).maxX, Math.fround(front.maxX));
+  assert.ok(museumParts.some(part => part.style === 'cultureSkylight' && part.heightSource === 'published'));
+  assert.ok(Math.abs(Math.max(...museumParts.map(part => part.maxY)) - (lobby.minY + 0.48) - 68) < 0.001);
+  const rim = museumParts.find(part => part.id.startsWith('qianhai-museum:garden-rim'));
+  assert.equal(rim.polygon.holes.length, 1);
+  assert.ok(!collision.polygonContains(rim.polygon, front.cx, front.cz));
+
+  const operaParts = byLandmark.get('bay-opera');
+  const [shell] = operaParts.filter(part => part.id === 'bay-opera:fly-tower');
+  assert.equal(shell.heightSource, 'published');
+  assert.ok(operaParts.some(part => part.id.startsWith('bay-opera:plaza-wave') && part.minY > 17));
+  const portal = operaParts.find(part => part.id.startsWith('bay-opera:portal-lintel'));
+  const portalCenter = [(portal.minX + portal.maxX) / 2, (portal.minZ + portal.maxZ) / 2];
+  assert.ok(portal.minY > 7.9);
+  assert.equal(operaParts.filter(part => part.minY < portal.minY
+    && collision.polygonContains(part.polygon, ...portalCenter)).length, 0);
+  assert.ok(operaParts.filter(part => part.id.startsWith('bay-opera:portal-jamb'))
+    .every(part => part.maxY === portal.minY));
+  const incomplete = planSzLandmarks(fixture.filter(building => building.id !== opera.sourceIds[0]), geo.terrain);
+  assert.ok(opera.sourceIds.every(id => !incomplete.skipIds.has(id)));
+  assert.equal(plan.skipIds.has('way/902736739'), false);
+
+  const galleryParts = byLandmark.get('mocape');
+  const arch = galleryParts.filter(part => part.id.startsWith('mocape:west-entrance-arch'));
+  const stage = byId.get(mocape.sourceIds[0]);
+  const center = arch.find(part => collision.polygonContains(part.polygon, stage.cx - 48, stage.cz + 0.1));
+  assert.ok(center && center.minY > 20);
+  assert.ok(arch.some(part => part.minY < 14));
+  assert.equal(galleryParts.filter(part => part.id.startsWith('mocape:entrance-step')).length, 48);
+  assert.equal(geo.landmarks.find(row => row.id === 'mocape').height, 40);
+  assert.equal(geo.landmarks.find(row => row.id === 'qianhai-museum').height, 68);
+  assert.equal(geo.landmarks.find(row => row.id === 'bay-opera').height, 50);
 });
 
 test('the Nonferrous pilot retires its verified parent only with the complete sourced model', () => {
@@ -608,7 +658,8 @@ test('new site landmarks build and render through the shared material dispatcher
     'three/webgpu': THREE, '../sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } })
   } });
   const planWithSites = planSzLandmarks(fixture, geo.terrain, geo.sites);
-  for (const landmarkId of ['iec-xiangmihu', 'super-hq']) {
+  const newVenues = ['qianhai-museum', 'bay-opera', 'mocape'];
+  for (const landmarkId of ['iec-xiangmihu', 'super-hq', ...newVenues]) {
     const plan = planWithSites.plans.find(item => item.id === landmarkId);
     assert.ok(plan, landmarkId);
     const rendered = renderLandmark(plan, materials.createLandmarkMaterial);
@@ -622,7 +673,7 @@ test('new site landmarks build and render through the shared material dispatcher
       triangles += (geometry.index ? geometry.index.count : position.count) / 3;
       if (mesh.material?.dispose) mesh.material.dispose();
     });
-    assert.ok(triangles > 0 && triangles < 300000, `${landmarkId} triangle budget: ${triangles}`);
+    assert.ok(triangles > 0 && triangles < (newVenues.includes(landmarkId) ? 1800 : 300000), `${landmarkId} triangle budget: ${triangles}`);
     rendered.group.traverse(mesh => mesh.geometry?.dispose());
   }
 });

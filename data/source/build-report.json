@@ -33052,8 +33052,8 @@
   },
   "buildings": 76024,
   "heightSources": {
-    "landmark": 7,
-    "osm-height": 1605,
+    "landmark": 9,
+    "osm-height": 1603,
     "osm-levels": 8575,
     "overture-height": 2,
     "overture-floors": 3,
@@ -132303,6 +132303,7 @@
     "unused": []
   },
   "landmarkBuildingsBound": [
+    "bay-opera",
     "chunsun",
     "civic-center",
     "convention-center",
@@ -132310,8 +132311,10 @@
     "dji-sky-city",
     "huaqiangbei",
     "kk100",
+    "mocape",
     "ping-an",
     "press-tower",
+    "qianhai-museum",
     "sea-world",
     "shenzhen-bay-culture-square",
     "shenzhen-north",
@@ -175166,10 +175169,10 @@
   },
   "landmarkSites": {
     "source": "osm-guangdong",
-    "requestedObjects": 70,
-    "resolvedObjects": 58,
-    "landmarks": 28,
-    "roles": 52,
+    "requestedObjects": 83,
+    "resolvedObjects": 71,
+    "landmarks": 31,
+    "roles": 56,
     "missing": [
       {
         "osmId": "relation/6371344",
@@ -177031,11 +177034,11 @@
     ],
     "unresolvedLinks": [],
     "timing": {
-      "baselineSeconds": 0.088,
-      "stationSeconds": 0.43,
-      "profileSeconds": 2.628,
-      "vertexSeconds": 2.777,
-      "totalSeconds": 6.246
+      "baselineSeconds": 0.144,
+      "stationSeconds": 0.545,
+      "profileSeconds": 4.574,
+      "vertexSeconds": 3.735,
+      "totalSeconds": 9.484
     },
     "limitations": [
       "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
@@ -177206,7 +177209,7 @@
     "triangles": 950902,
     "areaKm2": 279.61691,
     "areaErrorM2": -1.97e-06,
-    "seconds": 7.46,
+    "seconds": 12.07,
     "waterLevelsGenerated": false,
     "heightSource": "urban-datum",
     "exclusions": [
@@ -177601,12 +177604,6 @@
           "way/1416551428",
           "way/1348679788"
         ],
-        "medianSource": {
-          "source": "https://zyeen.com/news/373.html",
-          "positionSource": "documented-median-between-osm-carriageways",
-          "boundarySource": "derived-estimate",
-          "areaM2": 10345.08
-        },
         "crossingAxes": [
           {
             "osmId": "way/1416551427",
@@ -177666,7 +177663,13 @@
               ]
             ]
           }
-        ]
+        ],
+        "medianSource": {
+          "source": "https://zyeen.com/news/373.html",
+          "positionSource": "documented-median-between-osm-carriageways",
+          "boundarySource": "derived-estimate",
+          "areaM2": 10345.08
+        }
       },
       {
         "id": "shennan-civic-center",
@@ -178188,6 +178191,613 @@
     ],
     "unresolvedSourceIds": []
   },
+  "parkWalkPilot": {
+    "parkOsmId": "way/41281446",
+    "osmSnapshotId": "osm-guangdong",
+    "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+    "osmSnapshotLastModified": "2026-11-08T23:59:19Z",
+    "osmSnapshotUrl": "https://download.geofabrik.de/asia/china/guangdong-261108.osm.pbf",
+    "checkedAt": "2026-11-12",
+    "parkSourceUrl": "https://www.openstreetmap.org/way/41281446",
+    "publicParkSourceUrl": "https://cgj.sz.gov.cn/xsmh/gysz/csgy/content/post_10775278.html",
+    "approachWayId": "way/173488620",
+    "entranceNode": 7252057733,
+    "gateNode": 7252057732,
+    "coordinates": {
+      "lonLat": "WGS84，经度在前，单位为度",
+      "xzM": "深圳局部坐标，原点 114.0545E, 22.5463N，x 向东、z 向南，单位为米"
+    },
+    "legs": [
+      {
+        "osmId": "way/173489140",
+        "highway": "service",
+        "fromNode": 7961771676,
+        "toNode": 7252057732,
+        "wayVersion": 7,
+        "wayForward": true,
+        "tags": {
+          "name": "金桂路",
+          "highway": "service",
+          "motor_vehicle": "private"
+        },
+        "footAccessSource": "unknown",
+        "lengthM": 29.35,
+        "outsideParkM": 3.4,
+        "nodes": [
+          {
+            "osmId": "node/7961771676",
+            "version": 1,
+            "tags": {
+              "highway": "crossing"
+            },
+            "lonLat": [
+              114.0507097,
+              22.5514688
+            ],
+            "xzM": [
+              -389.88,
+              -572.38
+            ]
+          },
+          {
+            "osmId": "node/7252057733",
+            "version": 2,
+            "tags": {
+              "entrance": "yes"
+            },
+            "lonLat": [
+              114.0507058,
+              22.5515026
+            ],
+            "xzM": [
+              -390.28,
+              -576.12
+            ]
+          },
+          {
+            "osmId": "node/13158220760",
+            "version": 1,
+            "tags": {},
+            "lonLat": [
+              114.05068,
+              22.5515766
+            ],
+            "xzM": [
+              -392.93,
+              -584.32
+            ]
+          },
+          {
+            "osmId": "node/7252057732",
+            "version": 2,
+            "tags": {
+              "barrier": "gate"
+            },
+            "lonLat": [
+              114.050629,
+              22.5517224
+            ],
+            "xzM": [
+              -398.18,
+              -600.46
+            ]
+          }
+        ],
+        "verticalProfileSource": "unknown"
+      },
+      {
+        "osmId": "way/173489140",
+        "highway": "service",
+        "fromNode": 7252057732,
+        "toNode": 1842903132,
+        "wayVersion": 7,
+        "wayForward": true,
+        "tags": {
+          "name": "金桂路",
+          "highway": "service",
+          "motor_vehicle": "private"
+        },
+        "footAccessSource": "unknown",
+        "lengthM": 176.8,
+        "outsideParkM": 0.0,
+        "nodes": [
+          {
+            "osmId": "node/7252057732",
+            "version": 2,
+            "tags": {
+              "barrier": "gate"
+            },
+            "lonLat": [
+              114.050629,
+              22.5517224
+            ],
+            "xzM": [
+              -398.18,
+              -600.46
+            ]
+          },
+          {
+            "osmId": "node/5374861208",
+            "version": 2,
+            "tags": {},
+            "lonLat": [
+              114.0506133,
+              22.551837
+            ],
+            "xzM": [
+              -399.79,
+              -613.15
+            ]
+          },
+          {
+            "osmId": "node/1842903131",
+            "version": 2,
+            "tags": {},
+            "lonLat": [
+              114.0504889,
+              22.5518251
+            ],
+            "xzM": [
+              -412.59,
+              -611.84
+            ]
+          },
+          {
+            "osmId": "node/5374861183",
+            "version": 1,
+            "tags": {},
+            "lonLat": [
+              114.0504818,
+              22.5519557
+            ],
+            "xzM": [
+              -413.32,
+              -626.3
+            ]
+          },
+          {
+            "osmId": "node/1842903287",
+            "version": 2,
+            "tags": {},
+            "lonLat": [
+              114.0504919,
+              22.5520299
+            ],
+            "xzM": [
+              -412.28,
+              -634.52
+            ]
+          },
+          {
+            "osmId": "node/5374861182",
+            "version": 1,
+            "tags": {},
+            "lonLat": [
+              114.050513,
+              22.5520801
+            ],
+            "xzM": [
+              -410.11,
+              -640.08
+            ]
+          },
+          {
+            "osmId": "node/1842903226",
+            "version": 2,
+            "tags": {},
+            "lonLat": [
+              114.0505537,
+              22.5521302
+            ],
+            "xzM": [
+              -405.92,
+              -645.62
+            ]
+          },
+          {
+            "osmId": "node/1842903124",
+            "version": 3,
+            "tags": {},
+            "lonLat": [
+              114.0505843,
+              22.5521553
+            ],
+            "xzM": [
+              -402.78,
+              -648.4
+            ]
+          },
+          {
+            "osmId": "node/13158220795",
+            "version": 1,
+            "tags": {},
+            "lonLat": [
+              114.0506435,
+              22.5521936
+            ],
+            "xzM": [
+              -396.69,
+              -652.64
+            ]
+          },
+          {
+            "osmId": "node/5374861184",
+            "version": 1,
+            "tags": {},
+            "lonLat": [
+              114.0509112,
+              22.552341
+            ],
+            "xzM": [
+              -369.15,
+              -668.97
+            ]
+          },
+          {
+            "osmId": "node/1842903263",
+            "version": 1,
+            "tags": {},
+            "lonLat": [
+              114.0509556,
+              22.5523736
+            ],
+            "xzM": [
+              -364.58,
+              -672.58
+            ]
+          },
+          {
+            "osmId": "node/13158220818",
+            "version": 1,
+            "tags": {},
+            "lonLat": [
+              114.0510749,
+              22.5524795
+            ],
+            "xzM": [
+              -352.31,
+              -684.3
+            ]
+          },
+          {
+            "osmId": "node/1842903296",
+            "version": 1,
+            "tags": {},
+            "lonLat": [
+              114.0510951,
+              22.5524974
+            ],
+            "xzM": [
+              -350.23,
+              -686.29
+            ]
+          },
+          {
+            "osmId": "node/1842903140",
+            "version": 2,
+            "tags": {},
+            "lonLat": [
+              114.0512208,
+              22.5526208
+            ],
+            "xzM": [
+              -337.3,
+              -699.95
+            ]
+          },
+          {
+            "osmId": "node/1842903132",
+            "version": 2,
+            "tags": {},
+            "lonLat": [
+              114.0514307,
+              22.5527724
+            ],
+            "xzM": [
+              -315.71,
+              -716.74
+            ]
+          }
+        ],
+        "verticalProfileSource": "unknown"
+      },
+      {
+        "osmId": "way/269925479",
+        "highway": "footway",
+        "fromNode": 1842903132,
+        "toNode": 2750494174,
+        "wayVersion": 4,
+        "wayForward": false,
+        "tags": {
+          "highway": "footway"
+        },
+        "footAccessSource": "unknown",
+        "lengthM": 81.95,
+        "outsideParkM": 0.0,
+        "nodes": [
+          {
+            "osmId": "node/1842903132",
+            "version": 2,
+            "tags": {},
+            "lonLat": [
+              114.0514307,
+              22.5527724
+            ],
+            "xzM": [
+              -315.71,
+              -716.74
+            ]
+          },
+          {
+            "osmId": "node/2750494139",
+            "version": 2,
+            "tags": {},
+            "lonLat": [
+              114.0516324,
+              22.5527999
+            ],
+            "xzM": [
+              -294.97,
+              -719.78
+            ]
+          },
+          {
+            "osmId": "node/13158220729",
+            "version": 1,
+            "tags": {},
+            "lonLat": [
+              114.0519447,
+              22.5528167
+            ],
+            "xzM": [
+              -262.84,
+              -721.64
+            ]
+          },
+          {
+            "osmId": "node/2750494174",
+            "version": 2,
+            "tags": {},
+            "lonLat": [
+              114.0522066,
+              22.5529087
+            ],
+            "xzM": [
+              -235.9,
+              -731.83
+            ]
+          }
+        ],
+        "verticalProfileSource": "unknown"
+      },
+      {
+        "osmId": "way/386491514",
+        "highway": "steps",
+        "fromNode": 2750494174,
+        "toNode": 3898350410,
+        "wayVersion": 5,
+        "wayForward": true,
+        "tags": {
+          "name": "莲花西径",
+          "highway": "steps",
+          "incline": "up",
+          "handrail": "no",
+          "ramp:bicycle": "yes"
+        },
+        "footAccessSource": "unknown",
+        "lengthM": 62.14,
+        "outsideParkM": 0.0,
+        "nodes": [
+          {
+            "osmId": "node/2750494174",
+            "version": 2,
+            "tags": {},
+            "lonLat": [
+              114.0522066,
+              22.5529087
+            ],
+            "xzM": [
+              -235.9,
+              -731.83
+            ]
+          },
+          {
+            "osmId": "node/3898350410",
+            "version": 2,
+            "tags": {},
+            "lonLat": [
+              114.0521645,
+              22.5534685
+            ],
+            "xzM": [
+              -240.23,
+              -793.82
+            ]
+          }
+        ],
+        "verticalProfileSource": "unknown"
+      }
+    ],
+    "evidenceWayIds": [
+      "way/269925502",
+      "way/1563004749",
+      "way/557288291",
+      "way/557288290",
+      "way/557288294"
+    ],
+    "openQuestions": [
+      "金桂路入口和闸门的独立开放时间、门净宽及通行规则",
+      "步道纵断面、台阶数和踏步高宽，台阶顶底实测标高",
+      "红荔路人行桥桥面标高和园内楼梯与桥头平台的分层接触"
+    ],
+    "status": "source-route-connected",
+    "parkVersion": 18,
+    "parkTags": {
+      "name": "莲花山公园",
+      "leisure": "park",
+      "access": "yes",
+      "opening_hours": "Mo-Su 06:00-23:00"
+    },
+    "approach": {
+      "wayVersion": 12,
+      "tags": {
+        "highway": "footway",
+        "footway": "sidewalk"
+      },
+      "sharedNode": "node/7961771676"
+    },
+    "lengthM": 350.24,
+    "evidenceOnly": {
+      "way/269925502": {
+        "version": 6,
+        "tags": {
+          "name": "荔林道",
+          "highway": "footway"
+        },
+        "nodeRefs": [
+          2750493977,
+          4809983524,
+          2750494221,
+          2750494080,
+          2750494169,
+          2750494232,
+          3898350412,
+          2750494135,
+          2750493971,
+          2750494199,
+          2750494136,
+          2750494129,
+          4809983531,
+          2750494264,
+          2750494090,
+          2750494220,
+          2750494042,
+          2750493995,
+          2750494233,
+          4809983546,
+          2750493985,
+          2750493981,
+          2750494002,
+          2750494193,
+          2750494132,
+          2750494171,
+          2750494100,
+          2750494084,
+          2750494224,
+          2750494095,
+          2750494244,
+          2750494075,
+          2750494085,
+          2750494115,
+          2750494030,
+          2750493967,
+          14225707579,
+          2750494231,
+          2750493988,
+          2750494172,
+          2750494238,
+          2750494074,
+          2750494049,
+          2750494203,
+          2750494147,
+          2750494165,
+          2750494226,
+          2750493969,
+          2750494020,
+          14225707556,
+          14225707557,
+          14225707558,
+          14225707517,
+          2750494259
+        ]
+      },
+      "way/1563004749": {
+        "version": 1,
+        "tags": {
+          "name": "北岭径",
+          "highway": "path"
+        },
+        "nodeRefs": [
+          14225707855,
+          14225707856,
+          14225707857,
+          14225707858,
+          14225707859,
+          14225707860,
+          14225707861,
+          14225707862,
+          14225707863,
+          14225707864,
+          14225707865,
+          14225707866,
+          14225707867,
+          14225707868,
+          14225707869,
+          14225707870,
+          14225707871,
+          14225707872,
+          14225707873,
+          14225707874,
+          14225707875,
+          14225707876,
+          14225707877,
+          14225707878,
+          14225707879,
+          14225707880,
+          14225707881,
+          14225707882,
+          14225707883,
+          14225707884,
+          14225707885,
+          14225707886,
+          14225707887,
+          14225707888,
+          14225707889,
+          14225707890,
+          14225707891,
+          14225707892,
+          14225707894,
+          14225707893,
+          14225707917
+        ]
+      },
+      "way/557288291": {
+        "version": 2,
+        "tags": {
+          "highway": "pedestrian",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "nodeRefs": [
+          2750153656,
+          2750494178
+        ]
+      },
+      "way/557288290": {
+        "version": 1,
+        "tags": {
+          "highway": "footway",
+          "layer": "1"
+        },
+        "nodeRefs": [
+          2750494178,
+          5374861321,
+          5374861212
+        ]
+      },
+      "way/557288294": {
+        "version": 1,
+        "tags": {
+          "highway": "steps"
+        },
+        "nodeRefs": [
+          5374861215,
+          5374861216,
+          5374861321
+        ]
+      }
+    }
+  },
   "streetscape": {
     "status": "pilot-generated",
     "parkOsmId": "relation/8133384",
@@ -178451,6 +179061,46 @@
       ]
     }
   ],
+  "iecSiteReview": {
+    "checkedAt": "2026-11-12",
+    "footprints": {
+      "southWing": "way/1431482482",
+      "northWing": "way/1431482483",
+      "hotel": "way/1431884285",
+      "upperLink": "way/1572116213",
+      "lakeHall": "way/1572116214",
+      "court": "way/1572116215",
+      "hotelLink": "way/1572116216",
+      "source": "osm-guangdong",
+      "editedAt": "2026-10-27"
+    },
+    "designHeights": {
+      "conferenceBuildingM": 43.57,
+      "hotelPodiumM": 26.3,
+      "hotelBuildingM": 99.9,
+      "hotelRoofFrameM": 105.95,
+      "source": "https://pnr.sz.gov.cn/attachment/1/1709/1709340/12759583.pdf",
+      "sourceDate": "2026-01-25",
+      "sha256": "27cd1084b406139e455d833bd6280a3bfd382bff674d39e76e1f7a72f14668f3",
+      "datum": "1956 Yellow Sea, design zero 12.00 m. Runtime bases sampled on EGM2008 terrain without datum substitution."
+    },
+    "paths": [
+      {
+        "osmId": "way/1377331203",
+        "access": "public-roadside",
+        "heightSource": "terrain",
+        "widthM": 4.8,
+        "widthSource": "visual-estimate"
+      },
+      {
+        "osmId": "way/1572116219",
+        "access": "unverified",
+        "heightSource": "terrain",
+        "widthM": 3.8,
+        "widthSource": "visual-estimate"
+      }
+    ]
+  },
   "yanjiangExpressway": {
     "source": {
       "osmSnapshotId": "osm-guangdong",
@@ -178496,45 +179146,40 @@
     "carriagewayLengthM": 19063.4,
     "playable": false
   },
+  "talentPark": {
+    "status": "pilot-generated",
+    "parkOsmId": "relation/18459537",
+    "lakeOsmId": "relation/10175109",
+    "lakeAreaM2": 329855.05,
+    "route": [
+      "way/537564666",
+      "way/537570364",
+      "way/1415882795",
+      "way/571169634"
+    ],
+    "lengthM": 476.61,
+    "viewNode": 3316262708,
+    "viewXZ": [
+      -11259.446,
+      3980.822
+    ],
+    "borderLengthM": 59.69,
+    "materialSources": {
+      "greenway": "public-running-track; width-estimate",
+      "promenade": "source-footway; simulated-paving",
+      "gravel": "simulated-landscape"
+    },
+    "bridgeApproachUnresolved": [
+      "way/537570365",
+      "way/570468707",
+      "way/571169638"
+    ],
+    "terrainAndBuildingsChanged": false
+  },
   "buildingNames": {
     "uniqueNames": 3986,
     "namedBuildings": 12337,
     "buildingsWithLevels": 9723
-  },
-  "fastPackage": {
-    "format": "SZC1",
-    "version": 1,
-    "columns": 7630,
-    "metadataBytes": 16731189,
-    "numericBytes": 33623736,
-    "uncompressedBytes": 50354976,
-    "lossless": true,
-    "compressedBytes": 11385080,
-    "compressedSha256": "10e939f43bb0d82254089295e98f9dc8f8bfbe146ff43bac4d52eea739363c5b"
-  },
-  "outputBytes": 11355556,
-  "outputSha256": "a8856b6e9b37c04eef1b6a440a0561301ed3eb5809cc69e01e5638c3e95d1d18",
-  "seconds": 154.3,
-  "frontageRebuild": {
-    "basePayloadSha256": "6357ca9673bd5bbbb1e7532d96314cb3bc4372b97c659466565df89307ca30cb",
-    "corridors": [
-      "shennan-civic-center",
-      "shennan-hongshulin"
-    ],
-    "crossingAxisCorridors": [
-      "shennan-chegongmiao"
-    ]
-  },
-  "groundRebuild": {
-    "basePayloadSha256": "9a3ef8ab065284a871d1035899f293eaf886e3d0d09089449f46ced86b5bb712",
-    "changedSections": [
-      "terrainSurface"
-    ],
-    "rebuiltChunks": [
-      "0,0",
-      "0,1",
-      "1,1"
-    ]
   },
   "shenzhenGolfCourse": {
     "version": 1,
@@ -181516,6 +182161,254 @@
       }
     ]
   },
+  "shenzhenBayWaterfront": {
+    "status": "pilot-generated",
+    "checkedAt": "2026-11-12",
+    "parkOsmId": "relation/8133384",
+    "areaOsmId": "way/571629098",
+    "sources": {
+      "park": "https://cgj.sz.gov.cn/xsmh/gysz/twf/bhxx/content/post_10841320.html",
+      "layout": "https://cgj.sz.gov.cn/xsmh/szlh/jpld/content/post_2053209.html",
+      "centralBay": "https://www.szns.gov.cn/mlns/stns/gyzq/content/post_3726095.html",
+      "cycling": "https://zjj.sz.gov.cn/gkmlpt/content/12/12942/post_12942113.html",
+      "access": "https://cgj.sz.gov.cn/ydmh/zcg/content/post_12977503.html",
+      "design": "https://www.swagroup.com/projects/shenzhen-bay/"
+    },
+    "estimates": {
+      "coastalCrestM": 3.8,
+      "gradeBlendM": 92,
+      "endBlendM": 52,
+      "rockSlopeRunM": 5.4,
+      "shoreProfileEvidence": "中湾阅海广场有人工观海和亲水界面。具体挡边/护坡分界、海拔、护栏和断面为模拟估计，待逐段图照或测绘核实。",
+      "accessEvidence": "运行场景区分来源步行和骑行路段，实地开放时间、共享单车时段、临时限流及施工状态以现场告示为准。"
+    },
+    "shore": [
+      {
+        "id": "way/325015311",
+        "fromIndex": 11,
+        "toIndex": 17,
+        "profile": "rock-slope",
+        "lengthM": 297.37
+      },
+      {
+        "id": "way/325015311",
+        "fromIndex": 17,
+        "toIndex": 28,
+        "profile": "retaining-edge",
+        "lengthM": 207.19
+      },
+      {
+        "id": "way/1009065155",
+        "fromIndex": 0,
+        "toIndex": 3,
+        "profile": "retaining-edge",
+        "lengthM": 81.32
+      }
+    ],
+    "paths": [
+      {
+        "version": 1,
+        "tags": {
+          "highway": "path",
+          "foot": "designated",
+          "bicycle": "designated"
+        },
+        "osmId": "way/883827047",
+        "mode": "walk",
+        "material": "walk",
+        "nodes": [
+          8219895303,
+          8219895302
+        ],
+        "widthM": 2.8,
+        "widthSource": "visual-estimate",
+        "lengthM": 28.38
+      },
+      {
+        "version": 4,
+        "tags": {
+          "highway": "path",
+          "foot": "designated",
+          "bicycle": "designated"
+        },
+        "osmId": "way/325371421",
+        "mode": "walk",
+        "material": "walk",
+        "nodes": [
+          8219895302,
+          3320396956,
+          11091086698,
+          3320396955,
+          2643549593,
+          8219895301,
+          3762673623,
+          2613258417
+        ],
+        "widthM": 3.2,
+        "widthSource": "visual-estimate",
+        "lengthM": 153.97
+      },
+      {
+        "version": 12,
+        "tags": {
+          "highway": "footway",
+          "surface": "sett",
+          "foot": "designated",
+          "bicycle": "designated",
+          "lit": "yes"
+        },
+        "osmId": "way/246781716",
+        "mode": "walk",
+        "material": "walk",
+        "nodes": [
+          2613258384,
+          2613258398,
+          2613258417,
+          2613258539,
+          2613258545,
+          2613258550,
+          2613258555,
+          2613258561,
+          2613258565,
+          2613258360,
+          2613258588,
+          2613258605,
+          2613258621,
+          2613258613,
+          2613258633,
+          11091086597,
+          5432539256,
+          2613258639
+        ],
+        "widthM": 4.2,
+        "widthSource": "visual-estimate",
+        "lengthM": 450.84
+      },
+      {
+        "version": 9,
+        "tags": {
+          "highway": "cycleway",
+          "surface": "asphalt",
+          "foot": "designated",
+          "bicycle": "designated"
+        },
+        "osmId": "way/357765495",
+        "mode": "cycle",
+        "material": "cycle",
+        "nodes": [
+          2643549488,
+          2643549497,
+          2643549499,
+          2643549490,
+          2643549476,
+          2643549453,
+          2643549428,
+          2643549422,
+          11091086725,
+          2643549418,
+          2643549430,
+          2643549447,
+          2643549456,
+          2643549455,
+          2643549449,
+          2643549442,
+          2643549462,
+          2643549474,
+          2643549501,
+          2643549511,
+          2643549524,
+          2643549528,
+          2643549532,
+          2643549543,
+          2643549561,
+          2643549573,
+          2643549577,
+          2643549565,
+          2643549551,
+          2643549535,
+          2643549545,
+          2643549557,
+          2643549559,
+          2643549569,
+          2643549579,
+          2643549583,
+          2643549585,
+          2643549589,
+          2643549591,
+          2643549593,
+          2643549607,
+          2643549611,
+          2643549613,
+          2643549609,
+          2643549605,
+          2643549603,
+          2643549606,
+          2643549610
+        ],
+        "widthM": 3.3,
+        "widthSource": "visual-estimate",
+        "lengthM": 446.75
+      },
+      {
+        "version": 13,
+        "tags": {
+          "highway": "cycleway",
+          "surface": "paving_stones",
+          "foot": "designated",
+          "bicycle": "designated"
+        },
+        "osmId": "way/255653770",
+        "mode": "cycle",
+        "material": "cycle-stone",
+        "nodes": [
+          2613258589,
+          2613258595,
+          2613258596,
+          2613258609,
+          2613258608,
+          2613258610,
+          2613258612,
+          2613258615,
+          2613258618,
+          2613258630,
+          2613258624,
+          2613258628,
+          2613258629,
+          2613258632,
+          2613258635,
+          11091086596,
+          5432539255,
+          5432539254,
+          2613258636
+        ],
+        "widthM": 3.6,
+        "widthSource": "visual-estimate",
+        "lengthM": 459.62
+      }
+    ],
+    "walkRouteM": 594.62,
+    "arrivalReference": {
+      "osmId": "node/5187524604",
+      "distanceToApproachM": 6.45
+    },
+    "changedTerrainChunks": [
+      "-16,5",
+      "-15,5",
+      "-14,5"
+    ],
+    "pavingM2": {
+      "crossing": 10.69,
+      "walk": 2464.66,
+      "cycle": 1471.93,
+      "cycle-stone": 1664.73
+    },
+    "roadMask": {
+      "source": "visitGroundRoadFootprints",
+      "roadOsmIds": [],
+      "carriagewayMaskAreaM2": 0.0
+    },
+    "sourceHeight": "local-visual-estimate-on-existing-terrain"
+  },
   "mapRegions": {
     "version": 1,
     "source": {
@@ -181543,46 +182436,6 @@
       "village": 0,
       "unknown": 2
     }
-  },
-  "iecSiteReview": {
-    "checkedAt": "2026-11-12",
-    "footprints": {
-      "southWing": "way/1431482482",
-      "northWing": "way/1431482483",
-      "hotel": "way/1431884285",
-      "upperLink": "way/1572116213",
-      "lakeHall": "way/1572116214",
-      "court": "way/1572116215",
-      "hotelLink": "way/1572116216",
-      "source": "osm-guangdong",
-      "editedAt": "2026-10-27"
-    },
-    "designHeights": {
-      "conferenceBuildingM": 43.57,
-      "hotelPodiumM": 26.3,
-      "hotelBuildingM": 99.9,
-      "hotelRoofFrameM": 105.95,
-      "source": "https://pnr.sz.gov.cn/attachment/1/1709/1709340/12759583.pdf",
-      "sourceDate": "2026-01-25",
-      "sha256": "27cd1084b406139e455d833bd6280a3bfd382bff674d39e76e1f7a72f14668f3",
-      "datum": "1956 Yellow Sea, design zero 12.00 m. Runtime bases sampled on EGM2008 terrain without datum substitution."
-    },
-    "paths": [
-      {
-        "osmId": "way/1377331203",
-        "access": "public-roadside",
-        "heightSource": "terrain",
-        "widthM": 4.8,
-        "widthSource": "visual-estimate"
-      },
-      {
-        "osmId": "way/1572116219",
-        "access": "unverified",
-        "heightSource": "terrain",
-        "widthM": 3.8,
-        "widthSource": "visual-estimate"
-      }
-    ]
   },
   "airCruises": {
     "version": 1,
@@ -184038,286 +184891,22 @@
     ],
     "roadSourceSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3"
   },
-  "shenzhenBayWaterfront": {
-    "status": "pilot-generated",
-    "checkedAt": "2026-11-12",
-    "parkOsmId": "relation/8133384",
-    "areaOsmId": "way/571629098",
-    "sources": {
-      "park": "https://cgj.sz.gov.cn/xsmh/gysz/twf/bhxx/content/post_10841320.html",
-      "layout": "https://cgj.sz.gov.cn/xsmh/szlh/jpld/content/post_2053209.html",
-      "centralBay": "https://www.szns.gov.cn/mlns/stns/gyzq/content/post_3726095.html",
-      "cycling": "https://zjj.sz.gov.cn/gkmlpt/content/12/12942/post_12942113.html",
-      "access": "https://cgj.sz.gov.cn/ydmh/zcg/content/post_12977503.html",
-      "design": "https://www.swagroup.com/projects/shenzhen-bay/"
-    },
-    "estimates": {
-      "coastalCrestM": 3.8,
-      "gradeBlendM": 92,
-      "endBlendM": 52,
-      "rockSlopeRunM": 5.4,
-      "shoreProfileEvidence": "中湾阅海广场有人工观海和亲水界面。具体挡边/护坡分界、海拔、护栏和断面为模拟估计，待逐段图照或测绘核实。",
-      "accessEvidence": "运行场景区分来源步行和骑行路段，实地开放时间、共享单车时段、临时限流及施工状态以现场告示为准。"
-    },
-    "shore": [
-      {
-        "id": "way/325015311",
-        "fromIndex": 11,
-        "toIndex": 17,
-        "profile": "rock-slope",
-        "lengthM": 297.37
-      },
-      {
-        "id": "way/325015311",
-        "fromIndex": 17,
-        "toIndex": 28,
-        "profile": "retaining-edge",
-        "lengthM": 207.19
-      },
-      {
-        "id": "way/1009065155",
-        "fromIndex": 0,
-        "toIndex": 3,
-        "profile": "retaining-edge",
-        "lengthM": 81.32
-      }
-    ],
-    "paths": [
-      {
-        "version": 1,
-        "tags": {
-          "highway": "path",
-          "foot": "designated",
-          "bicycle": "designated"
-        },
-        "osmId": "way/883827047",
-        "mode": "walk",
-        "material": "walk",
-        "nodes": [
-          8219895303,
-          8219895302
-        ],
-        "widthM": 2.8,
-        "widthSource": "visual-estimate",
-        "lengthM": 28.38
-      },
-      {
-        "version": 4,
-        "tags": {
-          "highway": "path",
-          "foot": "designated",
-          "bicycle": "designated"
-        },
-        "osmId": "way/325371421",
-        "mode": "walk",
-        "material": "walk",
-        "nodes": [
-          8219895302,
-          3320396956,
-          11091086698,
-          3320396955,
-          2643549593,
-          8219895301,
-          3762673623,
-          2613258417
-        ],
-        "widthM": 3.2,
-        "widthSource": "visual-estimate",
-        "lengthM": 153.97
-      },
-      {
-        "version": 12,
-        "tags": {
-          "highway": "footway",
-          "surface": "sett",
-          "foot": "designated",
-          "bicycle": "designated",
-          "lit": "yes"
-        },
-        "osmId": "way/246781716",
-        "mode": "walk",
-        "material": "walk",
-        "nodes": [
-          2613258384,
-          2613258398,
-          2613258417,
-          2613258539,
-          2613258545,
-          2613258550,
-          2613258555,
-          2613258561,
-          2613258565,
-          2613258360,
-          2613258588,
-          2613258605,
-          2613258621,
-          2613258613,
-          2613258633,
-          11091086597,
-          5432539256,
-          2613258639
-        ],
-        "widthM": 4.2,
-        "widthSource": "visual-estimate",
-        "lengthM": 450.84
-      },
-      {
-        "version": 9,
-        "tags": {
-          "highway": "cycleway",
-          "surface": "asphalt",
-          "foot": "designated",
-          "bicycle": "designated"
-        },
-        "osmId": "way/357765495",
-        "mode": "cycle",
-        "material": "cycle",
-        "nodes": [
-          2643549488,
-          2643549497,
-          2643549499,
-          2643549490,
-          2643549476,
-          2643549453,
-          2643549428,
-          2643549422,
-          11091086725,
-          2643549418,
-          2643549430,
-          2643549447,
-          2643549456,
-          2643549455,
-          2643549449,
-          2643549442,
-          2643549462,
-          2643549474,
-          2643549501,
-          2643549511,
-          2643549524,
-          2643549528,
-          2643549532,
-          2643549543,
-          2643549561,
-          2643549573,
-          2643549577,
-          2643549565,
-          2643549551,
-          2643549535,
-          2643549545,
-          2643549557,
-          2643549559,
-          2643549569,
-          2643549579,
-          2643549583,
-          2643549585,
-          2643549589,
-          2643549591,
-          2643549593,
-          2643549607,
-          2643549611,
-          2643549613,
-          2643549609,
-          2643549605,
-          2643549603,
-          2643549606,
-          2643549610
-        ],
-        "widthM": 3.3,
-        "widthSource": "visual-estimate",
-        "lengthM": 446.75
-      },
-      {
-        "version": 13,
-        "tags": {
-          "highway": "cycleway",
-          "surface": "paving_stones",
-          "foot": "designated",
-          "bicycle": "designated"
-        },
-        "osmId": "way/255653770",
-        "mode": "cycle",
-        "material": "cycle-stone",
-        "nodes": [
-          2613258589,
-          2613258595,
-          2613258596,
-          2613258609,
-          2613258608,
-          2613258610,
-          2613258612,
-          2613258615,
-          2613258618,
-          2613258630,
-          2613258624,
-          2613258628,
-          2613258629,
-          2613258632,
-          2613258635,
-          11091086596,
-          5432539255,
-          5432539254,
-          2613258636
-        ],
-        "widthM": 3.6,
-        "widthSource": "visual-estimate",
-        "lengthM": 459.62
-      }
-    ],
-    "walkRouteM": 594.62,
-    "arrivalReference": {
-      "osmId": "node/5187524604",
-      "distanceToApproachM": 6.45
-    },
-    "changedTerrainChunks": [
-      "-16,5",
-      "-15,5",
-      "-14,5"
-    ],
-    "pavingM2": {
-      "crossing": 10.69,
-      "walk": 2464.66,
-      "cycle": 1471.93,
-      "cycle-stone": 1664.73
-    },
-    "roadMask": {
-      "source": "visitGroundRoadFootprints",
-      "roadOsmIds": [],
-      "carriagewayMaskAreaM2": 0.0
-    },
-    "sourceHeight": "local-visual-estimate-on-existing-terrain"
-  },
-  "talentPark": {
-    "status": "pilot-generated",
-    "parkOsmId": "relation/18459537",
-    "lakeOsmId": "relation/10175109",
-    "lakeAreaM2": 329855.05,
-    "route": [
-      "way/537564666",
-      "way/537570364",
-      "way/1415882795",
-      "way/571169634"
-    ],
-    "lengthM": 476.61,
-    "viewNode": 3316262708,
-    "viewXZ": [
-      -11259.446,
-      3980.822
-    ],
-    "borderLengthM": 59.69,
-    "materialSources": {
-      "greenway": "public-running-track; width-estimate",
-      "promenade": "source-footway; simulated-paving",
-      "gravel": "simulated-landscape"
-    },
-    "bridgeApproachUnresolved": [
-      "way/537570365",
-      "way/570468707",
-      "way/571169638"
-    ],
-    "terrainAndBuildingsChanged": false
-  },
   "retailBuildings": {
     "groundFloor": 200,
     "retailBuilding": 395
-  }
+  },
+  "fastPackage": {
+    "format": "SZC1",
+    "version": 1,
+    "columns": 7631,
+    "metadataBytes": 16732758,
+    "numericBytes": 33624008,
+    "uncompressedBytes": 50356816,
+    "lossless": true,
+    "compressedBytes": 11386194,
+    "compressedSha256": "0d2f65759e8aa485fe362ef0536d112a839aac15dc13842166920d79479231db"
+  },
+  "outputBytes": 11357065,
+  "outputSha256": "99573057c2c95c1a1aa78067491a348b54481ae9478f3206034d13302fccdaac",
+  "seconds": 258.4
 }

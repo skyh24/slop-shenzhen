@@ -224,6 +224,36 @@
       "note": "Lies south of the phase-1 box (22.495N); far-view model with S-curved deck and the cable-stayed main span, seen from Shenzhen Bay Park."
     },
     {
+      "id": "qianhai-museum", "name": "前海博物馆", "phase": 1, "mapPriority": true,
+      "center": [22.52283, 113.87802],
+      "osm": { "building": "way/1327466582" },
+      "heightM": 68, "heightSource": "published", "status": "verified",
+      "aliases": ["国深博物馆"],
+      "sources": ["https://www.cscec.com/zgjz_new/xwzx_new/zqydt_new/202611/3966604.html", "https://qh.sz.gov.cn/sygnan/qhzx/dtzx/content/post_11654687.html", "https://wtl.sz.gov.cn/xxgk/qt/gzdt/content/post_13027659.html"],
+      "verifiedAt": "2026-11-13",
+      "note": "68米为公布的约数。OSM建筑外廓用于定位；叠檐分层、顶园深度和首层门线按建成照片拟合。"
+    },
+    {
+      "id": "bay-opera", "name": "深圳滨海艺术中心", "phase": 1, "mapPriority": true,
+      "center": [22.54759, 113.87766],
+      "osm": { "site": "way/777460301", "parts": ["way/914175439", "way/914175440", "way/914175441", "way/914175442", "way/914175443", "way/914175444", "way/914175445", "way/914175446", "way/914175449", "way/914175450"] },
+      "heightM": 50, "heightSource": "published", "status": "verified",
+      "aliases": ["湾区之声", "深圳滨海演艺中心"],
+      "sources": ["https://www.sz.gov.cn/szzt2010/szwtt/wtcg/whcg/content/mpost_11117576.html", "https://bp.bjkcsj.com/html/2024-04/1684.html", "https://zjj.sz.gov.cn/gkmlpt/content/12/12270/post_12270322.html", "https://www.eyeshenzhen.com/content/2023-05/12/content_30194101.htm"],
+      "verifiedAt": "2026-11-13",
+      "note": "50米为设计成果资料约数；高舞台体、白色悬挑与外侧通道分别建模，局部曲率为估计。"
+    },
+    {
+      "id": "mocape", "name": "深圳市当代艺术与城市规划馆", "short": "当代艺术与城市规划馆", "phase": 1, "mapPriority": true,
+      "center": [22.54852, 114.05673],
+      "osm": { "building": "way/456331569" },
+      "heightM": 40, "heightSource": "published", "status": "verified",
+      "aliases": ["城市规划馆", "城市规划展览馆", "深圳两馆", "MOCAPE"],
+      "sources": ["https://coop-himmelblau.cn/projects/museum-of-contemporary-art-planning-exhibition-mocape/", "https://www.huasen.com.cn/project/projectInner.aspx?Id=10000187", "https://yunghzg.cn/gaikuang/jianjie/?RoomID=353", "https://pnr.sz.gov.cn/attachment/1/1285/1285348/10537364.pdf"],
+      "verifiedAt": "2026-11-13",
+      "note": "福田两馆共用外壳，北侧规划馆、南侧当代艺术馆。采用设计方和馆方40米口径；玻璃曲率及入口标高拟合。"
+    },
+    {
       "id": "yanjiang-expressway", "name": "广深沿江高速（海上高架）", "phase": 1,
       "center": [22.56030, 113.85790],
       "osm": { "route": "relation/6371344" },

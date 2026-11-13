@@ -9,6 +9,8 @@ import { createIecMaterial } from './iec-xiangmihu.js';
 import { createSuperHqMaterial } from './super-hq.js';
 
 const styles = {
+  cultureDarkGlass: { metal: 0x56615e, glass: 0x344653, roof: 0x798381, bay: 2.7, floor: 5.3, fin: 0.07, sill: 0.105, lit: 0.15, rough: 0.24, glow: 0xffd6a9, wash: 0.105 },
+  mocapeGlass: { metal: 0x82958e, glass: 0x526a68, roof: 0xa4a8a2, bay: 3.8, floor: 2.6, fin: 0.05, sill: 0.04, lit: 0.09, rough: 0.19, glow: 0xffd9ab, wash: 0.19 },
   tencentTower: { metal: 0xc9d0d5, glass: 0x60819c, roof: 0x879096, bay: 1.58, floor: 4.87, fin: 0.22, sill: 0.092, lit: 0.15, rough: 0.16, glow: 0xeeeaf2 },
   tencentPodium: { metal: 0xaab2af, glass: 0x556d79, roof: 0x697371, bay: 3.1, floor: 6.9, fin: 0.12, sill: 0.065, lit: 0.1, rough: 0.24, glow: 0xffca97 },
   tencentCopper: { metal: 0xb87543, glass: 0x93603f, roof: 0x776454, bay: 1.38, floor: 5.4, fin: 0.24, sill: 0.095, lit: 0.21, rough: 0.26, glow: 0xffb179 },
@@ -60,6 +62,20 @@ function facadeMaterial(style, programEmission) {
   const glow = uniform(new THREE.Color(style.glow)).mul(office.add(style.wash ?? 0))
     .mul(glass).mul(sceneUniforms.night);
   material.emissiveNode = programEmission ? programEmission(glow, glass) : glow;
+  return material;
+}
+
+// 用世界坐标的交错板缝表达金属覆面；像素覆盖不足时淡出缝线，避免远景闪纹。
+function cultureCladding(tint, jointColor, spacing, glowColor, glow) {
+  const material = new THREE.MeshStandardNodeMaterial({ metalness: 0.24, roughness: 0.54 });
+  const { x, y, z } = positionWorld;
+  const row = x.mul(0.26).sub(z.mul(0.42)).add(y.mul(0.93)).div(spacing);
+  const col = x.mul(0.75).add(z.mul(0.71)).div(spacing * 1.55).add(floor(row).mod(2).mul(0.5));
+  const seam = a => smoothstep(0.43, 0.5, abs(fract(a).sub(0.5)))
+    .mul(smoothstep(0.12, 0.44, fwidth(a)).oneMinus());
+  const seams = max(seam(row), seam(col));
+  material.colorNode = mix(color(tint), color(jointColor), seams.mul(0.53));
+  material.emissiveNode = color(glowColor).mul(sceneUniforms.night).mul(glow).mul(seams.mul(0.12).add(0.88));
   return material;
 }
 
@@ -162,6 +178,13 @@ export function createLandmarkMaterial(name, programEmission = null) {
   if (name.startsWith('iec')) return createIecMaterial(name);
   if (name.startsWith('superHq')) return createSuperHqMaterial(name);
   switch (name) {
+    case 'qianhaiTiles': return cultureCladding(0xbec3c1, 0x788482, 1.75, 0xa9c4dd, 0.11);
+    case 'operaPearl': return cultureCladding(0xcfd1ce, 0x94a09c, 1.25, 0xb6d5e5, 0.045);
+    case 'mocapeMetal': return cultureCladding(0xa4aaa8, 0x707c7b, 2.6, 0xb2c8dc, 0.064);
+    case 'cultureStone': return new THREE.MeshStandardMaterial({ color: 0xada99d, roughness: 0.86 });
+    case 'cultureRoofGarden': return new THREE.MeshStandardMaterial({ color: 0x617448, roughness: 0.91 });
+    case 'cultureSkylight': return crownMaterial(0x6686a0, 0.24, 0.27, 0.33);
+    case 'operaCopper': return new THREE.MeshStandardMaterial({ color: 0x975d4f, roughness: 0.65, metalness: 0.21 });
     case 'djiBrace': return new THREE.MeshStandardMaterial({ color: 0xc4cbd0, metalness: 0.34, roughness: 0.37 });
     case 'djiDeck': return new THREE.MeshStandardMaterial({ color: 0x596570, metalness: 0.36, roughness: 0.62 });
     case 'djiGuard': return new THREE.MeshStandardMaterial({ color: 0x69828c, metalness: 0.48, roughness: 0.36 });

@@ -11,12 +11,18 @@ import { sourceIds as nonferrousIds, optionalSkipIds as nonferrousDuplicates, bu
 import { sourceIds as pressIds, optionalSkipIds as pressDuplicates, build as buildPress } from './press-tower.js';
 import { sourceIds as iecIds, optionalSkipIds as iecDuplicates, build as buildIec } from './iec-xiangmihu.js';
 import { sourceIds as superHqIds, optionalSkipIds as superHqSkips, build as buildSuperHq } from './super-hq.js';
+import * as qianhaiMuseum from './qianhai-museum.js';
+import * as bayOpera from './bay-opera.js';
+import * as mocape from './mocape.js';
 import { polygonContains } from '../building-collision.js';
 
 // 超级总部/西丽在建场地由「建好形态/在建工地」接管：场地轮廓内的旧通用楼不再单独渲染。
 const siteTakeoverSites = ['super-hq', 'xili-station'];
 
 const definitions = [
+  { id: 'qianhai-museum', ...qianhaiMuseum },
+  { id: 'bay-opera', ...bayOpera },
+  { id: 'mocape', ...mocape },
   { id: 'tencent-binhai', sourceIds: tencentIds, build: buildTencent },
   { id: 'dji-sky-city', sourceIds: skyCityIds, build: buildSkyCity },
   { id: 'ping-an', sourceIds: pingAnIds, build: buildPingAn },
