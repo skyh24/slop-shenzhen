@@ -275,7 +275,7 @@ async function initApp() {
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
     ...site, carriagewayOccupied, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
     reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r)
-      || roadLandscape.walkAt(x, z, r).length > 0,
+      || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
     observedTrees: streetscape.observedTrees, pilotTrees: [...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
@@ -285,6 +285,7 @@ async function initApp() {
       roadStructures.links.some(link => !link.tunnel && link.surfaceId === surface.id))] });
     return buildSzStreetLamps(scene, site.roadGraph, {
       ...site, roadStyle: site.style.road, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk, relocateSite: iec?.relocateLamp,
+      reserveCrossing: roadFrontage.reserveWalk,
       placementObstacles: [...buildings, ...trees.colliders],
       deckOccupied: (x, z, bottom, top) =>
         deck.at(x, z).some(surface => surface.height + 4.5 > bottom && surface.height - 0.35 < top)
@@ -343,7 +344,8 @@ async function initApp() {
     surfaces: [...cityBlocks.surfaces, ...landmarks.surfaces, ...elevatedRoads.surfaces, ...roadStructures.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
     nearTraffic: traffic.nearColliders, nearWalkers: talentPeople?.nearColliders, flightSettings: GEO.airCruises?.flight,
     groundAccess: (mode, x, z, surfaceId) => surfaceId !== 'terrain'
-      || (bayWaterfront.allowsGroundMode(mode, x, z) && (mode === 'person' || !roadLandscape.walkAt(x, z).length))
+      || (bayWaterfront.allowsGroundMode(mode, x, z) && !roadFrontage.plantingAt(x, z)
+        && (mode === 'person' || !roadLandscape.walkAt(x, z).length))
   });
   const cruise = qa.measureBuild('airCruises', () => createSceneAirCruise(GEO.airCruises, controllerManager, site, PLAYER_SPEED_LIMITS.helicopter));
   let initialTime = 'golden';
@@ -370,7 +372,9 @@ async function initApp() {
   const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, roadGraph, {
     ...site,
     publicRoute: publicWalk.route(colliders),
-    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || waterfront?.reserves(x, z, 2),
+    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || waterfront?.reserves(x, z, 2)
+      || roadFrontage.reserveWalk(x, z) || roadFrontage.plantingAt(x, z),
+    crossingLegs: roadFrontage.walkLegs, crossingControl: roadFrontage.control,
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。

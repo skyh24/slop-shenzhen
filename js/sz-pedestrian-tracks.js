@@ -792,6 +792,25 @@ export function createPublicWalkTrack(points, { id = 'public-walk:zhongxin-2-wes
     normals: points.map((_, i) => tangentAt(points, i)) });
 }
 
+export function createCrossingWalkTracks(legs) {
+  const endpoints = new Map();
+  const tracks = legs.map(({ points, id, crossing, signal, walkAt }) => {
+    const track = makeTrack(points, 'crossing-network', { id, crossing, signal, publicHeight: walkAt, highway: 'footway' });
+    for (const [end, point] of [points[0], points.at(-1)].entries()) {
+      const key = `${point.x}/${point.z}`;
+      const linked = endpoints.get(key) ?? [];
+      for (const entry of linked) {
+        track.ends[end].push(entry);
+        entry.leg.ends[entry.end].push({ leg: track, end });
+      }
+      linked.push({ leg: track, end });
+      endpoints.set(key, linked);
+    }
+    return track;
+  });
+  return tracks;
+}
+
 export function sampleTrack(track, s, out = {}) {
   const points = track.points;
   const cum = track.cum;

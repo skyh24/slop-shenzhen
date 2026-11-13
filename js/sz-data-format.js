@@ -739,6 +739,17 @@ export function validateCityPayload(raw) {
     requireData(frontage?.version === 1 && frontage.source?.osmSnapshotId === 'osm-guangdong'
       && Array.isArray(frontage.corridors) && Array.isArray(frontage.features) && Array.isArray(frontage.intersections), 'road frontage source');
     for (const feature of frontage.features) {
+      if (feature.solidPlanting !== undefined) {
+        requireData(feature.solidPlanting === true && feature.kind === 'median' && feature.riseM > 0
+          && Array.isArray(feature.outlines) && feature.outlines.length > 0
+          && feature.outlines.every(ring => ring.length >= 8 && ring.length % 2 === 0 && ring.every(Number.isFinite)),
+        'road frontage planting boundary');
+      }
+      if (feature.plantSites !== undefined) {
+        requireData(feature.kind === 'flower-band' && Array.isArray(feature.plantSites)
+          && feature.plantSites.every(point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite)),
+        'road frontage planting sites');
+      }
       if (feature.clipToRoadComplement === undefined && feature.vertexRisesM === undefined) continue;
       const { trianglesXZ, vertexRisesM } = feature;
       requireData(feature.clipToRoadComplement === true && Array.isArray(trianglesXZ)
@@ -747,6 +758,14 @@ export function validateCityPayload(raw) {
           && vertexRisesM.every(rise => Number.isFinite(rise) && rise >= 0))), 'road frontage clipped surface');
     }
     for (const corridor of frontage.corridors) {
+      if (corridor.walkLegs !== undefined) {
+        requireData(Array.isArray(corridor.walkLegs) && corridor.walkLegs.every(leg =>
+          (leg.crossing ? corridor.crossingIds.includes(leg.osmId) : [...corridor.sidewalkIds, ...corridor.crossingIds].includes(leg.osmId))
+          && typeof leg.crossing === 'boolean' && Array.isArray(leg.points) && leg.points.length >= 2
+          && leg.points.every(point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite))
+          && (leg.signalGroup === undefined || (leg.crossing && [0, 1].includes(leg.signalGroup)
+            && frontage.intersections.some(row => row.id === corridor.id)))), 'road frontage walk legs');
+      }
       if (corridor.crossingAxes === undefined) continue;
       requireData(Array.isArray(corridor.crossingAxes) && Array.isArray(corridor.crossingIds)
         && corridor.crossingAxes.every(axis => corridor.crossingIds.includes(axis.osmId)

@@ -19,6 +19,8 @@ export function createIntersectionControl(source, graph) {
   const byLink = new Map();
   const byId = new Map();
   const owners = new Map();
+  const pedestrianOwners = new Map();
+  const vehicleTurns = new Map();
   const requests = new Map();
   if (intersections.length) {
     const directed = new Map();
@@ -50,6 +52,7 @@ export function createIntersectionControl(source, graph) {
   }
 
   function canEnter(approach, elapsedSeconds, actorId) {
+    if (pedestrianOwners.has(approach.id)) return false;
     const owner = owners.get(approach.id);
     if (owner !== undefined) return owner === actorId;
     if (signalPhase(approach.group, elapsedSeconds) !== 'green') return false;
@@ -62,18 +65,41 @@ export function createIntersectionControl(source, graph) {
     return true;
   }
 
+  function vehiclePhase(approach, elapsedSeconds) {
+    return pedestrianOwners.has(approach.id) ? 'red' : signalPhase(approach.group, elapsedSeconds);
+  }
+
   return {
     intersections: [...byId.values()],
     approachFor,
+    vehiclePhase,
+    enterCrossing(crossing, elapsedSeconds, actorId) {
+      const { id, group } = crossing;
+      if (actorId === undefined) return false;
+      if (pedestrianOwners.get(id) === actorId) return true;
+      if (!byId.has(id) || owners.has(id) || pedestrianOwners.has(id) || signalPhase(group, elapsedSeconds) !== 'green') return false;
+      if (elapsedSeconds < (vehicleTurns.get(id) ?? 0) && [...requests.get(id).values()]
+        .some(item => item.ready && elapsedSeconds - item.lastSeen <= REQUEST_TIMEOUT)) return false;
+      pedestrianOwners.set(id, actorId);
+      return true;
+    },
+    leaveCrossing(crossing, actorId, elapsedSeconds) {
+      const { id } = crossing;
+      if (pedestrianOwners.get(id) !== actorId) return;
+      pedestrianOwners.delete(id);
+      // 已排队的车辆先获得至多一轮正常灯相，避免连续过街长期压住车流。
+      if (Number.isFinite(elapsedSeconds)) vehicleTurns.set(id, elapsedSeconds + CYCLE);
+    },
     snapshot(elapsedSeconds) {
       return [...byId.keys()].map(id => ({ id, owner: owners.get(id) ?? null,
-        phases: [signalPhase(0, elapsedSeconds), signalPhase(1, elapsedSeconds)],
+        pedestrianOwner: pedestrianOwners.get(id) ?? null,
+        phases: [0, 1].map(group => vehiclePhase({ id, group }, elapsedSeconds)),
         requests: [...requests.get(id)].filter(([, item]) => elapsedSeconds - item.lastSeen <= REQUEST_TIMEOUT)
           .map(([actorId, item]) => ({ actorId, group: item.group, ready: item.ready })) }));
     },
     approachState(sourceIndex, to, elapsedSeconds) {
       const approach = approachFor(sourceIndex, to);
-      return approach ? { ...approach, phase: signalPhase(approach.group, elapsedSeconds) } : null;
+      return approach ? { ...approach, phase: vehiclePhase(approach, elapsedSeconds) } : null;
     },
     contains(x, z, margin = 0) {
       for (const junction of byId.values()) if (insideSignalBounds(junction.bounds, x, z, margin)) return true;
@@ -93,6 +119,7 @@ export function createIntersectionControl(source, graph) {
     enter(approach, elapsedSeconds, actorId) {
       if (actorId === undefined || !canEnter(approach, elapsedSeconds, actorId)) return false;
       owners.set(approach.id, actorId);
+      vehicleTurns.delete(approach.id);
       requests.get(approach.id)?.delete(actorId);
       return true;
     },

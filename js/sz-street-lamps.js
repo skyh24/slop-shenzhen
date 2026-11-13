@@ -343,6 +343,10 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
   for (const candidate of plan.sites) {
     const site = options.relocateSite ? options.relocateSite(candidate) : candidate;
     if (!site) continue;
+    if (options.reserveCrossing?.(site.x, site.z, placementRadius)) {
+      skipped.reservedWalk++;
+      continue;
+    }
     if (!site.median && Number.isFinite(medianHeight?.(site.x, site.z))) continue;
     if (options.carriagewayOccupied?.(site.x, site.z, placementRadius)
       || (roadHeight && edgeProbes.some(([dx, dz]) => Number.isFinite(roadHeight(site.x + dx, site.z + dz))))) {

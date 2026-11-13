@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
-import { buildWalkTracks, createColliderGrid, createPublicWalkTrack, sampleTrack } from './sz-pedestrian-tracks.js';
+import { buildWalkTracks, createColliderGrid, createCrossingWalkTracks, createPublicWalkTrack, sampleTrack } from './sz-pedestrian-tracks.js';
 import { polygonContains } from './sz-polygon.js';
 import { contactTime, writeEntityCollider, writePedestrianCollider } from './sz-driving-motion.js';
 import { vehicleContact } from './vehicle-physics.js';
@@ -274,6 +274,10 @@ export function createSzPedestrians(scene, graph, options = {}) {
     return Number.isFinite(height) ? height + rise : rise;
   };
   const publicTracks = (cfg.publicRoutes ?? []).map(route => createPublicWalkTrack(route.points, route));
+  const crossingTracks = cfg.crossingLegs?.length ? createCrossingWalkTracks(cfg.crossingLegs) : [];
+  if (crossingTracks.some(track => track.signal) && !cfg.crossingControl) {
+    throw new Error('Signalized walks require intersection control');
+  }
   if (cfg.publicRoute) publicTracks.push(createPublicWalkTrack(cfg.publicRoute));
   const scratch = { x: 0, y: 0, z: 0, dx: 1, dz: 0 };
   const nearPeds = [];
@@ -291,7 +295,8 @@ export function createSzPedestrians(scene, graph, options = {}) {
     regionBuilds: 0, regionBuildMs: 0, tracks: 0, connectors: 0, walkableMeters: 0,
     pavementTriangles: 0, pavementAreaM2: 0, pavementCarriagewaySkipped: 0,
     carriagewayBlockedSamples: 0, barrierPolygons: 0, colliderIndexed: 0,
-    vehicleYields: 0, targetPeds: 0, spawnCapacity: 0, density: 0, densityBuildings: densityModel.statistics.buildings,
+    vehicleYields: 0, crossingWaits: 0, crossingsEntered: 0, crossingsCompleted: 0,
+    targetPeds: 0, spawnCapacity: 0, density: 0, densityBuildings: densityModel.statistics.buildings,
     densityGreenPolygons: densityModel.statistics.greenPolygons
   };
 
@@ -330,9 +335,9 @@ export function createSzPedestrians(scene, graph, options = {}) {
       pavementHalfWidthM: cfg.pavementHalfWidthM,
       walkMarginM: cfg.walkMarginM
     });
-    for (const track of publicTracks) {
+    for (const track of [...publicTracks, ...crossingTracks]) {
       if (!track.points.some(p => p.x >= bounds.minX && p.x <= bounds.maxX && p.z >= bounds.minZ && p.z <= bounds.maxZ)) continue;
-      built.tracks.push(track);
+      if (!track.crossing) built.tracks.push(track);
       built.legs.push(track);
       built.statistics.walkableMeters += track.length;
     }
@@ -340,6 +345,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     // 出生环（spawnMinM–spawnMaxM）内的轨道长度，避免把远处车流走廊算成本地人流目标。
     const spawnTracks = [];
     const spawnCum = [];
+    const crossingApproaches = [];
     let spawnWeight = 0;
     let weightedDensity = 0;
     let totalLength = 0;
@@ -363,6 +369,9 @@ export function createSzPedestrians(scene, graph, options = {}) {
       spawnTracks.push(track);
       spawnWeight += available * (0.2 + place);
       spawnCum.push(spawnWeight);
+      if (track.kind === 'crossing-network' && track.ends.some(end => end.some(next => next.leg.crossing))) {
+        crossingApproaches.push(track);
+      }
       weightedDensity += available * place;
       totalLength += available;
     }
@@ -374,7 +383,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     const targetPeds = totalLength > 0
       ? Math.min(capacity, clamp(Math.round(targetMin + (targetMax - targetMin) * spread), targetMin, targetMax))
       : 0;
-    region = { center: { x: focus.x, z: focus.z }, bounds, spawnTracks, spawnCum, spawnWeight,
+    region = { center: { x: focus.x, z: focus.z }, bounds, spawnTracks, spawnCum, spawnWeight, crossingApproaches,
       targetPeds, capacity, density, ...built };
     applyPavement(built.pavement);
     statistics.regionBuilds++;
@@ -415,7 +424,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
   }
 
   function fitRoadsidePose(ped, sampled) {
-    const blocked = () => region.carriagewayOccupied(ped.x, ped.z) || ped.leg.walkAt?.(ped.x, ped.z) === false
+    const blocked = () => (ped.leg.kind !== 'crossing-network' && region.carriagewayOccupied(ped.x, ped.z)) || ped.leg.walkAt?.(ped.x, ped.z) === false
       || (ped.leg.publicHeight && !Number.isFinite(ped.leg.publicHeight(ped.x, ped.z)));
     processPose(ped, sampled);
     if (!blocked()) return true;
@@ -425,10 +434,10 @@ export function createSzPedestrians(scene, graph, options = {}) {
     return !blocked();
   }
 
-  function trySpawn(ped, focus, isVisible) {
+  function trySpawn(ped, focus, isVisible, approach = null) {
     if (!region || region.spawnTracks.length === 0) return false;
     for (let attempt = 0; attempt < 8; attempt++) {
-      const track = pickTrack(region, random);
+      const track = approach ?? pickTrack(region, random);
       if (!track || track.length < 2) continue;
       const s = 0.6 + random() * Math.max(0, track.length - 1.2);
       sampleTrack(track, s, scratch);
@@ -438,8 +447,10 @@ export function createSzPedestrians(scene, graph, options = {}) {
       if (isVisible && distance < cfg.viewProtectM && isVisible(scratch.x, scratch.z, 7, scratch.y)) continue;
       ped.leg = track;
       ped.s = s;
-      ped.dir = random() < 0.5 ? 1 : -1;
+      ped.dir = approach && track.ends[0].some(next => next.leg.crossing) ? -1
+        : approach ? 1 : random() < 0.5 ? 1 : -1;
       ped.fromLeg = null;
+      ped.pendingLeg = null;
       ped.speed = track.jogSpeed && ped.id % 7 === 0 ? track.jogSpeed
         : cfg.targetSpeedMin + (cfg.targetSpeedMax - cfg.targetSpeedMin) * hash(ped.id, 3);
       ped.lateral = cfg.keepRightM * ped.dir;
@@ -463,10 +474,26 @@ export function createSzPedestrians(scene, graph, options = {}) {
   }
 
   function unplace(ped) {
+    releaseCrossing(ped);
     ped.placed = false;
     ped.leg = null;
     ped.fromLeg = null;
     ped.rig.placed = false;
+  }
+
+  function releaseCrossing(ped) {
+    if (!ped.leg?.signal) return;
+    cfg.crossingControl.leaveCrossing(ped.leg.signal, ped.collider.id, clock);
+  }
+
+  function crossingClear(track) {
+    const steps = Math.ceil(track.length / 1.5);
+    for (let i = 0; i <= steps; i++) {
+      sampleTrack(track, track.length * i / steps, scratch);
+      writePedestrianCollider(walkProbe, scratch.x, scratch.y, scratch.z, 0, 0);
+      if (nearbyVehicles.some(vehicle => Number.isFinite(contactTime(walkProbe, vehicle, 2.5)))) return false;
+    }
+    return true;
   }
 
   function transition(ped) {
@@ -476,7 +503,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     if (links.length > 0) {
       const fresh = links.filter(link => link.leg !== ped.fromLeg);
       const pool = fresh.length > 0 ? fresh : links;
-      choice = pool[Math.floor(random() * pool.length)];
+      choice = ped.pendingLeg && pool.includes(ped.pendingLeg) ? ped.pendingLeg : pool[Math.floor(random() * pool.length)];
     }
     if (!choice) {
       // 没有同侧转角连接：在端点原路折返；不横穿车行道。
@@ -486,6 +513,15 @@ export function createSzPedestrians(scene, graph, options = {}) {
       ped.fromLeg = null;
       return true;
     }
+    if (choice.leg.crossing && (!crossingClear(choice.leg) || (choice.leg.signal
+      && !cfg.crossingControl.enterCrossing(choice.leg.signal, clock, ped.collider.id)))) {
+      if (ped.pendingLeg !== choice) statistics.crossingWaits++;
+      ped.pendingLeg = choice;
+      ped.v = 0;
+      return false;
+    }
+    ped.pendingLeg = null;
+    if (choice.leg.crossing) statistics.crossingsEntered++;
     const previous = ped.leg;
     ped.leg = choice.leg;
     ped.s = choice.end === 0 ? 0 : ped.leg.length;
@@ -537,7 +573,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     }
     // 随机短暂停留：看橱窗/等同伴的模拟，不是实测客流行为。
     const restingSide = ped.leg.restSide?.(ped.s);
-    if (ped.pause === 0 && clock >= ped.restAt && (!ped.leg.restSide || Number.isFinite(restingSide))) {
+    if (!ped.leg.crossing && ped.pause === 0 && clock >= ped.restAt && (!ped.leg.restSide || Number.isFinite(restingSide))) {
       ped.pause = cfg.restPauseMinS + random() * (cfg.restPauseMaxS - cfg.restPauseMinS);
       ped.restAt = clock + cfg.restMinS + random() * (cfg.restMaxS - cfg.restMinS);
       ped.restOffset = restingSide;
@@ -571,7 +607,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
       }
     }
     const previous = { x: ped.x, y: ped.y, z: ped.z, heading: ped.heading, s: ped.s,
-      leg: ped.leg, dir: ped.dir, fromLeg: ped.fromLeg, lateral: ped.lateral, pause: ped.pause };
+      leg: ped.leg, dir: ped.dir, fromLeg: ped.fromLeg, pendingLeg: ped.pendingLeg, lateral: ped.lateral, pause: ped.pause };
     const acceleration = target > ped.v ? 1.7 : 3.2;
     ped.v = clamp(ped.v + clamp(target - ped.v, -acceleration * dt, acceleration * dt), 0, ped.speed);
     // 侧向让线：靠右走，转角/端点处回到中线，避免变道时脚底打滑。
@@ -587,11 +623,12 @@ export function createSzPedestrians(scene, graph, options = {}) {
       }
       ped.s = ped.dir > 0 ? ped.leg.length : 0;
       remaining -= endDistance;
-      transition(ped);
+      if (!transition(ped) || (ped.leg !== previous.leg && (ped.leg.crossing || previous.leg.crossing))) remaining = 0;
       if (ped.pause > 0) remaining = 0;
     }
     sampleTrack(ped.leg, ped.s, scratch);
     if (!fitRoadsidePose(ped, scratch)) {
+      if (ped.leg !== previous.leg && ped.leg.signal) cfg.crossingControl.leaveCrossing(ped.leg.signal, ped.collider.id);
       Object.assign(ped, previous);
       ped.v = 0;
       ped.dir = -ped.dir;
@@ -613,10 +650,17 @@ export function createSzPedestrians(scene, graph, options = {}) {
         return true;
       });
       if (y === null || blocked) {
+        if (ped.leg !== previous.leg && ped.leg.signal) cfg.crossingControl.leaveCrossing(ped.leg.signal, ped.collider.id);
         Object.assign(ped, previous);
         ped.v = 0;
       } else ped.y = y;
     } else if (ped.leg.kind === 'public-walk') ped.y = ground(ped, ped.x, ped.z);
+    if (ped.leg !== previous.leg && previous.leg.crossing) {
+      if (previous.leg.signal && previous.leg.signal.id !== ped.leg.signal?.id) {
+        cfg.crossingControl.leaveCrossing(previous.leg.signal, ped.collider.id, clock);
+      }
+      statistics.crossingsCompleted++;
+    }
   }
 
   function update(dt, focus, elapsed, isVisible = null, players = null, traffic = []) {
@@ -665,6 +709,14 @@ export function createSzPedestrians(scene, graph, options = {}) {
       }
     }
     let budget = jump ? cfg.maxPeds : cfg.spawnBudget;
+    // 保留少量源人行道客流，防止邻近数公里的通用步道耗尽路口的出生配额。
+    if (region.crossingApproaches.length && budget > 0
+      && peds.filter(ped => ped.placed && ped.leg?.kind === 'crossing-network').length < 3) {
+      const pedestrian = peds.find(ped => !ped.placed);
+      const approach = region.crossingApproaches[Math.floor(random() * region.crossingApproaches.length)];
+      if (pedestrian && trySpawn(pedestrian, focus, isVisible, approach)) placedNow++;
+      budget--;
+    }
     let scanned = 0;
     while (budget > 0 && scanned < peds.length && placedNow < targetPeds) {
       const ped = peds[spawnCursor];
@@ -685,7 +737,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
       const dx = ped.x - focus.x;
       const dz = ped.z - focus.z;
       const distanceSq = dx * dx + dz * dz;
-      if (distanceSq > nearSq) {
+      if (distanceSq > nearSq && !ped.leg?.crossing) {
         if (ped.rig.placed) ped.rig.placed = false;
         continue;
       }
@@ -721,6 +773,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
   }
 
   function dispose() {
+    for (const ped of peds) releaseCrossing(ped);
     scene.remove(group);
     crowd.dispose();
     if (pavementMesh) {

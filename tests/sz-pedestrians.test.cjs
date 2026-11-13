@@ -779,3 +779,36 @@ test('the walking pose cancels lateral drift into an empty carriageway', () => {
   }
   assert.ok(ped.x > 34);
 });
+
+test('a walker waits on the sidewalk, crosses under a signal reservation and releases it on the far sidewalk', () => {
+  const road = straightGraph(100, 8);
+  const { createIntersectionControl } = loadModule(read('sz-intersection-control.js'));
+  road.nodeIds = ['node/1', 'node/2'];
+  road.metadata[0].osmId = 'way/1';
+  const signal = { id: 'fixture', group: 1 };
+  const control = createIntersectionControl({ intersections: [{ id: signal.id, bounds: [45, -5, 55, 5], approaches: [
+    { group: 0, osmWayId: 'way/1', fromNodeId: 'node/1', toNodeId: 'node/2' }
+  ] }] }, road);
+  const { peds } = makeFactory(road, { maxPeds: 1, pavement: false, heightAt: () => 8, excludeWalkAt: () => true,
+    crossingControl: control, crossingLegs: [[-16, -4.65], [-4.65, 4.65], [4.65, 16]].map(([a, b], i) => ({
+      id: `leg:${i}`, crossing: i === 1, signal: i === 1 ? signal : null,
+      points: [a, b].map(z => ({ x: 50, y: 8, z })), walkAt: () => 8
+    })) });
+  const focus = { x: 40, z: -12 };
+  peds.update(0, focus, 0);
+  const [ped] = peds.peds;
+  const from = peds.region.legs.find(row => row.id === 'leg:0');
+  Object.assign(ped, { leg: from, s: from.length - 0.05, dir: 1, x: 50, y: 8, z: -4.7, placed: true,
+    v: 1.3, speed: 1.3, heading: 0, lateral: 0, pause: 0, restAt: Infinity });
+  for (let frame = 1; frame < 80; frame++) peds.update(0.05, focus, frame * 0.05);
+  assert.equal(ped.leg.id, 'leg:0');
+  assert.equal(peds.statistics.crossingWaits, 1);
+  for (let frame = 80; frame <= 160; frame++) peds.update(0.05, focus, frame * 0.05);
+  assert.equal(ped.leg.id, 'leg:1');
+  assert.equal(control.snapshot(8)[0].pedestrianOwner, ped.collider.id);
+  assert.equal(control.canEnter(control.approachFor(0, 1), 8, 'car'), false);
+  for (let frame = 161; frame <= 238; frame++) peds.update(0.05, focus, frame * 0.05);
+  assert.equal(ped.leg.id, 'leg:2');
+  assert.equal(control.snapshot(12)[0].pedestrianOwner, null);
+  assert.equal(peds.statistics.crossingsCompleted, 1);
+});

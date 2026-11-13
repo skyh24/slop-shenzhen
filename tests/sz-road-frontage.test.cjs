@@ -82,7 +82,7 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const scene = new THREE.Scene();
   const model = buildSzRoadFrontage(scene, raw.roadFrontage, raw.roadGraph, terrain, { groundHeight, roadHeight });
   assert.equal(model.statistics.signals, 4);
-  const pilot = raw.roadFrontage.features.filter(f => f.id.startsWith('shennan-hongshulin:') && f.kind !== 'paint');
+  const pilot = raw.roadFrontage.features.filter(f => f.id.startsWith('shennan-hongshulin:') && f.clipToRoadComplement);
   assert.deepEqual(pilot.map(f => f.id.split(':').at(-1)), ['sidewalk', 'ramp', 'paving']);
   assert.ok(pilot.every(f => f.clipToRoadComplement));
   assert.ok(pilot[2].sourceIds.includes('way/1241802790'));
@@ -128,7 +128,7 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   }
   const civic = raw.roadFrontage.corridors.find(row => row.id === 'shennan-civic-center');
   assert.equal(civic.medianSource.imageryReview.captureDate, '2026-01-25');
-  const band = raw.roadFrontage.features.filter(feature => feature.kind === 'flower-band');
+  const band = raw.roadFrontage.features.filter(feature => feature.id === 'shennan-civic-center:flower-band');
   assert.equal(band.length, 1);
   assert.equal(band[0].id, 'shennan-civic-center:flower-band');
   assert.equal(band[0].riseM, 0);
@@ -187,11 +187,21 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
     vertex.fromBufferAttribute(positions, i).applyMatrix4(matrix);
     assert.ok(vertex.y >= armCollider.minY && vertex.y <= armCollider.maxY);
   }
-  const greenA = model.group.children.find(mesh => mesh.name === 'signals:0:green').material;
-  const greenB = model.group.children.find(mesh => mesh.name === 'signals:1:green').material;
+  const greenA = model.group.getObjectByName('signals:shennan-hongshulin:0:green').material;
+  const greenB = model.group.getObjectByName('signals:shennan-hongshulin:1:green').material;
   assert.ok(greenA.emissiveIntensity > 0 && greenB.emissiveIntensity === 0);
   model.update(4.5);
   assert.ok(greenB.emissiveIntensity > 0 && greenA.emissiveIntensity === 0);
+  const crossing = { id: 'shennan-hongshulin', group: 1 };
+  assert.equal(model.control.enterCrossing(crossing, 4.6, 'walker'), true);
+  model.update(8.1);
+  assert.equal(greenA.emissiveIntensity + greenB.emissiveIntensity, 0);
+  model.control.leaveCrossing(crossing, 'walker');
+  model.update(8.2);
+  assert.ok(greenA.emissiveIntensity > 0);
+  assert.equal(model.walkLegs.filter(row => row.crossing).length, 9);
+  assert.equal(model.walkLegs.filter(row => row.crossing && !row.signal).length, 2);
+  assert.equal(model.colliders.filter(row => row.type === 'planted-island').length, 3);
   let checkedPaint = 0, checkedRaised = 0;
   for (const mesh of model.group.children) {
     const raised = mesh.userData.heightSource === 'terrain-relative-design-estimate';
@@ -208,7 +218,9 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
       }
       if (raised) {
         assert.equal(roadHeight(x, z), null);
-        assert.ok(Math.abs(model.contactHeight(x, z) - y) < 0.00001);
+        if (!mesh.name.includes(':flower-band:') || !mesh.name.startsWith('shennan-hongshulin:')) {
+          assert.ok(Math.abs(model.contactHeight(x, z) - y) < 0.00001);
+        }
         checkedRaised++;
       }
     }

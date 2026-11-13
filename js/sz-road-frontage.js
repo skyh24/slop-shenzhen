@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { color, fract, fwidth, max, positionWorld, smoothstep } from 'three/tsl';
-import { createIntersectionControl, signalPhase } from './sz-intersection-control.js';
+import { createIntersectionControl } from './sz-intersection-control.js';
 import { createPavingMaterial, pavingMesh } from './sz-paving.js';
 import { convexHull, createRoadHeightSampler, createRoadPolygonLayout, createRoadsideSurfaceTreatment } from './sz-roads.js';
 
@@ -85,7 +85,7 @@ function instance(group, name, geo, mat, matrices) {
 }
 
 function signalHardware(group, control, contactHeight, roadHeight) {
-  const poles = [], feet = [], arms = [], heads = [], lenses = [[], []];
+  const poles = [], feet = [], arms = [], heads = [], lenses = new Map();
   const colliders = [];
   const origins = [];
   const yAxis = new THREE.Vector3(0, 1, 0);
@@ -120,7 +120,9 @@ function signalHardware(group, control, contactHeight, roadHeight) {
         .setPosition(x - right.x * distance - a.dx * forward, height, z - right.z * distance - a.dz * forward);
       for (const distance of [across - a.widthM * 0.24, length - 0.23]) {
         heads.push({ id, matrix: headAt(distance, armY - 0.51) });
-        lenses[a.group].push({ id, matrices: LIGHTS.map((_, i) => headAt(distance, armY - 0.22 - i * 0.28, 0.14)) });
+        const key = `${junction.id}:${a.group}`;
+        if (!lenses.has(key)) lenses.set(key, { approach: a, rows: [] });
+        lenses.get(key).rows.push({ id, matrices: LIGHTS.map((_, i) => headAt(distance, armY - 0.22 - i * 0.28, 0.14)) });
       }
     }
   }
@@ -139,20 +141,21 @@ function signalHardware(group, control, contactHeight, roadHeight) {
   install('arms', new THREE.CylinderGeometry(0.065, 0.09, 1, 8), silver, arms);
   install('housings', new THREE.BoxGeometry(0.37, 0.91, 0.25), material(0x252b2c, 0, 0.72), heads);
   const geometry = new THREE.CylinderGeometry(0.105, 0.105, 0.042, 14).rotateX(Math.PI / 2);
-  const lensMaterials = lenses.map((rows, directionGroup) => LIGHTS.map((name, i) => {
-    const m = material(IDLE_COLORS[i], 0, 0.34);
-    m.emissive.setHex(ACTIVE_COLORS[i]);
-    m.emissiveIntensity = 0;
-    if (rows.length) install(`${directionGroup}:${name}`, geometry, m, rows.map(({ id, matrices }) => ({ id, matrix: matrices[i] })));
-    return m;
-  }));
-  const phases = [null, null];
+  for (const [key, lens] of lenses) {
+    lens.materials = LIGHTS.map((name, i) => {
+      const m = material(IDLE_COLORS[i], 0, 0.34);
+      m.emissive.setHex(ACTIVE_COLORS[i]);
+      m.emissiveIntensity = 0;
+      install(`${key}:${name}`, geometry, m, lens.rows.map(({ id, matrices }) => ({ id, matrix: matrices[i] })));
+      return m;
+    });
+  }
   function update(elapsedSeconds) {
-    for (let groupIndex = 0; groupIndex < phases.length; groupIndex++) {
-      const next = signalPhase(groupIndex, elapsedSeconds);
-      if (phases[groupIndex] === next) continue;
-      phases[groupIndex] = next;
-      lensMaterials[groupIndex].forEach((m, i) => {
+    for (const lens of lenses.values()) {
+      const next = control.vehiclePhase(lens.approach, elapsedSeconds);
+      if (lens.phase === next) continue;
+      lens.phase = next;
+      lens.materials.forEach((m, i) => {
         const active = LIGHTS[i] === next;
         m.color.setHex(active ? ACTIVE_COLORS[i] : IDLE_COLORS[i]);
         m.emissiveIntensity = active ? 1.25 : 0;
@@ -163,17 +166,54 @@ function signalHardware(group, control, contactHeight, roadHeight) {
   return { update, colliders, origins };
 }
 
-function addMedianShrubs(group, sites, contactHeight) {
+function plantingCollider(feature, groundHeight) {
+  const [outer, ...holes] = feature.outlines.map(ring => Array.from({ length: ring.length / 2 - 1 }, (_, i) =>
+    ({ x: ring[i * 2], z: ring[i * 2 + 1] })));
+  const heights = outer.map(({ x, z }) => groundHeight(x, z)).filter(Number.isFinite);
+  if (!heights.length) return null;
+  return { type: 'planted-island', name: feature.id, polygon: { outer, holes },
+    minX: Math.min(...outer.map(p => p.x)), maxX: Math.max(...outer.map(p => p.x)),
+    minZ: Math.min(...outer.map(p => p.z)), maxZ: Math.max(...outer.map(p => p.z)),
+    minY: Math.min(...heights), maxY: Math.max(...heights) + feature.riseM };
+}
+
+function walkGeometry(source, contactHeight, roadHeight) {
+  const legs = [], segments = [];
+  for (const corridor of source.corridors) for (const [i, row] of (corridor.walkLegs ?? []).entries()) {
+    const heightAt = (x, z) => (row.crossing ? roadHeight(x, z) : null) ?? contactHeight(x, z);
+    const points = row.points.map(([x, z]) => ({ x, y: heightAt(x, z), z }));
+    if (points.some(point => !Number.isFinite(point.y))) continue;
+    const line = points.slice(1).map((b, index) => {
+      const a = points[index], dx = b.x - a.x, dz = b.z - a.z;
+      return { a, dx, dz, lengthSq: dx * dx + dz * dz };
+    }).filter(segment => segment.lengthSq > 1e-8);
+    function near(x, z, radius) {
+      return line.some(({ a, dx, dz, lengthSq }) => {
+        const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / lengthSq));
+        return (x - a.x - t * dx) ** 2 + (z - a.z - t * dz) ** 2 <= radius ** 2;
+      });
+    }
+    segments.push(near);
+    legs.push({ id: `${corridor.id}:walk:${i}`, points, crossing: row.crossing,
+      signal: Number.isInteger(row.signalGroup) ? { id: corridor.id, group: row.signalGroup } : null,
+      walkAt: (x, z) => near(x, z, 1.45) ? heightAt(x, z) : null });
+  }
+  return { legs, reserveWalk: (x, z, radius = 0) => segments.some(near => near(x, z, 1.6 + radius)) };
+}
+
+function addMedianShrubs(group, sites, contactHeight, low = false) {
   const matrices = [];
   const tint = new THREE.Color();
   for (const [x, z] of sites) {
     const y = contactHeight(x, z);
     if (!Number.isFinite(y)) continue;
-    matrices.push(new THREE.Matrix4().makeScale(1.35, 0.48, 0.68).setPosition(x, y + 0.29, z));
+    matrices.push(low ? new THREE.Matrix4().makeScale(0.43, 0.22, 0.38).setPosition(x, y + 0.16, z)
+      : new THREE.Matrix4().makeScale(1.35, 0.48, 0.68).setPosition(x, y + 0.29, z));
   }
   if (matrices.length) {
-    const mesh = instance(group, 'shennan-median:planting-estimate', new THREE.IcosahedronGeometry(1, 1), material(0xffffff), matrices);
-    matrices.forEach((_, i) => mesh.setColorAt(i, tint.setHex(i % 3 ? 0x486633 : 0x627a38)));
+    const mesh = instance(group, low ? 'junction-islands:planting-estimate' : 'shennan-median:planting-estimate',
+      new THREE.IcosahedronGeometry(1, 1), material(0xffffff), matrices);
+    matrices.forEach((_, i) => mesh.setColorAt(i, tint.setHex(i % 3 ? 0x486633 : low ? 0xb55469 : 0x627a38)));
     mesh.instanceColor.needsUpdate = true;
   }
   return matrices.length;
@@ -230,8 +270,8 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const control = createIntersectionControl(source, graph);
   const statistics = { triangleCount: 0, curbTriangles: 0, curbSegments: 0, signals: 0, shrubs: 0, shennanFlowerBeds: 0 };
   const empty = { group: null, control, contactHeight: () => null, shennanMedianHeight: () => null,
-    medianHeight: () => null, colliders: [],
-    detailedRoadIds: [], statistics, update() {}, dispose() {} };
+    medianHeight: () => null, plantingAt: () => false, colliders: [],
+    detailedRoadIds: [], walkLegs: [], reserveWalk: () => false, statistics, update() {}, dispose() {} };
   if (!source) return empty;
   if (typeof groundHeight !== 'function' || typeof roadHeight !== 'function') throw new Error('Road frontage requires terrain and asphalt contact');
 
@@ -243,6 +283,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   walls.side = THREE.DoubleSide;
   const style = { paint: material(0xf1eee5, -3, 0.84), median: material(0x52673b),
     'flower-band': plantedSurfaceMaterial(0xbb6658, -1) };
+  const islandSoil = plantedSurfaceMaterial(0x626846, -1);
   const grass = plantedSurfaceMaterial(0x4f762b);
   const flowers = plantedSurfaceMaterial(0x864359);
   const medians = new Map(source.corridors.filter(row =>
@@ -250,6 +291,8 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     .map(row => [`${row.id}:median`, row]));
   const medianSamplers = [];
   const samplers = [];
+  const planting = [];
+  const plantingSurfaces = [];
   const roadside = source.features.filter(feature => feature.clipToRoadComplement);
   const treatment = roadside.length ? createRoadsideSurfaceTreatment(graph, terrain.grid, roadside) : null;
   for (const feature of source.features) {
@@ -262,7 +305,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       ? sceneStyle?.resolve({ surfaceStyle: 'concrete' }, { kind: 'surface', id: feature.id }).surfaceStyle ?? 'concrete'
       : null;
     if (preset && !paving.has(preset)) paving.set(preset, createPavingMaterial(preset, { depthBias: -2 }));
-    const mat = preset ? paving.get(preset) : planted ? grass : style[feature.kind];
+    const mat = preset ? paving.get(preset) : feature.plantSites ? islandSoil : planted ? grass : style[feature.kind];
     if (!mat) throw new Error(`Unknown frontage surface: ${feature.kind}`);
     const useTreatment = feature.clipToRoadComplement ? treatment : null;
     const layout = createRoadPolygonLayout(feature, terrain, useTreatment);
@@ -275,7 +318,8 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       if (planted) mesh.userData.planting = {
         form: corridor.medianSource.planting ?? 'open-lawn-and-low-flower-beds', positionSource: 'visual-estimate'
       };
-      mesh.userData.heightSource = offset || feature.vertexRisesM ? 'terrain-relative-design-estimate' : 'terrain';
+      mesh.userData.heightSource = feature.plantSites ? 'planted-finish'
+        : offset || feature.vertexRisesM ? 'terrain-relative-design-estimate' : 'terrain';
       group.add(mesh);
       if (chunk.wallPositions) {
         group.add(pavingMesh(chunk.wallPositions, chunk.origin, walls, `${chunk.id}:curbs`));
@@ -286,6 +330,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     if (feature.riseM || useTreatment) {
       const sample = createRoadHeightSampler(layout.chunks, terrain.grid);
       samplers.push(sample);
+      if (feature.solidPlanting) plantingSurfaces.push(sample);
       if (verifiedMedian) medianSamplers.push({ bounds: corridor.bounds, sample, planted });
       if (!useTreatment) {
         const triangles = addCurbWalls(group, feature, groundHeight, walls);
@@ -294,6 +339,10 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       }
     }
     statistics.triangleCount += layout.statistics.triangles;
+    if (feature.solidPlanting) {
+      const collider = plantingCollider(feature, groundHeight);
+      if (collider) planting.push(collider);
+    }
   }
   function medianHeight(x, z, shennanOnly = false) {
     for (const { bounds: [x0, z0, x1, z1], sample, planted } of medianSamplers) {
@@ -315,16 +364,20 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     return y;
   }
   const hardware = signalHardware(group, control, (x, z) => contactHeight(x, z) ?? groundHeight(x, z), roadHeight);
+  const { legs, reserveWalk } = walkGeometry(source, contactHeight, roadHeight);
   statistics.signals = hardware.origins.length;
   const sites = source.shrubSites ?? [];
   statistics.shrubs = addMedianShrubs(group, sites.filter(([x, z]) => shennanMedianHeight(x, z) === null), contactHeight);
+  statistics.islandPlants = addMedianShrubs(group, source.features.flatMap(f => f.plantSites ?? []), contactHeight, true);
   statistics.shennanFlowerBeds = addShennanFlowerBeds(group, sites, shennanMedianHeight, flowers);
   scene.add(group);
-  return { group, control, contactHeight, shennanMedianHeight, medianHeight, colliders: hardware.colliders, signalOrigins: hardware.origins, statistics,
+  return { group, control, contactHeight, shennanMedianHeight, medianHeight, colliders: [...hardware.colliders, ...planting],
+    signalOrigins: hardware.origins, statistics, walkLegs: legs, reserveWalk,
+    plantingAt: (x, z) => plantingSurfaces.some(sample => sample(x, z) !== null),
     detailedRoadIds: [...new Set(source.corridors.flatMap(row => row.roadIds))], update: hardware.update,
     dispose() {
       group.removeFromParent();
-      const geometries = new Set(), materials = new Set([...Object.values(style), ...paving.values(), walls, grass, flowers]);
+      const geometries = new Set(), materials = new Set([...Object.values(style), ...paving.values(), walls, grass, flowers, islandSoil]);
       group.traverse(mesh => {
         if (!mesh.isMesh) return;
         geometries.add(mesh.geometry);
