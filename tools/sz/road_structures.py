@@ -117,7 +117,7 @@ def station_frames(points, events, profile, width_at, *, tangent_span=0.005):
     for s in sorted(set(round(s, 6) for s in [*events, *corners[1:-1]])):
         if s - distances[-1] >= 0.025 and line.length - s >= 0.025:
             distances.append(s)
-    distances.append(round(line.length, 6))
+    distances.append(line.length)
     runs = []
     for a, b in zip(distances, distances[1:]):
         steps = math.ceil((b - a) / 4)
@@ -201,47 +201,70 @@ def compile_reviewed_profile(route, graph, grid, indices, config):
     records, openings, envelope = [], [], []
     distance = 0
     portal_ways = set(route.get('portalApproachWays', []))
+    portal_cover = route.get('portalCoverM', {})
+    section_widths = route.get('approachWidthsM', {})
+    widths = [section_widths.get(graph['metadata'][index]['osmId'], link[3])
+              for index, link in zip(indices, links, strict=True)]
     for j, (index, link, line) in enumerate(zip(indices, links, lines, strict=True)):
         meta = graph['metadata'][index]
         tunnel = bool(meta['tunnel'])
         portal = meta['osmId'] in portal_ways
+        cover = [0, line.length] if tunnel else portal_cover.get(meta['osmId'], [0, 0]) if portal else None
         bridge = bool(meta['bridge'])
         if tunnel and meta['osmId'] not in route.get('boreWays', []):
             raise ValueError(f"Unreviewed tunnel in profile: {meta['osmId']}")
-        if not (tunnel or bridge or meta['heightSource'] == 'terrain'):
+        if not (tunnel or bridge or (portal and meta['layer'] < 0) or meta['heightSource'] == 'terrain'):
             raise ValueError(f"Unknown elevation on reviewed route: {meta['osmId']}")
-        width, lanes = link[3:5]
+        width, lanes = widths[j], link[4]
+        if meta['osmId'] in section_widths:
+            if tunnel or bridge or meta['widthSource'] != 'estimate-from-class' or not 6 <= width <= link[3]:
+                raise ValueError(f"Reviewed approach width would overwrite source dimensions: {meta['osmId']}")
+            lanes = route['lanes']
         events = [s - distance for s in station if distance < s < distance + line.length]
         start_apron = route.get('groundApronM', [0, 0])[0] if j == 0 and shared[0] else 0
         end_apron = route.get('groundApronM', [0, 0])[1] if j == len(links) - 1 and shared[1] else 0
         events.extend([start_apron, line.length - end_apron])
-        frames = station_frames(list(line.coords), events, lambda s: profile(distance + s), lambda _: width)
+        if cover:
+            if not 0 <= cover[0] <= cover[1] <= line.length:
+                raise ValueError(f"Reviewed portal cover is outside its source way: {meta['osmId']}")
+            events.extend(cover)
+        def width_at(s):
+            before = (widths[j - 1] + width) / 2 if j else width
+            after = (widths[j + 1] + width) / 2 if j + 1 < len(widths) else width
+            taper = min(60, line.length / 2)
+            return width + (before - width) * (1 - ease(s / taper)) \
+                + (after - width) * (1 - ease((line.length - s) / taper))
+
+        frames = station_frames(list(line.coords), events, lambda s: profile(distance + s), width_at)
         grade = sampled_grade(frames)
         if grade > config['maxGrade']:
             raise ValueError(f"Rendered longitudinal grade exceeds cap: {meta['osmId']} {grade:.5f}")
-        if tunnel:
+        if tunnel or portal:
             # 洞顶按纵断面求标高，地形仅用来校验覆土。
             roof = config['tunnelClearanceM'] + config['tunnelRoofM']
             for frame in frames:
-                if min(ground_height(grid, frame[k], frame[k + 1]) for k in (4, 6)) < frame[2] + roof - 0.03:
+                if cover[0] - 1e-5 <= frame[0] <= cover[1] + 1e-5 and cover[1] > cover[0] \
+                        and min(ground_height(grid, frame[k], frame[k + 1]) for k in (4, 6)) < frame[2] + roof - 0.03:
                     raise ValueError(f"Insufficient cover at reviewed mountain bore: {meta['osmId']}")
-            envelope.append(strip(frames, config['tunnelWallM']))
-        else:
+            if cover[1] > cover[0]:
+                envelope.append(strip([f for f in frames if cover[0] - 1e-5 <= f[0] <= cover[1] + 1e-5],
+                                      config['tunnelWallM']))
+        if not tunnel:
             # 挖方仅裁去路线实际低于地坪的断面。高出地坪的部分由实体路基承托。
             for a, b in zip(frames, frames[1:]):
                 if a[0] < start_apron or b[0] > frames[-1][0] - end_apron + 1e-5:
                     continue
+                if cover and a[0] >= cover[0] - 1e-5 and b[0] <= cover[1] + 1e-5:
+                    continue
                 if any(ground_height(grid, frame[k], frame[k + 1]) > frame[2] + 0.015
                        for frame in (a, b) for k in (4, 6)):
                     openings.append(strip([a, b]))
-            if portal:
-                envelope.append(strip(frames, config['tunnelWallM']))
         kind = 'tunnel' if tunnel or portal else 'bridge' if bridge else 'approach'
         records.append({'index': index, 'way': meta['osmId'], 'route': route['id'], 'kind': kind,
                         'layer': meta['layer'], 'heightSource': 'project-design-estimate',
                         'stations': [value for frame in frames for value in frame], 'stationOffsetM': round(distance, 6),
                         'widthM': width, 'lanes': lanes, 'sharedStart': j == 0 and shared[0],
-                        'sharedEnd': j == len(links) - 1 and shared[1], 'coverM': [0, frames[-1][0]] if tunnel else [0, 0] if portal else None,
+                        'sharedEnd': j == len(links) - 1 and shared[1], 'coverM': cover,
                         'openApronM': max(start_apron, end_apron), 'maxGrade': round(grade, 6)})
         distance += line.length
     return records, unary_union(openings), unary_union(envelope)

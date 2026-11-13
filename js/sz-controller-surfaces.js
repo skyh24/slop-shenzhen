@@ -85,6 +85,7 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
   const cells = new Map();
   const driveSuccessors = new Map();
   const structured = new Set();
+  const flightRoadDecks = new Set();
   for (const surface of surfaces) {
     if (!surface.id || !surface.heightSource || surface.heightSource === 'unresolved') {
       throw new Error('A rendered surface requires identity and resolved height provenance');
@@ -93,6 +94,7 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
       driveSuccessors.set(surface.id, surface.driveSuccessors);
     }
     if (surface.structured) structured.add(surface.id);
+    if (surface.flightRoadDeck) flightRoadDecks.add(surface.id);
     const access = new Set(surface.accessTriangles);
     for (const triangle of surface.triangles) {
       if (triangle.length !== 3 || triangle.some(p => ![p.x, p.y, p.z].every(Number.isFinite))) {
@@ -198,5 +200,5 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
     return best;
   }
 
-  return { at, resolve, below, footing };
+  return { at, resolve, below, footing, isFlightRoadDeck: id => flightRoadDecks.has(id) };
 }

@@ -633,7 +633,7 @@ test('a source-connected tunnel route stays on its own floor across every seam a
   assert.ok(drive && chain.every(edge => drive.edges.includes(edge)));
   for (const id of ['nanping-xili-east', 'nanping-xili-west', 'nanguang-south', 'nanguang-north',
     'huanggang-binhe-north', 'huanggang-binhe-south', 'beihuan-shahe-east', 'beihuan-shahe-west',
-    'nanping-branch-north', 'nanping-branch-south']) {
+    'nanping-branch-north', 'nanping-branch-south', 'guimiao-east', 'guimiao-west']) {
     const records = geo.roadStructures.records.filter(row => row.route === id);
     assert.ok(records.length >= 3, id);
     const routeEdges = records.map(record => network.edges.find(edge => edge.sourceIndex === record.index));
@@ -650,12 +650,35 @@ test('a source-connected tunnel route stays on its own floor across every seam a
       }
     }
     if (id.startsWith('nanping-xili')) {
+      assert.ok(records.some(record => record.way === (id.endsWith('east') ? 'way/683489207' : 'way/221894936')));
+      const bridges = records.filter(record => record.kind === 'bridge');
+      assert.ok(bridges.length > 0 && bridges.every(record =>
+        resolver.isFlightRoadDeck(`sz-road-structure:${record.index}`)), id);
       const first = routeEdges[0].segments[0];
       const last = routeEdges.at(-1).segments.at(-1);
       const from = planner.snap(first.x + first.dx * 14, first.z + first.dz * 14);
       const to = planner.snap(last.x + last.dx * (last.length - 14), last.z + last.dz * (last.length - 14));
       const full = from && to && planner.route(from, to);
       assert.ok(full && routeEdges.every(edge => full.edges.includes(edge)), id);
+    }
+    if (id.startsWith('guimiao')) {
+      const bore = records.find(record => geo.roadGraph.metadata[record.index].tunnel);
+      assert.equal(bore.lanes, 3, id);
+      assert.ok(bore.coverM[1] > 1600, id);
+      assert.ok(built.colliders.some(c => c.name === `sz-road-structure:${bore.index}` && c.type === 'tunnel-roof'), id);
+      // 两向均接滨海大道东侧；西端相邻跨线桥另有独立高程待核。
+      if (id.endsWith('west')) {
+        assert.ok(network.edges.some(edge => !edge.elevated && edge.next.includes(routeEdges[0])), id);
+      } else {
+        assert.ok(routeEdges.at(-1).next.some(edge => !edge.elevated), id);
+      }
+      let contact = { height: 8, surfaceId: 'terrain' };
+      for (const part of parts) for (const frame of part.frames) {
+        contact = resolver.resolve(frame.x, frame.z, {
+          mode: 'car', previousY: contact.height, previousSurfaceId: contact.surfaceId
+        });
+        assert.ok(contact && Math.abs(contact.height - frame.y) < 0.025, `${id} ${part.osmId} @ ${frame.d}`);
+      }
     }
   }
   const movements = [

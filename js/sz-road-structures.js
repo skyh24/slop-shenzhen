@@ -35,6 +35,10 @@ function matchGroundEdge(graph, frame, node, approach) {
     nx = -nx;
     nz = -nz;
   }
+  // 地面源边与纵断面源边在同一节点收口，消除站距舍入产生的亚毫米缝隙。
+  const center = atStart ? a : b;
+  frame.x = center.x;
+  frame.z = center.z;
   frame.left = { x: frame.x + nx, y: frame.y, z: frame.z + nz };
   frame.right = { x: frame.x - nx, y: frame.y, z: frame.z - nz };
 }
@@ -104,6 +108,7 @@ export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAl
   const links = [], surfaces = [], colliders = [];
   const tunnelRoutes = new Map();
   if (!plan?.records.length) return { group, links, surfaces, colliders, heightAt: () => null, constrainCamera() {}, dispose() {} };
+  const playerDecks = new Set(plan.routes?.filter(route => route.playerDeckAccess).map(route => route.id));
   const materials = {
     asphalt: new THREE.MeshStandardNodeMaterial({ color: PALETTE.asphalt, roughness: 0.94, side: THREE.DoubleSide,
       polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
@@ -128,6 +133,32 @@ export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAl
     }
   }
   const framesByIndex = new Map(plan.records.map(record => [record.index, readFrames(record.stations)]));
+  const routeRecords = new Map();
+  for (const record of plan.records) {
+    const records = routeRecords.get(record.route) ?? [];
+    records.push(record);
+    routeRecords.set(record.route, records);
+  }
+  const routeAccess = new Map();
+  if (groundHeight) for (const records of routeRecords.values()) {
+    const start = records[0], end = records.at(-1);
+    // 与地面共面的接段可能跨越多条源边，接地权限延伸到第一个竖曲线。
+    for (const fromEnd of [false, true]) {
+      if (fromEnd ? !end.sharedEnd : !start.sharedStart) continue;
+      const ordered = fromEnd ? [...records].reverse() : records;
+      const frames = ordered.flatMap(record => {
+        const source = framesByIndex.get(record.index);
+        return (fromEnd ? [...source].reverse() : source).map(frame => [frame, record.stationOffsetM + frame.d]);
+      });
+      const breakAt = frames.find(([p]) => {
+        const ground = groundHeight(p.x, p.z);
+        return !Number.isFinite(ground) || Math.abs(p.y - ground) > 0.08;
+      });
+      const access = routeAccess.get(start.route) ?? {};
+      access[fromEnd ? 'end' : 'start'] = breakAt ? breakAt[1] + (fromEnd ? -5 : 5) : frames.at(-1)[1];
+      routeAccess.set(start.route, access);
+    }
+  }
   for (let i = 1; i < plan.records.length; i++) {
     const a = plan.records[i - 1], b = plan.records[i];
     if (a.route !== b.route) continue;
@@ -204,6 +235,7 @@ export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAl
     };
     const startAccessM = sharedStart ? accessEnd(false) : 0;
     const endAccessM = sharedEnd ? accessEnd(true) : 0;
+    const access = routeAccess.get(route);
 
     const topTriangles = [];
     const roofTriangles = [];
@@ -224,7 +256,7 @@ export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAl
       batch.asphalt.push(...floor);
       const entry = sharedStart && a.d < startAccessM;
       const exit = sharedEnd && b.d > last.d - endAccessM;
-      if (entry || exit) accessTriangles.push(...floor);
+      if (entry || exit || stationOffsetM + a.d < access?.start || stationOffsetM + b.d > access?.end) accessTriangles.push(...floor);
 
       if (tunnel) {
         const cameraInset = plan.tunnelWallM + 0.55;
@@ -312,8 +344,10 @@ export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAl
         }
       }
     }
+    const flightRoadDeck = kind === 'bridge' && playerDecks.has(route);
     const surface = { id, heightSource: 'estimate', triangles: topTriangles, accessTriangles,
-      modes: ['car'], driveSuccessors: [], structured: true };
+      modes: flightRoadDeck ? ['car', 'person', 'helicopter'] : ['car'], flightRoadDeck,
+      driveSuccessors: [], structured: true };
     const road = { index, osmId: record.way, name: graph.names[link[2]], direction: link[5], layer: record.layer ?? (tunnel ? -1 : 1),
       width: widthM, lanes, laneSource: lanes && !link[4] ? 'municipal-design' : undefined,
       barrierWidthM: sideAllowance, frames, points: roadLinkPoints(graph, link),

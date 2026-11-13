@@ -1488,3 +1488,46 @@ test('landing on a roof preserves the floor through walking cycling and driving'
     assert.equal(controller.getActiveEntity().position.y, 8);
   }
 });
+
+test('landing across a graded bridge seam permits walking and driving on the same deck', () => {
+  const { controller, ent } = teleportHarness('helicopter');
+  delete controller.getGroundHeight;
+  controller.groundHeight = () => 8;
+  const surfaces = [[-20, 0], [0, 30]].map(([start, end], i) => {
+    const corners = [[-6, start], [6, start], [6, end], [-6, end]].map(([x, z]) => ({ x, y: 18 + z * 0.04, z }));
+    return { id: `deck-${i}`, heightSource: 'fixture-design', structured: true, flightRoadDeck: true,
+      modes: ['person', 'car', 'helicopter'], driveSuccessors: [`deck-${1 - i}`],
+      triangles: [[corners[0], corners[1], corners[2]], [corners[0], corners[2], corners[3]]] };
+  });
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: controller.groundHeight, surfaces });
+  controller.colliders = surfaces.flatMap(({ id, triangles }) => triangles.map(outer => {
+    const top = outer.map(p => p.y);
+    const bottom = top.map(y => y - 0.65);
+    return { name: id, type: 'bridge-slab', minX: -6, maxX: 6,
+      minZ: Math.min(...outer.map(p => p.z)), maxZ: Math.max(...outer.map(p => p.z)),
+      minY: Math.min(...bottom), maxY: Math.max(...top),
+      polygon: { outer, holes: [] }, roofPanel: { outer, top, bottom } };
+  }));
+  ent.collisionBounds = { min: { x: -3, y: 0, z: -3 }, max: { x: 3, y: 2.2, z: 3 } };
+  Object.assign(ent.position, { x: 4, y: 19, z: -0.2 });
+  ent.heading = ent.speed = 0;
+  assert.equal(controller.getFlightSupport(ent, ent.position.y), 8);
+  ent.position.x = 0;
+  for (const mode of ['person', 'car']) controller.entities[mode] = teleportHarness(mode).ent;
+  assert.equal(controller.findModePosition('person'), null);
+  ent.verticalSpeed = -5;
+  controller.keys.down = true;
+  for (let i = 0; i < 18; i++) controller.updateHelicopter(1 / 60);
+  assert.ok(Math.abs(ent.position.y - 18.112) < 1e-6);
+  assert.deepEqual([...ent.landedRoadDecks], ['deck-0', 'deck-1']);
+  assert.equal(controller.setMode('person'), true);
+  controller.keys.forward = true;
+  for (let i = 0; i < 120; i++) controller.updatePerson(1 / 60);
+  assert.ok(controller.entities.person.position.z > 1);
+  assert.equal(controller.entities.person._support.surfaceId, 'deck-1');
+  assert.equal(controller.setMode('car'), true);
+  assert.equal(controller.entities.car._support.surfaceId, 'deck-1');
+  assert.equal(controller.surfaceResolver.resolve(0, 2, {
+    mode: 'person', previousY: 8, previousSurfaceId: 'terrain'
+  }).surfaceId, 'terrain');
+});
