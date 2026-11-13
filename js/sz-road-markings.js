@@ -1,10 +1,8 @@
 import { isGroundRoad, roadSectionPoints } from './sz-roads.js';
+import { getRoadSection } from './sz-road-section.js';
 
 // 深圳地面道路标线：按 [23 号文档](../../docs/23-BUILDING-AND-STREET-PLAN.md) 第 7 节收束线型。
 // 车道数只用来推断线型，不冒充实测；估算车道数与 OSM lanes 分开标记（laneSource）。
-const LANE_WIDTH_M = 3.25;
-const NARROW_WIDTH_M = 7;
-const MAX_LANES = 8;
 const LINE_WIDTH = 0.18;
 const YELLOW_WIDTH = 0.15;
 const STOP_WIDTH = 0.45;
@@ -21,61 +19,13 @@ const MAX_MITER_SCALE = 4;
 const PAVEMENT_TOLERANCE = 0.02;
 const SAMPLE_STEP = 20;
 
-// 把 OSM 车道数或按路宽估算的车道数翻成线型。双向用中心线分向，单向不画黄线。
-export function createLanePlan(link, metadata = {}) {
-  const width = Number(link[3]);
-  const osmLanes = Number.isInteger(link[4]) && link[4] > 0 ? link[4] : 0;
-  const direction = link[5];
-  const highway = metadata.highway ?? '';
-  if (!Number.isFinite(width) || width < 3 || highway === 'pedestrian') return null;
-  const twoWay = direction === 0;
-  const estimate = Math.max(1, Math.floor(width / LANE_WIDTH_M));
-  // 双向至少要有来去各一条；OSM lanes 为奇数时多出的一条算作 a→b 方向。
-  const laneCount = Math.min(MAX_LANES, twoWay ? Math.max(2, osmLanes || estimate) : Math.max(1, osmLanes || estimate));
-  const narrow = width < NARROW_WIDTH_M || (twoWay && laneCount <= 2);
-  const forward = twoWay ? Math.max(1, Math.ceil(laneCount / 2)) : laneCount;
-  const backward = twoWay ? Math.max(1, laneCount - forward) : 0;
-  const sectionLaneWidth = metadata.crossSection?.laneWidthM;
-  const laneWidth = !twoWay && sectionLaneWidth > 0 ? sectionLaneWidth : width / laneCount;
-  // 双向双黄线落在道路中心线上（第 7 节要求车道、停止线、斑马线共用同一条中心线），
-  // 两个方向各占半幅；奇数车道时多出的一条分在本侧半幅内。
-  const half = width / 2;
-  const forwardWidth = twoWay ? half / forward : laneWidth;
-  const backwardWidth = twoWay ? half / backward : 0;
-  const internal = [];
-  if (!narrow) {
-    if (twoWay) {
-      internal.push({ offset: 0, kind: 'double-yellow' });
-      for (let i = 1; i < forward; i++) internal.push({ offset: -half + i * forwardWidth, kind: 'dashed-white' });
-      for (let i = 1; i < backward; i++) internal.push({ offset: half - i * backwardWidth, kind: 'dashed-white' });
-    } else {
-      for (let i = 1; i < laneCount && i * laneWidth < width; i++) {
-        internal.push({ offset: -half + i * laneWidth, kind: 'dashed-white' });
-      }
-    }
-  } else if (twoWay) {
-    // 窄路不再按估算车道数拆线，只保留中心线和边线。
-    internal.push({ offset: 0, kind: 'double-yellow' });
-  }
-  return { width, travelWidth: width, laneCount, forward, backward, laneWidth, forwardWidth, backwardWidth, edge: width >= 3.2,
-    internal, laneSource: osmLanes > 0 ? 'osm-lanes' : 'width-estimate', estimated: osmLanes === 0,
-    narrow, twoWay, highway };
-}
-
-// 桥面为了接触留有最小铺装宽度，车道数仍按来源断面判断。
-export function createDeckLanePlan(link, metadata, deckWidth, barrierWidth) {
-  const usable = deckWidth - barrierWidth * 2;
-  const sourceWidth = Math.min(link[3], usable);
-  const osmLanes = link[4] > 0 ? link[4] : 0;
-  const classRamp = metadata.highway.endsWith('_link') && metadata.widthSource === 'estimate-from-class';
-  const estimate = classRamp ? 1 : Math.floor((sourceWidth + 0.25) / 3);
-  const laneCount = Math.max(1, Math.min(MAX_LANES, osmLanes || estimate));
-  const lines = [{ offset: -usable / 2 + 0.24, duty: 1 }, { offset: usable / 2 - 0.24, duty: 1 }];
-  for (let lane = 1; lane < laneCount; lane++) {
-    const center = link[5] === 0 && lane === Math.ceil(laneCount / 2);
-    lines.push({ offset: usable * (lane / laneCount - 0.5), duty: 0.32, color: center ? 'yellow' : 'white' });
-  }
-  return { laneCount, laneSource: osmLanes ? 'osm-lanes' : 'width-estimate', lines };
+export function deckPaintLines(section) {
+  const half = section.travelWidthM / 2;
+  const lines = [{ offset: -half + 0.24, duty: 1 }, { offset: half - 0.24, duty: 1 }];
+  const dividers = section.dividerOffsetsM.map(offset => ({ offset, duty: 0.32, color: 'white' }));
+  if (section.twoWay && section.backwardCentersM.length) dividers.push({ offset: section.splitM, duty: 0.32, color: 'yellow' });
+  lines.push(...dividers.sort((a, b) => a.offset - b.offset));
+  return lines;
 }
 
 function distanceToSegment(point, a, b) {
@@ -333,25 +283,26 @@ export function createMarkingLayout(graph, { intersections = [], frontage } = {}
     const link = graph.links[i], metadata = graph.metadata[i];
     statistics.links++;
     if (!isGroundRoad(metadata)) { statistics.skippedLinks++; continue; }
-    const plan = createLanePlan(link, metadata);
-    if (!plan) { statistics.skippedLinks++; continue; }
+    const section = getRoadSection(graph, i);
+    const width = section.pavementWidthM;
+    if (width < 3 || metadata.highway === 'pedestrian') { statistics.skippedLinks++; continue; }
     statistics.paintedLinks++;
-    statistics.laneSources[plan.laneSource] = (statistics.laneSources[plan.laneSource] ?? 0) + 1;
-    if (plan.estimated) statistics.estimatedLaneLinks++;
-    else statistics.osmLaneLinks++;
-    if (plan.narrow) statistics.narrowLinks++;
-    if (plan.twoWay) statistics.twoWayLinks++;
+    statistics.laneSources[section.laneSource] = (statistics.laneSources[section.laneSource] ?? 0) + 1;
+    if (section.estimated) statistics.estimatedLaneLinks++;
+    else if (section.laneSource === 'osm-lanes') statistics.osmLaneLinks++;
+    if (section.narrow) statistics.narrowLinks++;
+    if (section.twoWay) statistics.twoWayLinks++;
     else statistics.oneWayLinks++;
     const points = roadSectionPoints(graph, link, metadata);
     if (points.length < 2) continue;
     const length = points.reduce((sum, point, index) => index ? sum + Math.hypot(point.x - points[index - 1].x, point.z - points[index - 1].z) : 0, 0);
-    const junctionGap = Math.min(plan.width * 0.38, 7, length * 0.30);
+    const junctionGap = Math.min(width * 0.38, 7, length * 0.30);
     let startS = (degree.get(link[0]) ?? 0) >= 3 ? junctionGap : 0;
     let endS = (degree.get(link[1]) ?? 0) >= 3 ? length - junctionGap : Infinity;
     for (const approach of approachesByLink.get(i) ?? []) {
       // 只有信号进向才有停止线；已核实过街（无信号）不剪纵向标线。
       if (!Number.isInteger(approach.group)) continue;
-      const stop = projectStop(points, approach.stopX, approach.stopZ, plan.width);
+      const stop = projectStop(points, approach.stopX, approach.stopZ, width);
       if (stop === null) continue;
       const clearance = signalPaint.has(`node/${approach.osmNodeId}`) ? LINE_STOP_GAP : STOP_CLEARANCE;
       if (length - stop <= stop) endS = Math.min(endS, stop - clearance);
@@ -361,16 +312,19 @@ export function createMarkingLayout(graph, { intersections = [], frontage } = {}
     if (clipped.length >= 2) {
       const before = strips.length;
       if (startS > 0 || endS < Infinity) statistics.breakLinks++;
-      const half = plan.width / 2;
-      if (plan.edge) {
+      const half = width / 2;
+      if (width >= 3.2) {
         line(clipped, half - 0.38, 'white', 1, 1, 0, strips, 'edge-right', half);
         line(clipped, -half + 0.38, 'white', 1, 1, 0, strips, 'edge-left', half);
       }
-      for (const divider of plan.internal) {
-        if (divider.kind === 'double-yellow') {
-          line(clipped, divider.offset - 0.12, 'yellow', 1, 1, 0, strips, 'center-left', half);
-          line(clipped, divider.offset + 0.12, 'yellow', 1, 1, 0, strips, 'center-right', half);
-        } else line(clipped, divider.offset, 'white', 12, 0.25, 0, strips, 'lane', half);
+      const travelCenter = (section.travelWidthM - width) / 2;
+      if (section.twoWay) {
+        const center = travelCenter + section.splitM;
+        line(clipped, center - 0.12, 'yellow', 1, 1, 0, strips, 'center-left', half);
+        line(clipped, center + 0.12, 'yellow', 1, 1, 0, strips, 'center-right', half);
+      }
+      if (!section.narrow) {
+        for (const offset of section.dividerOffsetsM) line(clipped, travelCenter + offset, 'white', 12, 0.25, 0, strips, 'lane', half);
       }
       const areas = reviewedBounds.get(metadata.osmId);
       if (areas) {

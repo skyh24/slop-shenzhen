@@ -148,6 +148,7 @@ test('map travel resolves a walking pose before closing and leaves the map open 
     },
     wireMetroMenu: () => {},
     wireDroneWatch: () => ({ active: false, map: null }),
+    observationSessions: {},
     drones: {},
     droneWatch: null,
     cruise: { active: false },

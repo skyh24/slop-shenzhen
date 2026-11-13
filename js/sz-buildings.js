@@ -1,9 +1,10 @@
 import * as THREE from 'three/webgpu';
-import { GEO, REAL_BUILDINGS, CITY_PAYLOAD } from './sz-geodata.js';
+import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
 import { GeoBuilder, addWalls, addFlatPolygon } from './sz-geometry.js';
 import { createBuildingMaterial } from './sz-materials.js';
+import { facadeIndex } from './sz-facade-profiles.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
-import { ringArea, ringContains, polygonContains } from './sz-polygon.js';
+import { ringArea, ringContains, polygonContains, orientedBoxRing } from './sz-polygon.js';
 import { visitGroundRoadFootprints } from './sz-roads.js';
 
 // 普通楼按 2.4 km 合并成一个渲染块：出生点 1484 次绘制里 105 次来自 1 km 建筑块，
@@ -248,11 +249,7 @@ function podiumPlan(candidate, context, placement, roadClearance) {
 
 // 屋顶设备底面的矩形环：yaw 为绕竖直轴的旋转（弧度），本地 x 轴对应 sizeX。
 function roofUnitRing({ x, z, sizeX, sizeZ, yaw }) {
-  const cos = Math.cos(yaw), sin = Math.sin(yaw);
-  const hx = sizeX / 2, hz = sizeZ / 2;
-  return [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]].map(([u, v]) => ({
-    x: x + u * cos - v * sin, z: z + u * sin + v * cos
-  }));
+  return orientedBoxRing(x, z, sizeX, sizeZ, Math.cos(yaw), Math.sin(yaw));
 }
 
 // 屋顶有效区域包含检查：完整底面在内、与边界各边保持净距、不盖内院。
@@ -426,8 +423,7 @@ export function buildCityBlocks(scene, options = {}) {
     const key = `${Math.floor(building.cx / renderChunkSize)},${Math.floor(building.cz / renderChunkSize)}${participant ? ':program' : ''}`;
     if (!batches.has(key)) batches.set(key, new GeoBuilder(true));
     const batch = batches.get(key);
-    const facade = CITY_PAYLOAD.enums.facade.indexOf(building.facade);
-    if (facade < 0) throw new Error(`Unknown building facade: ${building.facade}`);
+    const facade = facadeIndex(building.facade);
     // 普通超高层不自动套同一种灯光秀，地标灯光由各自模型负责。
     const meta = [facade, buildingSeed(building.id) * 10, 0, building.height];
     for (const polygon of building.polygons) {

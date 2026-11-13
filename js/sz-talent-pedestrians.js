@@ -125,6 +125,11 @@ export function createTalentPedestrians(scene, waterfront, colliders) {
 
   return {
     group, actors,
+    dispose() {
+      people.dispose();
+      group.removeFromParent();
+      actors.length = 0;
+    },
     nearColliders(x, z, radius) {
       return actors.filter(a => Math.hypot(a.x - x, a.z - z) <= radius).map(a => a.collider);
     },
@@ -138,8 +143,7 @@ export function createTalentPedestrians(scene, waterfront, colliders) {
         writePedestrianCollider(actor.collider, actor.x, actor.y, actor.z, actor.heading, actor.v);
         const d = distance(actor, camera);
         const draw = d < 340 && (!isVisible || isVisible(actor.x, actor.z, 7, actor.y));
-        if (draw || d < 55) actor.rig.update(dt, actor.x, actor.z, actor.heading, ground, actor, 0, draw, -1);
-        if (draw) people.add(actor.rig, d);
+        if (draw || d < 55) people.updateWalker(actor, dt, ground, draw, d);
       }
       people.end();
     }

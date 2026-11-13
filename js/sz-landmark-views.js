@@ -1,4 +1,5 @@
 import { STR } from './sz-strings.js';
+import { nearestObservationTarget } from './sz-observation-session.js';
 
 export const LANDMARK_RADIUS = 200;
 
@@ -68,32 +69,34 @@ function orbitAltitude(target, heightAt, colliders) {
 }
 
 export function wireLandmarkOrbit({ button, views, controllerManager, cameraSystem, heightAt, mapOpen, exit, onStart,
-  available = () => true }) {
-  function nearbyTarget() {
-    const { x, z } = controllerManager.getActiveEntity().position;
-    let closest = null;
-    let best = LANDMARK_RADIUS + 5;
-    for (const target of views.values()) {
-      const distance = Math.hypot(x - target.x, z - target.z);
-      if (distance > best) continue;
-      closest = target;
-      best = distance;
+  observationSessions }) {
+  const nearbyTarget = () => nearestObservationTarget(views.values(), controllerManager.getActiveEntity().position,
+    LANDMARK_RADIUS + 5, true);
+  const session = observationSessions.bind('landmark-orbit', {
+    prepare: () => !mapOpen() && nearbyTarget(),
+    enter(target) {
+      const colliders = controllerManager.nearColliders(target.x, target.z, LANDMARK_RADIUS + 3, false);
+      cameraSystem.startLandmarkOrbit(target, orbitAltitude(target, heightAt, colliders));
+      onStart();
+    },
+    isCurrent: () => Boolean(cameraSystem.landmarkOrbit),
+    exit(_target, _snapshot, reason) {
+      if (reason === 'cancelled') exit();
     }
-    return closest;
-  }
+  });
 
   function stop() {
-    if (cameraSystem.landmarkOrbit) exit();
+    session.exit();
   }
 
   function update(manual = false) {
-    if (!available()) {
+    if (!session.active && !session.canEnter()) {
       button.hidden = true;
       return;
     }
     const { up, down } = controllerManager.keys;
     if (!mapOpen() && (manual || up || down)) stop();
-    const active = Boolean(cameraSystem.landmarkOrbit);
+    const active = session.active;
     const target = active ? null : nearbyTarget();
     const label = active ? STR.landmarkOrbit.stop : target ? STR.landmarkOrbit.start(target.name) : '';
     const hidden = !label || mapOpen();
@@ -102,14 +105,8 @@ export function wireLandmarkOrbit({ button, views, controllerManager, cameraSyst
   }
 
   button.addEventListener('click', () => {
-    if (!available()) return;
-    if (cameraSystem.landmarkOrbit) { stop(); return; }
-    const target = nearbyTarget();
-    if (!target || mapOpen()) return;
-    const colliders = controllerManager.nearColliders(target.x, target.z, LANDMARK_RADIUS + 3, false);
-    cameraSystem.startLandmarkOrbit(target, orbitAltitude(target, heightAt, colliders));
-    onStart();
-    update();
+    if (session.active) stop();
+    else if (session.enter().ok) update();
   });
   return { update, stop };
 }

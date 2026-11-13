@@ -66,11 +66,14 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const loadThree = p => import(pathToFileURL(join(threeDir, 'build', p)));
   const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
   const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
+  const style = loadModule(read('sz-scene-style.js'), { imports: { './sz-polygon.js': {} } });
+  const paving = loadModule(read('sz-paving.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL,
+    './sz-materials.js': { sceneUniforms: { night: TSL.uniform(0) } }, './sz-scene-style.js': style } });
   const roads = loadModule(read('sz-roads.js'), { imports: { ...imports,
     './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) } } });
   const ground = loadModule(read('sz-ground-surface.js'));
   const { buildSzRoadFrontage } = loadModule(read('sz-road-frontage.js'), {
-    imports: { ...imports, './sz-roads.js': roads, './sz-intersection-control.js': intersectionControl }
+    imports: { ...imports, './sz-roads.js': roads, './sz-intersection-control.js': intersectionControl, './sz-paving.js': paving }
   });
   const terrain = raw.terrainSurface;
   const groundHeight = ground.createGroundSurfaceSampler(terrain);

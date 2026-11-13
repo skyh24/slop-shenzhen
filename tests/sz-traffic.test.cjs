@@ -86,10 +86,12 @@ const trafficVehicles = {
     };
   }
 };
-const { createTrafficGraph, createSzTraffic, laneOffsets, laneRoute, poseOnRoute, routeSegments, trafficModelBounds, usableWidth, writeTrafficCollider } = load('sz-traffic.js', {
+const sections = load('sz-road-section.js');
+const { createTrafficGraph, createSzTraffic, laneRoute, poseOnRoute, routeSegments, trafficModelBounds, writeTrafficCollider } = load('sz-traffic.js', {
   'three/webgpu': three,
   './sz-intersection-control.js': signalModule,
   './sz-roads.js': roads,
+  './sz-road-section.js': sections,
   './sz-vehicles.js': trafficVehicles,
   './building-collision.js': load('building-collision.js', { './sz-polygon.js': polygonModule }),
   ...driving
@@ -112,14 +114,27 @@ test('traffic follows the OSM source directions and never connects geometric cro
 });
 
 test('traffic follows reviewed travel lanes and leaves the outer shoulder unoccupied', () => {
+  const { createMarkingLayout } = load('sz-road-markings.js', { './sz-roads.js': roads, './sz-road-section.js': sections });
   const graph = {
     nodes: [0, 0, 80, 0], names: ['North Ring'], links: [[0, 1, 0, 17, 4, 1, []]],
-    metadata: [{ ...groundRoad(1), crossSection: { laneWidthM: 3.5, points: [0, 0, 8, 80, 0, 8] } }]
+    metadata: [{ ...groundRoad(1), widthSource: 'reviewed-cross-section', crossSection: {
+      laneCountSource: 'municipal-design-and-relative-imagery', laneWidthM: 3.5, points: [0, 0, 8, 80, 0, 8]
+    } }]
   };
   const [edge] = createTrafficGraph(graph).edges;
+  assert.equal(edge.section, sections.getRoadSection(graph, 0));
+  assert.equal(edge.section.sourceId, 'way/1');
+  assert.equal(edge.section.widthSource, 'reviewed-cross-section');
+  assert.equal(edge.section.laneSource, 'municipal-design-and-relative-imagery');
+  assert.equal(edge.section.pavementWidthM, 17);
   assert.equal(edge.segments[0].z, -1);
-  assert.equal(edge.travelWidth, 14);
-  assert.deepEqual(Array.from(laneOffsets(edge)), [-5.25, -1.75, 1.75, 5.25]);
+  assert.equal(edge.section.travelWidthM, 14);
+  assert.deepEqual(Array.from(edge.section.routeOffsetsM), [-5.25, -1.75, 1.75, 5.25]);
+  const { strips } = createMarkingLayout(graph);
+  const dividersZ = Array.from(strips.filter(strip => strip.kind === 'lane' && strip.ax === 0), strip => strip.az);
+  const trafficZ = edge.section.routeOffsetsM.map(offset => edge.segments[0].z + offset);
+  assert.deepEqual(dividersZ, [-4.5, -1, 2.5]);
+  assert.deepEqual(dividersZ, Array.from(trafficZ.slice(1), (center, i) => (center + trafficZ[i]) / 2));
 });
 
 test('traffic connects a reviewed expressway ramp to the outside lane without crossing through lanes', () => {
@@ -340,6 +355,7 @@ test('traffic graph adds signed elevated edges on the record centerline', () => 
   for (const edge of byOsmId('way/d0')) {
     assert.equal(edge.elevated, true);
     assert.equal(edge.surfaceId, 'sz-elevated-road:200');
+    assert.equal(edge.section, sections.getDeckSection(graph, records[0]));
   }
   const [oneWay] = byOsmId('way/d1');
   assert.deepEqual([oneWay.from, oneWay.to, oneWay.sign], [0, 1, 1]);
@@ -532,7 +548,7 @@ test('Chegongmiao route clears both junction guardrails and keeps its deck conta
   const plan = planElevatedRoads(graph, geo.terrainSurface);
   const { createDrivePlanner, createTurnFilter } = load('sz-drive-route.js', {
     './sz-intersection-control.js': signalModule,
-    './sz-traffic.js': { laneOffsets, laneRoute, poseOnRoute, usableWidth }
+    './sz-traffic.js': { laneRoute, poseOnRoute }, './sz-road-section.js': sections
   });
   const areaLinks = graph.links.flatMap((link, index) =>
     roads.roadLinkPoints(graph, link).some(({ x, z }) => x > -3500 && x < -3000 && z > 500 && z < 1200) ? [index] : []);

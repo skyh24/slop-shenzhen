@@ -51,9 +51,13 @@ test('waterfront approaches, walking route and cycling axes share the actual ren
 test('waterfront keeps mode permissions local and releases riprap detail after leaving', { skip: !dir }, async () => {
   const load = file => import(pathToFileURL(join(dir, 'build', file)));
   const [THREE, TSL] = await Promise.all([load('three.webgpu.js'), load('three.tsl.js')]);
+  const materials = { sceneUniforms: { night: TSL.uniform(0) } };
+  const fixtures = loadModule(read('sz-site-fixtures.js'), { imports: {
+    'three/webgpu': THREE, 'three/tsl': TSL, './sz-materials.js': materials
+  } });
   const { buildSzBayWaterfront, createBayPathLookup } = loadModule(read('sz-bay-waterfront.js'), { imports: {
     'three/webgpu': THREE, 'three/tsl': TSL, './building-collision.js': { polygonBoxOverlaps: () => false },
-    './sz-materials.js': { sceneUniforms: { night: TSL.uniform(0) } },
+    './sz-materials.js': materials, './sz-site-fixtures.js': fixtures,
     './sz-strings.js': loadModule(read('sz-strings.js'))
   } });
   const scene = new THREE.Scene();

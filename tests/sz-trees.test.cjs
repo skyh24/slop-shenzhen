@@ -80,7 +80,9 @@ test('tree payload validation rejects malformed arrays, lengths and enums', () =
     [() => ({ ...good, osm: [[0, 'relation/1']] }), /osm id/],
     [() => ({ ...good, osm: [[3, 'node/1']] }), /osm index/],
     [() => ({ ...good, osm: [[0, 'node/1'], [0, 'node/2']] }), /osm duplicate/],
-    [() => ({ ...good, osm: [[0, 'node/1']], source: [2] }), /osm source/]
+    [() => ({ ...good, osm: [[0, 'node/1']], source: [2] }), /osm source/],
+    [() => makePayload([{ x: 0, z: 0, osm: 'node/1', source: 'osm-node' },
+      { x: 1, z: 2, osm: 'node/1', source: 'osm-node' }]), /duplicate OSM tree node node\/1/]
   ];
   for (const [build, pattern] of cases) {
     assert.throws(() => trees.decodeTreePayload(build()), pattern);
@@ -276,6 +278,36 @@ test('missing or empty tree payload leaves scene untouched apart from an empty g
   const withCount = model.buildSzTrees(scene, makePayload([{ x: 0, z: 0 }]), {});
   assert.equal(withCount.statistics.skipped.unsupportedGround, 1);
   withCount.dispose();
+});
+
+test('a legacy site-only tree uses shared tree resources and duplicate observations fail', { skip: !threeDir }, async () => {
+  const [THREE, TSL] = await Promise.all(['three.webgpu.js', 'three.tsl.js']
+    .map(file => import(pathToFileURL(join(threeDir, 'build', file)))));
+  const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
+  const crown = loadModule(read('sz-tree-crown.js'), { imports });
+  const model = loadModule(read('sz-trees.js'), { imports: { ...imports,
+    './sz-polygon.js': polygonModule, './sz-tree-crown.js': crown } });
+  const observedTree = { id: 'node/1', x: 0.041, z: -0.024, positionSource: 'osm-node', appearanceSource: 'visual-estimate' };
+  const options = { groundHeight: () => 5, observedTrees: [observedTree] };
+  const scene = new THREE.Scene();
+  const built = model.buildSzTrees(scene, null, options);
+  const [trunk] = built.colliders;
+  assert.equal(built.statistics.payloadCount, 0);
+  assert.equal(built.statistics.placed, 1);
+  assert.equal(trunk.sourceId, observedTree.id);
+  assert.equal(trunk.positionSource, observedTree.positionSource);
+  assert.equal(trunk.appearanceSource, observedTree.appearanceSource);
+  assert.ok(Math.abs((trunk.minX + trunk.maxX) / 2 - observedTree.x) < 1e-8);
+  const mesh = built.group.children.find(child => child.visible);
+  let disposalCount = 0;
+  mesh.addEventListener('dispose', () => { disposalCount++; });
+  built.dispose();
+  built.dispose();
+  assert.equal(disposalCount, 1);
+  assert.equal(scene.children.length, 0);
+  assert.throws(() => model.buildSzTrees(scene, null, { ...options, observedTrees: [observedTree, observedTree] }),
+    /duplicate observed tree node\/1/);
+  assert.equal(scene.children.length, 0);
 });
 
 test('every species gets its own card-crown mesh in the near LOD', { skip: !threeDir }, async () => {

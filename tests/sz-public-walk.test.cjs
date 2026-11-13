@@ -12,7 +12,11 @@ const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygon } });
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 const setup = async () => {
-  const THREE = await import(pathToFileURL(join(threeDir, 'build', 'three.webgpu.js')));
+  const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));
+  const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
+  const style = loadModule(read('sz-scene-style.js'), { imports: { './sz-polygon.js': {} } });
+  const paving = loadModule(read('sz-paving.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL,
+    './sz-materials.js': { sceneUniforms: { night: TSL.uniform(0) } }, './sz-scene-style.js': style } });
   const roads = loadModule(read('sz-roads.js'), { imports: {
     'three/webgpu': THREE, './sz-road-material.js': {}
   } });
@@ -20,7 +24,8 @@ const setup = async () => {
     './sz-roads.js': roads, './building-collision.js': collision
   } });
   const walk = loadModule(read('sz-public-walk.js'), { imports: {
-    'three/webgpu': THREE, './sz-roads.js': roads, './sz-polygon.js': polygon, './building-collision.js': collision
+    'three/webgpu': THREE, './sz-roads.js': roads, './sz-polygon.js': polygon, './building-collision.js': collision,
+    './sz-paving.js': paving
   } });
   const pilot = loadModule(read('sz-zhongxin-walk.js'), { imports: {
     'three/webgpu': THREE, './building-collision.js': collision,

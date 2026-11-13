@@ -1222,7 +1222,7 @@ test('speed telemetry uses the physical maximum for each mode and reports speed 
   const { PLAYER_SPEED_LIMITS } = keyboardHarness();
   const ui = readFileSync(join(__dirname, '../js/sz-ui.js'), 'utf8');
   const { createHudTelemetry } = loadModule(ui, {
-    imports: { './sz-strings.js': {}, './sz-city-config.js': {} }
+    imports: { './sz-strings.js': {}, './sz-city-config.js': {}, './sz-observation-session.js': {} }
   });
   const entity = { speed: 0, position: { x: 0, y: 200, z: 0 } };
   const controllerManager = { getActiveEntity: () => entity };
@@ -1334,21 +1334,22 @@ test('manual emergency brake intervenes before contact and can be switched off',
 const loadDrive = (name, imports = {}) => loadModule(readFileSync(join(__dirname, '../js', name), 'utf8'), {
   imports: { ...driving, ...imports }
 });
-const laneMarkings = loadDrive('sz-road-markings.js', { './sz-roads.js': {} });
+const { getRoadSection } = loadDrive('sz-road-section.js');
 const autoLaneHelpers = loadDrive('sz-auto-drive.js', {
   './sz-intersection-control.js': {}, './sz-traffic.js': driving['./sz-driving-motion.js']
 });
 const { createLaneAssist } = loadDrive('sz-lane-assist.js', {
-  './sz-road-markings.js': laneMarkings, './sz-auto-drive.js': autoLaneHelpers
+  './sz-auto-drive.js': autoLaneHelpers
 });
 
 function laneHarness(speed, { supported = true, junction = false, lanes = 3 } = {}) {
   const { controller, car } = carDynamicsHarness({ speed, position: { x: 0, y: 0, z: 25 } });
   car._support = { height: 0, surfaceId: supported ? 'terrain' : 'deck' };
-  const edge = { sourceIndex: 0, sign: 1, width: 10.5, segments: [{ x: 0, z: 0, dx: 0, dz: 1, length: 240 }] };
   const graph = { links: [[0, 1, 0, 10.5, lanes, 1]], metadata: [{ highway: 'primary' }] };
+  const edge = { sourceIndex: 0, sign: 1, section: getRoadSection(graph, 0),
+    segments: [{ x: 0, z: 0, dx: 0, dz: 1, length: 240 }] };
   const traffic = [];
-  const assist = createLaneAssist({ graph, model: { hx: 1.1, hz: 2.4, halfWheelbase: 1.4,
+  const assist = createLaneAssist({ model: { hx: 1.1, hz: 2.4, halfWheelbase: 1.4,
     corners: [[1.1, 2.4], [1.1, -2.4], [-1.1, 2.4], [-1.1, -2.4]] },
     network: { nearSegments: () => [{ edge, segment: 0 }] }, roadHeight: x => Math.abs(x) < 5.25 ? 0 : null,
     control: { contains: () => junction }, isClear: () => true, nearTraffic: () => traffic });
@@ -1409,7 +1410,8 @@ test('lane assist rejects an occupied target, unreliable surface and junction, a
 test('lane shortcuts request one direction and leave typing, modifiers and repeated keydown alone', () => {
   const window = eventTarget();
   const { wireShortcuts } = loadModule(readFileSync(join(__dirname, '../js/sz-ui.js'), 'utf8'), {
-    imports: { './sz-strings.js': {}, './sz-city-config.js': { isTypingInField: e => e.target?.tagName === 'INPUT' } },
+    imports: { './sz-strings.js': {}, './sz-city-config.js': { isTypingInField: e => e.target?.tagName === 'INPUT' },
+      './sz-observation-session.js': {} },
     globals: { window }
   });
   const calls = [];

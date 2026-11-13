@@ -5,10 +5,10 @@ import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
 import { createSzWaterMaterial } from './sz-water-material.js';
 import { addFlatPolygon, GeoBuilder } from './sz-geometry.js';
 import { sceneUniforms } from './sz-materials.js';
+import { createFixtureBatches, planBench, planLantern, planRail } from './sz-site-fixtures.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 
 export const TALENT_WALK_ID = 'talent-park:waterfront';
-const UP = new THREE.Vector3(0, 1, 0);
 const rowsToPoints = rows => rows.map(([x, z]) => ({ x, z }));
 const bounds = points => ({ minX: Math.min(...points.map(p => p.x)), maxX: Math.max(...points.map(p => p.x)),
   minZ: Math.min(...points.map(p => p.z)), maxZ: Math.max(...points.map(p => p.z)) });
@@ -114,35 +114,6 @@ function boxCorners(x, z, length, width, dx, dz) {
     ({ x: x + a * length / 2 * dx + b * width / 2 * dz, z: z + a * length / 2 * dz - b * width / 2 * dx }));
 }
 
-function boxBatch(group, material, items, name) {
-  if (!items.length) return;
-  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), material, items.length);
-  mesh.name = name;
-  const pose = new THREE.Object3D();
-  for (const [i, row] of items.entries()) {
-    const { a, b, width, height } = row;
-    pose.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-    if (segmentLength(a, b) < 0.001) {
-      pose.scale.set(width, Math.abs(b.y - a.y), height);
-      pose.quaternion.identity();
-    } else {
-      const dir = new THREE.Vector3(b.x - a.x, b.y - a.y, b.z - a.z);
-      const right = new THREE.Vector3().crossVectors(UP, dir).normalize();
-      const length = dir.length();
-      dir.normalize();
-      pose.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right,
-        new THREE.Vector3().crossVectors(dir, right), dir));
-      pose.scale.set(width, height, length);
-    }
-    pose.updateMatrix();
-    mesh.setMatrixAt(i, pose.matrix);
-  }
-  mesh.instanceMatrix.needsUpdate = true;
-  mesh.computeBoundingSphere();
-  mesh.receiveShadow = true;
-  group.add(mesh);
-}
-
 export function buildTalentWaterfront(scene, source, lake, site) {
   if (!source || !lake) return null;
   const group = new THREE.Group();
@@ -225,11 +196,7 @@ export function buildTalentWaterfront(scene, source, lake, site) {
     surfaceId: `${TALENT_WALK_ID}:gravel` };
   const edge = createWaterfrontLine(rowsToPoints(source.retainingEdge));
   const steel = [], wall = [], timber = [], lamps = [], pilotTrees = [];
-  const stone = new THREE.MeshStandardNodeMaterial({ color: 0x777669, roughness: 0.96 });
-  const metal = new THREE.MeshStandardNodeMaterial({ color: 0x506169, roughness: 0.66, metalness: 0.21 });
-  const wood = new THREE.MeshStandardNodeMaterial({ color: 0x855e40, roughness: 0.81 });
-  const lamp = new THREE.MeshStandardNodeMaterial({ color: 0xc7b390, roughness: 0.49 });
-  lamp.emissiveNode = color(0xffcf91).mul(sceneUniforms.night).mul(1.65);
+  const fixtureBatches = createFixtureBatches(group, 'park', 'z');
 
   function obstacle(name, x, z, length, width, dx, dz, minY, maxY) {
     const outer = boxCorners(x, z, length, width, dx, dz);
@@ -242,8 +209,7 @@ export function buildTalentWaterfront(scene, source, lake, site) {
     const floor = Math.min(a.y, b.y), top = Math.max(a.y, b.y) + 1.18;
     obstacle(`${TALENT_WALK_ID}:rail:${index}`, center.x, center.z, size + 0.12, 0.18,
       (b.x - a.x) / size, (b.z - a.z) / size, Math.min(floor, source.simulation.lakeHeightM), top);
-    for (const h of [0.21, 0.63, 1.13]) steel.push({ a: { ...a, y: a.y + h }, b: { ...b, y: b.y + h },
-      width: h > 1 ? 0.13 : 0.05, height: h > 1 ? 0.10 : 0.05 });
+    steel.push(...planRail(a, b, [[0.21, 0.05, 0.05], [0.63, 0.05, 0.05], [1.13, 0.13, 0.10]]));
     // 岸石只沿同一段防护边缘；其余岸坡保持源地形，不做整湖护栏。
     if (floor > source.simulation.lakeHeightM + 0.15) {
       const base = source.simulation.lakeHeightM - 0.25;
@@ -285,27 +251,34 @@ export function buildTalentWaterfront(scene, source, lake, site) {
     const y = groundHeight(p.x, p.z);
     if (!Number.isFinite(y) || site.colliders.some(c => inBounds(c, p.x, p.z, 1.3)
         && c.minY < y + 5 && c.maxY > y && polygonBoxOverlaps(c.polygon, p.x, p.z, 1.3, 1.3))) return null;
+    if (maxSlopeRatio !== null) {
+      const offsets = [[0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]];
+      if (offsets.some(([dx, dz]) => {
+        const edgeY = groundHeight(p.x + dx, p.z + dz);
+        return !Number.isFinite(edgeY) || Math.abs(edgeY - y) > maxSlopeRatio * 0.5;
+      })) return null;
+    }
     return { ...p, y };
   }
-  for (let s = 13, i = 0; s < route.length - 6; s += 17, i++) {
+  const fixtureDefaults = { fixtureSpacingM: 17, fixtureSetbackM: 3.6, maxSlopeRatio: null };
+  const style = site.style?.resolve(fixtureDefaults, { x: vx, z: vz, regionId: `osm:${source.parkOsmId}` }) ?? fixtureDefaults;
+  const { fixtureSpacingM, fixtureSetbackM, maxSlopeRatio } = style;
+  for (let s = 13, i = 0; s < route.length - 6; s += fixtureSpacingM, i++) {
     if (i % 3 !== 1) {
-      const p = fixtureAt(s, s > viewS - 12 && s < viewS + 12 ? -6.7 : -3.6);
+      const p = fixtureAt(s, -fixtureSetbackM - (Math.abs(s - viewS) < 12 ? 3.1 : 0));
       if (!p) continue;
-      const a = { ...p, y: p.y - 0.09 }, b = { ...p, y: p.y + 3.5 };
-      steel.push({ a, b, width: 0.14, height: 0.14 });
-      lamps.push({ a: { ...p, y: b.y - 0.18 }, b, width: 0.32, height: 0.32 });
-      obstacle(`${TALENT_WALK_ID}:lamp:${i}`, p.x, p.z, 0.15, 0.15, p.dx, p.dz, p.y - 0.1, b.y);
+      const { pole, lamp } = planLantern(p, { poleBottomM: -0.09, poleTopM: 3.5, headBottomM: 3.32,
+        headTopM: 3.5, headWidthM: 0.32 });
+      steel.push(pole);
+      lamps.push(lamp);
+      obstacle(`${TALENT_WALK_ID}:lamp:${i}`, p.x, p.z, 0.15, 0.15, p.dx, p.dz, p.y - 0.1, pole.b.y);
     } else {
-      const p = fixtureAt(s, s > viewS - 12 && s < viewS + 12 ? -6.7 : -3.5);
+      const p = fixtureAt(s, -fixtureSetbackM + (Math.abs(s - viewS) < 12 ? -3.1 : 0.1));
       if (!p) continue;
-      const seatEnds = h => [-1, 1].map(v => ({ x: p.x + v * p.dx * 0.94,
-        y: p.y + h, z: p.z + v * p.dz * 0.94 }));
-      const [a, b] = seatEnds(0.47);
-      timber.push({ a, b, width: 0.5, height: 0.12 });
-      const [backA, backB] = seatEnds(0.75).map(q => ({ ...q, x: q.x - p.dz * 0.22, z: q.z + p.dx * 0.22 }));
-      timber.push({ a: backA, b: backB, width: 0.085, height: 0.39 });
-      for (const end of seatEnds(0)) steel.push({ a: { ...end, y: p.y - 0.09 },
-        b: { ...end, y: p.y + 0.46 }, width: 0.1, height: 0.32 });
+      const bench = planBench(p, p.dx, p.dz, { halfLengthM: 0.94, seatHeightM: 0.47, seatWidthM: 0.5,
+        legBottomM: -0.09, legTopM: 0.46, legWidthM: 0.1, legDepthM: 0.32, back: { heightM: 0.75, offsetM: 0.22 } });
+      timber.push(...bench.wood);
+      steel.push(...bench.steel);
       obstacle(`${TALENT_WALK_ID}:bench:${i}`, p.x, p.z, 2.05, 0.56, p.dx, p.dz, p.y - 0.1, p.y + 0.96);
     }
     if (i % 3 === 0) {
@@ -326,10 +299,10 @@ export function buildTalentWaterfront(scene, source, lake, site) {
     }
     mesh.geometry.setAttribute('lanternFalloff', new THREE.BufferAttribute(values, 1));
   }
-  boxBatch(group, stone, wall, 'talent-park:shore-stone');
-  boxBatch(group, metal, steel, 'talent-park:edge-and-fixtures');
-  boxBatch(group, wood, timber, 'talent-park:seating');
-  boxBatch(group, lamp, lamps, 'talent-park:lanterns');
+  fixtureBatches.build(wall, 'stone', 'talent-park:shore-stone');
+  fixtureBatches.build(steel, 'steel', 'talent-park:edge-and-fixtures');
+  fixtureBatches.build(timber, 'wood', 'talent-park:seating');
+  fixtureBatches.build(lamps, 'lamp', 'talent-park:lanterns');
 
   const lakeBatch = new GeoBuilder();
   addFlatPolygon(lakeBatch, [lake.outer, ...lake.holes].map(ring => ring.flatMap(p => [p.x, p.z])),
@@ -344,8 +317,21 @@ export function buildTalentWaterfront(scene, source, lake, site) {
     return route.nearest(x, z).distance < 2.45 + radius || Math.hypot(x - vx, z - vz) < 5.9 + radius
       || pathAt(x, z).length > 0 || closeToSight(x, z, radius);
   }
+  let disposed = false;
   return { group, colliders, surfaces: [...surfaces, ...stepSurfaces], arrival, route, pathHeightAt, pathAt,
     pilotTrees, reserves, extent, viewS, airspace: { x: ax, y: ay, z: az, heading: arrival.heading },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      fixtureBatches.dispose();
+      group.removeFromParent();
+      for (const mesh of [...group.children]) {
+        if (mesh.isInstancedMesh) mesh.dispose();
+        mesh.geometry.dispose();
+        mesh.removeFromParent();
+      }
+      for (const resource of [...map, ...terrainMaterial.values()]) resource.dispose();
+    },
     statistics: { lengthM: source.lengthM, lakeWaterIndex: source.lakeWaterIndex, steps: stepCount,
       railLengthM: edge.length, lanterns: lamps.length, benches: timber.length / 2, sourceNode: source.viewNode } };
 }

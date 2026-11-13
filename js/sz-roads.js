@@ -121,10 +121,10 @@ export function planStreetTreeSides(graph, bounds) {
   };
 }
 
-export function roadTravelPoints(graph, link, metadata) {
+export function roadTravelPoints(graph, link, metadata, travelWidthM) {
   if (!metadata.crossSection) return roadLinkPoints(graph, link);
   const points = roadSectionPoints(graph, link, metadata);
-  const halfTravel = link[4] * metadata.crossSection.laneWidthM / 2;
+  const halfTravel = travelWidthM / 2;
   return points.map((p, i) => {
     const a = points[Math.max(0, i - 1)], b = points[Math.min(points.length - 1, i + 1)];
     const length = Math.hypot(b.x - a.x, b.z - a.z);

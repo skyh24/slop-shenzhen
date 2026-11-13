@@ -1,4 +1,3 @@
-import { createLanePlan } from './sz-road-markings.js';
 import { hasRoadFootprint } from './sz-auto-drive.js';
 import { bodyExtent, contactTime, sameTrafficLevel, writeEntityCollider } from './sz-driving-motion.js';
 
@@ -6,16 +5,13 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const angle = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const MIN_SPEED = 4;
 
-function laneCenters(graph, edge, model) {
-  if (edge.elevated || edge.highway?.endsWith('_link')) return [];
-  const metadata = graph.metadata[edge.sourceIndex];
-  const plan = createLanePlan(graph.links[edge.sourceIndex], metadata);
-  if (!plan || plan.estimated || plan.narrow || (plan.twoWay && metadata.crossSection)) return [];
-  const count = !plan.twoWay ? plan.laneCount : edge.sign === 1 ? plan.forward : plan.backward;
-  const width = plan.twoWay ? (edge.sign === 1 ? plan.forwardWidth : plan.backwardWidth) : plan.laneWidth;
+function laneCenters(edge, model) {
+  if (edge.elevated || edge.highway === 'pedestrian' || edge.highway?.endsWith('_link')) return [];
+  const { section, sign } = edge;
+  if (section.estimated || section.narrow || (section.twoWay && section.reviewed)) return [];
+  const width = sign === 1 ? section.forwardLaneWidthM : section.backwardLaneWidthM;
   if (width < model.hx * 2 + 0.45) return [];
-  const rightEdge = (edge.travelWidth ?? plan.width) * 0.5;
-  return Array.from({ length: count }, (_, i) => (i + 0.5) * width - rightEdge);
+  return sign === 1 ? section.forwardCentersM : section.backwardCentersM;
 }
 
 function laneFrame(segment, x, z) {
@@ -48,7 +44,7 @@ function straightSpan(edge, index) {
   return { ...first, length };
 }
 
-export function createLaneAssist({ graph, network, model, roadHeight, control, isClear, nearTraffic }) {
+export function createLaneAssist({ network, model, roadHeight, control, isClear, nearTraffic }) {
   let run = null;
   let status = 'idle';
   let enabled = true;
@@ -97,10 +93,10 @@ export function createLaneAssist({ graph, network, model, roadHeight, control, i
       const segment = edge.segments[index];
       const { s, offset } = laneFrame(segment, x, z);
       const heading = Math.atan2(segment.dx, segment.dz);
-      if (s < 0 || s > segment.length || Math.abs(offset) > (edge.travelWidth ?? edge.width) / 2
+      if (s < 0 || s > segment.length || Math.abs(offset) > edge.section.travelWidthM / 2
         || Math.abs(angle(heading, car.heading)) > 0.16) continue;
       if (!hasRoadFootprint(roadHeight, model, x, z, car.heading, edge, y)) continue;
-      const lanes = laneCenters(graph, edge, model);
+      const lanes = laneCenters(edge, model);
       const lane = lanes.reduce((best, center, i) => Math.abs(center - offset) < Math.abs(lanes[best] - offset) ? i : best, 0);
       const error = Math.abs(lanes[lane] - offset);
       if (!(error < 0.95) || (selected && error >= selected.error)) continue;

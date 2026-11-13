@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
-import { color, floor, fract, fwidth, max, min, mix, positionWorld, smoothstep } from 'three/tsl';
+import { color, fract, mix, positionWorld } from 'three/tsl';
 import source from '../data/source/lianhuashan-summit.json' with { type: 'json' };
-import { sceneUniforms } from './sz-materials.js';
+import { createPavingMaterial } from './sz-paving.js';
 import { polygonContainsInclusive, distanceToRing } from './sz-polygon.js';
 import { partCollider, footprintParts } from './sz-landmarks/parts.js';
 import { renderLandmark } from './sz-landmarks/render.js';
@@ -98,19 +98,6 @@ function makeTreads(approach, groundHeight) {
   for (let i = ends.length - 2; i >= 0; i--) ends[i] = Math.max(ends[i], ends[i + 1] - 0.18);
   for (let i = 1; i < ends.length; i++) ends[i] = Math.max(ends[i], ends[i - 1] - 0.18);
   return treads.map(({ polygon, bottom }, i) => ({ polygon, bottom, top: Math.min(SUMMIT_DECK_Y, ends[i]) }));
-}
-
-function paving() {
-  const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.85, metalness: 0.03 });
-  const tile = positionWorld.xz.div(1.22);
-  const cell = fract(tile);
-  const joint = min(min(cell.x, cell.x.oneMinus()), min(cell.y, cell.y.oneMinus()));
-  const width = max(fwidth(tile.x), fwidth(tile.y));
-  const variant = fract(floor(tile.x).mul(0.318).add(floor(tile.y).mul(0.753)));
-  const tone = mix(color(0x9e7e70), color(0xc0a18d), variant);
-  material.colorNode = mix(color(0x605b57), tone, smoothstep(0.009, max(width, 0.024), joint));
-  material.emissiveNode = color(0x9f8275).mul(sceneUniforms.night).mul(0.062);
-  return material;
 }
 
 function makeSculpture(group, y) {
@@ -255,7 +242,7 @@ function plinthInscription(group, y, z) {
   group.add(mesh);
 }
 
-export function buildLianhuashanSummit(scene, groundHeight, park) {
+export function buildLianhuashanSummit(scene, groundHeight, park, style) {
   if (park?.osmId !== source.parkId) return { group: null, surfaces: [], colliders: [], pathAt: () => [] };
   const parts = [];
   const colliders = [];
@@ -317,8 +304,10 @@ export function buildLianhuashanSummit(scene, groundHeight, park) {
   const granite = masonry(0xc5b9a8, 0.085);
   const fleck = fract(positionWorld.x.mul(31.7).add(positionWorld.y.mul(49.1)).add(positionWorld.z.mul(11.7)).sin().mul(338.4));
   granite.colorNode = mix(color(0xa99987), color(0xcfc3b2), fleck);
+  const defaults = { surfaceStyle: 'summit-stone' };
+  const { surfaceStyle } = style?.resolve(defaults, { regionId: `osm:${park.osmId}` }) ?? defaults;
   const palette = {
-    paving: paving(), rail: masonry(0xd0c7b9, 0.055), border: masonry(0x8d6653, 0.04),
+    paving: createPavingMaterial(surfaceStyle), rail: masonry(0xd0c7b9, 0.055), border: masonry(0x8d6653, 0.04),
     granite, bark: masonry(0x574434, 0.02)
   };
   const result = renderLandmark({ id: 'lianhuashan-summit', parts }, name => palette[name]);

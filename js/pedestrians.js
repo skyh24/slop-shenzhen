@@ -972,6 +972,7 @@ class PersonCrowd {
   constructor(maxCount, { farDistance = 34, castShadow = true } = {}) {
     this.farDistance = farDistance;
     this.updates = 0;
+    this.disposed = false;
     const levels = Number.isFinite(farDistance) ? [1, 0] : [1];
     this.lods = levels.map((detail) => {
       const pose = attributeArray(maxCount * STRIDE, 'vec4').toReadOnly();
@@ -996,6 +997,23 @@ class PersonCrowd {
     if (l.count >= l.max) return;
     l.pose.value.array.set(rig.pose, l.count * STRIDE * 4);
     l.count++;
+  }
+
+  updateWalker(actor, dt, ground, draw, distanceM = 0) {
+    actor.rig.update(dt, actor.x, actor.z, actor.heading, ground, actor, 0, draw, -1);
+    if (draw) this.add(actor.rig, distanceM);
+  }
+
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const { mesh, pose } of this.lods) {
+      mesh.removeFromParent();
+      // 几何由人物模块的 LOD 缓存持有。每个实例池只释放自己的材质、姿态缓冲和绘制对象。
+      mesh.material.dispose();
+      pose.value.dispose();
+      mesh.dispose?.();
+    }
   }
 
   end() {

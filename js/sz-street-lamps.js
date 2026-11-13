@@ -151,7 +151,9 @@ export function planLampSites(roadGraph, options = {}) {
       rejected.shortLink++;
       continue;
     }
-    const spacing = options.spacingM ?? SPACING_BY_CLASS[kind];
+    const style = options.roadStyle?.(metadata.osmId);
+    if (style?.lampsEnabled === false) continue;
+    const spacing = style?.lampSpacingM ?? options.spacingM ?? SPACING_BY_CLASS[kind];
     if (!(spacing > 0)) throw new Error('Street lamp spacing must be positive');
     const major = width >= 14 || (width >= 8 && MAJOR_LAMP_CLASSES.has(kind));
     for (const side of [1, -1]) {
@@ -163,7 +165,8 @@ export function planLampSites(roadGraph, options = {}) {
         const median = width >= 6 && MAJOR_LAMP_CLASSES.has(kind)
           ? oppositeCarriageway(carriageways, link, index, at, side, options.medianHeight) : null;
         const shared = median && median.gap <= SHARED_POLE_MEDIAN_M;
-        if (shared && index > median.index) continue;
+        const oppositeEnabled = median && options.roadStyle?.(roadGraph.metadata[median.index].osmId)?.lampsEnabled !== false;
+        if (shared && oppositeEnabled && index > median.index) continue;
         const offset = Math.max(0.4, (side === 1 ? at.left : width - at.left) + (shared ? median.gap / 2 : curbOffset));
         const x = at.x + at.dz * offset * side;
         const z = at.z - at.dx * offset * side;

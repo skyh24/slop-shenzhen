@@ -285,6 +285,19 @@ function polygon(rings) {
   return { outer: points[0], holes: points.slice(1) };
 }
 
+export function decodeMapRegion({ rings, ...region }) {
+  const { osmId, roadOsmIds } = region.source ?? {};
+  return { ...region, kind: 'region', sourceIds: osmId ? [osmId] : (roadOsmIds ?? []), polygons: rings.map(polygon) };
+}
+
+function validateIds(ids, field) {
+  const seen = new Set();
+  for (const id of ids) {
+    requireData(typeof id === 'string' && id.length > 0 && !seen.has(id), `${field}: ${id}`);
+    seen.add(id);
+  }
+}
+
 function validateBridges(bridges, landmarkIds) {
   if (bridges === undefined) return;
   requireData(Array.isArray(bridges), 'bridges');
@@ -571,6 +584,7 @@ export function validateCityPayload(raw) {
       `building ${enumName}`);
   }
   requireData(Array.isArray(raw.landmarks), 'landmarks');
+  validateIds(raw.landmarks.map(lm => lm?.id), 'landmark identity');
   for (const lm of raw.landmarks) {
     requireData(lm && (lm.short === undefined || typeof lm.short === 'string')
       && (lm.mapPriority === undefined || typeof lm.mapPriority === 'boolean')
@@ -637,6 +651,8 @@ export function validateCityPayload(raw) {
   requireData(graph && Array.isArray(graph.nodes) && graph.nodes.length % 2 === 0
     && graph.nodes.every(Number.isFinite) && graph.nodeIds?.length === graph.nodes.length / 2
     && Array.isArray(graph.links) && graph.metadata?.length === graph.links.length && Array.isArray(graph.names), 'road graph');
+  validateIds(graph.nodeIds, 'road node identity');
+  const roadEdges = [];
   for (const [index, [a, b, name, width, lanes, direction, inner]] of graph.links.entries()) {
     requireData(Number.isInteger(a) && Number.isInteger(b) && a >= 0 && b >= 0
       && a < graph.nodeIds.length && b < graph.nodeIds.length && a !== b
@@ -645,6 +661,11 @@ export function validateCityPayload(raw) {
       && [-1, 0, 1].includes(direction) && Array.isArray(inner) && inner.length % 2 === 0
       && inner.every(Number.isFinite), 'road graph link');
     const road = graph.metadata[index];
+    requireData(isOsmId(road?.osmId) && Number.isInteger(road.layer)
+      && typeof road.bridge === 'boolean' && typeof road.tunnel === 'boolean'
+      && typeof road.heightSource === 'string' && road.heightSource.length > 0
+      && typeof road.widthSource === 'string' && road.widthSource.length > 0, `road metadata: ${index}`);
+    roadEdges.push(`${road.osmId}:${graph.nodeIds[a]}:${graph.nodeIds[b]}`);
     if (road?.crossSection !== undefined) {
       const section = road.crossSection;
       const stations = section?.points;
@@ -659,6 +680,7 @@ export function validateCityPayload(raw) {
         && stations.at(-3) === graph.nodes[b * 2] && stations.at(-2) === graph.nodes[b * 2 + 1], 'road graph cross section');
     }
   }
+  validateIds(roadEdges, 'road edge identity');
   validateAirCruises(raw.airCruises, graph);
   if (graph.turnRestrictions !== undefined) {
     const { version, source, rules } = graph.turnRestrictions ?? {};
@@ -720,7 +742,7 @@ export function decodeCityPayload(raw, metrics = null) {
       ? { footprint: raw.enums.confidence[b.fpConf[i]],
         height: raw.enums.confidence[b.hConf[i]], era: raw.enums.confidence[b.eraConf[i]] }
       : null;
-    return { id: b.id[i], height, minHeight: b.minH[i], year: 0, polygons: [shape],
+    return { id: b.id[i], kind: 'building', sourceId: b.id[i], height, minHeight: b.minH[i], year: 0, polygons: [shape],
       minX, maxX, minZ, maxZ, cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2,
       heightSource: raw.enums.heightSource[b.src[i]], category: raw.enums.category[b.cat[i]],
       facade: raw.enums.facade[b.facade[i]], landmark: raw.landmarks[b.lm[i]]?.id ?? null,
@@ -731,12 +753,13 @@ export function decodeCityPayload(raw, metrics = null) {
       confidence, ...(foundations.has(b.id[i]) ? { foundation: foundations.get(b.id[i]) } : {}) };
   });
   const decoded = { buildings, geo: { version: raw.version,
-    frame: { origin: raw.origin, bearingDeg: 0, units: 'm' }, bounds: raw.bounds,
+    frame: { origin: raw.origin, bearingDeg: 0, units: 'm', angleUnits: 'rad', axes: { x: 'east', y: 'up', z: 'south' } },
+    bounds: raw.bounds,
     coverage: raw.coverage.map(polygon), land: raw.land.map(polygon), water: raw.water.map(polygon),
     wetland: raw.wetland.map(polygon), green: raw.green.map(polygon),
     roadGraph: raw.roadGraph, terrain: raw.terrain, terrainSurface: raw.terrainSurface,
     roadFrontage: raw.roadFrontage ?? null,
-    mapRegions: raw.mapRegions ?? null,
+    mapRegions: raw.mapRegions ? { ...raw.mapRegions, regions: raw.mapRegions.regions.map(decodeMapRegion) } : null,
     shenzhenBay: raw.shenzhenBay ?? null,
     metro: raw.metro, landmarks: raw.landmarks,
     bridges: raw.bridges ?? [], yanjiangExpressway: raw.yanjiangExpressway ?? null,

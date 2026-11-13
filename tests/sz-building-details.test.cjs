@@ -47,7 +47,7 @@ const terrain = loadModule(read('sz-terrain.js'));
 const layout = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
 const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 
-function loadDetails(THREE, materials = {}) {
+function loadDetails(THREE) {
   const geometry = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } });
   return loadModule(read('sz-building-details.js'), {
     imports: {
@@ -55,7 +55,8 @@ function loadDetails(THREE, materials = {}) {
       './sz-geometry.js': geometry,
       './sz-building-layout.js': layout,
       './building-collision.js': collision,
-      './sz-materials.js': materials
+      './sz-polygon.js': polygonModule,
+      './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js'))
     }
   });
 }
@@ -232,8 +233,9 @@ test('the rendered roof plan removes duplicate Shenzhen roof equipment while kee
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
     'three/webgpu': THREE,
-    './sz-geodata.js': { CITY_PAYLOAD: raw },
+    './sz-geodata.js': {},
     './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
+    './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
     './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshStandardNodeMaterial() },
     './sz-building-layout.js': layout, './sz-polygon.js': polygonModule, './sz-roads.js': roads
   } });
@@ -305,14 +307,8 @@ test('the rendered roof plan removes duplicate Shenzhen roof equipment while kee
 
 test('the two facade samples keep source placement and stream their estimated details on approach',
   { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
-  const dir = process.env.SZ_THREE_PACKAGE_DIR;
-  const [THREE, TSL] = await Promise.all(['three.webgpu.js', 'three.tsl.js']
-    .map(file => import(pathToFileURL(join(dir, 'build', file)))));
-  const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
-  const materials = loadModule(read('sz-materials.js'), { imports: {
-    ...imports, './city-lighting-materials.js': loadModule(read('city-lighting-materials.js'), { imports })
-  } });
-  const details = loadDetails(THREE, materials);
+  const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
+  const details = loadDetails(THREE);
   const grid = FLAT_GRID();
   const office = makeBuilding({ id: 'way/737426464', x: 0, z: 0, half: 20, height: 232.1, facade: 'glass_tower' });
   const home = makeBuilding({ id: 'way/1352291472', x: 100, z: 0, half: 20, height: 150,
@@ -537,18 +533,20 @@ test('invalid update positions and missing terrain fail loudly', () => {
   }), /Dispose radius/);
 });
 
-test('reuses FACADE_PROFILES from sz-materials when it is available', () => {
-  const shared = [{
-    name: 'village', bayWidth: 3.3, floorHeight: 3.7
-  }];
-  const details = loadDetails(stubThree(), { FACADE_PROFILES: shared });
-  const building = makeBuilding({ id: 'way/shared-profile', x: 0, z: 0, half: 12, height: 37, facade: 'village' });
-  const grid = FLAT_GRID();
-  const placement = layout.buildingPlacement(building, grid);
-  const plan = details.planBuildingDetails(building, placement, { playerPosition: { x: 0, z: 0 } });
-  assert.equal(plan.floorHeight, 3.7);
-  assert.equal(plan.floors, 10);
-  assert.equal(plan.roofY, placement.maxY);
+test('facade presets drive the same detail planner with office, village and unknown inputs', () => {
+  const details = loadDetails(stubThree());
+  const profiles = loadModule(read('sz-facade-profiles.js'));
+  const options = { playerPosition: { x: 0, z: 0 } };
+  for (const facade of ['office', 'village', null]) {
+    const building = makeBuilding({ id: 'way/shared-profile', x: 0, z: 0, height: 37, facade, category: 'unknown' });
+    const placement = layout.buildingPlacement(building, FLAT_GRID());
+    const plan = details.planBuildingDetails(building, placement, options);
+    const profile = profiles.facadeProfile(facade);
+    assert.equal(plan.floorHeight, profile.floorHeight);
+    assert.equal(plan.floors, Math.round(building.height / profile.floorHeight));
+    assert.equal(plan.roofY, placement.maxY);
+    assert.equal(plan.acUnits.length > 0, profile.airConditioner);
+  }
 });
 
 test('real three smoke: merged meshes, finite vertices, unload and dispose',

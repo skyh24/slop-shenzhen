@@ -7,14 +7,26 @@
 // - ringContainsInclusive / polygonContainsInclusive：外环上落在边上的点算作在内；
 //   与 sz-spatial.js 的原实现一致，用于空间索引的覆盖区和陆地区间判定。
 
-// 环的有向面积绝对值（鞋带公式），不扣内院；凹多边形同样适用。
-export function ringArea(ring) {
+// 环的有向面积（鞋带公式），不扣内院；凹多边形同样适用。
+export function signedRingArea(ring) {
   let sum = 0;
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i], b = ring[(i + 1) % ring.length];
     sum += a.x * b.z - b.x * a.z;
   }
-  return Math.abs(sum) / 2;
+  return sum / 2;
+}
+
+export function ringArea(ring) {
+  return Math.abs(signedRingArea(ring));
+}
+
+// 围绕中心构造旋转矩形；局部长轴在 xz 平面上的单位方向为 (cos, sin)。
+export function orientedBoxRing(x, z, width, depth, cos, sin) {
+  const hx = width / 2, hz = depth / 2;
+  return [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]].map(([u, v]) => ({
+    x: x + u * cos - v * sin, z: z + u * sin + v * cos
+  }));
 }
 
 export function ringPerimeter(ring) {

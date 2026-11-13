@@ -1,51 +1,55 @@
 import { STR } from './sz-strings.js';
+import { setObservationInputBlocked } from './sz-observation-session.js';
 
 export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchControls, gamepadControls,
-  laneAssist, autoDrive, canStart = () => true, closePopovers, mapOpen, teleport, onCameraLabel }) {
+  laneAssist, autoDrive, observationSessions, closePopovers, mapOpen, teleport, onCameraLabel }) {
   const droneHud = document.getElementById('drone-follow-hud');
   const droneStatus = document.getElementById('drone-follow-status');
   const droneRepeat = document.getElementById('drone-follow-repeat');
   const droneExit = document.getElementById('drone-follow-exit');
   const player = () => controllerManager.getActiveEntity();
-  let watch = null;
+  const inputs = { controllerManager, touchControls, gamepadControls };
   let feedbackTimer;
+  const session = observationSessions.bind('drone-follow', {
+    prepare({ station, demo }) {
+      return station && !watchBlocked() && { station, demo };
+    },
+    commit(target) {
+      target.mission = drones.start(target.station.id, target.demo, player().position);
+      return Boolean(target.mission);
+    },
+    enter: start,
+    update: updateWatch,
+    exit: endWatch
+  });
+
   function watchBlocked() {
     const entity = player();
-    return Boolean(watch || autoDrive.active || !canStart() || cameraSystem.landmarkOrbit
+    return Boolean(!session.canEnter() || autoDrive.active
       || entity.jumping || Math.abs(entity.speed) > 0.45 || Math.abs(entity.verticalSpeed ?? 0) > 0.35
       || controllerManager.occupant.timer > 0);
   }
 
-  function follow(station, demo) {
-    if (!station || watchBlocked()) return false;
-    const mission = drones.start(station.id, demo, player().position);
-    if (!mission) return false;
-    watch = { mission, station, safe: Boolean(controllerManager.findModePosition(controllerManager.activeMode)) };
+  function start(target) {
+    target.safe = Boolean(controllerManager.findModePosition(controllerManager.activeMode));
     laneAssist.cancel();
-    controllerManager.resetInput();
-    touchControls.setEnabled(false);
-    gamepadControls.reset();
+    setObservationInputBlocked(inputs, true);
     closePopovers();
-    cameraSystem.startDroneFollow(mission.pose, (target, desired) =>
-      drones.cameraClear(target, desired, controllerManager));
+    cameraSystem.startDroneFollow(target.mission.pose, (origin, desired) =>
+      drones.cameraClear(origin, desired, controllerManager));
     onCameraLabel(STR.drones.followMode);
     clearTimeout(feedbackTimer);
     droneExit.hidden = false;
     droneHud.hidden = false;
     document.body.dataset.droneFollow = '';
     droneExit.focus({ preventScroll: true });
-    return true;
   }
 
-  function stop(failed = false) {
-    if (!watch) return;
-    const { station, safe } = watch;
-    watch = null;
+  function endWatch({ station, safe }, _snapshot, reason) {
+    const failed = reason === 'lost-target';
     drones.stopFollowing();
     cameraSystem.stopDroneFollow();
-    controllerManager.resetInput();
-    touchControls.setEnabled(!mapOpen());
-    gamepadControls.reset();
+    setObservationInputBlocked(inputs, mapOpen());
     droneHud.hidden = !failed;
     droneExit.hidden = failed;
     droneRepeat.hidden = true;
@@ -63,15 +67,19 @@ export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchC
       feedbackTimer = setTimeout(() => { droneHud.hidden = true; }, 3500);
     }
   }
+  function stop(failed = false) {
+    session.exit(failed ? 'lost-target' : 'cancelled');
+  }
   droneExit.addEventListener('click', () => stop());
   window.addEventListener('keydown', event => {
     if (event.code === 'Escape') stop();
   });
-  droneRepeat.addEventListener('click', () => { if (watch) drones.repeat(watch.mission); });
+  droneRepeat.addEventListener('click', () => {
+    const target = session.target;
+    if (target) drones.repeat(target.mission);
+  });
 
-  function update(dt) {
-    if (!watch) return false;
-    const { mission } = watch;
+  function updateWatch({ mission }, dt) {
     if (!drones.isActive(mission) || !cameraSystem.updateDroneFollow(dt)) {
       stop(true);
       return false;
@@ -84,20 +92,20 @@ export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchC
     return true;
   }
 
+  const canApproach = () => (session.canEnter() || cameraSystem.landmarkOrbit) && controllerManager.activeMode === 'person';
   return {
-    get active() { return Boolean(watch); }, update, stop,
+    get active() { return session.active; }, update: dt => session.update(dt) ?? false, stop,
     map: {
       stations: drones.stations, routes: drones.routes,
       status(stationId) {
         const status = drones.status(stationId, player().position);
-        return { ...status, blocked: status.nearby && watchBlocked(),
-          canApproach: !watch && canStart() && controllerManager.activeMode === 'person' };
+        return { ...status, blocked: status.nearby && watchBlocked(), canApproach: canApproach() };
       },
       preview: stationId => drones.preview(stationId),
-      approach: station => !watch && canStart() && controllerManager.activeMode === 'person' && station?.approach
+      approach: station => canApproach() && station?.approach
         && teleport(station.approach.x, station.approach.z, station.approach.heading,
           { exact: true, waypoint: { x: station.x, z: station.z, name: station.name } }),
-      follow
+      follow: (station, demo) => session.enter({ station, demo }).ok
     }
   };
 }

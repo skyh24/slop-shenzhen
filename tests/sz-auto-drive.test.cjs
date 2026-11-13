@@ -11,11 +11,12 @@ const polygonModule = require('./helpers/polygon.cjs');
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const load = (file, imports = {}) => loadModule(read(file), { imports });
 const signalApi = load('sz-intersection-control.js');
+const sections = load('sz-road-section.js');
 const surface = load('sz-controller-surfaces.js');
 const roads = load('sz-roads.js', { 'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) } });
 const collision = load('building-collision.js', { './sz-polygon.js': polygonModule });
 const traffic = load('sz-traffic.js', { 'three/webgpu': {}, './sz-intersection-control.js': signalApi,
-  './sz-roads.js': roads,
+  './sz-roads.js': roads, './sz-road-section.js': sections,
   // 路线规划只用到 sz-traffic 的纯函数；车队涂装用到的 carStyleCode 给一个等价替身。
   './sz-vehicles.js': { carStyleCode: ({ livery = 0, metallic = 0, trim = 0, wheel = 0 }) =>
     (livery & 7) + ((metallic & 1) << 3) + ((trim & 3) << 4) + ((wheel & 3) << 6) },
@@ -24,7 +25,7 @@ const { createAutoDrive, hasRoadFootprint } = load('sz-auto-drive.js', {
   './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic, ...driving
 });
 const { createDrivePlanner, createTurnFilter } = load('sz-drive-route.js', {
-  './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic
+  './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic, './sz-road-section.js': sections
 });
 const bounds = { min: { x: -1.1, y: 0, z: -2.4 }, max: { x: 1.1, y: 1.81, z: 2.4 } };
 const model = traffic.trafficModelBounds(bounds, { wheelbase: 2.8, track: 1.54 });

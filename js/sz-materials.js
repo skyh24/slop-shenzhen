@@ -4,6 +4,7 @@ import {
   clamp, pow, normalize, uniform, positionWorld, normalWorldGeometry, cameraPosition, time, color, fwidth
 } from 'three/tsl';
 import { cityUniforms } from './city-lighting-materials.js';
+import { FACADE_PROFILES, FACADE_SAMPLE_PROFILES, HOUHAI_OFFICE, SHENZHEN_BAY_MANSION } from './sz-facade-profiles.js';
 
 // 全局氛围参数：night 0 白天 → 1 深夜；show 控制楼体灯光秀。
 // 楼体窗灯和首层灯按 docs/22 的 V2 改读 cityUniforms.uInteriorGlow（和纽约立面同一套时段参数），
@@ -12,89 +13,6 @@ export const sceneUniforms = {
   night: uniform(0),
   show: uniform(0),
   apec: uniform(1)
-};
-
-// 普通楼立面参数表。顺序必须和 tools/sz/buildings.py 的 FACADES 一致：
-// glass_tower office residential_tower residential_low village industrial public landmark
-// 这些是外观参数，不是逐楼实测的层数、用途或建成年份；窗层节奏只作外观估计。
-// 字段：bayWidth/floorHeight 为米；winRatioW/H 是窗占开间/层高的比例；sill 是窗台相对层底的比例；
-// glazing 0 实体墙 → 1 玻璃幕墙；warmth 是夜灯偏暖比例；litShare 是模拟亮灯比例；
-// groundStyle 0 大堂 / 1 店面 / 2 单元入口 / 3 工业门洞；cornerMargin 墙角留白米数。
-// winCount/ac/tiles/suiteSpan/pierWidth 是给细节模块保留的外观参数，本材质直接按上面字段推导。
-export const FACADE_PROFILES = [
-  {
-    name: 'glass_tower', bayWidth: 1.6, floorHeight: 4.2, winRatioW: 0.94, winRatioH: 0.84,
-    sill: 0.12, glazing: 1.0, warmth: 0.12, litShare: 0.10,
-    groundHeight: 5.2, groundStyle: 0, winCount: 1, ac: 0, tiles: 0, suiteSpan: 1,
-    cornerMargin: 0.25, pierWidth: 0,
-    wallA: 0x7d8f99, wallB: 0xa6b6c0, trim: 0xb9c4ca, glass: 0x48697c
-  },
-  {
-    name: 'office', bayWidth: 3.0, floorHeight: 3.9, winRatioW: 0.96, winRatioH: 0.50,
-    sill: 0.34, glazing: 0.62, warmth: 0.22, litShare: 0.13,
-    groundHeight: 4.5, groundStyle: 0, winCount: 1, ac: 0, tiles: 0, suiteSpan: 2,
-    cornerMargin: 0.4, pierWidth: 0.06,
-    wallA: 0xaeb3ad, wallB: 0xc4c7bf, trim: 0x8e9491, glass: 0x5b7484
-  },
-  {
-    name: 'residential_tower', bayWidth: 3.4, floorHeight: 3.0, winRatioW: 0.80, winRatioH: 0.50,
-    sill: 0.28, glazing: 0.28, warmth: 0.80, litShare: 0.18,
-    groundHeight: 4.2, groundStyle: 2, winCount: 2, ac: 1, tiles: 0, suiteSpan: 2,
-    cornerMargin: 0.4, pierWidth: 0.02,
-    wallA: 0xd8d0c2, wallB: 0xc7c0b1, trim: 0xb7ae9e, glass: 0x4e6673
-  },
-  {
-    name: 'residential_low', bayWidth: 3.2, floorHeight: 3.2, winRatioW: 0.78, winRatioH: 0.50,
-    sill: 0.30, glazing: 0.25, warmth: 0.88, litShare: 0.17,
-    groundHeight: 4.2, groundStyle: 2, winCount: 2, ac: 1, tiles: 0, suiteSpan: 2,
-    cornerMargin: 0.35, pierWidth: 0.02,
-    wallA: 0xc9b696, wallB: 0xd8c7ae, trim: 0xa8977c, glass: 0x40515a
-  },
-  {
-    name: 'village', bayWidth: 2.6, floorHeight: 2.9, winRatioW: 0.38, winRatioH: 0.40,
-    sill: 0.30, glazing: 0.15, warmth: 0.90, litShare: 0.11,
-    groundHeight: 4.5, groundStyle: 1, winCount: 1, ac: 1, tiles: 1, suiteSpan: 1,
-    cornerMargin: 0.28, pierWidth: 0.015,
-    wallA: 0xd9d6cd, wallB: 0xc4c2b9, trim: 0x9a978e, glass: 0x3f5058
-  },
-  {
-    name: 'industrial', bayWidth: 6.0, floorHeight: 6.0, winRatioW: 0.84, winRatioH: 0.26,
-    sill: 0.56, glazing: 0.40, warmth: 0.35, litShare: 0.05,
-    groundHeight: 6.0, groundStyle: 3, winCount: 1, ac: 0, tiles: 0, suiteSpan: 3,
-    cornerMargin: 0.5, pierWidth: 0.04,
-    wallA: 0x9aa3a4, wallB: 0xb4b8b4, trim: 0x7e8788, glass: 0x50636c
-  },
-  {
-    name: 'public', bayWidth: 4.0, floorHeight: 4.5, winRatioW: 0.55, winRatioH: 0.55,
-    sill: 0.22, glazing: 0.50, warmth: 0.50, litShare: 0.08,
-    groundHeight: 4.8, groundStyle: 0, winCount: 1, ac: 0, tiles: 0, suiteSpan: 1,
-    cornerMargin: 0.45, pierWidth: 0.03,
-    wallA: 0xc8c3b5, wallB: 0xdad5c7, trim: 0xa9a390, glass: 0x4d626d
-  },
-  {
-    name: 'landmark', bayWidth: 1.6, floorHeight: 4.4, winRatioW: 0.94, winRatioH: 0.88,
-    sill: 0.10, glazing: 1.0, warmth: 0.18, litShare: 0.10,
-    groundHeight: 5.2, groundStyle: 0, winCount: 1, ac: 0, tiles: 0, suiteSpan: 1,
-    cornerMargin: 0.25, pierWidth: 0,
-    wallA: 0x9ca9b0, wallB: 0xc1c9ce, trim: 0xc4cdd2, glass: 0x546e7e
-  }
-];
-
-// 航天科技广场 A 座与深圳湾公馆的外观样本。大堂高度参考设计方资料，
-// 窗格、阳台和雨棚尺寸取外观估计，坐标为正式包足迹的米制范围。
-// materialSeed 取 Math.fround(buildingSeed(id) * 10)，与合批顶点属性一致。
-const HOUHAI_OFFICE = 'way/737426464';
-const SHENZHEN_BAY_MANSION = 'way/1352291472';
-export const FACADE_SAMPLE_PROFILES = {
-  [HOUHAI_OFFICE]: {
-    appearanceSource: 'estimate', materialSeed: 2.5392842292785645, bounds: [-12104, -12049, 2568, 2626],
-    lobbyHeight: 30, canopy: { width: 18, depth: 4.4, height: 5.8 }
-  },
-  [SHENZHEN_BAY_MANSION]: {
-    appearanceSource: 'estimate', materialSeed: 7.08568000793457, bounds: [-13040, -12999, 4019, 4059],
-    bayWidth: 4.8, floorHeight: 3.1, balconyDepth: 1.45,
-    winRatioW: 0.91, winRatioH: 0.78, sill: 0.15, glazing: 0.9, wallColor: 0x8297a0
-  }
 };
 
 const TINT_A = FACADE_PROFILES.map((p) => p.wallA);
@@ -127,8 +45,6 @@ const packV = (fields, fallback = 0) => FACADE_PROFILES.map((p) => vec4(
 
 export function createBuildingMaterial(programEmission = null) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.68, metalness: 0.06 });
-  const pickV = (id, values) => values.reduce((acc, value, i) => acc.add(value.mul(step(abs(id.sub(num(i))), HALF))), vec4(0));
-  const pickC = (id, values) => values.reduce((acc, value, i) => acc.add(color(value).mul(step(abs(id.sub(num(i))), HALF))), vec3(0));
   const meta = attribute('bmeta', 'vec4');
 
   const P0 = packV(['bayWidth', 'floorHeight', 'winRatioW', 'winRatioH']);
@@ -137,9 +53,11 @@ export function createBuildingMaterial(programEmission = null) {
   const fid = meta.x;
   const seed = meta.y;
   const buildingHeight = max(meta.w, ONE);
-  const p0 = pickV(fid, P0);
-  const p1 = pickV(fid, P1);
-  const p2 = pickV(fid, P2);
+  const matches = FACADE_PROFILES.map((_, i) => step(abs(fid.sub(num(i))), HALF));
+  const pickV = values => values.reduce((acc, value, i) => acc.add(value.mul(matches[i])), vec4(0));
+  const p0 = pickV(P0);
+  const p1 = pickV(P1);
+  const p2 = pickV(P2);
   const sampleMask = id => {
     const { materialSeed, bounds: [minX, maxX, minZ, maxZ] } = FACADE_SAMPLE_PROFILES[id];
     // 合批后的种子为 float32；足迹范围限制样本的影响范围。
@@ -167,7 +85,8 @@ export function createBuildingMaterial(programEmission = null) {
   const suiteSpan = ONE.add(step(num(0.9), winW));
 
   const tone = hash21(vec2(seed, seed.mul(num(1.7))));
-  const wallBase = mix(pickC(fid, TINT_A), color(residence.wallColor), residentialSample).mul(tone.mul(num(0.22)).add(num(0.86)));
+  const wallTint = TINT_A.reduce((acc, value, i) => acc.add(color(value).mul(matches[i])), vec3(0));
+  const wallBase = mix(wallTint, color(residence.wallColor), residentialSample).mul(tone.mul(num(0.22)).add(num(0.86)));
   // 玻璃色由墙色推导：同类型楼的玻璃自然带一点墙色，省掉一次颜色查表。
   const glassTint = mix(color(0x14232c), wallBase.mul(num(0.5)), HALF);
   const trimBase = wallBase.mul(num(1.18));

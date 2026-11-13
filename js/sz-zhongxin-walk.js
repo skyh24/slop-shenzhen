@@ -51,7 +51,7 @@ function area(kind, rows, sourceIds) {
     polygon: { outer: [...rows.map(row => row[0]), ...rows.map(row => row[1]).reverse()], holes: [] } };
 }
 
-export function buildZhongxinWalk(scene, graph, terrain) {
+export function buildZhongxinWalk(scene, graph, terrain, style) {
   // 入口外缘保留约一米缓冲，用于身体扫掠；路线锚点止于源墙面外。
   const points = [SIDEWALK[0], ...SIDEWALK, ...FRONTAGE.slice(1), [-489.65, 1163.65]];
   points[0] = [-522.8, 1004.95];
@@ -66,7 +66,7 @@ export function buildZhongxinWalk(scene, graph, terrain) {
       polygon: { outer: [[-0.85, -0.85], [0.85, -0.85], [0.85, 0.85], [-0.85, 0.85]]
         .map(([dx, dz]) => ({ x: tree.x + dx, z: tree.z + dz })), holes: [] }
     }))
-  ]);
+  ], style);
   const anchors = points.slice(1, -1).map(([x, z]) => ({ x, z }));
   const barrier = createCarriagewayBarrier(graph, { bounds: BOUNDS });
   // 布置预约半径只用于模拟设施，源树的位置和身份继续走既有核对流程。

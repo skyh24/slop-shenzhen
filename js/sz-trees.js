@@ -241,12 +241,17 @@ export function decodeTreePayload(raw) {
     .map((name, index) => (OSM_SOURCE_NAMES.has(name) ? index : -1))
     .filter(index => index >= 0));
   const seen = new Set();
+  const nodeIds = new Set();
   for (const entry of raw.osm) {
     requireTree(Array.isArray(entry) && entry.length === 2, 'osm entry');
     const [index, id] = entry;
     requireTree(Number.isInteger(index) && index >= 0 && index < count, 'osm index');
     requireTree(typeof id === 'string' && /^(?:node|way)\/\d+$/.test(id), 'osm id');
     requireTree(!seen.has(index), 'osm duplicate');
+    if (id.startsWith('node/')) {
+      requireTree(!nodeIds.has(id), `duplicate OSM tree node ${id}`);
+      nodeIds.add(id);
+    }
     const sourceIndex = raw.source[index];
     requireTree(Number.isInteger(sourceIndex) && sourceIndex >= 0 && sourceIndex < sources.length,
       'source index');
@@ -338,37 +343,57 @@ export function buildSzTrees(scene, payload, options = {}) {
   const { groundHeight, heightAt = groundHeight, roadHeight, shennanMedianHeight = () => null,
     streetTreeSideAllowed = () => true, pathAt = () => [], simulatedPathAt, reserveWalk = () => false, colliders = [], roadFrontage } = options;
   const trees = decodeTreePayload(payload);
-  if (!trees || trees.count === 0) {
-    const empty = emptyResult();
+  const payloadCount = trees?.count ?? 0;
+  const pilotTrees = options.pilotTrees ?? [];
+  const observedById = new Map();
+  for (const tree of options.observedTrees ?? []) {
+    const { id, x, z, positionSource, appearanceSource } = tree;
+    requireTree(/^node\/\d+$/.test(id) && Number.isFinite(x) && Number.isFinite(z)
+      && positionSource === 'osm-node' && appearanceSource === 'visual-estimate', `observed tree ${id}`);
+    requireTree(!observedById.has(id), `duplicate observed tree ${id}`);
+    observedById.set(id, tree);
+  }
+  const payloadOsmIds = new Set(trees?.osm.values());
+  // 旧包可能只有场地里的源树点。没有全局树尺寸时用原场地尺度的估计值。
+  const additionalTrees = [...pilotTrees];
+  for (const tree of observedById.values()) {
+    if (payloadOsmIds.has(tree.id)) continue;
+    const scale = 0.84 + treeSeed(tree.id) * 0.36;
+    additionalTrees.push({ ...tree, speciesName: 'ficus', height: 5.9 * scale, crown: 4.9 * scale });
+  }
+  const count = payloadCount + additionalTrees.length;
+  const empty = emptyResult();
+  if (!count || typeof groundHeight !== 'function') {
+    empty.statistics.payloadCount = payloadCount;
+    empty.statistics.skipped.unsupportedGround = count;
     scene.add(empty.group);
     return empty;
   }
   const group = new THREE.Group();
   group.name = 'shenzhen-trees';
   const countsBySource = {};
-  const empty = emptyResult();
   const { skipped } = empty.statistics;
-  if (typeof groundHeight !== 'function') {
-    empty.statistics.payloadCount = trees.count;
-    empty.statistics.skipped.unsupportedGround = trees.count;
-    scene.add(empty.group);
-    return empty;
-  }
-
   const hitsCollider = createColliderIndex(colliders);
   const frontage = createTreeFrontageClearance(roadFrontage);
   const probes = [[0, 0], [PROBE_RADIUS_M, 0], [-PROBE_RADIUS_M, 0], [0, PROBE_RADIUS_M], [0, -PROBE_RADIUS_M]];
   const candidates = [];
   const treeColliders = [];
   const crownTemplates = new Set();
-  const pilotTrees = options.pilotTrees ?? [];
-  for (let index = 0; index < trees.count + pilotTrees.length; index++) {
-    const pilot = pilotTrees[index - trees.count];
-    const x = pilot?.x ?? trees.x[index];
-    const z = pilot?.z ?? trees.z[index];
-    const height = pilot?.height ?? trees.height[index];
-    const crown = pilot?.crown ?? trees.crown[index];
-    const sourceName = pilot ? 'simulated-street' : trees.sources[trees.source[index]] ?? 'unknown';
+  for (let index = 0; index < count; index++) {
+    const extra = additionalTrees[index - payloadCount];
+    const osmId = trees?.osm.get(index);
+    const observed = observedById.get(extra?.id ?? osmId);
+    const x = observed?.x ?? extra?.x ?? trees.x[index];
+    const z = observed?.z ?? extra?.z ?? trees.z[index];
+    const height = extra?.height ?? trees.height[index];
+    const crown = extra?.crown ?? trees.crown[index];
+    const sourceName = extra ? extra.positionSource ?? 'simulated-street' : trees.sources[trees.source[index]] ?? 'unknown';
+    const appearanceSource = extra ? extra.appearanceSource ?? 'species-estimate' : trees.appearanceSources[trees.appearance[index]];
+    // 树列可从同一 OSM 线生成多个实例，保留各自位置和共同源 ID。
+    const legacyId = osmId ?? `tree/${index}`;
+    const locationId = `tree:${x},${z}`;
+    const id = extra?.id ?? (osmId?.startsWith('node/') ? osmId : `${osmId ?? sourceName}:${locationId}`);
+    const sourceId = extra?.id ? id : legacyId;
     if (sourceName.startsWith('simulated-') && Number.isFinite(shennanMedianHeight(x, z))) {
       skipped.openMedian++;
       continue;
@@ -406,9 +431,8 @@ export function buildSzTrees(scene, payload, options = {}) {
       skipped[reason] += 1;
       continue;
     }
-    const speciesName = pilot?.speciesName ?? trees.speciesNames[trees.species[index]] ?? 'ficus';
+    const speciesName = extra?.speciesName ?? trees.speciesNames[trees.species[index]] ?? 'ficus';
     const style = speciesStyle(speciesName);
-    const id = pilot?.id ?? trees.osm.get(index) ?? `tree/${index}`;
     // 未知树种退回 ficus 叶卡形态，颜色仍用该树种的调色板。
     const crownTemplate = CROWN_TEMPLATE_NAMES.has(speciesName) ? speciesName : 'ficus';
     const habit = CROWN_SPECIES[crownTemplate];
@@ -429,15 +453,15 @@ export function buildSzTrees(scene, payload, options = {}) {
       continue;
     }
     crownTemplates.add(crownTemplate);
-    candidates.push({ index, id, x, z, y: baseY, height, crown, speciesName, sourceName,
-      style, trunkHeight, trunkRadius, checkFrontage, seed: treeSeed(id), crownTemplate });
+    candidates.push({ id, sourceId, x, z, y: baseY, height, crown, speciesName, sourceName, appearanceSource,
+      style, trunkHeight, trunkRadius, checkFrontage, seed: treeSeed(sourceId), crownTemplate });
   }
 
   // 近景共用的树种几何也用于低枝净高检查。
   const crownLibrary = crownTemplates.size > 0 ? createCrownLibrary([...crownTemplates]) : null;
   const placed = [];
   for (const record of candidates) {
-    const { id, x, z, y, trunkHeight, trunkRadius, sourceName, checkFrontage, crownTemplate } = record;
+    const { id, sourceId, x, z, y, trunkHeight, trunkRadius, sourceName, appearanceSource, checkFrontage, crownTemplate } = record;
     if (checkFrontage && crownBlocksFrontage(record, crownLibrary.geometryFor(crownTemplate), frontage, heightAt)) {
       skipped.frontageCrownConflict++;
       continue;
@@ -446,7 +470,7 @@ export function buildSzTrees(scene, payload, options = {}) {
     placed.push(record);
     const polygon = colliderPolygon(x, z, trunkRadius);
     const maxY = y + trunkHeight;
-    treeColliders.push({ type: 'tree', name: id, sourceId: id, polygon,
+    treeColliders.push({ type: 'tree', name: id, sourceId, positionSource: sourceName, appearanceSource, polygon,
       loft: { lower: polygon.outer, upper: colliderPolygon(x, z, trunkRadius * 0.65).outer, minY: y, maxY },
       minY: y, maxY, minX: x - trunkRadius, maxX: x + trunkRadius,
       minZ: z - trunkRadius, maxZ: z + trunkRadius });
@@ -493,7 +517,7 @@ export function buildSzTrees(scene, payload, options = {}) {
   // 每棵树的叶色：树种调色板按固定哈希插值，再按树标识微调明度。颜色只是外观估计。
   function tintFor(record) {
     const palette = colorsFor(record.speciesName);
-    return tint.copy(palette.crown).lerp(palette.light, treeSeed(record.id + ':crown'));
+    return tint.copy(palette.crown).lerp(palette.light, treeSeed(record.sourceId + ':crown'));
   }
   // 远冠底部盖住树干顶端，低模轮廓也能接到主干。
   function poseFar(record, farMesh, instance) {
@@ -512,10 +536,10 @@ export function buildSzTrees(scene, payload, options = {}) {
     cardMesh.setMatrixAt(instance, matrix.compose(
       position.set(record.x, record.y, record.z), rotation, scale.set(record.crown, record.height, record.crown)));
     const leafTint = tintFor(record);
-    data.setXYZW(instance, leafTint.r, leafTint.g, leafTint.b, treeSeed(record.id + ':leaf'));
+    data.setXYZW(instance, leafTint.r, leafTint.g, leafTint.b, treeSeed(record.sourceId + ':leaf'));
     // 整树摆幅按树高给（世界米）：11 m 树约 0.2 m，和纽约参考同一量级，只是外观估计。
     const amplitude = treeSwayAmplitude(record.height);
-    sway.setXY(instance, amplitude, treeSeed(record.id + ':wind'));
+    sway.setXY(instance, amplitude, treeSeed(record.sourceId + ':wind'));
     return amplitude;
   }
   for (const key of [...grouped.keys()].sort(compareChunkKeys)) {
@@ -537,12 +561,12 @@ export function buildSzTrees(scene, payload, options = {}) {
       const cell = cells.get(cellKey);
       const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, cell.records.length);
       trunks.name = `tree-trunks-far:${key}/${cellKey}`;
-      trunks.userData.sources = cell.records.map(record => record.id);
+      trunks.userData.sources = cell.records.map(record => record.sourceId);
       const far = new THREE.InstancedMesh(farGeometry, leafMaterial, cell.records.length);
       far.name = `tree-crowns-far:${key}/${cellKey}`;
       cell.records.forEach((record, instance) => {
         pose(trunks, instance, record.x, record.y, record.z, record.trunkRadius, record.trunkHeight, record.trunkRadius);
-        color.setHex(record.style.trunkColor).lerp(trunkLight, treeSeed(record.id + ':trunk'));
+        color.setHex(record.style.trunkColor).lerp(trunkLight, treeSeed(record.sourceId + ':trunk'));
         trunks.setColorAt(instance, color);
         poseFar(record, far, instance);
       });
@@ -611,7 +635,7 @@ export function buildSzTrees(scene, payload, options = {}) {
   const lodCells = chunks.reduce((sum, chunk) => sum + chunk.cells.length, 0);
   const statistics = {
     version: 1,
-    payloadCount: trees.count,
+    payloadCount,
     placed: placed.length,
     chunks: chunks.length,
     lodCells,
@@ -691,8 +715,13 @@ export function buildSzTrees(scene, payload, options = {}) {
     };
   }
 
+  let disposed = false;
   function dispose() {
+    if (disposed) return;
+    disposed = true;
     group.removeFromParent();
+    for (const mesh of group.children) mesh.dispose();
+    group.clear();
     for (const geometry of cardGeometries) geometry.dispose();
     cardGeometries.length = 0;
     crownLibrary?.dispose();
@@ -701,6 +730,7 @@ export function buildSzTrees(scene, payload, options = {}) {
     trunkMaterial.dispose();
     leafMaterial.dispose();
     chunks.length = 0;
+    placed.length = 0;
     treeColliders.length = 0;
   }
 

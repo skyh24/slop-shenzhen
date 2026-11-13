@@ -4,6 +4,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { loadModule } = require('./helpers/module.cjs');
+const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const SOURCE = read('sz-building-signs.js');
@@ -13,6 +14,8 @@ function loadSigns(THREE = {}, TSL = {}) {
   return loadModule(SOURCE, { imports: {
     'three/webgpu': THREE,
     'three/tsl': TSL,
+    './sz-polygon.js': polygonModule,
+    './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
     './sz-materials.js': { sceneUniforms: { night: TSL.uniform ? TSL.uniform(0) : { value: 0 } } }
   } });
 }

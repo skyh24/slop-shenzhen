@@ -41,7 +41,8 @@ test('bridge surfaces use the actual render buffers and both navigation spans st
   const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
   const cityLighting = loadModule(read('city-lighting-materials.js'), { imports });
   const geometry = loadModule(read('sz-geometry.js'), { imports });
-  const materials = loadModule(read('sz-materials.js'), { imports: { ...imports, './city-lighting-materials.js': cityLighting } });
+  const materials = loadModule(read('sz-materials.js'), { imports: { ...imports, './city-lighting-materials.js': cityLighting,
+    './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')) } });
   const { buildShenzhenBayBridge } = loadModule(read('sz-landmarks/shenzhen-bay-bridge.js'), {
     imports: { ...imports, '../sz-geometry.js': geometry, '../sz-materials.js': materials }
   });

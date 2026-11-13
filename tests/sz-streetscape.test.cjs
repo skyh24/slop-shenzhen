@@ -43,23 +43,39 @@ test('the selected promenade is coplanar and walkable and the modeled tree trunk
   const layout = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
   const roads = loadModule(read('sz-roads.js'), { imports: { ...imports, './sz-road-material.js': roadMaterial } });
   const geometry = loadModule(read('sz-geometry.js'), { imports });
+  const style = loadModule(read('sz-scene-style.js'), { imports: { './sz-polygon.js': polygonModule } });
+  const paving = loadModule(read('sz-paving.js'), { imports: { ...imports,
+    './sz-materials.js': { sceneUniforms: { night: TSL.uniform(0) } }, './sz-scene-style.js': style } });
   const golf = loadModule(read('sz-golf-course.js'), { imports: { ...imports,
-    './sz-geometry.js': geometry, './sz-roads.js': roads } });
+    './sz-geometry.js': geometry, './sz-roads.js': roads, './sz-paving.js': paving } });
   const { buildSzStreetscape } = loadModule(read('sz-streetscape.js'), { imports: { ...imports,
-    './building-collision.js': collision, './sz-building-layout.js': layout, './sz-roads.js': roads,
-    './sz-golf-course.js': golf } });
+    './building-collision.js': collision, './sz-roads.js': roads,
+    './sz-golf-course.js': golf, './sz-paving.js': paving } });
   const ground = loadModule(read('sz-ground-surface.js'));
   const groundHeight = ground.createGroundSurfaceSampler(geo.terrainSurface);
   const scene = new THREE.Scene();
   const pavedRoads = roads.buildSzRoads(scene, geo.roadGraph, geo.terrainSurface);
-  const model = buildSzStreetscape(scene, geo.streetscape, geo.terrainSurface, {
-    groundHeight, roadHeight: pavedRoads.roadHeight, colliders: buildings.flatMap(building => layout.buildingPlacement(building, geo.terrain).colliders)
-  });
+  const colliders = buildings.flatMap(building => layout.buildingPlacement(building, geo.terrain).colliders);
+  const model = buildSzStreetscape(scene, geo.streetscape, geo.terrainSurface, { colliders });
+  const crown = loadModule(read('sz-tree-crown.js'), { imports });
+  const { buildSzTrees } = loadModule(read('sz-trees.js'), { imports: { ...imports,
+    './sz-polygon.js': polygonModule, './sz-tree-crown.js': crown } });
+  const trees = buildSzTrees(scene, geo.trees, { groundHeight, roadHeight: pavedRoads.roadHeight,
+    colliders, pathAt: model.pathAt, observedTrees: model.observedTrees });
   scene.updateMatrixWorld(true);
-  assert.equal(model.statistics.trees, 17);
-  assert.equal(model.statistics.excludedTrees.length, 0);
-  assert.equal(model.arrival.sourcePathId, 'way/1436698491');
-  const { x, z, heading } = model.arrival;
+  assert.equal(model.statistics.observedTrees, 17);
+  for (const { id, x, z } of model.observedTrees) {
+    const matches = trees.colliders.filter(collider => collider.sourceId === id);
+    assert.equal(matches.length, 1, `expected one placed tree: ${id}`);
+    const [trunk] = matches;
+    assert.equal(trunk.positionSource, 'osm-node');
+    assert.ok(collision.polygonContains(trunk.polygon, x, z));
+    assert.ok(Math.abs((trunk.minX + trunk.maxX) / 2 - x) < 1e-8);
+    assert.ok(Math.abs((trunk.minZ + trunk.maxZ) / 2 - z) < 1e-8);
+  }
+  const arrival = model.findArrival(trees.colliders);
+  assert.equal(arrival.sourcePathId, 'way/1436698491');
+  const { x, z, heading } = arrival;
   const walk = model.group.getObjectByName('shenzhen-pilot-footway');
   for (let distance = 0; distance <= 12; distance += 2) {
     const px = x + Math.sin(heading) * distance;
@@ -72,12 +88,23 @@ test('the selected promenade is coplanar and walkable and the modeled tree trunk
   }
 
   const tree = geo.streetscape.trees.find(tree => tree.osmId === 'node/5360434527');
-  const trunk = model.group.getObjectByName(`tree-trunks:${tree.areaOsmId}`);
-  const box = model.colliders.find(collider => collider.sourceId === tree.osmId);
-  const ray = new THREE.Raycaster(new THREE.Vector3(tree.x + 2, (box.minY + box.maxY) / 2, tree.z), new THREE.Vector3(-1, 0, 0));
-  assert.ok(Math.abs(ray.intersectObject(trunk)[0].point.x - box.maxX) < 0.001);
+  const trunk = trees.group.children.find(object => object.userData.sources?.includes(tree.osmId));
+  const box = trees.colliders.find(collider => collider.sourceId === tree.osmId);
+  assert.ok(trunk);
+  const y = (box.minY + box.maxY) / 2;
+  const ray = new THREE.Raycaster(new THREE.Vector3(tree.x + 2, y, tree.z), new THREE.Vector3(-1, 0, 0));
+  const contact = collision.loftContactPolygon(box.loft, y, y + 0.00001);
+  const edgeX = Math.max(...contact.outer.map(point => point.x));
+  assert.ok(Math.abs(ray.intersectObject(trunk)[0].point.x - edgeX) < 0.001);
   assert.ok(collision.polygonContains(box.polygon, tree.x, tree.z));
+  const sharedMaterial = trunk.material;
+  let disposed = false;
+  sharedMaterial.addEventListener('dispose', () => { disposed = true; });
   model.dispose();
+  assert.equal(disposed, false);
+  assert.equal(trees.group.parent, scene);
+  trees.dispose();
+  assert.equal(disposed, true);
   pavedRoads.dispose();
   assert.equal(scene.children.length, 0);
 });

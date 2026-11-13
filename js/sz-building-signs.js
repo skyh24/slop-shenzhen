@@ -1,6 +1,8 @@
 import * as THREE from 'three/webgpu';
 import { attribute, float, materialColor, mix, vec3 } from 'three/tsl';
 import { sceneUniforms } from './sz-materials.js';
+import { facadeProfile } from './sz-facade-profiles.js';
+import { signedRingArea } from './sz-polygon.js';
 
 // 普通建筑名称标牌：按玩家位置分块流式生成，近处贴墙入口牌，高楼屋顶立式双面牌。
 // 标牌只读取 building.name；数据缺少 name 或名字只是“1栋/A座”时跳过，不补造名称。
@@ -29,12 +31,6 @@ const ROAD_CELL = 200;
 const MAX_NAME_CHARS = 14;
 const SIGN_FONT = "'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC',sans-serif";
 
-// 没有 building.levels 时用立面表估计层高；只用于入口牌竖直位置，不当作真实层数。
-const FLOOR_HEIGHT_BY_FACADE = {
-  glass_tower: 4.2, office: 3.9, residential_tower: 3.0, residential_low: 3.0,
-  village: 2.9, industrial: 6.0, public: 4.5, landmark: 4.4
-};
-
 // 住宅尾部单元号：1栋、A座、第3栋、1号楼、2单元、3期；可连续出现（1栋2单元）。
 const UNIT_SUFFIX = /(?:第\s*)?[0-9A-Za-z一二三四五六七八九十百]+\s*(?:栋|座|号楼|号|单元|期)\s*$/u;
 // 整名就是单元号或在单元号后只剩空白的名字，没有小区/楼宇信息。
@@ -53,12 +49,6 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function hashString(text) {
-  let hash = 2166136261;
-  for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619) >>> 0;
-  return hash / 4294967296;
-}
-
 function charCount(text) {
   return Array.from(text).length;
 }
@@ -66,7 +56,7 @@ function charCount(text) {
 function isResidential(building) {
   if (!building) return false;
   if (building.category === 'residential') return true;
-  return typeof building.facade === 'string' && building.facade.startsWith('residential_');
+  return facadeProfile(building.facade).residential === true;
 }
 
 function stripUnitSuffix(name) {
@@ -100,7 +90,7 @@ export function buildingDisplayName(building) {
 function floorHeightOf(building) {
   if (Number.isFinite(building.levels) && building.levels > 0 && Number.isFinite(building.height)
     && building.height > 0) return building.height / building.levels;
-  return FLOOR_HEIGHT_BY_FACADE[building.facade] ?? 3.3;
+  return facadeProfile(building.facade).floorHeight;
 }
 
 function baseYOf(building, options) {
@@ -121,17 +111,6 @@ function outerRing(building) {
     return [{ x: minX, z: minZ }, { x: maxX, z: minZ }, { x: maxX, z: maxZ }, { x: minX, z: maxZ }];
   }
   return null;
-}
-
-// x 向东、z 向南；正面积环的外法线为 (dz, -dx)，负面积反过来。
-function signedRingArea(ring) {
-  let area = 0;
-  for (let i = 0; i < ring.length; i++) {
-    const a = ring[i];
-    const b = ring[(i + 1) % ring.length];
-    area += a.x * b.z - b.x * a.z;
-  }
-  return area / 2;
 }
 
 function nearestPointOnRoad(road, x, z) {
