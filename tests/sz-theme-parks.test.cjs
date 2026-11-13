@@ -20,7 +20,7 @@ test('the production pack fits all three parks and preserves ground access', asy
   const { EDGE_OPENINGS } = await import('../js/sz-theme-parks/sites.js');
   const { decodeCityPayload } = await import('../js/sz-data-format.js');
   const { createGroundSurfaceSampler } = await import('../js/sz-ground-surface.js');
-  const { distanceToRing, polygonContainsInclusive } = await import('../js/sz-polygon.js');
+  const { distanceToRing, polygonContainsInclusive, ringArea } = await import('../js/sz-polygon.js');
   const { buildThemeParks } = await import('../js/sz-theme-parks/index.js');
   const raw = JSON.parse(gunzipSync(readFileSync(resolve(__dirname, '../js/sz-city.json.gz'))));
   const { geo, buildings } = decodeCityPayload(raw);
@@ -54,7 +54,10 @@ test('the production pack fits all three parks and preserves ground access', asy
   assert.equal(summary.flowerBeds.length, 5);
   assert.ok(summary.flowerBeds.includes('expo-flower-apec'));
   assert.ok(summary.flowerBeds.every(id => parks.group.getObjectByName(`${id}:blooms`)?.count > 100));
-  assert.ok(parks.reserved(-6965, 1426, 1) && parks.reserved(-5920, 1120, 1));
+  const bedArea = id => ringArea(parks.colliders.find(c => c.sourceId === id).polygon.outer);
+  assert.ok(summary.flowerBeds.filter(id => id.startsWith('expo-')).reduce((sum, id) => sum + bedArea(id), 0) > 4200);
+  assert.ok(bedArea('china-flower-peony') > 800);
+  assert.ok(parks.reserved(-6985, 1434, 1) && parks.reserved(-5904, 1140, 1));
   assert.ok(!parks.reserved(-5944, 1120, 1), 'keep the source service path clear between flower beds');
   const barrier = createCarriagewayBarrier(geo.roadGraph);
   for (const [i, key] of ['world', 'china', 'valley'].entries()) {

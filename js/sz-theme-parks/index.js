@@ -159,7 +159,7 @@ export function planThemeParks(site) {
     }
     parks.push(park);
   }
-  const expoBuildings = buildings.filter(b => b.maxX > -6000 && b.minX < -5880 && b.maxZ > 1015 && b.minZ < 1160)
+  const expoBuildings = buildings.filter(b => b.maxX > -6005 && b.minX < -5870 && b.maxZ > 1010 && b.minZ < 1170)
     .flatMap(b => buildingPlacement(b, terrain).colliders);
   const expo = planExpoFlowerBeds(site, expoBuildings, barrier);
   rejected.push(...expo.rejected);

@@ -23,6 +23,7 @@ import { prepareTalentPark } from './sz-talent-park.js';
 import { createTeleportMenu } from './sz-coco-park-approach.js';
 import { buildSzStreetLamps } from './sz-street-lamps.js';
 import { buildSzTrees } from './sz-trees.js';
+import { planWoodlandTrees } from './sz-woodlands.js';
 import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzDroneRoutes } from './sz-drone-routes.js';
@@ -266,6 +267,7 @@ async function initApp() {
   const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
     ...site, carriagewayOccupied, excludedSite: themeParks.reserved, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
+    woodlandTrees: planWoodlandTrees(),
     reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r),
     observedTrees: streetscape.observedTrees, pilotTrees: [...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? [])],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)

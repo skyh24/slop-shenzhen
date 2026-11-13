@@ -72,7 +72,7 @@ function rosette(id, ground, x, z, scale) {
   const middle = disk(x, z, 4.0 * scale, 24);
   const crown = top + 0.62 * scale;
   p.loft(middle, disk(x, z, 3.7 * scale, 24), top, crown, FOLIAGE);
-  p.patch(inner, top, 0.82 * scale, (a, b) => {
+  p.patch(inner, top, 0.96 * scale, (a, b) => {
     const r = Math.hypot(a - x, b - z);
     if (r < 4.2 * scale) return null;
     return r < 7.9 * scale ? CRIMSON : Math.sin((a + b) * 8) > 0.6 ? PEACH : CORAL;
@@ -82,30 +82,31 @@ function rosette(id, ground, x, z, scale) {
 }
 
 function terraces(ground) {
-  const x = -5940, z = 1040;
+  const x = -5951, z = 1048;
   const p = planter('expo-flower-terraces', ground);
-  const outer = ellipse(x, z, 13.2, 9.8, -0.25);
+  const terraceRing = (rx, rz) => ellipse(x, z, rx * 1.72, rz * 1.43, -0.25);
+  const outer = terraceRing(13.2, 9.8);
   let y = p.footing(outer, 0.58, STONE);
   const layers = [[12.5, 9.1, VIOLET], [9.1, 6.6, LILAC], [5.4, 3.9, WHITE], [2.3, 1.65, YELLOW]];
   for (const [i, [rx, rz, tint]] of layers.entries()) {
-    const ring = ellipse(x, z, rx, rz, -0.25);
+    const ring = terraceRing(rx, rz);
     p.solid(ring, y, y + 0.51, FOLIAGE);
     y += 0.51;
     const next = layers[i + 1];
-    const covered = next && { outer: ellipse(x, z, next[0] + 0.22, next[1] + 0.22, -0.25), holes: [] };
-    p.patch(ring, y, 0.79, (a, b) => covered && polygonContainsInclusive(covered, a, b) ? null : tint);
+    const covered = next && { outer: terraceRing(next[0] + 0.22, next[1] + 0.22), holes: [] };
+    p.patch(ring, y, 1.08, (a, b) => covered && polygonContainsInclusive(covered, a, b) ? null : tint);
   }
   return p;
 }
 
 function ribbon(ground) {
-  const x = -5968, z = 1131, length = 29;
+  const x = -5968, z = 1136, length = 55;
   const p = planter('expo-flower-ribbon', ground);
   const center = t => x + 3.75 * Math.sin(t * 2 * Math.PI);
   const band = (left, right) => {
     const side = offset => Array.from({ length: 21 }, (_, i) => {
       const t = i / 20;
-      return { x: center(t) + offset, z: z - length / 2 + length * t };
+      return { x: center(t) + offset * 1.9, z: z - length / 2 + length * t };
     });
     return [...side(right), ...side(left).reverse()];
   };
@@ -114,45 +115,47 @@ function ribbon(ground) {
     [-2, 2, 1.15, YELLOW, CREAM], [2, 5.6, 0.56, CRIMSON, CORAL]]) {
     const ring = band(a, b);
     p.solid(ring, base, base + height, SOIL);
-    p.patch(ring, base + height, 0.79, (x, z) => Math.sin(z * 1.04 + x * 0.21) > 0.26 ? second : first);
+    p.patch(ring, base + height, 1.16, (x, z) => Math.sin(z * 0.64 + x * 0.21) > 0.26 ? second : first);
   }
   return p;
 }
 
 function apecBed(ground) {
-  const x = -5920, z = 1120;
+  const x = -5904, z = 1140;
+  const widthScale = 1.39, depthScale = 1.48;
+  const outline = (u, v, w, d) => rectangle(x + u * widthScale, z + v * depthScale, w * widthScale, d * depthScale);
   const p = planter('expo-flower-apec', ground);
-  const base = p.footing(rectangle(x, z, 33.4, 17), 0.66, STONE);
-  const north = z - 7.8, south = z + 7.8;
+  const base = p.footing(outline(0, 0, 33.4, 17), 0.66, STONE);
+  const north = z - 7.8 * depthScale, south = z + 7.8 * depthScale;
   const yAt = b => base + 1.36 - 0.92 * (b - north) / (south - north);
-  p.span({ x, z: north, y: yAt(north) }, { x, z: south, y: yAt(south) }, 32.0, 1.38, FOLIAGE);
+  p.span({ x, z: north, y: yAt(north) }, { x, z: south, y: yAt(south) }, 32 * widthScale, 1.38, FOLIAGE);
   // 字母用两排花冠组成每个笔画，面向南侧游人。
   const cell = 1.12;
   for (const [i, rows] of APEC.entries()) for (const [row, cells] of rows.entries()) {
     for (let col = 0; col < cells.length; col++) {
       if (cells[col] !== '1') continue;
       for (const dx of [-0.25, 0.25]) for (const dz of [-0.25, 0.25]) {
-        const a = x + (i * 6 + col - 11.0) * cell + dx;
-        const b = z + (row - 3) * cell + dz;
-        p.flower(a, b, yAt(b), i % 2 ? WHITE : CREAM, 0.63);
+        const a = x + ((i * 6 + col - 11) * cell + dx) * widthScale;
+        const b = z + ((row - 3) * cell + dz) * depthScale;
+        p.flower(a, b, yAt(b), i % 2 ? WHITE : CREAM, 0.90);
       }
     }
   }
   for (const side of [-1, 1]) {
-    p.patch(rectangle(x, z + side * 6.1, 30, 2.15), yAt, 0.65,
+    p.patch(outline(0, side * 6.1, 30, 2.15), yAt, 0.86,
       (a, b) => Math.sin(a * 0.27 + b * 0.4) > 0 ? VIOLET : CORAL);
-    p.patch(rectangle(x + side * 14.1, z, 2.6, 9.6), yAt, 0.68, () => YELLOW);
+    p.patch(outline(side * 14.1, 0, 2.6, 9.6), yAt, 0.87, () => YELLOW);
   }
   return p;
 }
 
-export const chinaFlowerBed = ground => rosette('china-flower-peony', ground, -6965, 1426, 0.9);
+export const chinaFlowerBed = ground => rosette('china-flower-peony', ground, -6985, 1434, 1.58);
 
 export function planExpoFlowerBeds({ mapRegions, groundHeight, isWater }, buildings, barrier) {
   const boundary = mapRegions?.regions.find(r => r.id === FLOWER_EXPO_ID)?.polygons[0];
   if (!boundary) return { beds: [], rejected: [] };
   const beds = [], rejected = [];
-  for (const p of [rosette('expo-flower-rosette', groundHeight, -5970, 1081, 1), terraces(groundHeight),
+  for (const p of [rosette('expo-flower-rosette', groundHeight, -5962, 1085, 1.56), terraces(groundHeight),
     ribbon(groundHeight), apecBed(groundHeight)]) {
     const fits = p.parts.every(part => sampleFootprint(part.polygon.outer, (x, z) =>
       polygonContainsInclusive(boundary, x, z) && !barrier.contains(x, z, 2) && !isWater(x, z) && !nearExpoServicePath(x, z)

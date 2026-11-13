@@ -124,6 +124,46 @@ test('tree LOD keeps near crowns under 180 m and hides beyond 900 m', () => {
 
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 
+test('woodland batches stay lightweight and preserve existing trees and circulation', { skip: !threeDir }, async () => {
+  const { planWoodlandTrees } = await import('../js/sz-woodlands.js');
+  const groves = planWoodlandTrees();
+  assert.deepEqual(groves, planWoodlandTrees());
+  assert.equal(new Set(groves.map(tree => tree.id)).size, groves.length);
+  assert.ok(groves.length > 2000 && groves.length < 4000);
+
+  const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
+  const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
+  const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
+  const model = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
+    './sz-tree-crown.js': crown } });
+  const treeAt = x => ({ id: `woodland:${x}`, x, z: 0, height: 10, crown: 9, speciesName: 'camphor' });
+  const payload = makePayload([{ x: 0, z: 0, source: 'osm-node', osm: 'node/1' }]);
+  const scene = new THREE.Scene();
+  const built = model.buildSzTrees(scene, payload, {
+    woodlandTrees: [3, 11, 22, 33, 44].map(treeAt),
+    groundHeight: x => x / 10 + 5,
+    excludedSite: x => x === 22,
+    carriagewayOccupied: (x, z, radius) => x === 33 && radius > 3,
+    isWater: x => x === 44
+  });
+  assert.deepEqual(Array.from(built.colliders, tree => tree.sourceId), ['node/1', 'woodland:11']);
+  const trunk = built.group.getObjectByName('tree-trunks-woodland:0,0/0,0');
+  const canopy = built.group.getObjectByName('tree-crowns-woodland:0,0/0,0');
+  assert.ok(trunk.isInstancedMesh && canopy.isInstancedMesh);
+  assert.equal(trunk.castShadow, false);
+  assert.equal(canopy.castShadow, false);
+  assert.equal(built.statistics.instances.cards, 1);
+  assert.equal(built.statistics.visible.woodlandTrees, 1);
+  assert.equal(built.statistics.visible.triangles, built.statistics.triangles.cardPerTree.ficus + 96);
+  assert.ok(11 / 10 + 5 - built.colliders[1].minY < 0.03);
+  for (const distance of [500, 1800]) {
+    built.update(new THREE.Vector3(0, 10, distance));
+    assert.equal(canopy.visible, distance === 500);
+  }
+  built.dispose();
+  assert.equal(scene.children.length, 0);
+});
+
 test('instanced tree chunks place trunks on the lowest probe height and switch LOD by camera', { skip: !threeDir }, async () => {
   const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
   const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
