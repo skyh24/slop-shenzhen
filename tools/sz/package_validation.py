@@ -32,7 +32,7 @@ def verify_sources(root=ROOT, source_ids=CORE_SOURCES):
                          'file': entry['file'], 'url': entry.get('resolved', entry.get('url')),
                          'snapshotAt': entry.get('lastModified'),
                          'release': entry.get('release', entry.get('lastModified')),
-                         'referenceYear': 2020 if identity.startswith('globfp-') else None,
+                         'referenceYear': entry.get('referenceYear', 2020 if identity.startswith('globfp-') else None),
                          'observedAt': entry.get('acquiredAt')})
     return verified
 

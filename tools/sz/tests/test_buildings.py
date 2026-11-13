@@ -11,6 +11,7 @@ from shapely.geometry import box, mapping
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from buildings import build_buildings
+from build import keep_packaged_buildings
 from geo import KX, KY, ORIGIN_LAT, ORIGIN_LON
 
 
@@ -25,7 +26,7 @@ def feature(identity, geom, tags):
 
 class BuildingTests(unittest.TestCase):
     def build(self, features, overture=(), bindings=None, globfp=(), reviews=(), height_overrides=None,
-              water=(), include_remote_footprints=True):
+              water=(), include_overture_footprints=True, include_globfp_footprints=False, provenance=False):
         report = {}
         osm = {'buildings': features}
         if water:
@@ -41,7 +42,8 @@ class BuildingTests(unittest.TestCase):
                   patch('buildings.load_landmark_bindings', return_value=bindings or {})):
                 output = build_buildings(osm, box(-1, -1, 200, 200), report,
                                          height_overrides=height_overrides, overture_path=overture_file, globfp_path=globfp_file,
-                                         include_remote_footprints=include_remote_footprints)
+                                         include_overture_footprints=include_overture_footprints,
+                                         include_globfp_footprints=include_globfp_footprints, provenance=provenance)
         return {item['id']: item for item in output}, report
 
     def test_underground_boundaries_stay_in_audit_and_keep_surface_parts(self):
@@ -133,13 +135,13 @@ class BuildingTests(unittest.TestCase):
                {'sourceId': 'globfp-nearby', 'OGC_FID': 9, 'Height': 80, 'g': mapping(nearby)}]
         review = {'sourceId': 'globfp-tile', 'sourceFid': 9, 'bboxWgs84': target.bounds,
                   'rawHeightM': 80, 'reason': 'reviewed-open-road'}
-        by_id, report = self.build([], globfp=raw, reviews=[review])
+        by_id, report = self.build([], globfp=raw, reviews=[review], include_globfp_footprints=True)
         self.assertEqual(list(by_id), ['globfp/1'])
         self.assertEqual(by_id['globfp/1']['height'], 80)
         self.assertEqual(report['excludedGlobfpFootprints'], [{**review, 'bboxWgs84': list(target.bounds), 'id': 'globfp/0',
                                                                'heightSource': 'globfp', 'match': 'source-tile-fid-and-bounds'}])
         existing = feature(1, target, {'building': 'yes'})
-        by_id, _ = self.build([existing], globfp=raw, reviews=[review])
+        by_id, _ = self.build([existing], globfp=raw, reviews=[review], include_globfp_footprints=True)
         self.assertEqual(by_id['way/1']['heightSource'], 'estimate')
         self.assertEqual(by_id['globfp/1']['heightSource'], 'globfp')
 
@@ -191,6 +193,36 @@ class BuildingTests(unittest.TestCase):
     def test_osm_only_mode_skips_remote_footprints(self):
         building = feature(1, footprint(0, 0, 20), {'building': 'yes', 'height': '30'})
         overture = [{'id': 'remote', 'geom': mapping(footprint(50, 50, 20))}]
-        by_id, report = self.build([building], overture=overture, include_remote_footprints=False)
+        by_id, report = self.build([building], overture=overture, include_overture_footprints=False)
         self.assertNotIn('overture/remote', by_id)
-        self.assertFalse(report['remoteFootprints']['enabled'])
+        self.assertFalse(report['buildingSourcePolicy']['overtureFootprints'])
+
+    def test_height_only_policy_keeps_source_footprints_and_protects_stronger_heights(self):
+        shapes = [footprint(x, 15, 20) for x in (5, 35, 65, 95, 125, 155)]
+        globfp = [{'sourceId': 'globfp-tile', 'OGC_FID': i, 'Height': 80, 'g': mapping(g)}
+                  for i, g in enumerate(shapes)]
+        buildings = [feature(1, shapes[0], {'building': 'yes'}),
+                     feature(2, shapes[1], {'building': 'yes', 'height': '30'}),
+                     feature(3, shapes[2], {'building': 'yes', 'building:levels': '4'}),
+                     feature(4, shapes[3], {'building': 'yes'})]
+        bindings = {'way/4': {'landmark': 'design-tower', 'part': 'tower', 'height': 45}}
+        overture = [{'id': 'observed', 'geom': mapping(shapes[4]), 'height': 25}]
+        actual, report = self.build(buildings, overture=overture, bindings=bindings, globfp=globfp, provenance=True)
+        self.assertEqual({key: row['heightSource'] for key, row in actual.items()},
+                         {'way/1': 'globfp', 'way/2': 'osm-height', 'way/3': 'osm-levels',
+                          'way/4': 'landmark', 'overture/observed': 'overture-height'})
+        self.assertEqual(actual['way/1']['provenance']['heightMatch']['sourceFid'], 0)
+        self.assertEqual(actual['way/1']['provenance']['heightMatch']['iou'], 1)
+        self.assertFalse(report['buildingSourcePolicy']['globfpFootprints'])
+        self.assertTrue(report['buildingSourcePolicy']['globfpHeightReference'])
+
+    def test_dropped_row_cannot_redirect_region_or_retail_references(self):
+        payload = {
+            'buildings': {'id': ['way/1', 'globfp/2', 'overture/3'], 'h': [10, 20, 30], 'lm': [0, -1, 1]},
+            'mapRegions': {'regions': [{'buildingRefs': [0, 1, 2]}, {'buildingRefs': [1]}]},
+            'retailBuildings': [['globfp/2', 1], ['overture/3', 2]],
+        }
+        keep_packaged_buildings(payload, {1})
+        self.assertEqual(payload['mapRegions']['regions'], [{'buildingRefs': [0, 1]}, {'buildingRefs': []}])
+        self.assertEqual(payload['buildings'], {'id': ['way/1', 'overture/3'], 'h': [10, 30], 'lm': [0, 1]})
+        self.assertEqual(payload['retailBuildings'], [['overture/3', 2]])

@@ -91,7 +91,8 @@ class _RecordBuildMixin:
             with (patch('buildings.FOOTPRINT_REVIEWS', reviews_file),
                   patch('buildings.load_landmark_bindings', return_value={})):
                 output = build_buildings(osm, box(*clip), report, height_overrides=height_overrides,
-                                         overture_path=overture_file, globfp_path=globfp_file)
+                                         overture_path=overture_file, globfp_path=globfp_file,
+                                         include_globfp_footprints=True)
         return {item['id']: item for item in output}, output, report
 
     def pending_objects(self, report):

@@ -267,7 +267,18 @@ test('rendered Chegongmiao ramp clearance removes the phantom footprint and its 
     './sz-polygon.js': loadModule(read('sz-polygon.js')),
     './sz-controller-surfaces.js': loadModule(read('sz-controller-surfaces.js'))
   } });
-  const building = realBuildings.find(item => item.id === 'globfp/5784');
+  // 退包前的固定几何仍可验证桥面净空，不依赖正式包重新引入该源对象。
+  assert.ok(!realBuildings.some(item => item.id === 'globfp/5784'));
+  const ring = [-30721, 13464, 34, 294, 42, -4, 6, 52, 10, -1, -15, -137, 294, -34, -39, -337,
+    -231, 27, 10, 84, -21, 3, -10, -85, -148, 17, 15, 127];
+  const outer = [];
+  let x = 0, z = 0;
+  for (let i = 0; i < ring.length; i += 2) {
+    x += ring[i];
+    z += ring[i + 1];
+    outer.push({ x: x / 10, z: z / 10 });
+  }
+  const building = makeTower({ id: 'globfp/5784', height: 11.1, outer, facade: 'residential_low' });
   const deckPlan = elevated.planElevatedRoads(geo.roadGraph, geo.terrainSurface);
   const roadClearance = createRoadBuildingClearance(EMPTY_ROAD_GRAPH(), () => null, deckPlan.links);
   const placement = layout.buildingPlacement(building, geo.terrain);

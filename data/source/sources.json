@@ -31,6 +31,9 @@
     },
     {
       "id": "globfp-2265",
+      "release": "3D-GloBFP / 2024 publication",
+      "referenceYear": 2020,
+      "heightMethod": "model-prediction",
       "file": "data/raw/globfp/2265.zip",
       "url": "https://ndownloader.figshare.com/files/57131525",
       "bytes": 170628543,
@@ -40,6 +43,9 @@
     },
     {
       "id": "globfp-2269",
+      "release": "3D-GloBFP / 2024 publication",
+      "referenceYear": 2020,
+      "heightMethod": "model-prediction",
       "file": "data/raw/globfp/2269.zip",
       "url": "https://ndownloader.figshare.com/files/57131471",
       "bytes": 71481999,

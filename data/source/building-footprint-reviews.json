@@ -4,12 +4,21 @@
     {
       "sourceId": "globfp-2265",
       "sourceFid": 41021,
-      "bboxWgs84": [114.02271764381571, 22.538813164093966, 114.02296164892385, 22.538906995032953],
+      "bboxWgs84": [
+        114.02271764381571,
+        22.538813164093966,
+        114.02296164892385,
+        22.538906995032953
+      ],
       "rawHeightM": 8.406392000000002,
       "reason": "reviewed-open-road",
       "checkedAt": "2026-11-09",
       "description": "车公庙深南大道南侧辅路的开敞分流段。影像可辨车道标线和分流鼻端，北侧高架是独立对象。",
-      "osmWayIds": ["way/837565287", "way/860523333", "way/879817607"],
+      "osmWayIds": [
+        "way/837565287",
+        "way/860523333",
+        "way/879817607"
+      ],
       "evidence": {
         "publisher": "Esri World Imagery Wayback",
         "imageProvider": "Vantor Vivid Advanced",
@@ -26,7 +35,12 @@
     {
       "sourceId": "globfp-2265",
       "sourceFid": 95461,
-      "bboxWgs84": [114.05852300791844, 22.5426861168899, 114.05870977873909, 22.542765482227434],
+      "bboxWgs84": [
+        114.05852300791844,
+        22.5426861168899,
+        114.05870977873909,
+        22.542765482227434
+      ],
       "rawHeightM": 11.842892,
       "reason": "reviewed-shennan-median-lawn",
       "checkedAt": "2026-11-12",
@@ -40,7 +54,12 @@
     {
       "sourceId": "globfp-2265",
       "sourceFid": 95462,
-      "bboxWgs84": [114.0582039205503, 22.54269242708873, 114.0583695965855, 22.54277054693034],
+      "bboxWgs84": [
+        114.0582039205503,
+        22.54269242708873,
+        114.0583695965855,
+        22.54277054693034
+      ],
       "rawHeightM": 17.280892,
       "reason": "reviewed-shennan-median-lawn",
       "checkedAt": "2026-11-12",
@@ -54,7 +73,12 @@
     {
       "sourceId": "globfp-2265",
       "sourceFid": 95866,
-      "bboxWgs84": [114.06467077336261, 22.542779365580774, 114.06482118732082, 22.542866481217477],
+      "bboxWgs84": [
+        114.06467077336261,
+        22.542779365580774,
+        114.06482118732082,
+        22.542866481217477
+      ],
       "rawHeightM": 29.582492,
       "reason": "reviewed-shennan-median-lawn",
       "checkedAt": "2026-11-12",
@@ -68,7 +92,12 @@
     {
       "sourceId": "globfp-2265",
       "sourceFid": 100269,
-      "bboxWgs84": [114.06207461535442, 22.542737957372843, 114.06237470627283, 22.54280159301782],
+      "bboxWgs84": [
+        114.06207461535442,
+        22.542737957372843,
+        114.06237470627283,
+        22.54280159301782
+      ],
       "rawHeightM": 19.791392,
       "reason": "reviewed-shennan-median-lawn",
       "checkedAt": "2026-11-12",
@@ -124,6 +153,278 @@
         "release": 43291,
         "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/world_imagery/mapserver/tile/43291/18/114196/214033",
         "imageSha256": "f79986f1324d75e84ea49031bd1b99012e4e57c2b99bc11360d0531c86813203"
+      }
+    }
+  ],
+  "revision": 2,
+  "globfpFootprintRetirement": {
+    "decision": "retired-from-package",
+    "reason": "height-reference-only",
+    "checkedAt": "2026-11-13",
+    "realityStatus": "unknown-unless-separately-reviewed",
+    "baselineCommit": "65e11eea937bbfa566d40f46a4e47f5187a5cead",
+    "baselinePayloadSha256": "c20f0391bc322daa18dbe5fe9a83210763195a9c74519941287af748120634cf",
+    "baselineRecordCount": 11328,
+    "identityRule": "GloBFP source plus legacy footprint ID, not height source",
+    "reentryRule": "Requires independent audited footprint provenance and preserved source-object mapping."
+  },
+  "objectReviews": [
+    {
+      "id": "overture/c2d7a53f-6650-42ff-a2df-5861377937b7",
+      "geometrySha256": "900b6a924e4f6ae3fe46e7fda52eb18e6f02050da1a0d8a3f5c1b1dab73de9bf",
+      "footprintSource": "overture",
+      "decision": "pending-review",
+      "realityStatus": "possible-stale-or-misidentified",
+      "checkedAt": "2026-11-13",
+      "description": "超总红框长条楼。2026年1月可见施工带、树线和空地，未见同尺度楼体；缺早期对应影像，无法区分旧轮廓或误识别。保留待核。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "imageProvider": "Vantor",
+        "release": 43291,
+        "releasedAt": "2026-10-29",
+        "acquiredAt": "2026-01-25",
+        "resolutionM": 0.31,
+        "absoluteAccuracyM": 8.47,
+        "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=113.96272%2C22.52383%2C19",
+        "metadataUrl": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query?geometry=113.96272%2C22.52383&geometryType=esriGeometryPoint&inSR=4326&outFields=%2A&returnGeometry=false&f=json",
+        "metadataSha256": "a27b18b9c1a91a41638d6baad0a3aa7da9114d1d20ba846f07a775ba3c4c47a3"
+      },
+      "upstreamObject": {
+        "sourceId": "overture-buildings",
+        "id": "c2d7a53f-6650-42ff-a2df-5861377937b7"
+      }
+    },
+    {
+      "id": "overture/d35de3c9-f839-4276-83fc-1c20163f07c3",
+      "geometrySha256": "40f9f5c87dc81c1e2c42ebf0165fa6b4cedc62af600fda9ef01841709310fbb5",
+      "footprintSource": "overture",
+      "decision": "pending-review",
+      "realityStatus": "unknown",
+      "checkedAt": "2026-11-13",
+      "description": "超总红框前方短楼。位于工区门口临建附近，定位精度与对象宽度相近；无法确认是否同楼、临建或旧数据。保留待核。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "imageProvider": "Vantor",
+        "release": 43291,
+        "releasedAt": "2026-10-29",
+        "acquiredAt": "2026-01-25",
+        "resolutionM": 0.31,
+        "absoluteAccuracyM": 8.47,
+        "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=113.96272%2C22.52383%2C19",
+        "metadataUrl": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query?geometry=113.96272%2C22.52383&geometryType=esriGeometryPoint&inSR=4326&outFields=%2A&returnGeometry=false&f=json",
+        "metadataSha256": "a27b18b9c1a91a41638d6baad0a3aa7da9114d1d20ba846f07a775ba3c4c47a3"
+      },
+      "upstreamObject": {
+        "sourceId": "overture-buildings",
+        "id": "d35de3c9-f839-4276-83fc-1c20163f07c3"
+      }
+    },
+    {
+      "id": "globfp/1542",
+      "geometrySha256": "02806708878e5428930d1feebb9860a6cb694dad740587eee3b1d160fde64ff5",
+      "footprintSource": "globfp",
+      "decision": "retired-from-package",
+      "realityStatus": "possible-stale-or-misidentified",
+      "checkedAt": "2026-11-13",
+      "description": "超总长条楼侧后方。2026年1月影像上为施工带边缘；未见相符的多层楼体，无历史影像证明曾存在。仅因来源策略退出运行包。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "imageProvider": "Vantor",
+        "release": 43291,
+        "releasedAt": "2026-10-29",
+        "acquiredAt": "2026-01-25",
+        "resolutionM": 0.31,
+        "absoluteAccuracyM": 8.47,
+        "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=113.96272%2C22.52383%2C19",
+        "metadataUrl": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query?geometry=113.96272%2C22.52383&geometryType=esriGeometryPoint&inSR=4326&outFields=%2A&returnGeometry=false&f=json",
+        "metadataSha256": "a27b18b9c1a91a41638d6baad0a3aa7da9114d1d20ba846f07a775ba3c4c47a3"
+      },
+      "upstreamObject": {
+        "sourceId": "globfp-2265",
+        "sourceFid": 30293,
+        "part": 0
+      }
+    },
+    {
+      "id": "globfp/22482",
+      "geometrySha256": "6bc78932b90afc8ddc6c71932957b9a5074d1dbd193a90c0d91be145020ea0ad",
+      "footprintSource": "globfp",
+      "decision": "retired-from-package",
+      "realityStatus": "unknown",
+      "checkedAt": "2026-11-13",
+      "description": "白石洲南。旧轮廓跨高楼屋面投影边缘；侧视偏移使屋顶和裙房难区分，未确认独立缺楼。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "imageProvider": "Vantor",
+        "release": 43291,
+        "releasedAt": "2026-10-29",
+        "acquiredAt": "2026-01-25",
+        "resolutionM": 0.31,
+        "absoluteAccuracyM": 8.47,
+        "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=113.9692%2C22.54315%2C19",
+        "metadataUrl": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query?geometry=113.9747%2C22.5371&geometryType=esriGeometryPoint&inSR=4326&outFields=%2A&returnGeometry=false&f=json",
+        "metadataSha256": "a27b18b9c1a91a41638d6baad0a3aa7da9114d1d20ba846f07a775ba3c4c47a3"
+      },
+      "upstreamObject": {
+        "sourceId": "globfp-2265",
+        "sourceFid": 73959,
+        "part": 0
+      }
+    },
+    {
+      "id": "globfp/22484",
+      "geometrySha256": "1ed4806981faf76308415b24a4309d4f1ba1faaddd7d423b5fa44a5dbd3f05f2",
+      "footprintSource": "globfp",
+      "decision": "retired-from-package",
+      "realityStatus": "unknown",
+      "checkedAt": "2026-11-13",
+      "description": "白石洲南。贴邻现有高楼与连续低层楼，影像无法区分独立楼、楼体部件或偏移。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "imageProvider": "Vantor",
+        "release": 43291,
+        "releasedAt": "2026-10-29",
+        "acquiredAt": "2026-01-25",
+        "resolutionM": 0.31,
+        "absoluteAccuracyM": 8.47,
+        "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=113.9692%2C22.54315%2C19",
+        "metadataUrl": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query?geometry=113.9747%2C22.5371&geometryType=esriGeometryPoint&inSR=4326&outFields=%2A&returnGeometry=false&f=json",
+        "metadataSha256": "a27b18b9c1a91a41638d6baad0a3aa7da9114d1d20ba846f07a775ba3c4c47a3"
+      },
+      "upstreamObject": {
+        "sourceId": "globfp-2265",
+        "sourceFid": 73961,
+        "part": 0
+      }
+    },
+    {
+      "id": "globfp/globfp-2265/75387/0",
+      "geometrySha256": "9e7b9dbe8401b40a4fb89efddbfedafc8519bb28b723c75a49205d75546fd0c0",
+      "footprintSource": "globfp",
+      "decision": "retired-from-package",
+      "realityStatus": "roof-visible-footprint-gap-candidate",
+      "checkedAt": "2026-11-13",
+      "description": "南头古城。2026年1月可见候选位置有清楚的低层屋顶，运行包无交叠足迹；影像定位误差接近短边，独立楼体边界及身份待复核。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "imageProvider": "Vantor",
+        "release": 43291,
+        "releasedAt": "2026-10-29",
+        "acquiredAt": "2026-01-25",
+        "resolutionM": 0.31,
+        "absoluteAccuracyM": 8.47,
+        "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=113.91589%2C22.54624%2C19",
+        "metadataUrl": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query?geometry=113.92255%2C22.5447&geometryType=esriGeometryPoint&inSR=4326&outFields=%2A&returnGeometry=false&f=json",
+        "metadataSha256": "a27b18b9c1a91a41638d6baad0a3aa7da9114d1d20ba846f07a775ba3c4c47a3"
+      },
+      "upstreamObject": {
+        "sourceId": "globfp-2265",
+        "sourceFid": 75387,
+        "part": 0
+      }
+    },
+    {
+      "id": "globfp/globfp-2265/56293/0",
+      "geometrySha256": "8c8609ce6e735217ee5852de1fceb1c8602a886f49b022c546c47389654b80c1",
+      "footprintSource": "globfp",
+      "decision": "retired-from-package",
+      "realityStatus": "possible-stale-or-misidentified",
+      "checkedAt": "2026-11-13",
+      "description": "前海桂湾。2026年1月矩形范围内主要为绿地和施工边缘，未见对应尺度的独立建筑；缺可确定的历史证据。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "imageProvider": "Vantor",
+        "release": 43291,
+        "releasedAt": "2026-10-29",
+        "acquiredAt": "2026-01-25",
+        "resolutionM": 0.31,
+        "absoluteAccuracyM": 8.47,
+        "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=113.8959%2C22.53725%2C19",
+        "metadataUrl": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query?geometry=113.8959%2C22.53725&geometryType=esriGeometryPoint&inSR=4326&outFields=%2A&returnGeometry=false&f=json",
+        "metadataSha256": "6e61ad2a2b599500259237ffcc3f344f6e96eb4f9db52312b7147b13c16578b1"
+      },
+      "upstreamObject": {
+        "sourceId": "globfp-2265",
+        "sourceFid": 56293,
+        "part": 0
+      }
+    },
+    {
+      "id": "globfp/globfp-2265/56298/0",
+      "geometrySha256": "9adeeea7bd59900d2cb68f5a7bab0b93362c670b66d8898ece266a8d2ada4dfa",
+      "footprintSource": "globfp",
+      "decision": "retired-from-package",
+      "realityStatus": "suspected-misidentification",
+      "checkedAt": "2026-11-13",
+      "description": "前海桂湾。旧多边形主要覆盖弧形下沉开口和广场铺装；可辨附属构筑，不支持独立普通楼体。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "imageProvider": "Vantor",
+        "release": 43291,
+        "releasedAt": "2026-10-29",
+        "acquiredAt": "2026-01-25",
+        "resolutionM": 0.31,
+        "absoluteAccuracyM": 8.47,
+        "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=113.8959%2C22.53725%2C19",
+        "metadataUrl": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query?geometry=113.8959%2C22.53725&geometryType=esriGeometryPoint&inSR=4326&outFields=%2A&returnGeometry=false&f=json",
+        "metadataSha256": "6e61ad2a2b599500259237ffcc3f344f6e96eb4f9db52312b7147b13c16578b1"
+      },
+      "upstreamObject": {
+        "sourceId": "globfp-2265",
+        "sourceFid": 56298,
+        "part": 0
+      }
+    },
+    {
+      "id": "globfp/globfp-2265/129504/0",
+      "geometrySha256": "be0f91c59af10c93b5507fd28659359afc41debf46c303da9b6cf8f7da67a925",
+      "footprintSource": "globfp",
+      "decision": "retired-from-package",
+      "realityStatus": "suspected-misidentification",
+      "checkedAt": "2026-11-13",
+      "description": "北侧遥感提取边缘。细长旧轮廓沿运动场西侧，影像可辨通道及树列；小型附属结构仍无法完全排除。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "imageProvider": "Vantor",
+        "release": 43291,
+        "releasedAt": "2026-10-29",
+        "acquiredAt": "2026-01-25",
+        "resolutionM": 0.34,
+        "absoluteAccuracyM": 8.47,
+        "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.049%2C22.59987%2C19",
+        "metadataUrl": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query?geometry=114.049%2C22.59987&geometryType=esriGeometryPoint&inSR=4326&outFields=%2A&returnGeometry=false&f=json",
+        "metadataSha256": "0371c142d64810c45c2128410facdb96c2916083fbd3fb06a70483397d975685"
+      },
+      "upstreamObject": {
+        "sourceId": "globfp-2265",
+        "sourceFid": 129504,
+        "part": 0
+      }
+    },
+    {
+      "id": "globfp/globfp-2265/129380/0",
+      "geometrySha256": "91d9657e40002f65876f0c31a29606667a00dc0ed8401b43df3684de4a4e1453",
+      "footprintSource": "globfp",
+      "decision": "retired-from-package",
+      "realityStatus": "roof-visible-footprint-gap-candidate",
+      "checkedAt": "2026-11-13",
+      "description": "北侧遥感提取边缘。旧轮廓西侧有红色屋顶可辨，东侧落在阴影内；无替代足迹，实际轮廓与是否独立待核。",
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "imageProvider": "Vantor",
+        "release": 43291,
+        "releasedAt": "2026-10-29",
+        "acquiredAt": "2026-01-25",
+        "resolutionM": 0.34,
+        "absoluteAccuracyM": 8.47,
+        "mapUrl": "https://livingatlas.arcgis.com/wayback/#active=43291&mapCenter=114.049%2C22.59987%2C19",
+        "metadataUrl": "https://metadata.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Metadata_2026_r10/MapServer/4/query?geometry=114.049%2C22.59987&geometryType=esriGeometryPoint&inSR=4326&outFields=%2A&returnGeometry=false&f=json",
+        "metadataSha256": "0371c142d64810c45c2128410facdb96c2916083fbd3fb06a70483397d975685"
+      },
+      "upstreamObject": {
+        "sourceId": "globfp-2265",
+        "sourceFid": 129380,
+        "part": 0
       }
     }
   ]

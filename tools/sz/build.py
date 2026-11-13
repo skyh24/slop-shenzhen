@@ -19,8 +19,9 @@ from arterial_corridors import (MANIFEST as ARTERIAL_CORRIDORS, compile_arterial
 from beihuan import apply_beihuan_sections
 from bridges import build_bridges
 from building_appearance import apply_building_appearance
+from building_provenance import build_cached_buildings, geometry_hash, write_building_provenance
 from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, ROLES,
-                       UPSTREAM_FAMILIES, build_buildings, ensure_globfp, load_globfp)
+                       UPSTREAM_FAMILIES, ensure_globfp, load_globfp)
 from commercial_paving import cut_commercial_paving, ground_carriageway_mask
 from geo import (HONG_KONG_BOUNDARY_ID, ORIGIN_LAT, ORIGIN_LON, PHASE1_BBOX, phase1_clip_local,
                  project, project_coords)
@@ -268,11 +269,21 @@ def exclude_packaged_road_covers(payload, report, shapes):
         stats['roles'][enums['buildingRole'][b['role'][i]]] -= 1
         for aspect, column in [('footprint', 'fpConf'), ('height', 'hConf'), ('era', 'eraConf')]:
             stats['confidence'][aspect][enums['confidence'][b[column][i]]] -= 1
-    keep = [i for i, identity in enumerate(b['id']) if identity not in shapes]
-    payload['buildings'] = {key: [column[i] for i in keep] for key, column in b.items()}
-    payload['retailBuildings'] = [row for row in payload.get('retailBuildings', []) if row[0] not in shapes]
-    report['buildings'] = len(keep)
+    report['buildings'] = keep_packaged_buildings(payload, set(removed))
     report['osmBuildings'] -= len(removed)
+
+
+def keep_packaged_buildings(payload, removed):
+    table = payload['buildings']
+    keep = [i for i in range(len(table['id'])) if i not in removed]
+    remap = {old: new for new, old in enumerate(keep)}
+    payload['buildings'] = {key: [column[i] for i in keep] for key, column in table.items()}
+    for region in payload.get('mapRegions', {}).get('regions', []):
+        region['buildingRefs'] = [remap[i] for i in region['buildingRefs'] if i in remap]
+    if 'retailBuildings' in payload:
+        identities = set(payload['buildings']['id'])
+        payload['retailBuildings'] = [row for row in payload['retailBuildings'] if row[0] in identities]
+    return len(keep)
 
 
 def write_regional_scene(payload, report):
@@ -300,7 +311,7 @@ def write_regional_scene(payload, report):
         temporary = target.with_suffix('.tmp')
         temporary.write_bytes(data)
         temporary.replace(target)
-        files[target.relative_to(ROOT).as_posix()] = hashlib.sha256(data).hexdigest()
+        files[(Path('js') / target.relative_to(OUT.parent)).as_posix()] = hashlib.sha256(data).hexdigest()
     payload['regionalScene'] = manifest
     report['regionalScene'] = {'version': manifest['version'], 'fingerprint': manifest['fingerprint'],
                                'bytes': sum(row['bytes'] for row in manifest['cells']), 'files': files,
@@ -308,7 +319,7 @@ def write_regional_scene(payload, report):
 
 
 def write_city_packages(payload, report, sources, started, *, refresh_regions=True, appearance_osm=None,
-                        structure_base=None, arterial_osm=None):
+                        structure_base=None, arterial_osm=None, building_provenance=None, local_provenance=None):
     payload.pop('roads', None)
     osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
     if refresh_regions:
@@ -330,12 +341,17 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
         compile_arterial_medians(payload, arterial_osm, json.loads(ARTERIAL_CORRIDORS.read_text()), report)
     if appearance_osm is not None:
         apply_building_appearance(payload, appearance_osm, report)
+    if building_provenance is not None:
+        write_building_provenance(payload, report, sources, building_provenance, local_output=local_provenance)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     write_regional_scene(payload, report)
     write_payload(payload, report, sources, started)
 
 
 def write_payload(payload, report, sources, started):
+    if report.get('buildingSourcePolicy', {}).get('globfpFootprints') is False and any(
+            identity.startswith('globfp/') for identity in payload['buildings']['id']):
+        raise ValueError('Height-only policy forbids GloBFP footprint records')
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
     compressed = gzip.compress(raw, 9, mtime=0)
     temporary = OUT.with_suffix('.tmp')
@@ -376,11 +392,7 @@ def remove_reviewed_globfp_footprints(payload, report, clip, inputs, reason):
         stats['roles'][enums['buildingRole'][buildings['role'][i]]] -= 1
         for aspect, column in (('footprint', 'fpConf'), ('height', 'hConf'), ('era', 'eraConf')):
             stats['confidence'][aspect][enums['confidence'][buildings[column][i]]] -= 1
-    keep = [i for i, identity in enumerate(buildings['id']) if identity not in excluded]
-    payload['buildings'] = {key: [column[i] for i in keep] for key, column in buildings.items()}
-    if 'retailBuildings' in payload:
-        payload['retailBuildings'] = [row for row in payload['retailBuildings'] if row[0] not in excluded]
-    report['buildings'] = len(keep)
+    report['buildings'] = keep_packaged_buildings(payload, set(removed))
     report['globfpAdded'] -= len(removed)
     report['excludedGlobfpFootprints'] = [row for row in report['excludedGlobfpFootprints'] if row['id'] not in excluded] + reviewed
     return [buildings['id'][i] for i in removed]
@@ -519,6 +531,62 @@ def city_clip(osm):
     return envelope, excluded, clip, coverage
 
 
+def publish_building_comparison(directory, *, local_provenance=None):
+    """提升已完成缺漏对照的全量构建，再生成正式双包与分区资源。"""
+    started = time.time()
+    raw = gzip.decompress((directory / 'js/sz-city.json.gz').read_bytes())
+    payload = json.loads(raw)
+    report = json.loads((directory / 'data/source/build-report.json').read_text())
+    validation = json.loads((directory / 'data/source/data-validation-report.json').read_text())
+    sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+    require_matching_snapshot(raw, validation, sources)
+    current = gzip.decompress(OUT.read_bytes())
+    require_matching_snapshot(current, json.loads(VALIDATION_REPORT.read_text()), sources)
+    review = json.loads((ROOT / 'data/source/building-footprint-reviews.json').read_text())['globfpFootprintRetirement']
+    if hashlib.sha256(current).hexdigest() != review['baselinePayloadSha256']:
+        raise ValueError('Formal package no longer matches the reviewed comparison baseline')
+    policy = report.get('buildingSourcePolicy')
+    if policy != {'version': 1, 'osmFootprints': True, 'overtureFootprints': True,
+                  'globfpFootprints': False, 'globfpHeightReference': True}:
+        raise ValueError('Comparison does not use the height-only policy')
+    before = json.loads(current)
+    retained = [i for i, identity in enumerate(before['buildings']['id']) if not identity.startswith('globfp/')]
+    if (len(before['buildings']['id']) - len(retained) != review['baselineRecordCount']
+            or payload['buildings'] != {k: [v[i] for i in retained] for k, v in before['buildings'].items()}
+            or any(payload[k] != before[k] for k in ('names', 'enums', 'landmarks', 'sites', 'roadGraph'))):
+        raise ValueError('Comparison changes retained building records or their reference tables')
+    osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
+    inputs = {row['id']: row for row in sources}
+    osm = read_osm(PHASE1_BBOX, pbf=ROOT / osm_source['file'], source_sha256=osm_source['sha256'])
+    _, _, clip, _ = city_clip(osm)
+    fusion = {}
+    buildings = build_cached_buildings(
+        osm, clip, fusion, inputs, use_cache=True, reviewed_parent_uses=True, include_overture_footprints=True,
+        include_globfp_footprints=False,
+        road_cover_ids=read_road_covers(json.loads(ROAD_STRUCTURES.read_text()), osm_source, osm),
+        overture_path=ROOT / inputs['overture-buildings']['file'], globfp_path=ensure_globfp(inputs))
+    keys = [(row['id'], geometry_hash(enc_poly(row['poly']))) for row in buildings]
+    table = payload['buildings']
+    if keys != [(identity, geometry_hash(rings)) for identity, rings in zip(table['id'], table['rings'], strict=True)]:
+        raise ValueError('Comparison buildings do not match the current source rules')
+    # 复算最终用途和估高，发布前逐列对照。
+    rebuilt = {**payload, 'buildings': {key: list(value) for key, value in table.items()}}
+    for i, row in enumerate(buildings):
+        for key, value in (('h', row['height']), ('minH', row['minHeight']),
+                           ('src', HEIGHT_SOURCES.index(row['heightSource'])),
+                           ('cat', CATEGORIES.index(row['category'])), ('facade', FACADES.index(row['facade']))):
+            rebuilt['buildings'][key][i] = value
+    apply_building_appearance(rebuilt, osm, fusion)
+    if rebuilt['buildings'] != table or rebuilt['retailBuildings'] != payload['retailBuildings']:
+        raise ValueError('Comparison building heights or appearance do not match current rules')
+    report['buildingFusionInputs'] = fusion['buildingFusionInputs']
+    report['comparisonBuild'] = {'payloadSha256': validation['payloadSha256'], 'seconds': report['seconds']}
+    provenance = dict(zip(keys, (row['provenance'] for row in buildings), strict=True))
+    write_building_provenance(payload, report, sources, provenance, local_output=local_provenance)
+    write_regional_scene(payload, report)
+    write_payload(payload, report, sources, started)
+
+
 def export_road_preview(use_cache):
     # 离线审核保留旧预览口径，包括非机动车道；运行时只读有向路网。
     sources = verify_sources(source_ids=('osm-guangdong',))
@@ -617,6 +685,7 @@ def rebuild_road_frontage(corridor_ids, *, crossing_axis_ids=(), use_cache=True)
 
 
 def main():
+    global OUT, FAST_OUT, REPORT, VALIDATION_REPORT
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-cache', action='store_true', help='rebuild OSM and GloBFP extraction caches from the verified snapshots')
     ap.add_argument('--without-building-use-review', action='store_true',
@@ -624,8 +693,14 @@ def main():
     ap.add_argument('--terrain-source', choices=['copernicus', 'hgt'], default='copernicus',
                     help='select a traceable elevation product without modifying source heights')
     ap.add_argument('--footprint-source', choices=['all', 'osm'], default='all',
-                    help='all = OSM + Overture + GloBFP footprints; osm = only map-marked OSM footprints')
+                    help='all = OSM + reviewed Overture footprints; osm = OSM-only comparison')
+    ap.add_argument('--comparison-dir', type=Path, help='write a full comparison build under docs/qa')
+    ap.add_argument('--building-provenance', type=Path, help='write per-record building provenance under docs/qa')
+    ap.add_argument('--legacy-globfp-footprints', action='store_true',
+                    help='reproduce legacy supplemental GloBFP footprints in an isolated comparison build')
     mode = ap.add_mutually_exclusive_group()
+    mode.add_argument('--publish-building-comparison', type=Path,
+                      help='publish a reviewed height-only comparison build under docs/qa')
     mode.add_argument('--rebuild-building-appearance', action='store_true',
                       help='refresh estimated building heights and retail use on the verified city package')
     mode.add_argument('--build-shenzhen-bay', action='store_true',
@@ -679,10 +754,37 @@ def main():
     ap.add_argument('--urban-paving-pilot-only', action='store_true',
                     help='with --rebuild-urban-paving, compile only the three comparison sites')
     args = ap.parse_args()
+    if args.building_provenance:
+        target = args.building_provenance.resolve()
+        if not target.is_relative_to(ROOT / 'docs/qa') or target.exists() or not target.name.endswith('.jsonl.gz'):
+            ap.error('--building-provenance requires a new .jsonl.gz file under docs/qa')
+        if any(getattr(args, option.dest) for option in mode._group_actions
+               if option.dest != 'publish_building_comparison'):
+            ap.error('--building-provenance requires a full build')
+        target.parent.mkdir(parents=True, exist_ok=True)
+        args.building_provenance = target
+    if args.legacy_globfp_footprints and (not args.comparison_dir or args.footprint_source != 'all'):
+        ap.error('--legacy-globfp-footprints requires --comparison-dir and --footprint-source all')
+    if args.comparison_dir:
+        if any(getattr(args, option.dest) for option in mode._group_actions):
+            ap.error('--comparison-dir requires a full build')
+        target = args.comparison_dir.resolve()
+        if not target.is_relative_to(ROOT / 'docs/qa') or target.exists():
+            ap.error('--comparison-dir must be a new directory under docs/qa')
+        OUT, FAST_OUT, REPORT, VALIDATION_REPORT = (
+            target / path.relative_to(ROOT) for path in (OUT, FAST_OUT, REPORT, VALIDATION_REPORT))
+        REPORT.parent.mkdir(parents=True)
     if args.urban_paving_pilot_only and not args.rebuild_urban_paving:
         ap.error('--urban-paving-pilot-only requires --rebuild-urban-paving')
     if args.refresh_frontage_crossing_axes and not args.rebuild_road_frontage:
         ap.error('--refresh-frontage-crossing-axes requires --rebuild-road-frontage')
+
+    if args.publish_building_comparison:
+        directory = args.publish_building_comparison.resolve()
+        if not directory.is_relative_to(ROOT / 'docs/qa'):
+            ap.error('--publish-building-comparison requires a directory under docs/qa')
+        publish_building_comparison(directory, local_provenance=args.building_provenance)
+        return
 
     if args.audit_road_preview:
         export_road_preview(not args.no_cache)
@@ -907,11 +1009,13 @@ def main():
 
     datum_manifest = json.loads(URBAN_DATUM.read_text())
     civic = civic_paving(osm, datum_manifest['civicPaving'])
-    buildings = build_buildings(osm, clip, report, reviewed_parent_uses=not args.without_building_use_review,
-                                road_cover_ids=read_road_covers(json.loads(ROAD_STRUCTURES.read_text()), osm_source, osm),
-                                include_remote_footprints=args.footprint_source == 'all',
-                                overture_path=ROOT / inputs['overture-buildings']['file'],
-                                globfp_path=ensure_globfp(inputs, use_cache=not args.no_cache))
+    buildings = build_cached_buildings(
+        osm, clip, report, inputs, use_cache=not args.no_cache,
+        reviewed_parent_uses=not args.without_building_use_review,
+        road_cover_ids=read_road_covers(json.loads(ROAD_STRUCTURES.read_text()), osm_source, osm),
+        include_overture_footprints=args.footprint_source == 'all', include_globfp_footprints=args.legacy_globfp_footprints,
+        overture_path=ROOT / inputs['overture-buildings']['file'],
+        globfp_path=ensure_globfp(inputs, use_cache=not args.no_cache))
     print(f'buildings: {len(buildings)} in {time.time() - t0:.1f}s', flush=True)
     land, water, wetland, green = build_land(osm, clip, buildings, report, paving=civic)
     build_roads(osm, clip, report)  # 保留离线道路数量与公里数。
@@ -1018,7 +1122,11 @@ def main():
     compile_waterfront_routes(payload, osm, pbf, report)
     compile_urban_paving(payload, osm_source, report)
     compile_ground_walk(payload, osm, osm_source, report)
-    write_city_packages(payload, report, sources, t0, appearance_osm=osm, arterial_osm=osm)
+    provenance = {(row['id'], geometry_hash(enc_poly(row['poly']))): row['provenance'] for row in buildings}
+    write_city_packages(payload, report, sources, t0, appearance_osm=osm, arterial_osm=osm,
+                        building_provenance=provenance,
+                        local_provenance=args.building_provenance or (
+                            (OUT.parent.parent / 'building-provenance.jsonl.gz') if args.comparison_dir else None))
 
 
 if __name__ == '__main__':
