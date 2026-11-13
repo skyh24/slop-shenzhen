@@ -63,6 +63,22 @@ function validateTalentPark(site, raw) {
   requireData(site.surfaces?.some(row => row.material === 'gravel') && site.surfaces.every(row =>
     ['greenway', 'promenade', 'gravel'].includes(row.material) && row.trianglesXZ?.length >= 6
     && row.trianglesXZ.length % 6 === 0 && row.trianglesXZ.every(Number.isFinite)), 'Talent Park paving');
+  if (site.footbridges === undefined && site.bridgeRoutes === undefined) return;
+  const ids = new Set();
+  requireData(Array.isArray(site.footbridges) && site.footbridges.every(b => {
+    if (!/^way\/\d+$/.test(b.id) || ids.has(b.id) || b.waterIndex !== site.lakeWaterIndex
+      || b.waterHeightM !== data.lakeHeightM || b.mode !== 'walk' || b.profile !== 'park-footbridge-estimate'
+      || !Number.isFinite(b.widthM) || b.widthM < 1.5 || b.widthM > 6
+      || !Number.isFinite(b.girderDepthM) || b.girderDepthM <= 0 || !Array.isArray(b.points) || b.points.length < 2
+      || !b.points.every(p => Array.isArray(p) && p.length === 3 && p.every(Number.isFinite))) return false;
+    ids.add(b.id);
+    return true;
+  }), 'Talent Park footbridges');
+  requireData(Array.isArray(site.bridgeRoutes) && site.bridgeRoutes.every(r => typeof r.id === 'string'
+    && Array.isArray(r.paths) && r.paths.some(p => p.kind === 'bridge') && r.paths.every((p, i) =>
+      line(p.points) && Number.isFinite(p.widthM) && p.widthM > 0
+      && (p.kind === 'promenade' || (p.kind === 'bridge' && ids.has(p.osmId)))
+      && (i === 0 || r.paths[i - 1].to === p.from))), 'Talent Park bridge routes');
 }
 
 function validateGolfCourse(site, graph, buildings) {

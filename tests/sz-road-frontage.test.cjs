@@ -199,12 +199,25 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   model.control.leaveCrossing(crossing, 'walker');
   model.update(8.2);
   assert.ok(greenA.emissiveIntensity > 0);
-  assert.equal(model.walkLegs.filter(row => row.crossing).length, 9);
-  assert.equal(model.walkLegs.filter(row => row.crossing && !row.signal).length, 2);
-  for (const leg of model.walkLegs.filter(row => row.crossing)) {
-    for (const { x, z } of [leg.points[0], leg.points.at(-1)]) {
-      assert.equal(roadHeight(x, z), null, `Waiting inside the carriageway: ${leg.id}`);
-      assert.ok(Number.isFinite(model.contactHeight(x, z)), `Missing landing: ${leg.id}`);
+  const crossings = model.walkLegs.filter(row => row.crossing);
+  const shennan = crossings.filter(row => row.id.startsWith('shennan-hongshulin:'));
+  assert.equal(shennan.length, 9);
+  assert.equal(shennan.filter(row => !row.signal).length, 2);
+  const slip = crossings.filter(row => row.id.startsWith('talent-park-southeast:'));
+  assert.equal(slip.length, 2);
+  for (const row of crossings) {
+    for (const end of [row.points[0], row.points.at(-1)]) {
+      assert.equal(roadHeight(end.x, end.z), null, `Waiting inside the carriageway: ${row.id}`);
+      assert.ok(Number.isFinite(model.contactHeight(end.x, end.z)), `Missing landing: ${row.id}`);
+    }
+  }
+  for (const row of slip) {
+    assert.equal(row.signal, null);
+    assert.ok(row.points.every(p => Number.isFinite(row.walkAt(p.x, p.z))));
+    for (const end of [row.points[0], row.points.at(-1)]) {
+      assert.equal(model.reserveWalk(end.x, end.z, 0.3), true);
+      assert.ok(model.walkLegs.some(other => !other.crossing &&
+        [other.points[0], other.points.at(-1)].some(p => p.x === end.x && p.z === end.z)));
     }
   }
   assert.equal(model.colliders.filter(row => row.type === 'planted-island').length, 3);

@@ -34,7 +34,7 @@ from shenzhen_bay import build_shenzhen_bay
 from shenzhen_golf import build_shenzhen_golf
 from shenzhen_north_rail import build_shenzhen_north
 from streetscape import build_iec_paths, build_streetscape
-from talent_park import compile_talent_park
+from talent_park import SLIP_SITE, compile_talent_crossings, compile_talent_park
 from terrain import build_terrain
 from terrain_exclusions import chunjian_exclusions
 from terrain_surface import apply_city_datum, apply_urban_datum, build_terrain_surface
@@ -437,6 +437,7 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     build_shenzhen_bay(payload, osm, pbf, report)
     payload.pop('waterfront', None)
     compile_waterfront(payload, osm, pbf, report)
+    compile_talent_park(payload, osm, osm_source, report)
     payload.pop('urbanPaving', None)
     compile_urban_paving(payload, osm_source, report)
     compile_ground_walk(payload, osm, osm_source, report)
@@ -497,6 +498,8 @@ def rebuild_road_frontage(corridor_ids, *, crossing_axis_ids=(), use_cache=True)
         buildings.append({'poly': shape if shape.is_valid else make_valid(shape), 'minHeight': height})
     compiled_report = {key: report[key] for key in ('beihuanCrossSection',) if key in report}
     compiled = build_road_frontage(pbf, osm, payload['roadGraph'], buildings, compiled_report)
+    if SLIP_SITE in ids:
+        compile_talent_crossings({**payload, 'roadFrontage': compiled}, osm, osm_source, compiled_report)
     compiled_audit = compiled_report['roadFrontage']
     audit = report['roadFrontage']
     if (compiled['version'] != frontage['version'] or compiled['entrances'] != frontage['entrances']
@@ -718,7 +721,8 @@ def main():
             compile_waterfront(payload, osm, ROOT / osm_source['file'], report)
         else:
             compile_talent_park(payload, osm, osm_source, report)
-        write_city_packages(payload, report, sources, started)
+            compile_urban_paving(payload, osm_source, report)
+        write_city_packages(payload, report, sources, started, refresh_regions=args.rebuild_waterfront)
         return
 
     terrain_ids = ('copernicus-dem-N22E113', 'copernicus-dem-N22E114') if args.terrain_source == 'copernicus' else ('terrain-N22E113', 'terrain-N22E114')
@@ -858,7 +862,6 @@ def main():
         payload['seaSurface'] = {**sea_surface, 'polygons': [enc_poly(p) for p in sea_surface['polygons']]}
     if streetscape:
         payload['streetscape'] = streetscape
-    compile_talent_park(payload, osm, osm_source, report)
     if trees:
         payload['trees'] = trees
 
@@ -872,6 +875,7 @@ def main():
     build_shenzhen_bay(payload, osm, pbf, report)
     payload.pop('waterfront', None)
     compile_waterfront(payload, osm, pbf, report)
+    compile_talent_park(payload, osm, osm_source, report)
     compile_urban_paving(payload, osm_source, report)
     compile_ground_walk(payload, osm, osm_source, report)
     write_city_packages(payload, report, sources, t0, appearance_osm=osm)

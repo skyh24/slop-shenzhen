@@ -908,8 +908,9 @@ class ThirdPersonControllerManager {
     if (this.groundAccess && !this.groundAccess(body.mode, x, z, center)) return null;
     const halfX = body.car ? body.hx : body.extX, halfZ = body.car ? body.hz : body.extZ;
     const sin = body.car ? body.sin : 0, cos = body.car ? body.cos : 1;
-    const keepSlab = id => body.mode === 'car' || this.surfaceResolver.isFlightRoadDeck?.(id);
-    const supportedSlabs = keepSlab(center.surfaceId) ? new Set([center.surfaceId]) : null;
+    const keepSlab = id => body.mode === 'car' || this.surfaceResolver.isFlightRoadDeck?.(id)
+      || this.surfaceResolver.isSolidDeck?.(id);
+    let supportedSlabs = keepSlab(center.surfaceId) ? new Set([center.surfaceId]) : null;
     if (surfaceId !== null) Object.assign(options, { previousY: center.height, previousSurfaceId: center.surfaceId });
     for (const dx of [-halfX, 0, halfX]) {
       for (const dz of [-halfZ, 0, halfZ]) {
@@ -924,7 +925,7 @@ class ThirdPersonControllerManager {
         const maxRise = landingOnRoad ? Math.hypot(offsetX, offsetZ) * FLIGHT_LANDING_MAX_GRADE : 1.5;
         if (Math.abs(support.height - center.height) > maxRise) return null;
         if (landingOnRoad && !this.isRoadContact(sampleX, sampleZ, support.height)) return null;
-        if (keepSlab(support.surfaceId)) supportedSlabs?.add(support.surfaceId);
+        if (keepSlab(support.surfaceId)) (supportedSlabs ??= new Set()).add(support.surfaceId);
       }
     }
     body.supportedSlabs = supportedSlabs;

@@ -22,6 +22,7 @@ async function load() {
   const { createGroundSurfaceSampler } = await import('../js/sz-ground-surface.js');
   const { polygonContainsInclusive } = await import('../js/sz-polygon.js');
   const { buildTalentWaterfront } = await import('../js/sz-talent-waterfront.js');
+  const { planElevatedRoads } = await import('../js/sz-elevated-roads.js');
   const { createRoadHeightSampler, createRoadSurfaceLayout } = await import('../js/sz-roads.js');
   const raw = JSON.parse(gunzipSync(readFileSync(resolve(__dirname, '../js/sz-city.json.gz'))));
   const { geo, buildings } = decodeCityPayload(raw);
@@ -38,9 +39,13 @@ async function load() {
     return [{ minX: Math.min(...xs), minZ: Math.min(...zs), maxX: Math.max(...xs), maxZ: Math.max(...zs),
       minY: base + b.minHeight, maxY: base + b.height, polygon: p }];
   }));
+  const decks = planElevatedRoads(geo.roadGraph, geo.terrainSurface, {
+    parkFootbridges: source.footbridges, water: geo.water
+  });
   const walk = buildTalentWaterfront(scene, source, lake,
-    { terrainSurface: geo.terrainSurface, groundHeight, isWater, roadHeight, colliders });
-  fixture = { scene, walk, source, lake, groundHeight, isWater, colliders: [...colliders, ...walk.colliders] };
+    { terrainSurface: geo.terrainSurface, groundHeight, isWater, roadHeight, colliders }, decks.surfaces);
+  fixture = { scene, walk, source, lake, groundHeight, isWater, decks,
+    colliders: [...colliders, ...walk.colliders, ...decks.colliders] };
   return fixture;
 }
 
@@ -70,6 +75,38 @@ test('waterfront landing, greenway, stairs and water boundary use one continuous
   const rails = walk.colliders.filter(c => c.name.includes(':rail:'));
   assert.ok(rails.length >= 18);
   assert.ok(rails.every(c => c.maxY - c.minY > 1.12));
+});
+
+test('both Talent Park bridges provide continuous dry-bank pedestrian access and leave the lake open', async () => {
+  const { createSurfaceResolver } = await import('../js/sz-controller-surfaces.js');
+  const { walk, source, decks, groundHeight, isWater } = await load();
+  const resolver = createSurfaceResolver({ groundHeight, surfaces: [...walk.surfaces, ...decks.surfaces] });
+  assert.equal(walk.bridgeRoutes.length, 2);
+  for (const record of decks.walking) {
+    const bridge = source.footbridges.find(row => row.id === record.osmId);
+    assert.ok(bridge);
+    assert.ok(record.maxGrade < 0.095, record.osmId);
+    assert.ok(record.piers.length >= 2, record.osmId);
+    assert.ok(record.barrierLengthM > record.lengthM * 1.95);
+    for (const portal of [record.frames[0], record.frames.at(-1)]) {
+      assert.ok(!isWater(portal.x, portal.z));
+      const surface = resolver.at(portal.x, portal.z, 'person').find(p => p.surfaceId === record.surfaceId);
+      assert.ok(Math.abs(surface.height - groundHeight(portal.x, portal.z)) < 0.005);
+    }
+    const wet = record.frames.filter(p => isWater(p.x, p.z));
+    assert.ok(wet.length > 0);
+    for (const p of wet) {
+      assert.equal(groundHeight(p.x, p.z), null);
+      assert.ok(walk.pathHeightAt(p.x, p.z) - bridge.girderDepthM > bridge.waterHeightM + 0.35);
+      assert.ok(resolver.at(p.x, p.z, 'person').some(row => row.surfaceId === record.surfaceId));
+      assert.equal(resolver.at(p.x, p.z, 'car').length, 0);
+      assert.equal(resolver.at(p.x, p.z, 'cyclist').length, 0);
+    }
+  }
+  for (const line of walk.bridgeRoutes) for (let s = 0; s <= line.length; s += 0.35) {
+    const p = line.at(s);
+    assert.ok(Number.isFinite(walk.pathHeightAt(p.x, p.z)), `Missing support at ${s.toFixed(2)}m`);
+  }
 });
 
 test('both Shenzhen characters and all four APEC letters survive the fleet budget', async () => {
@@ -166,10 +203,22 @@ test('waterfront walkers move on the built surface and spectators rejoin after t
   assert.ok(people.actors.filter(p => Math.abs(positions.get(p.id) - p.s) > 10).length >= 6);
   for (const p of people.actors) {
     assert.equal(p.y, walk.pathHeightAt(p.x, p.z));
-    assert.equal(isWater(p.x, p.z), false);
+    if (p.id < 20) assert.equal(isWater(p.x, p.z), false);
   }
   advance(false, 10);
   assert.ok(people.actors.every(p => p.mode === 'walk'));
+  const bridgeWalkers = people.actors.filter(p => p.id >= 20);
+  assert.equal(bridgeWalkers.length, 2);
+  const visited = bridgeWalkers.map(p => ({ wet: isWater(p.x, p.z), farBank: false }));
+  for (let i = 0; i < 205; i++) {
+    advance(false, 1);
+    bridgeWalkers.forEach((p, j) => {
+      if (isWater(p.x, p.z)) visited[j].wet = true;
+      if (visited[j].wet && p.s > (j ? 29 : 190)) visited[j].farBank = true;
+      assert.equal(p.y, walk.pathHeightAt(p.x, p.z));
+    });
+  }
+  assert.ok(visited.every(p => p.farBank), JSON.stringify(bridgeWalkers.map(p => p.s)));
   for (let window = 0; window < 6; window++) {
     advance(true, 40);
     assert.ok(people.actors.filter(p => Math.hypot(p.x - walk.arrival.x, p.z - walk.arrival.z) < 9).length <= 5);

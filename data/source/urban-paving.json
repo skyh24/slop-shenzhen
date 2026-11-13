@@ -59,6 +59,13 @@
       "kind": "stone",
       "parcel": "way/529086160",
       "seedXZ": [-560, 980]
+    },
+    {
+      "id": "dongbin-shahe-slip-lawn",
+      "name": "东滨路沙河西路立交北侧分流岛",
+      "kind": "lawn",
+      "seedXZ": [-11130.31, 4220.27],
+      "roads": ["way/232499153", "way/375953142", "way/535535262", "way/752089393"]
     }
   ]
 }

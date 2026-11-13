@@ -3,10 +3,10 @@ import { buildTalentWaterfront } from './sz-talent-waterfront.js';
 import { createTalentPedestrians } from './sz-talent-pedestrians.js';
 import { createTalentDroneShow } from './sz-talent-drone-show.js';
 
-export function prepareTalentPark(qa, scene, geo, site) {
+export function prepareTalentPark(qa, scene, geo, site, elevatedSurfaces) {
   const source = geo.talentPark;
   const lake = geo.water[source?.lakeWaterIndex];
-  const waterfront = qa.measureBuild('talent-waterfront', () => buildTalentWaterfront(scene, source, lake, site));
+  const waterfront = qa.measureBuild('talent-waterfront', () => buildTalentWaterfront(scene, source, lake, site, elevatedSurfaces));
   function connect(colliders) {
     const people = createTalentPedestrians(scene, waterfront, colliders);
     const program = waterfront && qa.measureBuild('talent-program', () => createTalentDroneShow(scene, {

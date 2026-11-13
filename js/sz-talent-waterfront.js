@@ -9,6 +9,7 @@ import { createFixtureBatches, planBench, planLantern, planRail } from './sz-sit
 import { polygonBoxOverlaps } from './building-collision.js';
 
 export const TALENT_WALK_ID = 'talent-park:waterfront';
+export const talentBridgeId = osmId => `talent-park:bridge:${osmId}`;
 const rowsToPoints = rows => rows.map(([x, z]) => ({ x, z }));
 const bounds = points => ({ minX: Math.min(...points.map(p => p.x)), maxX: Math.max(...points.map(p => p.x)),
   minZ: Math.min(...points.map(p => p.z)), maxZ: Math.max(...points.map(p => p.z)) });
@@ -114,7 +115,7 @@ function boxCorners(x, z, length, width, dx, dz) {
     ({ x: x + a * length / 2 * dx + b * width / 2 * dz, z: z + a * length / 2 * dz - b * width / 2 * dx }));
 }
 
-export function buildTalentWaterfront(scene, source, lake, site) {
+export function buildTalentWaterfront(scene, source, lake, site, elevatedSurfaces = []) {
   if (!source || !lake) return null;
   const group = new THREE.Group();
   group.name = TALENT_WALK_ID;
@@ -143,8 +144,14 @@ export function buildTalentWaterfront(scene, source, lake, site) {
     surfaces.push({ id, triangles, heightSource: 'terrain', climbableFromGround: true });
     groundMesh(group, triangles, terrainMaterial.get(surface.material), id);
   }
-  const walkHeight = createSurfaceHeightAt(surfaces);
+  const bridgeIds = new Set((source.footbridges ?? []).map(row => talentBridgeId(row.id)));
+  const bridges = elevatedSurfaces.filter(row => bridgeIds.has(row.id));
+  const walkHeight = createSurfaceHeightAt([...surfaces, ...bridges]);
   const pathHeightAt = (x, z) => {
+    for (const row of bridges) {
+      const y = walkHeight(x, z, row.id);
+      if (Number.isFinite(y)) return y;
+    }
     for (const row of surfaces) {
       const y = walkHeight(x, z, row.id);
       if (Number.isFinite(y)) return y;
@@ -189,7 +196,15 @@ export function buildTalentWaterfront(scene, source, lake, site) {
   group.add(treads);
 
   const route = createWaterfrontLine(rowsToPoints(source.route.flatMap((row, i) => i ? row.points.slice(1) : row.points)));
-  const extent = bounds(route.segments.flatMap(({ a, b }) => [a, b]));
+  const bridgeRoutes = (source.bridgeRoutes ?? []).filter(r => r.paths.every(path =>
+    path.kind !== 'bridge' || bridges.some(b => b.id === talentBridgeId(path.osmId))))
+    .map(r => createWaterfrontLine(rowsToPoints(r.paths.flatMap((p, i) => i ? p.points.slice(1) : p.points))));
+  const clearancePaths = [
+    ...source.entrances,
+    ...source.bridgeRoutes?.flatMap(r => r.paths) ?? []
+  ].map(row => ({ line: createWaterfrontLine(rowsToPoints(row.points)), halfWidth: row.widthM / 2 }));
+  const extent = bounds([...route.segments, ...clearancePaths.flatMap(({ line }) => line.segments)]
+    .flatMap(({ a, b }) => [a, b]));
   const [vx, vz] = source.view;
   const { x: ax, y: ay, z: az } = source.simulation.airspaceCenter;
   const arrival = { x: vx, z: vz, y: pathHeightAt(vx, vz), heading: Math.atan2(ax - vx, az - vz),
@@ -247,7 +262,7 @@ export function buildTalentWaterfront(scene, source, lake, site) {
   function fixtureAt(s, side) {
     const p = route.at(s, side);
     if (isWater(p.x, p.z) !== false || site.roadHeight(p.x, p.z) !== null
-      || pathAt(p.x, p.z).length || closeToSight(p.x, p.z, 1.8)) return null;
+      || reserves(p.x, p.z, 0.75) || closeToSight(p.x, p.z, 1.8)) return null;
     const y = groundHeight(p.x, p.z);
     if (!Number.isFinite(y) || site.colliders.some(c => inBounds(c, p.x, p.z, 1.3)
         && c.minY < y + 5 && c.maxY > y && polygonBoxOverlaps(c.polygon, p.x, p.z, 1.3, 1.3))) return null;
@@ -315,10 +330,11 @@ export function buildTalentWaterfront(scene, source, lake, site) {
   function reserves(x, z, radius = 0) {
     if (!inBounds(extent, x, z, radius + 40)) return false;
     return route.nearest(x, z).distance < 2.45 + radius || Math.hypot(x - vx, z - vz) < 5.9 + radius
+      || clearancePaths.some(({ line, halfWidth }) => line.nearest(x, z).distance <= halfWidth + radius)
       || pathAt(x, z).length > 0 || closeToSight(x, z, radius);
   }
   let disposed = false;
-  return { group, colliders, surfaces: [...surfaces, ...stepSurfaces], arrival, route, pathHeightAt, pathAt,
+  return { group, colliders, surfaces: [...surfaces, ...stepSurfaces], arrival, route, bridgeRoutes, bridgeIds, pathHeightAt, pathAt,
     pilotTrees, reserves, extent, viewS, airspace: { x: ax, y: ay, z: az, heading: arrival.heading },
     dispose() {
       if (disposed) return;

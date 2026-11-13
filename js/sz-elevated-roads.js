@@ -308,6 +308,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   const sharedEnd = groundNodes.has(end);
   const startY = sharedStart ? startGround : startGround + lift;
   const endY = sharedEnd ? endGround : endGround + lift;
+  const parkBridge = reviewed?.profile === 'park-footbridge-estimate';
   const stations = resample(points, DECK_STEP_M);
   if (stations.length < 2) return null;
   // 高架/匝道桥面按最小 6.5 m 铺装：OSM 里不少匝道只有 3–4 m 宽，车辆很容易偏出缎带
@@ -348,11 +349,24 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
     frame.y = crossing ? crossing.height(frame, proposed) : reviewed ? linearY : proposed;
     if (Number.isFinite(centerGround)) maxClearanceM = Math.max(maxClearanceM, frame.y - centerGround);
   }
+  if (parkBridge) {
+    // 桥头用实际岸路横坡接地，向桥内逐渐收平。
+    for (const [portal, sign] of [[frames[0], 1], [frames.at(-1), -1]]) {
+      for (const side of ['left', 'right']) {
+        const p = portal[side];
+        const delta = (groundHeight(p.x, p.z) ?? portal.y) - portal.y;
+        for (const frame of frames) {
+          const blend = Math.max(0, 1 - sign * (frame.d - portal.d) / 5);
+          if (blend > 0) frame[side].y = frame.y + delta * blend;
+        }
+      }
+    }
+  }
   for (let i = 1; i < frames.length; i++) {
     const a = frames[i - 1], b = frames[i];
     for (const side of ['left', 'right']) {
       const run = Math.hypot(b[side].x - a[side].x, b[side].z - a[side].z);
-      maxGrade = Math.max(maxGrade, Math.abs(b.y - a.y) / Math.max(EPSILON, run));
+      maxGrade = Math.max(maxGrade, Math.abs((b[side].y ?? b.y) - (a[side].y ?? a.y)) / Math.max(EPSILON, run));
     }
   }
   // 端部各外延 4 m 平段，让相邻链路/地面路的接触面在节点处有重叠，避免车辆在
@@ -374,47 +388,50 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   for (let i = 1; i < surfaceFrames.length; i++) {
     const a = surfaceFrames[i - 1];
     const b = surfaceFrames[i];
-    const topA = { x: a.left.x, y: a.y, z: a.left.z };
-    const topB = { x: b.left.x, y: b.y, z: b.left.z };
-    const topC = { x: b.right.x, y: b.y, z: b.right.z };
-    const topD = { x: a.right.x, y: a.y, z: a.right.z };
+    const topA = { ...a.left, y: a.left.y ?? a.y };
+    const topB = { ...b.left, y: b.left.y ?? b.y };
+    const topC = { ...b.right, y: b.right.y ?? b.y };
+    const topD = { ...a.right, y: a.right.y ?? a.y };
     pushTopQuad(geometry, topTriangles, topA, topD, topC, topB);
     areaM2 += triangleArea2D(topA, topB, topC) + triangleArea2D(topA, topC, topD);
-    pushVerticalWall(geometry, topA, topB, a.y - girderDepth, b.y - girderDepth);
-    pushVerticalWall(geometry, topC, topD, b.y - girderDepth, a.y - girderDepth);
+    pushVerticalWall(geometry, topA, topB, topA.y - girderDepth, topB.y - girderDepth);
+    pushVerticalWall(geometry, topC, topD, topC.y - girderDepth, topD.y - girderDepth);
     if (reviewed) {
       const [u, v, w, t] = [topA, topB, topC, topD].map(p => ({ ...p, y: p.y - girderDepth }));
       pushQuad(geometry, u, v, w, t);
       // 仅登记梁体厚度，桥下净空不会被盒子填满。
       const outer = [topA, topB, topC, topD].map(({ x, z }) => ({ x, z }));
-      slabColliders.push({ type: 'elevated-slab', sourceId: osmId, polygon: { outer, holes: [] },
+      slabColliders.push({ type: parkBridge ? 'bridge-slab' : 'elevated-slab',
+        name: surfaceId, sourceId: osmId, polygon: { outer, holes: [] },
         minX: Math.min(...outer.map(p => p.x)), maxX: Math.max(...outer.map(p => p.x)),
         minZ: Math.min(...outer.map(p => p.z)), maxZ: Math.max(...outer.map(p => p.z)),
-        minY: Math.min(u.y, v.y), maxY: Math.max(topA.y, topB.y),
-        verticalSpan: [u.y, v.y, topA.y, topB.y] });
+        minY: Math.min(u.y, v.y, w.y, t.y), maxY: Math.max(topA.y, topB.y, topC.y, topD.y),
+        verticalSpan: [Math.min(u.y, t.y), Math.min(v.y, w.y), Math.max(topA.y, topD.y), Math.max(topB.y, topC.y)] });
     }
   }
 
   // 端部封口让桥面板在起点和终点读成实体，不把顶面悬空。
   const first = frames[0];
   const last = frames[frames.length - 1];
-  const firstLeft = { x: first.left.x, y: first.y, z: first.left.z };
-  const firstRight = { x: first.right.x, y: first.y, z: first.right.z };
-  const lastLeft = { x: last.left.x, y: last.y, z: last.left.z };
-  const lastRight = { x: last.right.x, y: last.y, z: last.right.z };
-  pushEndCap(geometry, firstLeft, firstRight, first.y - girderDepth, false);
-  pushEndCap(geometry, lastLeft, lastRight, last.y - girderDepth, true);
+  const firstLeft = { ...first.left, y: first.left.y ?? first.y };
+  const firstRight = { ...first.right, y: first.right.y ?? first.y };
+  const lastLeft = { ...last.left, y: last.left.y ?? last.y };
+  const lastRight = { ...last.right, y: last.right.y ?? last.y };
+  pushEndCap(geometry, firstLeft, firstRight, Math.min(firstLeft.y, firstRight.y) - girderDepth, false);
+  pushEndCap(geometry, lastLeft, lastRight, Math.min(lastLeft.y, lastRight.y) - girderDepth, true);
 
-  if (reviewed || crossing) for (const station of pierSpacing({ frames, lengthM: length })) {
+  const abutments = parkBridge ? [frames.find(f => f.d >= 2), frames.findLast(f => f.d <= length - 2)] : [];
+  for (const station of reviewed || crossing ? [...pierSpacing({ frames, lengthM: length }), ...abutments] : []) {
     if (crossing && !crossing.allowsPier(station)) continue;
-    const terrainY = reviewed
+    const abutment = abutments.includes(station);
+    const terrainY = abutment ? (groundHeight(station.x, station.z) ?? station.y) - 0.5 : reviewed
       ? (reviewed.pierAt?.(station.x, station.z, half) ? reviewed.waterHeightM - 1 : null)
       : groundHeight(station.x, station.z);
     if (!Number.isFinite(terrainY)) continue;
     const clearance = station.y - terrainY;
-    if (clearance <= PIER_MIN_CLEARANCE_M) continue;
+    if (!abutment && clearance <= (parkBridge ? 0.5 : PIER_MIN_CLEARANCE_M)) continue;
     const topY = station.y - girderDepth;
-    if (topY - terrainY <= 0.2) continue;
+    if (topY - terrainY <= (abutment ? 0.08 : 0.2)) continue;
     const pier = { x: station.x, z: station.z, baseY: terrainY, topY, half };
     pierRecords.push(pier);
     pushPier(geometry, pier);
@@ -546,6 +563,7 @@ function addPiers(record, groundHeight, neighbors = []) {
 
 function addBarriers(record, groundHeight, neighbors = []) {
   const { frames, geometry, osmId, surfaceId } = record;
+  const parkBridge = record.reviewed?.profile === 'park-footbridge-estimate';
   const barrierRecords = [];
   const barrierColliders = [];
   let barrierLengthM = 0;
@@ -565,17 +583,18 @@ function addBarriers(record, groundHeight, neighbors = []) {
     const nz = frameA.nz + (frameB.nz - frameA.nz) * mix;
     const length = Math.hypot(nx, nz) || 1;
     const sign = side === 'left' ? -1 : 1;
-    return { x: point.x + (nx / length) * ELEVATED_BARRIER_WIDTH_M * sign,
-      z: point.z + (nz / length) * ELEVATED_BARRIER_WIDTH_M * sign };
+    const width = parkBridge ? 0.10 : ELEVATED_BARRIER_WIDTH_M;
+    return { x: point.x + (nx / length) * width * sign,
+      z: point.z + (nz / length) * width * sign };
   };
   for (let i = 1; i < frames.length; i++) {
     const a = frames[i - 1];
     const b = frames[i];
     const run = Math.hypot(b.x - a.x, b.z - a.z) || 1;
     for (const side of ['left', 'right']) {
-      const edgeA = { x: a[side].x, y: a.y, z: a[side].z };
-      const edgeB = { x: b[side].x, y: b.y, z: b[side].z };
-      const span = barrierSpanOnGround(edgeA, edgeB, record.reviewed
+      const edgeA = { ...a[side], y: a[side].y ?? a.y };
+      const edgeB = { ...b[side], y: b[side].y ?? b.y };
+      const span = parkBridge ? [edgeA, edgeB] : barrierSpanOnGround(edgeA, edgeB, record.reviewed
         ? (x, z) => record.reviewed.waterAt?.(x, z) ? record.reviewed.waterHeightM : groundHeight(x, z)
         : groundHeight);
       if (!span) continue;
@@ -596,9 +615,18 @@ function addBarriers(record, groundHeight, neighbors = []) {
       const insetStartBottom = { x: insetStart.x, y: start.y, z: insetStart.z };
       const insetEndBottom = { x: insetEnd.x, y: end.y, z: insetEnd.z };
       // 外侧面、顶面、内侧面；渲染材质是单面，护栏从桥面两侧看都要有面。
-      pushQuad(geometry, startBottom, endBottom, endTop, startTop);
+      const railBottom = p => parkBridge ? { ...p, y: p.y + BARRIER_HEIGHT_M - 0.12 } : p;
+      pushQuad(geometry, railBottom(startBottom), railBottom(endBottom), endTop, startTop);
       pushQuad(geometry, startTop, endTop, insetEndTop, insetStartTop);
-      pushQuad(geometry, insetStartBottom, insetStartTop, insetEndTop, insetEndBottom);
+      pushQuad(geometry, railBottom(insetStartBottom), insetStartTop, insetEndTop, railBottom(insetEndBottom));
+      if (parkBridge) {
+        pushQuad(geometry, startBottom, startTop, insetStartTop, insetStartBottom);
+        if (i === frames.length - 1) pushQuad(geometry, endBottom, insetEndBottom, insetEndTop, endTop);
+        for (const y of [0.32, 0.61]) {
+          const at = p => ({ ...p, y: p.y + y });
+          pushVerticalWall(geometry, at(startBottom), at(endBottom), start.y + y - 0.045, end.y + y - 0.045);
+        }
+      }
       const length = Math.hypot(end.x - start.x, end.z - start.z);
       barrierLengthM += length;
       barrierRecords.push({ side, length, startY: start.y, endY: end.y });
@@ -743,8 +771,8 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     recordsByInterchange.get(owner?.id)?.push(record);
   }
 
-  const walking = (sources?.footbridges ?? []).map((bridge, i) => {
-    const { points, id, widthM, girderDepthM, waterIndex, waterHeightM } = bridge;
+  const walking = [...(sources?.footbridges ?? []), ...(options?.parkFootbridges ?? [])].map((bridge, i) => {
+    const { points, id, widthM, girderDepthM, waterIndex, waterHeightM, profile } = bridge;
     const polygon = wetPolygon(waterIndex);
     const waterAt = (x, z) => polygonContainsInclusive(polygon, x, z);
     const line = { nodes: [...points[0].filter((_, j) => j !== 1), ...points.at(-1).filter((_, j) => j !== 1)], names: [''] };
@@ -759,8 +787,11 @@ export function planElevatedRoads(graph, terrainSurface, options) {
       return points[j - 1][1] + (points[j][1] - points[j - 1][1]) * t;
     };
     const link = [0, 1, 0, widthM, 0, 0, points.slice(1, -1).flatMap(([x, , z]) => [x, z])];
+    const park = profile === 'park-footbridge-estimate';
     return planLink(line, link, -i - 1, { osmId: id, layer: 1, bridge: true }, groundHeight, new Set(),
-      { widthM, girderDepthM, waterAt, waterHeightM, heightAt, walk: true, surfaceId: `waterfront-bridge:${id}` });
+      { widthM, girderDepthM, waterAt, waterHeightM, heightAt, walk: true, profile,
+        ...(park ? { pierAt: (x, z, half) => [-half, half].every(dx => [-half, half].every(dz => waterAt(x + dx, z + dz))) } : {}),
+        surfaceId: park ? `talent-park:bridge:${id}` : `waterfront-bridge:${id}` });
   }).filter(Boolean);
   // 车行链路：高程来自本计划同一批桥面三角面、纵坡可驾驶且非隧道；连接在车流图里再按共享节点高差复核。
   const driveLinks = records.filter(record => !record.tunnel && record.layer > 0
@@ -804,6 +835,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     triangles: record.topTriangles,
     // 桥头与地面共享节点处允许车辆从地面踏上桥面；桥下高差超过抬脚高度时不会吸附。
     climbableFromGround: true,
+    ...(record.reviewed?.profile === 'park-footbridge-estimate' ? { modes: ['person', 'helicopter'], solidDeck: true } : {}),
     driveSuccessors: successors.get(record.surfaceId) ?? []
   }));
   const chunks = [...buildChunks(records), ...buildChunks(walking).map(c => ({ ...c, id: `walk:${c.id}` }))];
@@ -863,9 +895,9 @@ export function planElevatedRoads(graph, terrainSurface, options) {
  *  输入：roadGraph、terrainSurface（GEO 里的派生地形），以及 area（旧接口）或 interchanges（多立交分区）。
  *  输出：{ group, meshes, surfaces, colliders, interchanges, statistics, links, update, dispose }。
  *  约束：桥面高度、护栏尺寸、桥墩间距和连接坡道均为 estimate；不导入外部模型。 */
-export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, interchanges, exclude, waterfront, water, extraCrossing } = {}) {
+export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, interchanges, exclude, waterfront, parkFootbridges, water, extraCrossing } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('A THREE scene is required');
-  const options = area ? area : { interchanges, exclude, waterfront, water, extraCrossing };
+  const options = area ? area : { interchanges, exclude, waterfront, parkFootbridges, water, extraCrossing };
   const plan = planElevatedRoads(graph, terrainSurface, options);
   // 车行网络复用渲染桥面的顶面三角面：车轮接触、自动规划和渲染桥面同源，桥下层不串到上层。
   const driveSurfaceIds = new Set(plan.driveLinks.map(record => record.surfaceId));

@@ -217,7 +217,9 @@ async function initApp() {
   // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
   const elevatedRoads = qa.stage('elevated', () =>
     buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface,
-      extraCrossing: northBridgeProfile(GEO.shenzhenNorthRail), waterfront: GEO.waterfront, water: GEO.water, exclude: new Set(GEO.roadStructures?.records.map(row => row.index)) }));
+      extraCrossing: northBridgeProfile(GEO.shenzhenNorthRail), waterfront: GEO.waterfront,
+      parkFootbridges: GEO.talentPark?.footbridges, water: GEO.water,
+      exclude: new Set(GEO.roadStructures?.records.map(row => row.index)) }));
   const carriagewayOccupied = createCarriagewayBarrier(roadGraph).contains;
   const bayPaths = createBayPathLookup(GEO.shenzhenBay?.paths);
   const roadStructures = qa.measureBuild('roadStructures', () => buildSzRoadStructures(scene, roadGraph, GEO.roadStructures, {
@@ -291,7 +293,7 @@ async function initApp() {
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders, ...districts.colliders, ...themeParks.colliders, ...(northStation?.colliders ?? [])];
   site.colliders = buildings;
   const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
-  const talentPark = prepareTalentPark(qa, scene, GEO, site);
+  const talentPark = prepareTalentPark(qa, scene, GEO, site, elevatedRoads.surfaces);
   const { waterfront } = talentPark;
   site.pathAt = (x, z) => {
     const parkPaths = themeParks.pathAt(x, z);
@@ -326,7 +328,8 @@ async function initApp() {
       const placed = iec ? iec.relocateLamp(candidate) : candidate;
       return placed && !landmarks.reservesApproach?.(placed.x, placed.z, 0.34) ? placed : null;
     },
-    reserveWalk: (x, z, r) => urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || site.reserveBayWalk(x, z, r),
+    reserveWalk: (x, z, r) => urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r)
+      || site.reserveBayWalk(x, z, r) || waterfront?.reserves(x, z, r),
     reserveCrossing: roadFrontage.reserveWalk,
     placementObstacles: [...buildings, ...trees.colliders],
     deckOccupied
@@ -399,6 +402,7 @@ async function initApp() {
       || (bayWaterfront.allowsGroundMode(mode, x, z) && !roadFrontage.plantingAt(x, z)
         && (mode === 'person' || !roadLandscape.walkAt(x, z).length)))
       && shoreSamples.allowsGroundMode(mode, x, z, surface)
+      && ((mode !== 'car' && mode !== 'cyclist') || !waterfront?.pathAt(x, z).length)
       && (!northStation?.inRestricted(x, z, 0.58) || (surface?.surfaceId !== 'terrain' && surface?.heightSource !== 'terrain'))
   });
   const cruise = qa.measureBuild('airCruises', () => createSceneAirCruise(GEO.airCruises, controllerManager, site, PLAYER_SPEED_LIMITS.helicopter));

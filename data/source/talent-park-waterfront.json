@@ -10,21 +10,87 @@
     "https://swj.sz.gov.cn/ztzl/swhjs/bdfc/content/post_11740850.html",
     "https://www.sz.gov.cn/szzt2010/gysz/szld/content/post_10775677.html",
     "https://cgj.sz.gov.cn/zjcg/zh/content/post_11949573.html",
-    "https://www.szdesigncenter.com/tgspy"
+    "https://www.szdesigncenter.com/tgspy",
+    "https://szjgdj.sz.gov.cn/home/ztzl/mxq/jmlb/content/post_1571922.html"
   ],
   "route": [
-    {"osmId":"way/537564666", "from":5405506613, "to":3316262707, "kind":"greenway", "widthM":4.6},
-    {"osmId":"way/537570364", "from":3316262707, "to":5490090930, "kind":"promenade", "widthM":4.4}
+    {
+      "osmId": "way/537564666",
+      "from": 5405506613,
+      "to": 3316262707,
+      "kind": "greenway",
+      "widthM": 4.6
+    },
+    {
+      "osmId": "way/537570364",
+      "from": 3316262707,
+      "to": 5490090930,
+      "kind": "promenade",
+      "widthM": 4.4
+    }
   ],
   "entrances": [
-    {"osmId":"way/1415882795", "from":13011682084, "to":5405506613, "kind":"steps", "widthM":2.8},
-    {"osmId":"way/571169634", "from":5490090921, "to":5490090925, "kind":"promenade", "widthM":2.8}
+    {
+      "osmId": "way/1415882795",
+      "from": 13011682084,
+      "to": 5405506613,
+      "kind": "steps",
+      "widthM": 2.8
+    },
+    {
+      "osmId": "way/571169634",
+      "from": 5490090921,
+      "to": 5490090925,
+      "kind": "promenade",
+      "widthM": 2.8
+    },
+    {
+      "osmId": "way/1415882796",
+      "to": 13011682076,
+      "kind": "promenade",
+      "widthM": 2.8,
+      "from": 13011682084
+    },
+    {
+      "osmId": "way/1415882794",
+      "to": 13011682043,
+      "kind": "promenade",
+      "widthM": 2.8,
+      "from": 13011682077
+    },
+    {
+      "osmId": "way/1415882793",
+      "to": 13011682059,
+      "kind": "promenade",
+      "widthM": 2.8,
+      "from": 13011682043
+    },
+    {
+      "osmId": "way/571169634",
+      "to": 5490090921,
+      "kind": "promenade",
+      "widthM": 2.8,
+      "from": 13011682059
+    },
+    {
+      "osmId": "way/1415882802",
+      "to": 5205355137,
+      "kind": "promenade",
+      "widthM": 2.6,
+      "from": 13011682077
+    }
   ],
   "viewNode": 3316262708,
-  "retainingEdgeNodes": [5405506608, 3316262712],
-  "bridgeApproachOsmIds": ["way/537570365", "way/570468707", "way/571169638"],
+  "retainingEdgeNodes": [
+    5405506608,
+    3316262712
+  ],
   "simulation": {
-    "airspaceCenter": {"x": -11250, "y": 110, "z": 3680},
+    "airspaceCenter": {
+      "x": -11250,
+      "y": 110,
+      "z": 3680
+    },
     "lakeHeightM": 0.65,
     "lakeHeightSource": "estimate",
     "edgeSetbackM": 0.65,
@@ -32,5 +98,96 @@
     "aggregate": "simulated-landscape",
     "stepsProfile": "terrain-derived-estimate",
     "fixtures": "simulated-landscape"
-  }
+  },
+  "bridgeRoutes": [
+    {
+      "id": "pi-bridge",
+      "paths": [
+        {
+          "osmId": "way/537570365",
+          "to": 5405506584,
+          "kind": "promenade",
+          "widthM": 2.6,
+          "from": 3316262712
+        },
+        {
+          "osmId": "way/570468707",
+          "to": 5484533171,
+          "kind": "bridge",
+          "widthM": 2,
+          "from": 5405506584
+        },
+        {
+          "osmId": "way/570468708",
+          "to": 5405506567,
+          "kind": "promenade",
+          "widthM": 2.6,
+          "from": 5484533171
+        },
+        {
+          "osmId": "way/571169641",
+          "to": 5405506609,
+          "kind": "promenade",
+          "widthM": 2.6,
+          "from": 5405506567
+        },
+        {
+          "osmId": "way/560517661",
+          "to": 5405506613,
+          "kind": "promenade",
+          "widthM": 2.6,
+          "from": 5405506609
+        }
+      ]
+    },
+    {
+      "id": "south-shore-bridge",
+      "paths": [
+        {
+          "osmId": "way/571169638",
+          "to": 5405506603,
+          "kind": "bridge",
+          "widthM": 2.8,
+          "from": 5490090930
+        },
+        {
+          "osmId": "way/571169641",
+          "to": 5405506624,
+          "kind": "promenade",
+          "widthM": 2.8,
+          "from": 5405506603
+        },
+        {
+          "osmId": "way/560517663",
+          "to": 5405506627,
+          "kind": "promenade",
+          "widthM": 2.8,
+          "from": 5405506624
+        }
+      ]
+    }
+  ],
+  "slipCrossings": [
+    {
+      "osmId": "way/1415882782",
+      "road": "way/232499153",
+      "node": 2408446086
+    },
+    {
+      "osmId": "way/1415882781",
+      "road": "way/375953142",
+      "node": 13011681861
+    }
+  ],
+  "crossingApproaches": [
+    {"osmId": "way/538706593", "from": 6160148201, "to": 3894903787},
+    {"osmId": "way/1415882779", "from": 13011681854, "to": 13011681855},
+    {"osmId": "way/1415882780", "from": 13011681856, "to": 13011681862}
+  ],
+  "unresolvedBridges": [
+    "way/562534109",
+    "way/259033235",
+    "way/386160782",
+    "way/386160787"
+  ]
 }

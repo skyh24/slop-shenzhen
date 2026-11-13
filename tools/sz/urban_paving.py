@@ -343,16 +343,22 @@ def compile_urban_paving(payload, osm_source, report, *, pilot_only=False):
         raise ValueError('Urban paving requires the reviewed OSM snapshot')
     previous = payload.get('urbanPaving')
     digest = hashlib.sha256(source).hexdigest()
-    extending = False
-    if previous:
-        if previous.get('manifestSha256') != digest or (pilot_only and not previous['pilotOnly']):
-            raise ValueError('Rebuild the underlying ground before replacing urban paving')
-        if previous['pilotOnly'] == pilot_only:
-            return
-        extending = True
     specs = manifest['sites']
-    if pilot_only or extending:
-        specs = [spec for spec in specs if bool(spec.get('pilot')) == pilot_only]
+    old_report = {}
+    if previous:
+        old_report = report['urbanPaving']
+        existing = {row['id']: row for row in old_report['sites']}
+        current = {row['id']: row for row in specs}
+        if (pilot_only and not previous['pilotOnly']) or (
+                previous.get('manifestSha256') != digest and (
+                    not existing.keys() < current.keys()
+                    or any(any(old.get(k) != v for k, v in current[i].items()) for i, old in existing.items()))):
+            raise ValueError('Rebuild the underlying ground before replacing urban paving')
+        specs = [row for row in specs if row['id'] not in existing]
+    if pilot_only:
+        specs = [row for row in specs if row.get('pilot')]
+    if previous and not specs:
+        return
     candidates = list(_candidates(payload, osm_source, specs))
     covered = {spec['id']: [] for spec in specs}
     chunks, changed = [], []
@@ -368,9 +374,8 @@ def compile_urban_paving(payload, osm_source, report, *, pilot_only=False):
         chunks.append(updated)
         if updated is not chunk:
             changed.append(chunk['id'])
-    old_report = report['urbanPaving'] if extending else {}
-    public_routes = list(old_report.get('publicRoutes', []))
-    trees = list(old_report.get('trees', []))
+    public_routes = list((previous or {}).get('publicRoutes', []))
+    trees = list((previous or {}).get('trees', []))
     sites = list(old_report.get('sites', []))
     for spec, _, route, proposed_trees, statistics in candidates:
         identity = spec['id']
