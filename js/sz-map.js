@@ -636,6 +636,9 @@ class NYCMapSystem {
       }
     }
     if (this.hsrVisible) {
+      ctx.strokeStyle = '#d2a177';
+      ctx.lineWidth = 0.85 / v.s;
+      for (const rail of layers.hsrRails ?? []) if (v.sees(rail.bounds)) ctx.stroke(rail.path);
       for (const station of layers.hsr) {
         if (!v.sees(station.bounds)) continue;
         ctx.fillStyle = MAP.railFill;

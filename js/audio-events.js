@@ -303,6 +303,11 @@ export function createEventResources(ctx, resources) {
       metal: Array.from({ length: 3 }, (_, i) => crashMetal(ctx, i + 401)),
       debris: Array.from({ length: 3 }, (_, i) => crashDebris(ctx, i + 501))
     },
+    railPass: makeBuffer(ctx, 2.4, (t, i) => {
+      const fade = Math.sin(Math.PI * t / 2.4) ** 2;
+      return fade * (0.46 * Math.sin(2 * Math.PI * 62 * t) + 0.26 * Math.sin(2 * Math.PI * 113 * t)
+        + 0.20 * Math.sin(2 * Math.PI * 219 * t)) * (0.77 + 0.23 * Math.cos(2 * Math.PI * 8.8 * t));
+    }, 0.62),
     gusts: gustBuffer(ctx),
     signalTick: signal(ctx, false),
     signalWalk: signal(ctx, true)
@@ -313,7 +318,7 @@ export function playEvent(ctx, resources, kind, output, options = {}) {
   const random = randomSource(options.seed);
   const start = Math.max(ctx.currentTime, finite(options.when, ctx.currentTime));
   const intensity = clamp(finite(options.intensity, 1));
-  const levels = { footstep: 0.22, talk: 0.065, horn: 0.23, signal: 0.13, crash: 0.35 };
+  const levels = { footstep: 0.22, talk: 0.065, horn: 0.23, signal: 0.13, crash: 0.35, rail: 0.16 };
   if (!Object.hasOwn(levels, kind) || intensity === 0) return { endTime: start, dispose() {} };
   const gain = ctx.createGain();
   gain.gain.value = intensity * levels[kind];
@@ -381,6 +386,8 @@ export function playEvent(ctx, resources, kind, output, options = {}) {
     }
   } else if (kind === 'horn') {
     play(resources.horns[Math.floor(random() * resources.horns.length)], start, 0.94 + random() * 0.12);
+  } else if (kind === 'rail') {
+    play(resources.railPass, start, 0.7 + clamp(finite(options.speed) / 45) * 0.45);
   } else if (kind === 'crash') {
     const severity = clamp(finite(options.severity, intensity));
     const variant = Math.floor(random() * resources.crashes.body.length);

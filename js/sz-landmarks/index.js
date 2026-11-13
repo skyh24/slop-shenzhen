@@ -4,8 +4,8 @@ import { createLandmarkMaterial } from './materials.js';
 import { partCollider } from './parts.js';
 import { renderLandmark } from './render.js';
 
-export function buildSzLandmarks(scene, { buildings, terrain, sites = {}, heightAt, groundHeight, programEmission = null }) {
-  const { plans, skipIds } = planSzLandmarks(buildings, terrain, sites, { heightAt, groundHeight });
+export function buildSzLandmarks(scene, { buildings, terrain, sites = {}, heightAt, groundHeight, northRail, programEmission = null }) {
+  const { plans, skipIds } = planSzLandmarks(buildings, terrain, sites, { heightAt, groundHeight, northRail });
   const group = new THREE.Group();
   group.name = 'ShenzhenLandmarks';
   const colliders = [];
@@ -28,7 +28,7 @@ export function buildSzLandmarks(scene, { buildings, terrain, sites = {}, height
   }
   scene.add(group);
   return { group, colliders, surfaces, skipIds, heights, dispose() {
-    group.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
+    group.traverse(o => { if (o.isMesh) o.geometry.dispose(); if (o.isInstancedMesh) o.dispose(); });
     for (const material of materials.values()) material.dispose();
     scene.remove(group);
   } };

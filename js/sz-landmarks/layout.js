@@ -11,6 +11,7 @@ import { sourceIds as nonferrousIds, optionalSkipIds as nonferrousDuplicates, bu
 import { sourceIds as pressIds, optionalSkipIds as pressDuplicates, build as buildPress } from './press-tower.js';
 import { sourceIds as iecIds, optionalSkipIds as iecDuplicates, build as buildIec } from './iec-xiangmihu.js';
 import { sourceIds as superHqIds, optionalSkipIds as superHqSkips, build as buildSuperHq } from './super-hq.js';
+import { sourceIds as northIds, build as buildNorth } from './shenzhen-north.js';
 import { polygonContains } from '../building-collision.js';
 
 // 超级总部/西丽在建场地由「建好形态/在建工地」接管：场地轮廓内的旧通用楼不再单独渲染。
@@ -29,6 +30,7 @@ const definitions = [
   { id: 'nonferrous-tower', sourceIds: nonferrousIds, optionalSkipIds: nonferrousDuplicates, build: buildNonferrous },
   { id: 'press-tower', sourceIds: pressIds, optionalSkipIds: pressDuplicates, build: buildPress },
   { id: 'iec-xiangmihu', site: 'iec-xiangmihu', sourceIds: iecIds, optionalSkipIds: iecDuplicates, build: buildIec },
+  { id: 'shenzhen-north', sourceIds: northIds, build: buildNorth },
   { id: 'super-hq', site: 'super-hq', sourceIds: superHqIds, optionalSkipIds: superHqSkips, build: buildSuperHq }
 ];
 
@@ -49,7 +51,7 @@ export function siteTakeoverIds(buildings, sites = {}) {
   return ids;
 }
 
-export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, groundHeight } = {}) {
+export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, groundHeight, northRail } = {}) {
   const source = new Map(buildings.map(building => [building.id, building]));
   const skipIds = new Set();
   const plans = [];
@@ -58,7 +60,7 @@ export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, grou
     const sourceIds = definition.sourceIds ?? [];
     if (!sourceIds.every(id => source.has(id))) continue;
     // 已核场地与玩家活动地面一同传入；贴地接驳用显示面，楼体估高仍用原地形。
-    const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {}, heightAt, groundHeight };
+    const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {}, heightAt, groundHeight, northRail };
     const parts = definition.build(source, terrain, context);
     if (parts.length === 0) continue;
     for (const id of sourceIds) skipIds.add(id);

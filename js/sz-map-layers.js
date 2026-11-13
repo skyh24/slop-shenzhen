@@ -287,6 +287,17 @@ function mapLayers() {
     const points = polygons.flatMap(polygon => polygon.outer);
     layers.hsr.push({ ...station, path, bounds: boundsOf(points) });
   }
+  layers.hsrRails = [];
+  const rail = GEO.shenzhenNorthRail;
+  if (rail) {
+    const path = new Path2D(), points = [];
+    for (const [a, b] of rail.edges) {
+      const segment = [rail.nodes[a], rail.nodes[b]].map(([, x, z]) => ({ x, z }));
+      addLine(path, segment);
+      points.push(...segment);
+    }
+    layers.hsrRails.push({ path, bounds: boundsOf(points) });
+  }
   const metroColours = new Map((GEO.metro?.lines || []).map(line => [line.ref, line.colour]));
   layers.metro = (GEO.metro?.segments || []).map(segment => {
     const path = new Path2D();

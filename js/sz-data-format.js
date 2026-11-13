@@ -207,6 +207,53 @@ function validateAir(air) {
       && window.from <= window.to && typeof window.sourceUrl === 'string'), 'air APEC suspension');
 }
 
+function validateNorthRail(data) {
+  if (data === undefined) return;
+  const xy = p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite);
+  const wayId = id => typeof id === 'string' && /^way\/\d+$/.test(id);
+  requireData(data?.version === 1 && data.source === 'osm-guangdong' && data.heightSource === 'estimate'
+    && wayId(data.stationId) && xy(data.center) && xy(data.axis)
+    && Math.abs(Math.hypot(...data.axis) - 1) < 1e-4
+    && data.published?.tracks === 20 && data.published?.platforms === 11
+    && [data.published.roofHeightM, data.published.roofSpanEastWestM, data.published.roofSpanNorthSouthM].every(n => Number.isFinite(n) && n > 0)
+    && Array.isArray(data.nodes) && Array.isArray(data.ways) && Array.isArray(data.edges)
+    && Array.isArray(data.routes) && data.routes.length === data.published.tracks, 'Shenzhen North rail header');
+  const { nodes, ways, edges, routes } = data;
+  requireData(nodes.every(node => Array.isArray(node) && node.length === 3 && /^\d+$/.test(node[0]) && xy(node.slice(1)))
+    && new Set(nodes.map(node => node[0])).size === nodes.length, 'Shenzhen North rail nodes');
+  requireData(ways.every(way => way && wayId(way.id) && typeof way.bridge === 'boolean' && Number.isInteger(way.layer))
+    && new Set(ways.map(way => way.id)).size === ways.length, 'Shenzhen North rail ways');
+  const index = (value, length) => Number.isInteger(value) && value >= 0 && value < length;
+  requireData(edges.every(e => Array.isArray(e) && e.length === 3 && e[0] !== e[1]
+    && index(e[0], nodes.length) && index(e[1], nodes.length) && index(e[2], ways.length)), 'Shenzhen North rail edges');
+  const berths = new Set();
+  for (const route of routes) {
+    requireData(route && index(route.berth - 1, routes.length) && !berths.has(route.berth)
+      && [-1, 1].includes(route.direction) && Array.isArray(route.edges) && route.edges.length > 1,
+    'Shenzhen North rail route');
+    berths.add(route.berth);
+    let previous = null;
+    for (const ref of route.edges) {
+      requireData(Number.isInteger(ref) && ref !== 0 && index(Math.abs(ref) - 1, edges.length), 'Shenzhen North rail route edge');
+      const [a, b] = edges[Math.abs(ref) - 1];
+      const from = ref > 0 ? a : b, to = ref > 0 ? b : a;
+      requireData(previous === null || previous === from, 'Shenzhen North disconnected rail route');
+      previous = to;
+    }
+  }
+  for (const side of ['west', 'east']) {
+    const plaza = data.plazas?.[side];
+    requireData(plaza && wayId(plaza.id) && Array.isArray(plaza.rings) && plaza.rings.length
+      && plaza.rings.every(r => Array.isArray(r) && r.length >= 6 && r.length % 2 === 0
+        && r.every(Number.isSafeInteger)), 'Shenzhen North plaza');
+  }
+  for (const role of ['northConcourse', 'southOverpass', 'eastWalk', 'eastWalkSouth', 'westRamp', 'eastRamp']) {
+    const walk = data.walks?.[role];
+    requireData(walk && wayId(walk.id) && Array.isArray(walk.points) && walk.points.length >= 2
+      && walk.points.every(xy), 'Shenzhen North footway');
+  }
+}
+
 function validateSites(sites) {
   if (sites === undefined) return;
   requireData(sites?.version === 1 && sites.source === 'osm-guangdong'
@@ -613,6 +660,7 @@ export function validateCityPayload(raw) {
   validateTalentPark(raw.talentPark, raw);
   validateTrees(raw.trees);
   validateSites(raw.sites);
+  validateNorthRail(raw.shenzhenNorthRail);
   validateAir(raw.air);
   validateShenzhenBay(raw.shenzhenBay, raw.parks ?? [], raw.seaSurface);
   for (let i = 0; i < buildings.h.length; i++) {
@@ -771,6 +819,7 @@ export function decodeCityPayload(raw, metrics = null) {
     iecPaths: raw.iecPaths ?? [],
     trees: raw.trees ?? null,
     sites: decodeSites(raw.sites),
+    shenzhenNorthRail: raw.shenzhenNorthRail ?? null,
     air: raw.air ?? null, airCruises: raw.airCruises ?? null,
     parks: (raw.parks ?? []).map(park => ({ ...park, areas: park.areas.map(area => ({ ...area, polygon: polygon(area.polygon) })) }))
   } };

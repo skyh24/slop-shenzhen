@@ -893,10 +893,10 @@ class ThirdPersonControllerManager {
   }
 
   supportedFootprint(x, z, body, entity, landingOnRoad = false) {
-    if (this.groundAccess && !this.groundAccess(body.mode, x, z)) return null;
     const previous = entity?._support;
     const options = { previousY: previous?.height ?? null, previousSurfaceId: previous?.surfaceId ?? null };
     const center = this.surfaceResolver.resolve(x, z, options);
+    if (this.groundAccess && !this.groundAccess(body.mode, x, z, center)) return null;
     if (!center || (landingOnRoad && !this.isRoadContact(x, z, center.height))) return null;
     const halfX = body.car ? body.hx : body.extX, halfZ = body.car ? body.hz : body.extZ;
     const sin = body.car ? body.sin : 0, cos = body.car ? body.cos : 1;

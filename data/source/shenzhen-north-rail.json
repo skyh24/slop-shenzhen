@@ -1,0 +1,31 @@
+{
+  "verifiedAt": "2026-11-13",
+  "snapshot": "osm-guangdong",
+  "stationId": "way/1212433645",
+  "buildingIds": ["way/222088288", "way/262922059", "way/262922064"],
+  "protectedIds": ["way/370233869", "way/414560161", "way/535354526", "way/533642895"],
+  "plazas": {"west": 606125490, "east": 631158110},
+  "walks": {"northConcourse": 631158108, "westRamp": 631158107, "eastRamp": 934734313, "southOverpass": 539240012, "eastWalk": 934734314, "eastWalkSouth": 934734315},
+  "northGates": [8369883156, 8369883169, 11832423837, 4157602420, 9329800638, 4157618131],
+  "southGates": [8482881650, 8482881652, 8482881651, 8482881654, 8482881653],
+  "published": {"platforms": 11, "tracks": 20, "roofHeightM": 43.6, "roofSpanEastWestM": 413, "roofSpanNorthSouthM": 208},
+  "evidence": {
+    "nationalRailAndTransfers": "https://jtys.sz.gov.cn/jtzx/wycx/hccx/hczfb/content/post_12904228.html",
+    "dimensionsAndCanopies": "https://pnr.sz.gov.cn/attachment/1/1442/1442495/10537363.pdf",
+    "stationPlanning": "https://www.chinautc.com/templates/H_magazine/articlecontent.aspx?contentid=85626&nodeid=4315&page=ContentPage",
+    "roofAndStructureDesign": "https://news.lmjx.net/2011/201108/20110811141018.shtml",
+    "plazaAccess": "https://jtys.sz.gov.cn/gkmlpt/content/11/11230/post_11230995.html",
+    "metroSeparation": "https://www.sz.gov.cn/cn/xxgk/zfxxgj/zwdt/content/post_12069236.html",
+    "eastFacadeAndPhotovoltaics2024": "https://www.szmc.net/shentiewuye/wuyedongtai/wuguanxinwen/202408/104248.html",
+    "eastAerialJuly2023": "https://commons.wikimedia.org/wiki/File:Shenzhen_North_railway_station_by_drone.jpg",
+    "westRailApproaches": "https://www.dpxq.gov.cn/english/service/transportation/content/post_7892620.html",
+    "ganshenOpening": "https://hmo.sz.gov.cn/tt/content/post_746431.html",
+    "railLinesAndThroughServices": "https://www.sz.gov.cn/zfgb/2024/1348/content/post_11673966.html"
+  },
+  "limitations": [
+    "图照仅用于辨识主屋盖、幕墙、檐口、站名、两翼雨棚与光伏分区；未获得竣工总平、股道表、绝对标高或信号联锁图。",
+    "OSM 国铁中心线与共享节点来自固定快照；9 个岛台与两侧边台按 20 条线的横向间隙及公开照片拟合，不赋实站台编号。",
+    "屋面曲线、结构高度和尺寸、轨道纵断面、车站内外分层及公共前场铺装为场景估计。站台和门内为非公共运行区。",
+    "调度方向、编组、速度和停站采用演示参数；线路身份与行车演示分开，不是现实车次、时刻表或站内联锁。"
+  ]
+}

@@ -187,6 +187,8 @@ export const STR = {
     futian: '福田站（地下高铁）',
     xili: '西丽站（在建）',
     north: '深圳北站',
+    northEn: 'Shenzhen North Railway Station',
+    northOrbit: '观看深圳北站与高铁（模拟）',
     highSpeedRail: '高铁'
   },
   cruise: {
@@ -276,7 +278,9 @@ export const STR = {
     nonferrousTower: '西南侧看中国有色大厦',
     iecXiangmihu: '香蜜湖看国际交流中心', superHq: '深圳湾看超级总部双塔',
     bayBridge: '深圳湾公园远眺大桥',
-    yanjiang: '欢乐港湾远眺沿江高速'
+    yanjiang: '欢乐港湾远眺沿江高速',
+    northRailView: '深圳北站 · 北端股道',
+    southRailView: '深圳北站 · 南端股道'
   },
   subtitle: 'MVP 预览 · 南山 + 福田 · APEC 2026 深圳',
   loading: '正在载入深圳……',

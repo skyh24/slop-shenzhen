@@ -34,6 +34,8 @@ import { createCbdProgram, isCbdProgramBuilding } from './sz-cbd-program.js';
 import { buildLianhuashanSummit, reviewedParkOmissions, SUMMIT_ARRIVAL } from './sz-lianhuashan.js';
 import { buildIecGrounds } from './sz-landmarks/iec-grounds.js';
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
+import { buildNorthStation } from './sz-rail/station.js';
+import { northBridgeProfile } from './sz-rail/geometry.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
 import { buildShenzhenBayBridge, buildYanjiangExpressway } from './sz-landmarks/shenzhen-bay-bridge.js';
@@ -203,7 +205,8 @@ async function initApp() {
   };
   // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
   const elevatedRoads = qa.stage('elevated', () =>
-    buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface }));
+    buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface,
+      extraCrossing: northBridgeProfile(GEO.shenzhenNorthRail) }));
   const roadFrontage = qa.measureBuild('frontage', () =>
     buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, site));
   const roadPaint = qa.stage('paint', () =>
@@ -220,9 +223,13 @@ async function initApp() {
   const summit = buildLianhuashanSummit(scene, site.groundHeight, lianhuashan, site.style);
   const parkOmissions = reviewedParkOmissions(lianhuashan, site.buildings);
   const cbdProgram = createCbdProgram({ ...SUMMIT_ARRIVAL, y: SUMMIT_ARRIVAL.y + 1.68 }, sceneUniforms.night);
-  const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, { ...site, programEmission: cbdProgram.emission }));
+  const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, { ...site, northRail: GEO.shenzhenNorthRail, programEmission: cbdProgram.emission }));
   const iec = landmarks.group.getObjectByName('ShenzhenLandmark:iec-xiangmihu')
     ? buildIecGrounds(scene, { ...site, roadSurfaces: roads.surfaces, water: GEO.water, paths: GEO.iecPaths }) : null;
+  const northStation = landmarks.heights?.has('shenzhen-north')
+    ? qa.measureBuild('northStation', () => buildNorthStation(scene, GEO.shenzhenNorthRail, site)) : null;
+  if (northStation) site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? publicWalk.heightAt(x, z)
+    ?? northStation.heightAt(x, z) ?? ground.groundHeight(x, z);
   const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
   const yanjiang = buildYanjiangExpressway(scene, GEO.yanjiangExpressway);
   markInit('landmarks');
@@ -245,7 +252,7 @@ async function initApp() {
   const buildingDetails = qa.stage('details', () =>
     buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds, roofPlans: cityBlocks.roofPlans }));
   markInit('blocks');
-  const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders];
+  const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders, ...(northStation?.colliders ?? [])];
   site.colliders = buildings;
   const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
   const talentPark = prepareTalentPark(qa, scene, GEO, site);
@@ -262,7 +269,7 @@ async function initApp() {
   const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
     ...site, carriagewayOccupied, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
-    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r),
+    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r) || northStation?.reserves(x, z, r),
     observedTrees: streetscape.observedTrees, pilotTrees: [...publicWalk.trees, ...(waterfront?.pilotTrees ?? [])],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
@@ -323,9 +330,10 @@ async function initApp() {
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
-    surfaces: [...cityBlocks.surfaces, ...landmarks.surfaces, ...elevatedRoads.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
+    surfaces: [...cityBlocks.surfaces, ...landmarks.surfaces, ...(northStation?.surfaces ?? []), ...elevatedRoads.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
     nearTraffic: traffic.nearColliders, nearWalkers: talentPeople?.nearColliders, flightSettings: GEO.airCruises?.flight,
-    groundAccess: bayWaterfront.allowsGroundMode
+    groundAccess: (mode, x, z, support) => bayWaterfront.allowsGroundMode(mode, x, z)
+      && (!northStation?.inRestricted(x, z, 0.58) || (support && support.surfaceId !== 'terrain'))
   });
   const cruise = qa.measureBuild('airCruises', () => createSceneAirCruise(GEO.airCruises, controllerManager, site, PLAYER_SPEED_LIMITS.helicopter));
   let initialTime = 'golden';
@@ -352,14 +360,14 @@ async function initApp() {
   const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, GEO.roadGraph, {
     ...site,
     publicRoute: publicWalk.route(colliders),
-    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || waterfront?.reserves(x, z, 2),
+    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || waterfront?.reserves(x, z, 2) || northStation?.inRestricted(x, z, 2),
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
     localWalk: iec?.walk, blockGenericWalk: iec?.blockGenericWalk,
     spawnMinM: 8,
     spawnMaxM: 160,
-    publicRoutes: bayWaterfront.publicRoutes
+    publicRoutes: [...bayWaterfront.publicRoutes, ...(northStation?.publicRoutes(colliders, carriagewayOccupied) ?? [])]
   }));
   roadFrontage.update(0);
   traffic.update(0, loadingFocus, [controllerManager.getActiveEntity()], 0);
@@ -508,7 +516,8 @@ async function initApp() {
 
   const modeButtons = document.querySelectorAll('[data-mode]');
   const cameraButtons = document.querySelectorAll('[data-camera]');
-  const scenicAvailability = { bayBridge: Boolean(bridge.group), yanjiang: Boolean(yanjiang) };
+  const scenicAvailability = { bayBridge: Boolean(bridge.group), yanjiang: Boolean(yanjiang),
+    northRailView: Boolean(northStation), southRailView: Boolean(northStation) };
   const cameraPresets = CAMERA_PRESETS.filter(preset => scenicAvailability[preset.id] !== false);
   for (const [id, available] of Object.entries(scenicAvailability)) {
     document.getElementById(`cam-${id}`)?.toggleAttribute('hidden', !available);
@@ -530,7 +539,7 @@ async function initApp() {
   const elSpeedMeter = document.getElementById('hud-speed-meter');
   const elAltitude = document.getElementById('hud-altitude');
   const elLocation = document.getElementById('hud-location');
-  const landmarkViews = createLandmarkViews(SZ_LANDMARKS, landmarks.heights, site.heightAt, TELEPORT_LOCATIONS, anchors?.iecGate?.yaw);
+  const landmarkViews = createLandmarkViews(SZ_LANDMARKS, landmarks.heights, site.heightAt, TELEPORT_LOCATIONS, anchors?.iecGate?.yaw, northStation?.arrival);
   const elControlsHint = document.getElementById('hud-controls-hint');
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
     onCycleMode: (step) => {
@@ -678,7 +687,7 @@ async function initApp() {
   });
   const { teleportTo, teleportFromMap } = createTeleportActions({ controllerManager, landmarkViews, parks: GEO.parks,
     inBounds, isWater, carriagewayOccupied, findGroundArrival, roadHeight: roads.roadHeight, flightStartAltitude: FLIGHT_START_ALTITUDE,
-    selectMode, onArrival: finishTeleport, closeMap: () => mapSystem.toggleFullMap(false) });
+    selectMode, excludeGround: northStation?.inRestricted, onArrival: finishTeleport, closeMap: () => mapSystem.toggleFullMap(false) });
   droneWatch = wireDroneWatch({ drones, controllerManager, cameraSystem, touchControls, gamepadControls,
     laneAssist, autoDrive, observationSessions, closePopovers, mapOpen: () => mapSystem.isFullMapOpen, teleport: teleportTo,
     onCameraLabel: label => { elCamera.textContent = label; } });
@@ -803,7 +812,7 @@ async function initApp() {
       modules: {
         lamps: streetLamps, trees, apec: apecTheme, apecCity, drones, lightShow,
         summit, cbdProgram, waterfront, talentProgram, talentPeople, programIds: cityBlocks.programIds ?? [], parkOmissions,
-        elevatedRoads, metroEntrances, futian: futianStation, xili: xiliConstruction
+        elevatedRoads, metroEntrances, futian: futianStation, xili: xiliConstruction, northStation
       },
       teleport: teleportTo,
       getElapsed: () => elapsed,
@@ -901,6 +910,8 @@ async function initApp() {
   await showLoadingStage(STR.startup.warmup, 'warmup');
 
   let lastTime = performance.now();
+  let railResuming = false;
+  document.addEventListener('visibilitychange', () => { railResuming = true; });
   let nextPlayerSave = 0;
   let warmedUp = false; // see the first frame below
 
@@ -952,6 +963,8 @@ async function initApp() {
     lightShow.update();
     metroEntrances.update(cameraSystem.camera.position);
     bayWaterfront.update(cameraSystem.camera.position);
+    northStation?.update(document.hidden || railResuming ? 0 : rawDt, cameraSystem.camera.position, audioSystem);
+    railResuming = false;
     futianStation?.update(cameraSystem.camera.position);
     xiliConstruction?.update();
     buildingSigns.update(cameraSystem.camera.position);

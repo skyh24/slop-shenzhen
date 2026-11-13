@@ -120,7 +120,13 @@ export function renderLandmark(plan, materialFor) {
   group.name = `ShenzhenLandmark:${plan.id}`;
   const batches = new Map();
   const surfaces = [];
+  const instances = new Map();
   for (const part of plan.parts) {
+    if (part.instanced) {
+      if (!instances.has(part.style)) instances.set(part.style, []);
+      instances.get(part.style).push(part);
+      continue;
+    }
     if (!batches.has(part.style)) batches.set(part.style, new GeoBuilder());
     // 可见实体的水平顶面可供落脚；未封顶的外壳不凭空增加平台，斜屋面保留原声明。
     const roofContact = part.roofContact || (!Array.isArray(part.top) && part.loftSkin?.top !== false);
@@ -129,6 +135,22 @@ export function renderLandmark(plan, materialFor) {
   }
   for (const [style, batch] of batches) {
     const mesh = new THREE.Mesh(batch.build(), materialFor(style));
+    mesh.name = style;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  for (const [style, parts] of instances) {
+    const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(), materialFor(style), parts.length);
+    const pose = new THREE.Object3D();
+    parts.forEach((part, i) => {
+      const [a, b, c, d] = part.polygon.outer;
+      pose.position.set((a.x + c.x) / 2, (part.minY + part.maxY) / 2, (a.z + c.z) / 2);
+      pose.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
+      pose.scale.set(Math.hypot(d.x - a.x, d.z - a.z), part.maxY - part.minY, Math.hypot(b.x - a.x, b.z - a.z));
+      pose.updateMatrix();
+      mesh.setMatrixAt(i, pose.matrix);
+    });
     mesh.name = style;
     mesh.castShadow = true;
     mesh.receiveShadow = true;

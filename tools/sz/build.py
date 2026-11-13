@@ -30,6 +30,7 @@ from roadgraph import build_roadgraph
 from sea_surface import build_sea_surface
 from shenzhen_bay import build_shenzhen_bay
 from shenzhen_golf import build_shenzhen_golf
+from shenzhen_north_rail import build_shenzhen_north
 from streetscape import build_iec_paths, build_streetscape
 from talent_park import compile_talent_park
 from terrain import build_terrain
@@ -521,6 +522,8 @@ def main():
                       help='rebuild reviewed commercial paving chunks on the verified terrain and road graph')
     mode.add_argument('--rebuild-golf-course', action='store_true',
                       help='apply the reviewed Shenzhen Golf Course site to the verified package')
+    mode.add_argument('--rebuild-shenzhen-north', action='store_true',
+                      help='compile only Shenzhen North rail on the verified city package')
     mode.add_argument('--rebuild-iec', action='store_true',
                       help='add reviewed Xiangmi Lake paths and reflecting pool to the current verified snapshot')
     mode.add_argument('--rebuild-talent-park', action='store_true',
@@ -549,6 +552,18 @@ def main():
     if args.rebuild_road_frontage:
         rebuild_road_frontage(args.rebuild_road_frontage, crossing_axis_ids=args.refresh_frontage_crossing_axes,
                               use_cache=not args.no_cache)
+        return
+
+    if args.rebuild_shenzhen_north:
+        started = time.time()
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        osm_source = next(source for source in sources if source['id'] == 'osm-guangdong')
+        report = json.loads(REPORT.read_text())
+        payload['shenzhenNorthRail'] = build_shenzhen_north(ROOT / osm_source['file'], report)
+        write_city_packages(payload, report, sources, started)
         return
 
     if args.rebuild_talent_park:
@@ -693,6 +708,7 @@ def main():
         'bridges': bridges,
         'yanjiangExpressway': build_yanjiang(osm, report),
         'sites': sites,
+        'shenzhenNorthRail': build_shenzhen_north(pbf, report),
         'air': json.loads(AIR.read_text()),
     }
     if sea_surface:

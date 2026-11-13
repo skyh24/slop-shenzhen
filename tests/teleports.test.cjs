@@ -45,9 +45,9 @@ test('teleport destinations bind the retained buttons to Shenzhen roads on the r
 test('every scenic camera exposed by the entry resolves against the Shenzhen snapshot', () => {
   const cameras = [...read('index.html').matchAll(/data-camera="([^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(cameras.slice(0, 3), ['chase', 'action', 'pov']);
-  assert.equal(cameras.length, 24);
-  assert.deepEqual(cameras.slice(-11), ['chunsunTower', 'civicRoof', 'chunjianShell',
-    'cultureSquare', 'conventionCenter', 'upperhills', 'nonferrousTower', 'iecXiangmihu', 'superHq', 'bayBridge', 'yanjiang']);
+  assert.equal(cameras.length, 26);
+  assert.deepEqual(cameras.slice(-13), ['chunsunTower', 'civicRoof', 'chunjianShell',
+    'cultureSquare', 'conventionCenter', 'upperhills', 'nonferrousTower', 'iecXiangmihu', 'superHq', 'bayBridge', 'northRailView', 'southRailView', 'yanjiang']);
   for (const id of cameras.slice(3)) {
     for (const elapsed of [0, 40, 120]) {
       const { position, target } = getScenicCamera(id, elapsed);
@@ -118,6 +118,7 @@ test('map travel resolves a walking pose before closing and leaves the map open 
       return true;
     },
     bayPark: null,
+    northStation: null,
     controllerManager: {
       get activeMode() { return mode; },
       findTeleportPosition: (x, z, heading, altitude, required, park, options) => {

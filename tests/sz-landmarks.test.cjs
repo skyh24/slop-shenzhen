@@ -52,6 +52,7 @@ const loadPlan = (cultureModule, upperhillsModule = upperhills, iecModule = iec,
   './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun,
   './civic-center.js': civic, './chunjian.js': stadium, './shenzhen-bay-culture-square.js': cultureModule,
   './convention-center.js': convention, './upperhills.js': upperhillsModule, './nonferrous-tower.js': nonferrous,
+  './shenzhen-north.js': { sourceIds: ['way/222088288', 'way/262922059', 'way/262922064'], build: () => [] },
   './iec-xiangmihu.js': iecModule, './super-hq.js': superHqModule, './press-tower.js': pressTower, '../building-collision.js': collision
 } });
 const { planSzLandmarks } = loadPlan(culture);
@@ -598,7 +599,7 @@ test('new site landmarks build and render through the shared material dispatcher
   const iecModel = loadIec(THREE, tsl, atmosphere);
   const superModel = loadSuperHq(THREE, tsl, atmosphere);
   const materials = loadModule(readLandmark('materials.js'), { imports: {
-    'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': atmosphere,
+    '../sz-rail/geometry.js': {}, 'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': atmosphere,
     './shenzhen-bay-culture-square.js': { createCulturePavingMask: () => ({}) },
     './upperhills.js': { createUpperhillsMaterial: () => new THREE.MeshBasicMaterial() },
     './nonferrous-tower.js': { createNonferrousMaterial: () => new THREE.MeshBasicMaterial() },

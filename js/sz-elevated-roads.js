@@ -292,7 +292,7 @@ function pierSpacing(record) {
  *        内部再用中心+两侧地形采样做下限，避免桥面埋入地面。
  *  显示和接触同源：桥面顶面三角面给控制器当可站立面，护栏与桥墩的接触体从同一批顶点生成。
  *  输出：{ frames, geometry, topTriangles, barriers, BarrierColliders, PierColliders, surfaceId, ... }。 */
-function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
+function planLink(graph, link, index, metadata, groundHeight, groundNodes, crossing = null) {
   const points = roadLinkPoints(graph, link);
   if (points.length < 2) return null;
   const length = polylineLength(points);
@@ -332,7 +332,8 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
       .map(point => groundHeight(point.x, point.z))
       .filter(Number.isFinite);
     const floor = Math.max(centerGround ?? -Infinity, ...edgeGrounds);
-    frame.y = Math.max(linearY, Number.isFinite(floor) ? floor : linearY);
+    const proposed = Math.max(linearY, Number.isFinite(floor) ? floor : linearY);
+    frame.y = crossing ? crossing.height(frame, proposed) : proposed;
     if (Number.isFinite(centerGround)) maxClearanceM = Math.max(maxClearanceM, frame.y - centerGround);
   }
   // 端部各外延 4 m 平段，让相邻链路/地面路的接触面在节点处有重叠，避免车辆在
@@ -375,6 +376,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
   pushEndCap(geometry, lastLeft, lastRight, last.y - GIRDER_DEPTH_M, true);
 
   for (const station of pierSpacing({ frames, lengthM: length })) {
+    if (crossing && !crossing.allowsPier(station)) continue;
     const terrainY = groundHeight(station.x, station.z);
     if (!Number.isFinite(terrainY)) continue;
     const clearance = station.y - terrainY;
@@ -701,6 +703,7 @@ function planConnectorRamps(records) {
 export function planElevatedRoads(graph, terrainSurface, options) {
   validateGraph(graph);
   const interchanges = normalizeInterchanges(options);
+  const extraCrossing = options?.extraCrossing;
   const bounds = {
     minX: Math.min(...interchanges.map(entry => entry.area.minX)),
     maxX: Math.max(...interchanges.map(entry => entry.area.maxX)),
@@ -731,7 +734,8 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     if (!metadata || (metadata.bridge !== true && !(Math.abs(metadata.layer ?? 0) > 0))) continue;
     if (isGroundRoad(metadata)) continue;
     const points = roadLinkPoints(graph, link);
-    const owner = interchanges.find(entry => polylineIntersectsArea(points, entry.area));
+    const crossing = extraCrossing?.sourceIds.has(metadata.osmId) ? extraCrossing : null;
+    const owner = crossing ?? interchanges.find(entry => polylineIntersectsArea(points, entry.area));
     if (!owner) continue;
     // OSM 隧道只做离线审核；不摊成贴地桥面，避免隧道口出现假护栏。
     if (metadata.tunnel === true) {
@@ -742,14 +746,14 @@ export function planElevatedRoads(graph, terrainSurface, options) {
       groundDuplicates++;
       continue;
     }
-    const record = planLink(graph, link, index, metadata, groundHeight, groundNodes);
+    const record = planLink(graph, link, index, metadata, groundHeight, groundNodes, crossing);
     if (record === null) {
       skippedLinks++;
       continue;
     }
     record.interchangeId = owner.id;
     records.push(record);
-    recordsByInterchange.get(owner.id).push(record);
+    recordsByInterchange.get(owner.id)?.push(record);
   }
 
   const connectors = planConnectorRamps(records);
@@ -847,9 +851,9 @@ export function planElevatedRoads(graph, terrainSurface, options) {
  *  输入：roadGraph、terrainSurface（GEO 里的派生地形），以及 area（旧接口）或 interchanges（多立交分区）。
  *  输出：{ group, meshes, surfaces, colliders, interchanges, statistics, links, update, dispose }。
  *  约束：桥面高度、护栏尺寸、桥墩间距和连接坡道均为 estimate；不导入外部模型。 */
-export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, interchanges } = {}) {
+export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, interchanges, extraCrossing } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('A THREE scene is required');
-  const options = area ? area : interchanges ? { interchanges } : undefined;
+  const options = area ? area : { interchanges, extraCrossing };
   const plan = planElevatedRoads(graph, terrainSurface, options);
   // 车行网络复用渲染桥面的顶面三角面：车轮接触、自动规划和渲染桥面同源，桥下层不串到上层。
   const driveSurfaceIds = new Set(plan.driveLinks.map(record => record.surfaceId));

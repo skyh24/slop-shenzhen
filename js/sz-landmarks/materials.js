@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { abs, cameraPosition, color, dot, float, floor, fract, fwidth, max, mix, normalWorldGeometry, positionWorld,
   sin, smoothstep, step, texture, uniform, uv, vec2 } from 'three/tsl';
+import { NORTH_FRAME } from '../sz-rail/geometry.js';
 import { sceneUniforms } from '../sz-materials.js';
 import { createCulturePavingMask } from './shenzhen-bay-culture-square.js';
 import { createUpperhillsMaterial } from './upperhills.js';
@@ -9,6 +10,7 @@ import { createIecMaterial } from './iec-xiangmihu.js';
 import { createSuperHqMaterial } from './super-hq.js';
 
 const styles = {
+  northGlass: { metal: 0xbcc7cb, glass: 0x375569, roof: 0x9fa7aa, bay: 3.1, floor: 5.0, fin: 0.12, sill: 0.075, lit: 0.3, rough: 0.22, glow: 0xffe5bd, wash: 0.6 },
   tencentTower: { metal: 0xc9d0d5, glass: 0x60819c, roof: 0x879096, bay: 1.58, floor: 4.87, fin: 0.22, sill: 0.092, lit: 0.15, rough: 0.16, glow: 0xeeeaf2 },
   tencentPodium: { metal: 0xaab2af, glass: 0x556d79, roof: 0x697371, bay: 3.1, floor: 6.9, fin: 0.12, sill: 0.065, lit: 0.1, rough: 0.24, glow: 0xffca97 },
   tencentCopper: { metal: 0xb87543, glass: 0x93603f, roof: 0x776454, bay: 1.38, floor: 5.4, fin: 0.24, sill: 0.095, lit: 0.21, rough: 0.26, glow: 0xffb179 },
@@ -138,6 +140,33 @@ function roofMaterial(top, bottom, roughness, wash = 0) {
   return material;
 }
 
+function northStationRoof(canopy) {
+  const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.46, metalness: 0.18 });
+  const { center: [x, z], axis: [dx, dz] } = NORTH_FRAME;
+  const local = positionWorld.xz.sub(vec2(x, z));
+  const axis = dot(local, vec2(dz, -dx));
+  const along = dot(local, vec2(dx, dz));
+  const seam = (coordinate, spacing) => {
+    const bay = coordinate.div(spacing);
+    return smoothstep(0.40, 0.495, abs(fract(bay).sub(0.5)))
+      .mul(smoothstep(0.12, 0.70, fwidth(bay)).oneMinus());
+  };
+  const ribs = seam(along, canopy ? 4.9 : 3.2);
+  const metal = mix(color(canopy ? 0xaab8bf : 0xc4cdd0), color(0x6c818b), ribs.mul(0.53));
+  const upper = smoothstep(0.30, 0.74, normalWorldGeometry.y);
+  const underside = mix(color(0x9eabb2), color(0x5f7785), ribs.mul(0.44));
+  if (canopy) material.colorNode = mix(underside, metal, upper);
+  else {
+    const bands = seam(axis, 8.1).mul(0.55).oneMinus();
+    const solarZone = smoothstep(1, 2, abs(along.sub(8))).mul(smoothstep(84, 86, abs(along)).oneMinus())
+      .mul(smoothstep(138, 140, abs(axis.sub(20))).oneMinus()).mul(step(0.18, fract(axis.div(22))));
+    const panels = mix(color(0x303f4d), color(0x657582), max(seam(along, 2.25), seam(axis, 1.15)).mul(0.5));
+    material.colorNode = mix(underside, mix(metal.mul(bands), panels, solarZone.mul(0.89)), upper);
+  }
+  material.emissiveNode = color(0x96b3c3).mul(sceneUniforms.night).mul(0.04);
+  return material;
+}
+
 function conventionCover(glazed) {
   const material = new THREE.MeshStandardNodeMaterial({ roughness: glazed ? 0.27 : 0.51, metalness: glazed ? 0.16 : 0.26 });
   const upper = smoothstep(0.12, 0.48, normalWorldGeometry.y);
@@ -172,6 +201,10 @@ export function createLandmarkMaterial(name, programEmission = null) {
     case 'chunsunSteel': return crownMaterial(0xd1dbdf, 0.32, 0.46, 0.19);
     case 'chunsunEntrySteel': return crownMaterial(0xd2d9d7, 0.35, 0.39, 0.34);
     case 'chunsunCrownSteel': return crownMaterial(0xd5e4e9, 0.27, 0.46, 0.69);
+    case 'northRoof': return northStationRoof(false);
+    case 'northCanopy': return northStationRoof(true);
+    case 'northStone': return new THREE.MeshStandardMaterial({ color: 0xabb1b0, roughness: 0.73 });
+    case 'northColumn': return new THREE.MeshStandardMaterial({ color: 0xe1e4df, roughness: 0.44 });
     case 'civicRoofBlue': return roofMaterial(0x507f9c, 0xb6bec1, 0.39, 0.1);
     case 'civicTrim': return crownMaterial(0xd0d9dc, 0.31, 0.34, 0.55);
     case 'civicPillar': return new THREE.MeshStandardMaterial({ color: 0xd2d3cf, metalness: 0.14, roughness: 0.52 });
