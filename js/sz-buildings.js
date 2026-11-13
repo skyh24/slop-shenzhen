@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
-import { GeoBuilder, addWalls, addFlatPolygon } from './sz-geometry.js';
+import { GeoBuilder, addWalls, addFlatPolygon, readTriangles } from './sz-geometry.js';
 import { createBuildingMaterial } from './sz-materials.js';
 import { facadeIndex } from './sz-facade-profiles.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
@@ -380,7 +380,7 @@ export function roofPlan(building, polygon) {
 
 /** 解析：普通建筑总入口：按 2.4 km 分块合并墙体/屋顶/裙房/女儿墙/屋顶设备，返回碰撞体。
  *  输入：buildings（默认 REAL_BUILDINGS）、terrain、skipIds（地标/场地接管）、roadGraph、entrances、renderChunkSize。
- *  输出：{ group, colliders, allBlocks, roofs, roofPlans, update, dispose }。
+ *  输出：{ group, colliders, surfaces, allBlocks, roofs, roofPlans, update, dispose }。
  *  约束：所有体量都由共享包足迹+高度派生；heightSource 保留源数据，新增细节标 estimate。 */
 export function buildCityBlocks(scene, options = {}) {
   const buildings = options.buildings ?? REAL_BUILDINGS;
@@ -402,6 +402,7 @@ export function buildCityBlocks(scene, options = {}) {
   const batches = new Map();
   const foundations = new GeoBuilder();
   const colliders = [];
+  const surfaces = [];
   const allBlocks = [];
   const roadConflicts = [];
   const roofPlans = new Map();
@@ -410,6 +411,9 @@ export function buildCityBlocks(scene, options = {}) {
     const building = buildings[buildingIndex];
     if (skipIds.has(building.id)) continue;
     const placement = buildingPlacement(building, terrain);
+    // 接触高度与实际顶点精度一致，避免降落后被楼体侧碰推出。
+    placement.maxY = Math.fround(placement.maxY);
+    for (const collider of placement.colliders) collider.maxY = placement.maxY;
     if (roadClearance && !building.landmark && /^(?:globfp|overture)\//.test(building.id)) {
       const conflict = building.polygons.map(polygon =>
         roadClearance(polygon, ringBounds(polygon.outer), placement.minY, placement.maxY)).find(Boolean);
@@ -426,13 +430,18 @@ export function buildCityBlocks(scene, options = {}) {
     const facade = facadeIndex(building.facade);
     // 普通超高层不自动套同一种灯光秀，地标灯光由各自模型负责。
     const meta = [facade, buildingSeed(building.id) * 10, 0, building.height];
-    for (const polygon of building.polygons) {
+    const addRoof = (rings, y, id, heightSource) => {
+      const firstIndex = batch.idx.length;
+      addFlatPolygon(batch, rings, y, meta);
+      surfaces.push({ id, heightSource, triangles: readTriangles(batch, firstIndex) });
+    };
+    for (const [index, polygon] of building.polygons.entries()) {
       const rings = [polygon.outer, ...polygon.holes].map(flatRing);
       if (placement.foundationBottomY !== null) {
         addWalls(foundations, rings, placement.foundationBottomY, placement.baseY);
       }
       addWalls(batch, rings, placement.minY, placement.maxY, meta, placement.baseY);
-      addFlatPolygon(batch, rings, placement.maxY, meta);
+      addRoof(rings, placement.maxY, `${building.id}:roof:${index}`, building.heightSource);
       if (building.minHeight > 0) addFlatPolygon(batch, rings, placement.minY, meta, 1, -1);
     }
     colliders.push(...placement.colliders);
@@ -441,9 +450,9 @@ export function buildCityBlocks(scene, options = {}) {
       : podiumPlan(candidates[candidateIndex], occupancy[candidateIndex], placement, roadClearance);
     if (podium) {
       const rings = [podium.outer, ...podium.holes].map(flatRing);
-      const top = placement.minY + podium.height;
+      const top = Math.fround(placement.minY + podium.height);
       addWalls(batch, rings, placement.minY, top, meta, placement.baseY);
-      addFlatPolygon(batch, rings, top, meta);
+      addRoof(rings, top, `${building.id}:podium:roof`, 'estimate');
       colliders.push({
         type: 'building-podium', name: `${building.id}:podium`, sourceId: building.id,
         polygon: { outer: podium.outer, holes: podium.holes },
@@ -460,13 +469,24 @@ export function buildCityBlocks(scene, options = {}) {
       // 同一条女儿墙边界给内外两面，俯视时仍能看到屋面内侧。
       const boundary = flatRing(roofPolygon.outer);
       addWalls(batch, [boundary, boundary], placement.maxY, placement.maxY + roof.parapet, meta, placement.baseY);
+      for (let i = 0; i < roofPolygon.outer.length; i++) {
+        const outer = [roofPolygon.outer[i], roofPolygon.outer[(i + 1) % roofPolygon.outer.length]];
+        colliders.push({ type: 'roof-parapet', name: `${building.id}:parapet:${i}`, sourceId: building.id,
+          polygon: { outer, holes: [] }, ...ringBounds(outer),
+          minY: placement.maxY, maxY: Math.fround(placement.maxY + roof.parapet), heightSource: 'estimate' });
+      }
     }
     const equipmentFootprints = [];
-    for (const unit of roof.equipment) {
+    for (const [index, unit] of roof.equipment.entries()) {
       const outer = roofUnitRing(unit);
       const base = flatRing(outer);
       addWalls(batch, [base], placement.maxY, placement.maxY + unit.height, meta, placement.baseY);
-      addFlatPolygon(batch, [base], placement.maxY + unit.height, meta);
+      const top = Math.fround(placement.maxY + unit.height);
+      const id = `${building.id}:equipment:${index}`;
+      addRoof([base], top, id, 'estimate');
+      colliders.push({ type: 'roof-equipment', name: id, sourceId: building.id,
+        polygon: { outer, holes: [] }, ...ringBounds(outer),
+        minY: placement.maxY, maxY: top, heightSource: 'estimate' });
       equipmentFootprints.push({ outer, holes: [] });
     }
     if (roof.parapet > 0 || equipmentFootprints.length > 0) {
@@ -497,7 +517,7 @@ export function buildCityBlocks(scene, options = {}) {
     group.add(mesh);
   }
   scene.add(group);
-  return { group, colliders, allBlocks, roadConflicts, roofPlans, programIds,
+  return { group, colliders, surfaces, allBlocks, roadConflicts, roofPlans, programIds,
     roofs: allBlocks.filter(block => !block.isPodium && block.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M).length,
     update() {},
     dispose() {
@@ -506,6 +526,7 @@ export function buildCityBlocks(scene, options = {}) {
       foundationMaterial?.dispose();
       programMaterial?.dispose();
       roofPlans.clear();
+      surfaces.length = 0;
       scene.remove(group);
     }
   };

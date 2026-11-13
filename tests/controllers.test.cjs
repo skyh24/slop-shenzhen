@@ -44,7 +44,7 @@ function keyboardHarness(nyc = {}) {
     nearestRoads: () => [],
     ...nyc
   };
-  const { ThirdPersonControllerManager, PLAYER_SPEED_LIMITS } = loadModule(source, {
+  const { ThirdPersonControllerManager, PLAYER_SPEED_LIMITS, FLIGHT_MAX_ALTITUDE } = loadModule(source, {
     globals: { window, document },
     imports: {
       ...driving,
@@ -65,7 +65,7 @@ function keyboardHarness(nyc = {}) {
   controller.keys = Object.fromEntries(['forward', 'backward', 'left', 'right', 'up', 'down', 'boost', 'brake'].map((action) => [action, false]));
   controller.getGroundHeight = (x, z) => nyc.blockAt?.(x, z) ? 0.22 : 0;
   controller.groundHeight = (x, z) => controller.getGroundHeight(x, z, controller.activeMode);
-  controller.maxFlightAltitude = 900;
+  controller.maxFlightAltitude = FLIGHT_MAX_ALTITUDE;
   controller.surfaceResolver = {
     resolve(x, z) {
       const y = controller.getGroundHeight(x, z, controller.activeMode);
@@ -1423,4 +1423,53 @@ test('lane shortcuts request one direction and leave typing, modifiers and repea
     window.dispatch('keydown', event);
   }
   assert.deepEqual(calls, [1, -1, 'cancel', 'lane toggle', 'brake toggle']);
+});
+
+
+test('default flight ceiling clears a 600 metre tower and still clamps ascent', () => {
+  const { controller, ent } = teleportHarness('helicopter');
+  assert.equal(controller.maxFlightAltitude, 1200);
+  ent.heading = ent.speed = 0;
+  ent.verticalSpeed = 20;
+  Object.assign(ent.position, { x: 0, y: 599, z: 0 });
+  controller.keys.up = true;
+  for (let i = 0; i < 120; i++) controller.updateHelicopter(1 / 60);
+  assert.ok(ent.position.y > 630);
+  ent.position.y = 1199.9;
+  controller.updateHelicopter(1 / 60);
+  assert.equal(ent.position.y, 1200);
+  assert.equal(ent.verticalSpeed, 0);
+});
+
+test('landing on a roof preserves the floor through walking cycling and driving', () => {
+  const { controller, ent } = teleportHarness('helicopter');
+  delete controller.getGroundHeight;
+  controller.groundHeight = () => 8;
+  const corners = [[-30, -30], [30, -30], [30, 30], [-30, 30]].map(([x, z]) => ({ x, y: 608, z }));
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: controller.groundHeight, surfaces: [
+    { id: 'tower-roof', heightSource: 'fixture-measured', triangles: [[corners[0], corners[1], corners[2]], [corners[0], corners[2], corners[3]]] }
+  ] });
+  controller.colliders = [{ minX: -30, maxX: 30, minZ: -30, maxZ: 30, minY: 8, maxY: 608 }];
+  ent.collisionBounds = { min: { x: -3, y: 0, z: -3 }, max: { x: 3, y: 2.2, z: 3 } };
+  Object.assign(ent.position, { x: 0, y: 608.04, z: 0 });
+  ent.heading = ent.speed = 0;
+  ent.verticalSpeed = -5;
+  controller.keys.down = true;
+  controller.updateHelicopter(1 / 60);
+  assert.equal(ent.position.y, 608);
+  for (const mode of ['person', 'cyclist', 'car']) controller.entities[mode] = teleportHarness(mode).ent;
+  assert.equal(controller.setMode('person'), true);
+  controller.keys.forward = true;
+  for (let i = 0; i < 60; i++) controller.updatePerson(1 / 60);
+  assert.ok(controller.entities.person.position.z > 1);
+  for (const mode of ['cyclist', 'car', 'person']) {
+    assert.equal(controller.setMode(mode), true);
+    assert.equal(controller.getActiveEntity().position.y, 608);
+    assert.equal(controller.getActiveEntity()._support.surfaceId, 'tower-roof');
+  }
+  controller.setMode('person', { x: 50, y: 8, z: 0, heading: 0, surfaceId: 'terrain' });
+  for (const mode of ['cyclist', 'car']) {
+    assert.equal(controller.setMode(mode), true, 'open flat ground does not require a road');
+    assert.equal(controller.getActiveEntity().position.y, 8);
+  }
 });

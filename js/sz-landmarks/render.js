@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { GeoBuilder, addFlatPolygon, addWalls } from '../sz-geometry.js';
+import { GeoBuilder, addFlatPolygon, addWalls, readTriangles } from '../sz-geometry.js';
 
 const flatten = ring => ring.flatMap(p => [p.x, p.z]);
 
@@ -15,21 +15,6 @@ function addBottom(batch, rings, y) {
     indices[i + 2] = indices[i + 1];
     indices[i + 1] = last;
   }
-}
-
-function readTriangles(batch, firstIndex) {
-  const triangles = [];
-  const vertices = batch.pos.data;
-  const indices = batch.idx.data;
-  for (let i = firstIndex; i < batch.idx.length; i += 3) {
-    const tri = [];
-    for (let j = i; j < i + 3; j++) {
-      const offset = indices[j] * 3;
-      tri.push({ x: vertices[offset], y: vertices[offset + 1], z: vertices[offset + 2] });
-    }
-    triangles.push(tri);
-  }
-  return triangles;
 }
 
 const quadUv = (w, h) => [[0, 0], [w, 0], [w, h], [0, h]];
@@ -137,7 +122,9 @@ export function renderLandmark(plan, materialFor) {
   const surfaces = [];
   for (const part of plan.parts) {
     if (!batches.has(part.style)) batches.set(part.style, new GeoBuilder());
-    const roof = addLandmarkPart(batches.get(part.style), part);
+    // 可见实体的水平顶面可供落脚；未封顶的外壳不凭空增加平台，斜屋面保留原声明。
+    const roofContact = part.roofContact || (!Array.isArray(part.top) && part.loftSkin?.top !== false);
+    const roof = addLandmarkPart(batches.get(part.style), { ...part, roofContact });
     if (roof) surfaces.push({ id: part.id, heightSource: part.heightSource, triangles: roof });
   }
   for (const [style, batch] of batches) {

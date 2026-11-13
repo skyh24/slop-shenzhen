@@ -77,6 +77,22 @@ export class GeoBuilder {
   }
 }
 
+// 从已写入的 Float32 显示几何读取接触面，避免重复三角化和精度差。
+export function readTriangles(batch, firstIndex) {
+  const triangles = [];
+  const vertices = batch.pos.data;
+  const indices = batch.idx.data;
+  for (let i = firstIndex; i < batch.idx.length; i += 3) {
+    const tri = [];
+    for (let j = i; j < i + 3; j++) {
+      const offset = indices[j] * 3;
+      tri.push({ x: vertices[offset], y: vertices[offset + 1], z: vertices[offset + 2] });
+    }
+    triangles.push(tri);
+  }
+  return triangles;
+}
+
 function signedArea(ring) {
   let a = 0;
   const n = ring.length / 2;

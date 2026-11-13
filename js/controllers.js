@@ -36,7 +36,7 @@ const CAR_AUTO_DRIVE = { ...CAR_DRIVE, speed: 36, forwardAcceleration: null };
 // 2026-11-11 用户指定升降上限 20 m/s、2 秒加速到位，因此垂直加速度取 10 m/s²。
 const EVTOL_DRIVE = {
   speed: 600 / 3.6, reverseSpeed: 400 / 3.6, reverseAcceleration: 400 / 3.6 / 4, braking: 24,
-  verticalSpeed: 20, verticalAcceleration: 10, altitude: 400
+  verticalSpeed: 20, verticalAcceleration: 10
 };
 export const PLAYER_SPEED_LIMITS = Object.freeze({
   person: 8.2, car: CAR_DRIVE.boostSpeed, cyclist: BICYCLE_DRIVE.speed, helicopter: EVTOL_DRIVE.speed
@@ -48,6 +48,7 @@ const CONTACT_EPSILON = 1e-5;
 const OCCUPANT_STATES = Object.freeze({ WALKING: 'walking', BOARDING: 'boarding', SEATED: 'seated', ALIGHTING: 'alighting' });
 const BOARDING_SECONDS = 0.35;
 const ALIGHTING_SECONDS = 0.3;
+export const FLIGHT_MAX_ALTITUDE = 1200;
 const FLIGHT_START_ALTITUDE = 200;
 const FLIGHT_START_CLEARANCE = 12;
 const FLIGHT_LANDING_MAX_GRADE = 0.06;
@@ -187,7 +188,7 @@ class ThirdPersonControllerManager {
     this.roadHeight = options.roadHeight;
     this.spawnPoint = options.spawnPoint ?? SPAWN_POINT;
     if (!this.spawnPoint) throw new Error('No sourced ground spawn is available');
-    this.maxFlightAltitude = options.maxFlightAltitude ?? EVTOL_DRIVE.altitude;
+    this.maxFlightAltitude = options.maxFlightAltitude ?? FLIGHT_MAX_ALTITUDE;
     this.flightSettings = options.flightSettings;
     this.scene = scene;
     this.groundAccess = options.groundAccess;

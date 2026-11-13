@@ -10,6 +10,7 @@ const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const terrain = loadModule(read('sz-terrain.js'));
 const { buildingPlacement, buildingSeed } = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
 const { GeoBuilder, addWalls } = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': {} } });
+const { createSurfaceResolver } = loadModule(read('sz-controller-surfaces.js'));
 const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 const grid = { x0: -100, z0: -100, nx: 2, nz: 2, step: 200, heightScale: 0.1, heights: [100,100,100,100] };
 const outer = [{x:-20,z:-20},{x:20,z:-20},{x:20,z:20},{x:-20,z:20}];
@@ -62,6 +63,11 @@ test('raised building soffits face the passage and preserve courtyard holes and 
     assert.equal(ray(30, 60, 0, -1, 0, 0)[0].point.x, building.maxX);
     assert.equal(ray(10, 120, 0, 0, -1, 0)[0].point.y, blocks.colliders[0].maxY);
     assert.equal(collision.polygonContains(blocks.colliders[0].polygon, 0, 0), false);
+    assert.ok(blocks.surfaces?.length > 0, 'ordinary roofs expose rendered contact triangles');
+    const resolver = createSurfaceResolver({ groundHeight: () => 10, surfaces: blocks.surfaces });
+    assert.equal(resolver.below(10, 0, 120).height, 110);
+    assert.equal(resolver.below(0, 0, 120).height, 10, 'courtyard stays open');
+    assert.equal(resolver.resolve(10, 0).height, 10, 'ground arrivals do not snap to roofs');
     blocks.dispose();
   });
 
@@ -143,7 +149,7 @@ test('tall ordinary towers gain an estimated podium with matching display and co
   elevated.dispose();
 });
 
-test('ordinary towers get estimated parapets and rooftop equipment without new colliders', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+test('ordinary roof equipment and parapets share rendered contact geometry', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
     'three/webgpu': THREE,
@@ -158,7 +164,15 @@ test('ordinary towers get estimated parapets and rooftop equipment without new c
   const blocks = buildCityBlocks(scene, { buildings: [{ ...tower, facade: 'office' }], terrain: grid });
   assert.equal(blocks.roofs, 1);
   assert.equal(blocks.colliders.filter(collider => collider.type === 'building').length, 1,
-    'roof details must not add colliders');
+    'tower body retains its identity');
+  const equipment = blocks.colliders.filter(c => c.type === 'roof-equipment');
+  assert.ok(equipment.length > 0, 'visible rooftop units block walking and landing');
+  assert.ok(blocks.colliders.some(c => c.type === 'roof-parapet'));
+  const resolver = createSurfaceResolver({ groundHeight: () => 10, surfaces: blocks.surfaces });
+  for (const c of equipment) {
+    const x = (c.minX + c.maxX) / 2, z = (c.minZ + c.maxZ) / 2;
+    assert.equal(resolver.below(x, z, 300).height, c.maxY);
+  }
   scene.updateMatrixWorld(true);
   const ray = new THREE.Raycaster(new THREE.Vector3(19.9, 300, 0), new THREE.Vector3(0, -1, 0));
   const hits = ray.intersectObjects(blocks.group.children);
