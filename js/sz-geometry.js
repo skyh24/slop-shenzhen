@@ -130,7 +130,7 @@ export function addFlatPolygon(b, rings, y, meta, uvScale = 1, facing = 1) {
 
 // 外墙：u 是每面墙自己的累计长度（米，从墙角 0 起，便于按墙拟合整数开间），v 是离地高度（米）。
 // meta 为 [立面编号, 种子, 0, 楼高]；顶点级 meta.z 改写为该面墙的长度，meta.w 保持楼高。
-export function addWalls(b, rings, y0, y1, meta, uvOriginY = 0) {
+export function addWalls(b, rings, y0, y1, meta, uvOriginY = 0, retailFront = null) {
   const v0 = y0 - uvOriginY;
   const v1 = y1 - uvOriginY;
   // 每面墙复用同一份 meta 数组，GeoBuilder 会立刻拷贝数值，不能跨顶点保留引用。
@@ -149,7 +149,8 @@ export function addWalls(b, rings, y0, y1, meta, uvOriginY = 0) {
       const len = Math.hypot(dx, dz);
       if (len < 0.05) continue;
       const nx = dz / len, nz = -dx / len;
-      if (wallMeta) wallMeta[2] = len;
+      // 墙长的绝对值仍用于分格；负号标记有净空的沿街玻璃店面，不增加顶点属性。
+      if (wallMeta) wallMeta[2] = ri === 0 && retailFront?.(ax, az, bx, bz, nx, nz, len) ? -len : len;
       const a0 = b.vertex(ax, y0, az, nx, 0, nz, 0, v0, wallMeta);
       const b0 = b.vertex(bx, y0, bz, nx, 0, nz, len, v0, wallMeta);
       const b1 = b.vertex(bx, y1, bz, nx, 0, nz, len, v1, wallMeta);

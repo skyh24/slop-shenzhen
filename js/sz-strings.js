@@ -143,7 +143,8 @@ export const STR = {
   districts: {
     minghua: '明华轮', seaWorld: '海上世界', b10: 'OCAT · B10', octLoft: 'OCT-LOFT',
     ningnan: '寧南', nantouGate: '嶺南重鎮', nantouPaifang: '城古頭南', closed: '暂不开放',
-    shops: { sea: ['海岸小食', '饮品补给', '港湾餐桌'], oct: ['独立出版', '工艺小铺', '厂房咖啡'] },
+    shops: { sea: ['海岸小食', '饮品补给', '港湾餐桌'], oct: ['独立出版', '工艺小铺', '厂房咖啡'],
+      nantou: ['巷口茶档', '街坊小食', '手作杂货'] },
     seaWalk: '海上世界 · 观船广场', octWalk: '华侨城创意园 · B10 步道', nantouWalk: '南头古城 · 南牌坊外'
   },
   teleport: {

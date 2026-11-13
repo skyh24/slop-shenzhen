@@ -13,11 +13,11 @@ const B10 = 'way/435827468';
 // 以核对过的对象为白名单，保留未核实邻楼、原有高楼及车行路线。
 const OCT_BLOCKS = [
   ['way/333871652', 'brick', null, true], ['way/435827465', 'loft', null, false],
-  ['way/435827461', 'brick', 4, true], ['way/435827469', 'loft', 3, true],
-  ['way/532810249', 'concrete', 2, true], ['way/532810260', 'loft', null, true],
-  ['way/435827467', 'concrete', 4, false], ['way/435827466', 'chalk', null, false],
+  ['way/435827461', 'brick', 3, true], ['way/435827469', 'loft', 3, true],
+  ['way/532810249', 'concrete', 3, true], ['way/532810260', 'loft', null, true],
+  ['way/435827467', 'concrete', 3, false], ['way/435827466', 'chalk', null, false],
   ['way/532810264', 'brick', 3, true], ['way/532810266', 'chalk', null, true],
-  ['way/532810267', 'loft', 4, true]
+  ['way/532810267', 'loft', 3, true]
 ];
 const SEA_BLOCKS = [
   ['way/135951438', 'ivory', 3, true], ['way/135951443', 'chalk', 3, true],
@@ -132,13 +132,15 @@ export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupie
         && b.maxY > y && b.minY < y + height && polygonBoxOverlaps(b.polygon, p.x, p.z, radius, radius));
     const nonBlocking = (p, y, h, owner, r = 0.24) => !ground.reserves(p.x, p.z, r)
       && !reserveEntries(p.x, p.z, r) && allowed(p, y, h, owner, r);
-    const front = p => Number.isFinite(ground.heightAt(p.x, p.z)) || ground.reserves(p.x, p.z, kind === 'oct' ? 10.5 : 5.5);
+    const front = p => Number.isFinite(ground.heightAt(p.x, p.z))
+      || ground.reserves(p.x, p.z, kind === 'sea' ? 19 : kind === 'oct' ? 12 : 6.5);
     const selections = kind === 'sea' ? SEA_BLOCKS : kind === 'oct' ? OCT_BLOCKS : NANTOU_BLOCKS;
     for (const [id, wall, floors, balconies] of selections) {
       const building = byId.get(id);
       if (!building) continue;
       restyleBlock(view, building, site.terrain, site.heightAt, kind, {
-        wall, floors, balconies, front, clear: nonBlocking, entryClear: allowed, open: kind !== 'nantou',
+        wall, floors, balconies, front, clear: nonBlocking, entryClear: allowed, open: kind !== 'nantou' || balconies,
+        shopGrade: id === 'way/135951438' ? { x: -14802, z: 6588 } : null,
         registerShop: shop => shops.push({ ...shop, district: kind }),
         terrace: (kind === 'oct' && id === 'way/435827461') || (kind === 'sea' && id === 'way/492141834')
       });

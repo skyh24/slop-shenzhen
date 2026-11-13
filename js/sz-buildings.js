@@ -378,6 +378,38 @@ export function roofPlan(building, polygon) {
   return { parapet, equipment };
 }
 
+// 商区数据只指示适用范围。墙外至少留出 1.6 米，贴着邻楼的共墙不画橱窗。
+function indexRetailFronts(buildings, retailIds, skipIds) {
+  if (!retailIds.size) return null;
+  const cell = v => Math.floor(v / 64);
+  const key = (x, z) => `${x},${z}`;
+  const grid = new Map();
+  const visit = (bounds, pad, fn) => {
+    for (let x = cell(bounds.minX - pad); x <= cell(bounds.maxX + pad); x++) {
+      for (let z = cell(bounds.minZ - pad); z <= cell(bounds.maxZ + pad); z++) fn(key(x, z));
+    }
+  };
+  for (const b of buildings) if (retailIds.has(b.id) && !skipIds.has(b.id)) {
+    for (const p of b.polygons) visit(ringBounds(p.outer), 12, k => {
+      if (!grid.has(k)) grid.set(k, []);
+    });
+  }
+  for (const b of buildings) {
+    if (b.minHeight > 2.5) continue;
+    for (const p of b.polygons) {
+      const bounds = ringBounds(p.outer);
+      const row = { p, bounds };
+      visit(bounds, 0, k => grid.get(k)?.push(row));
+    }
+  }
+  return (ax, az, bx, bz, nx, nz, len) => len >= 3.4 && [0.2, 0.5, 0.8].every(t =>
+    [0.35, 1.6].every(offset => {
+      const x = ax + (bx - ax) * t + nx * offset, z = az + (bz - az) * t + nz * offset;
+      return !grid.get(key(cell(x), cell(z)))?.some(({ p, bounds }) => x >= bounds.minX && x <= bounds.maxX
+        && z >= bounds.minZ && z <= bounds.maxZ && polygonContains(p, x, z));
+    }));
+}
+
 /** 解析：普通建筑总入口：按 2.4 km 分块合并墙体/屋顶/裙房/女儿墙/屋顶设备，返回碰撞体。
  *  输入：buildings（默认 REAL_BUILDINGS）、terrain、skipIds（地标/场地接管）、roadGraph、entrances、renderChunkSize。
  *  输出：{ group, colliders, surfaces, allBlocks, roofs, roofPlans, update, dispose }。
@@ -394,6 +426,10 @@ export function buildCityBlocks(scene, options = {}) {
   const entrances = options.entrances ?? [
     ...(GEO?.roadFrontage?.entrances ?? []), ...(GEO?.metro?.entrances ?? [])
   ];
+  const retailRefs = (GEO?.mapRegions?.regions ?? []).filter(region => region.type === 'retail')
+    .flatMap(region => region.buildingRefs.map(index => REAL_BUILDINGS[index]?.id));
+  const retailIds = new Set(retailRefs);
+  const retailFront = indexRetailFronts(buildings, retailIds, skipIds);
   const candidates = collectPodiumCandidates(buildings);
   const occupancy = candidates.length ? buildPodiumOccupancy(buildings, terrain, roadGraph, entrances, candidates) : [];
   const candidateByBuilding = new Map(candidates.map((candidate, index) => [candidate.buildingIndex, index]));
@@ -430,6 +466,11 @@ export function buildCityBlocks(scene, options = {}) {
     const facade = facadeIndex(building.facade);
     // 普通超高层不自动套同一种灯光秀，地标灯光由各自模型负责。
     const meta = [facade, buildingSeed(building.id) * 10, 0, building.height];
+    const candidateIndex = candidateByBuilding.get(buildingIndex);
+    const podium = candidateIndex === undefined ? null
+      : podiumPlan(candidates[candidateIndex], occupancy[candidateIndex], placement, roadClearance);
+    const storefront = retailIds.has(building.id) && building.minHeight === 0 && building.height >= 3
+      && building.category !== 'residential' && !building.landmark ? retailFront : null;
     const addRoof = (rings, y, id, heightSource) => {
       const firstIndex = batch.idx.length;
       addFlatPolygon(batch, rings, y, meta);
@@ -440,18 +481,15 @@ export function buildCityBlocks(scene, options = {}) {
       if (placement.foundationBottomY !== null) {
         addWalls(foundations, rings, placement.foundationBottomY, placement.baseY);
       }
-      addWalls(batch, rings, placement.minY, placement.maxY, meta, placement.baseY);
+      addWalls(batch, rings, placement.minY, placement.maxY, meta, placement.baseY, podium ? null : storefront);
       addRoof(rings, placement.maxY, `${building.id}:roof:${index}`, building.heightSource);
       if (building.minHeight > 0) addFlatPolygon(batch, rings, placement.minY, meta, 1, -1);
     }
     colliders.push(...placement.colliders);
-    const candidateIndex = candidateByBuilding.get(buildingIndex);
-    const podium = candidateIndex === undefined ? null
-      : podiumPlan(candidates[candidateIndex], occupancy[candidateIndex], placement, roadClearance);
     if (podium) {
       const rings = [podium.outer, ...podium.holes].map(flatRing);
       const top = Math.fround(placement.minY + podium.height);
-      addWalls(batch, rings, placement.minY, top, meta, placement.baseY);
+      addWalls(batch, rings, placement.minY, top, meta, placement.baseY, storefront);
       addRoof(rings, top, `${building.id}:podium:roof`, 'estimate');
       colliders.push({
         type: 'building-podium', name: `${building.id}:podium`, sourceId: building.id,

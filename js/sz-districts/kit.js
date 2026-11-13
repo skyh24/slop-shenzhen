@@ -67,8 +67,10 @@ function makeMaterial(style) {
 // 实体与碰撞同用一个部件；小件共享实例网格，远处关闭纯装饰，不切换实体碰撞。
 export function createDistrictKit(root) {
   const materials = new Map();
+  const labels = new Map();
   const geometries = {
     box: new THREE.BoxGeometry(1, 1, 1),
+    label: new THREE.PlaneGeometry(1, 1),
     disc: new THREE.CylinderGeometry(0.5, 0.5, 1, 16).rotateX(Math.PI / 2),
     cylinder: new THREE.CylinderGeometry(0.5, 0.5, 1, 16)
   };
@@ -88,6 +90,7 @@ export function createDistrictKit(root) {
     group.add(near);
     updates.push({ near, focus });
     const batches = new Map(), instances = new Map(), colliders = [];
+    const labelBatches = new Map();
     let nextId = 0;
     function part(row, collide = true) {
       if (!batches.has(row.style)) batches.set(row.style, new GeoBuilder());
@@ -108,23 +111,37 @@ export function createDistrictKit(root) {
       const poly = { outer: orientedBoxRing(p.x, p.z, w, d, f.c, f.s), holes: [] };
       return part(solid(id ?? `${group.name}:solid:${nextId++}`, source, poly, bottom, top, style));
     }
-    function label(p, y, width, height, f, text, ink = '#eee5d0', background = '#343e3b') {
-      const map = canvasTexture(512, 128, (ctx, w, h) => {
-        ctx.fillStyle = background;
-        ctx.fillRect(0, 0, w, h);
-        ctx.fillStyle = ink;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = '700 76px system-ui, sans-serif';
-        ctx.fillText(text, w / 2, h / 2 + 4, w * 0.94);
-      });
-      const geometry = new THREE.PlaneGeometry(width, height);
-      const material = new THREE.MeshStandardNodeMaterial({ map, roughness: 0.9 });
-      const mesh = new THREE.Mesh(geometry, material);
+    function label(p, y, width, height, f, text, ink = '#eee5d0', background = '#343e3b', detail = false) {
+      const key = `${ink}:${background}:${text}`;
+      if (!labels.has(key)) {
+        const map = canvasTexture(512, 128, (ctx, w, h) => {
+          ctx.fillStyle = background;
+          ctx.fillRect(0, 0, w, h);
+          ctx.fillStyle = ink;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.font = '700 76px system-ui, sans-serif';
+          ctx.fillText(text, w / 2, h / 2 + 4, w * 0.94);
+        });
+        const material = new THREE.MeshStandardNodeMaterial({ map, roughness: 0.9 });
+        labels.set(key, material);
+        extras.push({ map, material });
+      }
+      const material = labels.get(key);
+      if (detail) {
+        if (!labelBatches.has(material)) labelBatches.set(material, []);
+        pose.position.set(p.x, y, p.z);
+        pose.rotation.set(0, -Math.atan2(f.s, f.c), 0);
+        pose.scale.set(width, height, 1);
+        pose.updateMatrix();
+        labelBatches.get(material).push(pose.matrix.clone());
+        return;
+      }
+      const mesh = new THREE.Mesh(geometries.label, material);
+      mesh.scale.set(width, height, 1);
       mesh.position.set(p.x, y, p.z);
       mesh.rotation.y = -Math.atan2(f.s, f.c);
       group.add(mesh);
-      extras.push({ map, material, geometry });
     }
     function lamp(p, y, strength = 34, range = 12) {
       const light = new THREE.PointLight(0xffd6a0, 0, range, 2);
@@ -134,6 +151,14 @@ export function createDistrictKit(root) {
       group.add(light);
     }
     function finish() {
+      for (const [material, matrices] of labelBatches) {
+        const mesh = new THREE.InstancedMesh(geometries.label, material, matrices.length);
+        for (const [index, matrix] of matrices.entries()) mesh.setMatrixAt(index, matrix);
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.computeBoundingSphere();
+        near.add(mesh);
+        extras.push({ mesh });
+      }
       for (const [style, batch] of batches) {
         const geometry = batch.build();
         const mesh = new THREE.Mesh(geometry, materialFor(style));

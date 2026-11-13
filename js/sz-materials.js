@@ -39,6 +39,21 @@ const stepBand = (x, a, b) => step(a, x).mul(step(x, b));
 // 带一像素抗锯齿的窗框。边缘过渡用 [0, fw]，比居中 smoothstep 省两个加减节点。
 const aaBand = (x, a, b, fw) => smoothstep(ZERO, fw, x.sub(a)).mul(smoothstep(ZERO, fw, b.sub(x)));
 
+// 零售开间：左侧橱窗、右侧落地玻璃门，上方气窗；远景平均玻璃比例，陈列仅近看显示。
+const shopDetails = Fn(([x, y, pixel]) => {
+  const detail = ONE.sub(smoothstep(num(0.12), num(0.48), pixel));
+  const display = aaBand(x, num(0.075), num(0.687), pixel).mul(stepBand(y, num(0.105), num(0.653)));
+  const entry = aaBand(x, num(0.715), num(0.925), pixel).mul(stepBand(y, num(0.025), num(0.653)));
+  const transom = stepBand(y, num(0.675), num(0.802)).mul(aaBand(x, num(0.075), num(0.925), pixel));
+  const pane = mix(num(0.66), max(transom, max(display, entry)), detail);
+  const stock = stepBand(fract(x.mul(num(9))), num(0.18), num(0.77))
+    .mul(stepBand(y, num(0.17), num(0.32))).mul(display).mul(detail);
+  const frame = aaBand(x, num(0.045), num(0.955), pixel);
+  return vec3(pane, stock, frame);
+}).setLayout({ name: 'retail_shop_details', type: 'vec3', inputs: [
+  { name: 'shopX', type: 'float' }, { name: 'shopY', type: 'float' }, { name: 'pixel', type: 'float' }
+] });
+
 // 立面参数按编号插值。fid 是 attribute，不能改写成 JS 分支，否则着色器无法按实例换材质。
 const packV = (fields, fallback = 0) => FACADE_PROFILES.map((p) => vec4(
   num(p[fields[0]]), num(p[fields[1]]), num(p[fields[2]]), fields.length > 3 ? num(p[fields[3]]) : num(fallback)));
@@ -96,7 +111,7 @@ export function createBuildingMaterial(programEmission = null) {
   const wall = ONE.sub(smoothstep(num(0.3), num(0.6), abs(normalWorldGeometry.y)));
 
   // 按墙长拟合整数开间，墙角留实体余量；u 每面墙从 0 起、meta.z 是墙长，所以两端不会切半窗。
-  const wallLength = max(meta.z, HALF);
+  const wallLength = max(abs(meta.z), HALF);
   const margin = min(cornerNominal, wallLength.mul(num(0.18)));
   const innerLength = max(wallLength.sub(margin.mul(num(2))), num(0.2));
   const bayCount = max(floor(innerLength.div(bayNominal).add(HALF)), ONE);
@@ -171,6 +186,21 @@ export function createBuildingMaterial(programEmission = null) {
   const groundDoorV = stepBand(v, num(0.05), num(2.3));
   const groundDoor = groundDoorV.mul(centerDoor).mul(ONE.sub(plainStyle)).mul(groundZone);
 
+  // 零售商区参照纽约的分铺、落地橱窗和侧门。玻璃反射与陈列由墙面着色模拟，保持实体碰撞。
+  const retailHeight = min(num(3.65), min(groundHeight, buildingHeight.sub(num(0.08))));
+  const retailWall = step(meta.z, num(-0.5));
+  const shopZone = wall.mul(retailWall).mul(stepBand(v, ZERO, retailHeight));
+  const shopMargin = min(num(0.45), wallLength.mul(num(0.1)));
+  const shopSpan = max(wallLength.sub(shopMargin.mul(num(2))), HALF);
+  const shopGrid = u.sub(shopMargin).div(shopSpan).mul(max(ONE, floor(shopSpan.div(num(6.3)).add(HALF))));
+  const shopU = fract(shopGrid);
+  const shopV = v.div(retailHeight);
+  const shopPixel = max(fwidth(shopGrid), num(0.002));
+  const details = shopDetails(shopU, shopV, shopPixel);
+  const shopFront = shopZone.mul(stepBand(u, shopMargin, wallLength.sub(shopMargin))).mul(details.z);
+  const shopPane = shopFront.mul(details.x);
+  const shopTone = fract(seed.mul(num(0.83)).add(floor(shopGrid).mul(num(0.618))));
+
   // 颜色全部从已算好的遮罩合成，避免重复的 mix 颜色链。
   const wallColor = wallBase.mul(tone.mul(num(0.16)).add(num(0.92)));
   const trimColor = wallColor.mul(num(1.18));
@@ -193,8 +223,16 @@ export function createBuildingMaterial(programEmission = null) {
   surface = mix(surface, glassColor, glazed);
   surface = mix(surface, frameColor, windowFrameMask);
   surface = mix(surface, frameColor, mullionMask);
-  surface = mix(surface, groundGlassColor, groundGlass);
-  surface = mix(surface, doorColor, groundDoor);
+  const ordinaryGround = ONE.sub(retailWall);
+  const baseGlass = groundGlass.mul(ordinaryGround);
+  const baseDoor = groundDoor.mul(ordinaryGround);
+  surface = mix(surface, groundGlassColor, baseGlass);
+  surface = mix(surface, doorColor, baseDoor);
+  const shopFrame = mix(color(0x253439), color(0x5b493c), shopTone);
+  const shopGlass = mix(mix(color(0x435961), color(0xb89a76), details.y.mul(num(0.65))),
+    skyReflect, num(0.13).add(fresnel.mul(num(0.58))));
+  surface = mix(surface, shopFrame, shopFront);
+  surface = mix(surface, shopGlass, shopPane);
   surface = mix(surface, surface.mul(num(0.62)), parapet);
   surface = mix(surface, trimColor.mul(num(1.04)), coping);
   m.colorNode = mix(surface, roofColor, ONE.sub(wall));
@@ -212,10 +250,12 @@ export function createBuildingMaterial(programEmission = null) {
   const windowGlow = windowColor.mul(glazed).mul(light).mul(glowStrength).mul(num(0.8));
   // 首层灯光压暗并按套间变化：原来整条店面同样亮，夜景里像一条发光带。
   const groundGlow = mix(color(0xd9e6f0), color(0xffd49a), warmth)
-    .mul(groundGlass.add(groundDoor.mul(num(0.7)))).mul(num(0.34))
+    .mul(baseGlass.add(baseDoor.mul(num(0.7)))).mul(num(0.34))
     .mul(occupancy.mul(num(0.45)).add(num(0.55))).mul(glowStrength);
   const officeGlow = programEmission ? programEmission(windowGlow, glazed.mul(ONE.sub(mullionMask))) : windowGlow;
-  m.emissiveNode = officeGlow.add(groundGlow);
+  const shopGlow = color(0xffd19b).mul(shopPane).mul(shopTone.mul(num(0.19)).add(num(0.055)))
+    .mul(glowStrength);
+  m.emissiveNode = officeGlow.add(groundGlow).add(shopGlow);
 
   const hardSurface = max(windowFrameMask, mullionMask);
   // 幕墙玻璃对齐纽约 createCurtainWallMaterial：满玻璃率粗糙度 0.055，窗台附近叠一点积灰；
@@ -224,14 +264,14 @@ export function createBuildingMaterial(programEmission = null) {
   const glassRough = mix(num(0.42), mix(num(0.12), num(0.055), curtain), glazing).add(sillDirt);
   let roughSurface = mix(num(0.86), num(0.55), hardSurface);
   roughSurface = mix(roughSurface, glassRough, glazed);
-  roughSurface = mix(roughSurface, num(0.2), groundGlass.add(groundDoor));
+  roughSurface = mix(roughSurface, num(0.2), baseGlass.add(baseDoor).add(shopPane));
   m.roughnessNode = roughSurface;
 
   // 只有满玻璃率幕墙抬到 0.72；普通开窗玻璃维持旧的 0.5 × glazing，避免全村窗户变成镜面。
   const glassMetal = glazing.mul(mix(HALF, num(0.72), curtain));
   let metalSurface = mix(num(0.04), num(0.3), hardSurface);
   metalSurface = mix(metalSurface, glassMetal, glazed);
-  metalSurface = mix(metalSurface, num(0.15), groundGlass.add(groundDoor));
+  metalSurface = mix(metalSurface, num(0.15), baseGlass.add(baseDoor).add(shopPane));
   m.metalnessNode = metalSurface;
   return m;
 }

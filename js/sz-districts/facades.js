@@ -1,4 +1,5 @@
 import { buildingPlacement, buildingSeed } from '../sz-building-layout.js';
+import { polygonBoxOverlaps } from '../building-collision.js';
 import { polygonContainsInclusive, signedRingArea } from '../sz-polygon.js';
 import { STR } from '../sz-strings.js';
 import { frame, railing, solid } from './kit.js';
@@ -9,29 +10,77 @@ const DISTRICT_STYLE = {
   nantou: { walls: ['oldBrick', 'tan', 'chalk', 'brick'], trim: 'granite', metal: 'green', bays: 2.55 }
 };
 
-function openShop(kit, building, f, u, y, w, d, kind, i, style) {
-  const finish = kind === 'sea' ? ['blue', 'terra', 'green'][i % 3] : ['steel', 'terra', 'green'][i % 3];
-  const floor = f.at(u, -d / 2);
+function shopOpenings(building, poly, ordered, base, heightAt, kind, { front, entryClear }) {
+  const openings = new Map();
+  const outline = [poly.outer, ...poly.holes].flatMap(ring => ring.map((a, i) =>
+    ({ outer: [a, ring[(i + 1) % ring.length]], holes: [] })));
+  const cuts = [];
+  const level = h => Number.isFinite(h) && Math.abs(h - base) < 0.13;
+  for (let edge = 0; edge < ordered.length; edge++) {
+    const a = ordered[(edge + 1) % ordered.length], b = ordered[edge];
+    const length = Math.hypot(a.x - b.x, a.z - b.z);
+    if (length < (kind === 'nantou' ? 4.5 : 5.5)) continue;
+    const f = frame(a.x, a.z, b.x - a.x, b.z - a.z);
+    const count = Math.max(1, Math.round(length / (kind === 'sea' ? 6.7 : kind === 'oct' ? 6.0 : 5.1)));
+    const bay = length / count;
+    const w = Math.min(5.2, bay * 0.76), d = kind === 'nantou' ? 2.35 : 2.55;
+    for (let i = 0; i < count; i++) {
+      const u = (i + 0.5) * bay;
+      if (!front(f.at(u, 0.8))) continue;
+      const sides = [-w / 2, 0, w / 2];
+      const probes = sides.flatMap(offset => [0.27, 1.2].map(v => f.at(u + offset, v)));
+      if (!probes.every(p => {
+        const y = heightAt(p.x, p.z);
+        return level(y) && entryClear(p, y, 2.6, building.id);
+      })) continue;
+      const interior = sides.flatMap(offset => [-0.12, -d].map(v => f.at(u + offset, v)));
+      if (!interior.every(p => polygonContainsInclusive(poly, p.x, p.z) && level(heightAt(p.x, p.z)))) continue;
+      // 拐角、内院或不规则外墙可能从铺面内部切过。除临街开口外，凹槽须完整落在源轮廓内。
+      const center = f.at(u, -(d + 0.06) / 2);
+      if (!polygonContainsInclusive(poly, center.x, center.z)
+        || [...outline, ...cuts].some(p => polygonBoxOverlaps(p, center.x, center.z, w / 2, (d - 0.06) / 2, f.c, -f.s))) continue;
+      const clearApproach = v => {
+        const p = f.at(u, v);
+        const y = heightAt(p.x, p.z);
+        return level(y) && entryClear(p, y, 1.9, building.id, 0.55);
+      };
+      let step = 3;
+      while (step <= 12 && clearApproach(step * 0.4)) step++;
+      if (step <= 4) continue;
+      const opening = { f, u, w, d, approach: (step - 1) * 0.4 };
+      if (!openings.has(edge)) openings.set(edge, []);
+      openings.get(edge).push(opening);
+      cuts.push({ outer: [f.at(u + w / 2, 0), f.at(u + w / 2, -d), f.at(u - w / 2, -d), f.at(u - w / 2, 0)], holes: [] });
+    }
+  }
+  return openings;
+}
+
+function openShop(kit, building, f, u, y, w, d, top, kind, i, style) {
+  const finish = kind === 'sea' ? ['blue', 'terra', 'green'][i % 3]
+    : kind === 'oct' ? ['steel', 'terra', 'green'][i % 3] : ['wood', 'green', 'oldBrick'][i % 3];
   const board = f.at(u, 0.19);
   const frameAt = (p, lo, hi, width, depth, mat) => kit.box(p, y + lo, y + hi, width, depth, f, mat, building);
-  kit.piece(floor, y - 0.035, w, 0.065, d, f, kind === 'sea' ? 'stone' : 'concrete', { detail: false });
-  frameAt(f.at(u, 0.30), 2.89, 3.04, w + 0.4, 0.72, finish);
-  kit.label(board, y + 2.7, w * 0.8, 0.35, f, STR.districts.shops[kind][i % 3]);
-  kit.piece(f.at(u, -0.9), y + 2.86, w * 0.55, 0.075, 0.17, f, 'lamp');
-  kit.lamp(f.at(u, -0.32), y + 2.55, 27, 8);
-  const right = u + w * 0.28;
-  frameAt(f.at(right, -d + 0.72), 0, 1.0, w * 0.41, 0.72, 'wood');
-  kit.piece(f.at(right, -d + 0.72), y + 1.035, w * 0.44, 0.07, 0.79, f, 'stone');
-  const left = u - w * 0.29;
+  frameAt(f.at(u, 0.31), top - 0.22, top - 0.035, w + 0.4, 0.78, finish);
+  kit.label(board, y + top - 0.44, w * 0.68, 0.34, f, STR.districts.shops[kind][i % 3], '#eee5d0',
+    kind === 'sea' ? '#335263' : kind === 'oct' ? '#3a4443' : '#53423a', true);
+  kit.piece(f.at(u, -0.9), y + top - 0.20, w * 0.55, 0.075, 0.17, f, 'lamp');
+  kit.lamp(f.at(u, -0.32), y + top - 0.54, 27, 8);
+  kit.piece(f.at(u, -d + 0.014), y + (top + 0.05) / 2, w - 0.04, top - 0.15, 0.028, f,
+    kind === 'sea' ? 'loft' : kind === 'oct' ? 'concrete' : 'tan');
+  const right = u + w * 0.34;
+  frameAt(f.at(right, -d + 0.55), 0, 1.0, w * 0.27, 0.60, 'wood');
+  kit.piece(f.at(right, -d + 0.55), y + 1.035, w * 0.30, 0.07, 0.67, f, 'stone');
+  const left = u - w * 0.32;
   for (const [a, b] of [[0.28, 0.38], [0.78, 0.87], [1.33, 1.41]]) {
-    frameAt(f.at(left, -d + 0.25), a, b, w * 0.40, 0.34, style.metal);
+    frameAt(f.at(left, -d + 0.20), a, b, w * 0.33, 0.29, style.metal);
     for (let j = 0; j < 6; j++) {
-      kit.piece(f.at(left + (j - 2.5) * w * 0.058, -d + 0.26), y + b + 0.12,
+      kit.piece(f.at(left + (j - 2.5) * w * 0.048, -d + 0.20), y + b + 0.12,
         0.12, 0.24, 0.20, f, ['terra', 'brass', 'green', 'ivory'][(i + j) % 4]);
     }
   }
   for (const side of [-1, 1]) {
-    kit.piece(f.at(u + side * w / 2, 0.02), y + 1.40, 0.13, 2.8, 0.15, f, finish);
+    kit.piece(f.at(u + side * w / 2, 0.02), y + (top - 0.2) / 2, 0.13, top - 0.2, 0.15, f, finish);
   }
 }
 
@@ -40,52 +89,42 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
   const seed = buildingSeed(building.id);
   const wall = options.wall ?? style.walls[Math.floor(seed * style.walls.length)];
   const old = buildingPlacement(building, terrain);
-  const base = old.baseY;
+  // 这一处缓坡沿街的设计铺面以街面标高为准，原轮廓和总高不变。
+  const grade = options.shopGrade && heightAt(options.shopGrade.x, options.shopGrade.z);
+  const base = Number.isFinite(grade) && Math.abs(old.baseY - grade) < 0.3 ? grade : old.baseY;
   // 设计层数只改没有层数、来源为通用估计的指定对象；其他对象保持源高度。
   const override = building.heightSource === 'estimate' && !(building.levels > 0) && options.floors > 0;
-  const height = override ? options.floors * (kind === 'sea' ? 3.95 : 3.65) : building.height;
+  const height = override ? options.floors * (options.floorHeight ?? (kind === 'sea' ? 3.95 : kind === 'oct' ? 4.05 : 3.65)) : building.height;
   const roof = base + height;
-  const bottom = old.foundationBottomY ?? old.minY;
+  const bottom = Math.min(old.foundationBottomY ?? old.minY, base + building.minHeight);
   for (const [i, poly] of building.polygons.entries()) {
     const id = `${building.id}:district:${i}`;
     const ring = poly.outer;
     const ordered = signedRingArea(ring) > 0 ? ring : [...ring].reverse();
     const levelCount = building.levels > 0 ? building.levels : override ? options.floors : Math.round(height / 3.55);
     const story = height / Math.max(1, levelCount);
-    const baseFloor = 3.06;
-    let opening;
-    if (options.open && kind !== 'nantou' && building.minHeight === 0 && story >= baseFloor && height > baseFloor + 0.7) {
-      const candidates = ordered.flatMap((b, j) => {
-        const a = ordered[(j + 1) % ordered.length];
-        const length = Math.hypot(a.x - b.x, a.z - b.z);
-        if (length < 6.8) return [];
-        const f = frame(a.x, a.z, b.x - a.x, b.z - a.z);
-        const w = Math.min(5.2, length * 0.56), d = 2.55, u = length / 2;
-        const entry = f.at(u, 0.8);
-        const probes = [-w / 2, 0, w / 2].flatMap(x => [0.27, 1.2].map(v => f.at(u + x, v)));
-        if (!options.front?.(entry) || !probes.every(p => {
-          const h = heightAt(p.x, p.z);
-          return Number.isFinite(h) && Math.abs(h - base) < 0.13 && options.entryClear(p, h, 2.6, building.id);
-        }) || ![-w / 2, 0, w / 2].every(x => [-0.12, -d].every(v => {
-          const p = f.at(u + x, v), h = heightAt(p.x, p.z);
-          return polygonContainsInclusive(poly, p.x, p.z) && Number.isFinite(h) && Math.abs(h - base) < 0.13;
-        }))) return [];
-        return [{ j, f, u, w, d, length }];
-      });
-      candidates.sort((a, b) => b.length - a.length);
-      opening = candidates[0];
-    }
+    const baseFloor = kind === 'oct' && override ? 3.44 : 3.06;
+    const openings = options.open && building.minHeight === 0 && story >= baseFloor && height > baseFloor + 0.7
+      ? shopOpenings(building, poly, ordered, base, heightAt, kind, options) : new Map();
     const provenance = override ? 'scene-design-height' : 'osm-footprint';
-    if (opening) {
-      const { j, f, u, w, d } = opening;
-      const right = u + w / 2, left = u - w / 2;
-      const recess = ordered.flatMap((p, k) => j === k
-        ? [p, f.at(right, 0), f.at(right, -d), f.at(left, -d), f.at(left, 0)] : [p]);
+    if (openings.size) {
+      const recess = ordered.flatMap((p, edge) => {
+        const bays = openings.get(edge) ?? [];
+        return [p, ...bays.slice().reverse().flatMap(({ f, u, w, d }) => {
+          const right = u + w / 2, left = u - w / 2;
+          return [f.at(right, 0), f.at(right, -d), f.at(left, -d), f.at(left, 0)];
+        })];
+      });
       kit.part(solid(`${id}:open-shop`, building, { outer: recess, holes: poly.holes }, bottom, base + baseFloor, wall));
       kit.part(solid(id, building, poly, base + baseFloor, roof, wall, provenance));
-      openShop(kit, building, f, u, base, w, d, kind, Math.floor(seed * 24), style);
-      options.registerShop?.({ id: building.id, mouth: f.at(u, 0), interior: f.at(u, -1.65),
-        approach: f.at(u, 4.8) });
+      let shopIndex = Math.floor(seed * 24);
+      for (const bays of openings.values()) {
+        for (const { f, u, w, d, approach } of bays) {
+          openShop(kit, building, f, u, base, w, d, baseFloor, kind, shopIndex++, style);
+          options.registerShop?.({ id: building.id, mouth: f.at(u, 0), interior: f.at(u, -1.55),
+            approach: f.at(u, approach) });
+        }
+      }
     } else kit.part(solid(id, building, poly, bottom, roof, wall, provenance));
     for (let j = 0; j < ordered.length; j++) {
       const a = ordered[(j + 1) % ordered.length], b = ordered[j];
@@ -96,7 +135,17 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
         [0.15, depth].every(v => options.clear?.(f.at(u + d, v), y, h, building.id) !== false));
       const count = Math.max(1, Math.round(length / style.bays));
       const bay = length / count;
+      const shopBays = openings.get(j) ?? [];
       kit.piece(f.at(length / 2, 0.035), roof - 0.22, length, 0.25, 0.13, f, style.trim, { detail: false });
+      if (kind === 'oct' && override && shopBays.length) {
+        // 三层联排按开间分段；砖与灰墙的分缝延续到屋檐，仍使用原建筑轮廓。
+        for (const { u, w } of shopBays) {
+          const upper = height - baseFloor - 0.45;
+          const x = u - w / 2 - 0.10;
+          kit.piece(f.at(x, 0.055), base + baseFloor + upper / 2, 0.22, upper, 0.16, f, style.trim);
+          kit.piece(f.at(u, 0.07), roof - 0.42, w + 0.34, 0.24, 0.19, f, wall === 'brick' ? 'loft' : 'brick');
+        }
+      }
       for (let k = 0; k < count; k++) {
         const u = (k + 0.5) * bay;
         const p = f.at(u, 0.12);
@@ -106,7 +155,7 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
         const row = (y, w, h, v, d, material, detail = true) =>
           kit.piece(f.at(u, v), y, w, h, d, f, material, { detail });
         for (let floor = 0; floor < levelCount; floor++) {
-          if (floor === 0 && j === opening?.j && Math.abs(u - opening.u) < opening.w / 2 + bay * 0.47) continue;
+          if (floor === 0 && shopBays.some(opening => Math.abs(u - opening.u) < opening.w / 2 + bay * 0.47)) continue;
           const y = base + building.minHeight + floor * story;
           const window = bay * (floor === 0 && shop ? 0.83 : 0.62);
           const h = Math.min(story * (floor === 0 && shop ? 0.63 : 0.51), 2.6);
@@ -152,7 +201,7 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
 }
 
 export function buildB10(kit, building, terrain, heightAt, clear) {
-  restyleBlock(kit, building, terrain, heightAt, 'oct', { floors: 3, wall: 'chalk', front: () => false });
+  restyleBlock(kit, building, terrain, heightAt, 'oct', { floors: 3, floorHeight: 3.65, wall: 'chalk', front: () => false });
   const y = buildingPlacement(building, terrain).baseY;
   // 南立面圆盘与筛网参考都市实践的改造照片；网格/入口比例为视觉估计，室内不开放。
   const f = frame(-6803.43, 438.82, 54.73, -4.1);
