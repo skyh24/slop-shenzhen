@@ -79,7 +79,8 @@ export function buildZhongxinWalk(scene, graph, terrain, style) {
   const inPilot = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
   const statistics = { entrance: ENTRANCE.id, connected: false, lengthM: 0, minimumWidthM: 0, planters: 0 };
   return {
-    ...walk, entrance: ENTRANCE, bounds: BOUNDS, reserves, inPilot, statistics, trees: TREES,
+    ...walk, pedestrianSurface: { heightAt: walk.heightAt, allows: (x, z, radius) => walk.allows(x, z, radius, NETWORK) },
+    entrance: ENTRANCE, bounds: BOUNDS, reserves, inPilot, statistics, trees: TREES,
     placePlanter(colliders, heightAt) {
       const { x, z, width, depth, height } = PLANTER;
       const hx = width / 2, hz = depth / 2, y = heightAt(x, z);

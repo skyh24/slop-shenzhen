@@ -141,7 +141,7 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
   const routePoints = source.walkRoute.map(([x, y, z]) => ({ x, y, z }));
   const restSpots = [];
   const publicRoutes = [{ id: 'shenzhen-bay:central-bay', points: routePoints,
-    walkAt: (x, z) => pathsNear(x, z).includes('walk'), reserve: (x, z) => pathsNear(x, z, 1.4).length > 0,
+    allows: (x, z, radius) => pathsNear(x, z, -radius).includes('walk'), reserve: (x, z) => pathsNear(x, z, 1.4).length > 0,
     restSide: s => restSpots.find(spot => Math.abs(spot.s - s) <= 2.6)?.side, jogSpeed: 2.25 }];
   const buckets = new Map();
   function bucket(x, z) {

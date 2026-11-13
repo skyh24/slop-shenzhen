@@ -352,6 +352,7 @@ async function initApp() {
   const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, GEO.roadGraph, {
     ...site,
     publicRoute: publicWalk.route(colliders),
+    publicWalkSurface: publicWalk.pedestrianSurface,
     excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || waterfront?.reserves(x, z, 2),
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],

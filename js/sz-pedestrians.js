@@ -3,6 +3,7 @@ import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { buildWalkTracks, createColliderGrid, createPublicWalkTrack, sampleTrack } from './sz-pedestrian-tracks.js';
 import { polygonContains } from './sz-polygon.js';
 import { contactTime, writeEntityCollider, writePedestrianCollider } from './sz-driving-motion.js';
+import { WALK_RADIUS, WALK_GAP, createWalkerGrid, clearOfWalkers, createWalkAvoidance } from './sz-walk-avoidance.js';
 import { vehicleContact } from './vehicle-physics.js';
 
 // 正式深圳场景的环境人群：复用纽约的 PersonRig / PersonCrowd（步态、脚底接地、远近 LOD），
@@ -210,17 +211,23 @@ function createPed(id, cfg) {
   };
 }
 
-function processPose(ped, sampled) {
-  const isPublic = ped.leg.kind === 'public-walk';
-  const fade = isPublic ? 1
-    : Math.max(0, Math.min(1, ped.s / 2.5, (ped.leg.length - ped.s) / 2.5));
-  const publicLimit = ped.leg.restSide ? 1.45 : 0.38;
-  const lateral = isPublic ? clamp(ped.lateral, -publicLimit, publicLimit) : ped.lateral * (ped.leg.publicHeight ? 1 : fade);
-  ped.x = sampled.x + (isPublic ? sampled.rightX : sampled.dz) * lateral;
-  ped.z = sampled.z + (isPublic ? sampled.rightZ : -sampled.dx) * lateral;
-  ped.y = ped.leg.publicHeight?.(ped.x, ped.z) ?? sampled.y;
-  // 坐标系约定与控制器相同：heading = atan2(x 分量, z 分量)，0 为南、π 为北。
-  ped.heading = Math.atan2(sampled.dx * ped.dir, sampled.dz * ped.dir);
+function poseOffsetLimit(leg, cfg) {
+  if (leg.allows || leg.walkAt || leg.publicHeight) return 1.45;
+  if (leg.kind === 'public-walk') return 0.5;
+  return Math.max(0, cfg.pavementHalfWidthM - WALK_RADIUS);
+}
+
+function offsetPose(leg, s, lateral, out) {
+  sampleTrack(leg, s, out);
+  // 连线切换只在端点附近收回中心；公共面允许在原边界内保持横向位置。
+  const fade = leg.kind === 'public-walk' || leg.publicHeight ? 1 : clamp(s / 0.9, 0, 1) * clamp((leg.length - s) / 0.9, 0, 1);
+  out.raised = leg.raisedOnly;
+  const centerX = out.x, centerZ = out.z;
+  out.x += (out.rightX ?? out.dz) * lateral * fade;
+  out.z += (out.rightZ ?? -out.dx) * lateral * fade;
+  out.centerX = centerX;
+  out.centerZ = centerZ;
+  return out;
 }
 
 function pickTrack(region, random) {
@@ -274,10 +281,40 @@ export function createSzPedestrians(scene, graph, options = {}) {
     return Number.isFinite(height) ? height + rise : rise;
   };
   const publicTracks = (cfg.publicRoutes ?? []).map(route => createPublicWalkTrack(route.points, route));
-  if (cfg.publicRoute) publicTracks.push(createPublicWalkTrack(cfg.publicRoute));
+  if (cfg.publicRoute) publicTracks.push(createPublicWalkTrack(cfg.publicRoute, cfg.publicWalkSurface));
   const scratch = { x: 0, y: 0, z: 0, dx: 1, dz: 0 };
   const nearPeds = [];
-  const queueSpeeds = new Float64Array(cfg.maxPeds);
+  const grid = createWalkerGrid();
+  const nearby = [];
+  const stepPose = {};
+  const stepSample = {};
+  const spawnPose = {};
+  const rightOffset = (leg, dir) => -dir * Math.min(cfg.keepRightM, poseOffsetLimit(leg, cfg));
+  const pose = (leg, s, lateral, out) => {
+    // 采样对象会复用，清掉上条公共步道的法线。
+    out.rightX = out.rightZ = undefined;
+    offsetPose(leg, s, clamp(lateral, -poseOffsetLimit(leg, cfg), poseOffsetLimit(leg, cfg)), out);
+    if (leg.kind === 'sidewalk' && !out.raised && cfg.groundHeight) {
+      const base = cfg.groundHeight(out.centerX, out.centerZ);
+      out.raised = Number.isFinite(base) && out.y - base >= 0.06 && out.y - base <= 0.18;
+    }
+    return out;
+  };
+  function segment(leg, a, b) {
+    const dx = b.x - a.x, dz = b.z - a.z, distance = Math.hypot(dx, dz);
+    const count = Math.max(1, Math.ceil(distance / 0.18));
+    const padding = distance / count / 2;
+    let height = a.y;
+    for (let i = 1; i <= count; i++) {
+      // 中间样点多留半步净空；最终落脚点也必须通过同一套检查。
+      const t = (i - 0.5) / count;
+      const middle = region.heightForPose(a.x + dx * t, a.z + dz * t, height, leg, WALK_RADIUS, b.raised, padding);
+      if (middle === null) return false;
+      height = middle;
+    }
+    b.y = region.heightForPose(b.x, b.z, height, leg, WALK_RADIUS, b.raised);
+    return b.y !== null;
+  }
   const avoidance = [];
   const vehicleProbe = {}, walkProbe = {}, walkContact = {};
   const nearbyVehicles = [];
@@ -287,6 +324,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
   let spawnCursor = 0;
   let pavementGeometry = null;
   const statistics = {
+    walkPlans: 0, walkPasses: 0, walkYields: 0, walkDetours: 0,
     maxPeds: cfg.maxPeds, placed: 0, near: 0, drawn: 0, spawned: 0, recycled: 0, spawnFailures: 0,
     regionBuilds: 0, regionBuildMs: 0, tracks: 0, connectors: 0, walkableMeters: 0,
     pavementTriangles: 0, pavementAreaM2: 0, pavementCarriagewaySkipped: 0,
@@ -294,6 +332,9 @@ export function createSzPedestrians(scene, graph, options = {}) {
     vehicleYields: 0, targetPeds: 0, spawnCapacity: 0, density: 0, densityBuildings: densityModel.statistics.buildings,
     densityGreenPolygons: densityModel.statistics.greenPolygons
   };
+
+  const walkerAvoidance = createWalkAvoidance({ pose, segment, rightOffset,
+    offsetLimit: leg => poseOffsetLimit(leg, cfg), statistics });
 
   function applyPavement(pavement) {
     if (pavementMesh) {
@@ -406,25 +447,6 @@ export function createSzPedestrians(scene, graph, options = {}) {
     }
   }
 
-  function crowded(x, z) {
-    for (const ped of peds) {
-      if (!ped.placed) continue;
-      if (squareDistance(x, z, ped.x, ped.z) < 1) return true;
-    }
-    return false;
-  }
-
-  function fitRoadsidePose(ped, sampled) {
-    const blocked = () => region.carriagewayOccupied(ped.x, ped.z) || ped.leg.walkAt?.(ped.x, ped.z) === false
-      || (ped.leg.publicHeight && !Number.isFinite(ped.leg.publicHeight(ped.x, ped.z)));
-    processPose(ped, sampled);
-    if (!blocked()) return true;
-    // 靠右或让行偏移会越过路缘时，先尝试留在步行带中线。
-    ped.lateral = 0;
-    processPose(ped, sampled);
-    return !blocked();
-  }
-
   function trySpawn(ped, focus, isVisible) {
     if (!region || region.spawnTracks.length === 0) return false;
     for (let attempt = 0; attempt < 8; attempt++) {
@@ -442,19 +464,29 @@ export function createSzPedestrians(scene, graph, options = {}) {
       ped.fromLeg = null;
       ped.speed = track.jogSpeed && ped.id % 7 === 0 ? track.jogSpeed
         : cfg.targetSpeedMin + (cfg.targetSpeedMax - cfg.targetSpeedMin) * hash(ped.id, 3);
-      ped.lateral = cfg.keepRightM * ped.dir;
+      ped.lateral = rightOffset(track, ped.dir);
       ped.v = ped.speed * (0.5 + random() * 0.5);
       ped.pause = 0;
       ped.restOffset = null;
-      if (!fitRoadsidePose(ped, scratch)) continue;
-      if (ped.leg.kind === 'public-walk') ped.y = ground(ped, ped.x, ped.z);
-      if (avoidance.some(player => squareDistance(ped.x, ped.z, player.x, player.z) < (player.radius + 1) ** 2)
-        || crowded(ped.x, ped.z)) continue;
+      pose(track, s, ped.lateral, spawnPose);
+      if (!segment(track, spawnPose, spawnPose)) {
+        ped.lateral = 0;
+        pose(track, s, 0, spawnPose);
+        if (!segment(track, spawnPose, spawnPose)) continue;
+      }
+      const { x, y, z } = spawnPose;
+      if (avoidance.some(player => squareDistance(x, z, player.x, player.z) < (player.radius + 1) ** 2)
+        || grid.query(x, z, 1, nearby).some(other => Math.abs(y - other.y) < 1.65
+          && squareDistance(x, z, other.x, other.z) < 1)) continue;
+      Object.assign(ped, { x, y, z, vx: 0, vz: 0, heading: Math.atan2(scratch.dx * ped.dir, scratch.dz * ped.dir),
+        lateralV: 0, stuckFor: 0, motionDir: ped.dir, avoid: null, yielding: null, priority: null, staticPath: null, nextLeg: null,
+        centerUntil: 0, staticCheck: 0, nextLinkCheck: 0, walkCheck: clock + ped.id % 11 * 0.022 });
       writePedestrianCollider(walkProbe, ped.x, ped.y, ped.z, ped.heading, 0);
       if (nearbyVehicles.some(body => Number.isFinite(contactTime(walkProbe, body, 1)))) continue;
       ped.restAt = clock + cfg.restMinS + random() * (cfg.restMaxS - cfg.restMinS);
       ped.rig.placed = false;
       ped.placed = true;
+      grid.add(ped);
       statistics.spawned++;
       return true;
     }
@@ -464,159 +496,211 @@ export function createSzPedestrians(scene, graph, options = {}) {
 
   function unplace(ped) {
     ped.placed = false;
+    ped.activeWalker = false;
     ped.leg = null;
     ped.fromLeg = null;
     ped.rig.placed = false;
   }
 
-  function transition(ped) {
-    const end = ped.dir > 0 ? 1 : 0;
+  function nextLink(ped, end) {
     const links = ped.leg.ends[end];
-    let choice = null;
-    if (links.length > 0) {
-      const fresh = links.filter(link => link.leg !== ped.fromLeg);
-      const pool = fresh.length > 0 ? fresh : links;
-      choice = pool[Math.floor(random() * pool.length)];
-    }
-    if (!choice) {
-      // 没有同侧转角连接：在端点原路折返；不横穿车行道。
-      ped.dir = -ped.dir;
-      ped.pause = cfg.pauseTurnS;
-      ped.v = 0;
-      ped.fromLeg = null;
-      return true;
-    }
-    const previous = ped.leg;
-    ped.leg = choice.leg;
-    ped.s = choice.end === 0 ? 0 : ped.leg.length;
-    ped.dir = choice.end === 0 ? 1 : -1;
-    ped.fromLeg = previous;
-    return true;
+    const held = ped.priority?.yielding?.pocket.link?.leg;
+    if (ped.nextLeg && links.includes(ped.nextLeg) && ped.nextLeg.leg !== held) return ped.nextLeg;
+    const open = links.filter(link => link.leg !== held);
+    const choices = open.length ? open : links;
+    const fresh = choices.filter(link => link.leg !== ped.fromLeg);
+    const pool = fresh.length > 0 ? fresh : choices;
+    ped.nextLeg = pool[Math.floor(random() * pool.length)] ?? null;
+    return ped.nextLeg;
   }
 
-  function aheadSpeed(ped) {
-    let speed = ped.speed;
-    const fx = Math.sin(ped.heading);
-    const fz = Math.cos(ped.heading);
-    for (const other of nearPeds) {
-      if (other === ped) continue;
-      if (ped.leg.kind === 'public-walk' && other.leg === ped.leg) {
-        if (other.dir !== ped.dir) continue;
-        const gap = (other.s - ped.s) * ped.dir;
-        if (gap > 0 && gap <= 1.6) speed = Math.min(speed, gap < 0.75 ? 0 : 0.45);
-        continue;
-      }
-      const dx = other.x - ped.x;
-      const dz = other.z - ped.z;
-      const forward = dx * fx + dz * fz;
-      if (forward <= 0 || forward > 1.6) continue;
-      const lateral = Math.abs(dx * fz - dz * fx);
-      if (lateral > 0.62) continue;
-      speed = Math.min(speed, forward < 0.75 ? 0 : 0.45);
-    }
-    return speed;
-  }
-
-  function advance(ped, dt, queueSpeed) {
+  function advance(ped, dt) {
+    if (!dt) return;
+    grid.query(ped.x, ped.z, 1.6, nearby);
     const vehicles = nearbyVehicles.filter(body => Math.abs(body.x - ped.x) < 42 && Math.abs(body.z - ped.z) < 42);
     if (ped.pause > 0) {
       ped.pause = Math.max(0, ped.pause - dt);
       if (ped.pause === 0) ped.restOffset = null;
-      ped.v = 0;
     }
-    let target = ped.pause > 0 ? 0 : ped.speed;
+    let target = ped.pause > 0 ? 0 : ped.walkSpeed;
+    let lateral = ped.pause > 0 && Number.isFinite(ped.restOffset) ? ped.restOffset : ped.walkOffset;
+    let dir = ped.dir, leg = ped.leg, s = ped.s;
+    let stopAt = null, forcedLink = null;
+    const yielding = ped.yielding;
+    if (yielding) {
+      const { pocket, original, winner } = yielding;
+      if (!yielding.cleared && yielding.waiting) {
+        const anchor = pocket.base ?? pose(original, pocket.end ? original.length : 0, 0, {});
+        if ((winner.x - anchor.x) * yielding.fx + (winner.z - anchor.z) * yielding.fz < -1.25) yielding.cleared = true;
+      }
+      if (yielding.cleared && leg === original) {
+        ped.yielding = null;
+        lateral = rightOffset(leg, dir);
+      } else if (yielding.cleared) {
+        dir = pocket.link.end ? 1 : -1;
+        forcedLink = { leg: original, end: pocket.end };
+        target = Math.min(ped.speed, 1);
+        lateral = 0;
+      } else if (leg !== pocket.leg) {
+        dir = -yielding.dir;
+        forcedLink = pocket.link;
+        target = 0.85;
+        lateral = 0;
+      } else {
+        const gap = pocket.s - s;
+        stopAt = pocket.s;
+        dir = gap >= 0 ? 1 : -1;
+        target = Math.min(0.85, Math.abs(gap) * 3);
+        lateral = Math.abs(gap) < 0.14 ? pocket.offset : (pocket.link ? 0 : yielding.offset);
+        yielding.waiting = Math.abs(gap) < 0.04 && Math.abs(ped.lateral - pocket.offset) < 0.08;
+      }
+    }
+    if (ped.priority?.yielding) {
+      const q = ped.priority;
+      const gap = (q.x - ped.x) * ped.fx + (q.z - ped.z) * ped.fz;
+      if (!q.yielding.waiting) target = Math.min(target, Math.max(0, (gap - WALK_GAP - 0.23) * 1.1));
+      // 留在狭处中线，退让者才能沿原路走到让行点。
+      lateral = 0;
+    }
+    const end = dir > 0 ? 1 : 0;
+    const distance = end ? leg.length - s : s;
+    if (!forcedLink && !leg.ends[end].length) target = Math.min(target, Math.sqrt(2 * 1.8 * distance));
     for (const player of avoidance) {
-      if (squareDistance(ped.x, ped.z, player.x, player.z) < player.radius ** 2) { target = 0; break; }
+      if (squareDistance(ped.x, ped.z, player.x, player.z) < player.radius ** 2) {
+        target = 0;
+        lateral = ped.lateral;
+        break;
+      }
     }
-    if (target > 0) target = Math.min(target, queueSpeed);
-    // 无连接的端点前提前减速，折返前自然停住。
-    const end = ped.dir > 0 ? 1 : 0;
-    if (ped.leg.ends[end].length === 0) {
-      const ahead = ped.dir > 0 ? ped.leg.length - ped.s : ped.s;
-      target = Math.min(target, Math.sqrt(2 * 1.8 * Math.max(0, ahead)));
+    if (!ped.avoid && !yielding && !ped.priority && ped.pause === 0 && clock >= ped.restAt) {
+      const restingSide = leg.restSide?.(s);
+      if (!leg.restSide || Number.isFinite(restingSide)) {
+        ped.pause = cfg.restPauseMinS + random() * (cfg.restPauseMaxS - cfg.restPauseMinS);
+        ped.restAt = clock + cfg.restMinS + random() * (cfg.restMaxS - cfg.restMinS);
+        ped.restOffset = restingSide;
+        target = 0;
+      }
     }
-    // 随机短暂停留：看橱窗/等同伴的模拟，不是实测客流行为。
-    const restingSide = ped.leg.restSide?.(ped.s);
-    if (ped.pause === 0 && clock >= ped.restAt && (!ped.leg.restSide || Number.isFinite(restingSide))) {
-      ped.pause = cfg.restPauseMinS + random() * (cfg.restPauseMaxS - cfg.restPauseMinS);
-      ped.restAt = clock + cfg.restMinS + random() * (cfg.restMaxS - cfg.restMinS);
-      ped.restOffset = restingSide;
-      target = 0;
-    }
-    let lateralTarget = ped.pause > 0 && Number.isFinite(ped.restOffset) ? ped.restOffset : cfg.keepRightM * ped.dir;
     if (vehicles.length) {
-      writePedestrianCollider(walkProbe, ped.x, ped.y, ped.z, ped.heading, Math.max(ped.v, target));
+      writePedestrianCollider(walkProbe, ped.x, ped.y, ped.z, Math.atan2(ped.fx * dir * ped.dir, ped.fz * dir * ped.dir),
+        Math.max(ped.v, target));
       const threat = vehicles.find(body => {
         const time = contactTime(walkProbe, body, 1.05, undefined, undefined, 0.12);
         if (!Number.isFinite(time)) return false;
-        // 已在来车路径上时，停在原地并不能腾出车道；继续走到安全位置。
         const standing = contactTime(walkProbe, body, 1.05, -(body.vx ?? 0), -(body.vz ?? 0));
-        return time < 0.28 || !Number.isFinite(standing) || standing > time + 0.3;
+        return time < 0.45 || !Number.isFinite(standing) || standing > time + 0.16;
       });
       if (threat) {
         statistics.vehicleYields++;
         target = 0;
-        sampleTrack(ped.leg, ped.s, scratch);
-        // 在当前步行带内试小幅让开；每个子步另查实际通行面和车身。
-        for (const side of [0.68 * ped.dir, -0.68 * ped.dir]) {
-          const x = scratch.x + scratch.dz * side, z = scratch.z - scratch.dx * side;
-          const y = ped.leg.publicHeight ? ped.leg.publicHeight(x, z) : region.walkableHeight(x, z, scratch.y);
-          if (y === null) continue;
-          writePedestrianCollider(walkProbe, x, y, z, ped.heading, 0);
-          if (vehicles.every(body => !Number.isFinite(contactTime(walkProbe, body, 1.05, undefined, undefined, 0.12)))) {
-            lateralTarget = side;
-            break;
-          }
-        }
+        lateral = ped.lateral;
       }
     }
-    const previous = { x: ped.x, y: ped.y, z: ped.z, heading: ped.heading, s: ped.s,
-      leg: ped.leg, dir: ped.dir, fromLeg: ped.fromLeg, lateral: ped.lateral, pause: ped.pause };
-    const acceleration = target > ped.v ? 1.7 : 3.2;
-    ped.v = clamp(ped.v + clamp(target - ped.v, -acceleration * dt, acceleration * dt), 0, ped.speed);
-    // 侧向让线：靠右走，转角/端点处回到中线，避免变道时脚底打滑。
-    ped.lateral += clamp(lateralTarget - ped.lateral, -2.2 * dt, 2.2 * dt);
-    let remaining = ped.v * dt;
-    let guard = 0;
-    while (remaining > 0 && guard++ < 4) {
-      const endDistance = ped.dir > 0 ? ped.leg.length - ped.s : ped.s;
-      if (remaining <= endDistance) {
-        ped.s = clamp(ped.s + ped.dir * remaining, 0, ped.leg.length);
-        remaining = 0;
-        break;
+    // 退让时先减速再换移动方向，朝向由实际步幅和受限角速度决定。
+    if (dir !== ped.motionDir && ped.v > 0.06 && ped.motionDir) {
+      target = 0;
+      dir = ped.motionDir;
+      stopAt = null;
+    } else ped.motionDir = dir;
+    const v = ped.v + clamp(target - ped.v, -3.2 * dt, 1.7 * dt);
+    const maxSide = leg.restSide && ped.pause > 0 ? 0.65 : 0.95;
+    const sideV = (ped.lateralV ?? 0) + clamp(clamp((lateral - ped.lateral) * 3.7, -maxSide, maxSide)
+      - (ped.lateralV ?? 0), -4.4 * dt, 4.4 * dt);
+    const offset = clamp(ped.lateral + sideV * dt, -poseOffsetLimit(leg, cfg), poseOffsetLimit(leg, cfg));
+    const ds = v * dt;
+    const finalEnd = dir > 0 ? 1 : 0;
+    const nextS = clamp(s + dir * ds, stopAt !== null && dir < 0 ? stopAt : 0,
+      stopAt !== null && dir > 0 ? stopAt : leg.length);
+    let nextLeg = leg, nextDir = ped.dir, positionS = nextS;
+    let switched = false;
+    if (stopAt === null && target > 0 && (finalEnd ? leg.length - s : s) < 0.002) {
+      const link = forcedLink ?? nextLink(ped, finalEnd);
+      if (link) {
+        nextLeg = link.leg;
+        positionS = link.end ? nextLeg.length : 0;
+        nextDir = link.end ? -1 : 1;
+        switched = true;
       }
-      ped.s = ped.dir > 0 ? ped.leg.length : 0;
-      remaining -= endDistance;
-      transition(ped);
-      if (ped.pause > 0) remaining = 0;
     }
-    sampleTrack(ped.leg, ped.s, scratch);
-    if (!fitRoadsidePose(ped, scratch)) {
-      Object.assign(ped, previous);
-      ped.v = 0;
-      ped.dir = -ped.dir;
-      ped.pause = cfg.pauseTurnS;
+    const heading = ped.heading;
+    const x = ped.x, y = ped.y, z = ped.z;
+    const stepClear = point => {
+      if (!segment(nextLeg, ped, point) || !clearOfWalkers(ped, point, nearby)) return false;
+      if (!vehicles.length) return true;
+      writePedestrianCollider(walkProbe, x, y, z, heading, 0);
+      const dx = point.x - x, dz = point.z - z;
+      return vehicles.every(body => {
+        const time = contactTime(walkProbe, body, 1, dx, dz);
+        if (!Number.isFinite(time)) return true;
+        return time === 0 && vehicleContact(walkProbe, body, walkContact)
+          && dx * walkContact.nx + dz * walkContact.nz <= 0;
+      });
+    };
+    let newOffset = switched ? 0 : offset;
+    let point = pose(nextLeg, positionS, newOffset, stepPose);
+    let accepted = stepClear(point);
+    if (!accepted && !switched) {
+      // 避让被挡时先试只走直线，再试仅做本次侧移。均从当前位置连续扫掠。
+      newOffset = ped.lateral;
+      point = pose(leg, nextS, newOffset, stepPose);
+      accepted = stepClear(point);
+      if (!accepted && Math.abs(offset - ped.lateral) > 0.0001) {
+        newOffset = offset;
+        positionS = s;
+        point = pose(leg, s, newOffset, stepPose);
+        accepted = stepClear(point);
+      }
+    }
+    if (!accepted) {
+      ped.v = ped.lateralV = 0;
+      if (switched && !forcedLink && clock >= (ped.nextLinkCheck ?? 0)) {
+        // 原连接暂不可走时才考虑其它同侧连接，避免每帧在岔路换目标。
+        const alternatives = leg.ends[finalEnd].filter(link => link.leg !== nextLeg
+          && link.leg !== ped.priority?.yielding?.pocket.link?.leg);
+        ped.nextLeg = alternatives.find(link => {
+          const entry = pose(link.leg, link.end ? link.leg.length : 0, 0, {});
+          return segment(link.leg, ped, entry) && clearOfWalkers(ped, entry, nearby);
+        }) ?? ped.nextLeg;
+        ped.nextLinkCheck = clock + 0.75;
+      }
       return;
     }
-    if (vehicles.length || ped.leg.publicHeight) {
-      const y = ped.leg.publicHeight ? ped.leg.publicHeight(ped.x, ped.z)
-        : region.walkableHeight(ped.x, ped.z, scratch.y);
-      writePedestrianCollider(walkProbe, previous.x, previous.y, previous.z, ped.heading, 0);
-      const dx = ped.x - previous.x, dz = ped.z - previous.z;
-      const blocked = vehicles.some(body => {
-        const time = contactTime(walkProbe, body, 1, dx, dz);
-        if (!Number.isFinite(time)) return false;
-        // 模式切换或支撑切换造成的初始交叠允许走出，禁止继续向车内移动。
-        if (time === 0 && vehicleContact(walkProbe, body, walkContact)) {
-          return dx * walkContact.nx + dz * walkContact.nz <= 0;
-        }
-        return true;
-      });
-      if (y === null || blocked) {
-        Object.assign(ped, previous);
-        ped.v = 0;
-      } else ped.y = y;
-    } else if (ped.leg.kind === 'public-walk') ped.y = ground(ped, ped.x, ped.z);
+    const dx = point.x - x, dz = point.z - z;
+    const movement = Math.hypot(dx, dz);
+    // 轨道换接也要遵守速度预算；端点有误差时保留当前落脚。
+    if (movement > (ds + Math.abs(sideV * dt) + 0.015)) {
+      ped.v = ped.lateralV = 0;
+      return;
+    }
+    if (switched) {
+      ped.fromLeg = leg;
+      ped.nextLeg = null;
+      ped.leg = nextLeg;
+      ped.dir = yielding && !yielding.cleared ? yielding.dir : nextDir;
+      ped.motionDir = nextDir;
+      ped.avoid = ped.staticPath = null;
+    }
+    Object.assign(ped, { x: point.x, y: point.y, z: point.z, s: positionS, lateral: newOffset,
+      lateralV: switched ? 0 : (newOffset - ped.lateral) / dt, v: positionS !== s || switched ? v : 0,
+      vx: dx / dt, vz: dz / dt });
+    if (movement > 0.0005) {
+      // 少量横向步幅时仍朝向行进方向，避免出现原地左右转圈。
+      pose(ped.leg, ped.s, ped.lateral, stepSample);
+      const travelDir = switched ? nextDir : dir;
+      const base = Math.atan2(stepSample.dx * travelDir, stepSample.dz * travelDir);
+      const angle = Math.atan2(dx, dz);
+      const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+      const wanted = base + clamp(wrap(angle - base), -0.62, 0.62);
+      ped.heading += clamp(wrap(wanted - ped.heading), -2.8 * dt, 2.8 * dt);
+    }
+    if (!switched && stopAt === null && !forcedLink && !leg.ends[finalEnd].length
+      && (finalEnd ? leg.length - ped.s : ped.s) < 0.002 && !yielding) {
+      ped.dir = -ped.dir;
+      ped.pause = cfg.pauseTurnS;
+      ped.v = 0;
+      ped.fromLeg = null;
+      ped.avoid = ped.staticPath = null;
+    }
   }
 
   function update(dt, focus, elapsed, isVisible = null, players = null, traffic = []) {
@@ -664,6 +748,8 @@ export function createSzPedestrians(scene, graph, options = {}) {
         placedNow--;
       }
     }
+    grid.clear();
+    for (const ped of peds) if (ped.placed) grid.add(ped);
     let budget = jump ? cfg.maxPeds : cfg.spawnBudget;
     let scanned = 0;
     while (budget > 0 && scanned < peds.length && placedNow < targetPeds) {
@@ -685,24 +771,32 @@ export function createSzPedestrians(scene, graph, options = {}) {
       const dx = ped.x - focus.x;
       const dz = ped.z - focus.z;
       const distanceSq = dx * dx + dz * dz;
-      if (distanceSq > nearSq) {
+      ped.activeWalker = distanceSq <= nearSq;
+      if (!ped.activeWalker) {
+        ped.frameVX = ped.frameVZ = ped.vx = ped.vz = 0;
         if (ped.rig.placed) ped.rig.placed = false;
         continue;
       }
+      sampleTrack(ped.leg, ped.s, scratch);
+      ped.fx = scratch.dx * ped.dir;
+      ped.fz = scratch.dz * ped.dir;
       nearPeds.push(ped);
     }
-    // 先用帧首位置统一计算跟随速度，避免队列行为取决于更新顺序。
-    for (let i = 0; i < nearPeds.length; i++) queueSpeeds[i] = aheadSpeed(nearPeds[i]);
+    // 规划读取同一帧的位置和速度，执行再校核连续包络。
+    walkerAvoidance.update(nearPeds, grid, clock);
     for (let i = 0; i < nearPeds.length; i++) {
       const ped = nearPeds[i];
       const { x, z } = ped;
-      const distanceSq = squareDistance(x, z, focus.x, focus.z);
-      advance(ped, dt, queueSpeeds[i]);
+      ped.vx = ped.vz = 0;
+      advance(ped, dt);
+      ped.stuckFor = Math.hypot(ped.x - x, ped.z - z) > 0.003 ? 0 : (ped.stuckFor ?? 0) + dt;
       writePedestrianCollider(ped.collider, ped.x, ped.y, ped.z, ped.heading, ped.v);
       if (dt) {
         ped.collider.vx = (ped.x - x) / dt;
         ped.collider.vz = (ped.z - z) / dt;
       }
+      const distanceSq = squareDistance(ped.x, ped.z, focus.x, focus.z);
+      if (distanceSq > nearSq) { ped.rig.placed = false; continue; }
       const draw = !isVisible || isVisible(ped.x, ped.z, 7, ped.y);
       if (draw) drawn++;
       // 隐藏但离得近的人仍然推进步态；超过 50 m 且看不见则等待重新落地，省掉骨骼计算。
@@ -716,8 +810,10 @@ export function createSzPedestrians(scene, graph, options = {}) {
   }
 
   function nearColliders(x, z, radius) {
-    return nearPeds.filter(ped => Math.abs(ped.x - x) < radius + 0.4 && Math.abs(ped.z - z) < radius + 0.4)
-      .map(ped => ped.collider);
+    // 车流会查询整个活动半径，宽查询直接扫 140 人池比枚举空格更便宜。
+    const pool = radius <= 12 ? grid.query(x, z, radius + 0.65, []) : nearPeds;
+    return pool.filter(ped => ped.activeWalker
+      && Math.abs(ped.x - x) < radius + 0.4 && Math.abs(ped.z - z) < radius + 0.4).map(ped => ped.collider);
   }
 
   function dispose() {
@@ -731,6 +827,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     }
     pavementMaterial.dispose();
     region = null;
+    grid.clear();
   }
 
   return { group, meshes: crowd.meshes, update, nearColliders, statistics, dispose, peds, densityAt,
