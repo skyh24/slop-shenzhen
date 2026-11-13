@@ -28,7 +28,7 @@ function plantedSurfaceMaterial(base, bias = 0) {
   return m;
 }
 
-function addCurbWalls(group, feature, groundHeight, mat) {
+function addCurbWalls(group, feature, groundHeight, mat, curbs) {
   if (!feature.outlines.length) return 0;
   const origin = feature.outlines[0].slice(0, 2);
   const vertices = [];
@@ -56,8 +56,36 @@ function addCurbWalls(group, feature, groundHeight, mat) {
       }
     }
   }
-  if (vertices.length) group.add(pavingMesh(vertices, origin, mat, `${feature.id}:curbs`));
+  if (vertices.length) {
+    group.add(pavingMesh(vertices, origin, mat, `${feature.id}:curbs`));
+    if (curbs) addCurbColliders(curbs, vertices, origin, feature.id);
+  }
   return vertices.length / 9;
+}
+
+function addCurbColliders(colliders, positions, origin, name) {
+  // 侧壁三角形有一对竖直顶点。相邻同边的三角形合并为一个薄碰撞体，低于 6 厘米的坡口可通过。
+  let previous = null;
+  for (let i = 0; i < positions.length; i += 9) {
+    const [ax, ay, az, bx, by, bz, cx, cy, cz] = positions.slice(i, i + 9);
+    const tipAtStart = ax === cx && az === cz;
+    if (Math.abs(tipAtStart ? cy - ay : cy - by) < 0.06) continue;
+    const dx = bx - ax, dz = bz - az, length = Math.hypot(dx, dz);
+    if (length < 0.003) continue;
+    const minY = Math.min(ay, by, cy), maxY = Math.max(ay, by, cy);
+    const halfWidth = 0.025;
+    const x = (ax + bx) * 0.5 + origin[0], z = (az + bz) * 0.5 + origin[1];
+    if (previous?.obb.cx === x && previous.obb.cz === z && previous.obb.hz === length * 0.5) {
+      previous.minY = Math.min(previous.minY, minY);
+      previous.maxY = Math.max(previous.maxY, maxY);
+      continue;
+    }
+    previous = { type: 'curb', name, minY, maxY,
+      minX: Math.min(ax, bx) + origin[0] - halfWidth, maxX: Math.max(ax, bx) + origin[0] + halfWidth,
+      minZ: Math.min(az, bz) + origin[1] - halfWidth, maxZ: Math.max(az, bz) + origin[1] + halfWidth,
+      obb: { cx: x, cz: z, cs: dz / length, sn: dx / length, hx: halfWidth, hz: length * 0.5 } };
+    colliders.push(previous);
+  }
 }
 
 function hardwareCollider(geometry, matrix, sourceId, part) {
@@ -270,7 +298,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const control = createIntersectionControl(source, graph);
   const statistics = { triangleCount: 0, curbTriangles: 0, curbSegments: 0, signals: 0, shrubs: 0, shennanFlowerBeds: 0 };
   const empty = { group: null, control, contactHeight: () => null, shennanMedianHeight: () => null,
-    medianHeight: () => null, arterialMedianAt: () => false, plantingAt: () => false, colliders: [],
+    medianHeight: () => null, arterialMedianAt: () => false, plantingAt: () => false, colliders: [], curbColliders: [],
     detailedRoadIds: [], walkLegs: [], reserveWalk: () => false, statistics, update() {}, dispose() {} };
   if (!source) return empty;
   if (typeof groundHeight !== 'function' || typeof roadHeight !== 'function') throw new Error('Road frontage requires terrain and asphalt contact');
@@ -294,6 +322,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const arterialSamplers = [];
   const samplers = [];
   const planting = [];
+  const curbColliders = [];
   const plantingSurfaces = [];
   const roadside = source.features.filter(feature => feature.clipToRoadComplement);
   const paint = source.features.filter(feature => feature.kind === 'paint');
@@ -331,6 +360,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
         group.add(pavingMesh(chunk.wallPositions, chunk.origin, walls, `${chunk.id}:curbs`));
         statistics.curbTriangles += chunk.wallPositions.length / 9;
         statistics.curbSegments += chunk.wallSegments;
+        addCurbColliders(curbColliders, chunk.wallPositions, chunk.origin, feature.id);
       }
     }
     if (feature.riseM || useTreatment) {
@@ -339,7 +369,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       if (feature.solidPlanting) plantingSurfaces.push(sample);
       if (verifiedMedian) medianSamplers.push({ bounds: corridor.bounds, sample, planted });
       if (!useTreatment) {
-        const triangles = addCurbWalls(group, feature, groundHeight, walls);
+        const triangles = addCurbWalls(group, feature, groundHeight, walls, feature.solidPlanting ? null : curbColliders);
         statistics.curbTriangles += triangles;
         statistics.curbSegments += triangles / 2;
       }
@@ -377,7 +407,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   statistics.islandPlants = addMedianShrubs(group, source.features.flatMap(f => f.plantSites ?? []), contactHeight, true);
   statistics.shennanFlowerBeds = addShennanFlowerBeds(group, sites, shennanMedianHeight, flowers);
   scene.add(group);
-  return { group, control, contactHeight, shennanMedianHeight, medianHeight, colliders: [...hardware.colliders, ...planting],
+  return { group, control, contactHeight, shennanMedianHeight, medianHeight, colliders: [...hardware.colliders, ...planting], curbColliders,
     arterialMedianAt: (x, z) => arterialSamplers.some(sample => sample(x, z) !== null),
     signalOrigins: hardware.origins, statistics, walkLegs: legs, reserveWalk,
     plantingAt: (x, z) => plantingSurfaces.some(sample => sample(x, z) !== null),

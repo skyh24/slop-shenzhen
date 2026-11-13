@@ -82,6 +82,10 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const scene = new THREE.Scene();
   const model = buildSzRoadFrontage(scene, raw.roadFrontage, raw.roadGraph, terrain, { groundHeight, roadHeight });
   assert.equal(model.statistics.signals, 4);
+  assert.ok(model.curbColliders.some(c => c.name === 'shennan-hongshulin:sidewalk'));
+  assert.ok(model.curbColliders.some(c => c.name === 'shennan-civic-center:median'));
+  assert.ok(model.curbColliders.every(c => c.type === 'curb' && c.maxY - c.minY >= 0.06 && c.obb.hx === 0.025));
+
   const pilot = raw.roadFrontage.features.filter(f => f.id.startsWith('shennan-hongshulin:') && f.clipToRoadComplement);
   assert.deepEqual(pilot.map(f => f.id.split(':').at(-1)), ['sidewalk', 'ramp', 'paving']);
   assert.ok(pilot.every(f => f.clipToRoadComplement));

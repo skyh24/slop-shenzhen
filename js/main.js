@@ -206,6 +206,7 @@ async function initApp() {
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
+    cruiseCurbs: roadFrontage.curbColliders,
     surfaces: [...cityBlocks.surfaces, ...themeParks.surfaces, ...(northStation?.surfaces ?? []), ...landmarks.surfaces, ...elevatedRoads.surfaces, ...roadStructures.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
     nearTraffic: traffic.nearColliders, nearWalkers: nearTalentPeople, nearRegional: regional.colliders, flightSettings: GEO.airCruises?.flight,
     groundIdentity: waterfrontPaths.groundIdentity,
@@ -909,8 +910,9 @@ async function initApp() {
     const manual = !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right || brake || boost);
     if (!cruise.active && !droneWatch.active) {
       if (autoDrive.cruising && controllerManager.cruiseSpeed == null) autoDrive.stop('manual');
-      const takeover = autoDrive.cruising ? Boolean(backward || left || right || brake || boost) : manual;
-      const autoInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode, manual: takeover });
+      const takeover = autoDrive.cruising ? Boolean(backward || brake) : manual;
+      const autoInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode,
+        manual: takeover, steering: Boolean(left || right) });
       controllerManager.update(dt, elapsed, autoInput);
     }
     const prefetch = cruiseUi.update(now, rawDt);

@@ -107,6 +107,78 @@ test('car cruise follows a continuous bend at the set speed and keeps going stra
   assert.ok(car.speed < 10);
 });
 
+test('manual steering keeps cruise speed until braking through the frame wiring', () => {
+  const main = read('main.js');
+  const start = main.indexOf('    const { forward, backward, left, right', main.indexOf('  function renderFrame'));
+  const end = main.indexOf('    const prefetch =', start);
+  const wiring = main.slice(start, end);
+  const { controller, car } = playerCarFixture(() => 0);
+  Object.assign(car.position, { x: 0, y: 0, z: 0 });
+  car.heading = 0;
+  car.speed = 10;
+  const autoDrive = createAutoDrive({ model, roadHeight: () => 0, planCruise: () => null });
+  assert.equal(autoDrive.startCruise(car, 10), true);
+  controller.cruiseSpeed = 10;
+  controller.update = (dt, _elapsed, input) => controller.updateCar(dt, input);
+  const dt = 1 / 60;
+  const context = { controllerManager: controller, autoDrive, driveCar: car, dt, elapsed: 0,
+    mapSystem: { isFullMapOpen: false }, cruise: { active: false }, droneWatch: { active: false } };
+  controller.keys.left = true;
+  for (let i = 0; i < 60; i++) {
+    runInNewContext(wiring, { ...context });
+    assert.equal(controller.cruiseSpeed, 10);
+    assert.ok(car.speed > 8.5, 'a sustained turn keeps the car moving close to the set speed');
+  }
+  assert.ok(car.heading > 0.4);
+  controller.keys.left = false;
+  for (let i = 0; i < 60; i++) runInNewContext(wiring, { ...context });
+  assert.equal(autoDrive.cruising, true);
+  assert.ok(Math.abs(car.speed - 10) < 0.15);
+  controller.keys.brake = true;
+  for (let i = 0; i < 90; i++) runInNewContext(wiring, { ...context });
+  assert.equal(autoDrive.cruising, false);
+  assert.equal(controller.cruiseSpeed, null);
+  assert.ok(Math.abs(car.speed) < 0.05);
+});
+
+test('cruise yields to a curb on either side, turns away and returns to the set speed', () => {
+  for (const side of [-1, 1]) {
+    const minX = side > 0 ? 4 : -4.05;
+    const curb = { type: 'curb', minX, maxX: minX + 0.05, minY: -0.02, maxY: 0.16, minZ: -50, maxZ: 80 };
+    const roadHeight = (x, z) => Math.abs(x) < 4 ? 0 : null;
+    const { controller, car } = playerCarFixture(() => 0);
+    controller.cruiseCurbs = [curb];
+    Object.assign(car.position, { x: 0, y: 0, z: 0 });
+    car.heading = side * 0.45;
+    car.speed = 10;
+    const edge = { surfaceId: 'terrain' };
+    // 车道中段缩窄到路缘位置，验证跟随交回后也不会结束定速。
+    const route = { length: 80, stops: [], samples: [{ x: 0, z: 0, s: 0, edge }, { x: 0, z: 80, s: 80, edge }] };
+    const auto = createAutoDrive({ model, roadHeight, planCruise: () => route });
+    assert.equal(auto.startCruise(car, 10), true);
+    controller.cruiseSpeed = 10;
+    let impact = null;
+    controller.setCollisionListener(event => {
+      if (event.kind === 'curb') impact ??= { x: car.position.x, heading: car.heading, speed: car.speed };
+    });
+    controller.keys[side > 0 ? 'left' : 'right'] = true;
+    for (let i = 0; i < 360; i++) {
+      const dt = 1 / 60;
+      const steering = Boolean(controller.keys.left || controller.keys.right);
+      const input = auto.update(car, { dt, elapsed: i * dt, mode: 'car', manual: false, steering });
+      controller.updateCar(dt, input);
+      if (impact) controller.keys.left = controller.keys.right = false;
+      const edgeX = car.position.x * side + 1.1 * Math.abs(Math.cos(car.heading)) + 2.4 * Math.abs(Math.sin(car.heading));
+      assert.ok(edgeX < 4.01, `car stays outside curb: ${edgeX}`);
+      assert.equal(controller.cruiseSpeed, 10);
+    }
+    assert.ok(impact, 'car hits the curb');
+    assert.ok(side * (car.heading - impact.heading) < -0.15, 'impact steers away from the curb');
+    assert.ok(car.position.z > 30);
+    assert.ok(Math.abs(car.speed - 10) < 0.15, 'car recovers its set speed after contact');
+  }
+});
+
 test('straight cruise still stops at a known red signal and resumes on green', () => {
   const graph = { nodes: [0, 0, 0, 75, 0, 160], nodeIds: ['node/1', 'node/2', 'node/3'], names: ['Road'],
     links: [[0, 1, 0, 10, 2, 1, []], [1, 2, 0, 10, 2, 1, []]],

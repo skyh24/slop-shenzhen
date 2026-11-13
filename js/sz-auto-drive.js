@@ -125,13 +125,17 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
 
   function startCruise(car, speed) {
     if (run || departure || reservation || !planCruise || !(speed > 0)) return false;
+    run = { cruiseSpeed: speed, route: null };
+    tryCruiseRoute(car);
+    return true;
+  }
+
+  function tryCruiseRoute(car) {
     const route = planCruise(car);
     const progress = getCruiseStart(route, car);
     const aligned = progress && !route.stops.some(stop => progress.s > stop.s - model.hz - model.z - 0.65
       && progress.s < stop.clearS);
-    run = { cruiseSpeed: speed, route: null, stalled: 0 };
     if (aligned) useCruiseRoute(route, progress);
-    return true;
   }
 
   function useCruiseRoute(route, progress) {
@@ -243,7 +247,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     return start(next, car, mode);
   }
 
-  function update(car, { dt, elapsed, mode, manual }) {
+  function update(car, { dt, elapsed, mode, manual, steering = false }) {
     const clearsReservation = reservation && !insideSignalBounds(reservation.bounds, car.position.x, car.position.z, intersectionMargin);
     if (reservation && !run && (clearsReservation
       || frontDistance(reservation, model, car.position.x, car.position.z, car.heading) < -0.4)) release();
@@ -266,8 +270,11 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     }
     if (!run) return null;
     if (mode !== 'car') { stop('manual'); return null; }
-    if (run.unsafe && run.cruiseSpeed != null) {
-      run.route = null;
+    const cruising = run.cruiseSpeed != null;
+    if (cruising) {
+      if (steering || run.unsafe) run.route = null;
+      if (!steering && run.steering && !reservation && !run.request) tryCruiseRoute(car);
+      run.steering = steering;
       run.unsafe = null;
     }
     if (run.unsafe) {
@@ -350,16 +357,19 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
       if (state === 'intersection' && status !== 'intersection') statistics.intersectionWaits++;
       status = state;
     }
-    run.stalled = advance < 0.004 && state === 'driving' ? run.stalled + dt : 0;
-    if (run.stalled > 7) { stop('blocked'); return null; }
+    if (!cruising) {
+      run.stalled = advance < 0.004 && state === 'driving' ? run.stalled + dt : 0;
+      if (run.stalled > 7) { stop('blocked'); return null; }
+    }
 
     // 许可检查沿用当前路线采样点及其相邻段的表面身份：地面/高架衔接处四角逐点回退，避免误判无路面。
     const contactEdges = routeEdges(route, run.index, car.position);
     return {
       ...speedInput(car, targetSpeed, bodies, run.paused),
-      cruise: run.cruiseSpeed != null,
+      cruise: cruising,
       steerAngle: desiredSteer,
       avoidContact: true,
+      deflect() { run.route = null; },
       rejectMove(kind) {
         if (kind === 'traffic') {
           run.stalled = 0;
@@ -367,9 +377,13 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
         } else run.unsafe = route.samples[speedIndex + 1]?.edge ?? route.samples[speedIndex]?.edge ?? true;
       },
       permitMove(x, z, heading, y = null) {
-        if (!hasRoadFootprint(roadHeight, model, x, z, heading, contactEdges, y)) {
-          this.rejectMove('surface');
-          return false;
+        if (run.route && !hasRoadFootprint(roadHeight, model, x, z, heading, contactEdges, y)) {
+          // 定速交回方向后由车身接触和承托决定可行位置。
+          if (cruising) this.deflect();
+          else {
+            this.rejectMove('surface');
+            return false;
+          }
         }
         // 控制器在积分及碰撞推出后都检查候选，用当前悬架姿态和同源车身核对近车净空。
         const pivot = car.chassisPivot;

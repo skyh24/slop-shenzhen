@@ -188,6 +188,7 @@ class ThirdPersonControllerManager {
     this.nearWalkers = options.nearWalkers;
     this.cruiseSpeed = null;
     this.roadHeight = options.roadHeight;
+    this.cruiseCurbs = options.cruiseCurbs ?? [];
     this.spawnPoint = options.spawnPoint ?? SPAWN_POINT;
     if (!this.spawnPoint) throw new Error('No sourced ground spawn is available');
     this.maxFlightAltitude = options.maxFlightAltitude ?? FLIGHT_MAX_ALTITUDE;
@@ -940,12 +941,12 @@ class ThirdPersonControllerManager {
   }
 
   // Static colliders within `r` of (x, z), kept in their original order and indexed once into 48 m cells.
-  nearColliders(x, z, r, includeTraffic = true, includePending = true) {
+  nearColliders(x, z, r, includeTraffic = true, includePending = true, includeCurbs = false) {
     const CELL = 48;
     const key = (ix, iz) => (ix + 4096) * 8192 + (iz + 4096);
     if (!this._colliderCells) {
       this._colliderCells = new Map();
-      this.colliders.forEach((c, i) => {
+      [...this.colliders, ...(this.cruiseCurbs ?? [])].forEach((c, i) => {
         c._order = i;
         for (let ix = Math.floor(c.minX / CELL); ix <= Math.floor(c.maxX / CELL); ix++) {
           for (let iz = Math.floor(c.minZ / CELL); iz <= Math.floor(c.maxZ / CELL); iz++) {
@@ -967,7 +968,7 @@ class ThirdPersonControllerManager {
         const list = this._colliderCells.get(key(ix, iz));
         if (!list) continue;
         for (const c of list) {
-          if (c._seen === stamp) continue;
+          if (c._seen === stamp || (c.type === 'curb' && !includeCurbs)) continue;
           c._seen = stamp;
           out.push(c);
         }
@@ -1056,7 +1057,9 @@ class ThirdPersonControllerManager {
     const reach = Math.max(extX, extZ) + 6;
     let gx = pos.x;
     let gz = pos.z;
-    let near = this.nearColliders(gx, gz, reach, !carEntity);
+    const cruising = carEntity != null && this.cruiseSpeed != null;
+    let near = this.nearColliders(gx, gz, reach, !carEntity, true, cruising);
+    let deflected = false;
     if (mode === 'person') {
       if (this.nearWalkers) near.push(...this.nearWalkers(gx, gz, reach));
       const step = this.surfaceResolver.isFlightRoadDeck?.(support?.surfaceId) ? null : this.personStep(pos, body, entity, near);
@@ -1077,8 +1080,13 @@ class ThirdPersonControllerManager {
         support = null;
 
         if (carEntity) {
-          this.applyCarContact(carEntity, c, 'building', nx, nz,
-            pos.x - nx * extX, pos.z - nz * extZ);
+          const kind = c.type === 'curb' ? 'curb' : 'building';
+          // 取车身朝向障碍物的角点，碰撞法线与力臂共同决定偏转方向。
+          const side = -body.hx * Math.sign(nx * body.cos - nz * body.sin);
+          const end = -body.hz * Math.sign(nx * body.sin + nz * body.cos);
+          const x = pos.x + side * body.cos + end * body.sin;
+          const z = pos.z - side * body.sin + end * body.cos;
+          deflected = this.applyCarContact(carEntity, c, kind, nx, nz, x, z) || deflected;
         } else if (this._collisionListener && entity && entity.type !== 'person') {
           const approachSpeed = -entity.speed * (Math.sin(entity.heading) * nx + Math.cos(entity.heading) * nz);
           const support = body.car ? Math.abs(nx * body.cos - nz * body.sin) * body.hx + Math.abs(nx * body.sin + nz * body.cos) * body.hz : radius;
@@ -1093,7 +1101,7 @@ class ThirdPersonControllerManager {
           gx = pos.x;
           gz = pos.z;
           const order = c._order;
-          near = this.nearColliders(gx, gz, reach, !carEntity);
+          near = this.nearColliders(gx, gz, reach, !carEntity, true, cruising);
           i = -1;
           while (i + 1 < near.length && near[i + 1]._order <= order) i++;
         }
@@ -1110,15 +1118,24 @@ class ThirdPersonControllerManager {
       if (carEntity) pos.y = support.height;
     }
     if (entity) entity._safePosition = { x: pos.x, y: pos.y, z: pos.z };
+    if (deflected) return true;
   }
 
   applyCarContact(car, obstacle, kind, nx, nz, x, z) {
-    const closing = constrainContactVelocity(car, nx, nz, kind === 'building' ? null : obstacle);
-    if (closing > 0) {
-      this.cruiseSpeed = null;
-      car.angularVel *= 0.4;
-    }
-    if (closing < 1.4 || car.contactCooldown > 0) return;
+    const staticContact = kind === 'building' || kind === 'curb';
+    const closing = constrainContactVelocity(car, nx, nz, staticContact ? null : obstacle);
+    if (closing <= 0) return false;
+    const deflected = staticContact && this.cruiseSpeed != null;
+    if (deflected) {
+      const sin = Math.sin(car.heading), cos = Math.cos(car.heading);
+      // 路缘卸掉向内的速度，车头顺着接触面偏转。正撞时沿原有转向，完全对称时取固定方向。
+      const along = cos * nx - sin * nz;
+      const turn = Math.abs(along) > 1e-5 ? Math.sign(along) : Math.sign(car.angularVel || car.steerAngle) || 1;
+      const lever = Math.abs((z - car.position.z) * nx - (x - car.position.x) * nz);
+      const impulse = turn * Math.min(closing, 8) * (0.22 + lever * 0.13);
+      car.angularVel = Math.max(-1.5, Math.min(1.5, car.angularVel + impulse));
+    } else car.angularVel *= 0.4;
+    if (closing < 1.4 || car.contactCooldown > 0) return deflected;
     car.contactCooldown = 0.18;
     const strength = Math.min(8, closing);
     const sin = Math.sin(car.heading), cos = Math.cos(car.heading);
@@ -1129,6 +1146,7 @@ class ThirdPersonControllerManager {
     if (kind === 'building' && closing > 5) {
       car.lastCollisionSpark = { x, y: car.position.y + 0.56, z, nx, nz, speed: strength };
     }
+    return deflected;
   }
 
   clipCarTrafficMove(car, previous, obstacles, avoidContact = false) {
@@ -1361,7 +1379,7 @@ class ThirdPersonControllerManager {
     if (this.occupant.state !== OCCUPANT_STATES.SEATED || !(this.getActiveEntity().speed >= 1 / 3.6)
       || this.keys.backward) return false;
     if (this.activeMode === 'helicopter') return true;
-    return this.activeMode === 'car' && !this.keys.brake && !this.keys.left && !this.keys.right;
+    return this.activeMode === 'car' && !this.keys.brake;
   }
 
   updateCar(dt, driveInput = null) {
@@ -1381,9 +1399,8 @@ class ThirdPersonControllerManager {
     const assistance = !driveInput && obstacles.length
       ? emergencyBrake(writeEntityCollider(this._carBrakeBody ??= {}, c), obstacles) : 0;
     const serviceBrake = Math.max(driveInput?.brake ?? 0, this.keys.brake ? 1 : 0, assistance);
-    if (!driveInput || !driveInput.cruise || this.keys.brake || this.keys.backward || this.keys.left || this.keys.right) {
-      this.cruiseSpeed = null;
-    }
+    if (!driveInput?.cruise || this.keys.brake || this.keys.backward) this.cruiseSpeed = null;
+    const cruising = this.cruiseSpeed != null;
     c.contactCooldown = Math.max(0, (c.contactCooldown ?? 0) - dt);
     const braking = serviceBrake > 0 || c.speed * throttle < 0;
     // Shift 提高前进加速度；地图自动驾驶按自己的路线限速。
@@ -1403,6 +1420,7 @@ class ThirdPersonControllerManager {
     const steerResponse = 1 - Math.exp(-(steerInput || driveInput ? 10 : 17) * step);
     const yawResponse = 1 - Math.exp(-(steerInput || driveInput ? 7 : 13) * step);
     const tireResponse = 1 - Math.exp(-7 * step);
+    let deflected = false;
     for (let i = 0; i < steps; i++) {
       const previousHeading = c.heading;
       const sin = Math.sin(c.heading), cos = Math.cos(c.heading);
@@ -1418,7 +1436,8 @@ class ThirdPersonControllerManager {
       // Full lock at parking speeds, progressively less steering at road speeds.
       const turn = CAR_DRIVE.wheelbase * CAR_DRIVE.cornering;
       const maxSteer = Math.atan(turn / Math.max(speed * speed, turn / Math.tan(0.60)));
-      const steering = driveInput ? Math.max(-maxSteer, Math.min(maxSteer, driveInput.steerAngle)) : steerInput * maxSteer;
+      const followRoute = driveInput && !deflected && !(cruising && steerInput);
+      const steering = followRoute ? Math.max(-maxSteer, Math.min(maxSteer, driveInput.steerAngle)) : steerInput * maxSteer;
       c.steerAngle += (steering - c.steerAngle) * steerResponse;
       const yawLimit = lateralGrip / Math.max(2, Math.abs(speed));
       const targetYaw = Math.max(-yawLimit, Math.min(yawLimit, speed * Math.tan(c.steerAngle) / CAR_DRIVE.wheelbase));
@@ -1445,11 +1464,15 @@ class ThirdPersonControllerManager {
       const beforeY = c.position.y;
       c.position.x = nextX;
       c.position.z = nextZ;
-      if (this.resolveHorizontalCollision(c.position, 1.35, c, c, driveInput?.avoidContact) === false) {
-        this.cruiseSpeed = null;
+      const contact = this.resolveHorizontalCollision(c.position, 1.35, c, c, !cruising && driveInput?.avoidContact);
+      if (contact === false) {
         driveInput?.rejectMove?.('surface');
         c.heading = previousHeading;
         break;
+      }
+      if (contact === true && !deflected) {
+        deflected = true;
+        driveInput?.deflect?.();
       }
       const clear = this.clipCarTrafficMove(c, { x: beforeX, y: beforeY, z: beforeZ, heading: previousHeading,
         safe: previousSafe, support: previousSupport }, obstacles, driveInput?.avoidContact);
