@@ -30,6 +30,7 @@ class NYCMapSystem {
 
     this.miniCanvas = document.getElementById('minimap-canvas');
     this.miniCtx = this.miniCanvas ? this.miniCanvas.getContext('2d') : null;
+    this.elMiniDrone = document.getElementById('minimap-drone-label');
     this.elMiniStreet = document.getElementById('minimap-street-label');
     this.miniStreetText = '';
     this.miniScale = RADAR_SCALE;
@@ -583,7 +584,7 @@ class NYCMapSystem {
     const demo = suspended || Boolean(route?.simulationOnly);
     const active = mission && mission.pose.phase !== 'complete';
     const phase = active && strings.phase[mission.pose.phase];
-    const lines = [this.droneFeedback, suspended && strings.statusSuspended, route?.simulationOnly && strings.simulationOnly,
+    const lines = [this.droneFeedback, suspended && strings.statusSuspended, route?.simulationOnly && (route.path.detour ? strings.detour : strings.simulationOnly),
       !available && strings.unavailable, blocked && strings.blocked,
       active && (mission.demo ? strings.simulation + ' · ' : '') + (mission.pose.returning ? strings.returning(phase) : phase)]
       .filter(Boolean);
@@ -949,7 +950,9 @@ class NYCMapSystem {
       this.miniCache = null;
     }
 
-    const ent = this.viewEntity();
+    const mission = this.droneControls?.followedMission;
+    const ent = mission?.pose ?? this.viewEntity();
+    if (this.elMiniDrone) this.elMiniDrone.hidden = !mission;
     const px = ent.position.x;
     const pz = ent.position.z;
 
@@ -999,6 +1002,17 @@ class NYCMapSystem {
     ctx.drawImage(c.canvas, dpr * ((c.cx - w / c.s - px) * scale + w * 0.5), dpr * ((c.cz - h / c.s - pz) * scale + h * 0.5),
       dpr * w * 2 * k, dpr * h * 2 * k);
 
+    const track = mission && this.droneLayer?.routes.find(route => route.id === mission.routeId);
+    if (track && v.sees(track.bounds)) {
+      ctx.save();
+      v.world(ctx);
+      ctx.strokeStyle = MAP.droneRoute;
+      ctx.lineWidth = 2 / scale;
+      ctx.setLineDash([5 / scale, 4 / scale]);
+      ctx.stroke(track.path);
+      ctx.restore();
+    }
+
     v.screen(ctx);
     this.drawDrivePins(ctx, v, true);
     const toX = (wx) => v.toX(wx);
@@ -1042,8 +1056,8 @@ class NYCMapSystem {
     ctx.restore();
 
     ctx.save();
-    ctx.rotate(-ent.heading + Math.PI);
-    drawPlayerArrow(ctx, -9, 6.5, 7);
+    ctx.rotate(-(mission ? ent.yaw : ent.heading) + Math.PI);
+    drawPlayerArrow(ctx, -9, 6.5, 7, mission ? MAP.droneStation : undefined);
     ctx.restore();
 
     ctx.restore();

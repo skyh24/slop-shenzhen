@@ -1227,9 +1227,11 @@ test('speed telemetry uses the physical maximum for each mode and reports speed 
   const entity = { speed: 0, position: { x: 0, y: 200, z: 0 } };
   const controllerManager = { getActiveEntity: () => entity };
   const els = { speed: {}, speedMeter: { style: {} } };
+  const cameraSystem = { getActivePreset: () => ({ category: 'follow' }) };
+  let location;
   const hud = createHudTelemetry({
-    els, controllerManager, topSpeed: PLAYER_SPEED_LIMITS, renderLocation() {},
-    cameraSystem: { getActivePreset: () => ({ category: 'follow' }) }
+    els, controllerManager, topSpeed: PLAYER_SPEED_LIMITS, cameraSystem,
+    renderLocation: (x, z) => { location = [x, z]; }
   });
   for (const [mode, speedKmh, expectedFill] of [
     ['person', 0, 0], ['person', 8.2 * 3.6 / 2, 0.5], ['person', 8.2 * 3.6, 1],
@@ -1244,6 +1246,12 @@ test('speed telemetry uses the physical maximum for each mode and reports speed 
     const fill = Number(els.speedMeter.style.transform.match(/^scaleX\((.+)\)$/)?.[1]);
     assert.ok(Math.abs(fill - expectedFill) < 1e-9, mode + ' at ' + speedKmh + ' km/h');
   }
+  cameraSystem.droneFollow = { pose: { position: { x: 50, z: 80 } } };
+  hud.update(0.25);
+  assert.deepEqual(location, [50, 80]);
+  cameraSystem.droneFollow = null;
+  hud.update(0.25);
+  assert.deepEqual(location, [0, 0]);
 });
 
 function contactCar({ speed = 0, heading = 0, colliders = [], y = 0 } = {}) {

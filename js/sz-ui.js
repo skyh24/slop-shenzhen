@@ -517,8 +517,9 @@ export function createHudTelemetry({ els, controllerManager, cameraSystem, topSp
       if (els.speed) els.speed.textContent = String(Math.round(speed * 3.6));
       if (els.speedMeter) els.speedMeter.style.transform = `scaleX(${Math.min(1, speed / (viewing ? cruise.targetSpeed : topSpeed[mode]))})`;
       if (els.altitude) els.altitude.textContent = Math.round(viewing ? cruise.altitude : activeEnt.position.y).toLocaleString('zh-CN');
-      // 跟随相机显示玩家所在街角，观光相机显示相机所在街角。
-      const where = cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos;
+      // 路牌和小地图一起跟随配送无人机；普通跟随相机显示玩家位置。
+      const where = cameraSystem.droneFollow?.pose.position
+        ?? (cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos);
       renderLocation(where.x, where.z);
     }
   };

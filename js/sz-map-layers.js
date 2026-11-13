@@ -162,7 +162,7 @@ class MapView {
   }
 }
 
-function drawPlayerArrow(ctx, tipY, halfWidth, tailY) {
+function drawPlayerArrow(ctx, tipY, halfWidth, tailY, color = '#ffffff') {
   ctx.beginPath();
   ctx.moveTo(0, tipY);
   ctx.lineTo(halfWidth, tailY);
@@ -173,7 +173,7 @@ function drawPlayerArrow(ctx, tipY, halfWidth, tailY) {
   ctx.strokeStyle = MAP.halo;
   ctx.lineWidth = 3;
   ctx.stroke();
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = color;
   ctx.fill();
 }
 

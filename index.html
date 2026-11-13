@@ -523,6 +523,7 @@
       <canvas id="minimap-canvas"></canvas>
       <span class="radar-north" aria-hidden="true" data-text="ui.north"></span>
       <kbd class="radar-key">M</kbd>
+      <span id="minimap-drone-label" class="radar-drone" data-text="drones.minimap" hidden></span>
     </aside>
   </div>
 
@@ -687,50 +688,59 @@
       </div>
     </div>
 
-    <div class="panel map-transport">
-      <div class="map-transport-tabs" role="tablist" data-label="map.transport">
-        <button id="map-metro" type="button" role="tab" aria-selected="true" aria-controls="map-metro-panel" data-text="metro.tab"></button>
-        <button id="map-hsr" type="button" role="tab" aria-selected="false" aria-controls="map-hsr-panel" data-text="hsr.tab" tabindex="-1"></button>
-        <button id="map-drones" type="button" role="tab" aria-selected="false" aria-controls="map-drone-panel" data-text="drones.tab" tabindex="-1"></button>
-        <button id="map-plan-drive" type="button" role="tab" aria-selected="false" aria-controls="map-drive-panel" data-text="drive.plan" tabindex="-1"></button>
+    <div class="map-corner">
+      <div class="panel map-transport">
+        <div class="map-transport-tabs" role="tablist" data-label="map.transport">
+          <button id="map-metro" type="button" role="tab" aria-selected="true" aria-controls="map-metro-panel"><svg class="icon" aria-hidden="true"><use href="#i-metro"/></svg><span data-text="metro.tab"></span></button>
+          <button id="map-hsr" type="button" role="tab" aria-selected="false" aria-controls="map-hsr-panel" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#i-rail"/></svg><span data-text="hsr.tab"></span></button>
+          <button id="map-drones" type="button" role="tab" aria-selected="false" aria-controls="map-drone-panel" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#i-drone"/></svg><span data-text="drones.tab"></span></button>
+          <button id="map-plan-drive" type="button" role="tab" aria-selected="false" aria-controls="map-drive-panel" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#i-car"/></svg><span data-text="drive.plan"></span></button>
+        </div>
+        <section id="map-metro-panel" class="map-transport-page" role="tabpanel" aria-labelledby="map-metro">
+          <div class="map-transport-actions">
+            <button id="metro-show-all" class="tool-btn" type="button" data-text="metro.all"></button>
+            <button id="metro-hide-all" class="tool-btn" type="button" data-text="metro.none"></button>
+          </div>
+          <div id="metro-lines" class="map-transport-grid"></div>
+        </section>
+        <section id="map-hsr-panel" class="map-transport-page" role="tabpanel" aria-labelledby="map-hsr" hidden>
+          <div id="map-hsr-stations" class="map-transport-grid"></div>
+          <div class="map-transport-actions">
+            <label class="map-transport-check"><input id="map-hsr-layer" type="checkbox"><span data-text="hsr.show"></span></label>
+            <button id="map-hsr-visit" class="tool-btn map-transport-primary" type="button" data-text="map.visit" disabled></button>
+          </div>
+          <p id="map-hsr-status" role="status" hidden></p>
+        </section>
+        <section id="map-drone-panel" class="map-transport-page" role="tabpanel" aria-labelledby="map-drones" hidden>
+          <div id="map-drone-stations" class="map-transport-grid"></div>
+          <p id="map-drone-route"></p>
+          <p id="map-drone-status" role="status"></p>
+          <div class="map-transport-actions">
+            <button id="map-drone-approach" class="tool-btn" type="button" data-text="drones.approach" hidden></button>
+            <button id="map-drone-follow" class="tool-btn map-transport-primary" type="button" data-text="map.visit" disabled></button>
+          </div>
+        </section>
+        <section id="map-drive-panel" class="map-transport-page" role="tabpanel" aria-labelledby="map-plan-drive" hidden>
+          <p id="map-drive-status" role="status"></p>
+          <p id="map-drive-progress" hidden></p>
+          <div id="map-drive-levels" class="map-transport-actions" role="group" data-label="drive.chooseLayer" hidden></div>
+          <div class="map-transport-actions">
+            <button id="map-drive-clear" class="tool-btn" type="button" data-text="drive.clear"></button>
+            <button id="map-drive-repick-end" class="tool-btn" type="button" data-text="drive.repickEnd" hidden></button>
+            <button id="map-drive-pause" class="tool-btn" type="button" data-text="drive.pause" hidden></button>
+            <button id="map-drive-resume" class="tool-btn" type="button" data-text="drive.resume" hidden></button>
+            <button id="map-drive-start" class="tool-btn map-transport-primary" type="button" data-text="drive.start" disabled></button>
+            <button id="map-drive-stop" class="tool-btn" type="button" data-text="drive.stop" hidden></button>
+          </div>
+        </section>
       </div>
-      <section id="map-metro-panel" class="map-transport-page" role="tabpanel" aria-labelledby="map-metro">
-        <div class="map-transport-actions">
-          <button id="metro-show-all" class="tool-btn" type="button" data-text="metro.all"></button>
-          <button id="metro-hide-all" class="tool-btn" type="button" data-text="metro.none"></button>
-        </div>
-        <div id="metro-lines" class="map-transport-grid"></div>
-      </section>
-      <section id="map-hsr-panel" class="map-transport-page" role="tabpanel" aria-labelledby="map-hsr" hidden>
-        <div id="map-hsr-stations" class="map-transport-grid"></div>
-        <div class="map-transport-actions">
-          <label class="map-transport-check"><input id="map-hsr-layer" type="checkbox"><span data-text="hsr.show"></span></label>
-          <button id="map-hsr-visit" class="tool-btn map-transport-primary" type="button" data-text="map.visit" disabled></button>
-        </div>
-        <p id="map-hsr-status" role="status" hidden></p>
-      </section>
-      <section id="map-drone-panel" class="map-transport-page" role="tabpanel" aria-labelledby="map-drones" hidden>
-        <div id="map-drone-stations" class="map-transport-grid"></div>
-        <p id="map-drone-route"></p>
-        <p id="map-drone-status" role="status"></p>
-        <div class="map-transport-actions">
-          <button id="map-drone-approach" class="tool-btn" type="button" data-text="drones.approach" hidden></button>
-          <button id="map-drone-follow" class="tool-btn map-transport-primary" type="button" data-text="map.visit" disabled></button>
-        </div>
-      </section>
-      <section id="map-drive-panel" class="map-transport-page" role="tabpanel" aria-labelledby="map-plan-drive" hidden>
-        <p id="map-drive-status" role="status"></p>
-        <p id="map-drive-progress" hidden></p>
-        <div id="map-drive-levels" class="map-transport-actions" role="group" data-label="drive.chooseLayer" hidden></div>
-        <div class="map-transport-actions">
-          <button id="map-drive-clear" class="tool-btn" type="button" data-text="drive.clear"></button>
-          <button id="map-drive-repick-end" class="tool-btn" type="button" data-text="drive.repickEnd" hidden></button>
-          <button id="map-drive-pause" class="tool-btn" type="button" data-text="drive.pause" hidden></button>
-          <button id="map-drive-resume" class="tool-btn" type="button" data-text="drive.resume" hidden></button>
-          <button id="map-drive-start" class="tool-btn map-transport-primary" type="button" data-text="drive.start" disabled></button>
-          <button id="map-drive-stop" class="tool-btn" type="button" data-text="drive.stop" hidden></button>
-        </div>
-      </section>
+      <div class="panel fullmap-legend">
+        <span class="legend-item"><span class="legend-swatch player-swatch"></span><span data-text="ui.mapPlayer"></span></span>
+        <span class="legend-item"><span class="legend-swatch landmark-swatch"></span><span data-text="ui.mapLandmark"></span></span>
+        <span class="legend-item"><span class="legend-swatch gps-swatch"></span><span data-text="ui.mapWaypoint"></span></span>
+        <span class="legend-item"><span class="legend-swatch bridge-swatch"></span><span data-text="ui.mapHighway"></span></span>
+        <span id="fullmap-counts" class="legend-counts"></span>
+      </div>
     </div>
 
     <div class="fullmap-footer">
@@ -741,14 +751,6 @@
           <button id="map-selection-clear" class="icon-btn" type="button" data-label="ui.close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
         </div>
       </div>
-    </div>
-
-    <div class="panel fullmap-legend">
-      <span class="legend-item"><span class="legend-swatch player-swatch"></span><span data-text="ui.mapPlayer"></span></span>
-      <span class="legend-item"><span class="legend-swatch landmark-swatch"></span><span data-text="ui.mapLandmark"></span></span>
-      <span class="legend-item"><span class="legend-swatch gps-swatch"></span><span data-text="ui.mapWaypoint"></span></span>
-      <span class="legend-item"><span class="legend-swatch bridge-swatch"></span><span data-text="ui.mapHighway"></span></span>
-      <span id="fullmap-counts" class="legend-counts"></span>
     </div>
   </section>
 

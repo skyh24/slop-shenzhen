@@ -97,6 +97,7 @@ export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchC
     get active() { return session.active; }, update: dt => session.update(dt) ?? false, stop,
     map: {
       stations: drones.stations, routes: drones.routes,
+      get followedMission() { return session.target?.mission ?? null; },
       status(stationId) {
         const status = drones.status(stationId, player().position);
         return { ...status, blocked: watchBlocked(), canApproach: canApproach() };

@@ -186,6 +186,8 @@ export const STR = {
     failed: '配送已结束，已恢复玩家视角。',
     simulation: '模拟配送',
     simulationOnly: '端点配对待核实 · 仅供模拟',
+    detour: '场景避障航线 · 仅供模拟',
+    minimap: '跟随配送无人机',
     estimate: '估计站位与示意航迹 · 无实时运营信息',
     followMode: '配送跟随',
     repeat: '再看一轮',

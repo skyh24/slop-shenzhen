@@ -9,6 +9,10 @@ const PAD_HALF = 1.8;
 const PAD_DEPTH = 0.72;
 const CABINET_X = 3;
 const CABINET_SIZE = [1.55, 2.15, 0.85];
+const ROOF_CABINET_SIZE = [2.5, 2.15, 1.65];
+const ROOF_PAD_DEPTH = 0.22;
+const TALENT_ROUTE = 'meituan-talent-coastcity';
+const DETOUR_OFFSETS = [60, -60, 120, -120, 200, -200, 300, -300, 420, -420];
 const CLEARANCE = 12;
 const MAX_CRUISE_Y = 260;
 const CRUISE_SPEED = 20;
@@ -74,6 +78,7 @@ export function cameraClearFraction(target, desired, obstacles, heightAt) {
 
 function stationSite(source, site, obstacles) {
   const radius = Math.min(180, source.coordinatePrecisionM ?? 0);
+  const roofPad = source.kind === 'landing';
   const local = obstacles.filter(item => overlaps(item, box(source.x, source.z, radius + 32, radius + 32)));
   const ground = (x, z) => site.isWater(x, z) !== false || Number.isFinite(site.roadHeight(x, z))
     ? null : site.heightAt(x, z);
@@ -90,7 +95,7 @@ function stationSite(source, site, obstacles) {
     const x = source.x + dx, z = source.z + dz;
     const center = ground(x, z);
     if (!Number.isFinite(center)) continue;
-    // 四个方向试放，接收柜始终在起降台一侧，入口留出步行和相机空间。
+    // 四个方向试放，留出接近空间；接收站的起降台与柜体上下对齐。
     for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
       const candidate = { x, z, yaw };
       const samples = [];
@@ -99,11 +104,12 @@ function stationSite(source, site, obstacles) {
       }
       const heights = samples.map(p => ground(p.x, p.z));
       if (!heights.every(Number.isFinite) || Math.max(...heights) - Math.min(...heights) > 0.48) continue;
-      const y = Math.max(...heights) + 0.06;
+      const baseY = Math.max(...heights) + 0.06;
+      const y = baseY + (roofPad ? ROOF_CABINET_SIZE[1] + ROOF_PAD_DEPTH : 0);
       const apron = offset(candidate, 1, 0);
       const [halfX, halfZ] = Math.abs(Math.cos(yaw)) > 0.5 ? [3.2, 2.35] : [2.35, 3.2];
       if (local.some(item => overlaps(item, box(apron.x, apron.z, halfX, halfZ))
-        && item.maxY > y - PAD_DEPTH)) continue;
+        && item.maxY > baseY - PAD_DEPTH)) continue;
       let previous = center;
       let approach = null;
       for (let d = 3; d <= 28; d++) {
@@ -114,28 +120,51 @@ function stationSite(source, site, obstacles) {
         previous = h;
         if (d === 28) approach = { ...p, y: h, heading: yaw + Math.PI };
       }
-      if (approach) return { ...candidate, y, approach, offsetM: distance, positionSource: 'scene-estimate' };
+      if (approach) return { ...candidate, y, baseY, roofPad, approach, offsetM: distance, positionSource: 'scene-estimate' };
     }
   }
   return null;
 }
 
-function flightPath(from, to, altitude, obstacles, heightAt) {
-  const length = Math.hypot(to.x - from.x, to.z - from.z);
-  if (!(length > 70)) return { reason: 'invalid-span' };
+function flightPath(from, to, altitude, obstacles, heightAt, lateral = 0) {
+  const a = new THREE.Vector3(from.x, from.y, from.z), b = new THREE.Vector3(to.x, to.y, to.z);
+  const startXZ = a.clone().setY(0), endXZ = b.clone().setY(0);
+  const span = startXZ.distanceTo(endXZ);
+  if (!(span > 70)) return { reason: 'invalid-span' };
+  const normal = new THREE.Vector3(-(to.z - from.z) / span, 0, (to.x - from.x) / span);
+  const track = lateral ? new THREE.CubicBezierCurve3(startXZ,
+    startXZ.clone().lerp(endXZ, 1 / 3).addScaledVector(normal, lateral),
+    startXZ.clone().lerp(endXZ, 2 / 3).addScaledVector(normal, lateral), endXZ)
+    : new THREE.LineCurve3(startXZ, endXZ);
+  const length = track.getLength();
+  const inset = 12;
+  const at = distance => track.getPointAt(distance / length);
+  const cruiseSteps = lateral ? Math.ceil((length - 2 * inset) / 8) : 1;
+  const groundTrack = [startXZ, ...Array.from({ length: cruiseSteps + 1 },
+    (_, i) => at(inset + (length - 2 * inset) * i / cruiseSteps)), endXZ];
   const lower = Math.max(from.y, to.y);
   let highest = lower;
   let limitingObstacle = null;
-  const dx = (to.x - from.x) / length, dz = (to.z - from.z) / length;
-  const steps = Math.ceil(length / 2);
-  for (let i = 0; i <= steps; i++) {
-    for (const side of [-2, 0, 2]) {
-      const y = heightAt(from.x + dx * length * i / steps - dz * side, from.z + dz * length * i / steps + dx * side);
-      if (!Number.isFinite(y)) return { reason: 'unknown-terrain' };
-      highest = Math.max(highest, y);
+  const corridor = new Set();
+  const bounds = new THREE.Box3().setFromPoints(groundTrack).expandByScalar(2);
+  const area = { minX: bounds.min.x, maxX: bounds.max.x, minZ: bounds.min.z, maxZ: bounds.max.z };
+  const local = obstacles.filter(obstacle => overlaps(obstacle, area));
+  for (let i = 1; i < groundTrack.length; i++) {
+    const start = groundTrack[i - 1], end = groundTrack[i];
+    const dx = end.x - start.x, dz = end.z - start.z;
+    const segmentLength = start.distanceTo(end);
+    const steps = Math.ceil(segmentLength / 2);
+    for (let j = 0; j <= steps; j++) {
+      for (const side of [-2, 0, 2]) {
+        const y = heightAt(start.x + dx * j / steps - dz * side / segmentLength, start.z + dz * j / steps + dx * side / segmentLength);
+        if (!Number.isFinite(y)) return { reason: 'unknown-terrain' };
+        highest = Math.max(highest, y);
+      }
+    }
+    for (const obstacle of local) {
+      if (Number.isFinite(boxEntry(start, end, obstacle, 2, true))) corridor.add(obstacle);
     }
   }
-  const corridor = obstacles.filter(obstacle => Number.isFinite(boxEntry(from, to, obstacle, 2, true)));
   for (const obstacle of corridor) {
     if (!Number.isFinite(obstacle.maxY) || !Number.isFinite(obstacle.minY)) {
       return { reason: 'unknown-obstacle-height', limitingObstacle: obstacle.sourceId ?? obstacle.name ?? obstacle.type };
@@ -146,15 +175,14 @@ function flightPath(from, to, altitude, obstacles, heightAt) {
   }
   const cruiseY = Math.max(lower + altitude, highest + CLEARANCE + 4);
   if (!Number.isFinite(cruiseY) || cruiseY > MAX_CRUISE_Y) return { reason: 'cruise-ceiling', cruiseY, limitingObstacle };
-  // 两段二次曲线连接垂直起降与水平巡航。折线采样同时用于显示、运动和碰撞。
-  const a = new THREE.Vector3(from.x, from.y, from.z), b = new THREE.Vector3(to.x, to.y, to.z);
+  // 两段二次曲线连接垂直起降与巡航。折线采样同时用于显示、运动和净空校验。
   const topA = a.clone().setY(cruiseY), topB = b.clone().setY(cruiseY);
-  const inset = 12;
   const liftA = topA.clone().setY(cruiseY - inset), liftB = topB.clone().setY(cruiseY - inset);
-  const runA = topA.clone().lerp(topB, inset / length), runB = topB.clone().lerp(topA, inset / length);
-  const sections = [[a, liftA], new THREE.QuadraticBezierCurve3(liftA, topA, runA).getPoints(24),
-    [runA, runB], new THREE.QuadraticBezierCurve3(runB, topB, liftB).getPoints(24), [liftB, b]];
+  const run = groundTrack.slice(1, -1).map(p => p.setY(cruiseY));
+  const sections = [[a, liftA], new THREE.QuadraticBezierCurve3(liftA, topA, run[0]).getPoints(24),
+    run, new THREE.QuadraticBezierCurve3(run.at(-1), topB, liftB).getPoints(24), [liftB, b]];
   const speeds = [0, LIFT_SPEED, CRUISE_SPEED, CRUISE_SPEED, LIFT_SPEED, 0];
+  const corridorBoxes = [...corridor];
   const points = [a];
   let seconds = 0;
   const legs = [];
@@ -162,7 +190,7 @@ function flightPath(from, to, altitude, obstacles, heightAt) {
     const cumulative = [0];
     for (let i = 1; i < segment.length; i++) {
       const start = segment[i - 1], end = segment[i];
-      const obstacle = corridor.find(item => Number.isFinite(boxEntry(start, end, item, 1.6)));
+      const obstacle = corridorBoxes.find(item => Number.isFinite(boxEntry(start, end, item, 1.6)));
       if (obstacle) return { reason: 'blocked-segment', section: index, cruiseY,
         limitingObstacle: obstacle.sourceId ?? obstacle.name ?? obstacle.type };
       points.push(end);
@@ -173,7 +201,16 @@ function flightPath(from, to, altitude, obstacles, heightAt) {
       acceleration: (speeds[index + 1] - speeds[index]) / duration });
     seconds += duration;
   }
-  return { points, legs, seconds, cruiseY, yaw: Math.atan2(dx, dz) };
+  const heading = (start, end) => Math.atan2(end.x - start.x, end.z - start.z);
+  const yaw = heading(a, run[0]), arrivalYaw = heading(run.at(-1), b);
+  // 用切线的连续角度插值，避免巡航折线拐点处的机身和相机跳转。
+  const runHeadings = run.map((point, index) => {
+    const angle = heading(run[index - 1] ?? a, run[index + 1] ?? b);
+    return yaw + Math.atan2(Math.sin(angle - yaw), Math.cos(angle - yaw));
+  });
+  runHeadings[0] = yaw;
+  runHeadings[run.length - 1] = yaw + Math.atan2(Math.sin(arrivalYaw - yaw), Math.cos(arrivalYaw - yaw));
+  return { points, legs, seconds, cruiseY, yaw, arrivalYaw, runHeadings, detour: lateral !== 0 };
 }
 
 export function planDroneFlights(air, site) {
@@ -186,10 +223,18 @@ export function planDroneFlights(air, site) {
   const byId = new Map(stations.map(station => [station.id, station]));
   const routes = (air?.droneRoutes ?? []).map(source => {
     const from = byId.get(source.fromStationId), to = byId.get(source.toStationId);
-    const path = from?.available && to?.available
+    let path = from?.available && to?.available
       ? flightPath(from, to, source.altitudeM ?? 100, obstacles, site.flightHeightAt)
       : { reason: 'no-safe-station' };
-    return { ...source, from, to, path, simulationOnly: source.confidence?.includes('vertices-low') ?? false };
+    if (source.id === TALENT_ROUTE && ['cruise-ceiling', 'blocked-segment'].includes(path.reason)) {
+      // 原始端点不动，仅在场景里寻找可飞的示意绕行路线。
+      for (const lateral of DETOUR_OFFSETS) {
+        const candidate = flightPath(from, to, source.altitudeM ?? 100, obstacles, site.flightHeightAt, lateral);
+        if (candidate.points) { path = candidate; break; }
+      }
+    }
+    return { ...source, from, to, path,
+      simulationOnly: Boolean(path.detour || source.confidence?.includes('vertices-low')) };
   });
   return { stations, routes };
 }
@@ -204,8 +249,11 @@ function poseOnPath(path, elapsed, reverse, pose) {
   let pointIndex = leg.cumulative.findIndex((length, i) => i > 0 && length >= distance);
   if (pointIndex < 0) pointIndex = leg.segment.length - 1;
   const start = leg.cumulative[pointIndex - 1], end = leg.cumulative[pointIndex];
-  pose.position.lerpVectors(leg.segment[pointIndex - 1], leg.segment[pointIndex],
-    THREE.MathUtils.clamp((distance - start) / (end - start), 0, 1));
+  const progress = THREE.MathUtils.clamp((distance - start) / (end - start), 0, 1);
+  pose.position.lerpVectors(leg.segment[pointIndex - 1], leg.segment[pointIndex], progress);
+  const heading = index < 2 ? path.yaw : index > 2 ? path.arrivalYaw
+    : THREE.MathUtils.lerp(path.runHeadings[pointIndex - 1], path.runHeadings[pointIndex], progress);
+  pose.yaw = heading + (reverse ? Math.PI : 0);
   const phase = reverse ? 4 - index : index;
   pose.phase = phase < 2 ? 'takeoff' : phase === 2 ? 'cruise' : 'descent';
   pose.speed = leg.speed + leg.acceleration * t;
@@ -219,7 +267,8 @@ export function dronePoseAt(path, fromEnd, elapsed, pose = { position: new THREE
   const back = delivery - DELIVERY_SECONDS;
   const home = fromEnd ? path.points.at(-1) : path.points[0];
   const destination = fromEnd ? path.points[0] : path.points.at(-1);
-  const outboundYaw = path.yaw + (fromEnd ? Math.PI : 0);
+  const outboundYaw = fromEnd ? path.arrivalYaw + Math.PI : path.yaw;
+  const deliveryYaw = fromEnd ? path.yaw + Math.PI : path.arrivalYaw;
   pose.phase = 'loading';
   pose.yaw = outboundYaw;
   pose.pitch = pose.speed = 0;
@@ -237,10 +286,9 @@ export function dronePoseAt(path, fromEnd, elapsed, pose = { position: new THREE
   } else if (back < 0) {
     pose.phase = 'delivery';
     pose.position.copy(destination);
-    pose.yaw += Math.PI * THREE.MathUtils.smoothstep(delivery, 4, 8);
+    pose.yaw = deliveryYaw + Math.PI * THREE.MathUtils.smoothstep(delivery, 4, 8);
     pose.rotors = 0.8 * (Math.max(0, 1 - delivery / 1.4) + Math.max(0, (delivery - 8) / 2));
   } else if (back < path.seconds) {
-    pose.yaw += Math.PI;
     poseOnPath(path, back, !fromEnd, pose);
     pose.rotors = 0.8 + 0.14 * (pose.speed / CRUISE_SPEED);
   } else {
@@ -266,16 +314,23 @@ function stationMesh(station, materials, resources) {
     group.add(mesh);
     return mesh;
   }
-  block('landing-platform', [2 * PAD_HALF, PAD_DEPTH, 2 * PAD_HALF], [0, -PAD_DEPTH / 2, 0], materials.pad);
+  const padDepth = station.roofPad ? ROOF_PAD_DEPTH : PAD_DEPTH;
+  const cabinetX = station.roofPad ? 0 : CABINET_X;
+  const cabinetSize = station.roofPad ? ROOF_CABINET_SIZE : CABINET_SIZE;
+  const cabinetZ = cabinetSize[2] / 2;
+  const cabinetY = station.baseY - station.y;
+  block('landing-platform', [2 * PAD_HALF, padDepth, 2 * PAD_HALF], [0, -padDepth / 2, 0], materials.pad);
   for (const x of [-1.64, 1.64]) {
     block('pad-edge', [0.12, 0.015, 3.38], [x, 0.008, 0], materials.yellow);
   }
   for (const x of [-0.41, 0.41]) block('pad-marking', [0.14, 0.015, 1.2], [x, 0.008, 0], materials.white);
   block('pad-marking', [0.82, 0.015, 0.14], [0, 0.008, 0], materials.white);
-  block('receiver-foundation', [1.7, PAD_DEPTH, 1], [CABINET_X, -PAD_DEPTH / 2, 0], materials.pad);
-  block('delivery-cabinet', CABINET_SIZE, [CABINET_X, CABINET_SIZE[1] / 2, 0], materials.yellow);
-  block('locker-door', [1.21, 0.9, 0.035], [CABINET_X, 0.84, 0.44], materials.pad);
-  const light = block('locker-status', [1.3, 0.065, 0.72], [CABINET_X, 2.17, 0], materials.standby);
+  block('receiver-foundation', [cabinetSize[0] + 0.15, PAD_DEPTH, cabinetSize[2] + 0.15],
+    [cabinetX, cabinetY - PAD_DEPTH / 2, 0], materials.pad);
+  block('delivery-cabinet', cabinetSize, [cabinetX, cabinetY + cabinetSize[1] / 2, 0], materials.yellow);
+  block('locker-door', [1.21, 0.9, 0.035], [cabinetX, cabinetY + 0.84, cabinetZ + 0.015], materials.pad);
+  const light = block('locker-status', [0.9, 0.065, 0.045],
+    [cabinetX, cabinetY + 1.55, cabinetZ + 0.02], materials.standby);
 
   if (typeof document !== 'undefined') {
     const canvas = document.createElement('canvas');
@@ -294,7 +349,7 @@ function stationMesh(station, materials, resources) {
     const sign = new THREE.MeshBasicMaterial({ map: texture });
     resources.add(texture);
     resources.add(sign);
-    block('station-sign', [1.49, 0.42, 0.008], [CABINET_X, 1.86, 0.431], sign);
+    block('station-sign', [1.49, 0.42, 0.008], [cabinetX, cabinetY + 1.86, cabinetZ + 0.006], sign);
   }
   return { group, light };
 }
@@ -304,7 +359,7 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
   const canopies = (air?.droneRoutes ?? []).flatMap(route => {
     const from = sourceStations.get(route.fromStationId), to = sourceStations.get(route.toStationId);
     if (!treeObstacles || !from || !to) return [];
-    const margin = 220;
+    const margin = route.id === TALENT_ROUTE ? 180 + Math.max(...DETOUR_OFFSETS) + 40 : 220;
     return treeObstacles({
       minX: Math.min(from.x, to.x) - margin, maxX: Math.max(from.x, to.x) + margin,
       minZ: Math.min(from.z, to.z) - margin, maxZ: Math.max(from.z, to.z) + margin
@@ -332,11 +387,14 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
     const facility = stationMesh(station, materials, resources);
     facilities.set(station.id, facility);
     group.add(facility.group);
-    const cabinet = offset(station, CABINET_X, 0);
-    const [hx, hz] = Math.abs(Math.cos(station.yaw)) > 0.5 ? [0.85, 0.5] : [0.5, 0.85];
-    colliders.push({ ...box(cabinet.x, cabinet.z, hx, hz, station.y - PAD_DEPTH, station.y + CABINET_SIZE[1] + 0.06),
+    const cabinet = offset(station, station.roofPad ? 0 : CABINET_X, 0);
+    const [width, height, depth] = station.roofPad ? ROOF_CABINET_SIZE : CABINET_SIZE;
+    const halfWidth = width / 2 + 0.075, halfDepth = depth / 2 + 0.075;
+    const [hx, hz] = Math.abs(Math.cos(station.yaw)) > 0.5 ? [halfWidth, halfDepth] : [halfDepth, halfWidth];
+    colliders.push({ ...box(cabinet.x, cabinet.z, hx, hz, station.baseY - PAD_DEPTH, station.baseY + height),
       type: 'drone-cabinet', name: station.name });
-    colliders.push({ ...box(station.x, station.z, PAD_HALF, PAD_HALF, station.y - PAD_DEPTH, station.y),
+    const padDepth = station.roofPad ? ROOF_PAD_DEPTH : PAD_DEPTH;
+    colliders.push({ ...box(station.x, station.z, PAD_HALF, PAD_HALF, station.y - padDepth, station.y),
       type: 'drone-platform', name: station.name });
   }
 
@@ -383,7 +441,7 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
     const record = byStation.get(stationId);
     const station = record?.route.from?.id === stationId ? record.route.from : record?.route.to;
     const nearby = station?.available && Math.hypot(player.x - station.x, player.z - station.z) <= APPROACH_DISTANCE
-      && Math.abs(player.y - station.y) <= 4;
+      && Math.abs(player.y - station.baseY) <= 4;
     return { route: record?.route, suspended, nearby: Boolean(nearby), mission: record?.mission,
       available: !disposed && Boolean(record?.aircraft) };
   }
@@ -412,7 +470,7 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
       return { stations: stations.map(({ id, x, y, z, available, offsetM, approach }) => ({ id, x, y, z, available, offsetM, approach })),
         routes: routes.map(({ id, path, simulationOnly }) =>
           ({ id, reason: path.reason, obstacle: path.limitingObstacle, cruiseY: path.cruiseY,
-            seconds: path.seconds, simulationOnly })), suspended };
+            seconds: path.seconds, detour: path.detour, simulationOnly })), suspended };
     },
     status, start,
     cameraClear(target, desired, controller) {

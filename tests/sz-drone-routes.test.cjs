@@ -68,6 +68,50 @@ test('route clearance covers narrow building obstacles and enforces the ceiling'
   assert.equal(unknown.path.reason, 'unknown-terrain');
 });
 
+test('Talent Park detours around a tall obstacle without changing either endpoint', { skip: !pkg }, async () => {
+  const { planDroneFlights, dronePoseAt } = load(await realThree());
+  const parkAir = { ...air, droneRoutes: [{ ...air.droneRoutes[0], id: 'meituan-talent-coastcity' }] };
+  const tower = { minX: 130, maxX: 170, minZ: -25, maxZ: 25, minY: 0, maxY: 330 };
+  const [route] = planDroneFlights(parkAir, { ...site, obstacles: [tower] }).routes;
+  const { path } = route;
+  assert.ok(path.detour && route.simulationOnly);
+  assert.ok(path.cruiseY <= 260);
+  assert.deepEqual(path.points[0].toArray(), [route.from.x, route.from.y, route.from.z]);
+  assert.deepEqual(path.points.at(-1).toArray(), [route.to.x, route.to.y, route.to.z]);
+  for (const reverse of [false, true]) {
+    let priorYaw;
+    for (let time = 4; time <= 4 + path.seconds; time += 0.05) {
+      const { yaw, position: { x, z } } = dronePoseAt(path, reverse, time);
+      if (x >= 128 && x <= 172) assert.ok(Math.abs(z) > 27);
+      if (priorYaw !== undefined) assert.ok(Math.cos(yaw - priorYaw) > 0.999);
+      priorYaw = yaw;
+    }
+  }
+  const wall = { ...tower, minZ: -500, maxZ: 500 };
+  const [blocked] = planDroneFlights(parkAir, { ...site, obstacles: [wall] }).routes;
+  assert.equal(blocked.path.reason, 'cruise-ceiling');
+});
+
+test('the landing station uses its cabinet roof as the flight and collision surface', { skip: !pkg }, async () => {
+  const THREE = await realThree();
+  const module = load(THREE, () => ({ group: new THREE.Group(), dispose() {} }));
+  const roofAir = { ...air, droneStations: [air.droneStations[0], { ...air.droneStations[1], kind: 'landing' }] };
+  const system = module.buildSzDroneRoutes(new THREE.Scene(), { air: roofAir, site });
+  const station = system.stations[1];
+  const facility = system.group.getObjectByName(station.id);
+  facility.updateWorldMatrix(true, true);
+  const platform = new THREE.Box3().setFromObject(facility.getObjectByName('landing-platform'));
+  const cabinet = new THREE.Box3().setFromObject(facility.getObjectByName('delivery-cabinet'));
+  const [cabinetCollider, platformCollider] = system.colliders.filter(item => item.name === station.name);
+  assert.ok(Math.abs(platform.max.y - station.y) < 1e-6);
+  assert.ok(Math.abs(platform.min.y - cabinet.max.y) < 1e-6);
+  assert.ok(Math.abs(cabinetCollider.maxY - platformCollider.minY) < 1e-6);
+  const [x, , z] = cabinet.getCenter(new THREE.Vector3()).toArray();
+  const endpoint = system.routes[0].path.points.at(-1);
+  assert.deepEqual(endpoint.toArray(), [x, station.y, z]);
+  system.dispose();
+});
+
 test('each end can dispatch a continuous round trip on the displayed polyline', { skip: !pkg }, async () => {
   const THREE = await realThree();
   const { dronePoseAt, planDroneFlights } = load(THREE);
@@ -205,12 +249,14 @@ test('watching restores the same player after Escape and uses a safe fallback af
   assert.equal(watch.map.follow(station, true), true);
   assert.equal(watch.update(0.05), true);
   assert.equal(camera.target, mission.pose);
+  assert.equal(watch.map.followedMission, mission);
   assert.equal(touch.enabled, false);
   window.keydown({ code: 'Escape' });
   assert.deepEqual(person, original);
   assert.equal(watch.active, false);
   assert.equal(touch.enabled, true);
   assert.equal(camera.target, null);
+  assert.equal(watch.map.followedMission, null);
   assert.equal(labels.at(-1), 'Prior camera');
   assert.equal(watch.map.follow(station, true), true);
   active = safety = false;
