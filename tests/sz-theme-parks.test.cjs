@@ -14,10 +14,13 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 
 test('the production pack fits all three parks and preserves ground access', async () => {
-  const { Scene } = await import('three/webgpu');
+  const { Scene, Vector3 } = await import('three/webgpu');
+  const { sceneUniforms } = await import('../js/sz-materials.js');
+  const { createCarriagewayBarrier } = await import('../js/sz-pedestrian-tracks.js');
+  const { EDGE_OPENINGS } = await import('../js/sz-theme-parks/sites.js');
   const { decodeCityPayload } = await import('../js/sz-data-format.js');
   const { createGroundSurfaceSampler } = await import('../js/sz-ground-surface.js');
-  const { polygonContainsInclusive } = await import('../js/sz-polygon.js');
+  const { distanceToRing, polygonContainsInclusive } = await import('../js/sz-polygon.js');
   const { buildThemeParks } = await import('../js/sz-theme-parks/index.js');
   const raw = JSON.parse(gunzipSync(readFileSync(resolve(__dirname, '../js/sz-city.json.gz'))));
   const { geo, buildings } = decodeCityPayload(raw);
@@ -30,6 +33,34 @@ test('the production pack fits all three parks and preserves ground access', asy
   assert.deepEqual(summary.parks.map(p => p.models.length), [5, 3, 2]);
   assert.deepEqual(summary.parks.map(p => p.walks), [3, 2, 2]);
   assert.equal(parks.skipIds.size, 4);
+  const barrier = createCarriagewayBarrier(geo.roadGraph);
+  for (const [i, key] of ['world', 'china', 'valley'].entries()) {
+    const walls = parks.colliders.filter(c => c.sourceId === `theme-${key}-perimeter`);
+    const lamps = parks.colliders.filter(c => c.sourceId === `theme-${key}-path-lamps`);
+    assert.ok(summary.parks[i].wallLengthM > 1400);
+    assert.ok(summary.parks[i].lamps >= 6);
+    for (const wall of walls) {
+      for (const [x, z, radius] of EDGE_OPENINGS[key]) {
+        assert.ok(!polygonContainsInclusive(wall.polygon, x, z) && distanceToRing(wall.polygon.outer, x, z) >= radius - 0.1);
+      }
+      assert.ok(wall.polygon.outer.every(({ x, z }) => !barrier.contains(x, z, 0.5)));
+    }
+    for (const lamp of lamps) {
+      assert.ok(lamp.polygon.outer.every(({ x, z }) => !parks.pathAt(x, z).length));
+    }
+  }
+  assert.ok(parks.group.getObjectByName('ShenzhenLandmark:theme-eiffel').children
+    .some(mesh => mesh.material.emissiveNode));
+  try {
+    sceneUniforms.night.value = 0.86;
+    parks.update(10, true, new Vector3(-8750, 10, 1025));
+    assert.equal(parks.snapshot().lightPoolsVisible, true);
+    sceneUniforms.night.value = 0;
+    parks.update(11, false, new Vector3(-8750, 10, 1025));
+    assert.equal(parks.snapshot().lightPoolsVisible, false);
+  } finally {
+    sceneUniforms.night.value = 0;
+  }
   assert.equal(parks.pathAt(-8750, 1025).length, 1);
   assert.equal(parks.pathAt(0, 0).length, 0);
   for (const mesh of parks.group.children.filter(o => o.name.includes('-walk:'))) {
