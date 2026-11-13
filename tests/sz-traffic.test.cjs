@@ -631,6 +631,20 @@ test('a source-connected tunnel route stays on its own floor across every seam a
   });
   const drive = planner.route(planner.snap(-9600, 2622.37), planner.snap(-7940, 2605));
   assert.ok(drive && chain.every(edge => drive.edges.includes(edge)));
+  for (const id of ['junction-bridge-41018947', 'junction-bridge-41018949', 'junction-tunnel-154879196']) {
+    const records = geo.roadStructures.records.filter(row => row.route === id);
+    assert.equal(records.length, 3, id);
+    const [entry, structure, exit] = records.map(row => network.edges.find(edge => edge.sourceIndex === row.index));
+    assert.ok(entry?.next.includes(structure) && structure.next.includes(exit), id);
+    assert.ok(network.edges.some(edge => !edge.elevated && edge.next.includes(entry)), id);
+    assert.ok(exit.next.some(edge => !edge.elevated), id);
+    assert.ok(records.every(row => row.maxGrade <= 0.05), id);
+    const middle = built.links.find(link => link.index === structure.sourceIndex);
+    const frame = middle.frames[Math.floor(middle.frames.length / 2)];
+    assert.ok(Math.abs(built.heightAt(frame.x, frame.z, middle.surfaceId) - frame.y) < 1e-5, id);
+    assert.ok(built.colliders.some(c => c.name === middle.surfaceId
+      && c.type === (structure.tunnel ? 'tunnel-roof' : 'bridge-slab')), id);
+  }
   for (const id of ['nanping-xili-east', 'nanping-xili-west', 'nanguang-south', 'nanguang-north',
     'huanggang-binhe-north', 'huanggang-binhe-south', 'beihuan-shahe-east', 'beihuan-shahe-west',
     'nanping-branch-north', 'nanping-branch-south', 'guimiao-east', 'guimiao-west',

@@ -79925,17 +79925,17 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7883,
-    "metadataBytes": 16866306,
-    "numericBytes": 35339168,
-    "uncompressedBytes": 52205528,
+    "columns": 7910,
+    "metadataBytes": 16880630,
+    "numericBytes": 35473280,
+    "uncompressedBytes": 52353960,
     "lossless": true,
-    "compressedBytes": 12777728,
-    "compressedSha256": "e63466bd834384198990e199b726320e3cb6f0c77026d53ad512e46668439471"
+    "compressedBytes": 12883349,
+    "compressedSha256": "6991967c153b24f09473dc8d4875d9c49133fb1b99e04be6a0a31c0db4986dbb"
   },
-  "outputBytes": 12521822,
-  "outputSha256": "ee80008aa9d64775656be704512ce6186951d7840fb7767617ebe377028034f4",
-  "seconds": 120.2,
+  "outputBytes": 12608791,
+  "outputSha256": "f1f7e532f5938243422ef4b7c444f9792c00d2812d25fff9dea2fd1ba7222e1d",
+  "seconds": 89.1,
   "frontageRebuild": {
     "basePayloadSha256": "4e3b12051e426ab4f1e5c30d9a1f8acb04343339a8e4a4611a23963fdad78b89",
     "corridors": [
@@ -85735,7 +85735,7 @@
     "terrainAndBuildingsChanged": false
   },
   "roadStructures": {
-    "portalCutM2": 111575.858,
+    "portalCutM2": 113812.276,
     "landscape": {
       "patches": [
         "beihuan-xinzhou:flower-bed",
@@ -87919,6 +87919,204 @@
           46,
           5
         ]
+      },
+      {
+        "id": "junction-bridge-40984986",
+        "kind": "bridge",
+        "source": "https://www.openstreetmap.org/way/40984986",
+        "ways": [
+          "way/545243393",
+          "way/40984986",
+          "way/996321295"
+        ],
+        "pathNodes": [
+          "node/5269888287",
+          "node/499481734",
+          "node/499481698",
+          "node/7959603010"
+        ],
+        "portalNodes": [
+          "node/5269888287",
+          "node/7959603010"
+        ],
+        "profileSource": "project-design-estimate-from-source-junction",
+        "junctionContinuation": true
+      },
+      {
+        "id": "junction-bridge-41018947",
+        "kind": "bridge",
+        "source": "https://www.openstreetmap.org/way/41018947",
+        "ways": [
+          "way/1062897807",
+          "way/41018947",
+          "way/41018948"
+        ],
+        "pathNodes": [
+          "node/8076307471",
+          "node/500015590",
+          "node/500015591",
+          "node/12987924215"
+        ],
+        "portalNodes": [
+          "node/8076307471",
+          "node/12987924215"
+        ],
+        "profileSource": "project-design-estimate-from-source-junction",
+        "junctionContinuation": true
+      },
+      {
+        "id": "junction-bridge-41018949",
+        "kind": "bridge",
+        "source": "https://www.openstreetmap.org/way/41018949",
+        "ways": [
+          "way/996207990",
+          "way/41018949",
+          "way/996755162"
+        ],
+        "pathNodes": [
+          "node/500015594",
+          "node/500015593",
+          "node/279077972",
+          "node/13017481562"
+        ],
+        "portalNodes": [
+          "node/500015594",
+          "node/13017481562"
+        ],
+        "profileSource": "project-design-estimate-from-source-junction",
+        "junctionContinuation": true
+      },
+      {
+        "id": "junction-bridge-46734917",
+        "kind": "bridge",
+        "source": "https://www.openstreetmap.org/way/46734917",
+        "ways": [
+          "way/238038718",
+          "way/46734917",
+          "way/996181405"
+        ],
+        "pathNodes": [
+          "node/598724252",
+          "node/597407495",
+          "node/352965746",
+          "node/598724344"
+        ],
+        "portalNodes": [
+          "node/598724252",
+          "node/598724344"
+        ],
+        "profileSource": "project-design-estimate-from-source-junction",
+        "junctionContinuation": true
+      },
+      {
+        "id": "junction-bridge-69569324",
+        "kind": "bridge",
+        "source": "https://www.openstreetmap.org/way/69569324",
+        "ways": [
+          "way/69569327",
+          "way/69569324",
+          "way/1420454345"
+        ],
+        "pathNodes": [
+          "node/5392274133",
+          "node/832589865",
+          "node/830982925",
+          "node/9105636827"
+        ],
+        "portalNodes": [
+          "node/5392274133",
+          "node/9105636827"
+        ],
+        "profileSource": "project-design-estimate-from-source-junction",
+        "junctionContinuation": true
+      },
+      {
+        "id": "junction-tunnel-154879196",
+        "kind": "tunnel",
+        "source": "https://www.openstreetmap.org/way/154879196",
+        "ways": [
+          "way/894305096",
+          "way/154879196",
+          "way/1050942992"
+        ],
+        "pathNodes": [
+          "node/8312048115",
+          "node/8312143623",
+          "node/8312143625",
+          "node/9657680430"
+        ],
+        "portalNodes": [
+          "node/8312048115",
+          "node/9657680430"
+        ],
+        "profileSource": "project-design-estimate-from-source-junction",
+        "junctionContinuation": true
+      },
+      {
+        "id": "junction-bridge-237905384",
+        "kind": "bridge",
+        "source": "https://www.openstreetmap.org/way/237905384",
+        "ways": [
+          "way/581126440",
+          "way/237905384",
+          "way/237905394"
+        ],
+        "pathNodes": [
+          "node/8911556612",
+          "node/2457770804",
+          "node/2457770819",
+          "node/12625677444"
+        ],
+        "portalNodes": [
+          "node/8911556612",
+          "node/12625677444"
+        ],
+        "profileSource": "project-design-estimate-from-source-junction",
+        "junctionContinuation": true
+      },
+      {
+        "id": "junction-bridge-238558016",
+        "kind": "bridge",
+        "source": "https://www.openstreetmap.org/way/238558016",
+        "ways": [
+          "way/959619759",
+          "way/238558016",
+          "way/478221941"
+        ],
+        "pathNodes": [
+          "node/276927296",
+          "node/2463808055",
+          "node/2463808052",
+          "node/2500394926"
+        ],
+        "portalNodes": [
+          "node/276927296",
+          "node/2500394926"
+        ],
+        "profileSource": "project-design-estimate-from-source-junction",
+        "junctionContinuation": true
+      },
+      {
+        "id": "junction-bridge-1214017692",
+        "kind": "bridge",
+        "source": "https://www.openstreetmap.org/way/1214017692",
+        "ways": [
+          "way/1214017691",
+          "way/1214017692",
+          "way/168274320"
+        ],
+        "pathNodes": [
+          "node/2505516059",
+          "node/11247753709",
+          "node/6222106955",
+          "node/1640423870"
+        ],
+        "portalNodes": [
+          "node/2505516059",
+          "node/1640423870"
+        ],
+        "profileSource": "project-design-estimate-from-source-junction",
+        "junctionContinuation": true
       }
     ],
     "conflicts": [],
@@ -89455,6 +89653,214 @@
           {
             "way": "way/25435061",
             "clearanceM": 6.2557
+          }
+        ]
+      },
+      {
+        "route": "junction-bridge-40984986",
+        "way": "way/40984986",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1382209058",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/996625936",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/996208016",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "junction-bridge-41018947",
+        "way": "way/41018947",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1413284381",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1050725184",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/777201409",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/42351689",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1132175528",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1095317745",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1095317745",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1416551444",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "junction-bridge-41018949",
+        "way": "way/41018949",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1413284381",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1050725184",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/777201409",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/42351689",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1095317745",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1416551444",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "junction-bridge-46734917",
+        "way": "way/46734917",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/816544574",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/223456773",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/996181408",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1153479105",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1054407540",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/687538033",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/687538037",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1051282788",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1162967513",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "junction-bridge-69569324",
+        "way": "way/69569324",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/232789554",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/232789551",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/680992417",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/995989149",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/1031889490",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/974372178",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/232789553",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "junction-bridge-237905384",
+        "way": "way/237905384",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/580915667",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/972623146",
+            "clearanceM": 4.35
+          },
+          {
+            "way": "way/311100023",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "junction-bridge-238558016",
+        "way": "way/238558016",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/1258387053",
+            "clearanceM": 4.35
+          }
+        ]
+      },
+      {
+        "route": "junction-bridge-1214017692",
+        "way": "way/1214017692",
+        "minimumM": 4.35,
+        "crossingWays": [
+          {
+            "way": "way/966737982",
+            "clearanceM": 4.35
           }
         ]
       }
@@ -93463,6 +93869,447 @@
         "coverM": null,
         "openApronM": 5,
         "maxGrade": 0.041347
+      },
+      {
+        "index": 9486,
+        "way": "way/545243393",
+        "route": "junction-bridge-40984986",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.0306
+      },
+      {
+        "index": 790,
+        "way": "way/40984986",
+        "route": "junction-bridge-40984986",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 218.362723,
+        "widthM": 12,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 16973,
+        "way": "way/996321295",
+        "route": "junction-bridge-40984986",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 384.421243,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.046047
+      },
+      {
+        "index": 19444,
+        "way": "way/1062897807",
+        "route": "junction-bridge-41018947",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.044058
+      },
+      {
+        "index": 854,
+        "way": "way/41018947",
+        "route": "junction-bridge-41018947",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 133.486689,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 855,
+        "way": "way/41018948",
+        "route": "junction-bridge-41018947",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 376.384189,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.035163
+      },
+      {
+        "index": 16676,
+        "way": "way/996207990",
+        "route": "junction-bridge-41018949",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.034319
+      },
+      {
+        "index": 863,
+        "way": "way/41018949",
+        "route": "junction-bridge-41018949",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 165.691514,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 17451,
+        "way": "way/996755162",
+        "route": "junction-bridge-41018949",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 407.354833,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.048197
+      },
+      {
+        "index": 4787,
+        "way": "way/238038718",
+        "route": "junction-bridge-46734917",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.043961
+      },
+      {
+        "index": 1179,
+        "way": "way/46734917",
+        "route": "junction-bridge-46734917",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 133.737589,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 16492,
+        "way": "way/996181405",
+        "route": "junction-bridge-46734917",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 492.179065,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.047312
+      },
+      {
+        "index": 1330,
+        "way": "way/69569327",
+        "route": "junction-bridge-69569324",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.046543
+      },
+      {
+        "index": 1327,
+        "way": "way/69569324",
+        "route": "junction-bridge-69569324",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 138.194123,
+        "widthM": 16,
+        "lanes": 0,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 23190,
+        "way": "way/1420454345",
+        "route": "junction-bridge-69569324",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 506.897575,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.045452
+      },
+      {
+        "index": 14809,
+        "way": "way/894305096",
+        "route": "junction-tunnel-154879196",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 10,
+        "maxGrade": 0.029725
+      },
+      {
+        "index": 2510,
+        "way": "way/154879196",
+        "route": "junction-tunnel-154879196",
+        "kind": "tunnel",
+        "layer": -1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 188.207164,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          178.32144150381865
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 18545,
+        "way": "way/1050942992",
+        "route": "junction-tunnel-154879196",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 366.528605,
+        "widthM": 6.5,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 10,
+        "maxGrade": 0.032081
+      },
+      {
+        "index": 10163,
+        "way": "way/581126440",
+        "route": "junction-bridge-237905384",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.037063
+      },
+      {
+        "index": 4680,
+        "way": "way/237905384",
+        "route": "junction-bridge-237905384",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 154.903992,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 4683,
+        "way": "way/237905394",
+        "route": "junction-bridge-237905384",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 518.593478,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.026095
+      },
+      {
+        "index": 15560,
+        "way": "way/959619759",
+        "route": "junction-bridge-238558016",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.043686
+      },
+      {
+        "index": 4813,
+        "way": "way/238558016",
+        "route": "junction-bridge-238558016",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 145.955585,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 8405,
+        "way": "way/478221941",
+        "route": "junction-bridge-238558016",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 340.26964,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.018434
+      },
+      {
+        "index": 21144,
+        "way": "way/1214017691",
+        "route": "junction-bridge-1214017692",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.025698
+      },
+      {
+        "index": 21145,
+        "way": "way/1214017692",
+        "route": "junction-bridge-1214017692",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 238.28927,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 2704,
+        "way": "way/168274320",
+        "route": "junction-bridge-1214017692",
+        "kind": "approach",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 259.26031,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": null,
+        "openApronM": 10,
+        "maxGrade": 0.002617
       }
     ],
     "connections": [

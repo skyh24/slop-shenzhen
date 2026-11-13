@@ -2104,6 +2104,204 @@
         46,
         5
       ]
+    },
+    {
+      "id": "junction-bridge-40984986",
+      "kind": "bridge",
+      "source": "https://www.openstreetmap.org/way/40984986",
+      "ways": [
+        "way/545243393",
+        "way/40984986",
+        "way/996321295"
+      ],
+      "pathNodes": [
+        "node/5269888287",
+        "node/499481734",
+        "node/499481698",
+        "node/7959603010"
+      ],
+      "portalNodes": [
+        "node/5269888287",
+        "node/7959603010"
+      ],
+      "profileSource": "project-design-estimate-from-source-junction",
+      "junctionContinuation": true
+    },
+    {
+      "id": "junction-bridge-41018947",
+      "kind": "bridge",
+      "source": "https://www.openstreetmap.org/way/41018947",
+      "ways": [
+        "way/1062897807",
+        "way/41018947",
+        "way/41018948"
+      ],
+      "pathNodes": [
+        "node/8076307471",
+        "node/500015590",
+        "node/500015591",
+        "node/12987924215"
+      ],
+      "portalNodes": [
+        "node/8076307471",
+        "node/12987924215"
+      ],
+      "profileSource": "project-design-estimate-from-source-junction",
+      "junctionContinuation": true
+    },
+    {
+      "id": "junction-bridge-41018949",
+      "kind": "bridge",
+      "source": "https://www.openstreetmap.org/way/41018949",
+      "ways": [
+        "way/996207990",
+        "way/41018949",
+        "way/996755162"
+      ],
+      "pathNodes": [
+        "node/500015594",
+        "node/500015593",
+        "node/279077972",
+        "node/13017481562"
+      ],
+      "portalNodes": [
+        "node/500015594",
+        "node/13017481562"
+      ],
+      "profileSource": "project-design-estimate-from-source-junction",
+      "junctionContinuation": true
+    },
+    {
+      "id": "junction-bridge-46734917",
+      "kind": "bridge",
+      "source": "https://www.openstreetmap.org/way/46734917",
+      "ways": [
+        "way/238038718",
+        "way/46734917",
+        "way/996181405"
+      ],
+      "pathNodes": [
+        "node/598724252",
+        "node/597407495",
+        "node/352965746",
+        "node/598724344"
+      ],
+      "portalNodes": [
+        "node/598724252",
+        "node/598724344"
+      ],
+      "profileSource": "project-design-estimate-from-source-junction",
+      "junctionContinuation": true
+    },
+    {
+      "id": "junction-bridge-69569324",
+      "kind": "bridge",
+      "source": "https://www.openstreetmap.org/way/69569324",
+      "ways": [
+        "way/69569327",
+        "way/69569324",
+        "way/1420454345"
+      ],
+      "pathNodes": [
+        "node/5392274133",
+        "node/832589865",
+        "node/830982925",
+        "node/9105636827"
+      ],
+      "portalNodes": [
+        "node/5392274133",
+        "node/9105636827"
+      ],
+      "profileSource": "project-design-estimate-from-source-junction",
+      "junctionContinuation": true
+    },
+    {
+      "id": "junction-tunnel-154879196",
+      "kind": "tunnel",
+      "source": "https://www.openstreetmap.org/way/154879196",
+      "ways": [
+        "way/894305096",
+        "way/154879196",
+        "way/1050942992"
+      ],
+      "pathNodes": [
+        "node/8312048115",
+        "node/8312143623",
+        "node/8312143625",
+        "node/9657680430"
+      ],
+      "portalNodes": [
+        "node/8312048115",
+        "node/9657680430"
+      ],
+      "profileSource": "project-design-estimate-from-source-junction",
+      "junctionContinuation": true
+    },
+    {
+      "id": "junction-bridge-237905384",
+      "kind": "bridge",
+      "source": "https://www.openstreetmap.org/way/237905384",
+      "ways": [
+        "way/581126440",
+        "way/237905384",
+        "way/237905394"
+      ],
+      "pathNodes": [
+        "node/8911556612",
+        "node/2457770804",
+        "node/2457770819",
+        "node/12625677444"
+      ],
+      "portalNodes": [
+        "node/8911556612",
+        "node/12625677444"
+      ],
+      "profileSource": "project-design-estimate-from-source-junction",
+      "junctionContinuation": true
+    },
+    {
+      "id": "junction-bridge-238558016",
+      "kind": "bridge",
+      "source": "https://www.openstreetmap.org/way/238558016",
+      "ways": [
+        "way/959619759",
+        "way/238558016",
+        "way/478221941"
+      ],
+      "pathNodes": [
+        "node/276927296",
+        "node/2463808055",
+        "node/2463808052",
+        "node/2500394926"
+      ],
+      "portalNodes": [
+        "node/276927296",
+        "node/2500394926"
+      ],
+      "profileSource": "project-design-estimate-from-source-junction",
+      "junctionContinuation": true
+    },
+    {
+      "id": "junction-bridge-1214017692",
+      "kind": "bridge",
+      "source": "https://www.openstreetmap.org/way/1214017692",
+      "ways": [
+        "way/1214017691",
+        "way/1214017692",
+        "way/168274320"
+      ],
+      "pathNodes": [
+        "node/2505516059",
+        "node/11247753709",
+        "node/6222106955",
+        "node/1640423870"
+      ],
+      "portalNodes": [
+        "node/2505516059",
+        "node/1640423870"
+      ],
+      "profileSource": "project-design-estimate-from-source-junction",
+      "junctionContinuation": true
     }
   ],
   "minimumVehicleClearanceM": 3.7,

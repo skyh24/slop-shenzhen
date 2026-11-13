@@ -17,6 +17,45 @@ sys.path.insert(0, str(ROOT / 'tools/sz'))
 from roadgraph import graph_components
 
 
+def junction_candidates(graph, edges, incidence, compiled, runtime_movements):
+    """找出两端各有唯一地面延续的单向一级桥隧，供按同一模板复核。"""
+    result = []
+    for edge in edges:
+        index = edge['index']
+        kind = edge['structure']
+        if (edge['runtimeDirections'] or index in compiled or edge['direction'] != 1
+                or edge['highway'].endswith('_link') or kind not in ('bridge', 'tunnel')
+                or (kind == 'bridge' and (not edge['bridge'] or edge['layer'] not in (0, 1)))
+                or (kind == 'tunnel' and edge['layer'] != -1)):
+            continue
+        start, end = graph['links'][index][:2]
+        if len(incidence[start]) != 2 or len(incidence[end]) != 2:
+            continue
+        entry = next(i for i in incidence[start] if i != index)
+        exit_ = next(i for i in incidence[end] if i != index)
+        if (graph['links'][entry][1] != start or graph['links'][exit_][0] != end
+                or any(i in compiled or edges[i]['direction'] != 1 or edges[i]['structure'] != 'ground'
+                       or not edges[i]['runtimeDirections'] for i in (entry, exit_))):
+            continue
+        upstream = graph['links'][entry][0]
+        approaches = [(i, sign) for i in incidence[upstream] if i != entry for sign in edges[i]['runtimeDirections']
+                      if (entry, 1) in runtime_movements.get((i, sign), ())]
+        departures = runtime_movements.get((exit_, 1), ())
+        if not approaches or not departures:
+            continue
+        chain = [edges[i] for i in (entry, index, exit_)]
+        path = [chain[0]['nodes'][0], *[row['nodes'][1] for row in chain]]
+        result.append({'edges': [entry, index, exit_],
+                       'approachLengthsM': [edges[i]['lengthM'] for i in (entry, exit_)],
+                       'route': {'id': f"junction-{kind}-{edge['osmId'].split('/')[-1]}-{start}",
+                                 'kind': kind, 'junctionContinuation': True,
+                                 'source': f"https://www.openstreetmap.org/{edge['osmId']}",
+                                 'ways': [row['osmId'] for row in chain], 'pathNodes': path,
+                                 'portalNodes': [path[0], path[-1]],
+                                 'profileSource': 'project-design-estimate-from-source-junction'}})
+    return result
+
+
 def structure(road):
     if road['tunnel'] and road['bridge']:
         return 'contradictory'
@@ -144,6 +183,9 @@ def audit(graph, source, runtime=None):
                 kind = 'unknown-overlap' if part.geom_type != 'Point' else classify(a, b, False)
                 crossings.append({'edges': [i, j], 'type': kind, 'geometry': part.__geo_interface__})
 
+    compiled = runtime.get('structures', []) if runtime else []
+    candidates = junction_candidates(graph, edges, incidence, {row['index'] for row in compiled},
+                                     runtime_movements) if runtime else []
     return {
         'counts': {'nodes': len(node_ids), 'edges': len(edges), 'ways': len(represented),
                    'snapshotRoadWays': len(source_by_id) if source else None,
@@ -152,12 +194,13 @@ def audit(graph, source, runtime=None):
                    'movements': dict(movement_counts),
                    'runtimeEdges': sum(bool(e.get('runtimeDirections')) for e in edges) if runtime else None,
                    'runtimeDirectedEdges': sum(len(e.get('runtimeDirections', [])) for e in edges) if runtime else None,
+                   'junctionContinuationCandidates': len(candidates) if runtime else None,
                    'endpoints': dict(Counter(row['reason'] for row in ends)),
                    'sourceGraphConnectivity': graph_components(len(node_ids), graph['links'])},
         'corridors': {name: {key: sorted(set(values)) for key, values in corridor.items()}
                       for name, corridor in corridors.items()},
         'runtimeStructureConflicts': runtime.get('legacyGradeConflicts', []) if runtime else [],
-        'compiledStructures': runtime.get('structures', []) if runtime else [],
+        'compiledStructures': compiled, 'junctionContinuationCandidates': candidates,
         'edges': edges, 'sourceNodes': connections, 'unconnectedCrossings': crossings, 'endpoints': ends,
         'turnRestrictions': graph.get('turnRestrictions', []),
         'snapshotStructureWaysOutsideGraph': [
