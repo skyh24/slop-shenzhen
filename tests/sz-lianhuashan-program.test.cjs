@@ -36,7 +36,9 @@ test('summit presentation omissions are bound to the mapped park and keep adjace
   const { buildings, geo } = await loadData();
   const park = geo.parks.find(row => row.osmId === source.parkId);
   const omitted = reviewedParkOmissions(park, buildings);
-  assert.deepEqual([...omitted].sort(), [...source.displayReview.omit].sort());
+  const retired = source.displayReview.omit.filter(id => id.startsWith('globfp/'));
+  assert.ok(retired.length > 0 && retired.every(id => !buildings.some(building => building.id === id)));
+  assert.deepEqual([...omitted].sort(), source.displayReview.omit.filter(id => !retired.includes(id)).sort());
   for (const id of Object.keys(source.displayReview.keep)) {
     assert.ok(buildings.some(building => building.id === id));
     assert.ok(!omitted.has(id));

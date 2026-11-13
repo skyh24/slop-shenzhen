@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { polygonContains } from './sz-polygon.js';
-import { CROWN_SPECIES, createCrownLibrary } from './sz-tree-crown.js';
+import { COMPACT_CROWN_TRIANGLES, CROWN_SPECIES, createCompactFoliage, createCrownLibrary, createDetailedTreeBatch } from './sz-tree-crown.js';
 
 // 近景按树种实例化整棵树，远景的低模树干和树冠按同一子格切换。
 
@@ -16,7 +16,7 @@ const FAR_ENTER_M = 828;
 const PROBE_RADIUS_M = 0.9;
 const TRUNK_SIDES = 8;
 const TRUNK_TRIANGLES = TRUNK_SIDES * 2; // 无盖圆柱
-const FAR_CROWN_TRIANGLES = 80; // IcosahedronGeometry detail=1
+const FAR_CROWN_TRIANGLES = COMPACT_CROWN_TRIANGLES;
 const COLLIDER_CELL_M = 48;
 const WOODLAND_CLEAR_M = 6;
 const WOODLAND_SOURCE = 'simulated-woodland';
@@ -533,9 +533,10 @@ export function buildSzTrees(scene, payload, options = {}) {
     list.push(record);
   }
   const trunkGeometry = new THREE.CylinderGeometry(0.65, 1, 1, TRUNK_SIDES, 1, true).translate(0, 0.5, 0);
-  const farGeometry = new THREE.IcosahedronGeometry(1, 1);
+  const compactFoliage = createCompactFoliage();
+  const farGeometry = compactFoliage.geometryFor('crown');
   const trunkMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.96 });
-  const leafMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.87 });
+  const leafMaterial = compactFoliage.material;
   const cardTriangles = crownLibrary ? crownLibrary.statistics.triangles : {};
   const chunks = [];
   const cardGeometries = [];
@@ -543,8 +544,6 @@ export function buildSzTrees(scene, payload, options = {}) {
   const position = new THREE.Vector3();
   const scale = new THREE.Vector3();
   const identity = new THREE.Quaternion();
-  const rotation = new THREE.Quaternion();
-  const upAxis = new THREE.Vector3(0, 1, 0);
   const color = new THREE.Color();
   const tint = new THREE.Color();
   const trunkLight = new THREE.Color(0x77634c);
@@ -572,24 +571,12 @@ export function buildSzTrees(scene, payload, options = {}) {
   function poseFar(record, farMesh, instance) {
     const { style } = record;
     const halfHeight = farCrownHalfHeight(record);
-    const overlap = Math.min(0.25, halfHeight * 0.25);
+    const overlap = halfHeight * (1 + farGeometry.boundingBox.min.y) + Math.min(0.25, halfHeight * 0.25);
     pose(farMesh, instance, record.x, record.y + record.trunkHeight + halfHeight - overlap, record.z,
       record.crown * (0.36 + style.farSpread * 0.6),
       halfHeight,
       record.crown * (0.36 + style.farSpread * 0.6));
     farMesh.setColorAt(instance, tintFor(record));
-  }
-  // 近景整树从地面起，用同一个矩阵放置主干、分枝和叶片。
-  function poseCard(record, cardMesh, instance, data, sway) {
-    rotation.setFromAxisAngle(upAxis, record.seed * Math.PI * 2);
-    cardMesh.setMatrixAt(instance, matrix.compose(
-      position.set(record.x, record.y, record.z), rotation, scale.set(record.crown, record.height, record.crown)));
-    const leafTint = tintFor(record);
-    data.setXYZW(instance, leafTint.r, leafTint.g, leafTint.b, treeSeed(record.sourceId + ':leaf'));
-    // 整树摆幅按树高给（世界米）：11 m 树约 0.2 m，和纽约参考同一量级，只是外观估计。
-    const amplitude = treeSwayAmplitude(record.height);
-    sway.setXY(instance, amplitude, treeSeed(record.sourceId + ':wind'));
-    return amplitude;
   }
   function buildLowDetail(records, name, shadow) {
     if (!records.length) return [];
@@ -650,38 +637,16 @@ export function buildSzTrees(scene, payload, options = {}) {
       const cards = [];
       let cardTrees = 0;
       let cellCardTriangles = 0;
-      let maxSway = 0;
       for (const template of [...byTemplate.keys()].sort()) {
         const groupRecords = byTemplate.get(template);
-        const geometry = crownLibrary.geometryFor(template);
-        // 几何属性共享库里的缓冲，只有实例属性和矩阵按子格各一份。
-        const cardGeometry = new THREE.BufferGeometry();
-        for (const name of Object.keys(geometry.attributes)) {
-          cardGeometry.setAttribute(name, geometry.attributes[name]);
-        }
-        cardGeometry.setIndex(geometry.index);
-        cardGeometry.boundingSphere = geometry.boundingSphere;
-        cardGeometry.boundingBox = geometry.boundingBox;
-        const data = new THREE.InstancedBufferAttribute(new Float32Array(groupRecords.length * 4), 4);
-        const sway = new THREE.InstancedBufferAttribute(new Float32Array(groupRecords.length * 2), 2);
-        cardGeometry.setAttribute('aTreeData', data);
-        cardGeometry.setAttribute('aTreeSway', sway);
-        const cardMesh = new THREE.InstancedMesh(cardGeometry, crownLibrary.material, groupRecords.length);
+        const cardMesh = createDetailedTreeBatch(crownLibrary, template, groupRecords.map(record => ({
+          ...record, turn: record.seed * Math.PI * 2, tint: tintFor(record).clone(),
+          seed: treeSeed(record.sourceId + ':leaf'), windSeed: treeSeed(record.sourceId + ':wind'),
+          amplitude: treeSwayAmplitude(record.height)
+        })));
         cardMesh.name = `tree-crowns-near:${key}/${cellKey}:${template}`;
-        groupRecords.forEach((record, instance) => {
-          maxSway = Math.max(maxSway, poseCard(record, cardMesh, instance, data, sway));
-        });
-        cardMesh.instanceMatrix.needsUpdate = true;
-        cardMesh.geometry.attributes.aTreeData.needsUpdate = true;
-        cardMesh.geometry.attributes.aTreeSway.needsUpdate = true;
-        cardMesh.castShadow = true;
-        cardMesh.receiveShadow = true;
-        cardMesh.frustumCulled = true;
-        cardMesh.computeBoundingSphere();
-        // 风摆在着色器里做，包围球留出摆幅，避免近处树被视锥提前剔掉。
-        cardMesh.boundingSphere.radius += maxSway + 0.12;
         group.add(cardMesh);
-        cardGeometries.push(cardGeometry);
+        cardGeometries.push(cardMesh.geometry);
         const triangles = groupRecords.length * (cardTriangles[template] ?? 0);
         cards.push({ template, mesh: cardMesh, trees: groupRecords.length, triangles });
         cardTrees += groupRecords.length;
@@ -793,9 +758,8 @@ export function buildSzTrees(scene, payload, options = {}) {
     cardGeometries.length = 0;
     crownLibrary?.dispose();
     trunkGeometry.dispose();
-    farGeometry.dispose();
     trunkMaterial.dispose();
-    leafMaterial.dispose();
+    compactFoliage.dispose();
     chunks.length = 0;
     placed.length = 0;
     treeColliders.length = 0;

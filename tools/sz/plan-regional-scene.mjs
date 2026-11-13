@@ -37,14 +37,15 @@ const { Scene } = await import('three/webgpu');
 const { GEO } = await import('../../js/sz-geodata.js');
 const { prepareSceneSite } = await import('../../js/sz-scene-site.js');
 const { planBayWaterfront } = await import('../../js/sz-bay-waterfront.js');
-const { planWaterfront } = await import('../../js/sz-waterfront.js');
+const { planWaterfront, waterfrontWaterRows } = await import('../../js/sz-waterfront.js');
 const { planMetroPlacement, metroEntranceCollider } = await import('../../js/sz-metro-entrances.js');
 const { planSceneDroneFlights, droneStationColliders } = await import('../../js/sz-drone-routes.js');
+const { createColliderIndex } = await import('../../js/sz-trees.js');
 const { spatialIndex } = await import('../../js/sz-spatial.js');
 const { REGIONAL_SCENE_VERSION } = await import('../../js/sz-regional-format.js');
 const run = (_, build) => build();
 const scene = new Scene();
-const { site, bayPaths, waterfrontPaths, talentPark, elevatedRoads, trees, vegetation, colliders } = await prepareSceneSite(scene, {
+const { site, bayPaths, waterfrontPaths, talentPark, elevatedRoads, trees, vegetation, colliders, deckOccupied, carriagewayOccupied } = await prepareSceneSite(scene, {
   qa: { stage: run, measureBuild: run }, showLoadingStage: noop, markInit: noop, startup: {}, offline: true
 });
 
@@ -56,10 +57,12 @@ const flight = planSceneDroneFlights(GEO.air, site, colliders,
   bounds => [...trees.flightObstacles(bounds), ...vegetation.flightObstacles(bounds)]);
 for (const station of flight.stations) if (station.available) colliders.push(...droneStationColliders(station));
 const nearBase = spatialIndex(colliders, corners);
-const bay = planBayWaterfront(GEO.shenzhenBay, { ...site, pathsNear: bayPaths, nearObstacles: nearBase });
+const bay = planBayWaterfront(GEO.shenzhenBay, { ...site, pathsNear: bayPaths, nearObstacles: nearBase,
+  parkNetwork: GEO.waterfront?.parkNetwork, reserveWalk: waterfrontPaths.reserves, carriagewayOccupied,
+  fixtureBlocked: createColliderIndex(colliders) });
 const nearBay = spatialIndex(bay.colliders, corners);
 const shore = planWaterfront(GEO.waterfront, { network: waterfrontPaths, elevated: elevatedRoads,
-  heightAt: site.heightAt, nearObstacles: (x, z, r) => [...nearBase(x, z, r), ...nearBay(x, z, r)] });
+  heightAt: site.heightAt, deckOccupied, carriagewayOccupied, nearObstacles: (x, z, r) => [...nearBase(x, z, r), ...nearBay(x, z, r)] });
 
 const cells = [];
 const data = {};
@@ -116,8 +119,15 @@ fixtureCells(bay, 'bay', ['metal', 'wood', 'light']);
 fixtureCells(shore, 'shore', ['steel', 'lamp']);
 if (bay.routePoints.length) cell('bay-walk', bay.routePoints, { points: bay.routePoints, restSpots: bay.restSpots }, 1);
 for (const route of shore.publicRoutes) cell('shore-walk', route.points, route, 1);
-for (const row of ['waters', 'extensionWaters', 'bridgeWaters'].flatMap(key => GEO.waterfront?.[key] ?? [])) {
+for (const row of waterfrontWaterRows(GEO.waterfront)) {
   cell('shore-water', GEO.water[row.waterIndex].outer, row, 1);
+}
+
+for (const row of GEO.waterfront?.dasha?.banks ?? []) {
+  for (let start = 0; start < row.stations.length - 1; start += 64) {
+    const stations = row.stations.slice(start, start + 65);
+    cell('shore-bank', stations.map(([x, , z]) => ({ x, z })), { ...row, stations }, 1);
+  }
 }
 
 let talent = null;

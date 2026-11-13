@@ -25,13 +25,14 @@ try {
   const { createTurnFilter } = await import('../../js/sz-drive-route.js');
   const { buildSzRoadStructures, graphWithRoadStructures } = await import('../../js/sz-road-structures.js');
   const { createGroundSurfaceSampler } = await import('../../js/sz-ground-surface.js');
+  const { createCitySpatial } = await import('../../js/sz-spatial.js');
   const { northBridgeProfile } = await import('../../js/sz-rail/geometry.js');
   const packed = readFileSync(process.argv[2] ?? new URL('../../js/sz-city.json.gz', import.meta.url));
   const { geo } = decodeCityPayload(JSON.parse(gunzipSync(packed)));
   const graph = graphWithRoadStructures(geo.roadGraph, geo.roadStructures);
   const exclude = new Set(geo.roadStructures?.records.map(row => row.index));
   const elevated = planElevatedRoads(graph, geo.terrainSurface, { exclude, waterfront: geo.waterfront,
-    extraCrossing: northBridgeProfile(geo.shenzhenNorthRail), water: geo.water });
+    extraCrossing: northBridgeProfile(geo.shenzhenNorthRail), water: geo.water, isWater: createCitySpatial(geo).isWater });
   const structures = buildSzRoadStructures(new Group(), graph, geo.roadStructures);
   const drive = [...elevated.driveLinks, ...structures.links];
   const network = createTrafficGraph(graph, { elevated: { links: drive }, canTurn: createTurnFilter(graph) });

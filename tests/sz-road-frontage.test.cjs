@@ -72,8 +72,10 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const roads = loadModule(read('sz-roads.js'), { imports: { ...imports,
     './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) } } });
   const ground = loadModule(read('sz-ground-surface.js'));
+  const crown = loadModule(read('sz-tree-crown.js'), { imports });
   const { buildSzRoadFrontage } = loadModule(read('sz-road-frontage.js'), {
-    imports: { ...imports, './sz-roads.js': roads, './sz-intersection-control.js': intersectionControl, './sz-paving.js': paving }
+    imports: { ...imports, './sz-roads.js': roads, './sz-intersection-control.js': intersectionControl,
+      './sz-paving.js': paving, './sz-tree-crown.js': crown }
   });
   const terrain = raw.terrainSurface;
   const groundHeight = ground.createGroundSurfaceSampler(terrain);

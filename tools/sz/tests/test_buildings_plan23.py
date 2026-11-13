@@ -166,7 +166,8 @@ class _TemporaryBuildMixin:
             with (patch('buildings.FOOTPRINT_REVIEWS', reviews_file),
                   patch('buildings.load_landmark_bindings', return_value={})):
                 output = build_buildings(osm, box(*clip), report,
-                                         overture_path=overture_file, globfp_path=globfp_file)
+                                         overture_path=overture_file, globfp_path=globfp_file,
+                                         include_globfp_footprints=True)
         return {item['id']: item for item in output}, report
 
 
@@ -494,6 +495,27 @@ class SharedPackageRegressionTests(unittest.TestCase):
         self.assertEqual(self.sources[index], 'globfp')
         points = self.building_ring(SAME_BUILDING_ID)
         self.assertAlmostEqual(polygon_area(points), SAME_BUILDING_AREA, delta=3.0)
+
+    def test_height_only_release_excludes_footprints_without_dropping_sources_or_matches(self):
+        policy = self.report['buildingSourcePolicy']
+        self.assertTrue(policy['osmFootprints'] and policy['overtureFootprints'] and policy['globfpHeightReference'])
+        self.assertFalse(policy['globfpFootprints'])
+        self.assertFalse(any(identity.startswith('globfp/') for identity in self.ids))
+        self.assertTrue(self.id_set.isdisjoint(row['id'] for row in self.report['excludedGlobfpFootprints']))
+        self.assertTrue({'overture/c2d7a53f-6650-42ff-a2df-5861377937b7',
+                         'overture/d35de3c9-f839-4276-83fc-1c20163f07c3'} <= self.id_set)
+        data = self.report['buildingProvenance']['globfpHeight']
+        self.assertEqual(data['referenceYear'], 2020)
+        self.assertEqual(data['method'], 'model-prediction')
+        matches = data['matches']
+        self.assertEqual(len(matches), self.sources.count('globfp'))
+        for _, tile, fid, _, iou, ratio, distance, _ in matches:
+            self.assertIn(tile, {'globfp-2265', 'globfp-2269'})
+            self.assertIsInstance(fid, int)
+            self.assertGreaterEqual(iou, 0.6)
+            self.assertGreaterEqual(ratio, 0.65)
+            self.assertLessEqual(distance, 12)
+        self.assertIn(SAME_BUILDING_ID, {row[0] for row in matches})
 
     def named_roads(self, keyword):
         """从正式有向路网读取道路中心线和车行宽度。"""

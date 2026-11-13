@@ -420,7 +420,7 @@ def ensure_globfp(sources, use_cache=True):
     return target
 
 
-def load_globfp(clip_local, report, path=None, *, identities=None):
+def load_globfp(clip_local, report, path=None, *, identities=None, upstream_objects=None):
     if path is None:
         path = ensure_globfp({source['id']: source for source in verify_sources(source_ids=GLOBFP_SHP)})
     manifest = json.loads(FOOTPRINT_REVIEWS.read_text())
@@ -472,6 +472,9 @@ def load_globfp(clip_local, report, path=None, *, identities=None):
                 heights.append(float(h))
                 if identities is not None:
                     identities.append(building_id)
+                if upstream_objects is not None:
+                    upstream_objects.append({'sourceId': tile, 'sourceFid': fid, 'part': part_index,
+                                             'rawHeightM': float(h)})
                 # 保留源序号。排除项同时退出补充楼体和其他楼的高度回填。
                 if review:
                     excluded.add(index)
@@ -659,10 +662,14 @@ def build_pending_review(buildings, road_lines, globfp_deferred, overture_deferr
 
 
 def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, height_overrides=None,
-                    include_remote_footprints=True, overture_path=None, globfp_path=None, road_cover_ids=()):
+                    include_overture_footprints=True, include_globfp_footprints=False, use_globfp_heights=True,
+                    overture_path=None, globfp_path=None, road_cover_ids=(), provenance=False):
     bindings = load_landmark_bindings()
     overrides = load_height_overrides() if height_overrides is None else height_overrides
-    report['remoteFootprints'] = {'enabled': include_remote_footprints}
+    report['buildingSourcePolicy'] = {'version': 1, 'osmFootprints': True,
+                                      'overtureFootprints': include_overture_footprints,
+                                      'globfpFootprints': include_globfp_footprints,
+                                      'globfpHeightReference': use_globfp_heights}
     records = []
     underground = []
     vertical_conflicts = []
@@ -740,7 +747,8 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
                         continue
                     part_records[i].setdefault('parentTop', parent_top)
                     part_records[i].setdefault('parentArea', parent_area)
-                    # 外框被部件替代时，地标身份交给落在外框里的部件
+                    # 记录父部件关系；只有核实的绑定才继承地标身份。
+                    part_records[i].setdefault('outlineParentId', r['id'])
                     if binding:
                         part_records[i].setdefault('parentId', r['id'])
                 # 部件通常不带名称；名称标牌需要父楼名字，只做显示用的继承。
@@ -761,7 +769,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
     osm_tree = STRtree(osm_geoms)
     duplicates = 0
     overture_candidates = []
-    if include_remote_footprints:
+    if include_overture_footprints:
         if overture_path is None:
             overture_path = ROOT / verify_sources(source_ids=('overture-buildings',))[0]['file']
         with overture_path.open() as f:
@@ -784,13 +792,16 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
                         'kind': rec.get('subtype') or rec.get('class'),
                         'oHeight': rec.get('height'), 'oFloors': rec.get('num_floors'),
                         'minHeight': 0.0, 'name': (rec.get('name') or None), 'isPart': False,
+                        'datasets': rec.get('datasets'),
                     }
                     records.append(record)
                     overture_candidates.append(record)
     report['overtureDuplicates'] = duplicates
 
     gb_identities = []
-    gb_polys, gb_heights, gb_excluded = load_globfp(clip_local, report, globfp_path, identities=gb_identities)
+    gb_objects = [] if provenance else None
+    gb_polys, gb_heights, gb_excluded = load_globfp(
+        clip_local, report, globfp_path, identities=gb_identities, upstream_objects=gb_objects)
     gb_tree = STRtree(gb_polys)
     report['globfpCandidates'] = len(gb_polys)
 
@@ -799,7 +810,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
     all_tree = STRtree(all_geoms)
     gb_candidates = []
     for i, g in enumerate(gb_polys):
-        if not include_remote_footprints:
+        if not include_globfp_footprints:
             break
         if i in gb_excluded or g.area < 30:
             continue
@@ -811,7 +822,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
             continue
         gb_candidates.append({
             'id': gb_identities[i], 'geom': clipped, 'src': 'globfp', 'kind': None,
-            'gbHeight': gb_heights[i], 'minHeight': 0.0, 'name': None, 'isPart': False,
+            'gbHeight': gb_heights[i], 'gbIndex': i, 'minHeight': 0.0, 'name': None, 'isPart': False,
         })
     # 只对 GloBFP 补充路径做误识别过滤；广场设施、车棚等不能生成楼体，全部列进构建报告
     kept_candidates, _dropped_candidates = filter_misidentified_footprints(
@@ -864,7 +875,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
             parent = bindings[r['parentId']]
             binding = {'landmark': parent['landmark'], 'part': 'part',
                        'height': None if (r.get('height') or r.get('levels')) else parent['height']}
-        height = source = None
+        height = source = match = None
         size_mismatch = False
         if binding and binding['height']:
             height, source = binding['height'], binding.get('heightSource', 'landmark')
@@ -878,7 +889,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
             height, source = float(r['oFloors']) * LEVEL_HEIGHT, 'overture-floors'
         elif r.get('gbHeight'):
             height, source = r['gbHeight'], 'globfp'
-        else:
+        elif use_globfp_heights:
             idx = gb_tree.query(poly, predicate='intersects')
             best = None
             overlap_area = 0.0
@@ -895,9 +906,13 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
                 dist = g.centroid.distance(poly.centroid)
                 # 只保留严格同楼匹配；尺寸不相称或中心偏离时不借高度，落到 estimate 或待核。
                 if iou >= 0.6 and ratio >= 0.65 and dist <= 12 and (best is None or iou > best[0]):
-                    best = (iou, gb_heights[i])
-            if best:
+                    best = (iou, gb_heights[i], int(i), ratio, dist)
+            if best is not None:
                 height, source = best[1], 'globfp'
+                if provenance:
+                    i = best[2]
+                    match = {**gb_objects[i], 'id': gb_identities[i], 'iou': round(best[0], 6),
+                             'areaRatio': round(best[3], 6), 'centroidDistanceM': round(best[4], 4)}
             elif overlap_area >= 0.5 * area:
                 # 原 globfp-overlap 后备覆盖过的那批楼：有 GloBFP 轮廓盖住一半以上但尺寸不相称，
                 # 高度保持未知并进待核清单；不再按重叠面积加权继承高度。
@@ -947,6 +962,18 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
             'footprintConfidence': confidence['footprint'],
             'heightConfidence': confidence['height'], 'eraConfidence': confidence['era'],
         })
+        if provenance:
+            footprint = {'source': r['src'], 'upstreamId': r['id'], 'datasets': r.get('datasets')}
+            if r['src'] == 'globfp':
+                footprint.update(gb_objects[r['gbIndex']])
+            out[-1]['provenance'] = {
+                'footprint': footprint, 'isPart': r['isPart'],
+                'parentId': r.get('outlineParentId'),
+                'categoryEvidence': r.get('kindSource') or (r['src'] if category != 'unknown' else None),
+                'sourceUse': r.get('kind') if category != 'unknown' else None,
+                'landmarkPart': binding['part'] if binding else None,
+                'heightMatch': match if source == 'globfp' else None,
+            }
     # 遥感补充楼（Overture / GloBFP）质量过滤：这些楼不在地图上标注，只保留可信足迹。
     # 规则只作用于补充楼；OSM 已标注的楼永远保留。命中水面/湿地、公园深处或孤立小棚的
     # 足迹多半是树冠、围墙、临时建筑或遥感误检，删除并写报告，避免在空地上凭空出现楼。

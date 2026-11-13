@@ -131,6 +131,32 @@ export function planVegetationPilots(geo, site, beds, existingTrees) {
   const trees = createColliderIndex(existingTrees);
   const fitsSpacing = createSpacing();
   const placed = [];
+  const parkNetwork = geo.waterfront?.parkNetwork;
+  const coastalCycle = createBayPathLookup((parkNetwork?.bayPaths ?? [])
+    .filter(path => !path.bridge && path.mode !== 'walk'));
+  // 先保留规划的陆侧树列，再在间隙放灌木和公园林地。
+  const random = vegetationRandom(732841);
+  const river = geo.waterfront?.dasha;
+  const rows = [
+    ['bay-shore', 'relation/7289235', 'tree', parkNetwork?.bayTrees],
+    ['bay-shore', 'relation/7289235', 'shrub', parkNetwork?.bayPlants],
+    ['dasha', 'relation/19551546', 'tree', river?.trees],
+    ['dasha', 'relation/19551546', 'shrub', river?.shrubs]
+  ];
+  for (const [key, sourceId, kind, sites] of rows) {
+    for (const [i, [x, y, z]] of (sites ?? []).entries()) {
+      const size = random();
+      const radius = kind === 'tree' ? 1.65 + size * 0.72 : 1.05 + size * 0.42;
+      const height = kind === 'tree' ? 4.6 + size * 2.7 : 0.82 + size * 0.67;
+      const item = { id: `vegetation:${key}:${kind}:${i}`, siteId: key === 'dasha' ? 'dasha' : 'bay', sourceId,
+        kind, x, y: y - 0.08, z, supportY: y, radius, height, shape: i % 2, turn: TAU * random(), tint: random() };
+      if (site.isWater(x, z) !== false || site.reserveWalk(x, z, radius + 0.25)
+        || site.carriagewayOccupied(x, z, radius) || site.deckOccupied(x, z, y, y + height)
+        || trees(x, z, kind === 'tree' ? 2.1 : radius, y, y + height)
+        || obstacles(x, z, radius, y, y + height) || !fitsSpacing(item)) continue;
+      placed.push(item);
+    }
+  }
   const landAreas = [
     ...(hillPark ? [{ siteId: 'hill', feature: source.hill.forest }] : []),
     ...(geo.shenzhenBay?.areaOsmId === source.bay.areaOsmId ? source.bay.groves : [])
@@ -164,7 +190,8 @@ export function planVegetationPilots(geo, site, beds, existingTrees) {
           } else {
             if (site.isWater(x, z) !== false
               || site.pathAt(x, z).length || site.reserveWalk(x, z, pad)
-              || extraPaths(x, z, pad).length || site.carriagewayOccupied(x, z, pad)
+              || extraPaths(x, z, pad).length || (siteId === 'bay' && coastalCycle(x, z, 14).length)
+              || site.carriagewayOccupied(x, z, pad)
               || site.excludedSite?.(x, z, pad) || site.pavedAt(x, z) !== null
               || site.simulatedPathAt?.(x, z)
               || site.nearRoads(x, z, pad + 8).some(({ road, distance }) =>

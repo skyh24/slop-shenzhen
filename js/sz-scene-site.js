@@ -4,7 +4,7 @@ import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
 import { createSceneStyle } from './sz-scene-style.js';
 import { createGroundSurfaceSampler, buildSzGround } from './sz-ground.js';
 import { createBayPathLookup } from './sz-bay-waterfront.js';
-import { createWaterfrontPaths } from './sz-waterfront.js';
+import { createWaterfrontPaths, relocatedBayPathIds } from './sz-waterfront.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads, planStreetTreeSides } from './sz-roads.js';
 import { buildSzRoadFrontage } from './sz-road-frontage.js';
@@ -62,9 +62,12 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   const elevatedRoads = qa.stage('elevated', () =>
     buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface,
       extraCrossing: northBridgeProfile(GEO.shenzhenNorthRail), waterfront: GEO.waterfront,
-      parkFootbridges: GEO.talentPark?.footbridges, water: GEO.water, exclude: new Set(GEO.roadStructures?.records.map(row => row.index)) }));
+      parkFootbridges: GEO.talentPark?.footbridges, water: GEO.water, isWater, exclude: new Set(GEO.roadStructures?.records.map(row => row.index)) }));
   const carriagewayOccupied = createCarriagewayBarrier(roadGraph).contains;
-  const bayPaths = createBayPathLookup(GEO.shenzhenBay?.paths);
+  const parkBayPaths = GEO.waterfront?.parkNetwork?.bayPaths ?? [];
+  const relocated = relocatedBayPathIds(GEO.waterfront?.parkNetwork);
+  const pilotBayPaths = (GEO.shenzhenBay?.paths ?? []).filter(path => !relocated.has(path.osmId));
+  const bayPaths = createBayPathLookup([...pilotBayPaths, ...parkBayPaths]);
   const roadStructures = qa.measureBuild('roadStructures', () => buildSzRoadStructures(scene, roadGraph, GEO.roadStructures, {
     groundHeight: (x, z) => terrainHeight(GEO.terrain, x, z),
     overWater: (x, z, radius) => [-radius, radius].every(dx => [-radius, radius]
@@ -170,7 +173,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   const treeSite = {
     ...site, carriagewayOccupied, deckOccupied, excludedSite: themeParks.reserved, woodlandTrees: planWoodlandTrees(), simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
     reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r)
-      || northStation?.reserves(x, z, r) || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
+      || northStation?.reserves(x, z, r) || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || site.reserveBayWalk(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
     reserveView: summit.group ? summitViewObstructed : null,
     observedTrees: streetscape.observedTrees, pilotTrees: [...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees, ...districts.trees, ...urbanPaving.trees],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds),
@@ -216,7 +219,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   }, trees.colliders));
   colliders.push(...vegetation.colliders);
   return { site, sea, ground, roads, roadGraph, elevatedRoads, roadStructures, roadLandscape, roadFrontage, roadPaint,
-    publicWalk, districts, carriagewayOccupied, bayPaths, waterfrontPaths, urbanPaving, summit, parkOmissions, cbdProgram,
+    publicWalk, districts, carriagewayOccupied, deckOccupied, bayPaths, pilotBayPaths, parkBayPaths, waterfrontPaths, urbanPaving, summit, parkOmissions, cbdProgram,
     landmarks, iec, northStation, bridge, yanjiang, themeParks, cityBlocks, lightShow, buildingSigns, buildingDetails,
     streetscape, talentPark, waterfront, trees, vegetation, streetLamps, apecTheme, apecCity, futianStation, xiliConstruction, colliders };
 }

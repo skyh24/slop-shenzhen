@@ -3,6 +3,7 @@ import { color, fract, fwidth, max, positionWorld, smoothstep } from 'three/tsl'
 import { createIntersectionControl } from './sz-intersection-control.js';
 import { createPavingMaterial, pavingMesh } from './sz-paving.js';
 import { convexHull, createRoadHeightSampler, createRoadPolygonLayout, createRoadsideSurfaceTreatment } from './sz-roads.js';
+import { createCompactFoliage } from './sz-tree-crown.js';
 
 const POLE_RADIUS = 0.135;
 const FOOT_RADIUS = 0.24;
@@ -229,18 +230,18 @@ function walkGeometry(source, contactHeight, roadHeight) {
   return { legs, reserveWalk: (x, z, radius = 0) => segments.some(near => near(x, z, 1.6 + radius)) };
 }
 
-function addMedianShrubs(group, sites, contactHeight, low = false) {
+function addMedianShrubs(group, foliage, sites, contactHeight, low = false) {
   const matrices = [];
   const tint = new THREE.Color();
   for (const [x, z] of sites) {
     const y = contactHeight(x, z);
     if (!Number.isFinite(y)) continue;
-    matrices.push(low ? new THREE.Matrix4().makeScale(0.43, 0.22, 0.38).setPosition(x, y + 0.16, z)
-      : new THREE.Matrix4().makeScale(1.35, 0.48, 0.68).setPosition(x, y + 0.29, z));
+    matrices.push(low ? new THREE.Matrix4().makeScale(0.43, 0.41, 0.38).setPosition(x, y, z)
+      : new THREE.Matrix4().makeScale(1.35, 0.8, 0.68).setPosition(x, y, z));
   }
   if (matrices.length) {
     const mesh = instance(group, low ? 'junction-islands:planting-estimate' : 'shennan-median:planting-estimate',
-      new THREE.IcosahedronGeometry(1, 1), material(0xffffff), matrices);
+      foliage.geometryFor('shrub'), foliage.material, matrices);
     matrices.forEach((_, i) => mesh.setColorAt(i, tint.setHex(i % 3 ? 0x486633 : low ? 0xb55469 : 0x627a38)));
     mesh.instanceColor.needsUpdate = true;
   }
@@ -403,8 +404,9 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const { legs, reserveWalk } = walkGeometry(source, contactHeight, roadHeight);
   statistics.signals = hardware.origins.length;
   const sites = source.shrubSites ?? [];
-  statistics.shrubs = addMedianShrubs(group, sites.filter(([x, z]) => shennanMedianHeight(x, z) === null), contactHeight);
-  statistics.islandPlants = addMedianShrubs(group, source.features.flatMap(f => f.plantSites ?? []), contactHeight, true);
+  const foliage = createCompactFoliage();
+  statistics.shrubs = addMedianShrubs(group, foliage, sites.filter(([x, z]) => shennanMedianHeight(x, z) === null), contactHeight);
+  statistics.islandPlants = addMedianShrubs(group, foliage, source.features.flatMap(f => f.plantSites ?? []), contactHeight, true);
   statistics.shennanFlowerBeds = addShennanFlowerBeds(group, sites, shennanMedianHeight, flowers);
   scene.add(group);
   return { group, control, contactHeight, shennanMedianHeight, medianHeight, colliders: [...hardware.colliders, ...planting], curbColliders,
@@ -417,12 +419,15 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       const geometries = new Set(), materials = new Set([...Object.values(style), ...paving.values(), walls, grass, flowers, islandSoil, separator]);
       group.traverse(mesh => {
         if (!mesh.isMesh) return;
-        geometries.add(mesh.geometry);
-        materials.add(mesh.material);
+        if (mesh.material !== foliage.material) {
+          geometries.add(mesh.geometry);
+          materials.add(mesh.material);
+        }
         if (mesh.isInstancedMesh) mesh.dispose();
       });
       for (const geometry of geometries) geometry.dispose();
       for (const mat of materials) mat.dispose();
+      foliage.dispose();
     }
   };
 }

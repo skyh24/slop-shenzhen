@@ -11,9 +11,10 @@ import { GEO, DATA_TIMINGS } from './sz-geodata.js';
 import { createObservationSessions } from './sz-observation-session.js';
 import { getLocationLabel, inBounds, isWater, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS, SPAWN_POINT } from './sz-city-config.js';
 import { createBayWaterfrontAccess, createBayParkArrivals } from './sz-bay-waterfront.js';
-import { createWaterfrontAccess, findWaterfrontWalkPoint } from './sz-waterfront.js';
+import { createParkGroundAccess, createWaterfrontAccess, findWaterfrontWalkPoint } from './sz-waterfront.js';
 import { createTeleportMenu } from './sz-coco-park-approach.js';
 import { createRegionalScene } from './sz-regional-scene.js';
+import { createPolygonLookup } from './sz-spatial.js';
 import { createSceneAirCruise } from './sz-air-cruise.js';
 import { wireAirCruise } from './sz-air-cruise-ui.js';
 import { wireDroneWatch } from './sz-drone-watch.js';
@@ -168,7 +169,7 @@ async function initApp() {
 
   await showLoadingStage(STR.startup.ground, 'ground');
   const { site, sea, ground, roads, roadGraph, elevatedRoads, roadStructures, roadLandscape, roadFrontage, roadPaint,
-    publicWalk, districts, carriagewayOccupied, bayPaths, waterfrontPaths, urbanPaving, summit, parkOmissions, cbdProgram,
+    publicWalk, districts, carriagewayOccupied, bayPaths, pilotBayPaths, parkBayPaths, waterfrontPaths, urbanPaving, summit, parkOmissions, cbdProgram,
     landmarks, iec, northStation, bridge, yanjiang, themeParks, cityBlocks, lightShow, buildingSigns, buildingDetails,
     streetscape, talentPark, waterfront, trees, vegetation, streetLamps, apecTheme, apecCity, futianStation, xiliConstruction, colliders } = await prepareSceneSite(scene, {
     qa, showLoadingStage, markInit, startup: STR.startup
@@ -176,7 +177,7 @@ async function initApp() {
   const regional = qa.measureBuild('regional-index', () => createRegionalScene(scene, GEO,
     { site, talentPark, trees, vegetation, elevatedRoads, bayPaths }, name => qa.skipped.has(name)));
   const { metro: metroEntrances, drones } = regional;
-  const bayWaterfront = createBayWaterfrontAccess(bayPaths);
+  const bayWaterfront = createBayWaterfrontAccess(bayPaths, GEO.waterfront?.parkNetwork?.bayPaths);
   const shoreSamples = createWaterfrontAccess(GEO.waterfront, waterfrontPaths);
   const nearTalentPeople = talentPark.nearColliders;
   const { show: talentShow } = talentPark;
@@ -195,6 +196,17 @@ async function initApp() {
   markInit('traffic');
 
   await showLoadingStage(STR.startup.controllers, 'controllers');
+  const parkAreas = [
+    ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon)),
+    ...(GEO.mapRegions?.regions ?? []).filter(region => region.type === 'park').flatMap(region => region.polygons)
+  ];
+  const parkGroundAccess = createParkGroundAccess({
+    inPark: createPolygonLookup(parkAreas),
+    inWetland: createPolygonLookup(GEO.wetland),
+    onRoad: (x, z) => Number.isFinite(roads.roadHeight(x, z)),
+    roadDecks: new Set([...elevatedRoads.drive.surfaces.map(surface => surface.id),
+      ...roadStructures.links.map(link => link.surfaceId)])
+  });
   let saved;
   try { saved = JSON.parse(localStorage.getItem(PLAYER_STATE_KEY)); }
   catch { /* 存储不可用时使用默认出生点。 */ }
@@ -210,7 +222,8 @@ async function initApp() {
     surfaces: [...cityBlocks.surfaces, ...themeParks.surfaces, ...(northStation?.surfaces ?? []), ...landmarks.surfaces, ...elevatedRoads.surfaces, ...roadStructures.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
     nearTraffic: traffic.nearColliders, nearWalkers: nearTalentPeople, nearRegional: regional.colliders, flightSettings: GEO.airCruises?.flight,
     groundIdentity: waterfrontPaths.groundIdentity,
-    groundAccess: (mode, x, z, surface) => (surface?.heightSource !== 'terrain' && surface?.surfaceId !== 'terrain'
+    groundAccess: (mode, x, z, surface) => parkGroundAccess(mode, x, z, surface)
+      && (surface?.heightSource !== 'terrain' && surface?.surfaceId !== 'terrain'
       || (bayWaterfront.allowsGroundMode(mode, x, z) && !roadFrontage.plantingAt(x, z)
         && (mode === 'person' || !roadLandscape.walkAt(x, z).length)))
       && shoreSamples.allowsGroundMode(mode, x, z, surface)
@@ -591,7 +604,7 @@ async function initApp() {
     inBounds, isWater, carriagewayOccupied, findGroundArrival, roadHeight: roads.roadHeight, flightStartAltitude: FLIGHT_START_ALTITUDE,
     selectMode, prepareRegional, excludeGround: northStation?.inRestricted,
     waterfrontArrival: (x, z, heading) => findWaterfrontWalkPoint([
-      ...waterfrontPaths.paths, ...(GEO.shenzhenBay?.paths ?? []),
+      ...waterfrontPaths.paths, ...pilotBayPaths, ...parkBayPaths,
       ...[...(GEO.talentPark?.route ?? []), ...(GEO.talentPark?.entrances ?? [])].map(path => ({ ...path, mode: 'walk' }))
     ], x, z, heading),
     onArrival: finishTeleport, closeMap: () => mapSystem.toggleFullMap(false) });

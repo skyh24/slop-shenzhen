@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "checkedAt": "2026-11-13",
+  "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+  "bay": {
+    "cyclingRelation": 7289235,
+    "walkingRelation": 18220656,
+    "cycleConnections": [357765495, 1174688727, 534815200, 1328802432, 1328802433, 571629088],
+    "unbuiltWays": [259033248, 783219908],
+    "coastWays": [1153410451, 1009065155, 325015311, 1172645442, 1172645417, 730965554, 1302209870, 78389987, 1446878041, 1446878045, 1446878048, 1446878054, 630851924],
+    "openingHours": "06:00–23:00",
+    "cycleWidthM": 3.6,
+    "walkWidthM": 3.1,
+    "lampSpacingM": 27,
+    "treeSpacingM": 5.5,
+    "plantSpacingM": 4.8,
+    "shoreCycle": {"way": "way/255653770", "fromM": 1710, "toM": 1970, "maxShiftM": 10.5, "shoulderM": 1.1},
+    "sources": [
+      "https://cgj.sz.gov.cn/xsmh/gysz/twf/bhxx/content/post_10841320.html",
+      "https://cgj.sz.gov.cn/xsmh/szlh/jpld/content/post_2053209.html",
+      "https://www.sz.gov.cn/hdjlpt/detail?pid=3115634&via=pc"
+    ],
+    "design": "按用户参考与修正，临海一侧为深色骑行面和岸缘栏杆，树带及单排路灯布置在陆侧。铺装外观、位置和尺寸为场景设计估计。"
+  },
+  "lakes": [
+    {"id": "lychee-loop", "waterIds": ["way/25498931"], "route": "lychee-loop", "lampSpacingM": 21,
+     "source": "https://swj.sz.gov.cn/ztzl/swhjs/bdfc/content/post_11740328.html"},
+    {"id": "honghu-shore", "waterIds": ["way/31420427"], "park": "way/219493684", "setbackM": 4.8, "widthM": 2.7, "lampSpacingM": 22,
+     "source": "https://cgj.sz.gov.cn/ydmh/mtxc/content/post_10654106.html"},
+    {"id": "sihai-lakes", "waterIds": ["way/440551624", "relation/6554300"], "park": "way/440551685", "setbackM": 4.1, "widthM": 2.6, "lampSpacingM": 21,
+     "source": "https://cgj.sz.gov.cn/xsmh/gysz/csgy/content/post_10775291.html"},
+    {"id": "xiangmi-gardens", "waterIds": ["relation/17059536", "relation/14424301"], "park": "way/540340500", "setbackM": 4.5, "widthM": 2.6, "lampSpacingM": 21,
+     "source": "https://cgj.sz.gov.cn/xsmh/gysz/twf/qsyq/content/post_10841328.html"}
+  ]
+}
