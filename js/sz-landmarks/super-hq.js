@@ -717,8 +717,8 @@ export function build(source, terrain, context = {}) {
 
 const glazingStyles = {
   // sill 是每个窗格竖向留给玻璃的比例（0.5 为满格无横缝），与 nonferrous 的口径一致。
-  superHqGlass: { frame: 0xd7dbd6, tint: 0x8ba4ad, top: 0xa9b2ae, bay: 1.54, floor: 4.55, sill: 0.455, lit: 0.085 },
-  superHqCmbGlass: { frame: 0xd9dddd, tint: 0x93a4a6, top: 0xb0b5b2, bay: 2.24, floor: 4.15, sill: 0.44, lit: 0.055 }
+  superHqGlass: { frame: 0x839097, tint: 0x4c697b, top: 0x7e919d, bay: 1.54, floor: 4.55, sill: 0.455, lit: 0.085 },
+  superHqCmbGlass: { frame: 0x929fa6, tint: 0x587384, top: 0x85979f, bay: 2.24, floor: 4.15, sill: 0.44, lit: 0.055 }
 };
 
 function glassMaterial(style, facet) {
@@ -734,17 +734,17 @@ function glassMaterial(style, facet) {
   const cell = fract(sin(dot(vec2(floor(u), floor(v)), vec2(16.843, 57.193))).mul(43758.5453));
   const tint = color(style.tint).mul(mix(float(1), cell.mul(0.17).add(0.91), detail));
   const reflect = abs(dot(cameraPosition.sub(positionWorld).normalize(), normalWorldGeometry)).oneMinus().pow(2.4);
-  const window = mix(tint, color(0xa2bbca), reflect.mul(sceneUniforms.night.oneMinus()).mul(0.34));
+  const window = mix(tint, color(0x8299aa), reflect.mul(sceneUniforms.night.oneMinus()).mul(0.18));
   material.colorNode = mix(color(style.top), mix(color(style.frame), window, glass), wall);
   if (facet) {
-    // 招银塔身是折纸式三角玻璃；用斜向折缝模拟镜面折板。
+    // 招银塔身保留三角玻璃的斜向折缝，以低对比度表达折板。
     const diagonal = coord.x.mul(0.16).add(coord.y.mul(0.11));
     const seam = smoothstep(float(0.47), float(0.5), abs(fract(diagonal).sub(0.5)))
       .mul(smoothstep(0.16, 0.7, fwidth(diagonal)).oneMinus());
-    material.colorNode = mix(material.colorNode, color(0xbcc7c9), seam.mul(wall).mul(0.5));
+    material.colorNode = mix(material.colorNode, color(0x98aab4), seam.mul(wall).mul(0.24));
   }
-  material.roughnessNode = mix(float(0.7), float(0.2), wall.mul(glass));
-  material.metalnessNode = wall.mul(glass).mul(facet ? 0.42 : 0.25);
+  material.roughnessNode = mix(float(0.72), float(0.61), wall.mul(glass));
+  material.metalnessNode = wall.mul(glass).mul(0.12);
   const lit = mix(float(style.lit * 0.21), step(cell, style.lit).mul(0.43), detail);
   material.emissiveNode = color(0xebd6b2).mul(lit).mul(wall).mul(glass).mul(sceneUniforms.night);
   return material;
@@ -780,7 +780,7 @@ function stoneMaterial() {
 }
 
 function metalMaterial() {
-  const material = new THREE.MeshStandardNodeMaterial({ metalness: 0.42, roughness: 0.34 });
+  const material = new THREE.MeshStandardNodeMaterial({ metalness: 0.17, roughness: 0.58 });
   const streak = sin(positionWorld.y.mul(0.42).add(positionWorld.x.mul(0.07))).mul(0.5).add(0.5);
   material.colorNode = mix(color(0xc2c9cb), color(0x96a0a4), streak.mul(0.35));
   material.emissiveNode = color(0xa8c7e4).mul(smoothstep(90, 320, positionWorld.y))

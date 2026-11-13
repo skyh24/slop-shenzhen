@@ -170,8 +170,8 @@ function cultureParkMaterial() {
   return material;
 }
 
-function roofMaterial(top, bottom, roughness, wash = 0) {
-  const material = new THREE.MeshStandardNodeMaterial({ roughness, metalness: 0.14 });
+function roofMaterial(top, bottom, roughness, wash = 0, metalness = 0.14) {
+  const material = new THREE.MeshStandardNodeMaterial({ roughness, metalness });
   const upper = smoothstep(-0.26, 0.42, normalWorldGeometry.y);
   material.colorNode = mix(color(bottom), color(top), upper);
   if (wash > 0) material.emissiveNode = color(0xa3c5ea).mul(upper).mul(sceneUniforms.night).mul(wash);
@@ -281,9 +281,9 @@ export function createLandmarkMaterial(name, programEmission = null) {
     case 'civicTowerYellow': return new THREE.MeshStandardMaterial({ color: 0xe3a622, metalness: 0.09, roughness: 0.53 });
     case 'civicStone': return new THREE.MeshStandardMaterial({ color: 0xb5b6b5, roughness: 0.76 });
     case 'pressEye': return roofMaterial(0x1e5364, 0x25454e, 0.21);
-    case 'stadiumRib': return roofMaterial(0xdde4e5, 0xc5cac9, 0.41, 0.05);
-    case 'stadiumGlazing': return roofMaterial(0x71919e, 0x4d6871, 0.29);
-    case 'stadiumRoof': return new THREE.MeshStandardMaterial({ color: 0xbbc9ce, metalness: 0.21, roughness: 0.45 });
+    case 'stadiumRib': return roofMaterial(0xd3dde0, 0xbac4c7, 0.69, 0.05, 0.06);
+    case 'stadiumGlazing': return roofMaterial(0x5d7889, 0x4c697b, 0.61, 0, 0.10);
+    case 'stadiumRoof': return new THREE.MeshStandardMaterial({ color: 0xa9b9c2, metalness: 0.06, roughness: 0.72 });
     case 'stadiumSeats': return new THREE.MeshStandardMaterial({ color: 0x738b98, roughness: 0.64 });
     case 'stadiumDeck': return new THREE.MeshStandardMaterial({ color: 0x9fa5a5, roughness: 0.73 });
     case 'stadiumPaving': return stadiumPavingMaterial();
