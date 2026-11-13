@@ -30,7 +30,10 @@ const library = loadProfile('university-town-library.js');
 const diwang = loadProfile('diwang.js');
 const kk100 = loadProfile('kk100.js');
 const exchange = loadProfile('stock-exchange.js');
-const shopping = loadProfile('shopping-park-shell.js');
+const shopping = loadModule(readLandmark('shopping-park-shell.js'), { imports: {
+  './parts.js': parts,
+  '../sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map() }) }
+} });
 const newModels = [tencentTowers, library, diwang, kk100, exchange, shopping];
 const dji = loadModule(readLandmark('dji-sky-city.js'), { imports: { '../building-collision.js': collision, './parts.js': parts } });
 const pingAn = loadModule(readLandmark('ping-an.js'), { imports: { './parts.js': parts } });
@@ -727,3 +730,43 @@ test('new site landmarks build and render through the shared material dispatcher
     rendered.group.traverse(mesh => mesh.geometry?.dispose());
   }
 });
+
+test('the shopping park podium contact omits the roof under its upper shell',
+  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+    const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
+    const imports = { 'three/webgpu': THREE };
+    const geometry = loadModule(read('sz-geometry.js'), { imports });
+    const envelopes = loadModule(read('sz-building-envelope.js'), { imports: {
+      './sz-geometry.js': geometry, './sz-polygon.js': polygonModule,
+      './sz-building-envelope-relations.js': loadModule(read('sz-building-envelope-relations.js'))
+    } });
+    const { build, sourceIds } = loadModule(readLandmark('shopping-park-shell.js'), { imports: {
+      './parts.js': parts, '../sz-building-envelope.js': envelopes
+    } });
+    const { renderLandmark } = loadModule(readLandmark('render.js'), { imports: {
+      ...imports, '../sz-geometry.js': geometry
+    } });
+    const sources = new Map(fixture.filter(row => sourceIds.includes(row.id)).map(row => [row.id, row]));
+    const [podium, upper] = build(sources, geo.terrain);
+    const material = new THREE.MeshBasicMaterial();
+    const rendered = renderLandmark({ id: 'shopping-park-shell', parts: [podium, upper] }, () => material);
+    const { createSurfaceResolver } = loadModule(read('sz-controller-surfaces.js'));
+    const resolver = createSurfaceResolver({ groundHeight: () => 8, surfaces: rendered.surfaces });
+    let exposed = 0, covered = 0;
+    for (let x = podium.minX + 0.5; x < podium.maxX; x += 3) {
+      for (let z = podium.minZ + 0.5; z < podium.maxZ; z += 3) {
+        if (!collision.polygonContains(podium.polygon, x, z)) continue;
+        const sameRoof = resolver.at(x, z).some(row => row.surfaceId === podium.id);
+        if (collision.polygonContains(upper.polygon, x, z)) {
+          covered++;
+          assert.equal(sameRoof, false);
+        } else {
+          exposed++;
+          assert.equal(sameRoof, true);
+        }
+      }
+    }
+    assert.ok(covered > 10 && exposed > 10);
+    rendered.group.traverse(object => object.geometry?.dispose());
+    material.dispose();
+  });

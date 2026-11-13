@@ -112,7 +112,12 @@ export function addLandmarkPart(batch, part) {
   if (part.bottomFace !== false) addBottom(batch, rings, part.minY);
   if (part.topFace === false) return null;
   const firstIndex = batch.idx.length;
-  addFlatPolygon(batch, rings, part.maxY);
+  if (part.roofPieces) {
+    for (const piece of part.roofPieces) addFlatPolygon(batch, [flatten(piece)], part.maxY);
+  } else {
+    addFlatPolygon(batch, rings, part.maxY);
+  }
+  if (batch.idx.length === firstIndex) return null;
   return part.roofContact ? readTriangles(batch, firstIndex) : null;
 }
 

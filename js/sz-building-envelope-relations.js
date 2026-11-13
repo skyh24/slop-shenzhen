@@ -1,0 +1,31 @@
+// 已审核的运行时体量关系。sourceIds 按共享外墙优先级排列，首项负责外法线相同的重叠段。
+// 其余露出的墙、屋面和底面按各自足迹、放置标高和原立面生成。候选留在离线审计报告。
+export const BUILDING_ENVELOPE_RELATIONS = [
+  { id: 'dachong-tonggu-road', kind: 'overlap',
+    sourceIds: ['way/533679865', 'way/533679860', 'way/533679861', 'way/533679862', 'way/533679863', 'way/533679864'],
+    evidence: 'docs/research/dachong-building-flicker.md',
+    note: '沿用外圈轮廓的低段外墙，塔楼露出部分沿用各自立面。' },
+  { id: 'coco-park', kind: 'overlap', sourceIds: ['way/238825588', 'way/539435437'],
+    evidence: 'docs/research/dachong-building-flicker.md',
+    note: '普通楼路径由底座负责低段。购物公园专模接管时沿用专模的分段。' },
+  { id: 'xinzhou-yinxing-dangui', kind: 'overlap',
+    sourceIds: ['way/1018428238', 'way/1018428240', 'way/1018428239'],
+    evidence: 'docs/research/xinzhou-building-flicker-audit.md',
+    note: '低段沿用无名轮廓以保持连续。银杏阁超出轮廓的部分及两栋塔楼露出部分沿用各自立面。' },
+  { id: 'xinzhou-first-world-plaza', kind: 'overlap', sourceIds: ['way/1431881283', 'way/1431881285'],
+    evidence: 'docs/research/xinzhou-building-flicker-audit.md',
+    note: '第壹世界广场负责低段商业立面，A 座保留露出的上段。' },
+  { id: 'university-town-engineering', kind: 'overlap',
+    sourceIds: ['relation/19871797', 'way/695571961', 'way/695571962'],
+    evidence: 'docs/research/xinzhou-building-flicker-audit.md',
+    note: '低段用工学院公共底层轮廓，南北两座分别保留露出的上段。' },
+  { id: 'kanghesheng', kind: 'duplicate-volume', sourceIds: ['way/1254780677', 'way/1081081909'],
+    evidence: 'docs/research/xinzhou-building-flicker-audit.md',
+    note: '包内足迹和世界高度相同。以具名楼体生成实体，保留另一条带 location=roof 的源记录。' },
+  { id: 'oct-harbour', kind: 'overlap', sourceIds: ['way/549180086', 'way/227699538'],
+    evidence: 'docs/research/xinzhou-building-flicker-audit.md',
+    note: '欢乐海岸购物中心负责重叠低段，公寓保留独立露出部分。' },
+  { id: 'government-canteen', kind: 'overlap', sourceIds: ['relation/19034067', 'way/527641747'],
+    evidence: 'docs/research/xinzhou-building-flicker-audit.md',
+    note: '带孔的具名关系优先，保留无名轮廓中超出该实体的部分。' }
+];

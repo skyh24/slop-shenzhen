@@ -1,11 +1,8 @@
 import { polygonContains, ringArea } from './sz-polygon.js';
 import { triangulateFootprint } from './sz-geometry.js';
 
-// 已核对共面关系的源对象。顺序决定外法线相同的共享墙由哪个对象出面。
-const REVIEWED_GROUPS = [
-  ['way/533679865', 'way/533679860', 'way/533679861', 'way/533679862', 'way/533679863', 'way/533679864'],
-  ['way/238825588', 'way/539435437']
-];
+import { BUILDING_ENVELOPE_RELATIONS } from './sz-building-envelope-relations.js';
+
 const EPSILON = 1e-7;
 const PROBE_M = 1e-5;
 const cross = (ax, az, bx, bz) => ax * bz - az * bx;
@@ -109,16 +106,42 @@ function subtractTriangle(polygon, triangle, output) {
   output.push(...pieces);
 }
 
-export function createBuildingEnvelopes(buildings, placementOf, groups = REVIEWED_GROUPS) {
-  const byId = new Map(groups.flat().map(id => [id, []]));
-  for (const building of buildings) byId.get(building.id)?.push(building);
-  const plans = new Map();
-  for (const ids of groups) {
-    const members = ids.flatMap((id, order) => byId.get(id).flatMap(building => {
+function sameRing(a, b) {
+  if (a.length !== b.length) return false;
+  const samePoint = (p, q) => p.x === q.x && p.z === q.z;
+  const start = b.findIndex(point => samePoint(a[0], point));
+  return start >= 0 && [1, -1].some(step => a.every((point, i) =>
+    samePoint(point, b[(start + i * step + b.length) % b.length])));
+}
+
+function sameVolume(a, b) {
+  return a.length === 1 && b.length === 1 && a[0].minY === b[0].minY && a[0].maxY === b[0].maxY
+    && sameRing(a[0].polygon.outer, b[0].polygon.outer)
+    && a[0].polygon.holes.length === b[0].polygon.holes.length
+    && a[0].polygon.holes.every(hole => b[0].polygon.holes.some(other => sameRing(hole, other)));
+}
+
+export function createBuildingEnvelopePlan(buildings, placementOf, skipIds, groups) {
+  const relations = groups?.map(sourceIds => ({ kind: 'overlap', sourceIds })) ?? BUILDING_ENVELOPE_RELATIONS;
+  const byId = new Map(relations.flatMap(({ sourceIds }) => sourceIds.map(id => [id, []])));
+  for (const building of buildings) {
+    if (!skipIds.has(building.id)) byId.get(building.id)?.push(building);
+  }
+  const envelopes = new Map();
+  const duplicateIds = new Map();
+  for (const { kind, sourceIds } of relations) {
+    const parts = sourceIds.map((id, order) => byId.get(id).flatMap(building => {
       if (building.landmark || building.foundation || building.role === 'bridge' || building.role === 'canopy') return [];
       const { minY, maxY } = placementOf(building);
       return building.polygons.map(polygon => ({ building, polygon, minY, maxY, order, bounds: bounds(polygon) }));
     }));
+    if (kind === 'duplicate-volume') {
+      // 新快照足迹、标高或接管状态变化时保留两条实体，等离线复核后再决定。
+      const [owner, duplicate] = parts;
+      if (sameVolume(owner, duplicate)) duplicateIds.set(sourceIds[1], sourceIds[0]);
+      continue;
+    }
+    const members = parts.flat();
     for (const member of members) {
       const neighbours = members.filter(row => row.building !== member.building);
       if (!neighbours.length) continue;
@@ -127,7 +150,7 @@ export function createBuildingEnvelopes(buildings, placementOf, groups = REVIEWE
         && (facing > 0
           ? row.minY <= y && (row.maxY > y || row.maxY === y && row.order < order)
           : row.maxY >= y && (row.minY < y || row.minY === y && row.order < order)));
-      plans.set(polygon, {
+      envelopes.set(polygon, {
         wall: (...args) => clipWall(neighbours, order, ...args),
         coversRoof: y => cuttersAt(y, 1).map(row => row.polygon),
         cap(y, facing) {
@@ -150,5 +173,5 @@ export function createBuildingEnvelopes(buildings, placementOf, groups = REVIEWE
       });
     }
   }
-  return plans;
+  return { envelopes, duplicateIds };
 }

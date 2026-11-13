@@ -271,7 +271,8 @@ async function initApp() {
     buildCityBlocks(scene, { skipIds: sceneSkipIds, renderChunkSize: qa.chunkSize, retail,
       programEmission: cbdProgram.emission, programParticipant: isCbdProgramBuilding,
       roadClearance: createRoadBuildingClearance(site.roadGraph, site.roadHeight, elevatedRoads.links) }));
-  const detailSkipIds = new Set([...sceneSkipIds, ...(cityBlocks.roadConflicts ?? []).map(row => row.buildingId)]);
+  const detailSkipIds = new Set([...sceneSkipIds, ...(cityBlocks.duplicateIds?.keys() ?? []),
+    ...(cityBlocks.roadConflicts ?? []).map(row => row.buildingId)]);
   // 福田中心区夜景灯光秀：只给已建成普通高层加灯带，颜色/节奏为展示估计；白天隐藏。
   // 地标源对象已由专模打光，排除它们；地标外露钢架（平安 8 根巨柱）单独沿柱轴生成灯带。
   const landmarkBands = planLandmarkBands(landmarks.colliders);

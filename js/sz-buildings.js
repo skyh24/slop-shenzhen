@@ -3,7 +3,7 @@ import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
 import { GeoBuilder, addWalls, addFlatPolygon, readTriangles } from './sz-geometry.js';
 import { createBuildingMaterial } from './sz-materials.js';
 import { facadeIndex } from './sz-facade-profiles.js';
-import { createBuildingEnvelopes } from './sz-building-envelope.js';
+import { createBuildingEnvelopePlan } from './sz-building-envelope.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
 import { ringArea, ringContains, polygonContains, orientedBoxRing } from './sz-polygon.js';
@@ -436,8 +436,8 @@ export function buildCityBlocks(scene, options = {}) {
   const candidates = collectPodiumCandidates(buildings);
   const occupancy = candidates.length ? buildPodiumOccupancy(buildings, terrain, roadGraph, entrances, candidates) : [];
   const candidateByBuilding = new Map(candidates.map((candidate, index) => [candidate.buildingIndex, index]));
-  const envelopes = createBuildingEnvelopes(buildings.filter(building => !skipIds.has(building.id)),
-    building => buildingPlacement(building, terrain), options.envelopeGroups);
+  const { envelopes, duplicateIds } = createBuildingEnvelopePlan(buildings,
+    building => buildingPlacement(building, terrain), skipIds, options.envelopeGroups);
   const frontage = options.retail && buildings.some(building => building.retailFloors)
     ? createRetailFrontage(buildings, options.retail) : null;
   const group = new THREE.Group();
@@ -452,7 +452,7 @@ export function buildCityBlocks(scene, options = {}) {
   const programIds = [];
   for (let buildingIndex = 0; buildingIndex < buildings.length; buildingIndex++) {
     const building = buildings[buildingIndex];
-    if (skipIds.has(building.id)) continue;
+    if (skipIds.has(building.id) || duplicateIds.has(building.id)) continue;
     const placement = buildingPlacement(building, terrain);
     if (roadClearance && !building.landmark && /^(?:globfp|overture)\//.test(building.id)) {
       const conflict = building.polygons.map(polygon =>
@@ -592,7 +592,7 @@ export function buildCityBlocks(scene, options = {}) {
   }
   const retailMaterial = frontage?.finish(group);
   scene.add(group);
-  return { group, colliders, surfaces, allBlocks, roadConflicts, roofPlans, envelopePlans: envelopes, programIds,
+  return { group, colliders, surfaces, allBlocks, roadConflicts, roofPlans, envelopePlans: envelopes, duplicateIds, programIds,
     retailDoors: frontage?.doors ?? [], retailBuildingIds: frontage?.buildingsWithFrontage ?? new Set(),
     roofs: allBlocks.filter(block => !block.isPodium && block.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M).length,
     update() {},
@@ -604,6 +604,7 @@ export function buildCityBlocks(scene, options = {}) {
       programMaterial?.dispose();
       roofPlans.clear();
       envelopes.clear();
+      duplicateIds.clear();
       surfaces.length = 0;
       scene.remove(group);
     }

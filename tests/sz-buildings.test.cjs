@@ -43,7 +43,7 @@ test('raised building soffits face the passage and preserve courtyard holes and 
   { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
     const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
     const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
-      './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+      './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
       './building-collision.js': {},
       './sz-retail-frontage.js': {},
       'three/webgpu': THREE,
@@ -90,7 +90,7 @@ test('one-kilometre building batches preserve every triangle attribute and colli
     Mesh: class { constructor(geometry) { this.geometry = geometry; } }
   };
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
-    './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+    './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
     './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
@@ -133,7 +133,7 @@ test('one-kilometre building batches preserve every triangle attribute and colli
 test('tall ordinary towers gain an estimated podium with matching display and collision', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
-    './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+    './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
     './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
@@ -161,7 +161,7 @@ test('tall ordinary towers gain an estimated podium with matching display and co
 test('ordinary roof equipment and parapets share rendered contact geometry', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
-    './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+    './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
     './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
@@ -208,7 +208,7 @@ test('retail walls replace only street-facing lower geometry and retain the clos
       './sz-spatial.js': { spatialIndex: items => () => items }
     } });
     const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
-      './sz-building-envelope.js': { createBuildingEnvelopes: () => new Map() },
+      './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
       './building-collision.js': {},
       ...imports, './sz-retail-frontage.js': retail, './sz-geodata.js': {}, './sz-geometry.js': geometry,
       './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
@@ -242,7 +242,8 @@ test('reviewed envelopes keep partial wall ownership, exposed roofs and raised c
     const imports = { 'three/webgpu': THREE };
     const geometry = loadModule(read('sz-geometry.js'), { imports });
     const envelopes = loadModule(read('sz-building-envelope.js'), { imports: {
-      './sz-geometry.js': geometry, './sz-polygon.js': polygonModule
+      './sz-geometry.js': geometry, './sz-polygon.js': polygonModule,
+      './sz-building-envelope-relations.js': loadModule(read('sz-building-envelope-relations.js'))
     } });
     const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
       ...imports, './sz-building-envelope.js': envelopes, './building-collision.js': collision,
@@ -290,3 +291,22 @@ test('reviewed envelopes keep partial wall ownership, exposed roofs and raised c
     assert.equal(blocks.allBlocks.length, buildings.length);
     blocks.dispose();
   });
+
+test('a reviewed duplicate shares one solid only while its footprint, holes and placement match', () => {
+  const relation = loadModule(read('sz-building-envelope-relations.js')).BUILDING_ENVELOPE_RELATIONS
+    .find(row => row.kind === 'duplicate-volume');
+  const { createBuildingEnvelopePlan } = loadModule(read('sz-building-envelope.js'), { imports: {
+    './sz-geometry.js': {}, './sz-polygon.js': polygonModule,
+    './sz-building-envelope-relations.js': { BUILDING_ENVELOPE_RELATIONS: [relation] }
+  } });
+  const [ownerId, aliasId] = relation.sourceIds;
+  const owner = { ...building, id: ownerId };
+  const alias = { ...building, id: aliasId, polygons: [{ outer: [...outer].reverse(), holes: [[...hole].reverse()] }] };
+  const plan = (b = alias, skips = new Set()) => createBuildingEnvelopePlan([b, owner],
+    row => buildingPlacement(row, grid), skips);
+  assert.equal(plan().duplicateIds.get(aliasId), ownerId);
+  assert.equal(plan().envelopes.size, 0);
+  assert.equal(plan({ ...alias, minHeight: alias.minHeight + 1 }).duplicateIds.size, 0);
+  assert.equal(plan({ ...alias, polygons: [{ outer, holes: [] }] }).duplicateIds.size, 0);
+  assert.equal(plan(alias, new Set([ownerId])).duplicateIds.size, 0);
+});
