@@ -129,7 +129,7 @@ test('reviewed waterfront extensions keep source joins and a supported paved wid
   }
 });
 
-test('waterfront access distinguishes holidays, banks, route modes and overlapping decks', () => {
+test('waterfront walking keeps its opening hours while cycling uses all supported paths', () => {
   const network = createWaterfrontPaths(waterfront);
   let now = Date.parse('2026-11-13T14:59:00Z');
   const access = createWaterfrontAccess(waterfront, network, () => now).allowsGroundMode;
@@ -140,7 +140,7 @@ test('waterfront access distinguishes holidays, banks, route modes and overlappi
   const shore = xz(waterfront.extensions.find(route => route.id === 'central-bay-cycleway'));
   assert.equal(access('cyclist', ...west), true);
   assert.equal(access('cyclist', ...east), true);
-  assert.equal(access('cyclist', ...lake), false);
+  assert.equal(access('cyclist', ...lake), true);
   assert.equal(access('person', ...lake), true);
   assert.equal(access('cyclist', ...shore), true);
   assert.equal(access('person', ...shore), true);
@@ -149,11 +149,14 @@ test('waterfront access distinguishes holidays, banks, route modes and overlappi
   now = Date.parse('2026-11-13T15:00:00Z');
   assert.equal(access('person', ...lake), false);
   assert.equal(access('person', ...east), false);
+  assert.equal(access('cyclist', ...lake), true);
+  assert.equal(access('cyclist', ...west), true);
+
   now = Date.parse('2026-10-06T03:00:00Z');
-  assert.equal(access('cyclist', ...west), false);
+  assert.equal(access('cyclist', ...west), true);
   assert.equal(access('cyclist', ...east), true);
   now = Date.parse('2026-11-14T03:00:00Z');
-  assert.equal(access('cyclist', ...west), false);
+  assert.equal(access('cyclist', ...west), true);
 });
 
 test('the park route spans the bay with continuous ground or bridge support', () => {
@@ -193,6 +196,52 @@ test('the park route spans the bay with continuous ground or bridge support', ()
   assert.ok(darkSamples / samples > 0.95, `${darkSamples} / ${samples}`);
   for (const [west, east] of [[-15100, -12500], [-12500, -11000], [-11000, -10000], [-10000, -8500], [-8500, -6800], [-6800, -5500]]) {
     assert.ok(all.some(path => path.points.some(([x, z]) => x >= west && x < east && Number.isFinite(paved(x, z)))));
+  }
+});
+
+test('a bicycle rides the coastal bridge from either bank on the rendered deck', () => {
+  const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygon } });
+  const { ThirdPersonControllerManager } = loadModule(read('controllers.js'), { imports: {
+    'three/webgpu': {}, './sz-city-config.js': {
+      ISLAND_BOUNDS: { minX: -30000, maxX: 30000, minZ: -30000, maxZ: 30000 }
+    }, './sz-controller-surfaces.js': contact, './sz-park-arrivals.js': {}, './sz-strings.js': {},
+    './city-lighting-materials.js': {}, './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } },
+    './pedestrians.js': {}, './vehicle-lights.js': {}, './building-collision.js': collision,
+    ...require('./helpers/driving.cjs')
+  } });
+  const bridge = waterfront.footbridges.find(row => row.id === 'way/357765497');
+  const access = createWaterfrontAccess(waterfront, createWaterfrontPaths(waterfront),
+    () => Date.parse('2026-11-13T16:00:00Z'));
+  const bayAccess = bayModule.createBayWaterfrontAccess(bayModule.createBayPathLookup(geo.shenzhenBay.paths),
+    waterfront.parkNetwork.bayPaths);
+  for (const points of [bridge.points, [...bridge.points].reverse()]) {
+    const [a, b] = points;
+    const length = Math.hypot(b[0] - a[0], b[2] - a[2]);
+    const dx = (b[0] - a[0]) / length, dz = (b[2] - a[2]) / length;
+    const position = { x: a[0] - dx * 3, y: a[1], z: a[2] - dz * 3 };
+    const bike = { type: 'cyclist', position, heading: Math.atan2(dx, dz), speed: 4,
+      collisionBounds: { min: { x: -0.4, y: 0, z: -1.1 }, max: { x: 0.4, y: 2, z: 1.1 } },
+      leanAngle: 0, leanPivot: { rotation: {} }, frontWheel: { rotation: { x: 0 } },
+      rearWheel: { rotation: { x: 0 } }, crankPivot: { rotation: {} }, pedals: [], pedalPhase: 0,
+      _safePosition: { ...position }, _support: { height: a[1], surfaceId: 'terrain' } };
+    const controller = Object.assign(Object.create(ThirdPersonControllerManager.prototype), {
+      activeMode: 'cyclist', entities: { cyclist: bike }, keys: { forward: 0.25 }, surfaceResolver: resolve,
+      groundHeight: heightAt, colliders: plan.colliders.filter(row => row.sourceId === bridge.id),
+      groundAccess: (mode, x, z, surface) => access.allowsGroundMode(mode, x, z, surface)
+        && (surface.heightSource !== 'terrain' || bayAccess.allowsGroundMode(mode, x, z))
+    });
+    const total = Math.hypot(points.at(-1)[0] - a[0], points.at(-1)[2] - a[2]) + 5;
+    let travelled = -3, onDeck = 0;
+    for (let frame = 0; travelled < total && frame < 1200; frame++) {
+      controller.updateCyclist(0.025);
+      travelled = (position.x - a[0]) * dx + (position.z - a[2]) * dz;
+      assert.ok(bike.speed > 1, JSON.stringify({ frame, travelled, position, support: bike._support }));
+      if (bike._support.surfaceId === `waterfront-bridge:${bridge.id}`) {
+        onDeck++;
+        assert.ok(Math.abs(position.y - 8) < 1e-6);
+      }
+    }
+    assert.ok(travelled >= total && onDeck > 10, 'both bridge portals and the span remain rideable');
   }
 });
 
@@ -248,7 +297,7 @@ test('Dasha extends the waterfront from the estuary through both banks and into 
   const path = byId.get('way/897081648');
   const [x, z] = path.points[Math.floor(path.points.length / 2)];
   const weekend = () => Date.parse('2026-11-14T03:00:00Z');
-  assert.equal(createWaterfrontAccess(waterfront, network, weekend).allowsGroundMode('cyclist', x, z), false);
+  assert.equal(createWaterfrontAccess(waterfront, network, weekend).allowsGroundMode('cyclist', x, z), true);
   const bridge = byId.get('way/1213988788');
   const [px, pz] = bridge.points[Math.floor(bridge.points.length / 2)];
   const deck = resolve.at(px, pz).find(s => s.surfaceId === 'waterfront-bridge:way/1213988788');

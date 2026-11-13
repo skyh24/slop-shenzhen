@@ -14,7 +14,6 @@ const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const point = ([x, y, z]) => ({ x, y, z });
 // 日历按深圳当地日期判定，与画面选用的昼夜时段无关。
 const SHENZHEN_OFFSET_MS = 8 * 3600000;
-const HOLIDAYS_2026 = [[101, 103], [215, 223], [404, 406], [501, 505], [619, 621], [925, 927], [1001, 1007]];
 
 export function relocatedBayPathIds(network) {
   return new Set((network?.bayPaths ?? []).filter(path => path.sourcePoints).map(path => path.osmId));
@@ -42,8 +41,10 @@ export function createWaterfrontAccess(source, network, now = Date.now) {
   paths.push(...(source?.parkNetwork?.lakePaths ?? []).map(path => ({ ...path, mode: 'walk' })));
   const accessAt = createBayPathLookup(paths);
   const bridges = new Map((source?.footbridges ?? []).map(bridge => [`waterfront-bridge:${bridge.id}`, bridge]));
-  let lastMinute, parkOpen, westCycles;
+  let lastMinute, parkOpen;
   return { allowsGroundMode(mode, x, z, surface) {
+    // 单车按实际铺装与桥面承托通行，步行标签和开放时段不阻断游戏骑行。
+    if (mode === 'cyclist') return true;
     const id = surface?.surfaceId;
     const bridge = bridges.get(id);
     const modes = bridge ? [bridge.bank ? `${bridge.bank}:${bridge.mode}` : bridge.coastal ? 'park:' + bridge.mode
@@ -55,16 +56,12 @@ export function createWaterfrontAccess(source, network, now = Date.now) {
     const minute = Math.floor((now() + SHENZHEN_OFFSET_MS) / 60000);
     if (minute !== lastMinute) {
       const date = new Date(minute * 60000);
-      const day = (date.getUTCMonth() + 1) * 100 + date.getUTCDate();
       parkOpen = date.getUTCHours() >= 6 && date.getUTCHours() < 23;
-      westCycles = date.getUTCFullYear() === 2026 && date.getUTCDay() >= 1 && date.getUTCDay() <= 5
-        && !HOLIDAYS_2026.some(([first, last]) => day >= first && day <= last);
       lastMinute = minute;
     }
     return modes.some(entry => {
       const [area, usage] = entry.includes(':') ? entry.split(':') : [null, entry];
       if (area && !parkOpen) return false;
-      if (mode === 'cyclist') return usage !== 'walk' && (area !== 'west' || westCycles);
       return usage !== 'cycle';
     });
   } };

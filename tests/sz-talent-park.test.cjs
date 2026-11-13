@@ -101,7 +101,7 @@ test('both Talent Park bridges provide continuous dry-bank pedestrian access and
       assert.ok(walk.pathHeightAt(p.x, p.z) - bridge.girderDepthM > bridge.waterHeightM + 0.35);
       assert.ok(resolver.at(p.x, p.z, 'person').some(row => row.surfaceId === record.surfaceId));
       assert.equal(resolver.at(p.x, p.z, 'car').length, 0);
-      assert.equal(resolver.at(p.x, p.z, 'cyclist').length, 0);
+      assert.ok(resolver.at(p.x, p.z, 'cyclist').some(row => row.surfaceId === record.surfaceId));
     }
   }
   for (const line of walk.bridgeRoutes) for (let s = 0; s <= line.length; s += 0.35) {

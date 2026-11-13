@@ -105,7 +105,7 @@ test('waterfront keeps mode permissions local and releases riprap detail after l
     { heightAt: spatial.groundHeight, isWater: spatial.isWater, colliders: [], pathsNear });
   const [x, , z] = bay.walkRoute[0];
   assert.equal(layer.allowsGroundMode('person', x, z), true);
-  assert.equal(layer.allowsGroundMode('cyclist', x, z), false);
+  assert.equal(layer.allowsGroundMode('cyclist', x, z), true);
   assert.equal(layer.allowsGroundMode('car', x, z), false);
   const [cx, cz] = bay.paths.find(path => path.mode === 'cycle').points[5];
   assert.equal(layer.allowsGroundMode('cyclist', cx, cz), true);

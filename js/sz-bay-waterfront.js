@@ -368,13 +368,13 @@ export function createBayWaterfrontAccess(pathsNear, parkPaths) {
   const parkPathsNear = createBayPathLookup((parkPaths ?? []).filter(path => !path.bridge));
   return {
     allowsGroundMode(mode, x, z) {
+      // 游戏内平坦步道共用骑行通行，不以步行路线标签形成隐形边界。
+      if (mode === 'cyclist') return true;
       const parkModes = parkPathsNear(x, z);
       if (mode === 'person') return !parkModes.length || parkModes.includes('walk') || parkModes.includes('shared');
       const modes = parkModes.length ? parkModes : pathsNear(x, z);
       if (mode === 'car') return modes.length === 0;
-      if (mode !== 'cyclist') return true;
-      return modes.includes('cycle') || modes.includes('shared')
-        || (!modes.length && (parkPaths !== undefined || !pathsNear(x, z, 6).length));
+      return true;
     }
   };
 }

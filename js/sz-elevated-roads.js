@@ -835,7 +835,8 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     triangles: record.topTriangles,
     // 桥头与地面共享节点处允许车辆从地面踏上桥面；桥下高差超过抬脚高度时不会吸附。
     climbableFromGround: true,
-    ...(record.reviewed?.profile === 'park-footbridge-estimate' ? { modes: ['person', 'helicopter'], solidDeck: true } : {}),
+    ...(record.reviewed?.walk ? { solidDeck: true } : {}),
+    ...(record.reviewed?.profile === 'park-footbridge-estimate' ? { modes: ['person', 'cyclist', 'helicopter'] } : {}),
     driveSuccessors: successors.get(record.surfaceId) ?? []
   }));
   const chunks = [...buildChunks(records), ...buildChunks(walking).map(c => ({ ...c, id: `walk:${c.id}` }))];

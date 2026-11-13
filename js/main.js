@@ -225,9 +225,9 @@ async function initApp() {
     groundAccess: (mode, x, z, surface) => parkGroundAccess(mode, x, z, surface)
       && (surface?.heightSource !== 'terrain' && surface?.surfaceId !== 'terrain'
       || (bayWaterfront.allowsGroundMode(mode, x, z) && !roadFrontage.plantingAt(x, z)
-        && (mode === 'person' || !roadLandscape.walkAt(x, z).length)))
+        && (mode !== 'car' || !roadLandscape.walkAt(x, z).length)))
       && shoreSamples.allowsGroundMode(mode, x, z, surface)
-      && (mode === 'person' || !surface?.surfaceId?.startsWith('talent-park:waterfront')
+      && (mode !== 'car' || !surface?.surfaceId?.startsWith('talent-park:waterfront')
         && (surface?.heightSource !== 'terrain' || !waterfront?.pathAt(x, z).length))
       && (!northStation?.inRestricted(x, z, 0.58) || (surface?.surfaceId !== 'terrain' && surface?.heightSource !== 'terrain'))
   });
