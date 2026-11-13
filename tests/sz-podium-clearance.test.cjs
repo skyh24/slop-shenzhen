@@ -20,7 +20,7 @@ const layout = loadModule(read('sz-building-layout.js'), { imports: { './sz-terr
 const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 const roads = loadModule(read('sz-roads.js'), { imports: { 'three/webgpu': {}, './sz-road-material.js': {} } });
 const { createRoadBuildingClearance } = loadModule(read('sz-road-building-clearance.js'), { imports: {
-  './sz-roads.js': roads, './building-collision.js': collision
+  './sz-roads.js': roads, './building-collision.js': collision, './sz-road-section.js': loadModule(read('sz-road-section.js'))
 } });
 const { polygonContains } = collision;
 
@@ -70,12 +70,13 @@ function makeScene() {
 }
 
 // 模块一律显式 stub；额外多给的 import 键不会被 loadModule 使用，留给修复时新增依赖。
-function loadCityBlocks(THREE, facades) {
+function loadCityBlocks(THREE) {
   const geometry = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } });
   return loadModule(read('sz-buildings.js'), { imports: {
     'three/webgpu': THREE,
-    './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: facades } } },
+    './sz-geodata.js': {},
     './sz-geometry.js': geometry,
+    './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
     './sz-materials.js': { createBuildingMaterial: () => ({ dispose() {} }) },
     './sz-building-layout.js': layout, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule,
     './building-collision.js': collision,
@@ -253,7 +254,6 @@ const controlTower = (id = 'way/900001') => makeTower({ id, height: 120, outer: 
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
 const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
 const { buildings: realBuildings, geo } = decodeCityPayload(raw);
-const realFacades = raw.enums.facade;
 const sampleBuilding = realBuildings.find(building => building.id === SAMPLE_BUILDING_ID);
 const realEntrances = (geo.roadFrontage?.entrances ?? []).map(({ x, z }) => ({ x, z }));
 const sampleRoads = groundRoadCentrelines(geo.roadGraph).filter(road => road.osmId === SAMPLE_ROAD_OSM_ID);
@@ -271,7 +271,7 @@ test('rendered Chegongmiao ramp clearance removes the phantom footprint and its 
   assert.equal(roadClearance(building.polygons[0], building, -30, -25), null);
   assert.equal(roadClearance(building.polygons[0], building, 90, 95), null);
 
-  const { buildCityBlocks } = loadCityBlocks(stubThree(), realFacades);
+  const { buildCityBlocks } = loadCityBlocks(stubThree());
   const blocks = buildCityBlocks(makeScene(), { buildings: [building], terrain: geo.terrain, roadClearance });
   assert.equal(blocks.roadConflicts[0].buildingId, building.id);
   assert.equal(blocks.allBlocks.length, 0);
@@ -292,7 +292,7 @@ test('ground road clearance checks the drivable path, courtyards and underpasses
   assert.equal(intersects(near.polygons[0], near, 0, 12), null);
   assert.equal(intersects(passage.polygons[0], passage, 0, 12), null);
   const osm = { ...building, id: 'way/900000006' };
-  const { buildCityBlocks } = loadCityBlocks(stubThree(), ['office']);
+  const { buildCityBlocks } = loadCityBlocks(stubThree());
   const blocks = buildCityBlocks(makeScene(), { buildings: [building, osm, raised, near, passage],
     terrain: FLAT_GRID(), roadClearance: intersects });
   assert.deepEqual(Array.from(blocks.colliders, collider => collider.sourceId), [osm.id, raised.id, near.id, passage.id]);
@@ -301,7 +301,7 @@ test('ground road clearance checks the drivable path, courtyards and underpasses
 test('real sample tower keeps the ground carriageway of way/270044912 clear of estimated podiums', () => {
   assert.ok(sampleBuilding, 'shared payload still carries the sample tower');
   assert.ok(sampleRoads.length > 0, 'sample road is still a ground carriageway in the shared payload');
-  const { buildCityBlocks } = loadCityBlocks(stubThree(), realFacades);
+  const { buildCityBlocks } = loadCityBlocks(stubThree());
   const blocks = buildCityBlocks(makeScene(), {
     buildings: [sampleBuilding], terrain: geo.terrain, roadGraph: geo.roadGraph,
     entrances: realEntrances, renderChunkSize: 1000
@@ -331,7 +331,7 @@ test('real sample podiums clear the carriageway and never overlap a neighbour fo
     && building.minX < sampleBuilding.maxX && building.maxX > sampleBuilding.minX
     && building.minZ < sampleBuilding.maxZ && building.maxZ > sampleBuilding.minZ);
   assert.ok(neighbours.length > 0, 'sample tower bbox has at least one real neighbour');
-  const { buildCityBlocks } = loadCityBlocks(stubThree(), realFacades);
+  const { buildCityBlocks } = loadCityBlocks(stubThree());
   const blocks = buildCityBlocks(makeScene(), {
     buildings: [sampleBuilding, ...neighbours], terrain: geo.terrain, roadGraph: geo.roadGraph,
     entrances: realEntrances, renderChunkSize: 1000
@@ -363,7 +363,7 @@ test('real sample podiums clear the carriageway and never overlap a neighbour fo
 });
 
 test('synthetic podium stays clear of a ground road one metre outside the tower', () => {
-  const { buildCityBlocks } = loadCityBlocks(stubThree(), ['office']);
+  const { buildCityBlocks } = loadCityBlocks(stubThree());
   // 8 m 宽车行道，路缘距塔楼南墙 1 m（走廊 z 21..29），落在 6.4 m 的外扩带里。
   const roadGraph = straightRoadGraph(-60, 25, 60, 25, 8);
   const blocks = buildCityBlocks(makeScene(), {
@@ -385,7 +385,7 @@ test('synthetic podium stays clear of a ground road one metre outside the tower'
 });
 
 test('synthetic podium stays clear of the rendered asphalt at a bent road', () => {
-  const { buildCityBlocks } = loadCityBlocks(stubThree(), ['office']);
+  const { buildCityBlocks } = loadCityBlocks(stubThree());
   // 与 sz-roads.js 的弯道斜接一致：width 17、在 (0,16) 折向 +z 时补的沥青三角形是 [(0,16),(0,7.5),(8.5,16)]。
   // 只看逐段中心线四边形会漏掉这块三角形，塔楼外扩后压在上面仍会被判为“可用”。
   const roadGraph = {
@@ -414,7 +414,7 @@ test('synthetic podium stays clear of the rendered asphalt at a bent road', () =
 });
 
 test('synthetic tower with a distant road keeps a podium matching the display ring', () => {
-  const { buildCityBlocks } = loadCityBlocks(stubThree(), ['office']);
+  const { buildCityBlocks } = loadCityBlocks(stubThree());
   const roadGraph = straightRoadGraph(-400, 200, 400, 200, 8);
   const tower = controlTower();
   const blocks = buildCityBlocks(makeScene(), {
@@ -435,7 +435,7 @@ test('synthetic tower with a distant road keeps a podium matching the display ri
 });
 
 test('synthetic podium clears a low neighbour inside the expansion band', () => {
-  const { buildCityBlocks } = loadCityBlocks(stubThree(), ['office']);
+  const { buildCityBlocks } = loadCityBlocks(stubThree());
   const neighbour = makeTower({ id: 'way/900011', height: 12, outer: ringSquare(0, 32, 10) });
   const tower = controlTower();
   const blocks = buildCityBlocks(makeScene(), {
@@ -451,7 +451,7 @@ test('synthetic podium clears a low neighbour inside the expansion band', () => 
 });
 
 test('synthetic podium keeps clear of a real entrance point', () => {
-  const { buildCityBlocks } = loadCityBlocks(stubThree(), ['office']);
+  const { buildCityBlocks } = loadCityBlocks(stubThree());
   const entrance = { x: 0, z: 21.5 };
   const blocks = buildCityBlocks(makeScene(), {
     buildings: [controlTower()], terrain: FLAT_GRID(), roadGraph: EMPTY_ROAD_GRAPH(), entrances: [entrance]
@@ -469,7 +469,7 @@ test('synthetic podium keeps clear of a real entrance point', () => {
 });
 
 test('synthetic courtyard and L-shaped podium keeps holes open and clears the open-side road', () => {
-  const { buildCityBlocks } = loadCityBlocks(stubThree(), ['office']);
+  const { buildCityBlocks } = loadCityBlocks(stubThree());
   // L 形外环：横向臂 60×20，纵向臂 20×40，内院挖在横向臂里。
   const outer = [{ x: 0, z: 0 }, { x: 60, z: 0 }, { x: 60, z: 20 },
     { x: 20, z: 20 }, { x: 20, z: 60 }, { x: 0, z: 60 }];
@@ -496,7 +496,7 @@ test('synthetic courtyard and L-shaped podium keeps holes open and clears the op
 test('podium display mesh and collider ring agree under real Three raycasts',
   { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
     const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
-    const { buildCityBlocks } = loadCityBlocks(THREE, ['office']);
+    const { buildCityBlocks } = loadCityBlocks(THREE);
     const scene = new THREE.Scene();
     const tower = controlTower();
     const blocks = buildCityBlocks(scene, {
@@ -532,7 +532,7 @@ test('podium display mesh and collider ring agree under real Three raycasts',
   });
 
 test('podium generation is deterministic for identical options', () => {
-  const { buildCityBlocks } = loadCityBlocks(stubThree(), ['office']);
+  const { buildCityBlocks } = loadCityBlocks(stubThree());
   const options = { buildings: [controlTower()], terrain: FLAT_GRID(),
     roadGraph: straightRoadGraph(-400, 200, 400, 200, 8), entrances: [] };
   const first = buildCityBlocks(makeScene(), options);

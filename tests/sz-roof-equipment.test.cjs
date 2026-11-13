@@ -15,8 +15,9 @@ const layout = loadModule(read('sz-building-layout.js'), { imports: {
 } });
 const buildingsModule = loadModule(read('sz-buildings.js'), { imports: {
   'three/webgpu': emptyThree,
-  './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
+  './sz-geodata.js': {},
   './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': emptyThree } }),
+  './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
   './sz-materials.js': { createBuildingMaterial: () => ({}) },
   './sz-building-layout.js': layout, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
 } });

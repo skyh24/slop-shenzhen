@@ -43,8 +43,9 @@ test('raised building soffits face the passage and preserve courtyard holes and 
     const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
     const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
       'three/webgpu': THREE,
-      './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
+      './sz-geodata.js': {},
       './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
+      './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
       './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
       './sz-building-layout.js': { buildingPlacement, buildingSeed }, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
     } });
@@ -81,8 +82,9 @@ test('one-kilometre building batches preserve every triangle attribute and colli
   };
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
     'three/webgpu': THREE,
-    './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
+    './sz-geodata.js': {},
     './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
+    './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
     './sz-materials.js': { createBuildingMaterial: () => ({}) },
     './sz-building-layout.js': { buildingPlacement, buildingSeed }, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
   } });
@@ -120,8 +122,9 @@ test('tall ordinary towers gain an estimated podium with matching display and co
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
     'three/webgpu': THREE,
-    './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
+    './sz-geodata.js': {},
     './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
+    './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
     './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
     './sz-building-layout.js': { buildingPlacement, buildingSeed }, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
   } });
@@ -144,8 +147,9 @@ test('ordinary towers get estimated parapets and rooftop equipment without new c
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
     'three/webgpu': THREE,
-    './sz-geodata.js': { CITY_PAYLOAD: { enums: { facade: ['office'] } } },
+    './sz-geodata.js': {},
     './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
+    './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
     './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
     './sz-building-layout.js': { buildingPlacement, buildingSeed }, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
   } });

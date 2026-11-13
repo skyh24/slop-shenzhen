@@ -1,8 +1,9 @@
 import * as THREE from 'three/webgpu';
 import { addFlatPolygon, GeoBuilder } from './sz-geometry.js';
+import { createPavingMaterial, pavingMesh } from './sz-paving.js';
 import { createRoadHeightSampler, createRoadPolygonLayout } from './sz-roads.js';
 
-const PAVING_COLORS = { paved: 0x9b9485, aggregate: 0xb5a382 };
+const PAVING = { paved: ['concrete', { color: 0x9b9485, tileSizeM: null, roughness: 0.95 }], aggregate: ['park-gravel'] };
 
 function addBank(batch, ring, level) {
   for (let i = 0; i < ring.length; i += 3) {
@@ -36,18 +37,12 @@ export function buildSzGolfCourse(scene, source, terrain) {
   };
 
   // 按实际地面三角面裁出共面铺装。园路的高度与脚底接触面完全共用。
+  const paving = new Map();
   const samplers = source.surfaces.map(feature => {
     const layout = createRoadPolygonLayout(feature, terrain);
-    const material = new THREE.MeshStandardNodeMaterial({ color: PAVING_COLORS[feature.material],
-      roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-    materials.push(material);
-    for (const { id, positions, origin } of layout.chunks) {
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      geometry.computeVertexNormals();
-      const mesh = meshFor(geometry, material, id);
-      mesh.position.set(origin[0], 0, origin[1]);
-    }
+    const { material } = feature;
+    if (!paving.has(material)) paving.set(material, createPavingMaterial(...PAVING[material]));
+    for (const { id, positions, origin } of layout.chunks) group.add(pavingMesh(positions, origin, paving.get(material), id));
     return createRoadHeightSampler(layout.chunks, terrain.grid);
   });
 
@@ -69,7 +64,7 @@ export function buildSzGolfCourse(scene, source, terrain) {
     dispose() {
       group.removeFromParent();
       for (const mesh of group.children) mesh.geometry.dispose();
-      for (const material of materials) material.dispose();
+      for (const material of [...materials, ...paving.values()]) material.dispose();
     }
   };
 }

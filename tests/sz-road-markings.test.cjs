@@ -5,8 +5,12 @@ const { join } = require('node:path');
 const { loadModule } = require('./helpers/module.cjs');
 const roads = require('./helpers/roads.cjs');
 
-const { createDeckLanePlan, createLanePlan, createMarkingLayout } = loadModule(
-  readFileSync(join(__dirname, '../js/sz-road-markings.js'), 'utf8'), { imports: { './sz-roads.js': roads } });
+const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
+const sections = loadModule(read('sz-road-section.js'));
+const { getDeckSection, getRoadSection } = sections;
+const { deckPaintLines, createMarkingLayout } = loadModule(read('sz-road-markings.js'), {
+  imports: { './sz-roads.js': roads, './sz-road-section.js': sections }
+});
 
 const GROUND = { osmId: 'way/1', highway: 'primary', widthSource: 'estimate-from-class',
   heightSource: 'terrain', bridge: false, tunnel: false, layer: 0 };
@@ -14,8 +18,11 @@ const LONGITUDINAL = new Set(['edge-left', 'edge-right', 'center-left', 'center-
 
 test('deck paint distinguishes single ramps, measured wide ramps and tagged carriageways', () => {
   const ramp = { highway: 'primary_link', widthSource: 'estimate-from-class' };
-  const plan = (width, lanes, direction, metadata = ramp) =>
-    createDeckLanePlan([0, 1, 0, width, lanes, direction, []], metadata, Math.max(width, 6.5), 0.35);
+  const plan = (width, lanes, direction, metadata = ramp) => {
+    const graph = { links: [[0, 1, 0, width, lanes, direction, []]], metadata: [metadata] };
+    const section = getDeckSection(graph, { index: 0, width: Math.max(width, 6.5), barrierWidthM: 0.35 });
+    return { ...section, lines: deckPaintLines(section) };
+  };
   assert.equal(plan(6.5, 0, 1).laneCount, 1);
   assert.equal(plan(4, 0, 1, { ...ramp, widthSource: 'osm-width' }).lines.length, 2);
   const two = plan(7, 0, 1, { ...ramp, widthSource: 'osm-width' });
@@ -37,6 +44,10 @@ function graphFor(points, { width = 12, lanes = 0, direction = 0, metadata = {} 
     names: ['test'],
     metadata: [{ ...GROUND, ...metadata }]
   };
+}
+
+function sectionFor(width, lanes, direction) {
+  return getRoadSection({ links: [[0, 1, 0, width, lanes, direction, []]], metadata: [GROUND] }, 0);
 }
 
 function nearest(points, point) {
@@ -100,13 +111,13 @@ test('edge and lane paint follow a changing asymmetric section after trimming a 
 });
 
 test('two-way roads get a double-yellow center, dashed lane dividers and solid edge lines', () => {
-  const plan = createLanePlan([0, 1, 0, 13, 4, 0, []], GROUND);
+  const plan = sectionFor(13, 4, 0);
   assert.equal(plan.twoWay, true);
   assert.equal(plan.narrow, false);
   assert.equal(plan.laneCount, 4);
   assert.equal(plan.laneSource, 'osm-lanes');
-  assert.deepEqual([...plan.internal.filter(item => item.kind === 'double-yellow').map(item => item.offset)], [0]);
-  assert.equal(plan.internal.filter(item => item.kind === 'dashed-white').length, 2);
+  assert.equal(plan.splitM, 0);
+  assert.equal(plan.dividerOffsetsM.length, 2);
 
   const points = [{ x: 0, z: 0 }, { x: 200, z: 0 }];
   const { strips } = createMarkingLayout(graphFor(points, { width: 13, lanes: 4, direction: 0 }));
@@ -122,11 +133,19 @@ test('two-way roads get a double-yellow center, dashed lane dividers and solid e
 });
 
 test('estimated lane counts are tagged apart from OSM lanes', () => {
-  const estimated = createLanePlan([0, 1, 0, 13, 0, 0, []], GROUND);
+  const estimated = sectionFor(13, 0, 0);
   assert.equal(estimated.estimated, true);
   assert.equal(estimated.laneSource, 'width-estimate');
   assert.equal(estimated.laneCount, 4);
-  const sourced = createLanePlan([0, 1, 0, 13, 4, 0, []], GROUND);
+  assert.deepEqual(Array.from(estimated.routeOffsetsM), [2.3]);
+  const oneWay = sectionFor(13, 0, 1);
+  assert.equal(oneWay.laneCount, 4);
+  assert.deepEqual(Array.from(oneWay.routeOffsetsM), [0]);
+  const wide = sectionFor(52, 16, 1);
+  assert.equal(wide.laneCount, 8);
+  assert.equal(wide.routeOffsetsM.length, 16);
+  assert.equal(wide.routeOffsetsM[0], -24.375);
+  const sourced = sectionFor(13, 4, 0);
   assert.equal(sourced.estimated, false);
   assert.equal(sourced.laneSource, 'osm-lanes');
 
@@ -138,11 +157,10 @@ test('estimated lane counts are tagged apart from OSM lanes', () => {
 });
 
 test('estimated two-way odd lane counts still put the yellow center line on the road centerline', () => {
-  const plan = createLanePlan([0, 1, 0, 10, 0, 0, []], GROUND);
+  const plan = sectionFor(10, 0, 0);
   assert.equal(plan.laneCount, 3);
   assert.equal(plan.narrow, false);
-  assert.equal(plan.internal[0].kind, 'double-yellow');
-  assert.equal(plan.internal[0].offset, 0);
+  assert.equal(plan.splitM, 0);
   const { strips } = createMarkingLayout(graphFor([{ x: 0, z: 0 }, { x: 120, z: 0 }], { width: 10, lanes: 0, direction: 0 }));
   const yellow = strips.filter(strip => strip.color === 'yellow');
   assert.equal(yellow.length > 0, true);
@@ -151,11 +169,11 @@ test('estimated two-way odd lane counts still put the yellow center line on the 
 
 test('one-way roads never paint a double yellow', () => {
   for (const direction of [1, -1]) {
-    const plan = createLanePlan([0, 1, 0, 10, 3, direction, []], GROUND);
+    const plan = sectionFor(10, 3, direction);
     assert.equal(plan.twoWay, false);
     assert.equal(plan.narrow, false);
-    assert.equal(plan.internal.length, 2);
-    assert.equal(plan.internal.every(item => item.kind === 'dashed-white'), true);
+    assert.equal(plan.dividerOffsetsM.length, 2);
+    assert.equal(plan.splitM, null);
     const { strips, statistics } = createMarkingLayout(
       graphFor([{ x: 0, z: 0 }, { x: 120, z: 0 }], { width: 10, lanes: 3, direction }));
     assert.equal(strips.some(strip => strip.color === 'yellow'), false);
@@ -167,10 +185,9 @@ test('one-way roads never paint a double yellow', () => {
 test('narrow two-way roads keep only the center line and edge lines', () => {
   const points = [{ x: 0, z: 0 }, { x: 120, z: 0 }];
   for (const fixture of [{ width: 6.5, lanes: 2 }, { width: 9, lanes: 0 }, { width: 6.4, lanes: 4 }]) {
-    const plan = createLanePlan([0, 1, 0, fixture.width, fixture.lanes, 0, []], GROUND);
+    const plan = sectionFor(fixture.width, fixture.lanes, 0);
     assert.equal(plan.narrow, true);
-    assert.deepEqual([...plan.internal.map(item => item.kind)], ['double-yellow']);
-    assert.equal(plan.internal[0].offset, 0);
+    assert.equal(plan.splitM, 0);
     const { strips, statistics } = createMarkingLayout(graphFor(points, { ...fixture, direction: 0 }));
     assert.equal(strips.some(strip => strip.kind === 'lane'), false);
     assert.equal(strips.filter(strip => strip.color === 'yellow').length > 0, true);
@@ -294,11 +311,12 @@ test('both ends of a two-way link are cut when both directions have a signal app
 });
 
 test('the narrow-road boundary follows the 7 m rule and the estimated lane count', () => {
-  const plan = (width, lanes) => createLanePlan([0, 1, 0, width, lanes, 0, []], GROUND);
+  const plan = (width, lanes) => sectionFor(width, lanes, 0);
   assert.equal(plan(6.99, 2).narrow, true);
   assert.equal(plan(7, 2).narrow, true);
   // 7 m 的 OSM 三车道双向路已够拆线，不再按窄路处理。
   assert.equal(plan(7, 3).narrow, false);
-  assert.deepEqual([...plan(7, 3).internal.map(item => item.kind)], ['double-yellow', 'dashed-white']);
+  assert.equal(plan(7, 3).splitM, 0);
+  assert.equal(plan(7, 3).dividerOffsetsM.length, 1);
   assert.equal(plan(10, 0).narrow, false);
 });

@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
-import { createDeckLanePlan, createMarkingLayout } from './sz-road-markings.js';
+import { createMarkingLayout, deckPaintLines } from './sz-road-markings.js';
 import { createSzRoadPaintMaterial } from './sz-road-material.js';
-import { ELEVATED_BARRIER_WIDTH_M } from './sz-elevated-roads.js';
+import { getDeckSection } from './sz-road-section.js';
 
 // 标线是静态几何，按 2.4 km 合并成块：出生点 1484 次绘制里有 246 次来自标线 600 m 分块，
 // 放大到 2.4 km 后同一视野内的块数约降到 1/16，三角形不变。
@@ -48,10 +48,11 @@ function buildChunks(strips, roadHeight) {
 function addDeckPaint(cells, graph, decks) {
   const statistics = { links: 0, laneCounts: {}, dashedLines: 0 };
   for (const deck of decks) {
-    const plan = createDeckLanePlan(graph.links[deck.index], graph.metadata[deck.index], deck.width, ELEVATED_BARRIER_WIDTH_M);
+    const section = getDeckSection(graph, deck);
+    const lines = deckPaintLines(section);
     statistics.links++;
-    statistics.laneCounts[plan.laneCount] = (statistics.laneCounts[plan.laneCount] ?? 0) + 1;
-    statistics.dashedLines += plan.laneCount - 1;
+    statistics.laneCounts[section.laneCount] = (statistics.laneCounts[section.laneCount] ?? 0) + 1;
+    statistics.dashedLines += section.laneCount - 1;
     for (let i = 1; i < deck.frames.length; i++) {
       const a = deck.frames[i - 1], b = deck.frames[i];
       const cell = paintCell(cells, (a.x + b.x) / 2, (a.z + b.z) / 2);
@@ -63,10 +64,10 @@ function addDeckPaint(cells, graph, decks) {
         cell.paint.push(station, 10, duty);
         cell.color.push(color.r, color.g, color.b);
       };
-      for (const line of plan.lines) {
+      for (const line of lines) {
         const color = colorFor(line.color);
-        const lo = 0.5 + (line.offset - 0.09) / deck.width;
-        const hi = 0.5 + (line.offset + 0.09) / deck.width;
+        const lo = 0.5 + (line.offset - 0.09) / section.pavementWidthM;
+        const hi = 0.5 + (line.offset + 0.09) / section.pavementWidthM;
         const base = cell.position.length / 3;
         vertex(leftA, rightA, lo, a.d, color, line.duty);
         vertex(leftA, rightA, hi, a.d, color, line.duty);

@@ -14,12 +14,17 @@
 | `sz-ground-surface.js::createGroundSurfaceSampler`、`sz-ground.js::buildSzGround` | 同一三角面数据用于查询与绘制 |
 | `sz-controller-surfaces.js::createSurfaceResolver` | 区分地面、桥面、屋顶等活动表面的身份与高度 |
 | `sz-roads.js::visitGroundRoadFootprints/createRoadSurfaceLayout/buildSzRoads` | 断面、弯道、路口范围与网格 |
-| `sz-road-markings.js::createLanePlan/createMarkingLayout`、`sz-road-paint.js::buildSzRoadPaint` | 标线布局与绘制，贴对应活动表面 |
+| `sz-road-section.js::getRoadSection/getDeckSection` | 共用有效宽、方向、估计车道数、偏距、分界与表面身份 |
+| `sz-road-markings.js::createMarkingLayout`、`sz-road-paint.js::buildSzRoadPaint` | 标线布局与绘制，贴对应活动表面 |
 | `sz-road-frontage.js::buildSzRoadFrontage`、`sz-road-building-clearance.js::createRoadBuildingClearance` | 路缘/人行道与道路建筑净空 |
 | `sz-elevated-roads.js::planElevatedRoads/buildSzElevatedRoads` | 桥梁规划、实体和车行链接 |
 | `sz-sea.js::buildSzSea`、`sz-water-material.js::createSzWaterMaterial` | 海面、波浪法线与反射 |
 
 离线由 `tools/sz/roads.py`、`roadgraph.py`、`road_surface.py`、`terrain_surface.py`、`bridges.py` 等经 `build.py` 生成。来源与重建规则见 [数据管线](02-DATA-PIPELINE.md)。驾驶和信号消费者见 [载具](07-VEHICLES.md)。
+
+标线、环境车、自动驾驶、换道和建筑净空共用断面结果。无源车道数时，标线显示估计并保留来源，普通双向车流保留保守偏距，车道数未知的单向车流沿中心行驶。桥面以现有桥面计划和栏杆宽计算净宽，轮胎接触按实际 `surfaceId` 查询。信号灯面、环境车和自动驾驶继续读取同一路口状态。
+
+路灯配置按源道路 ID 生效，沿用已有道路断面、路口安全边距、分隔带判定和净空检查。跨区域无需切断源边或重置标线里程。路侧铺装可按已生成的铺装对象 ID 选择材质，边缘、厚度、裁切与通行资格仍由地面处理负责。 [参数规则](REGIONS-PLACES.md#场景参数)
 
 ## 实现边界与验证
 

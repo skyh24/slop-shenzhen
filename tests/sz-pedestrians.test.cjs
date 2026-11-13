@@ -71,7 +71,12 @@ function createPedestrianStub() {
     }
     begin() { this.added = []; this.frames++; }
     add(rig, distance) { this.added.push({ rig, distance }); }
+    updateWalker(ped, dt, ground, draw, distance) {
+      ped.rig.update(dt, ped.x, ped.z, ped.heading, ground, ped, 0, draw, -1);
+      if (draw) this.add(ped.rig, distance);
+    }
     end() {}
+    dispose() {}
   }
   return { module: { PersonCrowd, PersonRig, PEDESTRIAN_DIVE_DURATION: 2.5 }, rigs, crowds };
 }

@@ -1,7 +1,6 @@
 import { MAP, addRing, boundsOf, overlaps } from './sz-map-layers.js';
 import { distanceToRing, polygonContainsInclusive } from './sz-polygon.js';
 import { spatialIndex } from './sz-spatial.js';
-import { decodePoly } from './sz-data-format.js';
 import { STR } from './sz-strings.js';
 
 const REGION_COLOURS = Object.freeze({
@@ -35,14 +34,7 @@ function boundaryDistance(polygon, x, z) {
 
 function createMapRegions(records = []) {
   const regions = records.map((data) => {
-    const polygons = data.rings.map(rings => {
-      const [outer, ...holes] = decodePoly(rings).map(flat => {
-        const points = [];
-        for (let i = 0; i < flat.length; i += 2) points.push({ x: flat[i], z: flat[i + 1] });
-        return points;
-      });
-      return { outer, holes };
-    });
+    const { polygons } = data;
     const path = new Path2D();
     const bounds = boundsOf(polygons.flatMap(polygon => polygon.outer));
     const region = { ...data, path, bounds, minZoom: regionZoom(data) };

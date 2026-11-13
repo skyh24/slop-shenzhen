@@ -1,5 +1,6 @@
 import { STR } from './sz-strings.js';
 import { getLocationLabel, getLocationInfo, isTypingInField, SZ_LANDMARKS } from './sz-city-config.js';
+import { captureCameraState, nearestObservationTarget, restoreCameraState, setObservationPanel } from './sz-observation-session.js';
 
 const METRO_STATE_KEY = 'sz-metro-lines';
 
@@ -204,7 +205,7 @@ export function wireApecTheme(theme, onChange) {
 
 // 所有节目共用一个时钟与机位会话。切换节目先验证新落点，保留最早的恢复状态。
 export function wireShowPrograms({ shows, controllerManager, cameraSystem, lightingSystem,
-  selectMode, selectCamera, selectTime, closePopovers, resetInput, markArrival, canStart = () => true }) {
+  selectMode, selectCamera, selectTime, closePopovers, resetInput, markArrival, observationSessions }) {
   const panel = document.getElementById('program-panel');
   const menuButton = document.getElementById('btn-program');
   const feedback = document.getElementById('program-feedback');
@@ -212,11 +213,66 @@ export function wireShowPrograms({ shows, controllerManager, cameraSystem, light
   const cue = document.getElementById('program-cue');
   const credit = document.getElementById('program-credit');
   const status = document.getElementById('program-status');
-  let previous = null, current = null;
+  const session = observationSessions.bind('program', {
+    restart: true,
+    replaces: 'landmark-orbit',
+    prepare({ show, message }) {
+      const { arrival, program } = show;
+      if (!program || program.available === false || !Number.isFinite(arrival?.y)) return null;
+      const destination = controllerManager.findModePosition('person', {
+        type: 'person', position: arrival, heading: arrival.heading,
+        _support: { height: arrival.y, surfaceId: arrival.surfaceId }
+      });
+      return destination && destination.surfaceId === arrival.surfaceId ? { show, destination, message } : null;
+    },
+    capture: () => ({ time: lightingSystem.activePresetId, camera: captureCameraState(cameraSystem) }),
+    commit({ show, destination }, previous) {
+      const switching = previous?.show.program !== show.program;
+      if (switching && show.program.start() === false) return false;
+      if (!selectMode('person', destination)) {
+        if (switching) show.program.stop();
+        return false;
+      }
+      previous?.show.program.stop();
+      if (!switching) show.program.start();
+      return true;
+    },
+    enter({ show, destination, message }) {
+      feedback.hidden = message.hidden = true;
+      resetInput();
+      cameraSystem.resetForTeleport();
+      selectCamera('pov', true);
+      if (Number.isFinite(show.pitch)) cameraSystem.orbitPitchOffset = show.pitch;
+      selectTime('midnight');
+      credit.textContent = show.labels.original;
+      panel.setAttribute('aria-label', show.labels.location);
+      syncControls();
+      setObservationPanel(panel, menuButton, true);
+      if (show.range) markArrival(destination, show.labels.location);
+      closePopovers();
+    },
+    update({ show: { arrival, range, program } }, dt) {
+      const pos = controllerManager.getActiveEntity().position;
+      if (range && (controllerManager.activeMode !== 'person'
+        || Math.hypot(pos.x - arrival.x, pos.z - arrival.z) > range + 230)) {
+        end();
+        return;
+      }
+      program.update(dt, cameraSystem.camera.position);
+      syncControls();
+    },
+    exit({ show }, snapshot, reason) {
+      show.program.stop();
+      if (cameraSystem.activePresetId === 'pov') restoreCameraState(cameraSystem, selectCamera, snapshot.camera);
+      selectTime(snapshot.time);
+      setObservationPanel(panel, menuButton, false, reason === 'button');
+    }
+  });
 
   function syncControls() {
-    if (!current) return;
-    const { program, labels, arrival, range } = current;
+    const show = session.target?.show;
+    if (!show) return;
+    const { program, labels, arrival, range } = show;
     const pos = controllerManager.getActiveEntity().position;
     const away = range && Math.hypot(pos.x - arrival.x, pos.z - arrival.z) > range;
     const label = labels.cues[program.cue];
@@ -232,94 +288,37 @@ export function wireShowPrograms({ shows, controllerManager, cameraSystem, light
   }
 
   function end(focus = false) {
-    if (!current) return;
-    current.program.stop();
-    if (cameraSystem.activePresetId === 'pov') {
-      selectCamera(previous.camera, true);
-      cameraSystem.orbitYawOffset = previous.yaw;
-      cameraSystem.orbitPitchOffset = previous.pitch;
-      cameraSystem.zoomMultiplier = previous.zoom;
-    }
-    selectTime(previous.time);
-    previous = current = null;
-    panel.hidden = true;
-    menuButton.classList.remove('active');
-    if (focus) menuButton.focus();
+    session.exit(focus ? 'button' : 'cancelled');
   }
 
   for (const show of shows) {
     const { program, entryIds, labels, arrival } = show;
     const unavailable = !arrival || !Number.isFinite(arrival.y) || program?.available === false || !program;
-    function activate(entry) {
-      if (!canStart()) return;
-      const destination = controllerManager.findModePosition('person', {
-        type: 'person', position: arrival, heading: arrival.heading,
-        _support: { height: arrival.y, surfaceId: arrival.surfaceId }
-      });
-      const message = entry.closest('#teleport-popover') ? document.getElementById('teleport-feedback') : feedback;
-      if (destination?.surfaceId !== arrival.surfaceId) {
-        message.textContent = labels.noArrival;
-        message.hidden = false;
-        return;
-      }
-      const previousState = {
-        time: lightingSystem.activePresetId,
-        camera: cameraSystem.activePresetId === 'landmarkOrbit' ? 'chase' : cameraSystem.activePresetId,
-        yaw: cameraSystem.orbitYawOffset, pitch: cameraSystem.orbitPitchOffset, zoom: cameraSystem.zoomMultiplier
-      };
-      if (!selectMode('person', destination)) {
-        message.textContent = labels.noArrival;
-        message.hidden = false;
-        return;
-      }
-      previous ??= previousState;
-      current?.program.stop();
-      current = show;
-      feedback.hidden = message.hidden = true;
-      resetInput();
-      cameraSystem.resetForTeleport();
-      selectCamera('pov', true);
-      if (Number.isFinite(show.pitch)) cameraSystem.orbitPitchOffset = show.pitch;
-      selectTime('midnight');
-      program.start();
-      credit.textContent = labels.original;
-      panel.setAttribute('aria-label', labels.location);
-      syncControls();
-      panel.hidden = false;
-      menuButton.classList.add('active');
-      if (show.range) markArrival(destination, labels.location);
-      closePopovers();
-    }
     for (const id of entryIds) {
       const entry = document.getElementById(id);
       entry.disabled = unavailable;
-      entry.addEventListener('click', () => activate(entry));
+      entry.addEventListener('click', () => {
+        const message = entry.closest('#teleport-popover') ? document.getElementById('teleport-feedback') : feedback;
+        const { ok, reason } = session.enter({ show, message });
+        if (ok || reason === 'busy') return;
+        message.textContent = labels.noArrival;
+        message.hidden = false;
+      });
     }
   }
 
-  pause.addEventListener('click', () => { current?.program.togglePause(); syncControls(); });
+  pause.addEventListener('click', () => { session.target?.show.program.togglePause(); syncControls(); });
   document.getElementById('program-replay').addEventListener('click', () => {
-    current?.program.replay();
+    session.target?.show.program.replay();
     syncControls();
   });
   document.getElementById('program-exit').addEventListener('click', () => end(true));
 
   return {
-    get active() { return Boolean(current); },
-    get previousTime() { return previous?.time; },
+    get active() { return session.active; },
+    get previousTime() { return session.snapshot?.time; },
     end,
-    update(dt) {
-      if (!current) return;
-      const { arrival, range, program } = current;
-      const pos = controllerManager.getActiveEntity().position;
-      if (range && (controllerManager.activeMode !== 'person'
-        || Math.hypot(pos.x - arrival.x, pos.z - arrival.z) > range + 230)) {
-        end();
-        return;
-      }
-      program.update(dt, cameraSystem.camera.position);
-      syncControls();
-    }
+    update: dt => session.update(dt)
   };
 }
 
@@ -466,20 +465,10 @@ export function renderControlHints(el, mode) {
 export function createLocationReadout({ el, nearestBuildingName }) {
   let locationText = '';
   let locationBuilding = '';
-  function nearestLandmarkName(x, z, radius = 240) {
-    let best = null;
-    for (const landmark of SZ_LANDMARKS) {
-      if (!Number.isFinite(landmark.x) || !Number.isFinite(landmark.z)) continue;
-      const distance = Math.hypot(landmark.x - x, landmark.z - z);
-      if (distance > radius) continue;
-      if (!best || distance < best.distance) best = { name: landmark.name, distance };
-    }
-    return best ? best.name : null;
-  }
   return function renderLocation(x, z) {
     if (!el) return;
     const label = getLocationLabel(x, z);
-    const buildingName = nearestBuildingName(x, z) ?? nearestLandmarkName(x, z) ?? '';
+    const buildingName = nearestBuildingName(x, z) ?? nearestObservationTarget(SZ_LANDMARKS, { x, z }, 240)?.name ?? '';
     if (label === locationText && buildingName === locationBuilding) return;
     locationText = label;
     locationBuilding = buildingName;

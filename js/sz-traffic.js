@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { routeSignalStops } from './sz-intersection-control.js';
 import { isGroundRoad, roadTravelPoints } from './sz-roads.js';
+import { getDeckSection, getRoadSection, usableWidth } from './sz-road-section.js';
 import {
   carStyleCode, createTrafficCarBody, createTrafficVehicleGeometry, createTrafficWheels, VEHICLE_SPECS
 } from './sz-vehicles.js';
@@ -98,16 +99,16 @@ export function createTrafficGraph(graph, { canTurn = () => true, elevated = nul
     const metadata = graph.metadata[i];
     if (!isGroundRoad(metadata)) continue;
     const link = graph.links[i];
-    const [a, b, name, width, lanes, direction] = link;
-    const points = roadTravelPoints(graph, link, metadata);
+    const [a, b, name] = link;
+    const section = getRoadSection(graph, i);
+    const points = roadTravelPoints(graph, link, metadata, section.travelWidthM);
     if (points.length < 2) continue;
-    for (const sign of direction === 0 ? [1, -1] : [direction]) {
+    for (const sign of section.twoWay ? [1, -1] : [section.direction]) {
       const from = sign === 1 ? a : b;
       const to = sign === 1 ? b : a;
       const path = sign === 1 ? points : [...points].reverse();
-      const edge = { from, to, sign, width, lanes, direction, name: graph.names[name],
-        osmId: metadata.osmId, highway: metadata.highway, sourceIndex: i, segments: [], next: [],
-        travelWidth: metadata.crossSection ? lanes * metadata.crossSection.laneWidthM : null };
+      const edge = { from, to, sign, section, name: graph.names[name],
+        osmId: metadata.osmId, highway: metadata.highway, sourceIndex: i, segments: [], next: [] };
       for (let j = 1; j < path.length; j++) {
         const start = path[j - 1];
         const end = path[j];
@@ -135,14 +136,14 @@ export function createTrafficGraph(graph, { canTurn = () => true, elevated = nul
   for (const record of elevated?.links ?? []) {
     if (!Array.isArray(record.points) || record.points.length < 2) continue;
     if (record.osmId === undefined || record.surfaceId === undefined) continue;
-    const direction = record.direction ?? 0;
-    for (const sign of direction === 0 ? [1, -1] : [direction === -1 ? -1 : 1]) {
+    const section = getDeckSection(graph, record);
+    for (const sign of section.twoWay ? [1, -1] : [section.direction]) {
       const path = sign === 1 ? record.points : [...record.points].reverse();
       const from = sign === 1 ? record.startNode : record.endNode;
       const to = sign === 1 ? record.endNode : record.startNode;
-      const edge = { from, to, sign, width: record.width, lanes: record.lanes, direction,
+      const edge = { from, to, sign, section,
         name: record.name ?? '', osmId: record.osmId, highway: null, sourceIndex: record.index,
-        segments: [], next: [], travelWidth: null, surfaceId: record.surfaceId, elevated: true,
+        segments: [], next: [], surfaceId: section.surfaceId, elevated: true,
         startDeckY: sign === 1 ? record.startDeckY : record.endDeckY,
         endDeckY: sign === 1 ? record.endDeckY : record.startDeckY,
         sharedStart: sign === 1 ? record.sharedStart : record.sharedEnd,
@@ -203,16 +204,6 @@ export function createTrafficGraph(graph, { canTurn = () => true, elevated = nul
   return { edges, cells, nearSegments };
 }
 
-export function usableWidth(edge, halfWidth) {
-  return (edge.travelWidth ?? edge.width) >= (edge.direction === 0 ? 4 : 2) * halfWidth + 0.16;
-}
-
-export function laneOffsets(edge) {
-  if (!edge.direction) return [Math.min(edge.width / 4, 2.3)];
-  const count = Number.isInteger(edge.lanes) && edge.lanes > 0 ? edge.lanes : 1;
-  return Array.from({ length: count }, (_, i) => (edge.travelWidth ?? edge.width) * ((i + 0.5) / count - 0.5));
-}
-
 const isTrunkRamp = edge => edge?.highway === 'trunk_link';
 
 function segmentEnd({ x, z, dx, dz, length }) {
@@ -261,7 +252,7 @@ function joinRampLane(segments, from, to) {
 }
 
 function guideReviewedRamps(segments) {
-  if (!segments.some(segment => segment.edge?.travelWidth)) return segments;
+  if (!segments.some(segment => segment.edge?.section.reviewed)) return segments;
   const guided = [];
   for (let i = 0; i < segments.length;) {
     const first = segments[i];
@@ -275,8 +266,8 @@ function guideReviewedRamps(segments) {
     const previous = segments[i - 1];
     const next = segments[end];
     // 沿真实匝道走向逐渐对齐中心线，整个过渡仍由可见沥青和碰撞预检。
-    guided.push(...joinRampLane(segments.slice(i, end), previous?.edge?.travelWidth ? segmentEnd(previous) : null,
-      next?.edge?.travelWidth ? next : null));
+    guided.push(...joinRampLane(segments.slice(i, end), previous?.edge?.section.reviewed ? segmentEnd(previous) : null,
+      next?.edge?.section.reviewed ? next : null));
     i = end;
   }
   return guided;
@@ -293,7 +284,7 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice) 
   let elevatedSeen = false;
   while (edge && remaining > 0
     && segments.length < (elevatedSeen ? ELEVATED_ROUTE_SEGMENTS : reviewed ? 160 : 80)) {
-    if (edge.travelWidth && !reviewed) {
+    if (edge.section.reviewed && !reviewed) {
       // 复核快速路多保留一段续行预算，避免按通用街区预算截停在主线上。
       remaining += REVIEWED_MAINLINE_RANGE - ROUTE_RANGE;
       reviewed = true;
@@ -305,9 +296,9 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice) 
     }
     used.add(edge.sourceIndex);
     // 高架链路没有地面分幅横断面，统一走桥面中心线（方向 0 时取桥面半宽的居中车道）。
-    const useLanes = !edge.elevated && (edge.travelWidth || detailedRoads.has(edge.osmId));
-    const offsets = useLanes ? laneOffsets(edge) : [edge.direction === 0 ? Math.min(edge.width / 4, 2.3) : 0];
-    const halfWidth = (edge.travelWidth ?? edge.width) / 2;
+    const useLanes = !edge.elevated && (edge.section.reviewed || detailedRoads.has(edge.osmId));
+    const offsets = useLanes ? edge.section.routeOffsetsM : edge.section.defaultOffsetsM;
+    const halfWidth = edge.section.travelWidthM / 2;
     const lanes = offsets.filter(offset => Math.abs(offset) + model.hx + 0.08 <= halfWidth);
     const offset = lanes[Math.min(lanes.length - 1, Math.floor(laneChoice * lanes.length))] ?? 0;
     for (; index < edge.segments.length && remaining > 0; index++) {
@@ -322,9 +313,9 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice) 
     // 已复核分幅的右侧匝道只与最外车道衔接，避免在分岔鼻端横穿内侧车道。
     const outerLane = offset === offsets.at(-1);
     const choices = edge.next.filter(next => !used.has(next.sourceIndex) && usableWidth(next, model.hx)
-      && (!edge.travelWidth || outerLane || !isTrunkRamp(next)));
+      && (!edge.section.reviewed || outerLane || !isTrunkRamp(next)));
     const next = choices[Math.floor(random() * choices.length)];
-    if (isTrunkRamp(edge) && next?.travelWidth) laneChoice = 1;
+    if (isTrunkRamp(edge) && next?.section.reviewed) laneChoice = 1;
     edge = next;
     index = 0;
   }
@@ -670,7 +661,7 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
       if (distance < 44 ** 2 || distance > SEARCH_RADIUS ** 2 || !usableWidth(marker.edge, model.hx)) continue;
       const laneChoice = detailedRoads.size ? random() : 0.5;
       const samples = laneRoute(routeSegments(marker, model, random, detailedRoads, laneChoice));
-      if (samples.at(-1)?.edge.travelWidth || samples.at(-1)?.edge.surfaceId) {
+      if (samples.at(-1)?.edge.section.reviewed || samples.at(-1)?.edge.surfaceId) {
         statistics.mainlineEndRejects++;
         continue;
       }
@@ -694,7 +685,7 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
       const exitsBlocked = stops.some(stop => stop.clearS + SIGNAL_EXIT_BUFFER > last);
       if (!poseOnRoute(samples, last, model, heightFor, scratch)) continue;
       // 行程必须驶离桥面回到地面，避免环境车停在桥面上形成永久队尾。
-      if (scratch.edge.travelWidth || scratch.edge.surfaceId) {
+      if (scratch.edge.section.reviewed || scratch.edge.surfaceId) {
         statistics.mainlineEndRejects++;
         continue;
       }

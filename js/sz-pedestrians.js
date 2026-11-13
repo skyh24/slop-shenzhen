@@ -33,12 +33,6 @@ const DENSITY_DEFAULTS = {
 const PED_DEFAULTS = {
   maxPeds: 140,
   seed: 20261109,
-  targetMinPeds: 40,
-  targetMaxPeds: 140,
-  trackCapacityPerM: 0.45, // 每米出生环内可用步行带最多容纳的人数（约 2.2 m 一个）
-
-  densityHysteresisPeds: 8,
-  retirePerFrame: 2,
   greenAreas: [],
   highwayActivity: HIGHWAY_ACTIVITY,
   regionRadiusM: 260,
@@ -713,10 +707,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
       if (draw) drawn++;
       // 隐藏但离得近的人仍然推进步态；超过 50 m 且看不见则等待重新落地，省掉骨骼计算。
       if (!draw && distanceSq > 2500) ped.rig.placed = false;
-      else {
-        ped.rig.update(dt, ped.x, ped.z, ped.heading, ground, ped, 0, draw, -1);
-        if (draw) crowd.add(ped.rig, Math.sqrt(distanceSq));
-      }
+      else crowd.updateWalker(ped, dt, ground, draw, draw ? Math.sqrt(distanceSq) : 0);
     }
     crowd.end();
     statistics.placed = placed;
@@ -731,11 +722,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
 
   function dispose() {
     scene.remove(group);
-    for (const mesh of crowd.meshes) {
-      mesh.geometry?.dispose?.();
-      mesh.material?.dispose?.();
-      mesh.dispose?.();
-    }
+    crowd.dispose();
     if (pavementMesh) {
       group.remove(pavementMesh);
       pavementGeometry?.dispose();

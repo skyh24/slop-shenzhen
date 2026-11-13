@@ -14,7 +14,7 @@ const MAX_CHUNKS = 12;
 const EPSILON = 1e-8;
 // 护栏尺寸照武汉参考实现（0.95 m 高、0.35 m 宽）估计，不是深圳设计图尺寸。
 const BARRIER_HEIGHT_M = 0.95;
-export const ELEVATED_BARRIER_WIDTH_M = 0.35;
+const ELEVATED_BARRIER_WIDTH_M = 0.35;
 // 桥面离开地面超过这个高度才加护栏；匝道落地段两侧留开口给车辆进出。
 const BARRIER_MIN_SEPARATION_M = 0.75;
 // 已核实的同向合流、分流。共同桥段与两支道均须在源路网节点和估算桥高上相接。
@@ -408,6 +408,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
     osmId,
     name: graph.names[link[2]] ?? '',
     width,
+    barrierWidthM: ELEVATED_BARRIER_WIDTH_M,
     lanes: link[4],
     direction: link[5],
     bridge: metadata.bridge === true,

@@ -1,6 +1,7 @@
 // 香蜜湖一期外部空间。公共模拟只覆盖红荔西路市政路侧；会场前场及规划园路不接入行人网络。
 import * as THREE from 'three/webgpu';
 import { polygonContains } from '../building-collision.js';
+import { pavingMesh } from '../sz-paving.js';
 import { GeoBuilder } from '../sz-geometry.js';
 import { createRoadHeightSampler, createRoadPolygonLayout } from '../sz-roads.js';
 import { buildSzSea } from '../sz-sea.js';
@@ -32,16 +33,7 @@ function drawGround(group, terrain, id, sourceIds, ring, material, exclusionChun
   const trianglesXZ = THREE.ShapeUtils.triangulateShape(projected, [])
     .flatMap(indices => indices.flatMap(i => [ring[i].x, ring[i].z]));
   const layout = createRoadPolygonLayout({ id, sourceIds, trianglesXZ }, terrain, null, exclusionChunks);
-  for (const chunk of layout.chunks) {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(chunk.positions, 3));
-    geometry.computeVertexNormals();
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.name = chunk.id;
-    mesh.position.set(chunk.origin[0], 0, chunk.origin[1]);
-    mesh.receiveShadow = true;
-    group.add(mesh);
-  }
+  for (const chunk of layout.chunks) group.add(pavingMesh(chunk.positions, chunk.origin, material, chunk.id));
   return createRoadHeightSampler(layout.chunks, terrain.grid);
 }
 

@@ -1,8 +1,9 @@
 import * as THREE from 'three/webgpu';
 import { GeoBuilder } from './sz-geometry.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
-import { polygonContains, polygonBoxOverlaps } from './building-collision.js';
-import * as szMaterials from './sz-materials.js';
+import { polygonBoxOverlaps } from './building-collision.js';
+import { polygonContains, ringArea, signedRingArea, orientedBoxRing } from './sz-polygon.js';
+import { facadeProfile, FACADE_PROFILES, FACADE_SAMPLE_PROFILES } from './sz-facade-profiles.js';
 
 // 普通楼近景细节：女儿墙、屋顶设备（含水箱/天线/航空障碍灯）、住宅阳台、空调外机、入口雨棚。
 // 细节只影响外观，不参与碰撞、不改建筑身份/楼高/足迹；高度基准一律取 buildingPlacement()。
@@ -30,51 +31,13 @@ const PARAPET_THICKNESS = 0.2;
 const TANK_SIDES = 8;
 const NEIGHBOUR_CELL = 64;
 
-// 细节网格按立面类型合并成 4 组材质（每块最多 4 个 mesh）。
-const FACADE_ORDER = ['glass_tower', 'office', 'residential_tower', 'residential_low', 'village', 'industrial', 'public', 'landmark'];
-
-// 立面条带优先复用 js/sz-materials.js 导出的 FACADE_PROFILES（开间/层高与立面着色器同源）；
-// 本地表是旧版/单测桩的兜底，取值来自 docs/04 与 sz-materials.js 早期的 BAY/FLOOR 表。
-const LOCAL_FACADE_PROFILES = {
-  glass_tower: { bayWidth: 1.6, floorHeight: 4.2 },
-  office: { bayWidth: 3.0, floorHeight: 3.9 },
-  residential_tower: { bayWidth: 3.4, floorHeight: 3.0 },
-  residential_low: { bayWidth: 3.2, floorHeight: 3.0 },
-  village: { bayWidth: 2.6, floorHeight: 2.9 },
-  industrial: { bayWidth: 6.0, floorHeight: 6.0 },
-  public: { bayWidth: 4.0, floorHeight: 4.5 },
-  landmark: { bayWidth: 1.5, floorHeight: 4.4 }
-};
-const FACADE_BUCKET = new Map([
-  ['residential_tower', 0], ['residential_low', 0],
-  ['village', 1],
-  ['office', 2], ['industrial', 2], ['public', 2],
-  ['glass_tower', 3], ['landmark', 3]
-]);
-const BUCKET_COLORS = [0xd6cfc2, 0xd3d5d0, 0xb9bec2, 0x99a4ae];
+// 细节网格按预设中的 detailBucket 合成四组；每组共用一份材质。
 const BUCKET_NAMES = ['residential', 'village', 'office', 'glass'];
-
-// 女儿墙/阳台/设备盒的颜色取各立面 trim（没有就 wallA）的桶内均值，跟 sz-materials 的立面配色保持一致。
-function bucketColors() {
-  const shared = szMaterials.FACADE_PROFILES;
-  if (!Array.isArray(shared)) return BUCKET_COLORS;
-  const sums = BUCKET_COLORS.map(() => ({ r: 0, g: 0, b: 0, n: 0 }));
-  for (const facade of FACADE_ORDER) {
-    const profile = shared.find(item => item?.name === facade) ?? shared[FACADE_ORDER.indexOf(facade)];
-    const hex = profile?.trim ?? profile?.wallA;
-    if (!Number.isInteger(hex)) continue;
-    const sum = sums[FACADE_BUCKET.get(facade)];
-    sum.r += (hex >> 16) & 255;
-    sum.g += (hex >> 8) & 255;
-    sum.b += hex & 255;
-    sum.n++;
-  }
-  return sums.map((sum, index) => (sum.n === 0 ? BUCKET_COLORS[index]
-    : (Math.round(sum.r / sum.n) << 16) | (Math.round(sum.g / sum.n) << 8) | Math.round(sum.b / sum.n)));
-}
-
-const RESIDENTIAL_FACADES = new Set(['residential_tower', 'residential_low']);
-const GROUND_AC_FACADES = new Set(['residential_tower', 'residential_low', 'village']);
+const BUCKET_COLORS = BUCKET_NAMES.map((_, index) => {
+  const profiles = FACADE_PROFILES.filter(profile => profile.detailBucket === index);
+  const average = shift => Math.round(profiles.reduce((sum, { trim }) => sum + ((trim >> shift) & 255), 0) / profiles.length);
+  return (average(16) << 16) | (average(8) << 8) | average(0);
+});
 
 const nowMs = () => (typeof performance !== 'undefined' && typeof performance.now === 'function'
   ? performance.now() : Date.now());
@@ -83,44 +46,11 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function facadeProfile(facade) {
-  const shared = szMaterials.FACADE_PROFILES;
-  let sharedProfile = null;
-  if (Array.isArray(shared)) {
-    sharedProfile = shared.find(item => item?.name === facade) ?? shared[FACADE_ORDER.indexOf(facade)];
-  } else if (shared && typeof shared === 'object') {
-    sharedProfile = shared[facade];
-  }
-  const local = LOCAL_FACADE_PROFILES[facade] ?? LOCAL_FACADE_PROFILES.village;
-  const bayWidth = Number(sharedProfile?.bayWidth);
-  const floorHeight = Number(sharedProfile?.floorHeight);
-  return {
-    bayWidth: Number.isFinite(bayWidth) && bayWidth >= 1 ? bayWidth : local.bayWidth,
-    floorHeight: Number.isFinite(floorHeight) && floorHeight >= 2 ? floorHeight : local.floorHeight,
-    groundHeight: sharedProfile?.groundHeight ?? 4.2
-  };
-}
-
-function facadeBucket(facade) {
-  const bucket = FACADE_BUCKET.get(facade);
-  if (bucket === undefined) throw new Error(`Unhandled facade type: ${facade}`);
-  return bucket;
-}
-
 // ---------------- 平面与朝向工具 ----------------
-
-function signedRingArea(ring) {
-  let sum = 0;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    sum += ring[j].x * ring[i].z - ring[i].x * ring[j].z;
-  }
-  return sum / 2;
-}
 
 function polygonArea(polygon) {
   const holes = polygon.holes ?? [];
-  return Math.abs(signedRingArea(polygon.outer))
-    - holes.reduce((sum, hole) => sum + Math.abs(signedRingArea(hole)), 0);
+  return ringArea(polygon.outer) - holes.reduce((sum, hole) => sum + ringArea(hole), 0);
 }
 
 function largestPolygon(polygons) {
@@ -162,12 +92,6 @@ function ringEdges(polygon) {
   return edges;
 }
 
-// 局部 u 轴 = (cs, -sn)，和 ref/building-details.js 的 containsBox 框架一致。
-function boxCorners(x, z, w, d, cs, sn) {
-  return [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]]
-    .map(([u, v]) => ({ x: x + u * cs + v * sn, z: z - u * sn + v * cs }));
-}
-
 function toLocal(x, z, cx, cz, cs, sn) {
   const dx = x - cx;
   const dz = z - cz;
@@ -180,7 +104,7 @@ function toWorld(u, v, cx, cz, cs, sn) {
 
 // 旋转矩形四角都在屋面多边形内，且边不穿内院孔洞；只查角点会漏掉凹口和孔洞。
 function containsBox(polygon, x, z, w, d, cs, sn) {
-  if (!boxCorners(x, z, w, d, cs, sn).every(corner => polygonContains(polygon, corner.x, corner.z))) return false;
+  if (!orientedBoxRing(x, z, w, d, cs, -sn).every(corner => polygonContains(polygon, corner.x, corner.z))) return false;
   const hx = w / 2;
   const hz = d / 2;
   const rings = [polygon.outer, ...(polygon.holes ?? [])];
@@ -338,7 +262,7 @@ function roofSampler(polygon, polygonEdges) {
   };
 }
 
-function planRoofParts(building, polygon, placement, rand, facade, options) {
+function planRoofParts(building, polygon, placement, rand, profile, options) {
   const parts = [];
   const aerialLights = [];
   if (building.height < 12) return { parts, aerialLights };
@@ -364,7 +288,7 @@ function planRoofParts(building, polygon, placement, rand, facade, options) {
       if (blocked(spot.x, spot.z, w, d, spot.cs, spot.sn, height)) continue;
       if (reserveBase && overlapsBase(spot, w, d)) continue;
       const overlaps = occupied.some(item => {
-        const corners = boxCorners(item.x, item.z, item.w, item.d, item.cs, item.sn);
+        const corners = orientedBoxRing(item.x, item.z, item.w, item.d, item.cs, -item.sn);
         return polygonBoxOverlaps({ outer: corners, holes: [] }, spot.x, spot.z, w / 2 + 0.4, d / 2 + 0.4, spot.cs, spot.sn);
       });
       if (overlaps) continue;
@@ -375,7 +299,7 @@ function planRoofParts(building, polygon, placement, rand, facade, options) {
   }
   const cheap = options.cheapRoof === true;
   const attempts = cheap ? 3 : 8;
-  const tankFacade = !cheap && (facade === 'residential_low' || facade === 'village');
+  const tankFacade = !cheap && profile.waterTank;
   const equipmentCount = building.height >= 12 ? (cheap || rand() < 0.5 ? 1 : 2) : 0;
   const tankFirst = tankFacade && rand() < 0.4;
   // 保留已合格设备的位置和随机顺序；与基础设备重叠的候选直接省去。
@@ -428,10 +352,9 @@ function blockedFacade(spans, building, edge, y0, y1) {
   return blockedByNeighbours(spans, building, cx, cz, Math.min(edge.length, 8), 1.8, edge.ux, -edge.uz, y0, y1);
 }
 
-function planDuplexBalconies(building, edges, placement, profile, neighbours) {
+function planDuplexBalconies(building, edges, placement, profile, groundHeight, neighbours) {
   const balconies = [];
   const usedEdges = new Set();
-  const groundHeight = facadeProfile(building.facade).groundHeight;
   const firstY = placement.minY + groundHeight + profile.floorHeight;
   const lastY = placement.maxY - 1.5;
   const depth = profile.balconyDepth;
@@ -458,16 +381,16 @@ function planDuplexBalconies(building, edges, placement, profile, neighbours) {
   return { balconies, usedEdges };
 }
 
-function planBalconies(building, edges, placement, rand, facade, floorHeight, floors, options) {
+function planBalconies(building, edges, placement, rand, profile, floorHeight, floors, options) {
   const balconies = [];
   const usedEdges = new Set();
-  if (!RESIDENTIAL_FACADES.has(facade)) return { balconies, usedEdges };
+  if (!profile.balcony) return { balconies, usedEdges };
   const player = options.playerPosition;
   if (!player) return { balconies, usedEdges };
   if (Math.hypot(building.cx - player.x, building.cz - player.z) > BALCONY_RADIUS) return { balconies, usedEdges };
   const wallEdges = edges.filter(edge => edge.length >= 4).sort((a, b) => b.length - a.length);
-  if (options.sample?.balconyDepth) return planDuplexBalconies(building, wallEdges, placement, options.sample, options.neighbours);
-  const profile = facadeProfile(facade);
+  if (options.sample?.balconyDepth) return planDuplexBalconies(building, wallEdges, placement,
+    options.sample, profile.groundHeight, options.neighbours);
   const step = Math.max(2.2, profile.bayWidth);
   const wallTop = placement.maxY - 0.4;
   for (const edge of wallEdges) {
@@ -504,16 +427,15 @@ function planBalconies(building, edges, placement, rand, facade, floorHeight, fl
   return { balconies, usedEdges };
 }
 
-function planAcUnits(building, wallEdges, placement, rand, facade, floorHeight, floors, options, usedEdges) {
+function planAcUnits(building, wallEdges, placement, rand, profile, floorHeight, floors, options, usedEdges) {
   const units = [];
-  if (!GROUND_AC_FACADES.has(facade) && building.category !== 'residential') return units;
+  if (!profile.airConditioner && building.category !== 'residential') return units;
   const player = options.playerPosition;
   if (!player) return units;
   if (Math.hypot(building.cx - player.x, building.cz - player.z) > AC_RADIUS) return units;
   const allEdges = wallEdges.filter(edge => edge.length >= 3);
   const preferred = allEdges.filter(edge => !usedEdges.has(edge)).sort((a, b) => b.length - a.length);
   const edges = (preferred.length ? preferred : allEdges.sort((a, b) => b.length - a.length)).slice(0, 2);
-  const profile = facadeProfile(facade);
   const step = Math.max(2.0, profile.bayWidth);
   // 层列位置抽样而不是穷举所有楼层×开间：城中村单栋可到 29 层，穷举会让密集块生成卡顿。
   const candidates = MAX_AC_UNITS * 4;
@@ -537,7 +459,7 @@ function planAcUnits(building, wallEdges, placement, rand, facade, floorHeight, 
   return units;
 }
 
-function planCanopy(building, wallEdges, placement, rand, facade, floorHeight, options, usedEdges) {
+function planCanopy(building, wallEdges, placement, floorHeight, options, usedEdges) {
   const player = options.playerPosition;
   if (!player || building.height < 6) return null;
   if (Math.hypot(building.cx - player.x, building.cz - player.z) > CANOPY_RADIUS) return null;
@@ -572,7 +494,7 @@ export function planBuildingDetails(building, placement, options = {}) {
   if (!building || !placement) throw new Error('Missing building details input');
   const facade = building.facade;
   const profile = facadeProfile(facade);
-  const bucket = facadeBucket(facade);
+  const bucket = profile.detailBucket;
   const polygon = largestPolygon(building.polygons);
   if (!polygon) return null;
   const edges = ringEdges(polygon);
@@ -587,7 +509,7 @@ export function planBuildingDetails(building, placement, options = {}) {
     : spanSource && typeof spanSource.near === 'function'
       ? collectNeighbourSpans(spanSource, building)
       : (Array.isArray(spanSource) ? spanSource : null);
-  const sample = szMaterials.FACADE_SAMPLE_PROFILES?.[building.id];
+  const sample = FACADE_SAMPLE_PROFILES[building.id];
   const planOptions = { ...options, neighbours: neighbourSpans, polygonEdges: edges, baseRoof, sample };
   const rand = createRandom(buildingSeed(building.id));
   const { floorHeight, floors } = floorMetrics(building, profile);
@@ -596,16 +518,16 @@ export function planBuildingDetails(building, placement, options = {}) {
   const parapet = baseRoof?.parapet > 0 ? { height: 0, parts: [] }
     : planParapet(polygon, edges, building, createRandom(buildingSeed(building.id) * 0.71 + 0.13));
   const roof = allowRoofEquipment
-    ? planRoofParts(building, polygon, placement, createRandom(buildingSeed(building.id) * 0.37 + 0.29), facade, planOptions)
+    ? planRoofParts(building, polygon, placement, createRandom(buildingSeed(building.id) * 0.37 + 0.29), profile, planOptions)
     : { parts: [], aerialLights: [] };
   let balconies = [];
   let acUnits = [];
   let canopy = null;
   if (allowFacadeDetails) {
-    const plan = planBalconies(building, edges, placement, rand, facade, floorHeight, floors, planOptions);
+    const plan = planBalconies(building, edges, placement, rand, profile, floorHeight, floors, planOptions);
     balconies = plan.balconies;
-    acUnits = planAcUnits(building, edges, placement, rand, facade, floorHeight, floors, planOptions, plan.usedEdges);
-    canopy = planCanopy(building, edges, placement, rand, facade, floorHeight, planOptions, plan.usedEdges);
+    acUnits = planAcUnits(building, edges, placement, rand, profile, floorHeight, floors, planOptions, plan.usedEdges);
+    canopy = planCanopy(building, edges, placement, floorHeight, planOptions, plan.usedEdges);
   }
   return {
     id: building.id, facade, bucket, roofY: placement.maxY, baseY: placement.minY,
@@ -819,7 +741,7 @@ export function buildBuildingDetails(scene, options = {}) {
     chunk.buildings.sort((a, b) => (b.height - a.height) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   }
 
-  const materials = bucketColors().map(color => new THREE.MeshStandardNodeMaterial({ color, roughness: 0.85, metalness: 0.04 }));
+  const materials = BUCKET_COLORS.map(color => new THREE.MeshStandardNodeMaterial({ color, roughness: 0.85, metalness: 0.04 }));
   const lightMaterial = new THREE.MeshStandardNodeMaterial({ color: 0x42140f, emissive: 0xff2a18, emissiveIntensity: 1.2, roughness: 0.5 });
   const group = new THREE.Group();
   group.name = 'ShenzhenBuildingDetails';

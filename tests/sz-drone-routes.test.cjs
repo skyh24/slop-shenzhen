@@ -174,13 +174,14 @@ test('camera ray shortens against thin obstacles and uphill terrain', { skip: !p
 test('watching restores the same player after Escape and uses a safe fallback after loss', () => {
   const source = readFileSync(join(__dirname, '../js/sz-drone-watch.js'), 'utf8');
   const strings = loadModule(readFileSync(join(__dirname, '../js/sz-strings.js'), 'utf8'));
+  const sessions = loadModule(readFileSync(join(__dirname, '../js/sz-observation-session.js'), 'utf8'));
   const nodes = new Map();
   const document = { body: { dataset: {} }, getElementById(id) {
     if (!nodes.has(id)) nodes.set(id, { hidden: true, addEventListener(type, listener) { this[type] = listener; }, focus() {} });
     return nodes.get(id);
   } };
   const window = { addEventListener(type, listener) { this[type] = listener; } };
-  const { wireDroneWatch } = loadModule(source, { imports: { './sz-strings.js': strings },
+  const { wireDroneWatch } = loadModule(source, { imports: { './sz-strings.js': strings, './sz-observation-session.js': sessions },
     globals: { document, window, setTimeout: () => 1, clearTimeout() {} } });
   const person = { position: { x: 8, y: 4, z: 6 }, heading: 2, speed: 0 };
   const original = structuredClone(person);
@@ -197,7 +198,7 @@ test('watching restores the same player after Escape and uses a safe fallback af
       resetInput() {}, findModePosition: () => safety,
       teleportActiveTo(x, z) { fallback = { x, z }; return fallback; } },
     cameraSystem: camera, touchControls: touch, gamepadControls: { reset() {} },
-    laneAssist: { cancel() {} }, autoDrive: { active: false }, cbdProgram: { active: false },
+    laneAssist: { cancel() {} }, autoDrive: { active: false }, observationSessions: sessions.createObservationSessions(),
     closePopovers() {}, mapOpen: () => false, teleport() {}, onCameraLabel: label => labels.push(label)
   });
   assert.equal(watch.map.follow(station, true), true);

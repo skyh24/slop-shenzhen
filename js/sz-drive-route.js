@@ -1,5 +1,6 @@
 import { routeSignalStops } from './sz-intersection-control.js';
-import { laneOffsets, laneRoute, poseOnRoute, usableWidth } from './sz-traffic.js';
+import { usableWidth } from './sz-road-section.js';
+import { laneRoute, poseOnRoute } from './sz-traffic.js';
 
 const SNAP_RADIUS = 44;
 const SNAP_ALTERNATIVES = 7;
@@ -132,7 +133,9 @@ function validateSamples(samples, model, roadHeight, isClear, stops) {
   }
   // 窄车道按路宽再压一档限速：车身几乎占满铺装，只有慢速才能让四轮保持在同一块路面上。
   for (let i = 0; i < samples.length; i++) {
-    const width = samples[i].edge?.travelWidth ?? samples[i].edge?.width ?? 0;
+    const edge = samples[i].edge;
+    // 高架保留以桥面铺装宽分档的限速；护栏净宽用于车道和车身余量。
+    const width = edge?.elevated ? edge.section.pavementWidthM : edge?.section.travelWidthM ?? 0;
     if (width > 0 && width < 6.5) limits[i] = Math.min(limits[i], width < 4.5 ? 4 : 5.5);
   }
   const pose = {};
@@ -178,8 +181,8 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
   const intersectionMargin = Math.hypot(model.hx, model.hz) + 0.35;
   for (const edge of network.edges) {
     if (!usableWidth(edge, model.hx)) continue;
-    const lane = !edge.direction || detailed.has(edge.osmId)
-      ? laneOffsets(edge).findLast(offset => Math.abs(offset) + model.hx + 0.12 <= edge.width / 2) : 0;
+    const lane = edge.section.twoWay || detailed.has(edge.osmId)
+      ? edge.section.routeOffsetsM.findLast(offset => Math.abs(offset) + model.hx + 0.12 <= edge.section.travelWidthM / 2) : 0;
     if (lane === undefined) continue;
     roads.set(edge, { offset: lane, length: edge.segments.reduce((sum, seg) => sum + seg.length, 0) });
   }

@@ -52,6 +52,12 @@ test('city data rejects source loss, invalid topology and incompatible terrain b
   const { validateCityPayload } = await modulePromise;
   const badOrigin = { ...raw, origin: [0, 0] };
   assert.throws(() => validateCityPayload(badOrigin), /origin/);
+  assert.throws(() => validateCityPayload({ ...raw, version: 3 }), /version/);
+  assert.throws(() => validateCityPayload({ ...raw, landmarks: [...raw.landmarks, raw.landmarks[0]] }),
+    /landmark identity/);
+  const graph = raw.roadGraph;
+  assert.throws(() => validateCityPayload({ ...raw, roadGraph: { ...graph,
+    links: [...graph.links, graph.links[0]], metadata: [...graph.metadata, graph.metadata[0]] } }), /road edge identity/);
   assert.throws(() => validateCityPayload({ ...raw, buildings: { ...raw.buildings, id: [] } }), /buildings.id/);
   const badGraph = { ...raw.roadGraph, links: [[-1, 0, 0, 7, 1, 0, []]], metadata: [{}] };
   assert.throws(() => validateCityPayload({ ...raw, roadGraph: badGraph }), /graph link/);

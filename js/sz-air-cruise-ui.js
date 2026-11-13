@@ -1,7 +1,8 @@
 import { STR } from './sz-strings.js';
+import { captureCameraState, restoreCameraState, setObservationInputBlocked, setObservationPanel } from './sz-observation-session.js';
 
 export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSystem, touchControls, gamepadControls,
-  laneAssist, canEnter, selectCamera, closePopovers, modeLabel, cameraLabel, buildingDetails }) {
+  laneAssist, observationSessions, selectCamera, closePopovers, modeLabel, cameraLabel, buildingDetails }) {
   const words = STR.cruise;
   const menu = document.getElementById('btn-air-cruise');
   const list = document.getElementById('air-cruise-routes');
@@ -19,10 +20,44 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
   const fullKmh = Math.round(cruise.fullSpeed * 3.6);
   const estimates = [];
   const plans = new Map();
+  const inputs = { controllerManager, touchControls, gamepadControls };
   let speed = scenicKmh;
-  let previous;
   let lastStatus = '';
   let lastTelemetry = 0;
+  const session = observationSessions.bind('air-cruise', {
+    restart: true,
+    prepare: route => route && !route.unavailable && route,
+    capture: () => captureCameraState(cameraSystem),
+    commit: route => cruise.start(route),
+    enter(_route, previous) {
+      if (!previous) {
+        selectCamera('chase', true, true);
+        modeLabel.textContent = cameraLabel.textContent = words.label;
+        setObservationInputBlocked(inputs, true);
+        laneAssist.cancel();
+        document.body.dataset.cruising = '';
+      }
+      closePopovers();
+      cameraSystem.initialized = false;
+    },
+    update(_route, now, rawDt) {
+      const prefetch = cruise.prefetch();
+      if (!prefetch) return null;
+      const ready = !buildingDetails.readyNear || (buildingDetails.readyNear(cruise.entity.position) && buildingDetails.readyNear(prefetch));
+      cruise.update(document.hidden ? 0 : Math.max(0, Math.min(0.1, rawDt)), ready);
+      render(now);
+      return prefetch;
+    },
+    exit(_route, previous) {
+      cruise.stop();
+      delete document.body.dataset.cruising;
+      setObservationInputBlocked(inputs, mapSystem.isFullMapOpen);
+      modeLabel.textContent = controllerManager.getActiveEntity().label;
+      cameraSystem.resetForTeleport();
+      restoreCameraState(cameraSystem, selectCamera, previous, true);
+      render(0, true);
+    }
+  });
 
   speedChoice.max = fullKmh;
   speedChoice.value = scenicKmh;
@@ -52,24 +87,6 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
     return words.estimate(route.length3d, route.estimateSeconds);
   }
 
-  function enter(route) {
-    if (!canEnter() || cameraSystem.landmarkOrbit) return false;
-    if (!cruise.active) {
-      previous = { preset: cameraSystem.activePresetId, yaw: cameraSystem.orbitYawOffset,
-        pitch: cameraSystem.orbitPitchOffset, zoom: cameraSystem.zoomMultiplier, orbitTimer: cameraSystem.userOrbitTimer };
-      selectCamera('chase', true);
-      modeLabel.textContent = cameraLabel.textContent = words.label;
-      controllerManager.resetInput();
-      touchControls.setEnabled(false);
-      gamepadControls.reset();
-      laneAssist.cancel();
-      document.body.dataset.cruising = '';
-    }
-    closePopovers();
-    cameraSystem.initialized = false;
-    return cruise.start(route);
-  }
-
   function action(label, onClick) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -96,7 +113,7 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
       actions.className = 'cruise-actions';
       const start = action(words.start, () => {
         applySpeed(speedChoice.valueAsNumber);
-        if (!enter(selected(route))) {
+        if (!session.enter(selected(route)).ok) {
           feedback.hidden = false;
           return;
         }
@@ -127,29 +144,11 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
   document.getElementById('air-cruise-exit').addEventListener('click', close);
 
   function close() {
-    if (!cruise.active) return;
-    cruise.stop();
-    delete document.body.dataset.cruising;
-    controllerManager.resetInput();
-    touchControls.setEnabled(!mapSystem.isFullMapOpen);
-    gamepadControls.reset();
-    modeLabel.textContent = controllerManager.getActiveEntity().label;
-    cameraSystem.resetForTeleport();
-    selectCamera(previous.preset, true);
-    cameraSystem.orbitYawOffset = previous.yaw;
-    cameraSystem.orbitPitchOffset = previous.pitch;
-    cameraSystem.zoomMultiplier = previous.zoom;
-    cameraSystem.userOrbitTimer = previous.orbitTimer;
-    previous = null;
-    render();
-    menu.focus();
+    session.exit();
   }
 
-  function render(now = 0) {
-    if (panel.hidden === cruise.active) {
-      panel.hidden = !cruise.active;
-      menu.classList.toggle('active', cruise.active);
-    }
+  function render(now = 0, restoreFocus = false) {
+    setObservationPanel(panel, menu, cruise.active, restoreFocus);
     if (!cruise.active) {
       lastStatus = '';
       return;
@@ -171,13 +170,6 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
 
   return {
     close,
-    update(now, rawDt) {
-      const prefetch = cruise.prefetch();
-      if (!prefetch) return null;
-      const ready = !buildingDetails.readyNear || (buildingDetails.readyNear(cruise.entity.position) && buildingDetails.readyNear(prefetch));
-      cruise.update(document.hidden ? 0 : Math.max(0, Math.min(0.1, rawDt)), ready);
-      render(now);
-      return prefetch;
-    }
+    update: (now, rawDt) => session.update(now, rawDt) ?? null
   };
 }

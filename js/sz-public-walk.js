@@ -1,12 +1,13 @@
 import * as THREE from 'three/webgpu';
 import { createRoadHeightSampler, createRoadPolygonLayout } from './sz-roads.js';
+import { createPavingMaterial, pavingMesh } from './sz-paving.js';
 import { distanceToRing, polygonContainsInclusive } from './sz-polygon.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 
 const SWEEP_STEP_M = 0.2;
 const PERSON_HEIGHT_M = 1.9;
 const MAX_GRADE = 0.35;
-const PAVING = { sidewalk: 0x9a978e, frontage: 0xb1a59a, green: 0x6f875a,
+const PAVING = { sidewalk: 0x9a978e, green: 0x6f875a,
   'tree-pit': 0x6a5744, driveway: 0x85847d };
 
 function boundsOf(points) {
@@ -23,7 +24,7 @@ function edgeKey(a, b) {
   return [`${a.x},${a.z}`, `${b.x},${b.z}`].sort().join(':');
 }
 
-export function buildPublicWalk(scene, terrain, areas) {
+export function buildPublicWalk(scene, terrain, areas, style) {
   const group = new THREE.Group();
   group.name = 'shenzhen-public-walk';
   const materials = new Map();
@@ -31,25 +32,21 @@ export function buildPublicWalk(scene, terrain, areas) {
     const { polygon, kind, id, sourceIds } = area;
     const rings = [polygon.outer, ...polygon.holes];
     const bounds = boundsOf(polygon.outer);
-    if (!Object.hasOwn(PAVING, kind)) return { ...area, bounds, heightAt: () => null };
+    if (kind !== 'frontage' && !Object.hasOwn(PAVING, kind)) return { ...area, bounds, heightAt: () => null };
     const [outer, ...holes] = rings.map(ring => ring.map(p => new THREE.Vector2(p.x, p.z)));
     const faces = THREE.ShapeUtils.triangulateShape(outer, holes);
     const vertices = outer.concat(...holes);
     const trianglesXZ = faces.flatMap(face => face.flatMap(i => [vertices[i].x, vertices[i].y]));
     const { chunks } = createRoadPolygonLayout({ id, trianglesXZ, sourceIds }, terrain);
-    if (!materials.has(kind)) materials.set(kind, new THREE.MeshStandardNodeMaterial({
-      color: PAVING[kind], roughness: 0.94, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
-    }));
-    for (const chunk of chunks) {
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(chunk.positions, 3));
-      geometry.computeVertexNormals();
-      const mesh = new THREE.Mesh(geometry, materials.get(kind));
-      mesh.name = id;
-      mesh.position.set(chunk.origin[0], 0, chunk.origin[1]);
-      mesh.receiveShadow = true;
-      group.add(mesh);
-    }
+    const fallback = kind === 'frontage' ? 'warm-stone' : 'concrete';
+    const x = (bounds.minX + bounds.maxX) / 2, z = (bounds.minZ + bounds.maxZ) / 2;
+    const preset = kind === 'frontage'
+      ? (style?.resolve({ surfaceStyle: fallback }, { x, z, regionId: area.regionId })?.surfaceStyle ?? fallback)
+      : fallback;
+    const key = `${kind}:${preset}`;
+    if (!materials.has(key)) materials.set(key, kind === 'frontage' ? createPavingMaterial(preset)
+      : createPavingMaterial(preset, { color: PAVING[kind], tileSizeM: null, roughness: 0.94 }));
+    for (const chunk of chunks) group.add(pavingMesh(chunk.positions, chunk.origin, materials.get(key), id));
     return { ...area, bounds, heightAt: createRoadHeightSampler(chunks, terrain.grid) };
   });
   scene.add(group);
@@ -85,7 +82,19 @@ export function buildPublicWalk(scene, terrain, areas) {
     return true;
   }
 
-  return { group, surfaces, areaAt, heightAt, allows };
+  let disposed = false;
+  return { group, surfaces, areaAt, heightAt, allows, dispose() {
+    if (disposed) return;
+    disposed = true;
+    group.removeFromParent();
+    const used = new Set(materials.values());
+    for (const mesh of [...group.children]) {
+      mesh.geometry.dispose();
+      for (const material of [].concat(mesh.material)) used.add(material);
+      mesh.removeFromParent();
+    }
+    for (const material of used) material.dispose();
+  } };
 }
 
 // 每对样点之间也计入半个步长的包络。靠右偏移的整条扫掠由调用方计入 radius。

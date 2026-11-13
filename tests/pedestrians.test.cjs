@@ -124,6 +124,7 @@ const tslStub = {
       get lastRange() { return lastRange; },
       clearUpdateRanges() { lastRange = [0, 0]; },
       addUpdateRange(offset, len) { lastRange = [offset, len]; },
+      dispose() { this.disposals = (this.disposals ?? 0) + 1; },
       set needsUpdate(v) { if (v) uploads++; }
     };
     const storage = {
@@ -349,9 +350,11 @@ class BufferGeometry {
   computeBoundingSphere() {
     this.boundingSphere = { center: new Vector3(), radius: 1 };
   }
+  dispose() { this.disposals = (this.disposals ?? 0) + 1; }
 }
 class MeshStandardNodeMaterial {
   constructor(opts = {}) { Object.assign(this, opts); }
+  dispose() { this.disposals = (this.disposals ?? 0) + 1; }
 }
 class Mesh {
   constructor(geometry, material) {
@@ -364,6 +367,7 @@ class Mesh {
     this.receiveShadow = false;
     this.matrixAutoUpdate = true;
   }
+  removeFromParent() { this.detached = true; }
 }
 
 function mergeGeometries(geos) {
@@ -424,6 +428,31 @@ test('PersonCrowd creates 2 LODs only when farDistance is finite and disables sh
   assert.equal(playerCrowd.lods.length, 1);
   assert.equal(playerCrowd.meshes[0].name, 'PeopleNear');
   assert.equal(playerCrowd.meshes[0].castShadow, true);
+});
+
+test('unloading one crowd preserves the shared geometry of another crowd', () => {
+  const street = new PersonCrowd(16);
+  const park = new PersonCrowd(10, { castShadow: false });
+  for (const [index, mesh] of street.meshes.entries()) {
+    assert.equal(mesh.geometry, park.meshes[index].geometry);
+    assert.notEqual(mesh.material, park.meshes[index].material);
+  }
+  street.dispose();
+  street.dispose();
+  for (const [index, mesh] of street.meshes.entries()) {
+    assert.equal(mesh.material.disposals, 1);
+    assert.equal(mesh.detached, true);
+    assert.equal(street.lods[index].pose.value.disposals, 1);
+    assert.equal(park.meshes[index].geometry.disposals, undefined);
+    assert.equal(park.meshes[index].material.disposals, undefined);
+    assert.equal(park.lods[index].pose.value.disposals, undefined);
+  }
+  const ground = () => 0;
+  const actor = { x: 1, z: 2, heading: 0, rig: new PersonRig({ seed: 2.5 }) };
+  park.begin();
+  park.updateWalker(actor, 0.05, ground, true, 10);
+  park.end();
+  assert.equal(park.lods[0].count, 1);
 });
 
 test('PersonCrowd keeps 1 warm-up instance for 2 updates, then hides empty LODs with zero uploads', () => {

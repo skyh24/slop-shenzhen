@@ -174,4 +174,39 @@ test('waterfront walkers move on the built surface and spectators rejoin after t
     advance(true, 40);
     assert.ok(people.actors.filter(p => Math.hypot(p.x - walk.arrival.x, p.z - walk.arrival.z) < 9).length <= 5);
   }
+  people.dispose();
+  people.dispose();
+  assert.equal(people.group.parent, null);
+  assert.equal(people.nearColliders(walk.arrival.x, walk.arrival.z, 20).length, 0);
+});
+
+
+test('waterfront fixture variants share box geometry across site unloads', async () => {
+  const { walk } = await load();
+  walk.dispose();
+  const { Scene, Group } = await import('three/webgpu');
+  const { createFixtureBatches, planLantern } = await import('../js/sz-site-fixtures.js');
+  const scene = new Scene();
+  const bay = new Group(), park = new Group(), otherBay = new Group();
+  scene.add(bay, park, otherBay);
+  const a = createFixtureBatches(bay, 'bay'), b = createFixtureBatches(park, 'park', 'z');
+  const c = createFixtureBatches(otherBay, 'bay');
+  const rows = [planLantern({ x: 0, y: 0, z: 0 }, { poleBottomM: 0, poleTopM: 3,
+    headBottomM: 3, headTopM: 3.2, headWidthM: 0.25 }).lamp];
+  const am = a.build(rows, 'lamp', 'bay'), bm = b.build(rows, 'lamp', 'park'), cm = c.build(rows, 'lamp', 'other-bay');
+  assert.equal(am.geometry, bm.geometry);
+  assert.equal(am.material, cm.material);
+  assert.notEqual(am.material, bm.material);
+  const ar = a.build(rows, 'steel', 'bay-rail'), br = b.build(rows, 'steel', 'park-rail');
+  assert.equal(ar.material, br.material);
+  let geometryDisposed = 0, bayMaterialDisposed = 0;
+  am.geometry.addEventListener('dispose', () => geometryDisposed++);
+  am.material.addEventListener('dispose', () => bayMaterialDisposed++);
+  a.dispose();
+  a.dispose();
+  assert.deepEqual([geometryDisposed, bayMaterialDisposed, park.children.length, otherBay.children.length], [0, 0, 2, 1]);
+  c.dispose();
+  assert.deepEqual([geometryDisposed, bayMaterialDisposed], [0, 1]);
+  b.dispose();
+  assert.deepEqual([geometryDisposed, bayMaterialDisposed], [1, 1]);
 });

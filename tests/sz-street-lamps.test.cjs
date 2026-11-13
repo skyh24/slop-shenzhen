@@ -47,6 +47,23 @@ test('street lamps are spaced along both sides of ground primary roads', () => {
   assert.ok(Math.abs(headX - site.x) < 1e-9, 'arm is perpendicular to an east-west link');
 });
 
+test('source road style applies across links without duplicating stations or reaching a bridge', () => {
+  const links = [[0, 1, 0, 12, 3, 0, []], [1, 2, 0, 12, 3, 0, []], [0, 1, 0, 12, 3, 0, []]];
+  const metadata = [{ ...ground(), osmId: 'way/1' }, { ...ground(), osmId: 'way/1' },
+    { ...ground(), osmId: 'way/1', bridge: true }];
+  const roads = graph(links, metadata);
+  const style = { lampSpacingM: 46 };
+  const { sites } = lamps.planLampSites(roads, { roadStyle: () => style });
+  assert.deepEqual(new Set(sites.map(site => site.linkIndex)), new Set([0, 1]));
+  assert.equal(new Set(sites.map(({ x, z }) => `${x},${z}`)).size, sites.length);
+  for (const linkIndex of [0, 1]) {
+    const sameSide = sites.filter(site => site.linkIndex === linkIndex && site.side === 1);
+    assert.equal(sameSide[1].stationM - sameSide[0].stationM, 46);
+  }
+  const disabled = lamps.planLampSites(roads, { roadStyle: () => ({ lampsEnabled: false }) });
+  assert.equal(disabled.sites.length, 0);
+});
+
 test('street lamps skip bridges, tunnels, layered roads and motorways', () => {
   const links = [[0, 1, 0, 12, 3, 0, []], [1, 2, 0, 12, 3, 0, []], [0, 1, 0, 12, 3, 0, []], [1, 2, 0, 12, 3, 0, []]];
   const metadata = [

@@ -9,6 +9,7 @@ const root = join(__dirname, '..');
 const read = (file) => readFileSync(join(root, 'js', file), 'utf8');
 const geometrySource = read('sz-geometry.js');
 const materialsSource = read('sz-materials.js');
+const facadeProfiles = loadModule(read('sz-facade-profiles.js'));
 const cityLightingSource = read('city-lighting-materials.js');
 const layout = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': {} } });
 
@@ -105,17 +106,11 @@ test('FACADE_PROFILES follows the data pipeline facade order and carries the sha
   assert.ok(declaration, 'tools/sz/buildings.py must declare FACADES');
   const pipelineFacades = [...declaration[1].matchAll(/'([^']+)'/g)].map((match) => match[1]);
 
-  const materials = loadModule(materialsSource, {
-    imports: {
-      'three/webgpu': {},
-      'three/tsl': { Fn: (fn) => fn, uniform: (value) => value, float: (value) => value },
-      // 这个用例只读 FACADE_PROFILES，城市灯光模块不必真正构造。
-      './city-lighting-materials.js': {}
-    }
-  });
-  const profiles = materials.FACADE_PROFILES;
-  assert.equal(profiles.length, pipelineFacades.length);
-  assert.deepEqual(Array.from(profiles, (profile) => profile.name), pipelineFacades);
+  const profiles = facadeProfiles.FACADE_PROFILES;
+  assert.deepEqual(Array.from(profiles.slice(0, pipelineFacades.length), profile => profile.name), pipelineFacades);
+  assert.equal(facadeProfiles.facadeProfile(null).name, 'unknown');
+  assert.equal(facadeProfiles.facadeProfile(undefined).name, 'unknown');
+  assert.throws(() => facadeProfiles.facadeProfile('new-invalid-facade'), /Unknown building facade/);
 
   for (const profile of profiles) {
     for (const field of ['bayWidth', 'floorHeight', 'winRatioW', 'winRatioH', 'glazing', 'warmth']) {
@@ -127,7 +122,7 @@ test('FACADE_PROFILES follows the data pipeline facade order and carries the sha
     assert.ok(profile.winRatioH > 0 && profile.winRatioH <= 1, `${profile.name}.winRatioH`);
     assert.ok(profile.glazing >= 0 && profile.glazing <= 1, `${profile.name}.glazing`);
     assert.ok(profile.warmth >= 0 && profile.warmth <= 1, `${profile.name}.warmth`);
-    for (const field of ['wallA', 'wallB', 'trim', 'glass']) {
+    for (const field of ['wallA', 'trim']) {
       assert.ok(Number.isInteger(profile[field]) && profile[field] >= 0 && profile[field] <= 0xffffff, `${profile.name}.${field}`);
     }
   }
@@ -145,7 +140,7 @@ test('building material builds one MeshStandardNodeMaterial with day/night nodes
     const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
     // 和 tests/sz-road-material.test.cjs 一样加载真实模块：城市 uniform 必须是真实 TSL uniform 节点。
     const cityLighting = loadModule(cityLightingSource, { imports });
-    const materials = loadModule(materialsSource, { imports: { ...imports, './city-lighting-materials.js': cityLighting } });
+    const materials = loadModule(materialsSource, { imports: { ...imports, './city-lighting-materials.js': cityLighting, './sz-facade-profiles.js': facadeProfiles } });
     const material = materials.createBuildingMaterial();
     assert.ok(material instanceof THREE.MeshStandardNodeMaterial);
     for (const node of ['colorNode', 'roughnessNode', 'metalnessNode', 'emissiveNode']) {
@@ -291,7 +286,7 @@ function createFacadeEvaluator() {
   const three = { MeshStandardNodeMaterial, Color, Vector3 };
   const cityLighting = loadModule(cityLightingSource, { imports: { 'three/webgpu': three, 'three/tsl': tsl } });
   const materials = loadModule(materialsSource, {
-    imports: { 'three/webgpu': three, 'three/tsl': tsl, './city-lighting-materials.js': cityLighting }
+    imports: { 'three/webgpu': three, 'three/tsl': tsl, './city-lighting-materials.js': cityLighting, './sz-facade-profiles.js': facadeProfiles }
   });
   return { materials, cityUniforms: cityLighting.cityUniforms, state, uniforms, bump };
 }
@@ -299,7 +294,7 @@ function createFacadeEvaluator() {
 test('the Houhai lobby affects only the named tower and its north wall', () => {
   const { materials, state, bump } = createFacadeEvaluator();
   const material = materials.createBuildingMaterial();
-  for (const [id, profile] of Object.entries(materials.FACADE_SAMPLE_PROFILES)) {
+  for (const [id, profile] of Object.entries(facadeProfiles.FACADE_SAMPLE_PROFILES)) {
     assert.equal(profile.materialSeed, Math.fround(layout.buildingSeed(id) * 10));
   }
   const sampleSeed = Math.fround(layout.buildingSeed('way/737426464') * 10);
@@ -340,7 +335,7 @@ const fittedBay = (profile) => {
 
 test('facade shader fits whole window bays inside each wall, keeps corners solid and lights windows deterministically', () => {
   const evaluator = createFacadeEvaluator();
-  const profiles = evaluator.materials.FACADE_PROFILES;
+  const profiles = facadeProfiles.FACADE_PROFILES;
   const material = evaluator.materials.createBuildingMaterial();
   const colorAt = (fid, u, v) => {
     evaluator.state.meta.current = [fid, seed, wallLength, buildingHeight];
@@ -350,8 +345,8 @@ test('facade shader fits whole window bays inside each wall, keeps corners solid
     return Array.from(material.colorNode.values);
   };
   // 窗中心：幕墙/办公取 0.3 避开中间竖挺，住宅取 0.3 落在宽窗内，小窗取 0.5。
-  const windowOffset = [0.3, 0.3, 0.3, 0.3, 0.5, 0.3, 0.5, 0.3];
-  const windowCellV = [0.5, 0.5, 0.5, 0.5, 0.5, 0.7, 0.5, 0.5];
+  const windowOffset = [0.3, 0.3, 0.3, 0.3, 0.5, 0.3, 0.5, 0.3, 0.5];
+  const windowCellV = [0.5, 0.5, 0.5, 0.5, 0.5, 0.7, 0.5, 0.5, 0.5];
   profiles.forEach((profile, fid) => {
     const { margin, bayWidth } = fittedBay(profile);
     const midFloorV = profile.groundHeight + profile.floorHeight * (1 + 0.5);
@@ -371,7 +366,7 @@ test('facade shader fits whole window bays inside each wall, keeps corners solid
 
 test('distant facades converge to the average glazing ratio instead of solid walls', () => {
   const evaluator = createFacadeEvaluator();
-  const profiles = evaluator.materials.FACADE_PROFILES;
+  const profiles = facadeProfiles.FACADE_PROFILES;
   const material = evaluator.materials.createBuildingMaterial();
   const { state } = evaluator;
   const colorAt = (fid, u, v, pixel) => {
@@ -420,7 +415,7 @@ const sampleEmissive = (evaluator, material, fid, u, v, glow) => {
 };
 
 const brightestEmissive = (evaluator, material, fid, glow) => {
-  const profile = evaluator.materials.FACADE_PROFILES[fid];
+  const profile = facadeProfiles.FACADE_PROFILES[fid];
   const { margin, bayWidth } = fittedBay(profile);
   let best = null;
   for (let floor = 1; floor <= 6; floor++) {
@@ -436,7 +431,7 @@ const brightestEmissive = (evaluator, material, fid, glow) => {
 
 test('twilight windows glow from uInteriorGlow and stay stable per suite across frames', () => {
   const evaluator = createFacadeEvaluator();
-  const profiles = evaluator.materials.FACADE_PROFILES;
+  const profiles = facadeProfiles.FACADE_PROFILES;
   const material = evaluator.materials.createBuildingMaterial();
   const { state } = evaluator;
   const profile = profiles[2];
@@ -500,7 +495,7 @@ test('curtain-wall panes reach reference metalness and low roughness while solid
     evaluator.bump();
     return { metalness: material.metalnessNode.values[0], roughness: material.roughnessNode.values[0] };
   };
-  const glassTower = evaluator.materials.FACADE_PROFILES[0];
+  const glassTower = facadeProfiles.FACADE_PROFILES[0];
   const { margin, bayWidth } = fittedBay(glassTower);
   const midFloorV = glassTower.groundHeight + glassTower.floorHeight * 2.5;
   const pane = at(0, margin + bayWidth * 0.3, midFloorV);
@@ -510,7 +505,7 @@ test('curtain-wall panes reach reference metalness and low roughness while solid
   assert.ok(solid.metalness <= 0.1, `solid masonry stays non-metallic (got ${solid.metalness})`);
   assert.ok(solid.roughness >= 0.6, `solid masonry stays rough (got ${solid.roughness})`);
   // 普通开窗玻璃不跟着变镜面：住宅塔楼窗心金属度仍是旧的 0.5 × glazing。
-  const housing = evaluator.materials.FACADE_PROFILES[2];
+  const housing = facadeProfiles.FACADE_PROFILES[2];
   const housingBay = fittedBay(housing);
   const punched = at(2, housingBay.margin + housingBay.bayWidth * 0.15,
     housing.groundHeight + housing.floorHeight * 2.5);

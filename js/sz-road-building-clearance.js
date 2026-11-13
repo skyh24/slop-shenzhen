@@ -1,5 +1,6 @@
 import { polygonSegmentFraction } from './building-collision.js';
 import { isGroundRoad, roadTravelPoints } from './sz-roads.js';
+import { getRoadSection } from './sz-road-section.js';
 
 const CELL_M = 64;
 const VEHICLE_CLEARANCE_M = 4.5;
@@ -41,7 +42,7 @@ export function createRoadBuildingClearance(graph, roadHeight, decks = []) {
   for (const [index, link] of graph.links.entries()) {
     const metadata = graph.metadata[index];
     if (!isGroundRoad(metadata) || metadata.highway === 'pedestrian') continue;
-    const points = roadTravelPoints(graph, link, metadata);
+    const points = roadTravelPoints(graph, link, metadata, getRoadSection(graph, index).travelWidthM);
     if (points.length < 2) continue;
     const track = [{ ...points[0] }];
     for (let i = 1; i < points.length; i++) {

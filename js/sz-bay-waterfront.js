@@ -2,10 +2,10 @@ import * as THREE from 'three/webgpu';
 import { color, smoothstep, uv } from 'three/tsl';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { sceneUniforms } from './sz-materials.js';
+import { createFixtureBatches, planBench, planLantern, planRail } from './sz-site-fixtures.js';
 import { STR } from './sz-strings.js';
 
 const CELL = 110;
-const AXIS = new THREE.Vector3(1, 0, 0);
 const RETAINING = 0x89857b;
 const RIPRAP = 0x72746d;
 
@@ -58,10 +58,6 @@ function offset(point, normal, distance, y = point.y) {
   return { x: point.x + normal.x * distance, y, z: point.z + normal.z * distance };
 }
 
-function vector({ x, y, z }) {
-  return new THREE.Vector3(x, y, z);
-}
-
 function beamCollider(a, b, height, width, type) {
   const normal = horizontalNormal(a, b);
   const outer = normal ? [offset(a, normal, -width / 2), offset(b, normal, -width / 2),
@@ -71,23 +67,6 @@ function beamCollider(a, b, height, width, type) {
     minX: Math.min(...outer.map(p => p.x)), maxX: Math.max(...outer.map(p => p.x)),
     minZ: Math.min(...outer.map(p => p.z)), maxZ: Math.max(...outer.map(p => p.z)),
     minY: Math.min(a.y, b.y) - (normal ? height / 2 : 0), maxY: Math.max(a.y, b.y) + (normal ? height / 2 : 0) };
-}
-
-function boxInstances(group, rows, geometry, material, name) {
-  if (!rows.length) return null;
-  const mesh = new THREE.InstancedMesh(geometry, material, rows.length);
-  mesh.name = name;
-  mesh.receiveShadow = true;
-  const matrix = new THREE.Matrix4(), rotation = new THREE.Quaternion();
-  rows.forEach(({ a, b, width, height }, i) => {
-    const p = vector(a), q = vector(b), d = q.clone().sub(p);
-    const length = d.length();
-    rotation.setFromUnitVectors(AXIS, d.normalize());
-    mesh.setMatrixAt(i, matrix.compose(p.lerp(q, 0.5), rotation, new THREE.Vector3(length, height, width)));
-  });
-  mesh.computeBoundingSphere();
-  group.add(mesh);
-  return mesh;
 }
 
 function addQuad(bucket, a, b, c, d, tint) {
@@ -181,15 +160,11 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
   }
 
   const shoreMaterial = new THREE.MeshStandardNodeMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.96 });
-  const steel = new THREE.MeshStandardNodeMaterial({ color: 0x535956, roughness: 0.62 });
-  const timber = new THREE.MeshStandardNodeMaterial({ color: 0x745748, roughness: 0.91 });
-  const lamp = new THREE.MeshStandardNodeMaterial({ color: 0x64605b, roughness: 0.45,
-    emissiveNode: color(0xffdb9f).mul(sceneUniforms.night).mul(2.4) });
+  const fixtureBatches = createFixtureBatches(group, 'bay');
   const poolMaterial = new THREE.MeshBasicNodeMaterial({ color: 0xffd9a1, transparent: true, depthWrite: false,
     blending: THREE.AdditiveBlending });
   poolMaterial.opacityNode = smoothstep(0.06, 0.5, uv().sub(0.5).length()).oneMinus().mul(sceneUniforms.night).mul(0.26);
   const stone = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.96 });
-  const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
   const rockGeometry = new THREE.IcosahedronGeometry(1, 0);
 
   for (const shore of source.shore) {
@@ -237,8 +212,8 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
         const p = offset(a.crest, a.normal, -0.19), q = offset(b.crest, b.normal, -0.19);
         p.y = heightAt(p.x, p.z) ?? a.crest.y;
         q.y = heightAt(q.x, q.z) ?? b.crest.y;
-        for (const railY of [0.57, 1.05]) {
-          addBox(batch.metal, { ...p, y: p.y + railY }, { ...q, y: q.y + railY }, 0.075, 0.075, 'bay-rail');
+        for (const { a, b, height, width } of planRail(p, q, [[0.57, 0.075, 0.075], [1.05, 0.075, 0.075]])) {
+          addBox(batch.metal, a, b, height, width, 'bay-rail');
         }
         addBox(batch.metal, p, { ...p, y: p.y + 1.1 }, 0.09, 0.09, 'bay-rail-post');
         statistics.rails++;
@@ -282,9 +257,10 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
     if (!wayfinding && distance < 50 && (wayfinding = addWayfinding(group, p, tangent))) {
       addBox(batch.metal, p, { ...p, y: p.y + 1.94 }, 0.10, 0.10, 'bay-sign-post');
     } else if (kind === 1) {
-      const [left, right] = [-0.92, 0.92].map(d => offset(p, tangent, d, p.y + 0.46));
-      addBox(batch.wood, left, right, 0.12, 0.52, 'bay-bench');
-      for (const end of [left, right]) addBox(batch.metal, { ...end, y: p.y - 0.05 }, end, 0.11, 0.28, 'bay-bench-leg');
+      const { wood, steel } = planBench(p, tangent.x, tangent.z, { halfLengthM: 0.92, seatHeightM: 0.46,
+        seatWidthM: 0.52, legBottomM: -0.05, legTopM: 0.46, legWidthM: 0.28, legDepthM: 0.11 });
+      for (const { a, b, height, width } of wood) addBox(batch.wood, a, b, height, width, 'bay-bench');
+      for (const { a, b, height, width } of steel) addBox(batch.metal, a, b, height, width, 'bay-bench-leg');
       statistics.benches++;
       const side = Math.sign((p.x - a.x) * normal.x + (p.z - a.z) * normal.z);
       restSpot(a, normal, distance, side);
@@ -292,8 +268,10 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
       addBox(batch.metal, p, { ...p, y: p.y + 0.85 }, 0.44, 0.44, 'bay-bin');
       statistics.bins++;
     } else {
-      addBox(batch.metal, { ...p, y: p.y - 0.05 }, { ...p, y: p.y + 3.18 }, 0.14, 0.14, 'bay-lamp');
-      addBox(batch.light, { ...p, y: p.y + 3.16 }, { ...p, y: p.y + 3.30 }, 0.27, 0.27);
+      const { pole, lamp } = planLantern(p, { poleBottomM: -0.05, poleTopM: 3.18, headBottomM: 3.16,
+        headTopM: 3.30, headWidthM: 0.27 });
+      addBox(batch.metal, pole.a, pole.b, pole.height, pole.width, 'bay-lamp');
+      batch.light.push(lamp);
       // 光斑顺地形落在路缘，灯头发光，场景不增加实时点光源。
       const side = Math.sign((p.x - a.x) * normal.x + (p.z - a.z) * normal.z);
       addLightPool(batch, offset(a, normal, side * 0.88), heightAt);
@@ -314,9 +292,9 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
       mesh.receiveShadow = true;
       group.add(mesh);
     }
-    boxInstances(group, batch.metal, boxGeometry, steel, `shenzhen-bay-steel:${batch.id}`);
-    boxInstances(group, batch.wood, boxGeometry, timber, `shenzhen-bay-timber:${batch.id}`);
-    boxInstances(group, batch.light, boxGeometry, lamp, `shenzhen-bay-lamps:${batch.id}`);
+    fixtureBatches.build(batch.metal, 'steel', `shenzhen-bay-steel:${batch.id}`);
+    fixtureBatches.build(batch.wood, 'wood', `shenzhen-bay-timber:${batch.id}`);
+    fixtureBatches.build(batch.light, 'lamp', `shenzhen-bay-lamps:${batch.id}`);
     if (batch.poolPositions.length) {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.Float32BufferAttribute(batch.poolPositions, 3));
@@ -329,6 +307,7 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
   }
 
   function update({ x, z }) {
+    if (disposed) return;
     for (const batch of buckets.values()) {
       if (batch.pool) batch.pool.visible = sceneUniforms.night.value > 0.025;
       if (!batch.rockSites.length) continue;
@@ -360,6 +339,7 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
     sourcePathId: source.paths[0].osmId };
   statistics.restSpots = restSpots.length;
   scene.add(group);
+  let disposed = false;
   return { group, colliders, publicRoutes, arrival, statistics, update,
     allowsGroundMode(mode, x, z) {
       if (mode === 'person') return true;
@@ -368,6 +348,9 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
       return mode !== 'cyclist' || modes.includes('cycle') || !pathsNear(x, z, 6).length;
     },
     dispose() {
+      if (disposed) return;
+      disposed = true;
+      fixtureBatches.dispose();
       group.removeFromParent();
       for (const mesh of [...group.children]) {
         mesh.removeFromParent();
@@ -376,7 +359,7 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
       }
       wayfinding?.map.dispose();
       wayfinding?.material.dispose();
-      for (const resource of [boxGeometry, rockGeometry, shoreMaterial, steel, timber, lamp, stone, poolMaterial]) resource.dispose();
+      for (const resource of [rockGeometry, shoreMaterial, stone, poolMaterial]) resource.dispose();
       statistics.detailChunks = 0;
     }
   };

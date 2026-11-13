@@ -15,7 +15,7 @@ const dataFormat = load('sz-data-format');
 const spatial = load('sz-spatial', { './sz-polygon.js': polygon, './sz-ground-surface.js': {} });
 const layers = load('sz-map-layers', { './sz-strings.js': strings, './sz-geodata.js': { GEO }, './sz-city-config.js': { ROADS: [] } });
 const regions = load('sz-map-regions', { './sz-map-layers.js': layers, './sz-spatial.js': spatial,
-  './sz-data-format.js': dataFormat, './sz-strings.js': strings, './sz-polygon.js': polygon }, { Path2D });
+  './sz-strings.js': strings, './sz-polygon.js': polygon }, { Path2D });
 const encode = (...points) => points.flatMap(([x, z], i) =>
   [10 * (x - (points[i - 1]?.[0] ?? 0)), 10 * (z - (points[i - 1]?.[1] ?? 0))]);
 const rectangle = (l, t, r, b) => encode([l, t], [r, t], [r, b], [l, b]);
@@ -28,7 +28,7 @@ const records = [
     rings: [[rectangle(85, 10, 125, 50)]], anchors: [[105, 30, 20]] },
   { id: 'c', type: 'retail', name: 'Retail', level: 'place', areaM2: 11000,
     rings: [[rectangle(210, 0, 320, 100)], [rectangle(330, 0, 430, 100)]], anchors: [[265, 50, 50]] }
-];
+].map(dataFormat.decodeMapRegion);
 
 test('region hits respect concavity, holes, street gaps, zoom and layer switches', () => {
   const map = regions.createMapRegions(records);
@@ -46,8 +46,8 @@ test('region hits respect concavity, holes, street gaps, zoom and layer switches
 });
 
 test('shared-edge hysteresis does not extend a hit into an unassigned street', () => {
-  const right = { id: 'right', type: 'public', name: 'Facility', level: 'place', areaM2: 12000,
-    rings: [[rectangle(200, 0, 260, 200)]], anchors: [[230, 70, 25]] };
+  const right = dataFormat.decodeMapRegion({ id: 'right', type: 'public', name: 'Facility', level: 'place', areaM2: 12000,
+    rings: [[rectangle(200, 0, 260, 200)]], anchors: [[230, 70, 25]] });
   const map = regions.createMapRegions([records[0], right]);
   const previous = map.hit(199, 50, 1, flags);
   assert.equal(map.hit(200.5, 50, 1, flags, previous)?.id, 'a');

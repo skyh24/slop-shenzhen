@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
-import { color, fract, fwidth, max, min, positionWorld, smoothstep } from 'three/tsl';
+import { color, fract, fwidth, max, positionWorld, smoothstep } from 'three/tsl';
 import { createIntersectionControl, signalPhase } from './sz-intersection-control.js';
+import { createPavingMaterial, pavingMesh } from './sz-paving.js';
 import { convexHull, createRoadHeightSampler, createRoadPolygonLayout, createRoadsideSurfaceTreatment } from './sz-roads.js';
 
 const POLE_RADIUS = 0.135;
@@ -16,17 +17,6 @@ function material(colorValue, bias = 0, roughness = 0.9) {
     polygonOffsetFactor: bias, polygonOffsetUnits: bias });
 }
 
-function pavingMaterial() {
-  const m = material(0x96948e, -2);
-  const grid = positionWorld.xz.div(0.58);
-  const tile = fract(grid);
-  const pixel = max(fwidth(grid.x), fwidth(grid.y));
-  const joint = min(min(tile.x, tile.x.oneMinus()), min(tile.y, tile.y.oneMinus()));
-  const grout = smoothstep(0.011, max(0.026, pixel), joint).oneMinus().mul(smoothstep(0.12, 0.42, pixel).oneMinus());
-  m.colorNode = color(0x96948e).mul(grout.mul(-0.22).add(1));
-  return m;
-}
-
 function plantedSurfaceMaterial(base, bias = 0) {
   const m = material(base, bias, 0.97);
   const x = positionWorld.x.mul(2.7).add(positionWorld.z.mul(1.9));
@@ -36,18 +26,6 @@ function plantedSurfaceMaterial(base, bias = 0) {
   const mottling = positionWorld.x.mul(0.43).sin().mul(positionWorld.z.mul(0.59).sin());
   m.colorNode = color(base).mul(mottling.mul(0.055).add(detail.mul(fade).mul(0.35)).add(0.91));
   return m;
-}
-
-function polygonMesh(positions, origin, mat, name) {
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions instanceof Float32Array ? positions : new Float32Array(positions), 3));
-  geo.computeVertexNormals();
-  geo.computeBoundingSphere();
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(origin[0], 0, origin[1]);
-  mesh.name = name;
-  mesh.receiveShadow = true;
-  return mesh;
 }
 
 function addCurbWalls(group, feature, groundHeight, mat) {
@@ -78,7 +56,7 @@ function addCurbWalls(group, feature, groundHeight, mat) {
       }
     }
   }
-  if (vertices.length) group.add(polygonMesh(vertices, origin, mat, `${feature.id}:curbs`));
+  if (vertices.length) group.add(pavingMesh(vertices, origin, mat, `${feature.id}:curbs`));
   return vertices.length / 9;
 }
 
@@ -244,11 +222,11 @@ function addShennanFlowerBeds(group, sites, medianHeight, material) {
     count++;
     lastX = x;
   }
-  if (count) group.add(polygonMesh(vertices, origin, material, 'shennan-median:flower-beds'));
+  if (count) group.add(pavingMesh(vertices, origin, material, 'shennan-median:flower-beds'));
   return count;
 }
 
-export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeight, roadHeight } = {}) {
+export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeight, roadHeight, style: sceneStyle } = {}) {
   const control = createIntersectionControl(source, graph);
   const statistics = { triangleCount: 0, curbTriangles: 0, curbSegments: 0, signals: 0, shrubs: 0, shennanFlowerBeds: 0 };
   const empty = { group: null, control, contactHeight: () => null, shennanMedianHeight: () => null,
@@ -259,11 +237,11 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
 
   const group = new THREE.Group();
   group.name = 'shenzhen-road-frontage';
-  const paving = pavingMaterial();
+  const paving = new Map([['concrete', createPavingMaterial('concrete')]]);
   const walls = material(0xa4a39a);
   // 外环和洞沿的源环方向可能相反，双面材料只用于薄路缘侧壁。
   walls.side = THREE.DoubleSide;
-  const style = { sidewalk: paving, paving, paint: material(0xf1eee5, -3, 0.84), median: material(0x52673b),
+  const style = { paint: material(0xf1eee5, -3, 0.84), median: material(0x52673b),
     'flower-band': plantedSurfaceMaterial(0xbb6658, -1) };
   const grass = plantedSurfaceMaterial(0x4f762b);
   const flowers = plantedSurfaceMaterial(0x864359);
@@ -279,7 +257,12 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     const verifiedMedian = corridor && feature.kind === 'median'
       && feature.sourceIds.length >= 2 && feature.sourceIds.every(id => /^way\/\d+$/.test(id));
     const planted = verifiedMedian && corridor.id.startsWith('shennan-');
-    const mat = planted ? grass : style[feature.kind];
+    const isPaving = feature.kind === 'paving' || feature.kind === 'sidewalk';
+    const preset = isPaving
+      ? sceneStyle?.resolve({ surfaceStyle: 'concrete' }, { kind: 'surface', id: feature.id }).surfaceStyle ?? 'concrete'
+      : null;
+    if (preset && !paving.has(preset)) paving.set(preset, createPavingMaterial(preset, { depthBias: -2 }));
+    const mat = preset ? paving.get(preset) : planted ? grass : style[feature.kind];
     if (!mat) throw new Error(`Unknown frontage surface: ${feature.kind}`);
     const useTreatment = feature.clipToRoadComplement ? treatment : null;
     const layout = createRoadPolygonLayout(feature, terrain, useTreatment);
@@ -287,7 +270,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     for (const chunk of layout.chunks) {
       const positions = chunk.positions;
       if (offset && !useTreatment) for (let i = 1; i < positions.length; i += 3) positions[i] += offset;
-      const mesh = polygonMesh(positions, chunk.origin, mat, chunk.id);
+      const mesh = pavingMesh(positions, chunk.origin, mat, chunk.id);
       mesh.userData.sourceIds = feature.sourceIds;
       if (planted) mesh.userData.planting = {
         form: corridor.medianSource.planting ?? 'open-lawn-and-low-flower-beds', positionSource: 'visual-estimate'
@@ -295,7 +278,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       mesh.userData.heightSource = offset || feature.vertexRisesM ? 'terrain-relative-design-estimate' : 'terrain';
       group.add(mesh);
       if (chunk.wallPositions) {
-        group.add(polygonMesh(chunk.wallPositions, chunk.origin, walls, `${chunk.id}:curbs`));
+        group.add(pavingMesh(chunk.wallPositions, chunk.origin, walls, `${chunk.id}:curbs`));
         statistics.curbTriangles += chunk.wallPositions.length / 9;
         statistics.curbSegments += chunk.wallSegments;
       }
@@ -341,7 +324,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     detailedRoadIds: [...new Set(source.corridors.flatMap(row => row.roadIds))], update: hardware.update,
     dispose() {
       group.removeFromParent();
-      const geometries = new Set(), materials = new Set([...Object.values(style), walls, grass, flowers]);
+      const geometries = new Set(), materials = new Set([...Object.values(style), ...paving.values(), walls, grass, flowers]);
       group.traverse(mesh => {
         if (!mesh.isMesh) return;
         geometries.add(mesh.geometry);
