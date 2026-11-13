@@ -25,7 +25,7 @@ const bayModule = loadModule(read('sz-bay-waterfront.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': {}, './building-collision.js': {}, './sz-materials.js': {},
   './sz-site-fixtures.js': {}, './sz-strings.js': {}
 } });
-const { createWaterfrontPaths, createWaterfrontAccess, findWaterfrontWalkPoint } = loadModule(read('sz-waterfront.js'), { imports: {
+const { createWaterfrontPaths, createWaterfrontAccess, findWaterfrontWalkPoint, planLakeLamps } = loadModule(read('sz-waterfront.js'), { imports: {
   'three/webgpu': {}, './building-collision.js': {}, './sz-bay-waterfront.js': bayModule,
   './sz-controller-surfaces.js': contact, './sz-site-fixtures.js': {}, './sz-sea.js': {}
 } });
@@ -133,7 +133,7 @@ test('waterfront access distinguishes holidays, banks, route modes and overlappi
   assert.equal(access('cyclist', ...lake), false);
   assert.equal(access('person', ...lake), true);
   assert.equal(access('cyclist', ...shore), true);
-  assert.equal(access('person', ...shore), false);
+  assert.equal(access('person', ...shore), true);
   assert.equal(access('car', ...west), false);
   assert.equal(access('car', ...west, { surfaceId: 'sz-elevated-road:1', heightSource: 'estimate' }), true);
   now = Date.parse('2026-11-13T15:00:00Z');
@@ -144,6 +144,38 @@ test('waterfront access distinguishes holidays, banks, route modes and overlappi
   assert.equal(access('cyclist', ...east), true);
   now = Date.parse('2026-11-14T03:00:00Z');
   assert.equal(access('cyclist', ...west), false);
+});
+
+test('the park route spans the bay with continuous ground or bridge support', () => {
+  const { bayPaths, bayLamps, bayPlants, lakePaths } = waterfront.parkNetwork;
+  const shoreline = geo.shenzhenBay.shore.filter(row => row.profile === 'seawall');
+  assert.ok(shoreline.reduce((sum, row) => sum + row.lengthM, 0) > 11000);
+  assert.ok(bayLamps.length > 250 && bayPlants.length > 1200);
+  assert.ok(new Set(lakePaths.map(path => path.osmId)).size >= 5);
+  const network = createWaterfrontPaths(waterfront);
+  const access = createWaterfrontAccess(waterfront, network, () => Date.parse('2026-11-13T04:00:00Z'));
+  const all = bayPaths.filter(path => path.mode !== 'walk');
+  const paved = ground.createGroundSurfaceSampler(terrainSurface, kind => [4, 5, 7, 8, 10].includes(kind));
+  for (const path of all) {
+    const [x, z] = path.points[Math.floor(path.points.length / 2)];
+    if (path.bridge) {
+      const id = `waterfront-bridge:${path.osmId}`;
+      const deck = resolve.at(x, z).find(row => row.surfaceId === id);
+      assert.ok(deck && access('cyclist', x, z, deck));
+      assert.equal(access('car', x, z, deck), false);
+    } else {
+      assert.ok(Number.isFinite(heightAt(x, z)));
+      assert.equal(access('cyclist', x, z), true);
+    }
+  }
+  for (const [west, east] of [[-15100, -12500], [-12500, -11000], [-11000, -10000], [-10000, -8500], [-8500, -6800], [-6800, -5500]]) {
+    assert.ok(all.some(path => path.points.some(([x, z]) => x >= west && x < east && Number.isFinite(paved(x, z)))));
+  }
+});
+
+test('lake lamps alternate sides at equal distances across source vertices', () => {
+  const lamps = planLakeLamps({ points: [[0, 8, 0], [7, 8, 0], [7, 8, 35]], spacingM: 10 });
+  assert.deepEqual(Array.from(lamps, p => [p.x, p.z, p.side]), [[5, 0, 1], [7, 8, -1], [7, 18, 1], [7, 28, -1]]);
 });
 
 test('map arrival snaps only to nearby walkable ground axes', () => {

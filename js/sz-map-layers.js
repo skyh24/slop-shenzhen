@@ -275,6 +275,7 @@ function mapLayers() {
     for (let i = 0; i < trianglesXZ.length; i += 6) layers.gardenPaths.ring(trianglesXZ.slice(i, i + 6));
   }
   const shorePaths = [...(GEO.shenzhenBay?.paths ?? []),
+    ...(GEO.waterfront?.parkNetwork?.bayPaths ?? []), ...(GEO.waterfront?.parkNetwork?.lakePaths ?? []),
     ...[...(GEO.waterfront?.routes ?? []), ...(GEO.waterfront?.extensions ?? [])].flatMap(route => route.paths),
     ...[...(GEO.talentPark?.route ?? []), ...(GEO.talentPark?.entrances ?? [])].map(path => ({ ...path, mode: 'walk' }))];
   layers.waterfront = shorePaths.map(row => {

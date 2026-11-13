@@ -258,7 +258,10 @@ export function buildVegetationPilots(scene, geo, site, existingTrees) {
     }
     for (const shape of [0, 1]) makeMesh(cell, cell.items.filter(item => item.kind === 'rock' && item.shape === shape),
       'rock', shape, -1, ROCK_M, false, () => rockGeometry(shape));
-    makeMesh(cell, cell.items.filter(item => item.kind === 'shrub'), 'shrub', 0, -1, SHRUB_M, false,
+    const shoreShrubs = cell.items.filter(item => item.kind === 'shrub' && item.id.startsWith('vegetation:bay-shore:'));
+    makeMesh(cell, cell.items.filter(item => item.kind === 'shrub' && !item.id.startsWith('vegetation:bay-shore:')), 'shrub', 0, -1, SHRUB_M, false,
+      () => mergeParts(SHRUB.map((profile, i) => ({ geometry: lobe(profile, 0, i), colour: i === 0 ? 0xffffff : 0xe4edd7 }))));
+    makeMesh(cell, shoreShrubs, 'shrub', 0, -1, Infinity, false,
       () => mergeParts(SHRUB.map((profile, i) => ({ geometry: lobe(profile, 0, i), colour: i === 0 ? 0xffffff : 0xe4edd7 }))));
     makeMesh(cell, cell.items.filter(item => item.roots), 'roots', 0, 0, NEAR_M + 20, false, rootGeometry);
   }

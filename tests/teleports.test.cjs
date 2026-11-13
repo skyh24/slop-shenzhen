@@ -120,6 +120,7 @@ test('map travel resolves a walking pose before closing and leaves the map open 
     },
     bayPark: null,
     waterfrontPaths: { paths: [] },
+    parkBayPaths: [],
     findWaterfrontWalkPoint: (_paths, x, z, heading) => x === 103 ? { x: 100, z, heading } : null,
     northStation: null,
     controllerManager: {

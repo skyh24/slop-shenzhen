@@ -406915,8 +406915,8 @@
   },
   "terrainSurface": {
     "chunks": 1264,
-    "vertices": 582776,
-    "triangles": 979347,
+    "vertices": 636483,
+    "triangles": 1025277,
     "areaKm2": 279.61691,
     "areaErrorM2": -1.97e-06,
     "seconds": 4.97,
@@ -424765,17 +424765,17 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7913,
-    "metadataBytes": 17090244,
-    "numericBytes": 36236976,
-    "uncompressedBytes": 53327272,
+    "columns": 7914,
+    "metadataBytes": 17692525,
+    "numericBytes": 37861168,
+    "uncompressedBytes": 55553744,
     "lossless": true,
-    "compressedBytes": 13357696,
-    "compressedSha256": "b4fc89c1433ba90520567c264a9f909c4a4488c56a5caa37b84636aa06bcbdd1"
+    "compressedBytes": 14252862,
+    "compressedSha256": "a98b6b27900fd2cb9a7b1c7b22c6cc824d9ee35aded72585eef382a30ab0cefd"
   },
-  "outputBytes": 13129316,
-  "outputSha256": "98e3551e0f6ec84993729cf0d5ed91b424eaa8bda337daf682c6d84902412572",
-  "seconds": 51.1,
+  "outputBytes": 14173691,
+  "outputSha256": "dd74ae91e79b5ec59b80c181dd0a13818b0a1683bb711b891d3a4ae796d1728a",
+  "seconds": 40.5,
   "waterfrontRoutes": {
     "checkedAt": "2026-11-13",
     "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
@@ -425162,6 +425162,139 @@
       "-21,1",
       "-22,1",
       "12,-3"
+    ]
+  },
+  "waterfrontParkNetwork": {
+    "checkedAt": "2026-11-13",
+    "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+    "sources": [
+      "https://cgj.sz.gov.cn/xsmh/gysz/twf/bhxx/content/post_10841320.html",
+      "https://cgj.sz.gov.cn/xsmh/szlh/jpld/content/post_2053209.html",
+      "https://www.sz.gov.cn/hdjlpt/detail?pid=3115634&via=pc"
+    ],
+    "coastM": 16801.3,
+    "bayCycleM": 19138.8,
+    "bayPathCount": 96,
+    "bayBridges": [
+      "way/259033235",
+      "way/259033254",
+      "way/357765497",
+      "way/534815199",
+      "way/535468313",
+      "way/571629067",
+      "way/736397467",
+      "way/736397470"
+    ],
+    "bayLamps": 614,
+    "bayPlants": 2927,
+    "bayGaps": [
+      {
+        "id": "way/259033248",
+        "reason": "unresolved-source-way"
+      },
+      {
+        "id": "way/783219908",
+        "reason": "unresolved-source-way"
+      }
+    ],
+    "lakes": [
+      {
+        "id": "way/31420427",
+        "source": "https://cgj.sz.gov.cn/ydmh/mtxc/content/post_10654106.html",
+        "geometrySource": "shore-outline-design",
+        "outlineM": 3407.6,
+        "builtM": 3195.6,
+        "closed": false
+      },
+      {
+        "id": "way/440551624",
+        "source": "https://cgj.sz.gov.cn/xsmh/gysz/csgy/content/post_10775291.html",
+        "geometrySource": "shore-outline-design",
+        "outlineM": 953.8,
+        "builtM": 906.6,
+        "closed": false
+      },
+      {
+        "id": "relation/6554300",
+        "source": "https://cgj.sz.gov.cn/xsmh/gysz/csgy/content/post_10775291.html",
+        "geometrySource": "shore-outline-design",
+        "outlineM": 826.2,
+        "builtM": 789.8,
+        "closed": false
+      },
+      {
+        "id": "relation/17059536",
+        "source": "https://cgj.sz.gov.cn/xsmh/gysz/twf/qsyq/content/post_10841328.html",
+        "geometrySource": "shore-outline-design",
+        "outlineM": 880.6,
+        "builtM": 818.3,
+        "closed": false
+      },
+      {
+        "id": "relation/14424301",
+        "source": "https://cgj.sz.gov.cn/xsmh/gysz/twf/qsyq/content/post_10841328.html",
+        "geometrySource": "shore-outline-design",
+        "outlineM": 479.6,
+        "builtM": 449.9,
+        "closed": false
+      }
+    ],
+    "changedTerrainChunks": [
+      "12,-6",
+      "11,-5",
+      "12,-5",
+      "11,-4",
+      "12,-4",
+      "11,-3",
+      "12,-3",
+      "-8,-1",
+      "8,-1",
+      "9,-1",
+      "-8,0",
+      "8,0",
+      "9,0",
+      "-12,3",
+      "-14,4",
+      "-13,4",
+      "-12,4",
+      "-22,5",
+      "-21,5",
+      "-20,5",
+      "-19,5",
+      "-18,5",
+      "-17,5",
+      "-16,5",
+      "-15,5",
+      "-14,5",
+      "-13,5",
+      "-22,6",
+      "-22,7",
+      "-22,8",
+      "-22,9",
+      "-28,10",
+      "-27,10",
+      "-23,10",
+      "-22,10",
+      "-23,11",
+      "-22,11",
+      "-29,12",
+      "-28,12",
+      "-24,12",
+      "-23,12",
+      "-22,12",
+      "-30,13",
+      "-29,13",
+      "-28,13",
+      "-27,13",
+      "-26,13",
+      "-25,13",
+      "-24,13",
+      "-30,14",
+      "-29,14",
+      "-27,14",
+      "-26,14",
+      "-30,15",
+      "-30,16"
     ]
   }
 }

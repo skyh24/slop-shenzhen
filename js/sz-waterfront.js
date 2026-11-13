@@ -14,18 +14,23 @@ const SHENZHEN_OFFSET_MS = 8 * 3600000;
 const HOLIDAYS_2026 = [[101, 103], [215, 223], [404, 406], [501, 505], [619, 621], [925, 927], [1001, 1007]];
 
 export function createWaterfrontAccess(source, network, now = Date.now) {
-  const paths = network.routes.flatMap(route => route.paths.filter(path => !path.bridge).map(path => ({
+  const paths = network.routes.filter(route => !source?.parkNetwork || route.id !== 'central-bay-cycleway'
+    && route.id !== 'central-bay-promenade').flatMap(route => route.paths.filter(path => !path.bridge).map(path => ({
     ...path, mode: route.bank === 'west' || route.id === 'west-bank' ? `west:${path.mode}`
       : route.id === 'east-bank' ? `east:${path.mode}`
         : route.openingHours === '06:00–23:00' ? `park:${path.mode}` : path.mode
   })));
+  paths.push(...(source?.parkNetwork?.bayPaths ?? []).filter(path => !path.bridge)
+    .map(path => ({ ...path, mode: 'park:' + path.mode })));
+  paths.push(...(source?.parkNetwork?.lakePaths ?? []).map(path => ({ ...path, mode: 'walk' })));
   const accessAt = createBayPathLookup(paths);
   const bridges = new Map((source?.footbridges ?? []).map(bridge => [`waterfront-bridge:${bridge.id}`, bridge]));
   let lastMinute, parkOpen, westCycles;
   return (mode, x, z, surface) => {
     const id = surface?.surfaceId;
     const bridge = bridges.get(id);
-    const modes = bridge ? [bridge.waterIndex === source.waters?.[1]?.waterIndex ? 'west:' + bridge.mode : bridge.mode]
+    const modes = bridge ? [bridge.coastal ? 'park:' + bridge.mode
+      : bridge.waterIndex === source.waters?.[1]?.waterIndex ? 'west:' + bridge.mode : bridge.mode]
       : !id || surface?.heightSource === 'terrain' || id === 'terrain' ? accessAt(x, z) : [];
     if (!modes.length) return true;
     if (mode === 'car') return false;
@@ -49,7 +54,7 @@ export function createWaterfrontAccess(source, network, now = Date.now) {
 
 export function createWaterfrontPaths(source) {
   const routes = [...(source?.routes ?? []), ...(source?.extensions ?? [])];
-  const paths = routes.flatMap(route => route.paths);
+  const paths = [...routes.flatMap(route => route.paths), ...(source?.parkNetwork?.lakePaths ?? [])];
   const lookup = createBayPathLookup(paths);
   const groundPaths = createBayPathLookup(paths.filter(path => !path.bridge));
   const bankPaths = createBayPathLookup(routes.filter(r => r.bank || r.id.endsWith('-bank')).flatMap(r => r.paths));
@@ -106,7 +111,7 @@ function beamCollider({ a, b, width, height }, type) {
 export function buildSzWaterfront(scene, source, { water, network, elevated, heightAt, obstacles }) {
   const group = new THREE.Group();
   group.name = 'shenzhen-waterfront-samples';
-  const waters = [...(source?.waters ?? []), ...(source?.extensionWaters ?? [])].map(row => buildSzSea(group, {
+  const waters = [...(source?.waters ?? []), ...(source?.extensionWaters ?? []), ...(source?.parkNetwork?.waters ?? [])].map(row => buildSzSea(group, {
     polygons: [water[row.waterIndex]], heightM: row.heightM, source: row.id
   }, { name: `waterfront-water:${row.id}`, coastal: false, cityReflection: false }));
   const colliders = [];
@@ -144,7 +149,8 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
   const fixtureBlocked = (x, y, z, radius, height) => obstacles.some(c => c.minY < y + height && c.maxY > y
     && c.minX < x + radius && c.maxX > x - radius && c.minZ < z + radius && c.maxZ > z - radius
     && (!c.polygon || polygonBoxOverlaps(c.polygon, x, z, radius, radius)));
-  for (const route of network.routes.filter(r => ['lychee-loop', 'west-bank', 'east-bank'].includes(r.id))) {
+  for (const route of network.routes.filter(r => ['west-bank', 'east-bank'].includes(r.id)
+    || !source?.parkNetwork && r.id === 'lychee-loop')) {
     let length = 0, last = 12;
     const points = route.points.map(point);
     for (let i = 1; i < points.length; i++) {
@@ -166,6 +172,24 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
         add(pole, 'steel', 'waterfront-lamp');
         add(lamp, 'lamp');
         last = length;
+        break;
+      }
+    }
+  }
+
+  for (const route of source?.parkNetwork?.lakeLamps ?? []) {
+    for (const { x, z, side, dx, dz } of planLakeLamps(route)) {
+      for (const setback of [1.1, 1.8, 2.65]) {
+        const offset = (route.widthM / 2 + setback) * side;
+        const px = x + dz * offset, pz = z - dx * offset;
+        const y = heightAt(px, pz);
+        if (!Number.isFinite(y) || network.reserves(px, pz, 0.55)
+          || fixtureBlocked(px, y, pz, 0.64, 3.25)) continue;
+        const { pole, lamp } = planLantern({ x: px, y, z: pz }, {
+          poleBottomM: -0.04, poleTopM: 3.05, headBottomM: 3.01, headTopM: 3.20, headWidthM: 0.27
+        });
+        add(pole, 'steel', 'waterfront-lamp');
+        add(lamp, 'lamp');
         break;
       }
     }
@@ -236,4 +260,23 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
       group.removeFromParent();
     }
   };
+}
+
+export function planLakeLamps({ points, spacingM }) {
+  const stations = [];
+  let along = 0;
+  let next = spacingM * 0.5;
+  for (let i = 1; i < points.length; i++) {
+    const [x, , z] = points[i - 1], [nx, , nz] = points[i];
+    const run = Math.hypot(nx - x, nz - z);
+    if (run < 0.001) continue;
+    const dx = (nx - x) / run, dz = (nz - z) / run;
+    while (next < along + run) {
+      const step = next - along;
+      stations.push({ x: x + dx * step, z: z + dz * step, dx, dz, side: stations.length % 2 ? -1 : 1 });
+      next += spacingM;
+    }
+    along += run;
+  }
+  return stations;
 }

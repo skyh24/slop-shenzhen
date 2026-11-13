@@ -24,7 +24,7 @@ import { prepareTalentPark } from './sz-talent-park.js';
 import { createTeleportMenu } from './sz-coco-park-approach.js';
 import { buildSzStreetLamps } from './sz-street-lamps.js';
 import { createUrbanPavingWalk } from './sz-urban-paving.js';
-import { buildSzTrees } from './sz-trees.js';
+import { buildSzTrees, createColliderIndex } from './sz-trees.js';
 import { planWoodlandTrees } from './sz-woodlands.js';
 import { buildVegetationPilots } from './sz-vegetation.js';
 import { buildApecTheme } from './sz-apec.js';
@@ -217,9 +217,11 @@ async function initApp() {
   // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
   const elevatedRoads = qa.stage('elevated', () =>
     buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface,
-      extraCrossing: northBridgeProfile(GEO.shenzhenNorthRail), waterfront: GEO.waterfront, water: GEO.water, exclude: new Set(GEO.roadStructures?.records.map(row => row.index)) }));
+      extraCrossing: northBridgeProfile(GEO.shenzhenNorthRail), waterfront: GEO.waterfront, water: GEO.water, isWater,
+      exclude: new Set(GEO.roadStructures?.records.map(row => row.index)) }));
   const carriagewayOccupied = createCarriagewayBarrier(roadGraph).contains;
-  const bayPaths = createBayPathLookup(GEO.shenzhenBay?.paths);
+  const parkBayPaths = GEO.waterfront?.parkNetwork?.bayPaths ?? [];
+  const bayPaths = createBayPathLookup([...(GEO.shenzhenBay?.paths ?? []), ...parkBayPaths]);
   const roadStructures = qa.measureBuild('roadStructures', () => buildSzRoadStructures(scene, roadGraph, GEO.roadStructures, {
     groundHeight: (x, z) => terrainHeight(GEO.terrain, x, z),
     pierAllowed: (x, z, radius) => !carriagewayOccupied(x, z, radius + 4)
@@ -315,7 +317,7 @@ async function initApp() {
   const treeSite = {
     ...site, carriagewayOccupied, deckOccupied, excludedSite: themeParks.reserved, woodlandTrees: planWoodlandTrees(), simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
     reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r)
-      || northStation?.reserves(x, z, r) || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
+      || northStation?.reserves(x, z, r) || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || site.reserveBayWalk(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
     observedTrees: streetscape.observedTrees, pilotTrees: [...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees, ...districts.trees, ...urbanPaving.trees],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   };
@@ -358,7 +360,9 @@ async function initApp() {
   const planter = publicWalk.placePlanter(colliders, site.heightAt);
   if (planter) colliders.push(planter);
   const bayWaterfront = qa.measureBuild('bayWaterfront', () =>
-    buildSzBayWaterfront(scene, GEO.shenzhenBay, { ...site, pathsNear: bayPaths }));
+    buildSzBayWaterfront(scene, GEO.shenzhenBay, { ...site, pathsNear: bayPaths,
+      parkNetwork: GEO.waterfront?.parkNetwork, colliders, fixtureBlocked: createColliderIndex(colliders),
+      reserveWalk: waterfrontPaths.reserves }));
   const vegetation = qa.measureBuild('vegetation', () => buildVegetationPilots(scene, GEO, {
     ...treeSite, colliders: [...colliders, ...bayWaterfront.colliders], pavedAt: retail.pavementAt,
     nearRoads: nearRoadsForFrontage,
@@ -772,7 +776,7 @@ async function initApp() {
     inBounds, isWater, carriagewayOccupied, findGroundArrival, roadHeight: roads.roadHeight, flightStartAltitude: FLIGHT_START_ALTITUDE,
     selectMode, excludeGround: northStation?.inRestricted,
     waterfrontArrival: (x, z, heading) => findWaterfrontWalkPoint([
-      ...waterfrontPaths.paths, ...(GEO.shenzhenBay?.paths ?? []),
+      ...waterfrontPaths.paths, ...(GEO.shenzhenBay?.paths ?? []), ...parkBayPaths,
       ...[...(GEO.talentPark?.route ?? []), ...(GEO.talentPark?.entrances ?? [])].map(path => ({ ...path, mode: 'walk' }))
     ], x, z, heading),
     onArrival: finishTeleport, closeMap: () => mapSystem.toggleFullMap(false) });

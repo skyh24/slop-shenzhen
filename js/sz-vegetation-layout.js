@@ -196,5 +196,19 @@ export function planVegetationPilots(geo, site, beds, existingTrees) {
       }
     }
   }
+  // 水侧带沿审核骑行线布点，保留平台、水口及通行净空。
+  const random = vegetationRandom(732841);
+  for (const [i, [x, y, z]] of (geo.waterfront?.parkNetwork?.bayPlants ?? []).entries()) {
+    const kind = i % 4 === 0 ? 'tree' : 'shrub';
+    const size = random();
+    const radius = kind === 'tree' ? 1.6 + size * 0.8 : 1.18 + size * 0.5;
+    const height = kind === 'tree' ? 3.4 + size * 2.4 : 0.9 + size * 0.8;
+    const item = { id: `vegetation:bay-shore:${i}`, siteId: 'bay', sourceId: 'relation/7289235',
+      kind, x, y: y - 0.08, z, supportY: y, radius, height, shape: i % 2, turn: TAU * random(), tint: random() };
+    if (site.isWater(x, z) !== false || site.reserveWalk(x, z, radius + 0.25)
+      || site.carriagewayOccupied(x, z, radius) || site.deckOccupied(x, z, y, y + height)
+      || obstacles(x, z, radius, y, y + height) || !fitsSpacing(item)) continue;
+    placed.push(item);
+  }
   return placed;
 }

@@ -745,8 +745,8 @@ export function planElevatedRoads(graph, terrainSurface, options) {
 
   const walking = (sources?.footbridges ?? []).map((bridge, i) => {
     const { points, id, widthM, girderDepthM, waterIndex, waterHeightM } = bridge;
-    const polygon = wetPolygon(waterIndex);
-    const waterAt = (x, z) => polygonContainsInclusive(polygon, x, z);
+    const polygon = bridge.coastal ? null : wetPolygon(waterIndex);
+    const waterAt = bridge.coastal ? options.isWater : (x, z) => polygonContainsInclusive(polygon, x, z);
     const line = { nodes: [...points[0].filter((_, j) => j !== 1), ...points.at(-1).filter((_, j) => j !== 1)], names: [''] };
     const stations = [0];
     for (let j = 1; j < points.length; j++) {
@@ -863,9 +863,9 @@ export function planElevatedRoads(graph, terrainSurface, options) {
  *  输入：roadGraph、terrainSurface（GEO 里的派生地形），以及 area（旧接口）或 interchanges（多立交分区）。
  *  输出：{ group, meshes, surfaces, colliders, interchanges, statistics, links, update, dispose }。
  *  约束：桥面高度、护栏尺寸、桥墩间距和连接坡道均为 estimate；不导入外部模型。 */
-export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, interchanges, exclude, waterfront, water, extraCrossing } = {}) {
+export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, interchanges, exclude, waterfront, water, extraCrossing, isWater } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('A THREE scene is required');
-  const options = area ? area : { interchanges, exclude, waterfront, water, extraCrossing };
+  const options = area ? area : { interchanges, exclude, waterfront, water, extraCrossing, isWater };
   const plan = planElevatedRoads(graph, terrainSurface, options);
   // 车行网络复用渲染桥面的顶面三角面：车轮接触、自动规划和渲染桥面同源，桥下层不串到上层。
   const driveSurfaceIds = new Set(plan.driveLinks.map(record => record.surfaceId));

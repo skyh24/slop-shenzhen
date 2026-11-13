@@ -147,7 +147,8 @@ function addWayfinding(group, point, tangent) {
   return { map, material };
 }
 
-export function buildSzBayWaterfront(scene, source, { heightAt, isWater, colliders: obstacles, pathsNear }) {
+export function buildSzBayWaterfront(scene, source, { heightAt, isWater, colliders: obstacles, pathsNear,
+  parkNetwork, fixtureBlocked = () => false, reserveWalk = () => false }) {
   const group = new THREE.Group();
   group.name = 'shenzhen-bay-central-waterfront';
   const colliders = [];
@@ -192,7 +193,9 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
       const a = stations[i - 1], b = stations[i];
       lengths.push(lengths.at(-1) + Math.hypot(a.x - b.x, a.z - b.z));
     }
+    if (stations.length < 2) continue;
     const rockSlope = shore.profile === 'rock-slope';
+    const seawall = shore.profile === 'seawall';
     const sections = stations.map((crest, i) => {
       const normal = horizontalNormal(stations[Math.max(0, i - 1)], stations[Math.min(stations.length - 1, i + 1)]);
       if (!normal) throw new Error('Invalid coastal station direction');
@@ -201,7 +204,8 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
         normal.z *= -1;
       }
       const toeY = source.seaHeightM - 0.38;
-      const desired = rockSlope ? source.estimates.rockSlopeRunM * rampFactor(lengths[i], lengths.at(-1)) : 0;
+      const desired = rockSlope ? source.estimates.rockSlopeRunM * rampFactor(lengths[i], lengths.at(-1))
+        : seawall ? 1.5 : 0;
       // 岸脚只伸向同一段海面，遇相邻岸线或出水口收短。
       let run = desired;
       while (run > 0.25 && isWater(crest.x + normal.x * run, crest.z + normal.z * run) !== true) run *= 0.5;
@@ -213,7 +217,14 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
       const batch = bucket((a.crest.x + b.crest.x) / 2, (a.crest.z + b.crest.z) / 2);
       const phase = (i * 53 % 17) / 17;
       const tint = new THREE.Color(rockSlope ? RIPRAP : RETAINING).multiplyScalar(0.89 + phase * 0.22);
-      if (rockSlope) {
+      if (seawall) {
+        const dark = tint.clone().multiplyScalar(0.66);
+        const aMid = offset(a.crest, a.normal, a.run * 0.25, Math.max(a.toe.y, a.crest.y - 0.48));
+        const bMid = offset(b.crest, b.normal, b.run * 0.25, Math.max(b.toe.y, b.crest.y - 0.48));
+        addQuad(batch, a.crest, b.crest, aMid, bMid, tint);
+        addQuad(batch, aMid, bMid, a.toe, b.toe, dark);
+        statistics.shoreTriangles += 2;
+      } else if (rockSlope) {
         addQuad(batch, a.crest, b.crest, a.toe, b.toe, tint);
         if (Math.min(a.run, b.run) > 1.5) {
           for (const across of [0.32, 0.61, 0.87]) {
@@ -284,7 +295,7 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
     } else if (kind === 3) {
       addBox(batch.metal, p, { ...p, y: p.y + 0.85 }, 0.44, 0.44, 'bay-bin');
       statistics.bins++;
-    } else {
+    } else if (!parkNetwork) {
       const { pole, lamp } = planLantern(p, { poleBottomM: -0.05, poleTopM: 3.18, headBottomM: 3.16,
         headTopM: 3.30, headWidthM: 0.27 });
       addBox(batch.metal, pole.a, pole.b, pole.height, pole.width, 'bay-lamp');
@@ -297,6 +308,19 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
     fixtures.push(...colliders.slice(before));
   }
 
+  for (const [x, y, z, pathX, pathZ] of parkNetwork?.bayLamps ?? []) {
+    if (pathsNear(x, z, 0.55).length || reserveWalk(x, z, 0.55)
+      || fixtureBlocked(x, z, 0.55, y, y + 4.2)) continue;
+    const batch = bucket(x, z);
+    const { pole, lamp } = planLantern({ x, y, z }, { poleBottomM: -0.04, poleTopM: 3.68,
+      headBottomM: 3.64, headTopM: 3.82, headWidthM: 0.31 });
+    addBox(batch.metal, pole.a, pole.b, pole.height, pole.width, 'bay-lamp');
+    batch.light.push(lamp);
+    addLightPool(batch, { x: pathX, z: pathZ }, heightAt);
+    statistics.lamps++;
+  }
+
+  const parkPathsNear = createBayPathLookup((parkNetwork?.bayPaths ?? []).filter(p => !p.bridge));
   for (const batch of buckets.values()) {
     if (batch.positions.length) {
       const geometry = new THREE.BufferGeometry();
@@ -359,10 +383,11 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
   let disposed = false;
   return { group, colliders, publicRoutes, arrival, statistics, update,
     allowsGroundMode(mode, x, z) {
-      if (mode === 'person') return true;
-      const modes = pathsNear(x, z);
-      if (mode === 'car') return modes.length === 0;
-      return mode !== 'cyclist' || modes.includes('cycle') || !pathsNear(x, z, 6).length;
+      const modes = parkPathsNear(x, z);
+      if (mode === 'person') return !modes.length || modes.includes('walk') || modes.includes('shared');
+      if (mode === 'car') return !modes.length && !pathsNear(x, z).length;
+      return mode !== 'cyclist' || modes.includes('cycle') || modes.includes('shared') || pathsNear(x, z).includes('cycle')
+        || !modes.length && !pathsNear(x, z, 6).length;
     },
     dispose() {
       if (disposed) return;

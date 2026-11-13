@@ -43,6 +43,7 @@ from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
 from waterfront import compile_waterfront, compile_waterfront_routes, restore_bay_paving
+from waterfront_parks import compile_waterfront_parks
 from urban_paving import compile_urban_paving
 from yanjiang import build_yanjiang
 from fastpack import encode_city
@@ -437,6 +438,7 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     payload.pop('waterfront', None)
     compile_waterfront(payload, osm, pbf, report)
     compile_waterfront_routes(payload, osm, pbf, report)
+    compile_waterfront_parks(payload, osm, pbf, report)
     payload.pop('urbanPaving', None)
     compile_urban_paving(payload, osm_source, report)
     changed.append('urbanPaving')
@@ -605,6 +607,8 @@ def main():
                       help='compile reviewed waterfront routes on the verified city surface')
     mode.add_argument('--rebuild-urban-paving', action='store_true',
                       help='apply reviewed ground-cover sites to the verified package')
+    mode.add_argument('--build-waterfront-parks', action='store_true',
+                      help='add the reviewed park waterfront network to the verified city package')
     ap.add_argument('--urban-paving-pilot-only', action='store_true',
                     help='with --rebuild-urban-paving, compile only the three comparison sites')
     args = ap.parse_args()
@@ -700,7 +704,7 @@ def main():
         write_city_packages(payload, report, sources, started, refresh_regions=False)
         return
 
-    if args.rebuild_talent_park or args.rebuild_waterfront or args.extend_waterfront:
+    if args.rebuild_talent_park or args.rebuild_waterfront or args.extend_waterfront or args.build_waterfront_parks:
         started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
@@ -710,13 +714,15 @@ def main():
         osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=ROOT / osm_source['file'],
                        source_sha256=osm_source['sha256'])
         report = json.loads(REPORT.read_text())
-        if args.extend_waterfront:
+        if args.build_waterfront_parks:
+            compile_waterfront_parks(payload, osm, ROOT / osm_source['file'], report)
+        elif args.extend_waterfront:
             compile_waterfront_routes(payload, osm, ROOT / osm_source['file'], report)
         elif args.rebuild_waterfront:
             compile_waterfront(payload, osm, ROOT / osm_source['file'], report)
         else:
             compile_talent_park(payload, osm, osm_source, report)
-        write_city_packages(payload, report, sources, started, refresh_regions=not args.extend_waterfront)
+        write_city_packages(payload, report, sources, started, refresh_regions=not (args.extend_waterfront or args.build_waterfront_parks))
         return
 
     terrain_ids = ('copernicus-dem-N22E113', 'copernicus-dem-N22E114') if args.terrain_source == 'copernicus' else ('terrain-N22E113', 'terrain-N22E114')
@@ -871,6 +877,7 @@ def main():
     payload.pop('waterfront', None)
     compile_waterfront(payload, osm, pbf, report)
     compile_waterfront_routes(payload, osm, pbf, report)
+    compile_waterfront_parks(payload, osm, pbf, report)
     compile_urban_paving(payload, osm_source, report)
     write_city_packages(payload, report, sources, t0, appearance_osm=osm)
 
