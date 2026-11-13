@@ -13,6 +13,7 @@ import { buildParkFireworks } from '../sz-park-fireworks.js';
 import { colosseum, COLOSSEUM, eiffelTower, EIFFEL, forbiddenCity, greatWall, leaningTower, octagonalPavilion, potalaPalace, pyramid, PYRAMIDS, shaolinTemple } from './miniatures.js';
 import { disk, rectangle, sampleFootprint } from './parts.js';
 import { dropTower, rollerCoaster, waterSlide } from './rides.js';
+import { addFlowerCrowns, chinaFlowerBed, createFlowerCrown, planExpoFlowerBeds } from './flowers.js';
 import { EDGE_OPENINGS, FIREWORK_SITE, LAWNS, PARK_IDS, TREES, VALLEY_BOUNDARY, WALKS } from './sites.js';
 
 const COLORS = {
@@ -22,7 +23,8 @@ const COLORS = {
   rideblue: 0x34547e, railred: 0xd84d46,
   perimeterSand: 0xa48a72, perimeterRed: 0x8c4d40, perimeterBlue: 0x586a76, perimeterCap: 0x9b9282,
   lampSteel: 0x414749, lampGlass: 0xb3a590, arenaStone: 0xc7a184, arenaTrim: 0xa2785d,
-  templeTile: 0x576b60, slideTurquoise: 0x27aab3, slideYellow: 0xf6bf46, poolDeck: 0x92b6ad, slideWater: 0x267f9d
+  templeTile: 0x576b60, slideTurquoise: 0x27aab3, slideYellow: 0xf6bf46, poolDeck: 0x92b6ad, slideWater: 0x267f9d,
+  flowerStone: 0x9a8476, flowerSoil: 0x374e31, flowerFoliage: 0x396343
 };
 // 柔和泛光给主体留轮廓，较亮的压顶、座舱和灯罩形成局部光点。
 const NIGHT_FINISH = {
@@ -48,8 +50,9 @@ function strip(line, halfWidth) {
   return [...rows.map(row => row[0]), ...rows.reverse().map(row => row[1])];
 }
 
-export function planThemeParks({ buildings, terrain, mapRegions, groundHeight, roadGraph, isWater }) {
-  const barrier = createCarriagewayBarrier(roadGraph, { bounds: PARK_BOUNDS });
+export function planThemeParks(site) {
+  const { buildings, terrain, mapRegions, groundHeight, roadGraph, isWater } = site;
+  const barrier = createCarriagewayBarrier(roadGraph, { bounds: { ...PARK_BOUNDS, maxX: -5870 } });
   const sourceIds = new Set([EIFFEL, COLOSSEUM, ...PYRAMIDS.map(([id]) => id)]);
   const byId = new Map(buildings.filter(row => sourceIds.has(row.id)).map(row => [row.id, row]));
   const localBuildings = buildings.filter(b => b.maxX > PARK_BOUNDS.minX && b.minX < PARK_BOUNDS.maxX
@@ -114,6 +117,7 @@ export function planThemeParks({ buildings, terrain, mapRegions, groundHeight, r
       add(potalaPalace(groundHeight));
       add(shaolinTemple(groundHeight));
       add(octagonalPavilion(groundHeight));
+      add(chinaFlowerBed(groundHeight));
     } else {
       add(rollerCoaster(groundHeight, canPlace));
       add(dropTower(groundHeight));
@@ -155,11 +159,15 @@ export function planThemeParks({ buildings, terrain, mapRegions, groundHeight, r
     }
     parks.push(park);
   }
-  return { parks, skipIds, rejected, sceneryOmissions };
+  const expoBuildings = buildings.filter(b => b.maxX > -6000 && b.minX < -5880 && b.maxZ > 1015 && b.minZ < 1160)
+    .flatMap(b => buildingPlacement(b, terrain).colliders);
+  const expo = planExpoFlowerBeds(site, expoBuildings, barrier);
+  rejected.push(...expo.rejected);
+  return { parks, skipIds, rejected, sceneryOmissions, expoBeds: expo.beds };
 }
 
 export function buildThemeParks(scene, site) {
-  const { parks, skipIds, rejected, sceneryOmissions } = planThemeParks(site);
+  const { parks, skipIds, rejected, sceneryOmissions, expoBeds } = planThemeParks(site);
   const group = new THREE.Group();
   group.name = 'ShenzhenThemeParks';
   const surfaces = [], colliders = [], paths = [], trees = [], details = [];
@@ -179,6 +187,17 @@ export function buildThemeParks(scene, site) {
     }
     return materials.get(style);
   };
+  const flowerGeometry = createFlowerCrown();
+  const flowerMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.9,
+    emissiveNode: color(0xffddbd).mul(0.035) });
+  const flowerBeds = [...expoBeds, ...parks.flatMap(park => park.plans.filter(plan => plan.blooms))];
+  for (const bed of flowerBeds) addFlowerCrowns(group, bed, flowerGeometry, flowerMaterial);
+  for (const bed of expoBeds) {
+    const result = renderLandmark(bed, materialFor);
+    group.add(result.group);
+    colliders.push(...bed.parts.map(partCollider));
+    surfaces.push(...result.surfaces);
+  }
   let fireworks;
   for (const park of parks) {
     for (const plan of [...park.plans, park.perimeter, park.lanterns]) {
@@ -216,7 +235,10 @@ export function buildThemeParks(scene, site) {
   }
   scene.add(group);
   const launch = parks.find(park => park.launch)?.launch;
-  const reserved = (x, z, radius) => Boolean(launch && (x - launch.x) ** 2 + (z - launch.z) ** 2 < (10 + radius) ** 2);
+  const reserved = (x, z, radius) => Boolean(launch && (x - launch.x) ** 2 + (z - launch.z) ** 2 < (10 + radius) ** 2)
+    || flowerBeds.some(({ parts: [bed] }) => x >= bed.minX - radius && x <= bed.maxX + radius
+      && z >= bed.minZ - radius && z <= bed.maxZ + radius
+      && (polygonContainsInclusive(bed.polygon, x, z) || distanceToRing(bed.polygon.outer, x, z) < radius));
   const onPath = (x, z) => x >= PARK_BOUNDS.minX && x <= PARK_BOUNDS.maxX
     && z >= PARK_BOUNDS.minZ && z <= PARK_BOUNDS.maxZ && paths.some(path => polygonContainsInclusive(path, x, z));
   return {
@@ -227,20 +249,20 @@ export function buildThemeParks(scene, site) {
       for (const pool of pools) pool.visible = sceneUniforms.night.value > 0.10;
       fireworks?.update(now, night, camera);
     },
-    snapshot: () => ({ rejected, omittedSmallBuildings: sceneryOmissions.size, parks: parks.map(p => ({ id: p.id, models: p.plans.map(plan => plan.id),
+    snapshot: () => ({ rejected, flowerBeds: flowerBeds.map(bed => bed.id), omittedSmallBuildings: sceneryOmissions.size, parks: parks.map(p => ({ id: p.id, models: p.plans.map(plan => plan.id),
       walks: p.walks.length, trees: p.trees.length, lamps: p.lanterns.lamps.length,
       omittedSmallBuildings: p.omittedSmallBuildings, wallSegments: p.perimeter.segments, wallLengthM: Math.round(p.perimeter.lengthM) })),
     lightPoolsVisible: pools.some(pool => pool.visible), fireworks: fireworks?.snapshot() }),
     dispose() {
       fireworks?.dispose();
-      const geometries = new Set(fenceResources.map(r => r.geometry));
+      const geometries = new Set([flowerGeometry, ...fenceResources.map(r => r.geometry)]);
       group.traverse(o => {
         if (o.isInstancedMesh) o.dispose();
         if (o.isMesh) geometries.add(o.geometry);
       });
       for (const geometry of geometries) geometry.dispose();
       for (const { material } of fenceResources) material.dispose();
-      for (const material of [...materials.values(), lawnMat, pathMat, poolMaterial]) material.dispose();
+      for (const material of [...materials.values(), lawnMat, pathMat, poolMaterial, flowerMaterial]) material.dispose();
       scene.remove(group);
     }
   };

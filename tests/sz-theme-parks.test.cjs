@@ -30,8 +30,8 @@ test('the production pack fits all three parks and preserves ground access', asy
   const parks = buildThemeParks(scene, { ...geo, buildings, groundHeight, isWater });
   const summary = parks.snapshot();
   assert.deepEqual(summary.rejected, []);
-  assert.deepEqual(summary.parks.map(p => p.models.length), [6, 5, 3]);
-  assert.deepEqual(summary.parks.map(p => p.walks), [3, 3, 3]);
+  assert.deepEqual(summary.parks.map(p => p.models.length), [6, 6, 3]);
+  assert.deepEqual(summary.parks.map(p => p.walks), [3, 4, 3]);
   assert.ok(summary.omittedSmallBuildings > 50);
   assert.equal(parks.skipIds.size, 5 + summary.omittedSmallBuildings);
   const byId = new Map(buildings.map(b => [b.id, b]));
@@ -46,7 +46,16 @@ test('the production pack fits all three parks and preserves ground access', asy
   assert.ok(Math.abs(modelHeight('theme-giza-1150884224', -8970, 1170) - 54) < 1);
   assert.ok(Math.abs(modelHeight('theme-pisa', -8662, 1150) - 54) < 1.5);
   assert.ok(modelHeight('theme-drop-tower', -7970, 428.4) > 82);
-  assert.ok(modelHeight('theme-water-slide', -8190, 166) > 20);
+  assert.ok(modelHeight('theme-water-slide', -8190, 149) > 30);
+  assert.ok(modelHeight('theme-forbidden-city', -6955, 1300) > 20);
+  assert.ok(modelHeight('theme-potala', -7090, 1365) > 43);
+  assert.equal(parks.pathAt(-7012, 1342).length, 1);
+  assert.equal(parks.pathAt(-6922, 1448).length, 1);
+  assert.equal(summary.flowerBeds.length, 5);
+  assert.ok(summary.flowerBeds.includes('expo-flower-apec'));
+  assert.ok(summary.flowerBeds.every(id => parks.group.getObjectByName(`${id}:blooms`)?.count > 100));
+  assert.ok(parks.reserved(-6965, 1426, 1) && parks.reserved(-5920, 1120, 1));
+  assert.ok(!parks.reserved(-5944, 1120, 1), 'keep the source service path clear between flower beds');
   const barrier = createCarriagewayBarrier(geo.roadGraph);
   for (const [i, key] of ['world', 'china', 'valley'].entries()) {
     const walls = parks.colliders.filter(c => c.sourceId === `theme-${key}-perimeter`);

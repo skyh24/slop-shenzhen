@@ -96,32 +96,34 @@ export function greatWall(ground) {
   // node/6269626844 标记长城模型；沿园界内侧的一小段折线为场景设计。
   const points = [[-6964, 1178], [-6947, 1169], [-6935, 1174], [-6924, 1186], [-6910, 1184],
     [-6897, 1176], [-6881, 1183], [-6865, 1193], [-6847, 1194], [-6835, 1205]];
-  const line = points.map(([x, z], i) => ({ x, z, y: ground(x, z) + [2.4, 3.7, 4.4, 4.4, 4.9, 5.5, 4.5, 3.4, 2.9, 2.6][i] * 1.7 }));
+  const line = points.map(([x, z], i) => ({
+    x, z, y: ground(x, z) + [2.4, 3.7, 4.4, 4.4, 4.9, 5.5, 4.5, 3.4, 2.9, 2.6][i] * 2.15
+  }));
   for (let i = 1; i < line.length; i++) {
     const a = line[i - 1], b = line[i];
     const angle = Math.atan2(b.z - a.z, b.x - a.x);
     const length = Math.hypot(b.x - a.x, b.z - a.z);
-    const ring = rectangle((a.x + b.x) / 2, (a.z + b.z) / 2, length, 4.5, angle);
-    p.span(a, b, 4.4, Math.max(a.y, b.y) - p.limits(ring)[0] + 0.27, 'wallstone');
-    p.solid(disk(a.x, a.z, 2.22, 8), ground(a.x, a.z) - 0.3, a.y, 'wallstone');
-    for (let j = 1; j < length - 0.65; j += 2.25) {
+    const ring = rectangle((a.x + b.x) / 2, (a.z + b.z) / 2, length, 5.8, angle);
+    p.span(a, b, 5.65, Math.max(a.y, b.y) - p.limits(ring)[0] + 0.27, 'wallstone');
+    p.solid(disk(a.x, a.z, 2.85, 8), ground(a.x, a.z) - 0.3, a.y, 'wallstone');
+    for (let j = 1; j < length - 0.65; j += 2.6) {
       const t = j / length;
       for (const side of [-1, 1]) {
-        const x = a.x + (b.x - a.x) * t - Math.sin(angle) * 1.75 * side;
-        const z = a.z + (b.z - a.z) * t + Math.cos(angle) * 1.75 * side;
+        const x = a.x + (b.x - a.x) * t - Math.sin(angle) * 2.25 * side;
+        const z = a.z + (b.z - a.z) * t + Math.cos(angle) * 2.25 * side;
         const y = a.y + (b.y - a.y) * t;
-        p.box(x, z, 1.16, 0.72, y - 0.16, y + 1, 'wallcap', angle);
+        p.box(x, z, 1.36, 0.92, y - 0.19, y + 1.22, 'wallcap', angle);
       }
     }
   }
   for (const i of [0, 4, 9]) {
     const { x, z, y } = line[i];
-    const r = rectangle(x, z, 6.3, 6.3);
+    const r = rectangle(x, z, 8.3, 8.3);
     const base = p.limits(r)[0] - 0.3;
-    p.loft(r, rectangle(x, z, 5.3, 5.3), base, y + 2.6, 'wallstone');
-    p.box(x, z, 5.65, 5.65, y + 2.6, y + 3.05, 'wallcap');
+    p.loft(r, rectangle(x, z, 7.05, 7.05), base, y + 3.45, 'wallstone');
+    p.box(x, z, 7.52, 7.52, y + 3.45, y + 4.02, 'wallcap');
     for (const a of [-1, 0, 1]) for (const b of [-1, 0, 1]) {
-      if (a || b) p.box(x + a * 2.13, z + b * 2.13, 1.16, 1.16, y + 3.05, y + 3.92, 'wallcap');
+      if (a || b) p.box(x + a * 2.89, z + b * 2.89, 1.42, 1.42, y + 4.02, y + 5.13, 'wallcap');
     }
   }
   return { id, parts: p.parts };
@@ -140,8 +142,8 @@ function hipRoof(p, x, z, y, w, d, rise, style) {
 export function forbiddenCity(ground) {
   const id = 'theme-forbidden-city';
   // 故宫落在御花园 node/3851480004 西侧空地；本模型不替换旁边身份不明的体块。
-  const [x, z] = [-6949, 1283];
-  const p = scaledParkParts(id, ground, x, z, 1.65);
+  const [x, z] = [-6955, 1300];
+  const p = scaledParkParts(id, ground, x, z, 2.28);
   const base = p.footing(rectangle(x, z, 31, 56), 0.34, 'courtyard');
   for (const sign of [-1, 1]) {
     p.box(x + sign * 14.8, z, 0.85, 54, base, base + 2.0, 'vermilion');
@@ -166,9 +168,9 @@ export function forbiddenCity(ground) {
 
 export function potalaPalace(ground) {
   const id = 'theme-potala';
-  // 园方确认景观身份；此空地落位、台地高度和建筑轮廓为估计。
-  const [x, z] = [-7043, 1249];
-  const p = scaledParkParts(id, ground, x, z, 1.58);
+  // 放到园内西南侧空地，台地与故宫院落之间留出园路。
+  const [x, z] = [-7090, 1365];
+  const p = scaledParkParts(id, ground, x, z, 2.32);
   const ridge = rectangle(x, z, 47, 32, -0.08);
   const [low, high] = p.limits(ridge);
   p.loft(ridge, rectangle(x - 1.5, z - 2.5, 35, 21, -0.08), low - 0.28, high + 5.3, 'rock');
@@ -227,9 +229,9 @@ export function colosseum(building, ground) {
 
 export function shaolinTemple(ground) {
   const id = 'theme-shaolin';
-  const p = parkParts(id, ground);
-  // 园方目录列有少林寺；此处是独立布置的寺院剪影，门朝南。
-  const [x, z] = [-6826, 1375];
+  // 园方目录列有少林寺，东侧空地上的寺院朝南。
+  const [x, z] = [-6790, 1380];
+  const p = scaledParkParts(id, ground, x, z, 1.42);
   const base = p.footing(rectangle(x, z, 53, 40), 0.35, 'courtyard');
   for (const [offset, w, d, body, rise] of [[13, 15, 8, 4.6, 3.4], [-7, 27, 13, 7, 5.4]]) {
     const cz = z + offset;
@@ -249,9 +251,9 @@ export function shaolinTemple(ground) {
 
 export function octagonalPavilion(ground) {
   const id = 'theme-octagonal-pavilion';
-  const p = parkParts(id, ground);
-  // 景真八角亭为造型参考，选在故宫南侧空地，八柱之间留空。
-  const [x, z] = [-6950, 1390];
+  // 景真八角亭为造型参考，南侧园路在八柱之外留出观景距离。
+  const [x, z] = [-6890, 1480];
+  const p = scaledParkParts(id, ground, x, z, 1.57);
   const base = p.footing(disk(x, z, 10.8, 8), 0.24, 'limestone');
   const columns = disk(x, z, 6.8, 8);
   for (let i = 0; i < columns.length; i++) {

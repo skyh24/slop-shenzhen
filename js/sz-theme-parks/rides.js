@@ -88,9 +88,9 @@ export function dropTower(ground) {
 
 export function waterSlide(ground) {
   const id = 'theme-water-slide';
-  const p = parkParts(id, ground);
-  // 玛雅水公园片区参考 way/1564674154；彩色滑槽与终点水池只作景观。
-  const x = -8190, z = 166;
+  // 玛雅水公园片区参考 way/1564674154。加宽三条滑槽和终点池，向北延伸起滑平台。
+  const x = -8190, z = 149;
+  const p = scaledParkParts(id, ground, x, z, 1.38);
   const base = p.footing(rectangle(x, z, 20, 13), 0.26, 'courtyard');
   const h = base + 22;
   for (const dx of [-7.8, 7.8]) for (const dz of [-4.4, 4.4]) {
@@ -103,7 +103,7 @@ export function waterSlide(ground) {
   }
   p.box(x, z, 18, 10.8, h - 0.6, h, 'slideTurquoise');
   p.box(x, z - 5.2, 18, 0.22, h, h + 1.2, 'rideblue');
-  const end = 247;
+  const end = z + 81;
   const poolX = x + 10, poolZ = end + 9;
   const poolBase = p.footing(rectangle(poolX, poolZ, 36, 27), 0.31, 'poolDeck');
   p.box(poolX, poolZ, 32, 23, poolBase, poolBase + 0.1, 'slideWater');
