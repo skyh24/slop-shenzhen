@@ -738,8 +738,8 @@ body.hud-minimized .icon-show {
    ------------------------------------------------------------------------------------------------------------------ */
 .location-controls {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 6px;
   max-width: min(40vw, 380px);
 }
