@@ -42,7 +42,7 @@ from road_structures import compile_road_structures
 from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
-from waterfront import compile_waterfront
+from waterfront import compile_waterfront, restore_bay_paving
 from urban_paving import compile_urban_paving
 from yanjiang import build_yanjiang
 from fastpack import encode_city
@@ -598,6 +598,8 @@ def main():
                       help='compile the reviewed Talent Park waterfront on the verified package')
     mode.add_argument('--rebuild-waterfront', action='store_true',
                       help='compile the reviewed lake, bay and river samples on the verified package')
+    mode.add_argument('--restore-bay-paving', action='store_true',
+                      help='restore source paving on the existing Shenzhen Bay surface')
     mode.add_argument('--rebuild-urban-paving', action='store_true',
                       help='apply reviewed ground-cover sites to the verified package')
     ap.add_argument('--urban-paving-pilot-only', action='store_true',
@@ -682,6 +684,17 @@ def main():
         report = json.loads(REPORT.read_text())
         payload['shenzhenNorthRail'] = build_shenzhen_north(ROOT / osm_source['file'], report)
         write_city_packages(payload, report, sources, started)
+        return
+
+    if args.restore_bay_paving:
+        started = time.time()
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        report = json.loads(REPORT.read_text())
+        restore_bay_paving(payload, report)
+        write_city_packages(payload, report, sources, started, refresh_regions=False)
         return
 
     if args.rebuild_talent_park or args.rebuild_waterfront:

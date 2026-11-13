@@ -19,6 +19,27 @@ const { createCitySpatial } = loadModule(read('sz-spatial.js'), { imports: {
 } });
 const spatial = createCitySpatial(geo);
 
+test('the city package retains source waterfront paving across the usable width', () => {
+  const expected = { 'way/246781716': ['sett', 4], 'way/255653770': ['paving_stones', 7],
+    'way/357765495': ['asphalt', 5], 'way/883827047': ['unknown', 8] };
+  const support = ground.createGroundSurfaceSampler(payload.terrainSurface);
+  for (const path of bay.paths.filter(row => expected[row.osmId])) {
+    const [material, kind] = expected[path.osmId];
+    assert.equal(path.material, material);
+    const sample = ground.createGroundSurfaceSampler(payload.terrainSurface, value => value === kind);
+    for (let i = 1; i < path.points.length; i++) {
+      const [ax, az] = path.points[i - 1], [bx, bz] = path.points[i];
+      const dx = bx - ax, dz = bz - az, length = Math.hypot(dx, dz);
+      for (const offset of [-0.35, 0, 0.35]) {
+        const x = (ax + bx) / 2 + offset * path.widthM * dz / length;
+        const z = (az + bz) / 2 - offset * path.widthM * dx / length;
+        assert.ok(Number.isFinite(sample(x, z)), `${path.osmId} ${material} at ${x},${z}`);
+        assert.equal(sample(x, z), support(x, z));
+      }
+    }
+  }
+});
+
 test('waterfront approaches, walking route and cycling axes share the actual rendered ground', () => {
   const route = bay.walkRoute;
   assert.ok(route.length > 250);

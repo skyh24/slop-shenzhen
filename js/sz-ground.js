@@ -109,7 +109,7 @@ export function buildSzGround(scene, surface, options = {}) {
         for (let channel = 0; channel < 3; channel++) colors[i * 3 + channel] *= tint;
       }
       paved[i] = kind === URBAN_STONE_KIND ? 2 : Number(kind === 3 || kind === 4 || kind === 7);
-      asphalt[i] = Number(kind === 8 || kind === 9);
+      asphalt[i] = Number(kind === 5 || kind === 9);
     });
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(chunk.positions, 3));

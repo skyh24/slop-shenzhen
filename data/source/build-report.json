@@ -406915,8 +406915,8 @@
   },
   "terrainSurface": {
     "chunks": 1264,
-    "vertices": 571167,
-    "triangles": 970066,
+    "vertices": 581102,
+    "triangles": 978039,
     "areaKm2": 279.61691,
     "areaErrorM2": -1.97e-06,
     "seconds": 4.97,
@@ -412603,7 +412603,7 @@
         },
         "osmId": "way/883827047",
         "mode": "walk",
-        "material": "walk",
+        "material": "unknown",
         "nodes": [
           8219895303,
           8219895302
@@ -412621,7 +412621,7 @@
         },
         "osmId": "way/325371421",
         "mode": "walk",
-        "material": "walk",
+        "material": "unknown",
         "nodes": [
           8219895302,
           3320396956,
@@ -412647,7 +412647,7 @@
         },
         "osmId": "way/246781716",
         "mode": "walk",
-        "material": "walk",
+        "material": "sett",
         "nodes": [
           2613258384,
           2613258398,
@@ -412682,7 +412682,7 @@
         },
         "osmId": "way/357765495",
         "mode": "cycle",
-        "material": "cycle",
+        "material": "asphalt",
         "nodes": [
           2643549488,
           2643549497,
@@ -412747,7 +412747,7 @@
         },
         "osmId": "way/255653770",
         "mode": "cycle",
-        "material": "cycle-stone",
+        "material": "paving_stones",
         "nodes": [
           2613258589,
           2613258595,
@@ -412785,17 +412785,21 @@
       "-14,5"
     ],
     "pavingM2": {
-      "crossing": 10.69,
-      "walk": 2464.66,
-      "cycle": 1471.93,
-      "cycle-stone": 1664.73
+      "paving_stones": 1664.73,
+      "sett": 1907.28,
+      "asphalt": 1482.62,
+      "unknown": 557.38
     },
     "roadMask": {
       "source": "visitGroundRoadFootprints",
       "roadOsmIds": [],
       "carriagewayMaskAreaM2": 0.0
     },
-    "sourceHeight": "local-visual-estimate-on-existing-terrain"
+    "sourceHeight": "local-visual-estimate-on-existing-terrain",
+    "materialRepairTerrainChunks": [
+      "-15,5",
+      "-14,5"
+    ]
   },
   "waterfrontSamples": {
     "status": "pilot-generated",
@@ -424762,14 +424766,14 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7913,
-    "metadataBytes": 17071883,
-    "numericBytes": 36157976,
-    "uncompressedBytes": 53229912,
+    "metadataBytes": 17071893,
+    "numericBytes": 36187272,
+    "uncompressedBytes": 53259216,
     "lossless": true,
-    "compressedBytes": 13309709,
-    "compressedSha256": "b30bf14945ef228233c9b4c15f57b1f6eec40f157005efb3da9371b5f5a90551"
+    "compressedBytes": 13326121,
+    "compressedSha256": "bd5507ee2581e5f2e6d13b9367b7ba733cdaeff0da0fc699817221f4eead5c18"
   },
-  "outputBytes": 13075938,
-  "outputSha256": "c0a7c7feeee94c571572b0cd5f8e163830330edc519e7c92bf154ca3f74a23eb",
-  "seconds": 27.3
+  "outputBytes": 13098737,
+  "outputSha256": "c6744d7662092e0c3340bcc7f658aaa09bf73079278c5c0a26b58c45a5752204",
+  "seconds": 25.0
 }

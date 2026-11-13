@@ -12,7 +12,7 @@ from commercial_paving import ground_carriageway_mask
 from geo import project_coords
 from land import _polys, _to_local
 from roads import _num
-from shenzhen_bay import PUBLIC, _polygon, _snapshots, _surface_sampler
+from shenzhen_bay import PAVING, PUBLIC, _polygon, _snapshots, _surface_sampler, bay_paving, path_material, paving_masks
 from terrain_surface import _triangle_height
 
 SOURCE = Path(__file__).resolve().parents[2] / 'data/source/waterfront-samples.json'
@@ -75,7 +75,7 @@ def _water(payload, osm, identity):
     return next((i, poly) for i, rings in enumerate(payload['water']) if (poly := _polygon(rings)).covers(marker))
 
 
-def _clip_terrain(surface, masks, grades):
+def _clip_terrain(surface, masks, grades, *, replace_kinds=None):
     """在原三角面内切材质与高程影响范围；范围外保留原来的几何和采样。"""
     affected = unary_union([*masks.values(), *(shape for shape, _ in grades)])
     prepare(affected)
@@ -108,13 +108,19 @@ def _clip_terrain(surface, masks, grades):
                         continue
                     pieces, rest = [], tri
                     old_kind = max(kinds[v] for v in face)
-                    for kind, mask in masks.items():
-                        piece = rest.intersection(mask)
-                        if piece.area > 1e-10:
-                            totals[kind] += piece.area
-                            pieces.append((piece, kind))
-                            rest = rest.difference(piece)
+                    if replace_kinds is None or old_kind in replace_kinds:
+                        for kind, mask in masks.items():
+                            if not mask.intersects(rest):
+                                continue
+                            piece = rest.intersection(mask)
+                            if piece.area > 1e-10:
+                                totals[kind] += piece.area
+                                pieces.append((piece, kind))
+                                rest = rest.difference(piece)
                     pieces.append((rest, old_kind))
+                    if not grades and all(kind == old_kind for _, kind in pieces):
+                        indices.extend(face)
+                        continue
 
                     def emit(shape, kind, grade=None):
                         for poly in _polys(shape):
@@ -154,6 +160,22 @@ def _clip_terrain(surface, masks, grades):
             changed.append(chunk['id'])
         chunks.append(chunk)
     return {**surface, 'chunks': chunks}, changed, totals
+
+
+def restore_bay_paving(payload, report):
+    """在既有双包上局部改材质，保留已完成的岸道标高、桥面与其余地面。"""
+    paths = payload['shenzhenBay']['paths']
+    masks, _, _ = bay_paving(paths, payload['roadGraph'])
+    surface, changed, totals = _clip_terrain(payload['terrainSurface'], masks, [], replace_kinds={4, 5, 6, 7, 8, 9})
+    payload['terrainSurface'] = surface
+    for path in paths:
+        path['material'] = path_material(path['tags'])
+    bay_report = report['shenzhenBayWaterfront']
+    bay_report['paths'] = [{key: value for key, value in path.items() if key != 'points'} for path in paths]
+    bay_report['pavingM2'] = {name: round(totals[kind], 2) for name, kind in PAVING.items()}
+    bay_report['materialRepairTerrainChunks'] = changed
+    report['terrainSurface'].update(vertices=sum(len(c['kinds']) for c in surface['chunks']),
+                                    triangles=sum(len(c['indices']) // 3 for c in surface['chunks']))
 
 
 def _height_rows(line, sample, *, step=2):
@@ -268,20 +290,13 @@ def compile_waterfront(payload, osm, pbf, report):
             return y - max(0, y-river['bankHeightM'])*weight*portal_weight
         return grade
 
-    def strip(line, width):
-        return line.buffer(width/2, quad_segs=6)
-    lake_paths = unary_union([strip(row['line'], row['widthM']) for row in lake_rows if not row['bridge']]).difference(lake_water)
-    bank_paths = unary_union([strip(row['line'], row['widthM']) for rows in banks.values() for row in rows]).difference(river_water)
-    coastal_walk = unary_union([strip(LineString(p['points']), p['widthM']) for p in bay['paths'] if p['mode'] == 'walk'])
-    coastal_cycle = unary_union([strip(LineString(p['points']), p['widthM']) for p in bay['paths'] if p['mode'] == 'cycle'])
-    road_mask, _ = ground_carriageway_mask(lake_paths, graph)
-    masks = {8: lake_paths.difference(road_mask).union(coastal_walk.difference(coastal_cycle)),
-             9: bank_paths.union(coastal_cycle.difference(coastal_walk))}
-    for shape in masks.values():
-        prepare(shape)
+    ground_rows = [*(row for row in lake_rows if not row['bridge']), *(row for rows in banks.values() for row in rows)]
+    masks, paths_area, _ = paving_masks([(row['line'], row['widthM'], row['tags']) for row in ground_rows],
+                                        graph, exclude=lake_water.union(river_water))
+    # 深圳湾铺装已在前一步完成，这里只改变下沉岸道高程。
     grades = [(bay_influence, bay_grade), *((bank_influence[k], bank_grade(k, v)) for k, v in bank_lines.items())]
     surface, changed, paving = _clip_terrain(ground, masks, grades)
-    lookup_area = unary_union([lake_paths, bay_influence, *bank_influence.values(),
+    lookup_area = unary_union([paths_area, bay_influence, *bank_influence.values(),
                               *(r['line'].buffer(2) for r in [*lake_rows, *slow_bridges])]).buffer(25)
     sample = _surface_sampler(surface, lookup_area)
     original = _surface_sampler(ground, lookup_area)
