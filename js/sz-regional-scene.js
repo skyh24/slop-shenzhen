@@ -1,9 +1,11 @@
 import * as THREE from 'three/webgpu';
 import { buildSzMetroEntrances, createMetroStructureResources, metroEntranceCollider } from './sz-metro-entrances.js';
-import { createBayWaterfrontResources, createBayPublicRoutes, mountBayWaterfrontBatch } from './sz-bay-waterfront.js';
-import { createWaterfrontPublicRoutes, mountWaterfrontBank, mountWaterfrontBatch } from './sz-waterfront.js';
+import { appendBayShoreFace, bayFixtureCollider, bayShoreSections,
+  createBayWaterfrontResources, createBayPublicRoutes, mountBayWaterfrontBatch } from './sz-bay-waterfront.js';
+import { createWaterfrontPublicRoutes, mountWaterfrontBank, mountWaterfrontBatch, waterfrontFixtureCollider } from './sz-waterfront.js';
 import { buildSzDroneRoutes, droneStationColliders } from './sz-drone-routes.js';
-import { createGreenwayLightMaterial } from './sz-site-fixtures.js';
+import { createGreenwayLightMaterial, unpackFixtureRows, unpackGreenwayLightPools } from './sz-site-fixtures.js';
+import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
 import { buildSzSea } from './sz-sea.js';
 import { compatibleRegionalScene } from './sz-regional-format.js';
 import { createRegionalStream } from './sz-regional-stream.js';
@@ -17,7 +19,7 @@ function fixtures(batch, keys) {
   return batch;
 }
 
-export function createRegionalScene(scene, geo, { site, talentPark, trees, vegetation, elevatedRoads, bayPaths }, skip) {
+export function createRegionalScene(scene, geo, { site, talentPark, trees, vegetation, elevatedRoads, bayPaths, waterfrontPaths }, skip) {
   const manifest = geo.regionalScene;
   const drone = compatibleRegionalScene(manifest) && !skip('drones') ? manifest.drone : { stations: [], routes: [] };
   const stations = new Map(drone.stations.map(station => [station.id, station]));
@@ -31,6 +33,9 @@ export function createRegionalScene(scene, geo, { site, talentPark, trees, veget
   scene.add(bay, shore, metro);
   let bayShared, metroShared, shoreLight;
   const entrances = new Map();
+  const shoreSections = new Map();
+  const walkSources = new Map(waterfrontPaths.routes.map(route => [route.id, route]));
+  const bridgeHeight = createSurfaceHeightAt(elevatedRoads.surfaces);
   const stream = createRegionalStream(manifest, {
     routeSelected: () => [drones.previewRoute, drones.followedRoute],
     routeFlying: drones.isFlying,
@@ -38,15 +43,31 @@ export function createRegionalScene(scene, geo, { site, talentPark, trees, veget
       : (kind.startsWith('flight') || kind === 'drone-station') && skip('drones'),
     decode({ kind }, data) {
       switch (kind) {
+        case 'bay':
+        case 'shore': {
+          const { batch } = data;
+          const keys = kind === 'bay' ? ['metal', 'wood', 'light'] : ['steel', 'lamp'];
+          for (const key of keys) batch[key] = unpackFixtureRows(batch[key]);
+          const collider = kind === 'bay' ? bayFixtureCollider : waterfrontFixtureCollider;
+          return { batch, colliders: keys.flatMap(key => batch[key].filter(row => row.colliderType)
+            .map(row => collider(row, row.colliderType))) };
+        }
         case 'metro': return { placed: data, colliders: data.map(metroEntranceCollider) };
         case 'drone-station': {
           const station = stations.get(data);
           if (!station?.available) throw new Error('Unknown regional drone station');
           return { station, colliders: droneStationColliders(station) };
         }
-        case 'bay-walk': return { routes: createBayPublicRoutes(data.points, data.restSpots, bayPaths) };
-        case 'shore-walk': return { routes: createWaterfrontPublicRoutes([data], site.heightAt, elevatedRoads.surfaces,
+        case 'bay-walk': return { routes: createBayPublicRoutes(geo.shenzhenBay.walkRoute.map(([x, y, z]) => ({ x, y, z })), data.restSpots, bayPaths) };
+        case 'shore-walk': {
+          const route = walkSources.get(data.routeId), path = route?.paths[data.pathIndex];
+          if (!path || path.points.length !== data.clear.length) throw new Error('Invalid waterfront path reference');
+          const surfaceId = path.bridge ? `waterfront-bridge:${path.osmId}` : null;
+          const points = path.points.map(([x, z]) => ({ x, z, y: surfaceId ? bridgeHeight(x, z, surfaceId) : site.heightAt(x, z) }));
+          return { routes: createWaterfrontPublicRoutes([{ id: `waterfront:${route.id}:${data.pathIndex}`,
+            points, clear: data.clear, surfaceId, widthM: path.widthM, mode: path.mode }], site.heightAt, elevatedRoads.surfaces,
           (x, z, radius) => site.nearObstacles(x, z, radius)) };
+        }
         default: return data;
       }
     },
@@ -64,7 +85,15 @@ export function createRegionalScene(scene, geo, { site, talentPark, trees, veget
         }
         case 'bay': {
           bayShared ??= createBayWaterfrontResources();
-          const live = mountBayWaterfrontBatch(bay, fixtures(data.batch, ['metal', 'wood', 'light']), bayShared,
+          const { batch } = data;
+          batch.positions = []; batch.colors = []; batch.rockSites = [];
+          for (const [index, station] of batch.shoreFaces) {
+            const source = geo.shenzhenBay.shore[index];
+            if (!shoreSections.has(index)) shoreSections.set(index, bayShoreSections(geo.shenzhenBay, source, site.isWater));
+            appendBayShoreFace(batch, source, shoreSections.get(index), station);
+          }
+          unpackGreenwayLightPools(batch);
+          const live = mountBayWaterfrontBatch(bay, batch, bayShared,
             build => stream.visual(build, row));
           bay.updateMatrixWorld(true);
           return live;
@@ -80,7 +109,7 @@ export function createRegionalScene(scene, geo, { site, talentPark, trees, veget
             else if (!live && desired) {
               stream.visual(() => {
                 if (live || !desired) return;
-                if (Array.isArray(batch.steel[0]) || Array.isArray(batch.lamp[0])) fixtures(batch, ['steel', 'lamp']);
+                unpackGreenwayLightPools(batch);
                 if (batch.poolPositions?.length) shoreLight ??= createGreenwayLightMaterial();
                 live = mountWaterfrontBatch(shore, batch, shoreLight);
                 shore.updateMatrixWorld(true);
@@ -89,7 +118,10 @@ export function createRegionalScene(scene, geo, { site, talentPark, trees, veget
             live?.update();
           }, dispose() { live?.dispose(); } };
         }
-        case 'shore-bank': return mountWaterfrontBank(shore, data);
+        case 'shore-bank': {
+          const source = geo.waterfront.dasha.banks[data.bankIndex];
+          return mountWaterfrontBank(shore, { ...source, stations: source.stations.slice(data.start, data.start + data.count) });
+        }
         case 'shore-water': {
           const live = buildSzSea(shore, { polygons: [geo.water[data.waterIndex]], heightM: data.heightM, source: data.id },
             { name: `waterfront-water:${data.id}`, coastal: false, cityReflection: false });

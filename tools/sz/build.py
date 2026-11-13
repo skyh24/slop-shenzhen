@@ -299,24 +299,38 @@ def write_regional_scene(payload, report):
                        cwd=ROOT, check=True)
         result = json.loads(plan.read_text())
     manifest = result['manifest']
-    directory = OUT.parent / 'sz-regional' / manifest['fingerprint'][:20]
-    directory.mkdir(parents=True, exist_ok=True)
-    files = {}
+    groups = {'waterfront': {}, 'metro': {}, 'drone': {}}
     for row in manifest['cells']:
-        packet = {key: manifest[key] for key in ('version', 'fingerprint')}
-        packet.update(id=row['id'], data=result['data'][row['id']])
-        data = json.dumps(packet, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
+        data = json.dumps(result['data'][row['id']], ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
         if len(data) > 192 * 1024:
             raise ValueError(f'Regional chunk exceeds size limit: {row["id"]}')
         row['bytes'] = len(data)
-        target = directory / (row['id'] + '.json')
+        row['pack'] = 'metro' if row['kind'] == 'metro' else (
+            'drone' if row['kind'] in ('flight', 'flight-line', 'drone-station') else 'waterfront')
+        groups[row['pack']][row['id']] = result['data'][row['id']]
+    packed = {}
+    for name, cells in groups.items():
+        packet = {key: manifest[key] for key in ('version', 'fingerprint')}
+        packet['data'] = cells
+        raw = json.dumps(packet, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
+        packed[name] = gzip.compress(raw, 9, mtime=0)
+    total_bytes = sum(len(data) for data in packed.values())
+    if total_bytes > 1000000:
+        raise ValueError(f'Regional scene exceeds the 1 MB budget: {total_bytes}')
+    directory = OUT.parent / 'sz-regional' / manifest['fingerprint'][:20]
+    directory.mkdir(parents=True, exist_ok=True)
+    files = {}
+    manifest['packs'] = {}
+    for name, data in packed.items():
+        target = directory / (name + '.json.gz')
         temporary = target.with_suffix('.tmp')
         temporary.write_bytes(data)
         temporary.replace(target)
         files[(Path('js') / target.relative_to(OUT.parent)).as_posix()] = hashlib.sha256(data).hexdigest()
+        manifest['packs'][name] = {'bytes': len(data)}
     payload['regionalScene'] = manifest
     report['regionalScene'] = {'version': manifest['version'], 'fingerprint': manifest['fingerprint'],
-                               'bytes': sum(row['bytes'] for row in manifest['cells']), 'files': files,
+                               'bytes': total_bytes, 'decodedBytes': sum(row['bytes'] for row in manifest['cells']), 'files': files,
                                'rules': result['rules'], **result['audit']}
 
 
@@ -365,8 +379,8 @@ def write_payload(payload, report, sources, started):
         temporary.unlink(missing_ok=True)
     regional_dir = OUT.parent / 'sz-regional'
     fingerprint = payload.get('regionalScene', {}).get('fingerprint', '')[:20]
-    for old in regional_dir.glob('*/*.json'):
-        if old.parent.name != fingerprint:
+    for old in regional_dir.glob('*/*'):
+        if old.parent.name != fingerprint and (old.name.endswith('.json') or old.name.endswith('.json.gz')):
             old.unlink()
             if not any(old.parent.iterdir()):
                 old.parent.rmdir()

@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "checkedAt": "2026-11-13T11:52:56.451195+00:00",
+  "checkedAt": "2026-11-13T13:59:04.530567+00:00",
   "encodingValidation": "passed",
   "realityValidation": "incomplete",
   "recentObservationWindow": [
     2025,
     2026
   ],
-  "payloadSha256": "c20f0391bc322daa18dbe5fe9a83210763195a9c74519941287af748120634cf",
+  "payloadSha256": "8c34fdaf9dc5b28a0c988b9805caf404ceaa50a84a0bb69298c7e0a08bc045f0",
   "sourceIntegrity": [
     {
       "id": "osm-guangdong",
@@ -38,7 +38,7 @@
       "file": "data/raw/globfp/2265.zip",
       "url": "https://ndownloader.figshare.com/files/57131525",
       "snapshotAt": null,
-      "release": null,
+      "release": "3D-GloBFP / 2024 publication",
       "referenceYear": 2020,
       "observedAt": null
     },
@@ -49,7 +49,7 @@
       "file": "data/raw/globfp/2269.zip",
       "url": "https://ndownloader.figshare.com/files/57131471",
       "snapshotAt": null,
-      "release": null,
+      "release": "3D-GloBFP / 2024 publication",
       "referenceYear": 2020,
       "observedAt": null
     },
@@ -541,11 +541,11 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7961,
-    "metadataBytes": 17461654,
+    "metadataBytes": 17466978,
     "numericBytes": 38241736,
-    "uncompressedBytes": 55703440,
+    "uncompressedBytes": 55708768,
     "lossless": true,
-    "compressedBytes": 14161417,
-    "compressedSha256": "ab9550f625d360429c713d677ef47046b9a9b69234e1bc06ed652ea1665c560a"
+    "compressedBytes": 14161557,
+    "compressedSha256": "815035e51a07c7916e54bcb63c154ef44fe5ccb60347bbf4974850cc16f9e9a2"
   }
 }

@@ -1,4 +1,4 @@
-import { compatibleRegionalScene, REGIONAL_SCENE_DIRECTORY, REGIONAL_SCENE_VERSION } from './sz-regional-format.js';
+import { compatibleRegionalScene, createRegionalPackLoader } from './sz-regional-format.js';
 import { spatialIndex } from './sz-spatial.js';
 
 const SAFETY_M = 180;
@@ -6,8 +6,6 @@ const ENTER_M = 2000;
 const EXIT_M = 2350;
 const CONCURRENT = 4;
 const DEADLINE_MS = 4;
-const REQUEST_TIMEOUT_MS = 6000;
-const MAX_CHUNK_BYTES = 192 * 1024;
 const FLIGHT_KINDS = new Set(['flight', 'flight-line', 'drone-station']);
 const corners = ([x, z, maxX, maxZ]) => [{ x, z }, { x: maxX, z: maxZ }];
 
@@ -18,6 +16,7 @@ function distanceTo([minX, minZ, maxX, maxZ], { x, z }) {
 export function createRegionalStream(manifest, { decode, mount, routeSelected, routeFlying, skip = () => false,
   request = fetch, nextFrame = run => document.hidden ? setTimeout(run, 16) : requestAnimationFrame(run), now = () => performance.now(), warn = console.warn } = {}) {
   const valid = compatibleRegionalScene(manifest);
+  const packs = createRegionalPackLoader(manifest, request);
   if (!valid) warn('[regional scene] Missing or incompatible plan. Regenerate with tools/sz/build.py --rebuild-regional-scene.');
   const rows = valid ? manifest.cells.filter(row => !skip(row.kind)) : [];
   const nearby = spatialIndex(rows, row => corners(row.bounds));
@@ -86,21 +85,12 @@ export function createRegionalStream(manifest, { decode, mount, routeSelected, r
       state.waiting = false;
       const { row, abort } = state;
       statistics.loading++;
-      const url = new URL(`./${REGIONAL_SCENE_DIRECTORY}/${manifest.fingerprint.slice(0, 20)}/${row.id}.json`, import.meta.url);
-      const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-      const signal = AbortSignal.any([abort.signal, timeout]);
-      request(url, { signal }).then(async response => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const text = await response.text();
-        if (text.length > MAX_CHUNK_BYTES) throw new Error('Regional chunk exceeds the size limit');
+      packs.read(row).then(data => {
         if (active.get(row) !== state) return finishRequest();
         enqueue(() => {
           try {
             if (active.get(row) !== state) return;
-            const packet = JSON.parse(text);
-            if (packet.version !== REGIONAL_SCENE_VERSION || packet.fingerprint !== manifest.fingerprint
-              || packet.id !== row.id || packet.data == null) throw new Error('Regional chunk version or input fingerprint mismatch');
-            state.data = decode(row, packet.data);
+            state.data = decode(row, data);
             statistics.bytes[row.kind] = (statistics.bytes[row.kind] ?? 0) + row.bytes;
             if (!started) statistics.safetyObjects[row.kind] =
               (statistics.safetyObjects[row.kind] ?? 0) + (state.data.colliders?.length ?? 0);
@@ -261,6 +251,7 @@ export function createRegionalStream(manifest, { decode, mount, routeSelected, r
       return [...walkIndex(x, z, radius)].flatMap(row => active.get(row)?.data?.routes ?? []);
     },
     dispose() {
+      packs.dispose();
       disposed = true;
       for (const [row, state] of active) drop(row, state);
       jobs.length = 0;

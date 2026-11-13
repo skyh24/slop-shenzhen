@@ -175,7 +175,7 @@ async function initApp() {
     qa, showLoadingStage, markInit, startup: STR.startup
   });
   const regional = qa.measureBuild('regional-index', () => createRegionalScene(scene, GEO,
-    { site, talentPark, trees, vegetation, elevatedRoads, bayPaths }, name => qa.skipped.has(name)));
+    { site, talentPark, trees, vegetation, elevatedRoads, bayPaths, waterfrontPaths }, name => qa.skipped.has(name)));
   const { metro: metroEntrances, drones } = regional;
   const bayWaterfront = createBayWaterfrontAccess(bayPaths, GEO.waterfront?.parkNetwork?.bayPaths);
   const shoreSamples = createWaterfrontAccess(GEO.waterfront, waterfrontPaths);

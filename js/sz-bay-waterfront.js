@@ -75,7 +75,7 @@ function offset(point, normal, distance, y = point.y) {
   return { x: point.x + normal.x * distance, y, z: point.z + normal.z * distance };
 }
 
-function beamCollider(a, b, height, width, type) {
+export function bayFixtureCollider({ a, b, height, width }, type) {
   const normal = horizontalNormal(a, b);
   const outer = normal ? [offset(a, normal, -width / 2), offset(b, normal, -width / 2),
     offset(b, normal, width / 2), offset(a, normal, width / 2)]
@@ -95,6 +95,55 @@ function addQuad(bucket, a, b, c, d, tint) {
 
 function rampFactor(distance, length) {
   return Math.max(0, Math.min(1, distance / 13, (length - distance) / 13));
+}
+
+export function bayShoreSections(source, shore, isWater) {
+  const stations = shore.stations.map(([x, y, z]) => ({ x, y, z })).filter((point, i, rows) =>
+    i === 0 || Math.hypot(point.x - rows[i - 1].x, point.z - rows[i - 1].z) >= 0.004);
+  const lengths = [0];
+  for (let i = 1; i < stations.length; i++) {
+    lengths.push(lengths.at(-1) + Math.hypot(stations[i].x - stations[i - 1].x, stations[i].z - stations[i - 1].z));
+  }
+  if (stations.length < 2) return [];
+  return stations.map((crest, i) => {
+    const normal = horizontalNormal(stations[Math.max(0, i - 1)], stations[Math.min(stations.length - 1, i + 1)]);
+    if (!normal) throw new Error('Invalid coastal station direction');
+    if (isWater(crest.x + normal.x * 1.4, crest.z + normal.z * 1.4) !== true) {
+      normal.x *= -1;
+      normal.z *= -1;
+    }
+    const desired = shore.profile === 'rock-slope' ? source.estimates.rockSlopeRunM * rampFactor(lengths[i], lengths.at(-1))
+      : shore.profile === 'seawall' ? 1.5 : 0;
+    let run = desired;
+    while (run > 0.25 && isWater(crest.x + normal.x * run, crest.z + normal.z * run) !== true) run *= 0.5;
+    return { crest, normal, toe: offset(crest, normal, run, source.seaHeightM - 0.38), run };
+  });
+}
+
+export function appendBayShoreFace(batch, shore, sections, index) {
+  const a = sections[index - 1], b = sections[index];
+  const phase = (index * 53 % 17) / 17;
+  const rockSlope = shore.profile === 'rock-slope';
+  const tint = new THREE.Color(rockSlope ? RIPRAP : RETAINING).multiplyScalar(0.89 + phase * 0.22);
+  if (shore.profile === 'seawall') {
+    const aMid = offset(a.crest, a.normal, a.run * 0.25, Math.max(a.toe.y, a.crest.y - 0.48));
+    const bMid = offset(b.crest, b.normal, b.run * 0.25, Math.max(b.toe.y, b.crest.y - 0.48));
+    addQuad(batch, a.crest, b.crest, aMid, bMid, tint);
+    addQuad(batch, aMid, bMid, a.toe, b.toe, tint.clone().multiplyScalar(0.66));
+    return 4;
+  }
+  addQuad(batch, a.crest, b.crest, a.toe, b.toe, tint);
+  if (rockSlope && Math.min(a.run, b.run) > 1.5) {
+    for (const across of [0.32, 0.61, 0.87]) {
+      batch.rockSites.push({
+        x: (a.crest.x + b.crest.x + (a.toe.x + b.toe.x - a.crest.x - b.crest.x) * across) / 2,
+        z: (a.crest.z + b.crest.z + (a.toe.z + b.toe.z - a.crest.z - b.crest.z) * across) / 2,
+        y: (a.crest.y + b.crest.y) * (1 - across) / 2 + a.toe.y * across,
+        size: 0.38 + phase * 0.39, phase: phase + across
+      });
+    }
+  }
+  return 2;
 }
 
 export function planCoastalGuardrail(sections, { heightAt, isWater, nearCycle, blocked }) {
@@ -183,15 +232,15 @@ export function planBayWaterfront(source, { heightAt, isWater, colliders: obstac
     const id = `${ix},${iz}`;
     if (!buckets.has(id)) buckets.set(id, {
       id, x: (ix + 0.5) * CELL, z: (iz + 0.5) * CELL, positions: [], colors: [], rockSites: [],
-      metal: [], wood: [], light: [], poolPositions: [], poolUvs: []
+      metal: [], wood: [], light: [], poolPositions: [], poolUvs: [], shoreFaces: []
     });
     return buckets.get(id);
   }
 
   function addBox(batch, finish, a, b, height, width, type) {
-    batch[finish].push({ a, b, height, width });
+    batch[finish].push({ a, b, height, width, colliderType: type });
     if (type) {
-      const collider = beamCollider(a, b, height, width, type);
+      const collider = bayFixtureCollider({ a, b, height, width }, type);
       (batch.colliders ??= []).push(collider);
       colliders.push(collider);
     }
@@ -199,58 +248,17 @@ export function planBayWaterfront(source, { heightAt, isWater, colliders: obstac
 
   const coastCycle = createBayPathLookup((parkNetwork?.bayPaths ?? []).filter(p => !p.bridge && p.mode !== 'walk'));
 
-  for (const shore of source.shore) {
-    const stations = shore.stations.map(([x, y, z]) => ({ x, y, z })).filter((point, i, rows) =>
-      i === 0 || Math.hypot(point.x - rows[i - 1].x, point.z - rows[i - 1].z) >= 0.004);
-    const lengths = [0];
-    for (let i = 1; i < stations.length; i++) {
-      const a = stations[i - 1], b = stations[i];
-      lengths.push(lengths.at(-1) + Math.hypot(a.x - b.x, a.z - b.z));
-    }
-    if (stations.length < 2) continue;
+  for (const [shoreIndex, shore] of source.shore.entries()) {
     const rockSlope = shore.profile === 'rock-slope';
     const seawall = shore.profile === 'seawall';
-    const sections = stations.map((crest, i) => {
-      const normal = horizontalNormal(stations[Math.max(0, i - 1)], stations[Math.min(stations.length - 1, i + 1)]);
-      if (!normal) throw new Error('Invalid coastal station direction');
-      if (isWater(crest.x + normal.x * 1.4, crest.z + normal.z * 1.4) !== true) {
-        normal.x *= -1;
-        normal.z *= -1;
-      }
-      const toeY = source.seaHeightM - 0.38;
-      const desired = rockSlope ? source.estimates.rockSlopeRunM * rampFactor(lengths[i], lengths.at(-1))
-        : seawall ? 1.5 : 0;
-      // 岸脚只伸向同一段海面，遇相邻岸线或出水口收短。
-      let run = desired;
-      while (run > 0.25 && isWater(crest.x + normal.x * run, crest.z + normal.z * run) !== true) run *= 0.5;
-      return { crest, normal, toe: offset(crest, normal, run, toeY), run };
-    });
-
+    const sections = bayShoreSections(source, shore, isWater);
     for (let i = 1; i < sections.length; i++) {
       const a = sections[i - 1], b = sections[i];
       const batch = bucket((a.crest.x + b.crest.x) / 2, (a.crest.z + b.crest.z) / 2);
-      const phase = (i * 53 % 17) / 17;
-      const tint = new THREE.Color(rockSlope ? RIPRAP : RETAINING).multiplyScalar(0.89 + phase * 0.22);
-      if (seawall) {
-        const dark = tint.clone().multiplyScalar(0.66);
-        const aMid = offset(a.crest, a.normal, a.run * 0.25, Math.max(a.toe.y, a.crest.y - 0.48));
-        const bMid = offset(b.crest, b.normal, b.run * 0.25, Math.max(b.toe.y, b.crest.y - 0.48));
-        addQuad(batch, a.crest, b.crest, aMid, bMid, tint);
-        addQuad(batch, aMid, bMid, a.toe, b.toe, dark);
-        statistics.shoreTriangles += 2;
-      } else if (rockSlope) {
-        addQuad(batch, a.crest, b.crest, a.toe, b.toe, tint);
-        if (Math.min(a.run, b.run) > 1.5) {
-          for (const across of [0.32, 0.61, 0.87]) {
-            const x = (a.crest.x + b.crest.x + (a.toe.x + b.toe.x - a.crest.x - b.crest.x) * across) / 2;
-            const z = (a.crest.z + b.crest.z + (a.toe.z + b.toe.z - a.crest.z - b.crest.z) * across) / 2;
-            const y = (a.crest.y + b.crest.y) * (1 - across) / 2 + a.toe.y * across;
-            batch.rockSites.push({ x, y, z, size: 0.38 + phase * 0.39, phase: phase + across });
-          }
-        }
-      } else {
+      batch.shoreFaces.push([shoreIndex, i]);
+      statistics.shoreTriangles += appendBayShoreFace(batch, shore, sections, i);
+      if (!seawall && !rockSlope) {
         // 挡墙上缘与地面三角形共边，栏杆柱落在陆侧。
-        addQuad(batch, a.crest, b.crest, a.toe, b.toe, tint);
         const p = offset(a.crest, a.normal, -0.19), q = offset(b.crest, b.normal, -0.19);
         p.y = heightAt(p.x, p.z) ?? a.crest.y;
         q.y = heightAt(q.x, q.z) ?? b.crest.y;
@@ -260,7 +268,6 @@ export function planBayWaterfront(source, { heightAt, isWater, colliders: obstac
         addBox(batch, 'metal', p, { ...p, y: p.y + 1.1 }, 0.09, 0.09, 'bay-rail-post');
         statistics.rails++;
       }
-      statistics.shoreTriangles += 2;
     }
     if (seawall || rockSlope) {
       const rail = planCoastalGuardrail(sections, {

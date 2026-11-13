@@ -136,3 +136,40 @@ test('waterfront keeps mode permissions local and releases riprap detail after l
   assert.equal(scene.children.length, 0);
   assert.equal(layer.group.children.length, 0);
 });
+
+test('compact rails keep openings, slope, collider types and terrain-following light pools', { skip: !dir }, async () => {
+  const THREE = await import(pathToFileURL(join(dir, 'build/three.webgpu.js')));
+  const TSL = await import(pathToFileURL(join(dir, 'build/three.tsl.js')));
+  const materials = { sceneUniforms: { night: TSL.uniform(0) } };
+  const fixtures = loadModule(read('sz-site-fixtures.js'), { imports: {
+    'three/webgpu': THREE, 'three/tsl': TSL, './sz-materials.js': materials
+  } });
+  const bayModule = loadModule(read('sz-bay-waterfront.js'), { imports: {
+    'three/webgpu': THREE, './building-collision.js': {}, './sz-materials.js': materials,
+    './sz-site-fixtures.js': fixtures, './sz-strings.js': {}
+  } });
+  const a = { x: 0, y: 8, z: 0 }, b = { x: 3, y: 8.12, z: 4 };
+  const rail = (p, q) => fixtures.planRail(p, q, fixtures.GREENWAY_RAIL)
+    .map(row => ({ ...row, colliderType: 'bay-rail' }));
+  const rows = [...rail(a, b), ...rail({ x: 8, y: 8.3, z: 4 }, { x: 12, y: 8.5, z: 4 }),
+    { a, b: { ...a, y: 9.12 }, width: 0.09, height: 0.09, colliderType: 'bay-rail-post' }];
+  const packed = fixtures.packFixtureRows(rows);
+  assert.equal(packed.rows.length, 3);
+  const expanded = fixtures.unpackFixtureRows(packed);
+  assert.equal(expanded.length, rows.length);
+  for (let i = 0; i < rows.length; i++) {
+    assert.equal(expanded[i].colliderType, rows[i].colliderType);
+    const old = bayModule.bayFixtureCollider(rows[i], rows[i].colliderType);
+    const restored = bayModule.bayFixtureCollider(expanded[i], expanded[i].colliderType);
+    for (const key of ['minX', 'maxX', 'minZ', 'maxZ', 'minY', 'maxY']) {
+      assert.ok(Math.abs(old[key] - restored[key]) < 0.001, key);
+    }
+  }
+  const pool = { poolPositions: [], poolUvs: [] };
+  fixtures.addGreenwayLightPool(pool, { x: 2, z: 3 }, (x, z) => 8 + x * 0.04 + z * 0.02);
+  const restored = { pools: fixtures.packGreenwayLightPools(pool) };
+  fixtures.unpackGreenwayLightPools(restored);
+  assert.equal(restored.poolPositions.length, pool.poolPositions.length);
+  assert.ok(Math.max(...pool.poolPositions.map((v, i) => Math.abs(v - restored.poolPositions[i]))) < 0.0011);
+  assert.deepEqual(Array.from(restored.poolUvs), Array.from(pool.poolUvs));
+});

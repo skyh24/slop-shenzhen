@@ -116,7 +116,7 @@ export function findWaterfrontWalkPoint(paths, x, z, heading, maxDistance = 4) {
   return best;
 }
 
-function beamCollider({ a, b, width, height }, type) {
+export function waterfrontFixtureCollider({ a, b, width, height }, type) {
   const length = distance(a, b);
   const outer = length > 0.001
     ? [[a, 1], [b, 1], [b, -1], [a, -1]].map(([p, s]) =>
@@ -148,9 +148,9 @@ export function planWaterfront(source, { network, elevated, heightAt, nearObstac
   }
   function add(row, material, type) {
     const batch = fixtureBucket(row.a.x, row.a.z);
-    batch[material].push(row);
+    batch[material].push({ ...row, colliderType: type });
     if (type) {
-      const collider = beamCollider(row, type);
+      const collider = waterfrontFixtureCollider(row, type);
       batch.colliders.push(collider);
       colliders.push(collider);
     }
@@ -258,7 +258,7 @@ export function planWaterfront(source, { network, elevated, heightAt, nearObstac
       const points = path.points.map(([x, z]) => ({ x, y: support(x, z), z }));
       const clear = points.map(p => Number.isFinite(p.y) && publicHeight(p.x, p.z) !== null);
       return points.every(p => Number.isFinite(p.y)) && clear.some(Boolean)
-        ? { id: `waterfront:${route.id}:${index}`, points, clear, widthM: path.widthM,
+        ? { id: `waterfront:${route.id}:${index}`, sourceRouteId: route.id, sourcePathIndex: index, points, clear, widthM: path.widthM,
           surfaceId, mode: path.mode }
         : null;
     }).filter(Boolean);

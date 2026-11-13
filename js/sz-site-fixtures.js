@@ -24,6 +24,80 @@ export const planRail = (a, b, bars) => bars.map(([h, width, height]) => beam(at
 export const GREENWAY_RAIL = [[0.55, 0.068, 0.068], [1.07, 0.077, 0.077]];
 export const GREENWAY_LAMP = { poleBottomM: -0.04, poleTopM: 3.68, headBottomM: 3.64, headTopM: 3.82, headWidthM: 0.31 };
 
+const millimetres = value => Math.round(value * 1000) / 1000;
+
+// 栏杆保存一条基线，两根横杆共用样式。竖直零件只保存底点和顶高。
+export function packFixtureRows(fixtures) {
+  const templates = [], rows = [];
+  const templateIds = new Map();
+  function template(values) {
+    const key = JSON.stringify(values);
+    if (!templateIds.has(key)) {
+      templateIds.set(key, templates.length);
+      templates.push(values);
+    }
+    return templateIds.get(key);
+  }
+  for (let i = 0; i < fixtures.length; i++) {
+    const row = fixtures[i], next = fixtures[i + 1];
+    const type = row.colliderType ?? null;
+    const pair = type?.endsWith('-rail') && next?.colliderType === type
+      && [row, next].every((bar, index) => bar.width === GREENWAY_RAIL[index][1] && bar.height === GREENWAY_RAIL[index][2])
+      && ['a', 'b'].every(end => row[end].x === next[end].x && row[end].z === next[end].z
+        && Math.abs(next[end].y - row[end].y - GREENWAY_RAIL[1][0] + GREENWAY_RAIL[0][0]) < 1e-6);
+    if (pair) {
+      rows.push([template(['rail', type]), row.a.x, row.a.y - GREENWAY_RAIL[0][0], row.a.z,
+        row.b.x, row.b.y - GREENWAY_RAIL[0][0], row.b.z].map(millimetres));
+      i++;
+    } else {
+      const id = template([row.width, row.height, type]);
+      const points = row.a.x === row.b.x && row.a.z === row.b.z
+        ? [row.a.x, row.a.y, row.a.z, row.b.y]
+        : [row.a.x, row.a.y, row.a.z, row.b.x, row.b.y, row.b.z];
+      rows.push([id, ...points.map(millimetres)]);
+    }
+  }
+  return { templates, rows };
+}
+
+export function unpackFixtureRows({ templates, rows }) {
+  return rows.flatMap(([index, ax, ay, az, bx, by, bz]) => {
+    const preset = templates[index];
+    if (!preset) throw new Error('Unknown waterfront fixture template');
+    const a = { x: ax, y: ay, z: az };
+    const b = bz === undefined ? { x: ax, y: bx, z: az } : { x: bx, y: by, z: bz };
+    if (preset[0] === 'rail') return planRail(a, b, GREENWAY_RAIL).map(row => ({ ...row, colliderType: preset[1] }));
+    return [{ a, b, width: preset[0], height: preset[1], colliderType: preset[2] }];
+  });
+}
+
+export function packGreenwayLightPools(batch) {
+  const pools = [];
+  for (let start = 0; start < batch.poolPositions.length; start += 144) {
+    const [x, y, z] = batch.poolPositions.slice(start, start + 3);
+    const heights = [];
+    for (let offset = 0; offset < 144; offset += 9) heights.push(millimetres(batch.poolPositions[start + offset + 7] - y));
+    pools.push([millimetres(x), millimetres(y), millimetres(z), ...heights]);
+  }
+  return pools;
+}
+
+export function unpackGreenwayLightPools(batch) {
+  if (batch.poolPositions) return;
+  batch.poolPositions = [];
+  batch.poolUvs = [];
+  for (const [x, y, z, ...heights] of batch.pools) {
+    const ring = heights.map((height, i) => ({ x: x + 2.35 * Math.cos(i * Math.PI / 8), y: y + height,
+      z: z + 2.35 * Math.sin(i * Math.PI / 8), u: 0.5 + 0.5 * Math.cos(i * Math.PI / 8), v: 0.5 + 0.5 * Math.sin(i * Math.PI / 8) }));
+    for (let i = 0; i < 16; i++) {
+      for (const point of [{ x, y, z, u: 0.5, v: 0.5 }, ring[(i + 1) % 16], ring[i]]) {
+        batch.poolPositions.push(point.x, point.y, point.z);
+        batch.poolUvs.push(point.u, point.v);
+      }
+    }
+  }
+}
+
 export function createGreenwayLightMaterial() {
   const material = new THREE.MeshBasicNodeMaterial({ color: 0xffd9a1, transparent: true, depthWrite: false,
     blending: THREE.AdditiveBlending });

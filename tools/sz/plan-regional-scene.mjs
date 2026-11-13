@@ -43,6 +43,7 @@ const { planSceneDroneFlights, droneStationColliders } = await import('../../js/
 const { createColliderIndex } = await import('../../js/sz-trees.js');
 const { spatialIndex } = await import('../../js/sz-spatial.js');
 const { REGIONAL_SCENE_VERSION } = await import('../../js/sz-regional-format.js');
+const { packFixtureRows, packGreenwayLightPools } = await import('../../js/sz-site-fixtures.js');
 const run = (_, build) => build();
 const scene = new Scene();
 const { site, bayPaths, waterfrontPaths, talentPark, elevatedRoads, trees, vegetation, colliders, deckOccupied, carriagewayOccupied } = await prepareSceneSite(scene, {
@@ -107,26 +108,27 @@ for (const placed of metroCells.values()) {
 
 function fixtureCells(plan, kind, finishes) {
   for (const { colliders = [], ...batch } of plan.batches) {
-    for (const finish of finishes) batch[finish] = packFixtures(batch[finish]);
-    for (const field of ['positions', 'colors', 'poolPositions', 'poolUvs']) {
-      if (batch[field]) batch[field] = batch[field].map(round);
-    }
-    cell(kind, [{ x: batch.x, z: batch.z }, ...colliders.flatMap(corners)], { batch, colliders },
-      finishes.reduce((n, finish) => n + batch[finish].length, 0), { safety: colliders });
+    const count = finishes.reduce((n, finish) => n + batch[finish].length, 0);
+    for (const finish of finishes) batch[finish] = packFixtureRows(batch[finish]);
+    batch.pools = packGreenwayLightPools(batch);
+    // 岸面由源断面重建，光斑由中心、固定半径和地面高度重建。
+    for (const field of ['positions', 'colors', 'rockSites', 'poolPositions', 'poolUvs']) delete batch[field];
+    cell(kind, [{ x: batch.x, z: batch.z }, ...colliders.flatMap(corners)], { batch }, count, { safety: colliders });
   }
 }
 fixtureCells(bay, 'bay', ['metal', 'wood', 'light']);
 fixtureCells(shore, 'shore', ['steel', 'lamp']);
-if (bay.routePoints.length) cell('bay-walk', bay.routePoints, { points: bay.routePoints, restSpots: bay.restSpots }, 1);
-for (const route of shore.publicRoutes) cell('shore-walk', route.points, route, 1);
+if (bay.routePoints.length) cell('bay-walk', bay.routePoints, { restSpots: bay.restSpots }, 1);
+for (const route of shore.publicRoutes) cell('shore-walk', route.points,
+  { routeId: route.sourceRouteId, pathIndex: route.sourcePathIndex, clear: route.clear }, 1);
 for (const row of waterfrontWaterRows(GEO.waterfront)) {
   cell('shore-water', GEO.water[row.waterIndex].outer, row, 1);
 }
 
-for (const row of GEO.waterfront?.dasha?.banks ?? []) {
+for (const [index, row] of (GEO.waterfront?.dasha?.banks ?? []).entries()) {
   for (let start = 0; start < row.stations.length - 1; start += 64) {
     const stations = row.stations.slice(start, start + 65);
-    cell('shore-bank', stations.map(([x, , z]) => ({ x, z })), { ...row, stations }, 1);
+    cell('shore-bank', stations.map(([x, , z]) => ({ x, z })), { bankIndex: index, start, count: stations.length }, 1);
   }
 }
 

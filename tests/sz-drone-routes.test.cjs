@@ -285,14 +285,14 @@ test('compiled flight runs both legs and releases the regional aircraft after co
   const stations = new Map(plan.drone.stations.map(station => [station.id, station]));
   const from = stations.get(route.fromStationId), to = stations.get(route.toStationId);
   const row = plan.cells.find(row => row.kind === 'flight' && row.routeId === route.id);
-  const packet = JSON.parse(readFileSync(join(__dirname, '../js/sz-regional', plan.fingerprint.slice(0, 20), row.id + '.json')));
+  const packet = JSON.parse(require('node:zlib').gunzipSync(readFileSync(join(__dirname, '../js/sz-regional', plan.fingerprint.slice(0, 20), row.pack + '.json.gz'))));
   const rejectPlanning = () => { throw new Error('Runtime must use compiled placement and motion'); };
   const scene = new THREE.Scene();
   const drones = buildSzDroneRoutes(scene, { air: raw.air,
     site: { heightAt: rejectPlanning, isWater: rejectPlanning, roadHeight: rejectPlanning },
     regional: { stations: [from, to], routes: [{ ...route, from, to }] } });
   assert.equal(drones.status(from.id, from).available, false);
-  const flight = drones.mountRoute(route.id, packet.data);
+  const flight = drones.mountRoute(route.id, packet.data[row.id]);
   const mission = drones.start(from.id, true, from, { remote: true });
   const phases = new Set();
   let returning = false;

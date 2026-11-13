@@ -117,7 +117,7 @@ def release_files(source, engine):
         if digest(checked_path(source, name).read_bytes()) != expected:
             raise ValueError(f'Regional scene rules changed; rebuild the regional scene: {name}')
     for name, expected in regional.get('files', {}).items():
-        if not re.fullmatch(r'js/sz-regional/[a-f0-9]{20}/[a-z-]+-[0-9]+\.json', name):
+        if not re.fullmatch(r'js/sz-regional/[a-f0-9]{20}/(?:waterfront|metro|drone)\.json\.gz', name):
             raise ValueError(f'Unexpected regional resource: {name}')
         data = checked_path(source, name).read_bytes()
         if digest(data) != expected:
