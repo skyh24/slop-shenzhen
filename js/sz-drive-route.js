@@ -214,6 +214,15 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
   const roads = new Map();
   const cells = new Map();
   const neighbors = new Map();
+  const structureSeams = new Set();
+  for (const edge of network.edges) {
+    for (const next of edge.next) {
+      if (edge.structureNeighbors || next.structureNeighbors) {
+        structureSeams.add(edge);
+        structureSeams.add(next);
+      }
+    }
+  }
   const detailed = new Set(detailedRoadIds);
   const canTurn = createTurnFilter(graph);
   const intersectionMargin = Math.hypot(model.hx, model.hz) + 0.35;
@@ -227,6 +236,7 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
     if (!usableWidth(edge, model.hx) || !allowsCar(edge, rules, model)) continue;
     const offsets = edge.section.routeOffsetsM.filter(offset => Math.abs(offset) + model.hx + 0.12 <= edge.section.travelWidthM / 2);
     const lane = edge.section.twoWay || detailed.has(edge.osmId) ? offsets.at(-1)
+      : structureSeams.has(edge) ? 0
       : offsets.reduce((best, offset) => best === undefined || Math.abs(offset) < Math.abs(best) ? offset : best, undefined);
     if (lane === undefined) continue;
     const length = edge.segments.reduce((sum, seg) => sum + seg.length, 0);

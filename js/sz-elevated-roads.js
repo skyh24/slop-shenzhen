@@ -671,113 +671,6 @@ function buildChunks(records) {
 }
 
 
-// 跨层连接坡道：相邻高架链路共享节点但 layer 估计不同（如 layer1=4.8 m、layer2=9.6 m）时，
-// 桥面会出现 4.8 m 台阶，车辆爬不上去。这里在两条链路各退 ~18 m 处拉一条渐变坡道，坡度控制在 35% 内。
-const CONNECTOR_RAMP_M = 18;
-const CONNECTOR_MAX_GRADE = 0.35;
-const CONNECTOR_SEGMENTS = 10;
-
-function connectorBackFrame(record, end) {
-  const frames = record.frames;
-  if (frames.length < 4) return null;
-  const step = record.lengthM / (frames.length - 1);
-  const back = Math.max(1, Math.min(frames.length - 2, Math.round(CONNECTOR_RAMP_M / Math.max(step, 0.5))));
-  const frame = end === 'start' ? frames[back] : frames[frames.length - 1 - back];
-  return frame ? { frame, width: record.width } : null;
-}
-
-/** 解析：在两条高架链路各退约 18 m 处拉一条渐变坡道（顶面 + 可站立三角面）。
- *  输入：低/高层链路端点帧与坡度是否合规标记。
- *  输出：与链路记录同构的坡道记录；宽度取两条链路的 0.85、只生成顶面。 */
-function makeConnectorRamp(node, serial, low, high, gradeOK) {
-  const a = low.frame, b = high.frame;
-  const width = Math.min(low.width, high.width) * 0.85;
-  const half = width / 2;
-  const dx = b.x - a.x, dz = b.z - a.z;
-  const length = Math.hypot(dx, dz);
-  if (!(length > 6) || !Number.isFinite(length)) return null;
-  const px = dz / length, pz = -dx / length;
-  const frames = [];
-  for (let i = 0; i <= CONNECTOR_SEGMENTS; i++) {
-    const t = i / CONNECTOR_SEGMENTS;
-    const x = a.x + dx * t, z = a.z + dz * t;
-    const y = a.y + (b.y - a.y) * t;
-    frames.push({ x, z, y, left: { x: x + px * half, z: z + pz * half }, right: { x: x - px * half, z: z - pz * half } });
-  }
-  const geometry = [];
-  const topTriangles = [];
-  for (let i = 1; i < frames.length; i++) {
-    const p = frames[i - 1], q = frames[i];
-    pushTopQuad(geometry, topTriangles,
-      { x: p.left.x, y: p.y, z: p.left.z }, { x: p.right.x, y: p.y, z: p.right.z },
-      { x: q.right.x, y: q.y, z: q.right.z }, { x: q.left.x, y: q.y, z: q.left.z });
-  }
-  const areaM2 = length * width;
-  return {
-    index: 100000 + serial,
-    osmId: null,
-    name: `connector:${node}`,
-    width,
-    lanes: 1,
-    direction: 0,
-    bridge: true,
-    tunnel: false,
-    layer: Math.max(low.layer ?? 0, high.layer ?? 0),
-    startNode: node,
-    endNode: node,
-    sharedStart: false,
-    sharedEnd: false,
-    startGroundHeight: null,
-    endGroundHeight: null,
-    startDeckY: a.y,
-    endDeckY: b.y,
-    lengthM: length,
-    areaM2,
-    maxClearanceM: 0,
-    points: [{ x: a.x, z: a.z }, { x: b.x, z: b.z }],
-    frames,
-    geometry,
-    topTriangles,
-    piers: [],
-    surfaceId: `sz-elevated-ramp:${node}`,
-    grade: gradeOK,
-    connector: true
-  };
-}
-
-/** 解析：识别相邻高架链路在共享节点处的 layer 高差（如 4.8 m vs 9.6 m），生成连接坡道。
- *  输入：已规划的链路记录（含 startNode/endNode 与端部高度）。
- *  输出：坡道记录（几何 + 独立 surfaceId `sz-elevated-ramp:<node>`），坡度按 35% 上限标记。 */
-function planConnectorRamps(records) {
-  const byNode = new Map();
-  for (const record of records) {
-    for (const [end, node] of [['start', record.startNode], ['end', record.endNode]]) {
-      if (!byNode.has(node)) byNode.set(node, []);
-      byNode.get(node).push({ record, end, y: end === 'start' ? record.startDeckY : record.endDeckY });
-    }
-  }
-  const ramps = [];
-  for (const [node, entries] of [...byNode.entries()].sort((a, b) => a[0] - b[0])) {
-    if (entries.length < 2) continue;
-    entries.sort((a, b) => a.y - b.y);
-    for (let i = 1; i < entries.length; i++) {
-      const low = entries[i - 1], high = entries[i];
-      const rise = high.y - low.y;
-      if (rise < 0.6) continue;
-      const lowFrame = connectorBackFrame(low.record, low.end);
-      const highFrame = connectorBackFrame(high.record, high.end);
-      if (!lowFrame || !highFrame) continue;
-      const lowX = lowFrame.frame.x, lowY = lowFrame.frame.y;
-      const highX = highFrame.frame.x, highY = highFrame.frame.y;
-      const run = Math.hypot(highX - lowX, highFrame.frame.z - lowFrame.frame.z);
-      const gradeOK = run > 0 && rise / run <= CONNECTOR_MAX_GRADE;
-      const ramp = makeConnectorRamp(node, ramps.length, lowFrame, highFrame, gradeOK);
-      if (ramp) ramps.push(ramp);
-    }
-  }
-  return ramps;
-}
-
 /** 解析：按立交分区的桥面、护栏、桥墩总计划（纯函数）。
  *  选区：bridge=true 或 |layer|>0、与任一分区矩形相交的链路；一条链路只规划一次，
  *        归给分区列表里第一个命中的立交，避免相邻立交重复出桥面。
@@ -847,7 +740,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     }
     record.interchangeId = owner?.id ?? 'dasha-baishi';
     records.push(record);
-    recordsByInterchange.get(owner.id)?.push(record);
+    recordsByInterchange.get(owner?.id)?.push(record);
   }
 
   const walking = (sources?.footbridges ?? []).map((bridge, i) => {
@@ -869,7 +762,6 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     return planLink(line, link, -i - 1, { osmId: id, layer: 1, bridge: true }, groundHeight, new Set(),
       { widthM, girderDepthM, waterAt, waterHeightM, heightAt, walk: true, surfaceId: `waterfront-bridge:${id}` });
   }).filter(Boolean);
-  const connectors = planConnectorRamps(records.filter(record => !record.reviewed && !record.crossing));
   // 车行链路：高程来自本计划同一批桥面三角面、纵坡可驾驶且非隧道；连接在车流图里再按共享节点高差复核。
   const driveLinks = records.filter(record => !record.tunnel && record.layer > 0
     && record.maxGrade <= (record.reviewed ? 0.05 : ELEVATED_DRIVE_MAX_GRADE));
@@ -906,7 +798,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     candidates.sort((a, b) => b.dot - a.dot || a.id.localeCompare(b.id));
     successors.set(record.surfaceId, candidates.map(candidate => candidate.id));
   }
-  const surfaces = [...records, ...connectors, ...walking].map(record => ({
+  const surfaces = [...records, ...walking].map(record => ({
     id: record.surfaceId,
     heightSource: 'estimate',
     triangles: record.topTriangles,
@@ -914,7 +806,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     climbableFromGround: true,
     driveSuccessors: successors.get(record.surfaceId) ?? []
   }));
-  const chunks = [...buildChunks([...records, ...connectors]), ...buildChunks(walking).map(c => ({ ...c, id: `walk:${c.id}` }))];
+  const chunks = [...buildChunks(records), ...buildChunks(walking).map(c => ({ ...c, id: `walk:${c.id}` }))];
   // 护栏和桥墩的接触体都来自显示几何同一批顶点；桥面本身仍只登记顶面三角面。
   const colliders = [...records, ...walking].flatMap(record => [...record.barrierColliders, ...record.pierColliders, ...record.slabColliders]);
   const interchangeSummaries = interchanges.map(entry => {
@@ -939,7 +831,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
   });
   const statistics = {
     links: records.length,
-    connectors: connectors.length,
+    connectors: 0,
     connectorLengthM: 0,
     gradeConflicts: records.filter(record => record.maxGrade > ELEVATED_DRIVE_MAX_GRADE).map(record => record.index),
     deckLengthM: records.reduce((sum, record) => sum + record.lengthM, 0),

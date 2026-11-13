@@ -728,8 +728,10 @@ test('a source-connected tunnel route stays on its own floor across every seam a
     [[1348.42, 1640.55], [1487.03, 1638.77], [17634]]
   ];
   for (const [from, to, indices] of movements) {
-    const route = planner.route(planner.snap(...from), planner.snap(...to));
-    assert.ok(route);
+    const start = planner.snap(...from), end = planner.snap(...to);
+    const route = planner.route(start, end);
+    assert.ok(route, JSON.stringify({from, to, starts: start?.levels.map(level => [level.level, level.candidates.map(c => c.edge.sourceIndex)]),
+      ends: end?.levels.map(level => [level.level, level.candidates.map(c => c.edge.sourceIndex)])}));
     assert.deepEqual(Array.from(route.edges, edge => edge.sourceIndex), indices);
     for (const [i, sample] of route.samples.entries()) {
       if (sample.edge.rampSpeed) assert.ok(route.limits[i] <= 6.5);

@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "checkedAt": "2026-11-13T05:49:54.752790+00:00",
+  "checkedAt": "2026-11-13T07:50:42.142673+00:00",
   "encodingValidation": "passed",
   "realityValidation": "incomplete",
   "recentObservationWindow": [
     2025,
     2026
   ],
-  "payloadSha256": "0887b984e368528951a7b910f950fbe8b45a035bdbe7d9eb90ba9c705bf82600",
+  "payloadSha256": "5fe027ae565d6872b69626a411b8b1e895c7081e05e681ca6e1067d6c1925a45",
   "sourceIntegrity": [
     {
       "id": "osm-guangdong",
@@ -77,7 +77,7 @@
     }
   ],
   "counts": {
-    "buildings": 76024,
+    "buildings": 76022,
     "terrainChunks": 1264
   },
   "multipartSourceIds": {
@@ -141,12 +141,12 @@
     "overture/c59094e9-6f9d-47a3-9ed4-f60b10537eac": 2
   },
   "heightSources": {
-    "osm-height": 1603,
-    "osm-levels": 8575,
-    "globfp": 28443,
+    "osm-height": 1601,
+    "osm-levels": 8574,
+    "globfp": 28441,
     "estimate": 37385,
-    "landmark": 9,
-    "published": 4,
+    "landmark": 8,
+    "published": 8,
     "overture-floors": 3,
     "overture-height": 2
   },
@@ -540,12 +540,12 @@
   "output": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7631,
-    "metadataBytes": 16788035,
-    "numericBytes": 33624008,
-    "uncompressedBytes": 50412096,
+    "columns": 7774,
+    "metadataBytes": 16994408,
+    "numericBytes": 35346680,
+    "uncompressedBytes": 52341136,
     "lossless": true,
-    "compressedBytes": 11396878,
-    "compressedSha256": "460d3c4490fd76fbe6ecc909bd8e049d5ddb8bab859955f18166fc17a2710937"
+    "compressedBytes": 12640321,
+    "compressedSha256": "b40e47dbced8926c5a5f997ffbfdc3f640a911d55f33b1bf7c8b4a9558a3fde7"
   }
 }
