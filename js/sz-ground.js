@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, fract, fwidth, max, min, mix, positionWorld, smoothstep, vec3 } from 'three/tsl';
+import { attribute, color, distance, vec2, fract, fwidth, max, min, mix, positionWorld, smoothstep, vec3 } from 'three/tsl';
 import { copyGroundChunksForRender, createGroundSurfaceSampler } from './sz-ground-surface.js';
 
 // 静态地表按 2.4 km 超块合并（与 sz-roads.js 同款逻辑）：页面只需给每个分块一份带位置/法线/颜色/索引的
@@ -58,7 +58,7 @@ export { createGroundSurfaceSampler };
 
 const COLORS = [0xb5b0a2, 0x6f875a, 0x527858, 0xa7a8a4, 0xb8b1a5, 0x736f68, 0xa79780, 0x938473];
 
-function groundMaterial() {
+function groundMaterial(frontageLight) {
   const material = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.96 });
   // 石材接缝只作用于铺装三角面，远处按像素覆盖渐隐。
   const grid = positionWorld.xz.div(0.72);
@@ -68,13 +68,18 @@ function groundMaterial() {
   const joint = smoothstep(0.009, max(0.026, pixel), edge).oneMinus()
     .mul(smoothstep(0.09, 0.38, pixel).oneMinus());
   material.colorNode = vec3(mix(1, joint.mul(-0.20).add(1), attribute('paved', 'float')));
+  if (frontageLight) {
+    const reach = smoothstep(5, 46, distance(positionWorld.xz, vec2(frontageLight.x, frontageLight.z))).oneMinus();
+    material.emissiveNode = color(0xa99c8c).mul(0.23).mul(frontageLight.night)
+      .mul(reach).mul(attribute('paved', 'float'));
+  }
   return material;
 }
 
 export function buildSzGround(scene, surface, options = {}) {
   const chunks = copyGroundChunksForRender(surface);
   const palette = COLORS.map(value => new THREE.Color(value));
-  const material = options.material ?? groundMaterial();
+  const material = options.material ?? groundMaterial(options.frontageLight);
   const group = new THREE.Group();
   group.name = 'shenzhen-ground';
   const entries = [];

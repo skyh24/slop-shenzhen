@@ -43,6 +43,7 @@ test('raised building soffits face the passage and preserve courtyard holes and 
   { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
     const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
     const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+      './sz-retail-frontage.js': {},
       'three/webgpu': THREE,
       './sz-geodata.js': {},
       './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
@@ -87,6 +88,7 @@ test('one-kilometre building batches preserve every triangle attribute and colli
     Mesh: class { constructor(geometry) { this.geometry = geometry; } }
   };
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
     './sz-geodata.js': {},
     './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
@@ -127,6 +129,7 @@ test('one-kilometre building batches preserve every triangle attribute and colli
 test('tall ordinary towers gain an estimated podium with matching display and collision', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
     './sz-geodata.js': {},
     './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
@@ -152,6 +155,7 @@ test('tall ordinary towers gain an estimated podium with matching display and co
 test('ordinary roof equipment and parapets share rendered contact geometry', { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
     './sz-geodata.js': {},
     './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
@@ -179,3 +183,45 @@ test('ordinary roof equipment and parapets share rendered contact geometry', { s
   assert.ok(hits.length > 0 && hits[0].point.y >= 10, 'roof surface remains raycastable');
   blocks.dispose();
 });
+
+test('retail walls replace only street-facing lower geometry and retain the closed collider',
+  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+    const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
+    const TSL = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.tsl.js')));
+    const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
+    const geometry = loadModule(read('sz-geometry.js'), { imports });
+    const layout = { buildingPlacement, buildingSeed };
+    const retail = loadModule(read('sz-retail-frontage.js'), { imports: {
+      ...imports, './sz-geometry.js': geometry, './sz-building-layout.js': layout, './sz-roads.js': roadsModule,
+      './sz-polygon.js': polygonModule,
+      './city-lighting-materials.js': { cityUniforms: {
+        uSkyHorizonColor: TSL.color(0x8899aa), uSkyTopColor: TSL.color(0x667788), uInteriorGlow: TSL.float(1)
+      } },
+      './sz-spatial.js': { spatialIndex: items => () => items }
+    } });
+    const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+      ...imports, './sz-retail-frontage.js': retail, './sz-geodata.js': {}, './sz-geometry.js': geometry,
+      './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
+      './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
+      './sz-building-layout.js': layout, './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
+    } });
+    const tower = { ...building, height: 25.3, minHeight: 0, retailFloors: 1,
+      facade: 'office', polygons: [{ outer, holes: [] }] };
+    const scene = new THREE.Scene();
+    const blocks = buildCityBlocks(scene, { buildings: [tower], terrain: grid, retail: {
+      pavementAt: (_x, z) => z < -20 ? 10 : null,
+      nearRoads: (x, z) => [{ road: { heightSource: 'terrain' }, x, z: -30, distance: Math.abs(z + 30) }]
+    } });
+    scene.updateMatrixWorld(true);
+    const firstHit = y => new THREE.Raycaster(new THREE.Vector3(1, y, -30), new THREE.Vector3(0, 0, 1))
+      .intersectObjects(blocks.group.children).filter(hit => hit.distance < 12);
+    assert.equal(firstHit(11).length, 1);
+    assert.match(firstHit(11)[0].object.name, /^ShenzhenRetail:/);
+    assert.match(firstHit(16)[0].object.name, /^ShenzhenBuildings:/);
+    assert.ok(blocks.retailDoors.length > 0 && blocks.retailDoors.every(door => !door.open && door.y === 10));
+    const door = blocks.retailDoors[0];
+    assert.equal(collision.polygonContains(blocks.colliders[0].polygon, door.x, door.z + 0.5), true);
+    assert.equal(collision.polygonContains(blocks.colliders[0].polygon, door.x, door.z - 0.5), false);
+    assert.equal(blocks.colliders[0].maxY, blocks.surfaces[0].triangles[0][0].y);
+    blocks.dispose();
+  });

@@ -79,7 +79,7 @@ function heightInTriangle(positions, ia, ib, ic, x, z) {
   return u * positions[a + 1] + v * positions[b + 1] + w * positions[c + 1];
 }
 
-function sampler(surface, chunks) {
+function sampler(surface, chunks, accepts = null) {
   const grid = surface.grid;
   return (x, z) => {
     if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
@@ -99,6 +99,8 @@ function sampler(surface, chunks) {
         const range = rangeForCell(chunk.cellRanges, row * (grid.nx - 1) + col);
         if (!range) continue;
         for (let p = range[0]; p < range[0] + range[1]; p += 3) {
+          if (accepts && (!accepts(chunk.kinds[chunk.indices[p]]) || !accepts(chunk.kinds[chunk.indices[p + 1]])
+              || !accepts(chunk.kinds[chunk.indices[p + 2]]))) continue;
           const height = heightInTriangle(chunk.positions, chunk.indices[p], chunk.indices[p + 1], chunk.indices[p + 2],
             x - chunk.origin[0], z - chunk.origin[1]);
           if (height !== null) return height;
@@ -122,9 +124,9 @@ function surfaceSnapshot(surface) {
   return snapshot;
 }
 
-export function createGroundSurfaceSampler(surface) {
+export function createGroundSurfaceSampler(surface, accepts) {
   const snapshot = surfaceSnapshot(surface);
-  return sampler(snapshot, snapshot.chunks);
+  return sampler(snapshot, snapshot.chunks, accepts);
 }
 
 export function copyGroundChunksForRender(surface) {

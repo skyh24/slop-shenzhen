@@ -527,7 +527,9 @@ export function planBuildingDetails(building, placement, options = {}) {
     const plan = planBalconies(building, edges, placement, rand, profile, floorHeight, floors, planOptions);
     balconies = plan.balconies;
     acUnits = planAcUnits(building, edges, placement, rand, profile, floorHeight, floors, planOptions, plan.usedEdges);
-    canopy = planCanopy(building, edges, placement, floorHeight, planOptions, plan.usedEdges);
+    if (!options.retailBuildingIds?.has(building.id)) {
+      canopy = planCanopy(building, edges, placement, floorHeight, planOptions, plan.usedEdges);
+    }
   }
   return {
     id: building.id, facade, bucket, roofY: placement.maxY, baseY: placement.minY,
@@ -722,6 +724,7 @@ export function buildBuildingDetails(scene, options = {}) {
 
   const index = new NeighbourIndex(buildings, terrain);
   // 地标专模自己会建屋顶和设备，地标覆盖的普通楼一律不出细节，避免重叠。
+  const { retailBuildingIds } = options;
   const shouldSkip = building => skipIds.has(building.id) || building.facade === 'landmark' || Boolean(building.landmark);
   const chunkIndex = new Map();
   for (const building of buildings) {
@@ -857,7 +860,7 @@ export function buildBuildingDetails(scene, options = {}) {
       if (budget <= 0) break;
       const placement = index.placementOf(building);
       const minimal = fullDetailBuildings >= maxFullDetailBuildings;
-      const planOptions = { neighbours: index, playerPosition, baseRoof: roofPlans?.get(building.id) };
+      const planOptions = { neighbours: index, playerPosition, retailBuildingIds, baseRoof: roofPlans?.get(building.id) };
       const minimalOptions = { ...planOptions, allowFacadeDetails: false, cheapRoof: true };
       let plan = minimal ? planBuildingDetails(building, placement, minimalOptions) : planBuildingDetails(building, placement, planOptions);
       if (!plan) continue;

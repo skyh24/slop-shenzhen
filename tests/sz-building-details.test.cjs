@@ -232,6 +232,7 @@ test('the rendered roof plan removes duplicate Shenzhen roof equipment while kee
   const { geo, buildings } = loadModule(read('sz-data-format.js')).decodeCityPayload(raw);
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
     './sz-geodata.js': {},
     './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
@@ -316,7 +317,7 @@ test('the two facade samples keep source placement and stream their estimated de
   const focus = { x: 50, z: 0 };
   const lobby = details.planBuildingDetails(office, layout.buildingPlacement(office, grid), { playerPosition: focus });
   assert.equal(lobby.appearanceSource, 'estimate');
-  assert.equal(lobby.roofY, office.height);
+  assert.equal(lobby.roofY, Math.fround(office.height));
   assert.equal(lobby.canopy.outZ, -1);
   assert.equal(lobby.canopy.w, 18);
   assert.ok(lobby.canopy.y - 0.68 > 5);

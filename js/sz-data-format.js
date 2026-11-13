@@ -572,6 +572,16 @@ export function validateCityPayload(raw) {
     requireData(Array.isArray(buildings[key]) && buildings[key].length === buildings.h.length, `buildings.${key}`);
   }
   validateMapRegions(raw.mapRegions, buildings);
+  if (raw.retailBuildings !== undefined) {
+    const buildingIds = new Set(buildings.id);
+    const assigned = new Set();
+    requireData(Array.isArray(raw.retailBuildings), 'retailBuildings');
+    for (const row of raw.retailBuildings) {
+      requireData(Array.isArray(row) && row.length === 2 && buildingIds.has(row[0])
+        && !assigned.has(row[0]) && (row[1] === 1 || row[1] === 2), 'retail building use');
+      assigned.add(row[0]);
+    }
+  }
   // 角色、上游族、分项可信度是新增字段，旧包可能没有；出现时必须和建筑数组一一对应并落在枚举内。
   for (const [field, enumName] of [['role', 'buildingRole'], ['upstream', 'upstreamFamily'],
     ['fpConf', 'confidence'], ['hConf', 'confidence'], ['eraConf', 'confidence']]) {
@@ -727,6 +737,7 @@ export function decodeCityPayload(raw, metrics = null) {
   const validatedAt = nowMs();
   if (metrics) metrics.validateMs = validatedAt - validateStartedAt;
   const b = raw.buildings;
+  const retail = new Map(raw.retailBuildings);
   const foundations = new Map(raw.golfCourse?.foundations.map(row => [row.id, row]));
   const buildings = b.h.map((height, i) => {
     const shape = polygon(b.rings[i]);
@@ -750,7 +761,8 @@ export function decodeCityPayload(raw, metrics = null) {
       levels: Array.isArray(b.lv) ? b.lv[i] : -1,
       role: Array.isArray(b.role) ? raw.enums.buildingRole[b.role[i]] : null,
       upstreamFamily: Array.isArray(b.upstream) ? raw.enums.upstreamFamily[b.upstream[i]] : null,
-      confidence, ...(foundations.has(b.id[i]) ? { foundation: foundations.get(b.id[i]) } : {}) };
+      confidence, ...(retail.has(b.id[i]) ? { retailFloors: retail.get(b.id[i]) } : {}),
+      ...(foundations.has(b.id[i]) ? { foundation: foundations.get(b.id[i]) } : {}) };
   });
   const decoded = { buildings, geo: { version: raw.version,
     frame: { origin: raw.origin, bearingDeg: 0, units: 'm', angleUnits: 'rad', axes: { x: 'east', y: 'up', z: 'south' } },

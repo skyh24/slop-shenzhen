@@ -357,7 +357,7 @@ class QaSession {
   // window.__szQA()：把启动阶段、场景统计、交通/人群/地图状态汇总成纯数据快照。
   snapshot() {
     const { controllerManager, cameraSystem, lightingSystem, mapSystem, traffic, pedestrians, roadFrontage,
-      autoDrive, laneAssist, sea, streetscape, streetscapeArrival, landmarks, bridge, publicWalk, renderer, buildingSigns, buildingDetails,
+      autoDrive, laneAssist, sea, streetscape, streetscapeArrival, landmarks, bridge, publicWalk, cityBlocks, renderer, buildingSigns, buildingDetails,
       audioSystem, cruise, getElapsed, getRenderedFrames, getGraphicsLoss, modules } = this.runtime;
     const elapsed = getElapsed();
     const active = controllerManager.getActiveEntity();
@@ -400,6 +400,9 @@ class QaSession {
       publicWalk: publicWalk && { ...publicWalk.statistics, actors: (pedestrians.peds ?? [])
         .filter(actor => actor.leg?.kind === 'public-walk')
         .map(({ id, x, y, z, s, dir, v }) => ({ id, x, y, z, s, dir, v })) },
+      retail: cityBlocks && { buildings: cityBlocks.retailBuildingIds.size, doors: cityBlocks.retailDoors
+        .filter(door => door.buildingId === publicWalk?.entrance?.buildingId
+          && Math.hypot(door.x - publicWalk.entrance.x, door.z - publicWalk.entrance.z) < 15) },
       roadFrontage: { ...roadFrontage.statistics, intersections: roadFrontage.control.intersections.map(intersection => ({
         id: intersection.id, approaches: intersection.approaches.map(({ osmNodeId, group, stopX, stopZ }) => ({ osmNodeId, group, stopX, stopZ }))
       })), clock: elapsed, control: roadFrontage.control.snapshot?.(elapsed) ?? [],

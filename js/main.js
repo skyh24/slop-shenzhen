@@ -9,8 +9,8 @@ import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
 import { GEO, REAL_BUILDINGS, DATA_TIMINGS } from './sz-geodata.js';
 import { createSceneStyle } from './sz-scene-style.js';
 import { createObservationSessions } from './sz-observation-session.js';
-import { getLocationLabel, inBounds, isWater, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
-import { buildSzGround } from './sz-ground.js';
+import { getLocationLabel, inBounds, isWater, nearRoadsForFrontage, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
+import { createGroundSurfaceSampler, buildSzGround } from './sz-ground.js';
 import { buildSzBayWaterfront, createBayParkArrivals, createBayPathLookup } from './sz-bay-waterfront.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads, planStreetTreeSides } from './sz-roads.js';
@@ -44,7 +44,7 @@ import { buildBuildingDetails } from './sz-building-details.js';
 import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
 import { createSzPedestrians } from './sz-pedestrians.js';
 import { createCarriagewayBarrier } from './sz-pedestrian-tracks.js';
-import { buildZhongxinWalk } from './sz-zhongxin-walk.js';
+import { buildZhongxinWalk, COCO_PARK_ENTRANCE } from './sz-zhongxin-walk.js';
 import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
 import { createAutoDrive } from './sz-auto-drive.js';
 import { createLaneAssist } from './sz-lane-assist.js';
@@ -190,11 +190,12 @@ async function initApp() {
   markInit('lighting');
 
   await showLoadingStage(STR.startup.ground, 'ground');
-  const ground = qa.measureBuild('ground', () => buildSzGround(scene, GEO.terrainSurface));
+  const frontageLight = { ...COCO_PARK_ENTRANCE, night: sceneUniforms.night };
+  const ground = qa.measureBuild('ground', () => buildSzGround(scene, GEO.terrainSurface, { frontageLight }));
   const sea = qa.measureBuild('sea', () => buildSzSea(scene, GEO.seaSurface));
   markInit('ground');
   await showLoadingStage(STR.startup.roads, 'roads');
-  const roads = qa.measureBuild('roads', () => buildSzRoads(scene, GEO.roadGraph, GEO.terrainSurface));
+  const roads = qa.measureBuild('roads', () => buildSzRoads(scene, GEO.roadGraph, GEO.terrainSurface, { frontageLight }));
   // 场地上下文：地形、路面、路网和各构建函数共用的接触面参数只构造一份，入口里不再重复传同一组闭包。
   const site = {
     buildings: REAL_BUILDINGS, terrain: GEO.terrain, terrainSurface: GEO.terrainSurface, sites: GEO.sites,
@@ -228,8 +229,16 @@ async function initApp() {
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
   const sceneSkipIds = new Set([...landmarks.skipIds, ...parkOmissions]);
+  // 门槛接入现有铺装三角面、专项人行道或路侧步行面。
+  const pavedHeight = createGroundSurfaceSampler(site.terrainSurface, kind => kind === 3 || kind === 4 || kind === 7);
+  const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
+  const retail = {
+    regions: GEO.mapRegions?.regions, nearRoads: nearRoadsForFrontage, carriageway: carriagewayOccupied,
+    entrance: publicWalk.entrance,
+    pavementAt: (x, z) => publicWalk.heightAt(x, z) ?? roadFrontage.contactHeight(x, z) ?? pavedHeight(x, z)
+  };
   const cityBlocks = qa.stage('blocks', () =>
-    buildCityBlocks(scene, { skipIds: sceneSkipIds, renderChunkSize: qa.chunkSize,
+    buildCityBlocks(scene, { skipIds: sceneSkipIds, renderChunkSize: qa.chunkSize, retail,
       programEmission: cbdProgram.emission, programParticipant: isCbdProgramBuilding,
       roadClearance: createRoadBuildingClearance(site.roadGraph, site.roadHeight, elevatedRoads.links) }));
   const detailSkipIds = new Set([...sceneSkipIds, ...(cityBlocks.roadConflicts ?? []).map(row => row.buildingId)]);
@@ -243,7 +252,8 @@ async function initApp() {
     buildBuildingSigns(scene, { buildings: cityBlocks.allBlocks, roadGraph: site.roadGraph }));
   // 近景补足屋顶和立面细节，避开基础屋顶已绘制的构件。
   const buildingDetails = qa.stage('details', () =>
-    buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds, roofPlans: cityBlocks.roofPlans }));
+    buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds, roofPlans: cityBlocks.roofPlans,
+      retailBuildingIds: cityBlocks.retailBuildingIds }));
   markInit('blocks');
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders];
   site.colliders = buildings;
@@ -259,7 +269,6 @@ async function initApp() {
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
   // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
-  const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
     ...site, carriagewayOccupied, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
     reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r),
@@ -799,7 +808,7 @@ async function initApp() {
     qa.install({
       renderer, scene, cameraSystem, controllerManager, mapSystem, autoDrive, laneAssist, lightingSystem, audioSystem, cruise,
       buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, streetscapeArrival, sea, bridge, publicWalk,
-      colliders,
+      colliders, cityBlocks,
       modules: {
         lamps: streetLamps, trees, apec: apecTheme, apecCity, drones, lightShow,
         summit, cbdProgram, waterfront, talentProgram, talentPeople, programIds: cityBlocks.programIds ?? [], parkOmissions,

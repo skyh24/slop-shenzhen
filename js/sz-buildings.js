@@ -5,6 +5,7 @@ import { createBuildingMaterial } from './sz-materials.js';
 import { facadeIndex } from './sz-facade-profiles.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
 import { ringArea, ringContains, polygonContains, orientedBoxRing } from './sz-polygon.js';
+import { createRetailFrontage } from './sz-retail-frontage.js';
 import { visitGroundRoadFootprints } from './sz-roads.js';
 
 // 普通楼按 2.4 km 合并成一个渲染块：出生点 1484 次绘制里 105 次来自 1 km 建筑块，
@@ -397,6 +398,10 @@ export function buildCityBlocks(scene, options = {}) {
   const candidates = collectPodiumCandidates(buildings);
   const occupancy = candidates.length ? buildPodiumOccupancy(buildings, terrain, roadGraph, entrances, candidates) : [];
   const candidateByBuilding = new Map(candidates.map((candidate, index) => [candidate.buildingIndex, index]));
+  const entranceHost = options.retail && buildings.find(b => b.id === options.retail.entrance?.buildingId);
+  const frontage = options.retail && buildings.some(building => building.retailFloors)
+    ? createRetailFrontage(buildings, { ...options.retail,
+      entranceTopY: entranceHost && buildingPlacement(entranceHost, terrain).maxY }) : null;
   const group = new THREE.Group();
   group.name = 'ShenzhenCityBlocks';
   const batches = new Map();
@@ -411,9 +416,6 @@ export function buildCityBlocks(scene, options = {}) {
     const building = buildings[buildingIndex];
     if (skipIds.has(building.id)) continue;
     const placement = buildingPlacement(building, terrain);
-    // 接触高度与实际顶点精度一致，避免降落后被楼体侧碰推出。
-    placement.maxY = Math.fround(placement.maxY);
-    for (const collider of placement.colliders) collider.maxY = placement.maxY;
     if (roadClearance && !building.landmark && /^(?:globfp|overture)\//.test(building.id)) {
       const conflict = building.polygons.map(polygon =>
         roadClearance(polygon, ringBounds(polygon.outer), placement.minY, placement.maxY)).find(Boolean);
@@ -435,23 +437,30 @@ export function buildCityBlocks(scene, options = {}) {
       addFlatPolygon(batch, rings, y, meta);
       surfaces.push({ id, heightSource, triangles: readTriangles(batch, firstIndex) });
     };
+    const candidateIndex = candidateByBuilding.get(buildingIndex);
+    const podium = candidateIndex === undefined ? null
+      : podiumPlan(candidates[candidateIndex], occupancy[candidateIndex], placement, roadClearance);
+    const retailEdge = frontage && building.retailFloors && building.minHeight === 0 && !building.landmark
+      ? (bounds, ...edge) => frontage.edge(building, bounds, ...edge) : null;
+    const replaceEdge = frontage && ((retailEdge && !podium) || frontage.isSharedPart(building))
+      ? (...edge) => frontage.sharedWallBottom(building, placement, ...edge) ?? retailEdge?.(placement, ...edge)
+      : null;
     for (const [index, polygon] of building.polygons.entries()) {
       const rings = [polygon.outer, ...polygon.holes].map(flatRing);
       if (placement.foundationBottomY !== null) {
         addWalls(foundations, rings, placement.foundationBottomY, placement.baseY);
       }
-      addWalls(batch, rings, placement.minY, placement.maxY, meta, placement.baseY);
+      addWalls(batch, rings, placement.minY, placement.maxY, meta, placement.baseY, replaceEdge);
       addRoof(rings, placement.maxY, `${building.id}:roof:${index}`, building.heightSource);
       if (building.minHeight > 0) addFlatPolygon(batch, rings, placement.minY, meta, 1, -1);
     }
     colliders.push(...placement.colliders);
-    const candidateIndex = candidateByBuilding.get(buildingIndex);
-    const podium = candidateIndex === undefined ? null
-      : podiumPlan(candidates[candidateIndex], occupancy[candidateIndex], placement, roadClearance);
     if (podium) {
       const rings = [podium.outer, ...podium.holes].map(flatRing);
       const top = Math.fround(placement.minY + podium.height);
-      addWalls(batch, rings, placement.minY, top, meta, placement.baseY);
+      const podiumPlacement = { ...placement, maxY: top };
+      addWalls(batch, rings, placement.minY, top, meta, placement.baseY,
+        retailEdge ? (...edge) => retailEdge(podiumPlacement, ...edge) : null);
       addRoof(rings, top, `${building.id}:podium:roof`, 'estimate');
       colliders.push({
         type: 'building-podium', name: `${building.id}:podium`, sourceId: building.id,
@@ -516,13 +525,16 @@ export function buildCityBlocks(scene, options = {}) {
     mesh.receiveShadow = true;
     group.add(mesh);
   }
+  const retailMaterial = frontage?.finish(group);
   scene.add(group);
   return { group, colliders, surfaces, allBlocks, roadConflicts, roofPlans, programIds,
+    retailDoors: frontage?.doors ?? [], retailBuildingIds: frontage?.buildingsWithFrontage ?? new Set(),
     roofs: allBlocks.filter(block => !block.isPodium && block.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M).length,
     update() {},
     dispose() {
       group.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
       material.dispose();
+      retailMaterial?.dispose();
       foundationMaterial?.dispose();
       programMaterial?.dispose();
       roofPlans.clear();

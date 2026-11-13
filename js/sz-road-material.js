@@ -1,16 +1,24 @@
 import * as THREE from 'three/webgpu';
-import { attribute, cameraPosition, clamp, float, floor, fract, fwidth, length, max, mrt, positionWorld, smoothstep, vec4 } from 'three/tsl';
+import { attribute, cameraPosition, clamp, color, distance, float, floor, fract, fwidth, length, max, mrt, positionWorld, smoothstep, vec2, vec4 } from 'three/tsl';
 
 let roadSurfaceMaterial = null;
 let roadPaintMaterial = null;
 
 // 地面和沥青共面，深度偏移避免闪烁，标高仍以原三角面为准。
-export function createSzRoadSurfaceMaterial() {
-  roadSurfaceMaterial ??= new THREE.MeshStandardNodeMaterial({
+export function createSzRoadSurfaceMaterial(frontageLight = null) {
+  if (!frontageLight && roadSurfaceMaterial) return roadSurfaceMaterial;
+  const material = new THREE.MeshStandardNodeMaterial({
     color: 0x3b3d41, roughness: 0.95, metalness: 0,
     polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
   });
-  return roadSurfaceMaterial;
+  if (frontageLight) {
+    const { x, z, night } = frontageLight;
+    const reach = smoothstep(13, 62, distance(positionWorld.xz, vec2(x, z))).oneMinus();
+    material.emissiveNode = color(0x747782).mul(night).mul(reach).mul(0.13);
+  } else {
+    roadSurfaceMaterial = material;
+  }
+  return material;
 }
 
 const transparentPaintMRT = mrt({

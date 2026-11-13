@@ -43,9 +43,9 @@ export function buildPublicWalk(scene, terrain, areas, style) {
     const preset = kind === 'frontage'
       ? (style?.resolve({ surfaceStyle: fallback }, { x, z, regionId: area.regionId })?.surfaceStyle ?? fallback)
       : fallback;
-    const key = `${kind}:${preset}`;
-    if (!materials.has(key)) materials.set(key, kind === 'frontage' ? createPavingMaterial(preset)
-      : createPavingMaterial(preset, { color: PAVING[kind], tileSizeM: null, roughness: 0.94 }));
+    const key = `${kind}:${preset}:${area.nightPaving?.nightColor ?? ''}:${area.nightPaving?.nightStrength ?? ''}`;
+    if (!materials.has(key)) materials.set(key, kind === 'frontage' ? createPavingMaterial(preset, area.nightPaving)
+      : createPavingMaterial(preset, { ...area.nightPaving, color: PAVING[kind], tileSizeM: null, roughness: 0.94 }));
     for (const chunk of chunks) group.add(pavingMesh(chunk.positions, chunk.origin, materials.get(key), id));
     return { ...area, bounds, heightAt: createRoadHeightSampler(chunks, terrain.grid) };
   });

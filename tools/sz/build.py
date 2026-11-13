@@ -14,6 +14,7 @@ from shapely.ops import unary_union
 from air_cruises import build_air_cruises
 from beihuan import apply_beihuan_sections
 from bridges import build_bridges
+from building_appearance import apply_building_appearance
 from buildings import (CATEGORIES, CONFIDENCE_LEVELS, FACADES, HEIGHT_SOURCES, ROLES,
                        UPSTREAM_FAMILIES, build_buildings, ensure_globfp, load_globfp)
 from commercial_paving import cut_commercial_paving, ground_carriageway_mask
@@ -222,13 +223,16 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
     return terrain, apply_commercial_carriageway(surface, manifest, graph, report)
 
 
-def write_city_packages(payload, report, sources, started):
+def write_city_packages(payload, report, sources, started, *, refresh_regions=True, appearance_osm=None):
     payload.pop('roads', None)
     osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
-    regions = build_map_regions(payload, osm_source, enc_poly)
-    payload['mapRegions'] = regions
-    report['mapRegions'] = {key: regions[key] for key in ('version', 'source', 'pilot', 'coverage')}
-    payload['airCruises'], report['airCruises'] = build_air_cruises(payload['roadGraph'], osm_source)
+    if refresh_regions:
+        regions = build_map_regions(payload, osm_source, enc_poly)
+        payload['mapRegions'] = regions
+        report['mapRegions'] = {key: regions[key] for key in ('version', 'source', 'pilot', 'coverage')}
+        payload['airCruises'], report['airCruises'] = build_air_cruises(payload['roadGraph'], osm_source)
+    if appearance_osm is not None:
+        apply_building_appearance(payload, appearance_osm, report)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
     compressed = gzip.compress(raw, 9, mtime=0)
@@ -265,6 +269,8 @@ def remove_reviewed_civic_footprints(payload, report, clip, inputs):
             stats['confidence'][aspect][enums['confidence'][buildings[column][i]]] -= 1
     keep = [i for i, identity in enumerate(buildings['id']) if identity not in excluded]
     payload['buildings'] = {key: [column[i] for i in keep] for key, column in buildings.items()}
+    if 'retailBuildings' in payload:
+        payload['retailBuildings'] = [row for row in payload['retailBuildings'] if row[0] not in excluded]
     report['buildings'] = len(keep)
     report['globfpAdded'] -= len(removed)
     report['excludedGlobfpFootprints'] = [row for row in report['excludedGlobfpFootprints'] if row['id'] not in excluded] + reviewed
@@ -499,6 +505,8 @@ def main():
     ap.add_argument('--footprint-source', choices=['all', 'osm'], default='all',
                     help='all = OSM + Overture + GloBFP footprints; osm = only map-marked OSM footprints')
     mode = ap.add_mutually_exclusive_group()
+    mode.add_argument('--rebuild-building-appearance', action='store_true',
+                      help='refresh estimated building heights and retail use on the verified city package')
     mode.add_argument('--build-shenzhen-bay', action='store_true',
                       help='apply the reviewed Shenzhen Bay waterfront to an unmodified verified city package')
     mode.add_argument('--repack-existing', action='store_true',
@@ -549,6 +557,19 @@ def main():
     if args.rebuild_road_frontage:
         rebuild_road_frontage(args.rebuild_road_frontage, crossing_axis_ids=args.refresh_frontage_crossing_axes,
                               use_cache=not args.no_cache)
+        return
+
+    if args.rebuild_building_appearance:
+        started = time.time()
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        osm_source = next(source for source in sources if source['id'] == 'osm-guangdong')
+        osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=ROOT / osm_source['file'],
+                       source_sha256=osm_source['sha256'])
+        write_city_packages(payload, json.loads(REPORT.read_text()), sources, started,
+                            refresh_regions=False, appearance_osm=osm)
         return
 
     if args.rebuild_talent_park:
@@ -711,7 +732,7 @@ def main():
 
     build_shenzhen_golf(payload, osm, pbf, report)
     build_shenzhen_bay(payload, osm, pbf, report)
-    write_city_packages(payload, report, sources, t0)
+    write_city_packages(payload, report, sources, t0, appearance_osm=osm)
 
 
 if __name__ == '__main__':

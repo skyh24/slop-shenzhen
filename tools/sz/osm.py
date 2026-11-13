@@ -16,7 +16,8 @@ ROOT = Path(__file__).resolve().parents[2]
 PBF = ROOT / 'data/raw/guangdong-latest.osm.pbf'
 CACHE = ROOT / 'data/raw/cache/osm-phase1.pkl'
 # 7：记录覆盖裁切来源和沿江高速远景路线。
-CACHE_VERSION = 7
+# 8：保留商业用途标签，供首层立面筛选。
+CACHE_VERSION = 8
 
 GREEN_LANDUSE = {'grass', 'forest', 'recreation_ground', 'village_green', 'meadow', 'park'}
 GREEN_LEISURE = {'park', 'garden', 'nature_reserve', 'golf_course', 'pitch'}
@@ -25,7 +26,7 @@ WATER_LANDUSE = {'reservoir', 'basin'}
 
 KEEP_TAGS = (
     'name', 'name:en', 'height', 'building:levels', 'building', 'building:part', 'min_height',
-    'building:levels:underground', 'building:use', 'location',
+    'building:levels:underground', 'building:use', 'location', 'shop',
     'highway', 'lanes', 'width', 'oneway', 'bridge', 'tunnel', 'layer', 'leisure', 'landuse',
     'natural', 'water', 'wetland', 'amenity', 'man_made', 'place',
     'junction', 'access', 'vehicle', 'motor_vehicle', 'motorcar',

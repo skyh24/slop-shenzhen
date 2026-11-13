@@ -19,7 +19,7 @@ const SIDEWALK = [
 // OSM 步道端点接入 COCO Park 主入口，福田区活动名录记录东南门。
 // 铺装只覆盖门外接驳，源用地内部、门槛及营业时间保持待核。
 const FRONTAGE = [[-464.1, 1177.4], [-488.6, 1164.2]];
-const ENTRANCE = { id: 'node/5219780653', buildingId: 'way/238825588',
+export const COCO_PARK_ENTRANCE = { id: 'node/5219780653', buildingId: 'way/238825588',
   x: -490.62, z: 1163.08, access: 'public-retail-entrance',
   evidence: 'https://www.szft.gov.cn/bmxx/qwtj/tzgg/content/post_12556615.html' };
 // 这两株是样段补植，落在空闲设施带。树池为齐平土面。
@@ -48,6 +48,7 @@ function strip(points) {
 function area(kind, rows, sourceIds) {
   return { id: `${NETWORK}:${kind}`, network: NETWORK, kind, sourceIds, access: 'public',
     heightSource: 'rendered-terrain', boundarySource: 'derived-pilot-strip',
+    nightPaving: { nightColor: 0xa89c8a, nightStrength: kind === 'frontage' ? 0.19 : 0.14 },
     polygon: { outer: [...rows.map(row => row[0]), ...rows.map(row => row[1]).reverse()], holes: [] } };
 }
 
@@ -77,9 +78,9 @@ export function buildZhongxinWalk(scene, graph, terrain, style) {
     return Math.hypot(x - a.x - t * dx, z - a.z - t * dz) < 1.15 + radius;
   });
   const inPilot = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
-  const statistics = { entrance: ENTRANCE.id, connected: false, lengthM: 0, minimumWidthM: 0, planters: 0 };
+  const statistics = { entrance: COCO_PARK_ENTRANCE.id, connected: false, lengthM: 0, minimumWidthM: 0, planters: 0 };
   return {
-    ...walk, entrance: ENTRANCE, bounds: BOUNDS, reserves, inPilot, statistics, trees: TREES,
+    ...walk, entrance: COCO_PARK_ENTRANCE, bounds: BOUNDS, reserves, inPilot, statistics, trees: TREES,
     placePlanter(colliders, heightAt) {
       const { x, z, width, depth, height } = PLANTER;
       const hx = width / 2, hz = depth / 2, y = heightAt(x, z);

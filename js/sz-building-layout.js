@@ -5,7 +5,8 @@ export function buildingPlacement(building, grid) {
   const baseY = building.foundation?.baseY ?? terrainHeight(grid, building.cx, building.cz);
   if (baseY === null) throw new Error(`Missing building terrain: ${building.id}`);
   const minY = baseY + building.minHeight;
-  const maxY = baseY + building.height;
+  // 显示缓冲为 Float32，屋面接触和近景部件使用同一精度。
+  const maxY = Math.fround(baseY + building.height);
   if (!Number.isFinite(minY) || !Number.isFinite(maxY) || maxY <= minY) {
     throw new Error(`Invalid building vertical bounds: ${building.id}`);
   }

@@ -110,7 +110,7 @@ test('golf course paving shares sloped ground and keeps private paths out of the
   const onSlope = buildings.find(building => building.foundation);
   const placement = buildingPlacement(onSlope, geo.terrain);
   assert.equal(placement.colliders[0].minY, onSlope.foundation.bottomY);
-  assert.ok(Math.abs(placement.maxY - placement.baseY - onSlope.height) < 1e-9);
+  assert.equal(placement.maxY, Math.fround(placement.baseY + onSlope.height));
 });
 
 test('coordinate decoder rejects truncated or fractional delta streams', async () => {

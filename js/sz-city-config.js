@@ -255,7 +255,7 @@ export function createCityConfig(geo, buildings = [], labels = STR) {
   const spawn = spawnTarget ? findGroundArrival(spawnTarget, 'person') : null;
   return { spatial, ISLAND_BOUNDS: bounds, ROADS: roads, SZ_LANDMARKS: landmarks, NYC_LANDMARKS: landmarks,
     LANDMARK_SITES: landmarkSites, TELEPORT_LOCATIONS: teleports, SPAWN_POINT: spawn,
-    nearestRoads, districtAt, getLocationInfo, getLocationLabel, getLandIntervalsAtZ, getIslandBoundsAtZ,
+    nearestRoads, nearRoadsForFrontage: spatial.nearestRoads, districtAt, getLocationInfo, getLocationLabel, getLandIntervalsAtZ, getIslandBoundsAtZ,
     isOnLand: spatial.isOnLand, isWater: spatial.isWater, inBounds: spatial.inBounds,
     terrainHeight: spatial.groundHeight, findGroundArrival,
     ALL_AVENUES: [], AVENUES: [], ALL_STREETS: [], STREETS: [], BLOCKS: [],
@@ -264,7 +264,7 @@ export function createCityConfig(geo, buildings = [], labels = STR) {
 
 const config = createCityConfig(GEO, REAL_BUILDINGS);
 export const { ISLAND_BOUNDS, ROADS, SZ_LANDMARKS, NYC_LANDMARKS, LANDMARK_SITES, TELEPORT_LOCATIONS, SPAWN_POINT,
-  nearestRoads, districtAt, getLocationInfo, getLocationLabel, getLandIntervalsAtZ, getIslandBoundsAtZ,
+  nearestRoads, nearRoadsForFrontage, districtAt, getLocationInfo, getLocationLabel, getLandIntervalsAtZ, getIslandBoundsAtZ,
   isOnLand, isWater, inBounds, terrainHeight, findGroundArrival,
   ALL_AVENUES, AVENUES, ALL_STREETS, STREETS, BLOCKS, CENTRAL_PARK_BOUNDS, blockAt, getBlockBounds } = config;
 

@@ -600,7 +600,7 @@ export function buildSzRoads(scene, graph, terrainSurface, options = {}) {
   const group = new THREE.Group();
   group.name = 'shenzhen-source-roads';
   // 深度偏移和共面绘制在材质工厂里；接触仍由真实地形三角面提供。
-  const material = options.material ?? createSzRoadSurfaceMaterial();
+  const material = options.material ?? createSzRoadSurfaceMaterial(options.frontageLight);
   const entries = [];
   for (const chunk of layout.chunks) {
     const geometry = new THREE.BufferGeometry();
@@ -629,7 +629,8 @@ export function buildSzRoads(scene, graph, terrainSurface, options = {}) {
     roadHeight: createRoadHeightSampler(layout.chunks, terrainSurface.grid),
     dispose() {
       scene.remove(group);
-      // 材质是模块级单例，跨场景复用，只销毁本次几何。
+      if (options.frontageLight && !options.material) material.dispose();
+      // 默认材质是模块级单例，跨场景复用。
       for (const mesh of meshes) mesh.geometry.dispose();
     }
   };
