@@ -9,24 +9,85 @@ const DETAIL_CELL = 95;
 const SUPPORT_CLEARANCE = 1.9;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const point = ([x, y, z]) => ({ x, y, z });
+// 日历按深圳当地日期判定，与画面选用的昼夜时段无关。
+const SHENZHEN_OFFSET_MS = 8 * 3600000;
+const HOLIDAYS_2026 = [[101, 103], [215, 223], [404, 406], [501, 505], [619, 621], [925, 927], [1001, 1007]];
+
+export function createWaterfrontAccess(source, network, now = Date.now) {
+  const paths = network.routes.flatMap(route => route.paths.filter(path => !path.bridge).map(path => ({
+    ...path, mode: route.bank === 'west' || route.id === 'west-bank' ? `west:${path.mode}`
+      : route.id === 'east-bank' ? `east:${path.mode}`
+        : route.openingHours === '06:00–23:00' ? `park:${path.mode}` : path.mode
+  })));
+  const accessAt = createBayPathLookup(paths);
+  const bridges = new Map((source?.footbridges ?? []).map(bridge => [`waterfront-bridge:${bridge.id}`, bridge]));
+  let lastMinute, parkOpen, westCycles;
+  return (mode, x, z, surface) => {
+    const id = surface?.surfaceId;
+    const bridge = bridges.get(id);
+    const modes = bridge ? [bridge.waterIndex === source.waters?.[1]?.waterIndex ? 'west:' + bridge.mode : bridge.mode]
+      : !id || surface?.heightSource === 'terrain' || id === 'terrain' ? accessAt(x, z) : [];
+    if (!modes.length) return true;
+    if (mode === 'car') return false;
+    const minute = Math.floor((now() + SHENZHEN_OFFSET_MS) / 60000);
+    if (minute !== lastMinute) {
+      const date = new Date(minute * 60000);
+      const day = (date.getUTCMonth() + 1) * 100 + date.getUTCDate();
+      parkOpen = date.getUTCHours() >= 6 && date.getUTCHours() < 23;
+      westCycles = date.getUTCFullYear() === 2026 && date.getUTCDay() >= 1 && date.getUTCDay() <= 5
+        && !HOLIDAYS_2026.some(([first, last]) => day >= first && day <= last);
+      lastMinute = minute;
+    }
+    return modes.some(entry => {
+      const [area, usage] = entry.includes(':') ? entry.split(':') : [null, entry];
+      if (area && !parkOpen) return false;
+      if (mode === 'cyclist') return usage !== 'walk' && (area !== 'west' || westCycles);
+      return usage !== 'cycle';
+    });
+  };
+}
 
 export function createWaterfrontPaths(source) {
-  const routes = source?.routes ?? [];
+  const routes = [...(source?.routes ?? []), ...(source?.extensions ?? [])];
   const paths = routes.flatMap(route => route.paths);
   const lookup = createBayPathLookup(paths);
   const groundPaths = createBayPathLookup(paths.filter(path => !path.bridge));
-  const bankPaths = createBayPathLookup(routes.filter(r => r.id.endsWith('-bank')).flatMap(r => r.paths));
+  const bankPaths = createBayPathLookup(routes.filter(r => r.bank || r.id.endsWith('-bank')).flatMap(r => r.paths));
+  const extensions = createBayPathLookup((source?.extensions ?? []).flatMap(route => route.paths));
   const lower = source?.bayLower;
   const bay = createBayPathLookup(lower ? [{ mode: 'walk', widthM: lower.widthM ?? 4.2,
     points: lower.points.map(([x, , z]) => [x, z]) }] : []);
-  return { lookup, paths, routes,
+  return { lookup, groundPaths, paths, routes,
     reserves: (x, z, pad = 0) => lookup(x, z, pad).length > 0 || bay(x, z, pad).length > 0,
     groundIdentity(x, z) {
       if (bay(x, z).length) return 'waterfront:bay-lower';
       if (bankPaths(x, z).length) return 'waterfront:river-bank';
+      if (extensions(x, z).length) return 'waterfront:shore-path';
       return groundPaths(x, z).length ? 'waterfront:lake-path' : 'terrain';
     }
   };
+}
+
+export function findWaterfrontWalkPoint(paths, x, z, heading, maxDistance = 4) {
+  let best = null;
+  let distance = maxDistance;
+  for (const path of paths) {
+    if (path.bridge || path.mode === 'cycle' || path.kind === 'steps') continue;
+    for (let i = 1; i < path.points.length; i++) {
+      const [ax, az] = path.points[i - 1], [bx, bz] = path.points[i];
+      const dx = bx - ax, dz = bz - az;
+      const length2 = dx * dx + dz * dz;
+      if (!length2) continue;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / length2));
+      const px = ax + t * dx, pz = az + t * dz;
+      const gap = Math.hypot(x - px, z - pz);
+      if (gap >= distance) continue;
+      const sign = dx * Math.sin(heading) + dz * Math.cos(heading) < 0 ? -1 : 1;
+      best = { x: px, z: pz, heading: Math.atan2(sign * dx, sign * dz) };
+      distance = gap;
+    }
+  }
+  return best;
 }
 
 function beamCollider({ a, b, width, height }, type) {
@@ -45,10 +106,11 @@ function beamCollider({ a, b, width, height }, type) {
 export function buildSzWaterfront(scene, source, { water, network, elevated, heightAt, obstacles }) {
   const group = new THREE.Group();
   group.name = 'shenzhen-waterfront-samples';
-  const waters = (source?.waters ?? []).map(row => buildSzSea(group, {
+  const waters = [...(source?.waters ?? []), ...(source?.extensionWaters ?? [])].map(row => buildSzSea(group, {
     polygons: [water[row.waterIndex]], heightM: row.heightM, source: row.id
   }, { name: `waterfront-water:${row.id}`, coastal: false, cityReflection: false }));
   const colliders = [];
+  const allowsGroundMode = createWaterfrontAccess(source, network);
   const buckets = new Map();
   function add(row, material, type) {
     const ix = Math.floor(row.a.x / DETAIL_CELL), iz = Math.floor(row.a.z / DETAIL_CELL);
@@ -63,9 +125,13 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
     for (const entry of rail.stations) {
       if (!entry) { previous = null; continue; }
       const p = point(entry);
+      if (network.groundPaths(p.x, p.z, 0.1).length) { previous = null; continue; }
       add({ a: p, b: { ...p, y: p.y + 1.08 }, width: 0.08, height: 0.08 }, 'steel', 'waterfront-post');
       add({ a: p, b: { ...p, y: p.y + 0.11 }, width: 0.18, height: 0.18 }, 'steel', 'waterfront-rail-base');
-      if (previous && distance(previous, p) > 0.05) {
+      const span = previous ? distance(previous, p) : 0;
+      const samples = Math.ceil(span / 0.3);
+      if (span > 0.05 && !Array.from({ length: samples }, (_, i) => (i + 0.5) / samples)
+        .some(t => network.groundPaths(previous.x + (p.x - previous.x) * t, previous.z + (p.z - previous.z) * t, 0.18).length)) {
         for (const bar of planRail(previous, p, [[0.49, 0.07, 0.07], [1.03, 0.085, 0.075]])) {
           add(bar, 'steel', 'waterfront-rail');
         }
@@ -121,11 +187,13 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
   const publicRoutes = network.routes.flatMap(route => {
     // 桥与岸路分别取实际三角面。同一 XZ 上的桥面不会把桥下人物抬起。
     return route.paths.map((path, index) => {
+      if (path.mode === 'cycle') return null;
       const near = createBayPathLookup([path]);
       const surfaceId = path.bridge ? `waterfront-bridge:${path.osmId}` : null;
       const support = surfaceId ? (x, z) => bridgeHeight(x, z, surfaceId) : heightAt;
       const publicHeight = (x, z) => {
-        if (!near(x, z, -0.45).length) return null;
+        if (!near(x, z, -0.45).length
+          || !allowsGroundMode('person', x, z, { surfaceId, heightSource: surfaceId ? 'estimate' : 'terrain' })) return null;
         const y = support(x, z);
         return Number.isFinite(y) && !nearObstacles(x, z).some(c => c.minX < x + 0.38 && c.maxX > x - 0.38
           && c.minZ < z + 0.38 && c.maxZ > z - 0.38 && c.minY < y + SUPPORT_CLEARANCE && c.maxY > y + 0.05
@@ -159,15 +227,7 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
         }
       }
     },
-    allowsGroundMode(mode, x, z, surface) {
-      if (mode === 'person' || surface?.surfaceId.startsWith('sz-elevated-road:')) return true;
-      if (surface?.surfaceId.startsWith('waterfront-bridge:')) {
-        const bridge = source.footbridges.find(b => `waterfront-bridge:${b.id}` === surface.surfaceId);
-        return mode === 'cyclist' && bridge?.mode === 'shared';
-      }
-      const modes = network.lookup(x, z);
-      return mode === 'car' ? !modes.length : !modes.includes('walk') || modes.includes('shared');
-    },
+    allowsGroundMode,
     dispose() {
       if (disposed) return;
       disposed = true;

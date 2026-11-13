@@ -12,7 +12,7 @@ import { createObservationSessions } from './sz-observation-session.js';
 import { getLocationLabel, inBounds, isWater, nearRoadsForFrontage, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { createGroundSurfaceSampler, buildSzGround } from './sz-ground.js';
 import { buildSzBayWaterfront, createBayParkArrivals, createBayPathLookup } from './sz-bay-waterfront.js';
-import { buildSzWaterfront, createWaterfrontPaths } from './sz-waterfront.js';
+import { buildSzWaterfront, createWaterfrontPaths, findWaterfrontWalkPoint } from './sz-waterfront.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads, planStreetTreeSides } from './sz-roads.js';
 import { buildSzRoadFrontage } from './sz-road-frontage.js';
@@ -326,7 +326,9 @@ async function initApp() {
       const placed = iec ? iec.relocateLamp(candidate) : candidate;
       return placed && !landmarks.reservesApproach?.(placed.x, placed.z, 0.34) ? placed : null;
     },
-    reserveWalk: urbanPaving.reserves, reserveCrossing: roadFrontage.reserveWalk,
+    reserveWalk: (x, z, r) => urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r)
+      || site.reserveBayWalk(x, z, r) || waterfront?.reserves(x, z, r),
+    reserveCrossing: roadFrontage.reserveWalk,
     placementObstacles: [...buildings, ...trees.colliders],
     deckOccupied
   }));
@@ -398,6 +400,8 @@ async function initApp() {
       || (bayWaterfront.allowsGroundMode(mode, x, z) && !roadFrontage.plantingAt(x, z)
         && (mode === 'person' || !roadLandscape.walkAt(x, z).length)))
       && shoreSamples.allowsGroundMode(mode, x, z, surface)
+      && (mode === 'person' || !surface?.surfaceId?.startsWith('talent-park:waterfront')
+        && (surface?.heightSource !== 'terrain' || !waterfront?.pathAt(x, z).length))
       && (!northStation?.inRestricted(x, z, 0.58) || (surface?.surfaceId !== 'terrain' && surface?.heightSource !== 'terrain'))
   });
   const cruise = qa.measureBuild('airCruises', () => createSceneAirCruise(GEO.airCruises, controllerManager, site, PLAYER_SPEED_LIMITS.helicopter));
@@ -766,7 +770,12 @@ async function initApp() {
   });
   const { teleportTo, teleportFromMap } = createTeleportActions({ controllerManager, landmarkViews, parks: GEO.parks,
     inBounds, isWater, carriagewayOccupied, findGroundArrival, roadHeight: roads.roadHeight, flightStartAltitude: FLIGHT_START_ALTITUDE,
-    selectMode, excludeGround: northStation?.inRestricted, onArrival: finishTeleport, closeMap: () => mapSystem.toggleFullMap(false) });
+    selectMode, excludeGround: northStation?.inRestricted,
+    waterfrontArrival: (x, z, heading) => findWaterfrontWalkPoint([
+      ...waterfrontPaths.paths, ...(GEO.shenzhenBay?.paths ?? []),
+      ...[...(GEO.talentPark?.route ?? []), ...(GEO.talentPark?.entrances ?? [])].map(path => ({ ...path, mode: 'walk' }))
+    ], x, z, heading),
+    onArrival: finishTeleport, closeMap: () => mapSystem.toggleFullMap(false) });
   droneWatch = wireDroneWatch({ drones, controllerManager, cameraSystem, touchControls, gamepadControls,
     autoDrive, observationSessions, closePopovers, mapOpen: () => mapSystem.isFullMapOpen, teleport: teleportTo,
     onCameraLabel: label => { elCamera.textContent = label; } });

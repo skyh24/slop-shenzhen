@@ -170,6 +170,14 @@ function validateWaterfront(site, raw) {
   requireData(Array.isArray(site.rails) && site.rails.every(r => typeof r.id === 'string'
     && Array.isArray(r.stations) && r.stations.every(p => p === null || xyz(p)))
     && polyline(site.bayLower?.points), 'waterfront banks');
+  if (site.extensions === undefined && site.extensionWaters === undefined) return;
+  requireData(Array.isArray(site.extensions) && site.extensions.every(r => typeof r.id === 'string'
+    && typeof r.waterId === 'string' && polyline(r.points) && positive(r.lengthM)
+    && Array.isArray(r.paths) && r.paths.length > 0 && r.paths.every(p => way.test(p.osmId)
+      && (mode(p.mode) || p.mode === 'cycle') && positive(p.widthM) && p.heightSource === 'terrain-derived-estimate'
+      && p.points?.length >= 2 && p.points.every(xz => xz.length === 2 && xz.every(Number.isFinite)))), 'waterfront extensions');
+  requireData(Array.isArray(site.extensionWaters) && site.extensionWaters.every(w => way.test(w.id)
+    && waterIndex(w.waterIndex) && Number.isFinite(w.heightM) && w.heightSource === 'estimate'), 'waterfront extension waters');
 }
 
 function validateTrees(trees) {

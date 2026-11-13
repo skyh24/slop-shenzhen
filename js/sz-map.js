@@ -765,6 +765,16 @@ class NYCMapSystem {
       ctx.stroke(road.path);
     }
     ctx.globalAlpha = 1;
+    if (v.s >= 0.035) {
+      for (const route of layers.waterfront) {
+        if (!v.sees(route.bounds)) continue;
+        ctx.strokeStyle = route.mode === 'walk' ? MAP.waterfrontWalk : MAP.waterfrontCycle;
+        ctx.lineWidth = Math.max(1.15 / v.s, route.widthM);
+        if (route.steps) ctx.setLineDash([2 / v.s, 3 / v.s]);
+        ctx.stroke(route.path);
+        if (route.steps) ctx.setLineDash([]);
+      }
+    }
     if (this.metroLines.size > 0) {
       for (const segment of layers.metro) {
         if (!v.sees(segment.bounds)) continue;

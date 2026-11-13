@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "checkedAt": "2026-11-13",
+  "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+  "routes": [
+    {
+      "id": "central-bay-promenade",
+      "waterId": "shenzhen-bay",
+      "sources": ["https://cgj.sz.gov.cn/xsmh/gysz/twf/bhxx/content/post_10841320.html", "https://www.sz.gov.cn/hdjlpt/detail?pid=3115634&via=pc"],
+      "paths": [["way/246781716", 2613258639, 2613258275, "walk", 4.2]]
+    },
+    {
+      "id": "central-bay-cycleway",
+      "waterId": "shenzhen-bay",
+      "sources": ["https://www.sz.gov.cn/hdjlpt/detail?pid=3115634&via=pc"],
+      "paths": [["way/255653770", 2613258636, 2613258641, "cycle", 3.6]]
+    },
+    {
+      "id": "baishi-upstream-west",
+      "waterId": "way/25603390",
+      "bank": "west",
+      "sources": ["https://swj.sz.gov.cn/ztzl/swhjs/bdfc/content/post_11740828.html", "https://www.sz.gov.cn/hdjlpt/detail?pid=3487097&via=pc"],
+      "paths": [
+        ["way/925416603", 8338346382, 3894903695, "shared", 3.1],
+        ["way/657745137", 3894903695, 6160288907, "shared", 3.1]
+      ]
+    },
+    {
+      "id": "honghu-southeast",
+      "waterId": "way/31420427",
+      "waterHeightM": 5.8,
+      "sources": ["https://cgj.sz.gov.cn/xsmh/gysz/twf/qsyq/content/post_10841330.html", "https://cgj.sz.gov.cn/ydmh/mtxc/content/post_10654106.html"],
+      "openingHours": "06:00–23:00",
+      "paths": [
+        ["way/1222751062", 11341387399, 12974897256, "walk", 2.6],
+        ["way/1411990261", 12974897256, 8112296268, "walk", 2.6],
+        ["way/1501087890", 8112296268, 8112296275, "walk", 2.6]
+      ]
+    }
+  ]
+}

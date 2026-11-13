@@ -4,7 +4,7 @@ import json
 import math
 from pathlib import Path
 
-from shapely import constrained_delaunay_triangles, prepare
+from shapely import STRtree, constrained_delaunay_triangles, make_valid, prepare
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import substring, unary_union
 
@@ -16,6 +16,7 @@ from shenzhen_bay import PAVING, PUBLIC, _polygon, _snapshots, _surface_sampler,
 from terrain_surface import _triangle_height
 
 SOURCE = Path(__file__).resolve().parents[2] / 'data/source/waterfront-samples.json'
+ROUTES = SOURCE.with_name('waterfront-routes.json')
 
 
 def _line(row):
@@ -186,6 +187,96 @@ def _height_rows(line, sample, *, step=2):
             raise ValueError(f'Waterfront route has no support at {x:.2f}, {z:.2f}')
         rows.append([round(x, 4), round(y, 4), round(z, 4)])
     return rows
+
+
+def compile_waterfront_routes(payload, osm, pbf, report):
+    """按已审核源节点增量裁切地面路线；桥、台阶和岸坡仍由各自的结构方案接入。"""
+    plan = json.loads(ROUTES.read_text())
+    if plan['version'] != 1 or plan['osmSnapshotSha256'] != osm['sourceSha256']:
+        raise ValueError('Waterfront routes require the reviewed OSM snapshot')
+    waterfront = payload['waterfront']
+    if 'extensions' in waterfront:
+        raise ValueError('Rebuild the underlying terrain before replacing waterfront routes')
+    specs = plan['routes']
+    identities = {path[0] for spec in specs for path in spec['paths']}
+    ways = {row['id']: row for row in osm['roads'] if row['id'] in identities}
+    snapshots = _snapshots(pbf, identities)
+    water = [_polygon(rings) for rings in [*payload['water'], *payload['wetland'], *payload['seaSurface']['polygons']]]
+    wet = STRtree([poly if poly.is_valid else make_valid(poly) for poly in water])
+    surface = payload['terrainSurface']
+    routes, waters = [], {}
+    changed_chunks = set()
+    for spec in specs:
+        rows = []
+        for identity, start, end, mode, fallback in spec['paths']:
+            way, source = ways[identity], snapshots[identity]
+            tags = source['tags']
+            highway = tags.get('highway')
+            pedestrian = tags.get('foot') in (PUBLIC if highway != 'cycleway' else PUBLIC[1:])
+            bicycle = tags.get('bicycle') in (PUBLIC if highway == 'cycleway' else PUBLIC[1:])
+            if (highway not in ('path', 'footway', 'cycleway') or tags.get('access') not in PUBLIC
+                    or any(tags.get(k, 'no') != 'no' for k in ('bridge', 'tunnel'))
+                    or any(tags.get(k, '0') != '0' for k in ('layer', 'level'))
+                    or 'opening_hours' in tags or any(k.endswith(':conditional') for k in tags)
+                    or (mode in ('walk', 'shared') and not pedestrian)
+                    or (mode in ('cycle', 'shared') and not bicycle)
+                    or mode not in ('walk', 'cycle', 'shared')):
+                raise ValueError(f'Unreviewed waterfront route access or level: {identity}')
+            refs = way['nodeRefs']
+            a, b = refs.index(start), refs.index(end)
+            step = 1 if a < b else -1
+            coords = _line(way).coords
+            line = LineString([tuple(round(value, 4) for value in coords[i]) for i in range(a, b + step, step)])
+            width = _num(tags.get('width'))
+            if (width or fallback) <= 0:
+                raise ValueError(f'Invalid waterfront path width: {identity}')
+            rows.append({'osmId': identity, **source, 'nodes': [start, end], 'line': line, 'mode': mode,
+                         'widthM': width or fallback, 'widthSource': 'osm' if width else 'estimate',
+                         'material': path_material(tags), 'heightSource': 'terrain-derived-estimate'})
+
+        line = _joined(rows)
+        strips = unary_union([row['line'].buffer(row['widthM'] / 2, quad_segs=8) for row in rows])
+        if len(wet.query(strips, predicate='intersects')):
+            raise ValueError(f'Waterfront route enters water or wetland: {spec["id"]}')
+        masks, _, _ = paving_masks([(row['line'], row['widthM'], row['tags']) for row in rows], payload['roadGraph'])
+        surface, changed, _ = _clip_terrain(surface, masks, [], replace_kinds={0, 1, 2, 3, 8, 9, 10, 11})
+        changed_chunks.update(changed)
+        sample = _surface_sampler(surface, strips)
+        water_height = spec.get('waterHeightM')
+        if water_height is not None:
+            water_index, _ = _water(payload, osm, spec['waterId'])
+            if (water_index in waters and waters[water_index]['heightM'] != water_height
+                    or any(row['waterIndex'] == water_index for row in waterfront['waters'])):
+                raise ValueError(f'Conflicting waterfront water height: {spec["waterId"]}')
+            waters[water_index] = {'id': spec['waterId'], 'waterIndex': water_index,
+                                   'heightM': water_height, 'heightSource': 'estimate'}
+        for row in rows:
+            points = list(_points(row['line']))
+            for (x, z), (nx, nz) in zip(points, points[1:]):
+                length = math.hypot(nx - x, nz - z)
+                if length < 1e-7:
+                    continue
+                offset = row['widthM'] * 0.42 / length
+                for side in (-offset, 0, offset):
+                    h1 = sample(x + side * (nz - z), z - side * (nx - x))
+                    h2 = sample(nx + side * (nz - z), nz - side * (nx - x))
+                    if (None in (h1, h2) or abs(h2 - h1) > 0.15 * length + 0.005
+                            or water_height is not None and min(h1, h2) < water_height + 0.4):
+                        raise ValueError(f'Unsupported waterfront width or grade: {row["osmId"]} at {x:.2f}, {z:.2f}')
+        routes.append({**{k: v for k, v in spec.items() if k != 'paths'},
+                       'points': _height_rows(line, sample), 'closed': line.is_ring,
+                       'lengthM': round(line.length, 2),
+                       'paths': [{**{k: v for k, v in row.items() if k != 'line'},
+                                  'points': [list(p) for p in row['line'].coords]} for row in rows]})
+    payload['terrainSurface'] = surface
+    waterfront['extensions'] = routes
+    waterfront['extensionWaters'] = list(waters.values())
+    report['waterfrontRoutes'] = {'checkedAt': plan['checkedAt'], 'osmSnapshotSha256': plan['osmSnapshotSha256'],
+                                  'routes': [{k: v for k, v in row.items() if k != 'points'} for row in routes],
+                                  'waters': waterfront['extensionWaters'],
+                                  'changedTerrainChunks': sorted(changed_chunks)}
+    report['terrainSurface'].update(vertices=sum(len(c['kinds']) for c in surface['chunks']),
+                                    triangles=sum(len(c['indices']) // 3 for c in surface['chunks']))
 
 
 def _profile(line, water, sample, depth=0.45):

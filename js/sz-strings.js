@@ -87,7 +87,9 @@ export const STR = {
     mapPlayer: '玩家',
     mapLandmark: '地标',
     mapWaypoint: '传送点',
-    mapHighway: '桥梁 / 快速路'
+    mapHighway: '桥梁 / 快速路',
+    mapWaterfrontWalk: '滨水步道',
+    mapWaterfrontCycle: '滨水骑行 / 共享路（按时段开放）'
   },
   startup: {
     data: '正在读取深圳地理数据……',

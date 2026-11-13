@@ -406915,8 +406915,8 @@
   },
   "terrainSurface": {
     "chunks": 1264,
-    "vertices": 581102,
-    "triangles": 978039,
+    "vertices": 582776,
+    "triangles": 979347,
     "areaKm2": 279.61691,
     "areaErrorM2": -1.97e-06,
     "seconds": 4.97,
@@ -424766,14 +424766,402 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7913,
-    "metadataBytes": 17071893,
-    "numericBytes": 36187272,
-    "uncompressedBytes": 53259216,
+    "metadataBytes": 17090244,
+    "numericBytes": 36236976,
+    "uncompressedBytes": 53327272,
     "lossless": true,
-    "compressedBytes": 13326121,
-    "compressedSha256": "bd5507ee2581e5f2e6d13b9367b7ba733cdaeff0da0fc699817221f4eead5c18"
+    "compressedBytes": 13357696,
+    "compressedSha256": "b4fc89c1433ba90520567c264a9f909c4a4488c56a5caa37b84636aa06bcbdd1"
   },
-  "outputBytes": 13098737,
-  "outputSha256": "c6744d7662092e0c3340bcc7f658aaa09bf73079278c5c0a26b58c45a5752204",
-  "seconds": 25.0
+  "outputBytes": 13129316,
+  "outputSha256": "98e3551e0f6ec84993729cf0d5ed91b424eaa8bda337daf682c6d84902412572",
+  "seconds": 51.1,
+  "waterfrontRoutes": {
+    "checkedAt": "2026-11-13",
+    "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+    "routes": [
+      {
+        "id": "central-bay-promenade",
+        "waterId": "shenzhen-bay",
+        "sources": [
+          "https://cgj.sz.gov.cn/xsmh/gysz/twf/bhxx/content/post_10841320.html",
+          "https://www.sz.gov.cn/hdjlpt/detail?pid=3115634&via=pc"
+        ],
+        "closed": false,
+        "lengthM": 93.83,
+        "paths": [
+          {
+            "osmId": "way/246781716",
+            "version": 12,
+            "tags": {
+              "highway": "footway",
+              "surface": "sett",
+              "foot": "designated",
+              "bicycle": "designated",
+              "lit": "yes"
+            },
+            "nodes": [
+              2613258639,
+              2613258275
+            ],
+            "mode": "walk",
+            "widthM": 4.2,
+            "widthSource": "estimate",
+            "material": "sett",
+            "heightSource": "terrain-derived-estimate",
+            "points": [
+              [
+                -7402.4515,
+                2662.4005
+              ],
+              [
+                -7446.4456,
+                2665.2907
+              ],
+              [
+                -7496.1279,
+                2667.7934
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "id": "central-bay-cycleway",
+        "waterId": "shenzhen-bay",
+        "sources": [
+          "https://www.sz.gov.cn/hdjlpt/detail?pid=3115634&via=pc"
+        ],
+        "closed": false,
+        "lengthM": 94.84,
+        "paths": [
+          {
+            "osmId": "way/255653770",
+            "version": 13,
+            "tags": {
+              "highway": "cycleway",
+              "surface": "paving_stones",
+              "foot": "designated",
+              "bicycle": "designated"
+            },
+            "nodes": [
+              2613258636,
+              2613258641
+            ],
+            "mode": "cycle",
+            "widthM": 3.6,
+            "widthSource": "estimate",
+            "material": "paving_stones",
+            "heightSource": "terrain-derived-estimate",
+            "points": [
+              [
+                -7402.0092,
+                2668.6572
+              ],
+              [
+                -7444.7072,
+                2671.5031
+              ],
+              [
+                -7496.6936,
+                2674.0612
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "id": "baishi-upstream-west",
+        "waterId": "way/25603390",
+        "bank": "west",
+        "sources": [
+          "https://swj.sz.gov.cn/ztzl/swhjs/bdfc/content/post_11740828.html",
+          "https://www.sz.gov.cn/hdjlpt/detail?pid=3487097&via=pc"
+        ],
+        "closed": false,
+        "lengthM": 503.94,
+        "paths": [
+          {
+            "osmId": "way/925416603",
+            "version": 10,
+            "tags": {
+              "highway": "cycleway",
+              "surface": "paving_stones",
+              "foot": "designated",
+              "bicycle": "designated"
+            },
+            "nodes": [
+              8338346382,
+              3894903695
+            ],
+            "mode": "shared",
+            "widthM": 3.1,
+            "widthSource": "estimate",
+            "material": "paving_stones",
+            "heightSource": "terrain-derived-estimate",
+            "points": [
+              [
+                -10302.7374,
+                511.8408
+              ],
+              [
+                -10312.9104,
+                540.2118
+              ],
+              [
+                -10326.2516,
+                570.6758
+              ],
+              [
+                -10350.0847,
+                614.6054
+              ],
+              [
+                -10389.2751,
+                691.3134
+              ],
+              [
+                -10413.9414,
+                733.1723
+              ]
+            ]
+          },
+          {
+            "osmId": "way/657745137",
+            "version": 4,
+            "tags": {
+              "highway": "cycleway",
+              "foot": "designated",
+              "bicycle": "designated"
+            },
+            "nodes": [
+              3894903695,
+              6160288907
+            ],
+            "mode": "shared",
+            "widthM": 3.1,
+            "widthSource": "estimate",
+            "material": "unknown",
+            "heightSource": "terrain-derived-estimate",
+            "points": [
+              [
+                -10413.9414,
+                733.1723
+              ],
+              [
+                -10425.9249,
+                756.6376
+              ],
+              [
+                -10497.5374,
+                881.9263
+              ],
+              [
+                -10516.6491,
+                919.1563
+              ],
+              [
+                -10537.2009,
+                957.3054
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "id": "honghu-southeast",
+        "waterId": "way/31420427",
+        "waterHeightM": 5.8,
+        "sources": [
+          "https://cgj.sz.gov.cn/xsmh/gysz/twf/qsyq/content/post_10841330.html",
+          "https://cgj.sz.gov.cn/ydmh/mtxc/content/post_10654106.html"
+        ],
+        "openingHours": "06:00–23:00",
+        "closed": false,
+        "lengthM": 312.61,
+        "paths": [
+          {
+            "osmId": "way/1222751062",
+            "version": 2,
+            "tags": {
+              "highway": "footway"
+            },
+            "nodes": [
+              11341387399,
+              12974897256
+            ],
+            "mode": "walk",
+            "widthM": 2.6,
+            "widthSource": "estimate",
+            "material": "unknown",
+            "heightSource": "terrain-derived-estimate",
+            "points": [
+              [
+                6079.41,
+                -1396.6684
+              ],
+              [
+                6159.3954,
+                -1398.0305
+              ],
+              [
+                6187.3533,
+                -1402.3271
+              ],
+              [
+                6213.5934,
+                -1403.3791
+              ],
+              [
+                6218.8805,
+                -1405.4831
+              ],
+              [
+                6220.6395,
+                -1407.2438
+              ],
+              [
+                6222.7173,
+                -1409.3036
+              ],
+              [
+                6223.6327,
+                -1411.6733
+              ]
+            ]
+          },
+          {
+            "osmId": "way/1411990261",
+            "version": 1,
+            "tags": {
+              "highway": "footway"
+            },
+            "nodes": [
+              12974897256,
+              8112296268
+            ],
+            "mode": "walk",
+            "widthM": 2.6,
+            "widthSource": "estimate",
+            "material": "unknown",
+            "heightSource": "terrain-derived-estimate",
+            "points": [
+              [
+                6223.6327,
+                -1411.6733
+              ],
+              [
+                6216.5661,
+                -1412.3156
+              ],
+              [
+                6205.1793,
+                -1412.969
+              ],
+              [
+                6202.7723,
+                -1412.8582
+              ],
+              [
+                6198.8224,
+                -1410.577
+              ],
+              [
+                6195.8703,
+                -1408.9603
+              ],
+              [
+                6191.3855,
+                -1409.226
+              ],
+              [
+                6188.2071,
+                -1410.7874
+              ],
+              [
+                6179.9987,
+                -1415.5824
+              ],
+              [
+                6171.78,
+                -1417.9743
+              ],
+              [
+                6149.1401,
+                -1419.0042
+              ]
+            ]
+          },
+          {
+            "osmId": "way/1501087890",
+            "version": 2,
+            "tags": {
+              "highway": "footway"
+            },
+            "nodes": [
+              8112296268,
+              8112296275
+            ],
+            "mode": "walk",
+            "widthM": 2.6,
+            "widthSource": "estimate",
+            "material": "unknown",
+            "heightSource": "terrain-derived-estimate",
+            "points": [
+              [
+                6149.1401,
+                -1419.0042
+              ],
+              [
+                6157.4719,
+                -1432.0823
+              ],
+              [
+                6166.1638,
+                -1443.0232
+              ],
+              [
+                6175.9665,
+                -1451.3396
+              ],
+              [
+                6186.0778,
+                -1460.8741
+              ],
+              [
+                6195.6543,
+                -1470.9845
+              ],
+              [
+                6196.6212,
+                -1475.8348
+              ],
+              [
+                6197.5161,
+                -1480.364
+              ],
+              [
+                6196.5286,
+                -1487.3958
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "waters": [
+      {
+        "id": "way/31420427",
+        "waterIndex": 5,
+        "heightM": 5.8,
+        "heightSource": "estimate"
+      }
+    ],
+    "changedTerrainChunks": [
+      "-15,5",
+      "-21,1",
+      "-22,1",
+      "12,-3"
+    ]
+  }
 }

@@ -21,6 +21,14 @@ const { waterfront, terrainSurface, roadGraph, water } = geo;
 const heightAt = ground.createGroundSurfaceSampler(terrainSurface);
 const plan = elevated.planElevatedRoads(roadGraph, terrainSurface, { waterfront, water });
 const resolve = contact.createSurfaceResolver({ groundHeight: heightAt, surfaces: plan.surfaces });
+const bayModule = loadModule(read('sz-bay-waterfront.js'), { imports: {
+  'three/webgpu': {}, 'three/tsl': {}, './building-collision.js': {}, './sz-materials.js': {},
+  './sz-site-fixtures.js': {}, './sz-strings.js': {}
+} });
+const { createWaterfrontPaths, createWaterfrontAccess, findWaterfrontWalkPoint } = loadModule(read('sz-waterfront.js'), { imports: {
+  'three/webgpu': {}, './building-collision.js': {}, './sz-bay-waterfront.js': bayModule,
+  './sz-controller-surfaces.js': contact, './sz-site-fixtures.js': {}, './sz-sea.js': {}
+} });
 
 test('reviewed bridge profiles are owned by a single elevated plan and connect to both land portals', () => {
   const indices = waterfront.roadBridges.flatMap(b => b.edges);
@@ -85,4 +93,67 @@ test('coastal terrace is supported, slopes into and out of existing route, and p
   const minY = Math.min(...bayLower.points.map(p => p[1]));
   assert.ok(minY > 2 && minY < 3.5);
   for (const [x, y, z] of bayLower.points) assert.ok(Math.abs(heightAt(x, z) - y) < 0.002);
+});
+
+test('reviewed waterfront extensions keep source joins and a supported paved width', () => {
+  assert.equal(waterfront.extensions.length, 4);
+  const material = { unknown: 8, paving_stones: 7, sett: 4, asphalt: 5 };
+  const network = createWaterfrontPaths(waterfront);
+  for (const route of waterfront.extensions) {
+    for (const [i, path] of route.paths.entries()) {
+      if (i > 0) assert.equal(route.paths[i - 1].nodes.at(-1), path.nodes[0]);
+      const paved = ground.createGroundSurfaceSampler(terrainSurface, kind => kind === material[path.material]);
+      for (let j = 1; j < path.points.length; j++) {
+        const [x, z] = path.points[j - 1], [nx, nz] = path.points[j];
+        const length = Math.hypot(nx - x, nz - z);
+        if (!length) continue;
+        for (const side of [-0.36, 0, 0.36]) {
+          const px = (x + nx) / 2 + (nz - z) * path.widthM * side / length;
+          const pz = (z + nz) / 2 - (nx - x) * path.widthM * side / length;
+          assert.ok(network.reserves(px, pz));
+          assert.ok(Number.isFinite(paved(px, pz)), `${path.osmId} ${px} ${pz}`);
+          assert.equal(paved(px, pz), heightAt(px, pz));
+        }
+      }
+    }
+  }
+});
+
+test('waterfront access distinguishes holidays, banks, route modes and overlapping decks', () => {
+  const network = createWaterfrontPaths(waterfront);
+  let now = Date.parse('2026-11-13T14:59:00Z');
+  const access = createWaterfrontAccess(waterfront, network, () => now);
+  const xz = route => { const [x, , z] = route.points[Math.floor(route.points.length / 2)]; return [x, z]; };
+  const west = xz(waterfront.routes.find(route => route.id === 'west-bank'));
+  const east = xz(waterfront.routes.find(route => route.id === 'east-bank'));
+  const lake = xz(waterfront.extensions.find(route => route.id === 'honghu-southeast'));
+  const shore = xz(waterfront.extensions.find(route => route.id === 'central-bay-cycleway'));
+  assert.equal(access('cyclist', ...west), true);
+  assert.equal(access('cyclist', ...east), true);
+  assert.equal(access('cyclist', ...lake), false);
+  assert.equal(access('person', ...lake), true);
+  assert.equal(access('cyclist', ...shore), true);
+  assert.equal(access('person', ...shore), false);
+  assert.equal(access('car', ...west), false);
+  assert.equal(access('car', ...west, { surfaceId: 'sz-elevated-road:1', heightSource: 'estimate' }), true);
+  now = Date.parse('2026-11-13T15:00:00Z');
+  assert.equal(access('person', ...lake), false);
+  assert.equal(access('person', ...east), false);
+  now = Date.parse('2026-10-06T03:00:00Z');
+  assert.equal(access('cyclist', ...west), false);
+  assert.equal(access('cyclist', ...east), true);
+  now = Date.parse('2026-11-14T03:00:00Z');
+  assert.equal(access('cyclist', ...west), false);
+});
+
+test('map arrival snaps only to nearby walkable ground axes', () => {
+  const paths = [
+    { points: [[0, 1], [10, 1]], mode: 'walk', kind: 'steps' },
+    { points: [[0, 2], [10, 2]], mode: 'walk', bridge: true },
+    { points: [[0, 3], [10, 3]], mode: 'cycle' },
+    { points: [[0, 4], [10, 4]], mode: 'shared' }
+  ];
+  const result = findWaterfrontWalkPoint(paths, 5, 1, Math.PI / 2);
+  assert.deepEqual([result.x, result.z, result.heading], [5, 4, Math.PI / 2]);
+  assert.equal(findWaterfrontWalkPoint(paths, 15, 4, 0), null);
 });

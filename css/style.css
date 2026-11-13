@@ -1616,7 +1616,9 @@ body[data-mode='helicopter'] .gauge-alt {
 }
 
 .gps-swatch,
-.bridge-swatch {
+.bridge-swatch,
+.waterfront-walk-swatch,
+.waterfront-cycle-swatch {
   width: 16px;
   height: 4px;
   border-radius: 2px;
@@ -1624,6 +1626,8 @@ body[data-mode='helicopter'] .gauge-alt {
 
 .gps-swatch { background: var(--taxi); }
 .bridge-swatch { background: var(--highway); }
+.waterfront-walk-swatch { background: #c1a67e; }
+.waterfront-cycle-swatch { background: #78c6ba; }
 
 .legend-counts {
   padding-left: 14px;

@@ -119,6 +119,8 @@ test('map travel resolves a walking pose before closing and leaves the map open 
       return true;
     },
     bayPark: null,
+    waterfrontPaths: { paths: [] },
+    findWaterfrontWalkPoint: (_paths, x, z, heading) => x === 103 ? { x: 100, z, heading } : null,
     northStation: null,
     controllerManager: {
       get activeMode() { return mode; },
@@ -187,6 +189,9 @@ test('map travel resolves a walking pose before closing and leaves the map open 
     ['autoStop', 'manual'], ['touch'], ['gamepad'], ['camera'], ['selectCamera', 'chase', true], ['map', false]]);
   assert.equal(map.waypoint.x, 100);
   assert.equal(map.waypoint.name, '100, 200');
+  map.open = true;
+  assert.equal(map.onTeleport(103, 200), walking);
+  assert.equal(map.open, false);
 
   mode = 'car';
   map.open = true;
