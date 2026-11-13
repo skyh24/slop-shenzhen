@@ -15,6 +15,7 @@ import { buildSzBayWaterfront, createBayParkArrivals, createBayPathLookup } from
 import { buildSzWaterfront, createWaterfrontPaths } from './sz-waterfront.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads, planStreetTreeSides } from './sz-roads.js';
+import { createArterialTreeFilter } from './sz-arterial-trees.js';
 import { buildSzRoadFrontage } from './sz-road-frontage.js';
 import { buildSzRoadPaint } from './sz-road-paint.js';
 import { createRoadBuildingClearance } from './sz-road-building-clearance.js';
@@ -313,7 +314,8 @@ async function initApp() {
     reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r)
       || northStation?.reserves(x, z, r) || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
     observedTrees: streetscape.observedTrees, pilotTrees: [...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees, ...districts.trees, ...urbanPaving.trees],
-    streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
+    streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds),
+    arterialTreeAllowed: createArterialTreeFilter(nearRoadsForFrontage, roadFrontage.arterialMedianAt)
   };
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, treeSite));
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。

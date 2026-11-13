@@ -270,7 +270,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const control = createIntersectionControl(source, graph);
   const statistics = { triangleCount: 0, curbTriangles: 0, curbSegments: 0, signals: 0, shrubs: 0, shennanFlowerBeds: 0 };
   const empty = { group: null, control, contactHeight: () => null, shennanMedianHeight: () => null,
-    medianHeight: () => null, plantingAt: () => false, colliders: [],
+    medianHeight: () => null, arterialMedianAt: () => false, plantingAt: () => false, colliders: [],
     detailedRoadIds: [], walkLegs: [], reserveWalk: () => false, statistics, update() {}, dispose() {} };
   if (!source) return empty;
   if (typeof groundHeight !== 'function' || typeof roadHeight !== 'function') throw new Error('Road frontage requires terrain and asphalt contact');
@@ -283,13 +283,15 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   walls.side = THREE.DoubleSide;
   const style = { paint: material(0xf1eee5, -3, 0.84), median: material(0x52673b),
     'flower-band': plantedSurfaceMaterial(0xbb6658, -1) };
+  const separator = material(0x9b9e93, -2);
   const islandSoil = plantedSurfaceMaterial(0x626846, -1);
-  const grass = plantedSurfaceMaterial(0x4f762b);
+  const grass = plantedSurfaceMaterial(0x4f762b, -2);
   const flowers = plantedSurfaceMaterial(0x864359);
   const medians = new Map(source.corridors.filter(row =>
     row.medianSource?.positionSource === 'documented-median-between-osm-carriageways')
     .map(row => [`${row.id}:median`, row]));
   const medianSamplers = [];
+  const arterialSamplers = [];
   const samplers = [];
   const planting = [];
   const plantingSurfaces = [];
@@ -305,10 +307,12 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       ? sceneStyle?.resolve({ surfaceStyle: 'concrete' }, { kind: 'surface', id: feature.id }).surfaceStyle ?? 'concrete'
       : null;
     if (preset && !paving.has(preset)) paving.set(preset, createPavingMaterial(preset, { depthBias: -2 }));
-    const mat = preset ? paving.get(preset) : feature.plantSites ? islandSoil : planted ? grass : style[feature.kind];
+    const arterial = feature.arterialStyle === 'grass' ? grass : feature.arterialStyle === 'separator' ? separator : null;
+    const mat = arterial ?? (preset ? paving.get(preset) : feature.plantSites ? islandSoil : planted ? grass : style[feature.kind]);
     if (!mat) throw new Error(`Unknown frontage surface: ${feature.kind}`);
     const useTreatment = feature.clipToRoadComplement ? treatment : null;
     const layout = createRoadPolygonLayout(feature, terrain, useTreatment);
+    if (arterial) arterialSamplers.push(createRoadHeightSampler(layout.chunks, terrain.grid));
     const offset = feature.surfaceOffsetM ?? feature.riseM;
     for (const chunk of layout.chunks) {
       const positions = chunk.positions;
@@ -372,12 +376,13 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   statistics.shennanFlowerBeds = addShennanFlowerBeds(group, sites, shennanMedianHeight, flowers);
   scene.add(group);
   return { group, control, contactHeight, shennanMedianHeight, medianHeight, colliders: [...hardware.colliders, ...planting],
+    arterialMedianAt: (x, z) => arterialSamplers.some(sample => sample(x, z) !== null),
     signalOrigins: hardware.origins, statistics, walkLegs: legs, reserveWalk,
     plantingAt: (x, z) => plantingSurfaces.some(sample => sample(x, z) !== null),
     detailedRoadIds: [...new Set(source.corridors.flatMap(row => row.roadIds))], update: hardware.update,
     dispose() {
       group.removeFromParent();
-      const geometries = new Set(), materials = new Set([...Object.values(style), ...paving.values(), walls, grass, flowers, islandSoil]);
+      const geometries = new Set(), materials = new Set([...Object.values(style), ...paving.values(), walls, grass, flowers, islandSoil, separator]);
       group.traverse(mesh => {
         if (!mesh.isMesh) return;
         geometries.add(mesh.geometry);

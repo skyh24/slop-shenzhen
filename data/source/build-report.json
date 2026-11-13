@@ -404785,13 +404785,13 @@
   },
   "roadGraph": {
     "nodes": 16999,
-    "links": 24392,
-    "lengthKm": 3179.28,
+    "links": 24390,
+    "lengthKm": 3179.25,
     "bridgeLinks": 1180,
     "tunnelLinks": 227,
     "widthSources": {
       "estimate-from-lanes": 7985,
-      "estimate-from-class": 16381,
+      "estimate-from-class": 16379,
       "osm-width": 19,
       "reviewed-cross-section-estimate": 7
     },
@@ -404803,7 +404803,7 @@
       "components": 711,
       "largestNodes": 16108,
       "largestNodeFraction": 0.9476,
-      "largestLinks": 23476,
+      "largestLinks": 23474,
       "largestLinkFraction": 0.9624
     },
     "limitations": [
@@ -408035,8 +408035,8 @@
         "nearestPavingM": 13.93
       }
     ],
-    "features": 20,
-    "planarTriangles": 7880,
+    "features": 23,
+    "planarTriangles": 24048,
     "medianShrubsEstimated": 276,
     "signalApproaches": 4,
     "signalTimingSource": "user-defined-game-simulation"
@@ -412910,11 +412910,11 @@
         "waterIndex": 4,
         "waterHeightM": 1.1,
         "edges": [
-          4091
+          4090
         ],
         "portals": [
           {
-            "edge": 4091,
+            "edge": 4090,
             "heightsM": [
               8.0,
               8.0
@@ -412930,11 +412930,11 @@
         "waterIndex": 4,
         "waterHeightM": 1.1,
         "edges": [
-          10327
+          10326
         ],
         "portals": [
           {
-            "edge": 10327,
+            "edge": 10326,
             "heightsM": [
               7.9452,
               8.0
@@ -412950,11 +412950,11 @@
         "waterIndex": 4,
         "waterHeightM": 1.1,
         "edges": [
-          10329
+          10328
         ],
         "portals": [
           {
-            "edge": 10329,
+            "edge": 10328,
             "heightsM": [
               7.8805,
               8.0
@@ -419673,7 +419673,7 @@
     "tunnelMinimumClearanceM": 4.38,
     "segments": [
       {
-        "index": 3932,
+        "index": 3931,
         "way": "way/231405164",
         "route": "beihuan-keyuan-west",
         "kind": "bridge",
@@ -419688,7 +419688,7 @@
         "maxGrade": 0.047731
       },
       {
-        "index": 3938,
+        "index": 3937,
         "way": "way/231405168",
         "route": "beihuan-keyuan-east",
         "kind": "bridge",
@@ -419703,7 +419703,7 @@
         "maxGrade": 0.047731
       },
       {
-        "index": 21965,
+        "index": 21964,
         "way": "way/1265685869",
         "route": "binhai-superhq-west",
         "kind": "tunnel",
@@ -419721,7 +419721,7 @@
         "maxGrade": 0.047744
       },
       {
-        "index": 21963,
+        "index": 21962,
         "way": "way/1265685866",
         "route": "binhai-superhq-west",
         "kind": "tunnel",
@@ -419739,7 +419739,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 21966,
+        "index": 21965,
         "way": "way/1265685870",
         "route": "binhai-superhq-west",
         "kind": "tunnel",
@@ -419757,7 +419757,7 @@
         "maxGrade": 0.047731
       },
       {
-        "index": 24194,
+        "index": 24192,
         "way": "way/1527595760",
         "route": "binhai-superhq-east",
         "kind": "tunnel",
@@ -419775,7 +419775,7 @@
         "maxGrade": 0.047731
       },
       {
-        "index": 21964,
+        "index": 21963,
         "way": "way/1265685867",
         "route": "binhai-superhq-east",
         "kind": "tunnel",
@@ -419793,7 +419793,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 15993,
+        "index": 15992,
         "way": "way/974372182",
         "route": "binhai-superhq-east",
         "kind": "tunnel",
@@ -419811,7 +419811,7 @@
         "maxGrade": 0.047731
       },
       {
-        "index": 17633,
+        "index": 17632,
         "way": "way/997152261",
         "route": "huanggang-binhe-north",
         "kind": "approach",
@@ -419859,7 +419859,7 @@
         "maxGrade": 0.035356
       },
       {
-        "index": 21334,
+        "index": 21333,
         "way": "way/1216685968",
         "route": "huanggang-binhe-south",
         "kind": "approach",
@@ -419907,7 +419907,7 @@
         "maxGrade": 0.041321
       },
       {
-        "index": 5941,
+        "index": 5940,
         "way": "way/249534268",
         "route": "nanping-branch-north",
         "kind": "approach",
@@ -419923,7 +419923,7 @@
         "maxGrade": 0.047436
       },
       {
-        "index": 8621,
+        "index": 8620,
         "way": "way/495113720",
         "route": "nanping-branch-north",
         "kind": "tunnel",
@@ -419980,7 +419980,7 @@
         "maxGrade": 0.000556
       },
       {
-        "index": 5845,
+        "index": 5844,
         "way": "way/248224196",
         "route": "nanping-branch-south",
         "kind": "tunnel",
@@ -420037,7 +420037,7 @@
         "maxGrade": 0.004701
       },
       {
-        "index": 23849,
+        "index": 23847,
         "way": "way/1466213100",
         "route": "beihuan-shahe-east",
         "kind": "approach",
@@ -420069,7 +420069,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 23708,
+        "index": 23706,
         "way": "way/1463622147",
         "route": "beihuan-shahe-east",
         "kind": "approach",
@@ -420085,7 +420085,7 @@
         "maxGrade": 0.01456
       },
       {
-        "index": 23703,
+        "index": 23701,
         "way": "way/1463622136",
         "route": "beihuan-shahe-west",
         "kind": "approach",
@@ -420101,7 +420101,7 @@
         "maxGrade": 0.015327
       },
       {
-        "index": 3289,
+        "index": 3288,
         "way": "way/220885821",
         "route": "beihuan-shahe-west",
         "kind": "bridge",
@@ -420117,7 +420117,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 3294,
+        "index": 3293,
         "way": "way/220885830",
         "route": "beihuan-shahe-west",
         "kind": "approach",
@@ -420133,7 +420133,7 @@
         "maxGrade": 0.016684
       },
       {
-        "index": 15657,
+        "index": 15656,
         "way": "way/963403144",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420149,7 +420149,7 @@
         "maxGrade": 0.027077
       },
       {
-        "index": 7812,
+        "index": 7811,
         "way": "way/375061135",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420165,7 +420165,7 @@
         "maxGrade": 0.047497
       },
       {
-        "index": 7813,
+        "index": 7812,
         "way": "way/375061135",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420181,7 +420181,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 15661,
+        "index": 15660,
         "way": "way/963575158",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420197,7 +420197,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 15662,
+        "index": 15661,
         "way": "way/963575158",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420213,7 +420213,7 @@
         "maxGrade": 0.023708
       },
       {
-        "index": 15663,
+        "index": 15662,
         "way": "way/963575160",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420229,7 +420229,7 @@
         "maxGrade": 0.015812
       },
       {
-        "index": 7799,
+        "index": 7798,
         "way": "way/374380004",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420245,7 +420245,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 20020,
+        "index": 20019,
         "way": "way/1125426272",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420261,7 +420261,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 7795,
+        "index": 7794,
         "way": "way/374379998",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420277,7 +420277,7 @@
         "maxGrade": 0.047548
       },
       {
-        "index": 10222,
+        "index": 10221,
         "way": "way/581971318",
         "route": "nanping-xili-east",
         "kind": "tunnel",
@@ -420296,7 +420296,7 @@
         "maxGrade": 0.008951
       },
       {
-        "index": 3315,
+        "index": 3314,
         "way": "way/221018213",
         "route": "nanping-xili-east",
         "kind": "tunnel",
@@ -420315,7 +420315,7 @@
         "maxGrade": 0.006359
       },
       {
-        "index": 3312,
+        "index": 3311,
         "way": "way/221018208",
         "route": "nanping-xili-east",
         "kind": "tunnel",
@@ -420334,7 +420334,7 @@
         "maxGrade": 0.038584
       },
       {
-        "index": 10221,
+        "index": 10220,
         "way": "way/581971317",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420350,7 +420350,7 @@
         "maxGrade": 0.033853
       },
       {
-        "index": 3669,
+        "index": 3668,
         "way": "way/227775718",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420366,7 +420366,7 @@
         "maxGrade": 0.016043
       },
       {
-        "index": 3670,
+        "index": 3669,
         "way": "way/227775718",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420382,7 +420382,7 @@
         "maxGrade": 0.006618
       },
       {
-        "index": 7867,
+        "index": 7866,
         "way": "way/377693334",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420398,7 +420398,7 @@
         "maxGrade": 0.003925
       },
       {
-        "index": 11966,
+        "index": 11965,
         "way": "way/683489209",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420414,7 +420414,7 @@
         "maxGrade": 0.038575
       },
       {
-        "index": 11964,
+        "index": 11963,
         "way": "way/683489207",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420430,7 +420430,7 @@
         "maxGrade": 0.043944
       },
       {
-        "index": 11968,
+        "index": 11967,
         "way": "way/683489212",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420446,7 +420446,7 @@
         "maxGrade": 0.043934
       },
       {
-        "index": 11970,
+        "index": 11969,
         "way": "way/683489215",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420462,7 +420462,7 @@
         "maxGrade": 0.046974
       },
       {
-        "index": 10700,
+        "index": 10699,
         "way": "way/614184072",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420478,7 +420478,7 @@
         "maxGrade": 0.02492
       },
       {
-        "index": 10701,
+        "index": 10700,
         "way": "way/614184072",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420494,7 +420494,7 @@
         "maxGrade": 0.006951
       },
       {
-        "index": 7866,
+        "index": 7865,
         "way": "way/377693333",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420510,7 +420510,7 @@
         "maxGrade": 0.016482
       },
       {
-        "index": 10698,
+        "index": 10697,
         "way": "way/614184062",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420526,7 +420526,7 @@
         "maxGrade": 0.013226
       },
       {
-        "index": 5818,
+        "index": 5817,
         "way": "way/248200239",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420542,7 +420542,7 @@
         "maxGrade": 0.006775
       },
       {
-        "index": 5819,
+        "index": 5818,
         "way": "way/248200239",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420558,7 +420558,7 @@
         "maxGrade": 0.006844
       },
       {
-        "index": 23941,
+        "index": 23939,
         "way": "way/1467919581",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420574,7 +420574,7 @@
         "maxGrade": 0.006738
       },
       {
-        "index": 23856,
+        "index": 23854,
         "way": "way/1466225961",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420590,7 +420590,7 @@
         "maxGrade": 0.036734
       },
       {
-        "index": 11971,
+        "index": 11970,
         "way": "way/683489217",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420606,7 +420606,7 @@
         "maxGrade": 0.031478
       },
       {
-        "index": 11976,
+        "index": 11975,
         "way": "way/683489219",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420622,7 +420622,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 3336,
+        "index": 3335,
         "way": "way/221891451",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420638,7 +420638,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 3335,
+        "index": 3334,
         "way": "way/221891450",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420654,7 +420654,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 4591,
+        "index": 4590,
         "way": "way/237808698",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420670,7 +420670,7 @@
         "maxGrade": 0.01324
       },
       {
-        "index": 4594,
+        "index": 4593,
         "way": "way/237808701",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420686,7 +420686,7 @@
         "maxGrade": 0.011999
       },
       {
-        "index": 4595,
+        "index": 4594,
         "way": "way/237808701",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420702,7 +420702,7 @@
         "maxGrade": 0.01111
       },
       {
-        "index": 3364,
+        "index": 3363,
         "way": "way/221894940",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420718,7 +420718,7 @@
         "maxGrade": 0.038961
       },
       {
-        "index": 3353,
+        "index": 3352,
         "way": "way/221894930",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420734,7 +420734,7 @@
         "maxGrade": 0.024184
       },
       {
-        "index": 8643,
+        "index": 8642,
         "way": "way/497325748",
         "route": "nanping-xili-east",
         "kind": "tunnel",
@@ -420753,7 +420753,7 @@
         "maxGrade": 0.006196
       },
       {
-        "index": 8644,
+        "index": 8643,
         "way": "way/497325748",
         "route": "nanping-xili-east",
         "kind": "tunnel",
@@ -420772,7 +420772,7 @@
         "maxGrade": 0.007111
       },
       {
-        "index": 8647,
+        "index": 8646,
         "way": "way/497325750",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420788,7 +420788,7 @@
         "maxGrade": 0.046903
       },
       {
-        "index": 7381,
+        "index": 7380,
         "way": "way/306304911",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420804,7 +420804,7 @@
         "maxGrade": 0.023825
       },
       {
-        "index": 7382,
+        "index": 7381,
         "way": "way/306304914",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420820,7 +420820,7 @@
         "maxGrade": 0.027198
       },
       {
-        "index": 7377,
+        "index": 7376,
         "way": "way/306304905",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420836,7 +420836,7 @@
         "maxGrade": 0.00261
       },
       {
-        "index": 8635,
+        "index": 8634,
         "way": "way/497322876",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420852,7 +420852,7 @@
         "maxGrade": 0.006332
       },
       {
-        "index": 3352,
+        "index": 3351,
         "way": "way/221892582",
         "route": "nanping-xili-east",
         "kind": "tunnel",
@@ -420871,7 +420871,7 @@
         "maxGrade": 0.006818
       },
       {
-        "index": 3349,
+        "index": 3348,
         "way": "way/221892578",
         "route": "nanping-xili-east",
         "kind": "bridge",
@@ -420887,7 +420887,7 @@
         "maxGrade": 0.041376
       },
       {
-        "index": 7378,
+        "index": 7377,
         "way": "way/306304906",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420903,7 +420903,7 @@
         "maxGrade": 0.028218
       },
       {
-        "index": 7379,
+        "index": 7378,
         "way": "way/306304906",
         "route": "nanping-xili-east",
         "kind": "approach",
@@ -420919,7 +420919,7 @@
         "maxGrade": 0.041675
       },
       {
-        "index": 8642,
+        "index": 8641,
         "way": "way/497325747",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -420935,7 +420935,7 @@
         "maxGrade": 0.002703
       },
       {
-        "index": 3357,
+        "index": 3356,
         "way": "way/221894936",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -420951,7 +420951,7 @@
         "maxGrade": 0.005187
       },
       {
-        "index": 3365,
+        "index": 3364,
         "way": "way/221894941",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -420967,7 +420967,7 @@
         "maxGrade": 0.008575
       },
       {
-        "index": 3366,
+        "index": 3365,
         "way": "way/221894941",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -420983,7 +420983,7 @@
         "maxGrade": 0.009677
       },
       {
-        "index": 4598,
+        "index": 4597,
         "way": "way/237808704",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -420999,7 +420999,7 @@
         "maxGrade": 0.014675
       },
       {
-        "index": 4593,
+        "index": 4592,
         "way": "way/237808700",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -421015,7 +421015,7 @@
         "maxGrade": 0.015441
       },
       {
-        "index": 3337,
+        "index": 3336,
         "way": "way/221891452",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421031,7 +421031,7 @@
         "maxGrade": 0.015376
       },
       {
-        "index": 3332,
+        "index": 3331,
         "way": "way/221891447",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -421047,7 +421047,7 @@
         "maxGrade": 0.010176
       },
       {
-        "index": 11977,
+        "index": 11976,
         "way": "way/683489220",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421063,7 +421063,7 @@
         "maxGrade": 0.003375
       },
       {
-        "index": 11972,
+        "index": 11971,
         "way": "way/683489218",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -421079,7 +421079,7 @@
         "maxGrade": 0.002239
       },
       {
-        "index": 11973,
+        "index": 11972,
         "way": "way/683489218",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -421095,7 +421095,7 @@
         "maxGrade": 0.025
       },
       {
-        "index": 11974,
+        "index": 11973,
         "way": "way/683489218",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -421111,7 +421111,7 @@
         "maxGrade": 0.02499
       },
       {
-        "index": 11975,
+        "index": 11974,
         "way": "way/683489218",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -421127,7 +421127,7 @@
         "maxGrade": 0.028259
       },
       {
-        "index": 7864,
+        "index": 7863,
         "way": "way/377693331",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421143,7 +421143,7 @@
         "maxGrade": 0.033958
       },
       {
-        "index": 7865,
+        "index": 7864,
         "way": "way/377693332",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421159,7 +421159,7 @@
         "maxGrade": 0.032492
       },
       {
-        "index": 10697,
+        "index": 10696,
         "way": "way/614184058",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -421175,7 +421175,7 @@
         "maxGrade": 0.032879
       },
       {
-        "index": 5817,
+        "index": 5816,
         "way": "way/248200238",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421191,7 +421191,7 @@
         "maxGrade": 0.030156
       },
       {
-        "index": 11969,
+        "index": 11968,
         "way": "way/683489214",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -421207,7 +421207,7 @@
         "maxGrade": 0.019206
       },
       {
-        "index": 11967,
+        "index": 11966,
         "way": "way/683489211",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421223,7 +421223,7 @@
         "maxGrade": 0.044633
       },
       {
-        "index": 11963,
+        "index": 11962,
         "way": "way/683489206",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -421239,7 +421239,7 @@
         "maxGrade": 0.043456
       },
       {
-        "index": 11965,
+        "index": 11964,
         "way": "way/683489208",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421255,7 +421255,7 @@
         "maxGrade": 0.024681
       },
       {
-        "index": 5820,
+        "index": 5819,
         "way": "way/248200241",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -421271,7 +421271,7 @@
         "maxGrade": 0.02733
       },
       {
-        "index": 5821,
+        "index": 5820,
         "way": "way/248200241",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -421287,7 +421287,7 @@
         "maxGrade": 0.005349
       },
       {
-        "index": 3666,
+        "index": 3665,
         "way": "way/227775714",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421303,7 +421303,7 @@
         "maxGrade": 0.033137
       },
       {
-        "index": 10220,
+        "index": 10219,
         "way": "way/581971316",
         "route": "nanping-xili-west",
         "kind": "tunnel",
@@ -421322,7 +421322,7 @@
         "maxGrade": 0.024708
       },
       {
-        "index": 3314,
+        "index": 3313,
         "way": "way/221018212",
         "route": "nanping-xili-west",
         "kind": "tunnel",
@@ -421341,7 +421341,7 @@
         "maxGrade": 0.007428
       },
       {
-        "index": 3313,
+        "index": 3312,
         "way": "way/221018211",
         "route": "nanping-xili-west",
         "kind": "tunnel",
@@ -421360,7 +421360,7 @@
         "maxGrade": 0.007961
       },
       {
-        "index": 3671,
+        "index": 3670,
         "way": "way/227785952",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421376,7 +421376,7 @@
         "maxGrade": 0.047418
       },
       {
-        "index": 3672,
+        "index": 3671,
         "way": "way/227785952",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421392,7 +421392,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 7796,
+        "index": 7795,
         "way": "way/374380001",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421408,7 +421408,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 7797,
+        "index": 7796,
         "way": "way/374380001",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421424,7 +421424,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 7798,
+        "index": 7797,
         "way": "way/374380001",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421440,7 +421440,7 @@
         "maxGrade": 0.015084
       },
       {
-        "index": 15664,
+        "index": 15663,
         "way": "way/963575161",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421456,7 +421456,7 @@
         "maxGrade": 0.026428
       },
       {
-        "index": 15665,
+        "index": 15664,
         "way": "way/963575161",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421472,7 +421472,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 7939,
+        "index": 7938,
         "way": "way/377809340",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421488,7 +421488,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 7940,
+        "index": 7939,
         "way": "way/377809340",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421504,7 +421504,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 7941,
+        "index": 7940,
         "way": "way/377809340",
         "route": "nanping-xili-west",
         "kind": "bridge",
@@ -421520,7 +421520,7 @@
         "maxGrade": 0.047729
       },
       {
-        "index": 15648,
+        "index": 15647,
         "way": "way/963403135",
         "route": "nanping-xili-west",
         "kind": "approach",
@@ -421536,7 +421536,7 @@
         "maxGrade": 0.026623
       },
       {
-        "index": 20968,
+        "index": 20967,
         "way": "way/1206538156",
         "route": "nanguang-south",
         "kind": "approach",
@@ -421552,7 +421552,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 4824,
+        "index": 4823,
         "way": "way/238682062",
         "route": "nanguang-south",
         "kind": "bridge",
@@ -421568,7 +421568,7 @@
         "maxGrade": 0.009508
       },
       {
-        "index": 8426,
+        "index": 8425,
         "way": "way/479637183",
         "route": "nanguang-south",
         "kind": "approach",
@@ -421584,7 +421584,7 @@
         "maxGrade": 0.022055
       },
       {
-        "index": 8393,
+        "index": 8392,
         "way": "way/478028558",
         "route": "nanguang-north",
         "kind": "approach",
@@ -421600,7 +421600,7 @@
         "maxGrade": 0.021864
       },
       {
-        "index": 4826,
+        "index": 4825,
         "way": "way/238682064",
         "route": "nanguang-north",
         "kind": "bridge",
@@ -421616,7 +421616,7 @@
         "maxGrade": 0.01249
       },
       {
-        "index": 20969,
+        "index": 20968,
         "way": "way/1206538157",
         "route": "nanguang-north",
         "kind": "approach",
@@ -421696,7 +421696,7 @@
         "maxGrade": 0.032289
       },
       {
-        "index": 18637,
+        "index": 18636,
         "way": "way/1051266597",
         "route": "xincheng-east-side-on",
         "kind": "ramp",
@@ -421712,7 +421712,7 @@
         "maxGrade": 0.025596
       },
       {
-        "index": 15658,
+        "index": 15657,
         "way": "way/963403145",
         "route": "xincheng-east-side-on",
         "kind": "ramp",
@@ -421728,7 +421728,7 @@
         "maxGrade": 0.044719
       },
       {
-        "index": 24246,
+        "index": 24244,
         "way": "way/1547392146",
         "route": "guimiao-west",
         "kind": "approach",
@@ -421744,7 +421744,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 17726,
+        "index": 17725,
         "way": "way/1031889492",
         "route": "guimiao-west",
         "kind": "tunnel",
@@ -421763,7 +421763,7 @@
         "maxGrade": 0.042291
       },
       {
-        "index": 11298,
+        "index": 11297,
         "way": "way/636282333",
         "route": "guimiao-west",
         "kind": "tunnel",
@@ -421782,7 +421782,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 12746,
+        "index": 12745,
         "way": "way/739020654",
         "route": "guimiao-west",
         "kind": "tunnel",
@@ -421801,7 +421801,7 @@
         "maxGrade": 0.049796
       },
       {
-        "index": 14222,
+        "index": 14221,
         "way": "way/862777455",
         "route": "guimiao-west",
         "kind": "bridge",
@@ -421817,7 +421817,7 @@
         "maxGrade": 0.023342
       },
       {
-        "index": 14822,
+        "index": 14821,
         "way": "way/894814743",
         "route": "guimiao-west",
         "kind": "approach",
@@ -421833,7 +421833,7 @@
         "maxGrade": 0.003764
       },
       {
-        "index": 12747,
+        "index": 12746,
         "way": "way/739020657",
         "route": "guimiao-west",
         "kind": "approach",
@@ -421849,7 +421849,7 @@
         "maxGrade": 0.020783
       },
       {
-        "index": 11297,
+        "index": 11296,
         "way": "way/636258646",
         "route": "guimiao-east",
         "kind": "approach",
@@ -421865,7 +421865,7 @@
         "maxGrade": 0.038359
       },
       {
-        "index": 14823,
+        "index": 14822,
         "way": "way/894814744",
         "route": "guimiao-east",
         "kind": "approach",
@@ -421881,7 +421881,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 14225,
+        "index": 14224,
         "way": "way/862777458",
         "route": "guimiao-east",
         "kind": "bridge",
@@ -421897,7 +421897,7 @@
         "maxGrade": 0.003928
       },
       {
-        "index": 14223,
+        "index": 14222,
         "way": "way/862777456",
         "route": "guimiao-east",
         "kind": "approach",
@@ -421913,7 +421913,7 @@
         "maxGrade": 0.045045
       },
       {
-        "index": 14220,
+        "index": 14219,
         "way": "way/862777450",
         "route": "guimiao-east",
         "kind": "tunnel",
@@ -421932,7 +421932,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 16159,
+        "index": 16158,
         "way": "way/983602901",
         "route": "guimiao-east",
         "kind": "approach",
@@ -421996,7 +421996,7 @@
         "maxGrade": 0.046305
       },
       {
-        "index": 7923,
+        "index": 7922,
         "way": "way/377732299",
         "route": "meiguan-north",
         "kind": "bridge",
@@ -422012,7 +422012,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 17125,
+        "index": 17124,
         "way": "way/996597662",
         "route": "meiguan-north",
         "kind": "approach",
@@ -422028,7 +422028,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 8421,
+        "index": 8420,
         "way": "way/479417864",
         "route": "meiguan-north",
         "kind": "approach",
@@ -422044,7 +422044,7 @@
         "maxGrade": 0.044919
       },
       {
-        "index": 11346,
+        "index": 11345,
         "way": "way/638246754",
         "route": "meiguan-south",
         "kind": "approach",
@@ -422060,7 +422060,7 @@
         "maxGrade": 0.046342
       },
       {
-        "index": 17925,
+        "index": 17924,
         "way": "way/1049968046",
         "route": "meiguan-south",
         "kind": "approach",
@@ -422076,7 +422076,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 7924,
+        "index": 7923,
         "way": "way/377732300",
         "route": "meiguan-south",
         "kind": "bridge",
@@ -422092,7 +422092,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 7925,
+        "index": 7924,
         "way": "way/377732301",
         "route": "meiguan-south",
         "kind": "approach",
@@ -422108,7 +422108,7 @@
         "maxGrade": 0.044516
       },
       {
-        "index": 7926,
+        "index": 7925,
         "way": "way/377732301",
         "route": "meiguan-south",
         "kind": "approach",
@@ -422124,7 +422124,7 @@
         "maxGrade": 0.007308
       },
       {
-        "index": 19424,
+        "index": 19423,
         "way": "way/1059172733",
         "route": "meiguan-south",
         "kind": "approach",
@@ -422140,7 +422140,7 @@
         "maxGrade": 0.023035
       },
       {
-        "index": 19425,
+        "index": 19424,
         "way": "way/1059172733",
         "route": "meiguan-south",
         "kind": "approach",
@@ -422188,7 +422188,7 @@
         "maxGrade": 0.047559
       },
       {
-        "index": 23797,
+        "index": 23795,
         "way": "way/1463915893",
         "route": "meiguan-south",
         "kind": "approach",
@@ -422236,7 +422236,7 @@
         "maxGrade": 0.043867
       },
       {
-        "index": 20104,
+        "index": 20103,
         "way": "way/1131695092",
         "route": "meiguan-south",
         "kind": "approach",
@@ -422252,7 +422252,7 @@
         "maxGrade": 0.023836
       },
       {
-        "index": 20105,
+        "index": 20104,
         "way": "way/1131695092",
         "route": "meiguan-south",
         "kind": "approach",
@@ -422268,7 +422268,7 @@
         "maxGrade": 0.041079
       },
       {
-        "index": 19293,
+        "index": 19292,
         "way": "way/1057874093",
         "route": "meiguan-south",
         "kind": "approach",
@@ -422284,7 +422284,7 @@
         "maxGrade": 0.041079
       },
       {
-        "index": 19294,
+        "index": 19293,
         "way": "way/1057874093",
         "route": "meiguan-south",
         "kind": "approach",
@@ -422300,7 +422300,7 @@
         "maxGrade": 0.041681
       },
       {
-        "index": 23262,
+        "index": 23260,
         "way": "way/1425580651",
         "route": "beihuan-nanhai-west",
         "kind": "approach",
@@ -422316,7 +422316,7 @@
         "maxGrade": 0.02637
       },
       {
-        "index": 9976,
+        "index": 9975,
         "way": "way/570468187",
         "route": "beihuan-nanhai-west",
         "kind": "approach",
@@ -422348,7 +422348,7 @@
         "maxGrade": 0.04671
       },
       {
-        "index": 23912,
+        "index": 23910,
         "way": "way/1467797282",
         "route": "beihuan-nanhai-west",
         "kind": "approach",
@@ -422364,7 +422364,7 @@
         "maxGrade": 0.038364
       },
       {
-        "index": 10258,
+        "index": 10257,
         "way": "way/582000074",
         "route": "beihuan-nanhai-west",
         "kind": "approach",
@@ -422380,7 +422380,7 @@
         "maxGrade": 0.016534
       },
       {
-        "index": 7503,
+        "index": 7502,
         "way": "way/329066212",
         "route": "beihuan-nanhai-east",
         "kind": "approach",
@@ -422396,7 +422396,7 @@
         "maxGrade": 0.037709
       },
       {
-        "index": 7504,
+        "index": 7503,
         "way": "way/329066212",
         "route": "beihuan-nanhai-east",
         "kind": "approach",
@@ -422412,7 +422412,7 @@
         "maxGrade": 0.032533
       },
       {
-        "index": 2605,
+        "index": 2604,
         "way": "way/165265283",
         "route": "beihuan-nanhai-east",
         "kind": "bridge",
@@ -422428,7 +422428,7 @@
         "maxGrade": 0.00044
       },
       {
-        "index": 2606,
+        "index": 2605,
         "way": "way/165265283",
         "route": "beihuan-nanhai-east",
         "kind": "bridge",
@@ -422444,7 +422444,7 @@
         "maxGrade": 0.033454
       },
       {
-        "index": 10259,
+        "index": 10258,
         "way": "way/582000075",
         "route": "beihuan-nanhai-east",
         "kind": "approach",
@@ -422460,7 +422460,7 @@
         "maxGrade": 0.042845
       },
       {
-        "index": 18234,
+        "index": 18233,
         "way": "way/1050765265",
         "route": "shennan-shahe-east",
         "kind": "approach",
@@ -422476,7 +422476,7 @@
         "maxGrade": 0.044863
       },
       {
-        "index": 11018,
+        "index": 11017,
         "way": "way/633620762",
         "route": "shennan-shahe-east",
         "kind": "approach",
@@ -422540,7 +422540,7 @@
         "maxGrade": 0.020787
       },
       {
-        "index": 9714,
+        "index": 9713,
         "way": "way/557222376",
         "route": "shennan-shahe-east",
         "kind": "approach",
@@ -422556,7 +422556,7 @@
         "maxGrade": 0.017005
       },
       {
-        "index": 9715,
+        "index": 9714,
         "way": "way/557222376",
         "route": "shennan-shahe-east",
         "kind": "approach",
@@ -422572,7 +422572,7 @@
         "maxGrade": 0.01391
       },
       {
-        "index": 11055,
+        "index": 11054,
         "way": "way/633753644",
         "route": "shennan-shahe-west",
         "kind": "approach",
@@ -422588,7 +422588,7 @@
         "maxGrade": 0.023512
       },
       {
-        "index": 11056,
+        "index": 11055,
         "way": "way/633753644",
         "route": "shennan-shahe-west",
         "kind": "approach",
@@ -422604,7 +422604,7 @@
         "maxGrade": 0.042035
       },
       {
-        "index": 3269,
+        "index": 3268,
         "way": "way/220882377",
         "route": "shennan-shahe-west",
         "kind": "bridge",
@@ -422620,7 +422620,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 19121,
+        "index": 19120,
         "way": "way/1052247913",
         "route": "shennan-shahe-west",
         "kind": "bridge",
@@ -422636,7 +422636,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 18235,
+        "index": 18234,
         "way": "way/1050765268",
         "route": "shennan-shahe-west",
         "kind": "approach",
@@ -422652,7 +422652,7 @@
         "maxGrade": 0.049949
       },
       {
-        "index": 10962,
+        "index": 10961,
         "way": "way/633620706",
         "route": "shennan-shahe-west",
         "kind": "approach",
@@ -422668,7 +422668,7 @@
         "maxGrade": 0.048974
       },
       {
-        "index": 18129,
+        "index": 18128,
         "way": "way/1050725164",
         "route": "shennan-xinzhou-west",
         "kind": "approach",
@@ -422684,7 +422684,7 @@
         "maxGrade": 0.044108
       },
       {
-        "index": 17159,
+        "index": 17158,
         "way": "way/996625933",
         "route": "shennan-xinzhou-west",
         "kind": "approach",
@@ -422700,7 +422700,7 @@
         "maxGrade": 0.042705
       },
       {
-        "index": 18002,
+        "index": 18001,
         "way": "way/1050511757",
         "route": "shennan-xinzhou-west",
         "kind": "bridge",
@@ -422716,7 +422716,7 @@
         "maxGrade": 0.021095
       },
       {
-        "index": 18003,
+        "index": 18002,
         "way": "way/1050511757",
         "route": "shennan-xinzhou-west",
         "kind": "bridge",
@@ -422748,7 +422748,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 17160,
+        "index": 17159,
         "way": "way/996625934",
         "route": "shennan-xinzhou-west",
         "kind": "bridge",
@@ -422764,7 +422764,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 17161,
+        "index": 17160,
         "way": "way/996625934",
         "route": "shennan-xinzhou-west",
         "kind": "bridge",
@@ -422780,7 +422780,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 18007,
+        "index": 18006,
         "way": "way/1050511761",
         "route": "shennan-xinzhou-west",
         "kind": "approach",
@@ -422812,7 +422812,7 @@
         "maxGrade": 0.041906
       },
       {
-        "index": 17933,
+        "index": 17932,
         "way": "way/1050261077",
         "route": "shennan-xinzhou-east",
         "kind": "approach",
@@ -422828,7 +422828,7 @@
         "maxGrade": 0.024191
       },
       {
-        "index": 18006,
+        "index": 18005,
         "way": "way/1050511760",
         "route": "shennan-xinzhou-east",
         "kind": "approach",
@@ -422844,7 +422844,7 @@
         "maxGrade": 0.024111
       },
       {
-        "index": 17162,
+        "index": 17161,
         "way": "way/996625935",
         "route": "shennan-xinzhou-east",
         "kind": "bridge",
@@ -422860,7 +422860,7 @@
         "maxGrade": 0.005279
       },
       {
-        "index": 17163,
+        "index": 17162,
         "way": "way/996625935",
         "route": "shennan-xinzhou-east",
         "kind": "bridge",
@@ -422876,7 +422876,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 5216,
+        "index": 5215,
         "way": "way/245389549",
         "route": "shennan-xinzhou-east",
         "kind": "bridge",
@@ -422892,7 +422892,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 5217,
+        "index": 5216,
         "way": "way/245389549",
         "route": "shennan-xinzhou-east",
         "kind": "bridge",
@@ -422908,7 +422908,7 @@
         "maxGrade": 0.000633
       },
       {
-        "index": 5218,
+        "index": 5217,
         "way": "way/245389549",
         "route": "shennan-xinzhou-east",
         "kind": "bridge",
@@ -422924,7 +422924,7 @@
         "maxGrade": 0.019114
       },
       {
-        "index": 18004,
+        "index": 18003,
         "way": "way/1050511758",
         "route": "shennan-xinzhou-east",
         "kind": "approach",
@@ -422940,7 +422940,7 @@
         "maxGrade": 0.042789
       },
       {
-        "index": 17169,
+        "index": 17168,
         "way": "way/996625938",
         "route": "shennan-xinzhou-east",
         "kind": "approach",
@@ -422956,7 +422956,7 @@
         "maxGrade": 0.044717
       },
       {
-        "index": 17724,
+        "index": 17723,
         "way": "way/1031889490",
         "route": "binhai-shahe-east",
         "kind": "approach",
@@ -422972,7 +422972,7 @@
         "maxGrade": 0.014685
       },
       {
-        "index": 2008,
+        "index": 2007,
         "way": "way/101316668",
         "route": "binhai-shahe-east",
         "kind": "bridge",
@@ -422988,7 +422988,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 15990,
+        "index": 15989,
         "way": "way/974372180",
         "route": "binhai-shahe-east",
         "kind": "approach",
@@ -423004,7 +423004,7 @@
         "maxGrade": 0.042021
       },
       {
-        "index": 22169,
+        "index": 22168,
         "way": "way/1287096255",
         "route": "binhai-shahe-east",
         "kind": "approach",
@@ -423020,7 +423020,7 @@
         "maxGrade": 0.044104
       },
       {
-        "index": 22814,
+        "index": 22812,
         "way": "way/1382209008",
         "route": "binhai-shahe-west",
         "kind": "approach",
@@ -423036,7 +423036,7 @@
         "maxGrade": 0.030607
       },
       {
-        "index": 23964,
+        "index": 23962,
         "way": "way/1468004414",
         "route": "binhai-shahe-west",
         "kind": "approach",
@@ -423052,7 +423052,7 @@
         "maxGrade": 0.02973
       },
       {
-        "index": 2077,
+        "index": 2076,
         "way": "way/101316998",
         "route": "binhai-shahe-west",
         "kind": "bridge",
@@ -423068,7 +423068,7 @@
         "maxGrade": 0.002152
       },
       {
-        "index": 16400,
+        "index": 16399,
         "way": "way/995989149",
         "route": "binhai-shahe-west",
         "kind": "approach",
@@ -423084,7 +423084,7 @@
         "maxGrade": 0.037493
       },
       {
-        "index": 1984,
+        "index": 1983,
         "way": "way/101316531",
         "route": "beihuan-nanhai-east-loop-off",
         "kind": "ramp",
@@ -423100,7 +423100,7 @@
         "maxGrade": 0.032456
       },
       {
-        "index": 10260,
+        "index": 10259,
         "way": "way/582000076",
         "route": "beihuan-nanhai-east-loop-off",
         "kind": "ramp",
@@ -423116,7 +423116,7 @@
         "maxGrade": 0.031874
       },
       {
-        "index": 2767,
+        "index": 2766,
         "way": "way/182832354",
         "route": "shennan-shahe-east-loop-on",
         "kind": "ramp",
@@ -423132,7 +423132,7 @@
         "maxGrade": 0.029961
       },
       {
-        "index": 7801,
+        "index": 7800,
         "way": "way/374508069",
         "route": "shennan-shahe-east-loop-on",
         "kind": "ramp",
@@ -423164,7 +423164,7 @@
         "maxGrade": 0.02962
       },
       {
-        "index": 7802,
+        "index": 7801,
         "way": "way/374508070",
         "route": "shennan-shahe-west-loop-off",
         "kind": "ramp",
@@ -423196,7 +423196,7 @@
         "maxGrade": 0.044118
       },
       {
-        "index": 9557,
+        "index": 9556,
         "way": "way/545784771",
         "route": "shennan-xinzhou-50",
         "kind": "ramp",
@@ -423228,7 +423228,7 @@
         "maxGrade": 0.036731
       },
       {
-        "index": 9556,
+        "index": 9555,
         "way": "way/545784770",
         "route": "shennan-xinzhou-139",
         "kind": "ramp",
@@ -423260,7 +423260,7 @@
         "maxGrade": 0.036885
       },
       {
-        "index": 9558,
+        "index": 9557,
         "way": "way/545784772",
         "route": "shennan-xinzhou-51",
         "kind": "ramp",
@@ -423292,7 +423292,7 @@
         "maxGrade": 0.038841
       },
       {
-        "index": 9559,
+        "index": 9558,
         "way": "way/545784773",
         "route": "shennan-xinzhou-138",
         "kind": "ramp",
@@ -423308,7 +423308,7 @@
         "maxGrade": 0.039973
       },
       {
-        "index": 7946,
+        "index": 7945,
         "way": "way/377812319",
         "route": "nanping-new-town-east-on",
         "kind": "ramp",
@@ -423324,7 +423324,7 @@
         "maxGrade": 0.023021
       },
       {
-        "index": 7947,
+        "index": 7946,
         "way": "way/377812320",
         "route": "nanping-new-town-east-on",
         "kind": "ramp",
@@ -423340,7 +423340,7 @@
         "maxGrade": 0.024372
       },
       {
-        "index": 17897,
+        "index": 17896,
         "way": "way/1049950459",
         "route": "shennan-baoan-west",
         "kind": "approach",
@@ -423356,7 +423356,7 @@
         "maxGrade": 0.038461
       },
       {
-        "index": 10042,
+        "index": 10041,
         "way": "way/575168590",
         "route": "shennan-baoan-west",
         "kind": "approach",
@@ -423372,7 +423372,7 @@
         "maxGrade": 0.041516
       },
       {
-        "index": 2617,
+        "index": 2616,
         "way": "way/165265299",
         "route": "shennan-baoan-west",
         "kind": "bridge",
@@ -423388,7 +423388,7 @@
         "maxGrade": 0.003516
       },
       {
-        "index": 4084,
+        "index": 4083,
         "way": "way/231787772",
         "route": "shennan-baoan-west",
         "kind": "bridge",
@@ -423404,7 +423404,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 4085,
+        "index": 4084,
         "way": "way/231787772",
         "route": "shennan-baoan-west",
         "kind": "bridge",
@@ -423420,7 +423420,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 23911,
+        "index": 23909,
         "way": "way/1467797281",
         "route": "shennan-baoan-west",
         "kind": "bridge",
@@ -423436,7 +423436,7 @@
         "maxGrade": 0.029884
       },
       {
-        "index": 7942,
+        "index": 7941,
         "way": "way/377809348",
         "route": "shennan-baoan-west",
         "kind": "approach",
@@ -423452,7 +423452,7 @@
         "maxGrade": 0.029884
       },
       {
-        "index": 7943,
+        "index": 7942,
         "way": "way/377809348",
         "route": "shennan-baoan-west",
         "kind": "approach",
@@ -423468,7 +423468,7 @@
         "maxGrade": 0.029885
       },
       {
-        "index": 2087,
+        "index": 2086,
         "way": "way/101317038",
         "route": "shennan-baoan-east",
         "kind": "bridge",
@@ -423484,7 +423484,7 @@
         "maxGrade": 0.044264
       },
       {
-        "index": 2088,
+        "index": 2087,
         "way": "way/101317038",
         "route": "shennan-baoan-east",
         "kind": "bridge",
@@ -423500,7 +423500,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 2089,
+        "index": 2088,
         "way": "way/101317038",
         "route": "shennan-baoan-east",
         "kind": "bridge",
@@ -423516,7 +423516,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 10114,
+        "index": 10113,
         "way": "way/580915671",
         "route": "shennan-baoan-east",
         "kind": "bridge",
@@ -423532,7 +423532,7 @@
         "maxGrade": 0.0
       },
       {
-        "index": 2768,
+        "index": 2767,
         "way": "way/182832519",
         "route": "shennan-baoan-east",
         "kind": "approach",
@@ -423548,7 +423548,7 @@
         "maxGrade": 0.036877
       },
       {
-        "index": 2622,
+        "index": 2621,
         "way": "way/165265337",
         "route": "shennan-baoan-west-side-on",
         "kind": "ramp",
@@ -423564,7 +423564,7 @@
         "maxGrade": 0.023417
       },
       {
-        "index": 2630,
+        "index": 2629,
         "way": "way/165265363",
         "route": "shennan-baoan-west-side-on",
         "kind": "ramp",
@@ -423580,7 +423580,7 @@
         "maxGrade": 0.023352
       },
       {
-        "index": 10027,
+        "index": 10026,
         "way": "way/572963457",
         "route": "shennan-qiaocheng-east",
         "kind": "approach",
@@ -423612,7 +423612,7 @@
         "maxGrade": 0.039298
       },
       {
-        "index": 11016,
+        "index": 11015,
         "way": "way/633620761",
         "route": "shennan-qiaocheng-east",
         "kind": "approach",
@@ -423628,7 +423628,7 @@
         "maxGrade": 0.013571
       },
       {
-        "index": 16207,
+        "index": 16206,
         "way": "way/985389863",
         "route": "shennan-qiaocheng-west",
         "kind": "approach",
@@ -423660,7 +423660,7 @@
         "maxGrade": 0.014321
       },
       {
-        "index": 17885,
+        "index": 17884,
         "way": "way/1049950449",
         "route": "shennan-qiaocheng-west",
         "kind": "approach",
@@ -423679,7 +423679,7 @@
     "connections": [
       {
         "ramp": 214,
-        "incoming": 17633,
+        "incoming": 17632,
         "outgoing": 899,
         "template": "loop"
       },
@@ -423691,7 +423691,7 @@
       },
       {
         "ramp": 39,
-        "incoming": 21334,
+        "incoming": 21333,
         "outgoing": 900,
         "template": "loop"
       },
@@ -423702,63 +423702,63 @@
         "template": "loop"
       },
       {
-        "ramp": 15658,
-        "incoming": 7812,
-        "outgoing": 7813,
+        "ramp": 15657,
+        "incoming": 7811,
+        "outgoing": 7812,
         "template": "side"
       },
       {
-        "ramp": 1984,
-        "incoming": 2605,
-        "outgoing": 2606,
+        "ramp": 1983,
+        "incoming": 2604,
+        "outgoing": 2605,
         "template": "loop"
       },
       {
-        "ramp": 7801,
+        "ramp": 7800,
         "incoming": 160,
         "outgoing": 161,
         "template": "loop"
       },
       {
         "ramp": 1356,
-        "incoming": 3269,
-        "outgoing": 19121,
+        "incoming": 3268,
+        "outgoing": 19120,
         "template": "loop"
       },
       {
         "ramp": 50,
-        "incoming": 5216,
-        "outgoing": 5217,
+        "incoming": 5215,
+        "outgoing": 5216,
         "template": "loop"
       },
       {
         "ramp": 139,
         "incoming": 1569,
-        "outgoing": 17160,
+        "outgoing": 17159,
+        "template": "loop"
+      },
+      {
+        "ramp": 9557,
+        "incoming": 17162,
+        "outgoing": 5215,
         "template": "loop"
       },
       {
         "ramp": 9558,
-        "incoming": 17163,
-        "outgoing": 5216,
-        "template": "loop"
-      },
-      {
-        "ramp": 9559,
-        "incoming": 18003,
+        "incoming": 18002,
         "outgoing": 1569,
         "template": "loop"
       },
       {
-        "ramp": 7947,
-        "incoming": 20020,
-        "outgoing": 7795,
+        "ramp": 7946,
+        "incoming": 20019,
+        "outgoing": 7794,
         "template": "side"
       },
       {
-        "ramp": 2630,
-        "incoming": 2617,
-        "outgoing": 4084,
+        "ramp": 2629,
+        "incoming": 2616,
+        "outgoing": 4083,
         "template": "side"
       }
     ]
@@ -423770,15 +423770,256 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7888,
-    "metadataBytes": 17058260,
-    "numericBytes": 35860144,
-    "uncompressedBytes": 52918456,
+    "columns": 7891,
+    "metadataBytes": 17061789,
+    "numericBytes": 36636208,
+    "uncompressedBytes": 53698048,
     "lossless": true,
-    "compressedBytes": 13080228,
-    "compressedSha256": "4ba5cf753efe8e08627e2eea6b530d1a4f2f965de24db3e05a6c45b982e75269"
+    "compressedBytes": 13259618,
+    "compressedSha256": "d6c51712727acc48fca878b377beb13035de62b4c1d3a296b5a58571fdb59daa"
   },
-  "outputBytes": 12877314,
-  "outputSha256": "46c9cb918cf7523e6f19090e2808b15ab2dea2ef1b9c6b40dd677bbce205816d",
-  "seconds": 248.5
+  "outputBytes": 13033056,
+  "outputSha256": "15978d6025f8500f26b9db5218547a672ba66c9c87251d03c881cf577d58109c",
+  "seconds": 28.6,
+  "arterialDuplicateReview": [
+    {
+      "omit": "way/96934588",
+      "keep": "way/1337092544",
+      "nodes": [
+        "node/1992853849",
+        "node/7293795831"
+      ]
+    },
+    {
+      "omit": "way/1337092548",
+      "keep": "way/1337092549",
+      "nodes": [
+        "node/7293795831",
+        "node/3379374435"
+      ]
+    }
+  ],
+  "arterialMedianDesign": {
+    "placementSource": "estimated-between-existing-osm-carriageways",
+    "evidence": {
+      "streetHistory": "https://pnr.sz.gov.cn/attachment/1/1442/1442495/10537363.pdf",
+      "beihuanSection": "beihuan-profile.json",
+      "binhaiTunnel": "https://jtys.sz.gov.cn/pcjt/tsjt/content/post_12123186.html",
+      "binhaiPark": "https://cgj.sz.gov.cn/xsmh/gysz/gydt/content/post_12919159.html"
+    },
+    "roads": [
+      {
+        "road": "北环大道",
+        "style": "separator",
+        "areaM2": 2100.08,
+        "sourceWayIds": [
+          "way/1052079673",
+          "way/1052079674",
+          "way/1052079685",
+          "way/1052079686",
+          "way/1052079687",
+          "way/1052079688",
+          "way/1055004289",
+          "way/1055004290",
+          "way/1055004295",
+          "way/1055004296",
+          "way/1055004298",
+          "way/1055004299",
+          "way/1055004300",
+          "way/1131996509",
+          "way/1242231952",
+          "way/1242231953",
+          "way/1242231972",
+          "way/1345099920",
+          "way/1345099921",
+          "way/1463622137",
+          "way/1463713902",
+          "way/1463853520",
+          "way/1463915890",
+          "way/1463915892",
+          "way/1466159021",
+          "way/1466159023",
+          "way/1466159024",
+          "way/1466159025",
+          "way/1466213094",
+          "way/1466213095",
+          "way/1466213099",
+          "way/1467747968",
+          "way/1467747969",
+          "way/1467747972",
+          "way/1467747973",
+          "way/1468770633",
+          "way/1468770634",
+          "way/220885830",
+          "way/231405165",
+          "way/231405166",
+          "way/393911167",
+          "way/45569111",
+          "way/45569114",
+          "way/570468184",
+          "way/636237018",
+          "way/636237019",
+          "way/974379909"
+        ]
+      },
+      {
+        "road": "深南大道",
+        "style": "grass",
+        "areaM2": 186782.07,
+        "sourceWayIds": [
+          "way/1049950439",
+          "way/1049950440",
+          "way/1049950449",
+          "way/1049950450",
+          "way/1049950452",
+          "way/1049950455",
+          "way/1049950456",
+          "way/1049950458",
+          "way/1049950463",
+          "way/1050261077",
+          "way/1050261079",
+          "way/1050511762",
+          "way/1050511763",
+          "way/1050511765",
+          "way/1050511766",
+          "way/1050532711",
+          "way/1050532721",
+          "way/1050725158",
+          "way/1050725161",
+          "way/1050725163",
+          "way/1050725173",
+          "way/1050725174",
+          "way/1050725184",
+          "way/1050725188",
+          "way/1050765265",
+          "way/1050921378",
+          "way/1050921382",
+          "way/1050921383",
+          "way/1050921384",
+          "way/1050921385",
+          "way/1050921386",
+          "way/1050921388",
+          "way/1050921422",
+          "way/1051261207",
+          "way/1051261208",
+          "way/1051261212",
+          "way/1052231183",
+          "way/1126432891",
+          "way/1131996506",
+          "way/1132175532",
+          "way/1216685956",
+          "way/1241802797",
+          "way/1337092550",
+          "way/1353367090",
+          "way/1416570869",
+          "way/1463268577",
+          "way/1463427748",
+          "way/1463713909",
+          "way/1466301581",
+          "way/1466301586",
+          "way/1468232689",
+          "way/1468232705",
+          "way/1473010623",
+          "way/1473010625",
+          "way/1473010626",
+          "way/1473010627",
+          "way/1549038438",
+          "way/1549038439",
+          "way/1549038440",
+          "way/165265398",
+          "way/165265401",
+          "way/232420306",
+          "way/238026684",
+          "way/248431104",
+          "way/386764371",
+          "way/40978183",
+          "way/42351689",
+          "way/489105658",
+          "way/498477953",
+          "way/498477955",
+          "way/557222384",
+          "way/557222391",
+          "way/557222415",
+          "way/557222423",
+          "way/557222430",
+          "way/557222461",
+          "way/572963458",
+          "way/575168586",
+          "way/575168592",
+          "way/581117550",
+          "way/581126438",
+          "way/600648170",
+          "way/616351220",
+          "way/633620700",
+          "way/633620701",
+          "way/633620707",
+          "way/633620757",
+          "way/633620759",
+          "way/633620761",
+          "way/633620766",
+          "way/633620767",
+          "way/636236921",
+          "way/636236925",
+          "way/636236958",
+          "way/636236959",
+          "way/690978992",
+          "way/892901019",
+          "way/892901021",
+          "way/892901023",
+          "way/953806720",
+          "way/953806723",
+          "way/96334031",
+          "way/985389861",
+          "way/985389864",
+          "way/985389867",
+          "way/996247118",
+          "way/996321300",
+          "way/996321302",
+          "way/996321303",
+          "way/996625939",
+          "way/996657789",
+          "way/996762393"
+        ]
+      },
+      {
+        "road": "滨海大道",
+        "style": "grass",
+        "areaM2": 34363.06,
+        "sourceWayIds": [
+          "way/1031889490",
+          "way/1058988271",
+          "way/1058988272",
+          "way/1087059790",
+          "way/1087059793",
+          "way/1087059795",
+          "way/1087059797",
+          "way/1102478862",
+          "way/1143147546",
+          "way/1265685871",
+          "way/1287096257",
+          "way/1304962559",
+          "way/1315358476",
+          "way/1382209053",
+          "way/1416570855",
+          "way/1420291785",
+          "way/1420291786",
+          "way/1468004415",
+          "way/1527595759",
+          "way/182180231",
+          "way/27006844",
+          "way/357768082",
+          "way/636282358",
+          "way/671753468",
+          "way/773895020",
+          "way/773895041",
+          "way/974372181",
+          "way/974372182",
+          "way/983602900",
+          "way/995989149",
+          "way/996890849",
+          "way/996890850"
+        ]
+      }
+    ]
+  }
 }

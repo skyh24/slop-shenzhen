@@ -326,7 +326,7 @@ function emptyResult() {
     statistics: {
       version: 1, payloadCount: 0, placed: 0, chunks: 0, lodCells: 0, countsBySource: {},
       skipped: { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, buildingConflict: 0,
-        openMedian: 0, roadside: 0, frontageTrunkConflict: 0, frontageCrownConflict: 0, reservedWalk: 0 },
+        openMedian: 0, roadside: 0, arterialLayout: 0, frontageTrunkConflict: 0, frontageCrownConflict: 0, reservedWalk: 0 },
       instances: { trunks: 0, cards: 0, farCrowns: 0 },
       triangles: { trunkPerTree: TRUNK_TRIANGLES, cardPerTree: {}, farPerTree: FAR_CROWN_TRIANGLES },
       visible: { chunks: 0, lodCells: 0, nearCells: 0, farCells: 0, hiddenCells: 0, trees: 0,
@@ -407,6 +407,10 @@ export function buildSzTrees(scene, payload, options = {}) {
     }
     if (sourceName.startsWith('simulated-') && Number.isFinite(shennanMedianHeight(x, z))) {
       skipped.openMedian++;
+      continue;
+    }
+    if (options.arterialTreeAllowed && !options.arterialTreeAllowed(x, z, sourceName)) {
+      skipped.arterialLayout++;
       continue;
     }
     if (sourceName === 'simulated-street' && !streetTreeSideAllowed(x, z)) {

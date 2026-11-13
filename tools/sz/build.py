@@ -12,6 +12,8 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 from air_cruises import build_air_cruises
+from arterial_corridors import (MANIFEST as ARTERIAL_CORRIDORS, compile_arterial_medians,
+                                omit_reviewed_duplicates, remap_structure_indices)
 from beihuan import apply_beihuan_sections
 from bridges import build_bridges
 from building_appearance import apply_building_appearance
@@ -228,7 +230,8 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
     return terrain, apply_commercial_carriageway(surface, manifest, graph, report)
 
 
-def write_city_packages(payload, report, sources, started, *, refresh_regions=True, appearance_osm=None, structure_base=None):
+def write_city_packages(payload, report, sources, started, *, refresh_regions=True, appearance_osm=None,
+                        structure_base=None, arterial_osm=None):
     payload.pop('roads', None)
     osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
     if refresh_regions:
@@ -237,6 +240,8 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
         report['mapRegions'] = {key: regions[key] for key in ('version', 'source', 'pilot', 'coverage')}
         payload['airCruises'], report['airCruises'] = build_air_cruises(payload['roadGraph'], osm_source)
     compile_road_structures(payload, json.loads(ROAD_STRUCTURES.read_text()), report, base=structure_base)
+    if arterial_osm is not None:
+        compile_arterial_medians(payload, arterial_osm, json.loads(ARTERIAL_CORRIDORS.read_text()), report)
     if appearance_osm is not None:
         apply_building_appearance(payload, appearance_osm, report)
     OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -532,6 +537,8 @@ def main():
                       help='regenerate map regions from the verified city package and OSM snapshot')
     mode.add_argument('--rebuild-road-structures', type=Path, nargs='?', const=True, metavar='UNCUT_CITY_PACKAGE',
                       help='compile reviewed structures and cut portals into the verified city surface')
+    mode.add_argument('--rebuild-arterial-corridors', action='store_true',
+                      help='deduplicate reviewed connectors and generate median finishes on the verified package')
     mode.add_argument('--rebuild-air-cruises', action='store_true',
                       help='regenerate air cruises from the verified city road graph')
     mode.add_argument('--rebuild-ground', action='store_true',
@@ -600,6 +607,22 @@ def main():
     if args.rebuild_road_frontage:
         rebuild_road_frontage(args.rebuild_road_frontage, crossing_axis_ids=args.refresh_frontage_crossing_axes,
                               use_cache=not args.no_cache)
+        return
+
+    if args.rebuild_arterial_corridors:
+        started = time.time()
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        report = json.loads(REPORT.read_text())
+        manifest = json.loads(ARTERIAL_CORRIDORS.read_text())
+        source = next(row for row in sources if row['id'] == manifest['osmSnapshotId'])
+        osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=ROOT / source['file'],
+                       source_sha256=source['sha256'])
+        remap = omit_reviewed_duplicates(payload['roadGraph'], report, manifest)
+        remap_structure_indices(payload, report, remap)
+        write_city_packages(payload, report, sources, started, refresh_regions=False, arterial_osm=osm)
         return
 
     if args.rebuild_urban_paving:
@@ -713,6 +736,7 @@ def main():
     apply_beihuan_sections(road_graph, report)
     apply_drive_rules(pbf, road_graph, report)
     road_graph['turnRestrictions'] = build_turn_restrictions(pbf, road_graph, report)
+    omit_reviewed_duplicates(road_graph, report, json.loads(ARTERIAL_CORRIDORS.read_text()))
     sites = build_landmark_sites(landmark_manifest, report, pbf=pbf, area_entries=osm['buildings'])
     # 春茧两座封闭厅是已核实的地面裁除区：派生路面不得改写馆内格点，先按原始 DSM 求出并复用。
     exclusions = chunjian_exclusions(buildings, terrain, osm['roads'])
@@ -807,7 +831,7 @@ def main():
     payload.pop('waterfront', None)
     compile_waterfront(payload, osm, pbf, report)
     compile_urban_paving(payload, osm_source, report)
-    write_city_packages(payload, report, sources, t0, appearance_osm=osm)
+    write_city_packages(payload, report, sources, t0, appearance_osm=osm, arterial_osm=osm)
 
 
 if __name__ == '__main__':

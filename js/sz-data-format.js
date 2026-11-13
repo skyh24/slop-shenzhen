@@ -864,6 +864,12 @@ export function validateCityPayload(raw) {
     requireData(frontage?.version === 1 && frontage.source?.osmSnapshotId === 'osm-guangdong'
       && Array.isArray(frontage.corridors) && Array.isArray(frontage.features) && Array.isArray(frontage.intersections), 'road frontage source');
     for (const feature of frontage.features) {
+      if (feature.arterialStyle !== undefined) {
+        requireData(feature.kind === 'median' && ['grass', 'separator'].includes(feature.arterialStyle)
+          && feature.riseM === 0 && Array.isArray(feature.sourceIds) && feature.sourceIds.length >= 2
+          && feature.sourceIds.every(isOsmId) && Array.isArray(feature.trianglesXZ) && feature.trianglesXZ.length > 0
+          && feature.trianglesXZ.length % 6 === 0 && feature.trianglesXZ.every(Number.isFinite), 'arterial median finish');
+      }
       if (feature.solidPlanting !== undefined) {
         requireData(feature.solidPlanting === true && feature.kind === 'median' && feature.riseM > 0
           && Array.isArray(feature.outlines) && feature.outlines.length > 0
