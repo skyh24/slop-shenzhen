@@ -294,6 +294,7 @@ class QaSession {
     const modules = runtime.modules;
     window.__szLamps = modules.lamps;
     window.__szTrees = modules.trees;
+    window.__szVegetation = modules.vegetation;
     window.__szApec = modules.apec;
     window.__szApecCity = modules.apecCity;
     window.__szDrones = modules.drones;
