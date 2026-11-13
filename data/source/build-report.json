@@ -79352,16 +79352,16 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7630,
-    "metadataBytes": 16718892,
-    "numericBytes": 33623736,
-    "uncompressedBytes": 50342680,
+    "metadataBytes": 16805676,
+    "numericBytes": 34081040,
+    "uncompressedBytes": 50886768,
     "lossless": true,
-    "compressedBytes": 11384910,
-    "compressedSha256": "bcd223eba66dc3e5437d50a0220e61153f753c551c3d3de1bea8f5141d4323fb"
+    "compressedBytes": 11636571,
+    "compressedSha256": "ba75a7b55f2b5bdeca8eed3bbe5a3462292501a68b5222d59faee6aecb972122"
   },
-  "outputBytes": 11354870,
-  "outputSha256": "6925c920c6bf66c9391ae356297e2fd4500ebb26e693e59d3a4ed8034e127ea7",
-  "seconds": 80.4,
+  "outputBytes": 11643189,
+  "outputSha256": "b7123b2bbe8c884c3e6908ebdc1dd2f3e97264b081705cbd2f61513f8ee1c435",
+  "seconds": 104.7,
   "frontageRebuild": {
     "basePayloadSha256": "6357ca9673bd5bbbb1e7532d96314cb3bc4372b97c659466565df89307ca30cb",
     "corridors": [
@@ -85162,5 +85162,469 @@
       "way/571169638"
     ],
     "terrainAndBuildingsChanged": false
+  },
+  "waterfrontSamples": {
+    "status": "pilot-generated",
+    "checkedAt": "2026-11-13",
+    "source": "waterfront-samples.json",
+    "verticalDatum": "project-visual-reference; no tide or surveyed elevation",
+    "waterLevels": [
+      {
+        "id": "way/25498931",
+        "waterIndex": 3,
+        "heightM": 5.8,
+        "heightSource": "estimate"
+      },
+      {
+        "id": "way/25603390",
+        "waterIndex": 4,
+        "heightM": 1.1,
+        "heightSource": "estimate"
+      }
+    ],
+    "coast": {
+      "walkOsmId": "way/246781716",
+      "lowerFromM": 72,
+      "lowerToM": 237,
+      "rampM": 38,
+      "dropM": 1.5,
+      "blendM": 3.8,
+      "lengthM": 165.0
+    },
+    "routes": [
+      {
+        "id": "lychee-loop",
+        "lengthM": 1808.24,
+        "closed": true,
+        "mode": "walk"
+      },
+      {
+        "id": "lychee-west",
+        "lengthM": 244.22,
+        "closed": false,
+        "mode": "walk"
+      },
+      {
+        "id": "lychee-north",
+        "lengthM": 193.55,
+        "closed": false,
+        "mode": "walk"
+      },
+      {
+        "id": "lychee-east",
+        "lengthM": 57.23,
+        "closed": false,
+        "mode": "walk"
+      },
+      {
+        "id": "lychee-south",
+        "lengthM": 67.56,
+        "closed": false,
+        "mode": "walk"
+      },
+      {
+        "id": "west-bank",
+        "lengthM": 462.76,
+        "closed": false,
+        "mode": "shared"
+      },
+      {
+        "id": "east-bank",
+        "lengthM": 441.33,
+        "closed": false,
+        "mode": "shared"
+      },
+      {
+        "id": "baishi-535088692",
+        "lengthM": 100.46,
+        "closed": false,
+        "mode": "shared"
+      },
+      {
+        "id": "baishi-585147228",
+        "lengthM": 87.59,
+        "closed": false,
+        "mode": "shared"
+      }
+    ],
+    "roadBridges": [
+      {
+        "osmId": "way/25543384",
+        "lengthM": 535.78,
+        "heightM": 8.0,
+        "girderDepthM": 0.65,
+        "waterIndex": 4,
+        "waterHeightM": 1.1,
+        "edges": [
+          196
+        ],
+        "portals": [
+          {
+            "edge": 196,
+            "heightsM": [
+              8.0,
+              8.0
+            ]
+          }
+        ]
+      },
+      {
+        "osmId": "way/231901256",
+        "lengthM": 539.07,
+        "heightM": 8.0,
+        "girderDepthM": 0.65,
+        "waterIndex": 4,
+        "waterHeightM": 1.1,
+        "edges": [
+          4091
+        ],
+        "portals": [
+          {
+            "edge": 4091,
+            "heightsM": [
+              8.0,
+              8.0
+            ]
+          }
+        ]
+      },
+      {
+        "osmId": "way/585147216",
+        "lengthM": 101.27,
+        "heightM": 8.0,
+        "girderDepthM": 0.65,
+        "waterIndex": 4,
+        "waterHeightM": 1.1,
+        "edges": [
+          10327
+        ],
+        "portals": [
+          {
+            "edge": 10327,
+            "heightsM": [
+              7.9452,
+              8.0
+            ]
+          }
+        ]
+      },
+      {
+        "osmId": "way/585147218",
+        "lengthM": 91.58,
+        "heightM": 8.0,
+        "girderDepthM": 0.65,
+        "waterIndex": 4,
+        "waterHeightM": 1.1,
+        "edges": [
+          10329
+        ],
+        "portals": [
+          {
+            "edge": 10329,
+            "heightsM": [
+              7.8805,
+              8.0
+            ]
+          }
+        ]
+      }
+    ],
+    "slowBridges": [
+      "way/239574119",
+      "way/239574720",
+      "way/239574721",
+      "way/1561066199",
+      "way/535088692",
+      "way/585147228"
+    ],
+    "minimumSampledUnderpassClearanceM": 2.8,
+    "changedTerrainChunks": [
+      "8,-2",
+      "8,-1",
+      "9,-1",
+      "8,0",
+      "9,0",
+      "-22,1",
+      "-21,1",
+      "-22,2",
+      "-21,2",
+      "-15,5",
+      "-14,5"
+    ],
+    "pavingM2": {
+      "8": 8440.928315507752,
+      "9": 5954.0189263090815
+    },
+    "crossingAudit": [
+      {
+        "osmId": "way/25529353",
+        "tags": {
+          "name": "深南大道",
+          "name:en": "Shennan Boulevard",
+          "highway": "primary",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 47.06,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/25543384",
+        "tags": {
+          "name": "白石路",
+          "name:en": "Baishi Road",
+          "highway": "primary",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 58.74,
+        "status": "sample-bridge"
+      },
+      {
+        "osmId": "way/101316668",
+        "tags": {
+          "name": "滨海大道",
+          "name:en": "Binhai Boulevard",
+          "highway": "trunk",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 73.82,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/101316861",
+        "tags": {
+          "name": "滨海大道辅路",
+          "name:en": "Binhai Boulevard Side Road",
+          "highway": "primary",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 22.78,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/101316998",
+        "tags": {
+          "name": "滨海大道",
+          "name:en": "Binhai Boulevard",
+          "highway": "trunk",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 75.62,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/101317742",
+        "tags": {
+          "name": "滨海大道辅路",
+          "name:en": "Binhai Boulevard Side Road",
+          "highway": "primary",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 71.82,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/165265292",
+        "tags": {
+          "highway": "primary_link",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 56.37,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/165265385",
+        "tags": {
+          "highway": "primary_link",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 47.67,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/220882377",
+        "tags": {
+          "name": "深南大道",
+          "name:en": "Shennan Boulevard",
+          "highway": "primary",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 46.69,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/231405498",
+        "tags": {
+          "highway": "primary_link",
+          "lanes": "1",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 47.56,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/231901256",
+        "tags": {
+          "name": "白石路",
+          "name:en": "Baishi Road",
+          "highway": "primary",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 59.09,
+        "status": "sample-bridge"
+      },
+      {
+        "osmId": "way/248431110",
+        "tags": {
+          "highway": "cycleway",
+          "bridge": "yes",
+          "layer": "2"
+        },
+        "waterIntersectionM": 47.3,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/390947335",
+        "tags": {
+          "highway": "cycleway",
+          "bridge": "yes",
+          "layer": "2"
+        },
+        "waterIntersectionM": 46.42,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/390949402",
+        "tags": {
+          "highway": "cycleway",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 78.85,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/535088692",
+        "tags": {
+          "highway": "footway",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 58.86,
+        "status": "sample-bridge"
+      },
+      {
+        "osmId": "way/555861592",
+        "tags": {
+          "highway": "primary_link",
+          "lanes": "1",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 46.58,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/585147216",
+        "tags": {
+          "name": "白石路辅路",
+          "highway": "primary_link",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 59.86,
+        "status": "sample-bridge"
+      },
+      {
+        "osmId": "way/585147218",
+        "tags": {
+          "name": "白石路辅路",
+          "highway": "primary_link",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 58.43,
+        "status": "sample-bridge"
+      },
+      {
+        "osmId": "way/585147228",
+        "tags": {
+          "highway": "footway",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 59.04,
+        "status": "sample-bridge"
+      },
+      {
+        "osmId": "way/586589639",
+        "tags": {
+          "highway": "trunk_link",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 22.93,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/587965757",
+        "tags": {
+          "highway": "cycleway",
+          "bridge": "yes"
+        },
+        "waterIntersectionM": 72.38,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/839645212",
+        "tags": {
+          "highway": "primary_link",
+          "lanes": "1",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 201.41,
+        "status": "tagged-bridge-candidate"
+      },
+      {
+        "osmId": "way/1553751714",
+        "tags": {
+          "name": "滨海大道辅路",
+          "name:en": "Binhai Boulevard Side Road",
+          "highway": "primary",
+          "oneway": "yes",
+          "bridge": "yes",
+          "layer": "1"
+        },
+        "waterIntersectionM": 54.9,
+        "status": "tagged-bridge-candidate"
+      }
+    ]
   }
 }

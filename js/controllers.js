@@ -180,7 +180,7 @@ function buildingContact(c, x, y, z, body, contact) {
 class ThirdPersonControllerManager {
   constructor(scene, colliders = [], options = {}) {
     this.groundHeight = options.groundHeight ?? terrainHeight;
-    this.surfaceResolver = createSurfaceResolver({ groundHeight: this.groundHeight, surfaces: options.surfaces ?? [] });
+    this.surfaceResolver = createSurfaceResolver({ groundHeight: this.groundHeight, groundIdentity: options.groundIdentity, surfaces: options.surfaces ?? [] });
     this.nearTraffic = options.nearTraffic;
     this.nearPedestrians = options.nearPedestrians;
     this.nearWalkers = options.nearWalkers;
@@ -387,7 +387,7 @@ class ThirdPersonControllerManager {
       height = Math.min(this.maxFlightAltitude, Number.isFinite(floor) ? Math.max(altitude, floor + FLIGHT_START_CLEARANCE) : altitude);
       if (height + body.bottom <= (floor ?? -Infinity)) return null;
     } else {
-      if (!previous || (previous.surfaceId === 'terrain' && isWater(x, z) !== false)) return null;
+      if (!previous || ((previous.surfaceId === 'terrain' || previous.heightSource === 'terrain') && isWater(x, z) !== false)) return null;
       const support = this.supportedFootprint(x, z, body, { _support: previous });
       if (!support || Math.abs(support.height - previous.height) > CONTACT_EPSILON) return null;
       height = support.height;
@@ -893,11 +893,10 @@ class ThirdPersonControllerManager {
   }
 
   supportedFootprint(x, z, body, entity, landingOnRoad = false) {
-    if (this.groundAccess && !this.groundAccess(body.mode, x, z)) return null;
     const previous = entity?._support;
     const options = { previousY: previous?.height ?? null, previousSurfaceId: previous?.surfaceId ?? null };
     const center = this.surfaceResolver.resolve(x, z, options);
-    if (!center || (landingOnRoad && !this.isRoadContact(x, z, center.height))) return null;
+    if (!center || (this.groundAccess && !this.groundAccess(body.mode, x, z, center)) || (landingOnRoad && !this.isRoadContact(x, z, center.height))) return null;
     const halfX = body.car ? body.hx : body.extX, halfZ = body.car ? body.hz : body.extZ;
     const sin = body.car ? body.sin : 0, cos = body.car ? body.cos : 1;
     for (const dx of [-halfX, 0, halfX]) {
@@ -984,7 +983,7 @@ class ThirdPersonControllerManager {
     const floor = entity?._support;
     if (!previous || !floor || entity.jumping || entity.jumpPrep > 0 || Math.abs(pos.y - floor.height) > 0.3) return null;
     const travel = Math.hypot(pos.x - previous.x, pos.z - previous.z);
-    if (travel > 0.5 || (travel < 1e-7 && floor.surfaceId === 'terrain')) return null;
+    if (travel > 0.5 || (travel < 1e-7 && (floor.surfaceId === 'terrain' || floor.heightSource === 'terrain'))) return null;
     const step = this.surfaceResolver.footing?.(pos.x, pos.z, body.radius,
       floor.height, Math.min(pos.y, floor.height) + PERSON_STEP_UP);
     if (!step) return null;
@@ -1527,7 +1526,7 @@ class ThirdPersonControllerManager {
     const { x, z } = entity.position;
     const terrain = this.groundHeight(x, z);
     const support = this.surfaceResolver.below(x, z, previousSkidY + 0.025);
-    if (!support || support.surfaceId === 'terrain') return terrain;
+    if (!support || support.surfaceId === 'terrain' || support.heightSource === 'terrain') return terrain;
     // 从上方接触屋面，且旋翼包络四角都有同一平面支撑，避免机身停在屋沿外。
     const shape = collisionBody(entity.type, 4.5, entity.heading, 0, entity.collisionBounds);
     const halfX = shape.car ? shape.hx : shape.extX, halfZ = shape.car ? shape.hz : shape.extZ;

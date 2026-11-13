@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { GeoBuilder, addFlatPolygon } from './sz-geometry.js';
 import { createSzWaterMaterial } from './sz-water-material.js';
 
-export function buildSzSea(scene, surface, { name = 'shenzhen-sea', coastal = true } = {}) {
+export function buildSzSea(scene, surface, { name = 'shenzhen-sea', coastal = true, cityReflection = true } = {}) {
   if (!surface) return null;
   const batch = new GeoBuilder();
   for (const { outer, holes } of surface.polygons) {
@@ -10,7 +10,8 @@ export function buildSzSea(scene, surface, { name = 'shenzhen-sea', coastal = tr
     addFlatPolygon(batch, rings, surface.heightM);
   }
   const geometry = batch.build();
-  const material = createSzWaterMaterial({ coastal });
+  // 水材质从共用缓存借用，销毁单个水体时只回收其几何。
+  const material = cityReflection ? createSzWaterMaterial({ coastal }) : createSzWaterMaterial({ coastal, cityReflection });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = name;
   mesh.userData.source = surface.source;
@@ -20,7 +21,6 @@ export function buildSzSea(scene, surface, { name = 'shenzhen-sea', coastal = tr
     dispose() {
       mesh.removeFromParent();
       geometry.dispose();
-      material.dispose();
     }
   };
 }

@@ -15,6 +15,7 @@ const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': tslStub,
   './sz-roads.js': roads,
   './sz-ground-surface.js': groundSurface,
+  './sz-polygon.js': loadModule(read('sz-polygon.js')),
   './sz-controller-surfaces.js': controllerSurfaces
 } });
 
@@ -153,6 +154,7 @@ test('real THREE build creates at most twelve chunk meshes and a walkable deck t
       'three/tsl': await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.tsl.js'))),
       './sz-roads.js': realRoads,
       './sz-ground-surface.js': groundSurface,
+      './sz-polygon.js': loadModule(read('sz-polygon.js')),
       './sz-controller-surfaces.js': controllerSurfaces
     } });
     const scene = new THREE.Scene();
@@ -299,6 +301,7 @@ test('built elevated roads expose drive surfaces and a deck height sampler on th
     'three/webgpu': fake, 'three/tsl': tslStub,
     './sz-roads.js': roads,
     './sz-ground-surface.js': groundSurface,
+    './sz-polygon.js': loadModule(read('sz-polygon.js')),
     './sz-controller-surfaces.js': controllerSurfaces
   } });
   const built = module.buildSzElevatedRoads(new fake.Group(), { graph: driveFixture(), terrainSurface: surface, area: AREA });
@@ -450,6 +453,7 @@ test('built elevated roads expose the guardrail and pier contact bodies', () => 
     'three/webgpu': fake, 'three/tsl': tslStub,
     './sz-roads.js': roads,
     './sz-ground-surface.js': groundSurface,
+    './sz-polygon.js': loadModule(read('sz-polygon.js')),
     './sz-controller-surfaces.js': controllerSurfaces
   } });
   const built = module.buildSzElevatedRoads(new fake.Group(), {

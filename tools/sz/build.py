@@ -39,6 +39,7 @@ from road_surface import build_road_surface
 from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
+from waterfront import compile_waterfront
 from yanjiang import build_yanjiang
 from fastpack import encode_city
 from package_validation import CORE_SOURCES, audit_payload, require_matching_snapshot, ring_points, verify_sources
@@ -376,6 +377,8 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     build_shenzhen_golf(payload, osm, pbf, report)
     payload.pop('shenzhenBay', None)
     build_shenzhen_bay(payload, osm, pbf, report)
+    payload.pop('waterfront', None)
+    compile_waterfront(payload, osm, pbf, report)
     write_city_packages(payload, report, sources, started)
 
 
@@ -525,6 +528,8 @@ def main():
                       help='add reviewed Xiangmi Lake paths and reflecting pool to the current verified snapshot')
     mode.add_argument('--rebuild-talent-park', action='store_true',
                       help='compile the reviewed Talent Park waterfront on the verified package')
+    mode.add_argument('--rebuild-waterfront', action='store_true',
+                      help='compile the reviewed lake, bay and river samples on the verified package')
     args = ap.parse_args()
     if args.refresh_frontage_crossing_axes and not args.rebuild_road_frontage:
         ap.error('--refresh-frontage-crossing-axes requires --rebuild-road-frontage')
@@ -551,7 +556,7 @@ def main():
                               use_cache=not args.no_cache)
         return
 
-    if args.rebuild_talent_park:
+    if args.rebuild_talent_park or args.rebuild_waterfront:
         started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
@@ -561,7 +566,10 @@ def main():
         osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=ROOT / osm_source['file'],
                        source_sha256=osm_source['sha256'])
         report = json.loads(REPORT.read_text())
-        compile_talent_park(payload, osm, osm_source, report)
+        if args.rebuild_waterfront:
+            compile_waterfront(payload, osm, ROOT / osm_source['file'], report)
+        else:
+            compile_talent_park(payload, osm, osm_source, report)
         write_city_packages(payload, report, sources, started)
         return
 
@@ -711,6 +719,8 @@ def main():
 
     build_shenzhen_golf(payload, osm, pbf, report)
     build_shenzhen_bay(payload, osm, pbf, report)
+    payload.pop('waterfront', None)
+    compile_waterfront(payload, osm, pbf, report)
     write_city_packages(payload, report, sources, t0)
 
 

@@ -12,6 +12,7 @@ import { createObservationSessions } from './sz-observation-session.js';
 import { getLocationLabel, inBounds, isWater, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { buildSzGround } from './sz-ground.js';
 import { buildSzBayWaterfront, createBayParkArrivals, createBayPathLookup } from './sz-bay-waterfront.js';
+import { buildSzWaterfront, createWaterfrontPaths } from './sz-waterfront.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads, planStreetTreeSides } from './sz-roads.js';
 import { buildSzRoadFrontage } from './sz-road-frontage.js';
@@ -203,7 +204,8 @@ async function initApp() {
   };
   // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
   const elevatedRoads = qa.stage('elevated', () =>
-    buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface }));
+    buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface,
+      waterfront: GEO.waterfront, water: GEO.water }));
   const roadFrontage = qa.measureBuild('frontage', () =>
     buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, site));
   const roadPaint = qa.stage('paint', () =>
@@ -212,6 +214,7 @@ async function initApp() {
   const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface, site.style);
   site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? publicWalk.heightAt(x, z) ?? ground.groundHeight(x, z);
   site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
+  const waterfrontPaths = createWaterfrontPaths(GEO.waterfront);
   const bayPaths = createBayPathLookup(GEO.shenzhenBay?.paths);
   site.reserveBayWalk = (x, z, radius) => bayPaths(x, z, radius).length > 0;
   markInit('roads');
@@ -262,7 +265,7 @@ async function initApp() {
   const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
     ...site, carriagewayOccupied, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
-    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r),
+    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r),
     observedTrees: streetscape.observedTrees, pilotTrees: [...publicWalk.trees, ...(waterfront?.pilotTrees ?? [])],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
@@ -308,6 +311,10 @@ async function initApp() {
   const bayWaterfront = qa.measureBuild('bayWaterfront', () =>
     buildSzBayWaterfront(scene, GEO.shenzhenBay, { ...site, pathsNear: bayPaths }));
   colliders.push(...bayWaterfront.colliders);
+  const shoreSamples = qa.measureBuild('shoreSamples', () => buildSzWaterfront(scene, GEO.waterfront, {
+    water: GEO.water, network: waterfrontPaths, elevated: elevatedRoads, heightAt: site.heightAt, obstacles: colliders
+  }));
+  colliders.push(...shoreSamples.colliders);
   const { people: talentPeople, program: talentProgram, show: talentShow, update: updateTalentPark } = talentPark.connect(colliders);
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = qa.stage('traffic', () => createSzTraffic(scene, GEO.roadGraph, {
@@ -325,7 +332,9 @@ async function initApp() {
     roadHeight: roads.roadHeight,
     surfaces: [...cityBlocks.surfaces, ...landmarks.surfaces, ...elevatedRoads.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
     nearTraffic: traffic.nearColliders, nearWalkers: talentPeople?.nearColliders, flightSettings: GEO.airCruises?.flight,
-    groundAccess: bayWaterfront.allowsGroundMode
+    groundIdentity: waterfrontPaths.groundIdentity,
+    groundAccess: (mode, x, z, surface) => bayWaterfront.allowsGroundMode(mode, x, z)
+      && shoreSamples.allowsGroundMode(mode, x, z, surface)
   });
   const cruise = qa.measureBuild('airCruises', () => createSceneAirCruise(GEO.airCruises, controllerManager, site, PLAYER_SPEED_LIMITS.helicopter));
   let initialTime = 'golden';
@@ -359,7 +368,7 @@ async function initApp() {
     localWalk: iec?.walk, blockGenericWalk: iec?.blockGenericWalk,
     spawnMinM: 8,
     spawnMaxM: 160,
-    publicRoutes: bayWaterfront.publicRoutes
+    publicRoutes: [...bayWaterfront.publicRoutes, ...shoreSamples.publicRoutes]
   }));
   roadFrontage.update(0);
   traffic.update(0, loadingFocus, [controllerManager.getActiveEntity()], 0);
@@ -434,6 +443,8 @@ async function initApp() {
     waterfront?.dispose();
     iec?.dispose();
     bayWaterfront.dispose();
+    shoreSamples.dispose();
+    elevatedRoads.dispose?.();
     drones.dispose();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) savePlayerState(); });
@@ -952,6 +963,7 @@ async function initApp() {
     lightShow.update();
     metroEntrances.update(cameraSystem.camera.position);
     bayWaterfront.update(cameraSystem.camera.position);
+    shoreSamples.update(cameraSystem.camera.position);
     futianStation?.update(cameraSystem.camera.position);
     xiliConstruction?.update();
     buildingSigns.update(cameraSystem.camera.position);

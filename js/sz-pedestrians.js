@@ -499,7 +499,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     const fx = Math.sin(ped.heading);
     const fz = Math.cos(ped.heading);
     for (const other of nearPeds) {
-      if (other === ped) continue;
+      if (other === ped || Math.abs(ped.y - other.y) > 1.6) continue;
       if (ped.leg.kind === 'public-walk' && other.leg === ped.leg) {
         if (other.dir !== ped.dir) continue;
         const gap = (other.s - ped.s) * ped.dir;

@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, fract, fwidth, max, min, mix, positionWorld, smoothstep, vec3 } from 'three/tsl';
+import { attribute, floor, fract, fwidth, max, min, mix, positionWorld, smoothstep, vec2, vec3 } from 'three/tsl';
 import { copyGroundChunksForRender, createGroundSurfaceSampler } from './sz-ground-surface.js';
 
 // 静态地表按 2.4 km 超块合并（与 sz-roads.js 同款逻辑）：页面只需给每个分块一份带位置/法线/颜色/索引的
@@ -56,7 +56,7 @@ function batchChunks(entries) {
 
 export { createGroundSurfaceSampler };
 
-const COLORS = [0xb5b0a2, 0x6f875a, 0x527858, 0xa7a8a4, 0xb8b1a5, 0x736f68, 0xa79780, 0x938473];
+const COLORS = [0xb5b0a2, 0x6f875a, 0x527858, 0xa7a8a4, 0xb8b1a5, 0x736f68, 0xa79780, 0x938473, 0x535655, 0x383d42];
 
 function groundMaterial() {
   const material = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.96 });
@@ -67,7 +67,12 @@ function groundMaterial() {
   const pixel = max(fwidth(grid.x), fwidth(grid.y));
   const joint = smoothstep(0.009, max(0.026, pixel), edge).oneMinus()
     .mul(smoothstep(0.09, 0.38, pixel).oneMinus());
-  material.colorNode = vec3(mix(1, joint.mul(-0.20).add(1), attribute('paved', 'float')));
+  // 路面颗粒随像素覆盖淡出；不创建石子几何或碰撞。
+  const grainUV = positionWorld.xz.mul(48);
+  const noise = fract(floor(grainUV).dot(vec2(0.754877, 0.56984)).mul(28.718));
+  const grainFade = smoothstep(0.3, 1.4, max(fwidth(grainUV.x), fwidth(grainUV.y))).oneMinus();
+  const asphalt = noise.sub(0.5).mul(0.18).mul(grainFade).mul(attribute('asphalt', 'float')).add(1);
+  material.colorNode = vec3(mix(1, joint.mul(-0.20).add(1), attribute('paved', 'float')).mul(asphalt));
   return material;
 }
 
@@ -81,16 +86,19 @@ export function buildSzGround(scene, surface, options = {}) {
   for (const chunk of chunks) {
     const colors = new Float32Array(chunk.kinds.length * 3);
     const paved = new Float32Array(chunk.kinds.length);
+    const asphalt = new Float32Array(chunk.kinds.length);
     chunk.kinds.forEach((kind, i) => {
       const color = palette[kind];
       if (!color) throw new Error(`Unsupported ground kind: ${kind}`);
       color.toArray(colors, i * 3);
       paved[i] = Number(kind === 3 || kind === 4 || kind === 7);
+      asphalt[i] = Number(kind >= 8);
     });
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(chunk.positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute('paved', new THREE.BufferAttribute(paved, 1));
+    geometry.setAttribute('asphalt', new THREE.BufferAttribute(asphalt, 1));
     geometry.setIndex(new THREE.BufferAttribute(chunk.indices, 1));
     geometry.computeVertexNormals();
     geometry.computeBoundingBox();

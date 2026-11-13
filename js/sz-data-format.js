@@ -142,6 +142,36 @@ function validateShenzhenBay(site, parks, sea) {
     && ['rock-slope', 'retaining-edge'].includes(shore.profile)), 'Shenzhen Bay shore');
 }
 
+function validateWaterfront(site, raw) {
+  if (site === undefined) return;
+  const way = /^way\/\d+$/;
+  const xyz = p => Array.isArray(p) && p.length === 3 && p.every(Number.isFinite);
+  const polyline = p => Array.isArray(p) && p.length > 1 && p.every(xyz);
+  const waterIndex = i => Number.isSafeInteger(i) && !!raw.water[i];
+  const positive = v => Number.isFinite(v) && v > 0;
+  const mode = v => v === 'walk' || v === 'shared';
+  requireData(site?.version === 1 && Array.isArray(site.waters) && site.waters.length === 2
+    && site.waters.every(w => way.test(w.id) && waterIndex(w.waterIndex) && Number.isFinite(w.heightM)
+      && w.heightSource === 'estimate'), 'waterfront water sources');
+  requireData(Array.isArray(site.roadBridges) && site.roadBridges.every(b => way.test(b.osmId)
+    && Number.isFinite(b.heightM) && positive(b.girderDepthM) && waterIndex(b.waterIndex)
+    && Number.isFinite(b.waterHeightM) && Array.isArray(b.edges) && b.edges.length > 0
+    && b.edges.every(i => Number.isSafeInteger(i) && raw.roadGraph.metadata[i]?.osmId === b.osmId
+      && raw.roadGraph.metadata[i].bridge && !raw.roadGraph.metadata[i].tunnel)
+    && b.portals?.length === b.edges.length && b.portals.every((p, i) => p.edge === b.edges[i]
+      && p.heightsM?.length === 2 && p.heightsM.every(Number.isFinite))), 'waterfront road bridges');
+  requireData(Array.isArray(site.footbridges) && site.footbridges.every(b => way.test(b.id) && polyline(b.points)
+    && positive(b.widthM) && positive(b.girderDepthM) && waterIndex(b.waterIndex) && Number.isFinite(b.waterHeightM)
+    && mode(b.mode)), 'waterfront slow bridges');
+  requireData(Array.isArray(site.routes) && site.routes.every(r => typeof r.id === 'string' && mode(r.mode)
+    && polyline(r.points) && Array.isArray(r.paths) && r.paths.every(p => way.test(p.osmId) && mode(p.mode)
+      && positive(p.widthM) && p.points?.length >= 2 && p.points.every(xz => xz.length === 2 && xz.every(Number.isFinite)))),
+  'waterfront routes');
+  requireData(Array.isArray(site.rails) && site.rails.every(r => typeof r.id === 'string'
+    && Array.isArray(r.stations) && r.stations.every(p => p === null || xyz(p)))
+    && polyline(site.bayLower?.points), 'waterfront banks');
+}
+
 function validateTrees(trees) {
   if (trees === undefined) return;
   requireData(trees?.version === 1 && Number.isSafeInteger(trees.count) && trees.count >= 0, 'trees header');
@@ -681,6 +711,7 @@ export function validateCityPayload(raw) {
     }
   }
   validateIds(roadEdges, 'road edge identity');
+  validateWaterfront(raw.waterfront, raw);
   validateAirCruises(raw.airCruises, graph);
   if (graph.turnRestrictions !== undefined) {
     const { version, source, rules } = graph.turnRestrictions ?? {};
@@ -761,6 +792,7 @@ export function decodeCityPayload(raw, metrics = null) {
     roadFrontage: raw.roadFrontage ?? null,
     mapRegions: raw.mapRegions ? { ...raw.mapRegions, regions: raw.mapRegions.regions.map(decodeMapRegion) } : null,
     shenzhenBay: raw.shenzhenBay ?? null,
+    waterfront: raw.waterfront ?? null,
     metro: raw.metro, landmarks: raw.landmarks,
     bridges: raw.bridges ?? [], yanjiangExpressway: raw.yanjiangExpressway ?? null,
     seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },

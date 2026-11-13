@@ -543,7 +543,8 @@ test('Chegongmiao route clears both junction guardrails and keeps its deck conta
     'three/tsl': {},
     './sz-roads.js': roads,
     './sz-ground-surface.js': load('sz-ground-surface.js'),
-    './sz-controller-surfaces.js': surfaces
+    './sz-controller-surfaces.js': surfaces,
+    './sz-polygon.js': load('sz-polygon.js')
   });
   const plan = planElevatedRoads(graph, geo.terrainSurface);
   const { createDrivePlanner, createTurnFilter } = load('sz-drive-route.js', {

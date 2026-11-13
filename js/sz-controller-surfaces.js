@@ -80,7 +80,7 @@ export function createSurfaceHeightAt(surfaces = []) {
   };
 }
 
-export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
+export function createSurfaceResolver({ groundHeight, groundIdentity = () => 'terrain', surfaces = [] }) {
   if (typeof groundHeight !== 'function') throw new Error('A terrain contact function is required');
   const cells = new Map();
   const driveSuccessors = new Map();
@@ -112,7 +112,10 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
     if (!Number.isFinite(x) || !Number.isFinite(z)) return [];
     const candidates = new Map();
     const ground = groundHeight(x, z);
-    if (Number.isFinite(ground)) candidates.set('terrain', { height: ground, surfaceId: 'terrain', heightSource: 'terrain' });
+    if (Number.isFinite(ground)) {
+      const surfaceId = groundIdentity(x, z);
+      candidates.set(surfaceId, { height: ground, surfaceId, heightSource: 'terrain' });
+    }
     for (const row of cells.get(`${Math.floor(x / CELL)},${Math.floor(z / CELL)}`) || []) {
       const height = triangleHeight(row.triangle, x, z);
       if (height === null) continue;
@@ -130,7 +133,7 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
     if (![maxStepUp, maxDrop].every(v => Number.isFinite(v) && v >= 0)) throw new Error('Invalid surface step limits');
     const candidates = at(x, z);
     // 没有上一次接触高度时只返回真实地面，防止传送到桥下却自动吸到桥面。
-    if (previousY === null) return candidates.find(c => c.surfaceId === 'terrain') ?? null;
+    if (previousY === null) return candidates.find(c => c.heightSource === 'terrain') ?? null;
     if (!Number.isFinite(previousY)) return null;
     const reachable = candidates.filter(c => c.height <= previousY + maxStepUp && c.height >= previousY - maxDrop);
     const same = reachable.find(c => c.surfaceId === previousSurfaceId);
@@ -139,7 +142,7 @@ export function createSurfaceResolver({ groundHeight, surfaces = [] }) {
       // 地面走到桥头时，只有显式声明可接地、且高差在抬脚高度内的桥面才允许踏上（桥面比地面高 4.8 m 时不可达）。
       const raised = reachable.findLast(c => c.height > same.height + 1e-7
         && (c.height <= previousY + 1e-7
-          || (same.surfaceId === 'terrain' && c.climbableFromGround && c.height <= previousY + maxStepUp)));
+          || (same.heightSource === 'terrain' && c.climbableFromGround && c.height <= previousY + maxStepUp)));
       return raised ?? same;
     }
     // 多条并行桥面在分岔鼻端重叠时，按车行连通性交接到本段在车流图里的后继表面，
