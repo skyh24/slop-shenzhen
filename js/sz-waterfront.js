@@ -13,6 +13,20 @@ const point = ([x, y, z]) => ({ x, y, z });
 const SHENZHEN_OFFSET_MS = 8 * 3600000;
 const HOLIDAYS_2026 = [[101, 103], [215, 223], [404, 406], [501, 505], [619, 621], [925, 927], [1001, 1007]];
 
+export function relocatedBayPathIds(network) {
+  return new Set((network?.bayPaths ?? []).filter(path => path.sourcePoints).map(path => path.osmId));
+}
+
+export function createParkGroundAccess({ inPark, inWetland, onRoad, roadDecks }) {
+  return (mode, x, z, surface) => {
+    if (mode !== 'car' && mode !== 'cyclist') return true;
+    const terrain = !surface?.surfaceId || surface.surfaceId === 'terrain' || surface.heightSource === 'terrain';
+    if (roadDecks.has(surface?.surfaceId) && !terrain) return true;
+    if (terrain && inWetland(x, z)) return false;
+    return mode !== 'car' || !inPark(x, z) || (terrain && onRoad(x, z));
+  };
+}
+
 export function createWaterfrontAccess(source, network, now = Date.now) {
   const paths = network.routes.filter(route => !source?.parkNetwork || route.id !== 'central-bay-cycleway'
     && route.id !== 'central-bay-promenade').flatMap(route => route.paths.filter(path => !path.bridge).map(path => ({
@@ -32,6 +46,7 @@ export function createWaterfrontAccess(source, network, now = Date.now) {
     const modes = bridge ? [bridge.coastal ? 'park:' + bridge.mode
       : bridge.waterIndex === source.waters?.[1]?.waterIndex ? 'west:' + bridge.mode : bridge.mode]
       : !id || surface?.heightSource === 'terrain' || id === 'terrain' ? accessAt(x, z) : [];
+    if (surface?.surfaceId === 'waterfront:bay-lower' && mode !== 'person') return false;
     if (!modes.length) return true;
     if (mode === 'car') return false;
     const minute = Math.floor((now() + SHENZHEN_OFFSET_MS) / 60000);
@@ -53,12 +68,15 @@ export function createWaterfrontAccess(source, network, now = Date.now) {
 }
 
 export function createWaterfrontPaths(source) {
-  const routes = [...(source?.routes ?? []), ...(source?.extensions ?? [])];
+  const relocated = relocatedBayPathIds(source?.parkNetwork);
+  const activeRoutes = routes => routes.map(route => ({ ...route, paths: route.paths.filter(p => !relocated.has(p.osmId)) }));
+  const extended = activeRoutes(source?.extensions ?? []);
+  const routes = [...activeRoutes(source?.routes ?? []), ...extended];
   const paths = [...routes.flatMap(route => route.paths), ...(source?.parkNetwork?.lakePaths ?? [])];
   const lookup = createBayPathLookup(paths);
   const groundPaths = createBayPathLookup(paths.filter(path => !path.bridge));
   const bankPaths = createBayPathLookup(routes.filter(r => r.bank || r.id.endsWith('-bank')).flatMap(r => r.paths));
-  const extensions = createBayPathLookup((source?.extensions ?? []).flatMap(route => route.paths));
+  const extensions = createBayPathLookup(extended.flatMap(route => route.paths));
   const lower = source?.bayLower;
   const bay = createBayPathLookup(lower ? [{ mode: 'walk', widthM: lower.widthM ?? 4.2,
     points: lower.points.map(([x, , z]) => [x, z]) }] : []);

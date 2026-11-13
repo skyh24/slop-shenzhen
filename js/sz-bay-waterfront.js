@@ -97,6 +97,46 @@ function rampFactor(distance, length) {
   return Math.max(0, Math.min(1, distance / 13, (length - distance) / 13));
 }
 
+export function planCoastalGuardrail(sections, { heightAt, isWater, nearCycle, blocked }) {
+  const bars = [], posts = [];
+  const pointAt = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t,
+    z: a.z + (b.z - a.z) * t });
+  const supports = sections.map(({ crest, normal }) => {
+    if (isWater(crest.x + normal.x * 1.4, crest.z + normal.z * 1.4) !== true) return null;
+    const p = offset(crest, normal, -0.48);
+    p.y = heightAt(p.x, p.z);
+    return Number.isFinite(p.y) && isWater(p.x, p.z) === false ? p : null;
+  });
+  let previous = null, toNext = 0;
+  for (let i = 1; i < supports.length; i++) {
+    const a = supports[i - 1], b = supports[i];
+    const length = a && b ? Math.hypot(b.x - a.x, b.z - a.z) : 0;
+    const n = Math.ceil(length / 0.6);
+    let clear = length > 0.02 && Math.abs(a.y - b.y) < 0.2 + length * 0.27;
+    for (let j = 0; clear && j <= n; j++) {
+      const p = pointAt(a, b, j / n);
+      const y = heightAt(p.x, p.z);
+      clear = Number.isFinite(y) && Math.abs(y - p.y) < 0.28 && isWater(p.x, p.z) === false
+        && nearCycle(p.x, p.z) && !blocked(p.x, p.z, y);
+    }
+    if (!clear) {
+      if (previous && toNext < 2.8) posts.push(previous);
+      previous = null;
+      toNext = 0;
+      continue;
+    }
+    bars.push(...planRail(a, b, [[0.55, 0.068, 0.068], [1.07, 0.077, 0.077]]));
+    while (toNext <= length) {
+      posts.push(pointAt(a, b, toNext / length));
+      toNext += 3;
+    }
+    toNext -= length;
+    previous = b;
+  }
+  if (previous && toNext < 2.8) posts.push(previous);
+  return { bars, posts };
+}
+
 function safeFootprint(x, z, radius, obstacles) {
   return !obstacles.some(c => c.minX < x + radius && c.maxX > x - radius
     && c.minZ < z + radius && c.maxZ > z - radius
@@ -148,11 +188,11 @@ function addWayfinding(group, point, tangent) {
 }
 
 export function buildSzBayWaterfront(scene, source, { heightAt, isWater, colliders: obstacles, pathsNear,
-  parkNetwork, fixtureBlocked = () => false, reserveWalk = () => false }) {
+  parkNetwork, fixtureBlocked = () => false, reserveWalk = () => false, carriagewayOccupied = () => false }) {
   const group = new THREE.Group();
   group.name = 'shenzhen-bay-central-waterfront';
   const colliders = [];
-  const statistics = { shoreTriangles: 0, rails: 0, lamps: 0, benches: 0, bins: 0, detailChunks: 0 };
+  const statistics = { shoreTriangles: 0, rails: 0, coastalRailPosts: 0, lamps: 0, benches: 0, bins: 0, detailChunks: 0 };
   if (!source) return { group, colliders, statistics, publicRoutes: [], allowsGroundMode: () => true,
     update() {}, dispose() {} };
 
@@ -184,6 +224,7 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
   poolMaterial.opacityNode = smoothstep(0.06, 0.5, uv().sub(0.5).length()).oneMinus().mul(sceneUniforms.night).mul(0.26);
   const stone = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.96 });
   const rockGeometry = new THREE.IcosahedronGeometry(1, 0);
+  const coastCycle = createBayPathLookup((parkNetwork?.bayPaths ?? []).filter(p => !p.bridge && p.mode !== 'walk'));
 
   for (const shore of source.shore) {
     const stations = shore.stations.map(([x, y, z]) => ({ x, y, z })).filter((point, i, rows) =>
@@ -247,6 +288,21 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
         statistics.rails++;
       }
       statistics.shoreTriangles += 2;
+    }
+    if (seawall || rockSlope) {
+      const rail = planCoastalGuardrail(sections, {
+        heightAt, isWater, nearCycle: (x, z) => coastCycle(x, z, 24).length > 0,
+        blocked: (x, z, y) => pathsNear(x, z, 0.28).length > 0 || reserveWalk(x, z, 0.28)
+          || carriagewayOccupied(x, z, 0.28) || fixtureBlocked(x, z, 0.14, y, y + 1.15)
+      });
+      for (const { a, b, height, width } of rail.bars) {
+        addBox(bucket((a.x + b.x) / 2, (a.z + b.z) / 2).metal, a, b, height, width, 'bay-rail');
+      }
+      for (const p of rail.posts) {
+        addBox(bucket(p.x, p.z).metal, p, { ...p, y: p.y + 1.12 }, 0.09, 0.09, 'bay-rail-post');
+      }
+      statistics.coastalRailPosts += rail.posts.length;
+      statistics.rails += rail.bars.length / 2;
     }
   }
 
@@ -386,8 +442,9 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
       const modes = parkPathsNear(x, z);
       if (mode === 'person') return !modes.length || modes.includes('walk') || modes.includes('shared');
       if (mode === 'car') return !modes.length && !pathsNear(x, z).length;
-      return mode !== 'cyclist' || modes.includes('cycle') || modes.includes('shared') || pathsNear(x, z).includes('cycle')
-        || !modes.length && !pathsNear(x, z, 6).length;
+      if (mode !== 'cyclist') return true;
+      const at = modes.length ? modes : pathsNear(x, z);
+      return !at.length || at.includes('cycle') || at.includes('shared');
     },
     dispose() {
       if (disposed) return;

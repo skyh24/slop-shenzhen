@@ -32,6 +32,16 @@ export function spatialIndex(items, pointsOf) {
   };
 }
 
+export function createPolygonLookup(polygons) {
+  const lookup = spatialIndex(polygons, polygon => polygon.outer);
+  return (x, z) => {
+    for (const polygon of lookup(x, z)) {
+      if (polygonContainsInclusive(polygon, x, z)) return true;
+    }
+    return false;
+  };
+}
+
 export function createCitySpatial(geo) {
   const surfaceHeight = createGroundSurfaceSampler(geo.terrainSurface);
   const coverage = spatialIndex(geo.coverage, p => p.outer);

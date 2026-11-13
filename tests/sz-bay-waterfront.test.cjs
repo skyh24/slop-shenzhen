@@ -23,9 +23,17 @@ test('the city package retains source waterfront paving across the usable width'
   const expected = { 'way/246781716': ['sett', 4], 'way/255653770': ['paving_stones', 7],
     'way/357765495': ['asphalt', 5], 'way/883827047': ['unknown', 8] };
   const support = ground.createGroundSurfaceSampler(payload.terrainSurface);
+  const dark = ground.createGroundSurfaceSampler(payload.terrainSurface, kind => kind === 9);
+  const cycle = geo.waterfront.parkNetwork.bayPaths.filter(row => row.appearanceMaterial === 'dark-asphalt' && !row.bridge);
+  const onCycle = (x, z) => cycle.some(row => row.points.slice(1).some(([bx, bz], i) => {
+    const [ax, az] = row.points[i], dx = bx - ax, dz = bz - az;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+    return Math.hypot(x - ax - t * dx, z - az - t * dz) <= row.widthM / 2;
+  }));
   for (const path of bay.paths.filter(row => expected[row.osmId])) {
     const [material, kind] = expected[path.osmId];
     assert.equal(path.material, material);
+    if (cycle.some(row => row.osmId === path.osmId && row.sourcePoints)) continue;
     const sample = ground.createGroundSurfaceSampler(payload.terrainSurface, value => value === kind);
     for (let i = 1; i < path.points.length; i++) {
       const [ax, az] = path.points[i - 1], [bx, bz] = path.points[i];
@@ -33,8 +41,9 @@ test('the city package retains source waterfront paving across the usable width'
       for (const offset of [-0.35, 0, 0.35]) {
         const x = (ax + bx) / 2 + offset * path.widthM * dz / length;
         const z = (az + bz) / 2 - offset * path.widthM * dx / length;
-        assert.ok(Number.isFinite(sample(x, z)), `${path.osmId} ${material} at ${x},${z}`);
-        assert.equal(sample(x, z), support(x, z));
+        const active = onCycle(x, z) && dark(x, z) !== null ? dark : sample;
+        assert.ok(Number.isFinite(active(x, z)), `${path.osmId} ${material} at ${x},${z}`);
+        assert.equal(active(x, z), support(x, z));
       }
     }
   }

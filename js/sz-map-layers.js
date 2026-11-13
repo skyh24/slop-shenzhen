@@ -274,11 +274,13 @@ function mapLayers() {
   for (const { trianglesXZ } of GEO.golfCourse?.surfaces ?? []) {
     for (let i = 0; i < trianglesXZ.length; i += 6) layers.gardenPaths.ring(trianglesXZ.slice(i, i + 6));
   }
+  const bayPaths = GEO.waterfront?.parkNetwork?.bayPaths ?? [];
+  const relocated = new Set(bayPaths.filter(path => path.sourcePoints).map(path => path.osmId));
   const shorePaths = [...(GEO.shenzhenBay?.paths ?? []),
-    ...(GEO.waterfront?.parkNetwork?.bayPaths ?? []), ...(GEO.waterfront?.parkNetwork?.lakePaths ?? []),
+    ...(GEO.waterfront?.parkNetwork?.lakePaths ?? []),
     ...[...(GEO.waterfront?.routes ?? []), ...(GEO.waterfront?.extensions ?? [])].flatMap(route => route.paths),
     ...[...(GEO.talentPark?.route ?? []), ...(GEO.talentPark?.entrances ?? [])].map(path => ({ ...path, mode: 'walk' }))];
-  layers.waterfront = shorePaths.map(row => {
+  layers.waterfront = [...shorePaths.filter(path => !relocated.has(path.osmId)), ...bayPaths].map(row => {
     const points = row.points.flat();
     const path = new Path2D();
     addLine(path, points);

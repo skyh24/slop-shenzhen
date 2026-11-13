@@ -34,6 +34,25 @@ function bounds(geometry) {
   return { minX, maxX, minY, maxY, minZ, maxZ };
 }
 
+test('shrubs and distant trees use open leaf cards within the distant crown budget', { skip: !threeDir }, async () => {
+  const { crown } = await loadCrown();
+  const foliage = crown.createCompactFoliage();
+  const library = crown.createCrownLibrary(['ficus']);
+  try {
+    for (const name of ['shrub', 'crown']) {
+      const geometry = foliage.geometryFor(name);
+      assert.ok(geometry.attributes.uv.count > 100);
+      assert.ok(geometry.index.count / 3 <= crown.COMPACT_CROWN_TRIANGLES);
+      assert.ok(geometry.attributes.aTree.array.every((value, i) => i % 4 !== 0 || value === 1));
+    }
+    assert.equal(foliage.material.alphaTest, library.material.alphaTest);
+    assert.ok(bounds(foliage.geometryFor('shrub')).minY >= -0.05);
+  } finally {
+    foliage.dispose();
+    library.dispose();
+  }
+});
+
 test('every whole tree is deterministic, rooted and within the triangle budget', { skip: !threeDir }, async () => {
   const { crown } = await loadCrown();
   assert.deepEqual(Object.keys(crown.CROWN_SPECIES).sort(), [...SPECIES].sort());

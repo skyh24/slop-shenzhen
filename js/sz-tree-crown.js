@@ -374,6 +374,20 @@ function createLeafAtlas() {
   return drawAtlasTiles();
 }
 
+let sharedAtlas = null;
+let atlasUsers = 0;
+function acquireLeafAtlas() {
+  sharedAtlas ??= createLeafAtlas();
+  atlasUsers++;
+  return sharedAtlas;
+}
+
+function releaseLeafAtlas() {
+  if (--atlasUsers !== 0) return;
+  sharedAtlas.texture.dispose();
+  sharedAtlas = null;
+}
+
 // --------------------------------------------------------------- 骨架
 // 单位向量 `angle` 偏离 `dir`，再绕它转 `azimuth`。
 function deflect(dir, angle, azimuth) {
@@ -676,6 +690,89 @@ function makeCrown(points) {
   };
 }
 
+export const COMPACT_CROWN_TRIANGLES = 80;
+
+// 草丛与远冠仍用原树叶图集。用交错的枝叶卡片控制密度和轮廓，留下真实的透光缝隙。
+export function createCompactFoliage() {
+  const atlas = acquireLeafAtlas();
+  const material = new THREE.MeshStandardNodeMaterial({
+    side: THREE.DoubleSide, alphaToCoverage: true, alphaTest: 0.5, roughness: 0.85
+  });
+  material.name = 'shenzhen-compact-leaf-sprays';
+  const leaf = texture(atlas.texture, uv());
+  const ao = attribute('aTree', 'vec4').y;
+  material.colorNode = vec4(mix(vec3(1.06, 1.04, 0.93).mul(leaf.r.mul(1.4)),
+    vec3(0.51, 0.49, 0.37), leaf.b).mul(ao.mul(0.38).add(0.62)), leaf.a);
+  material.normalNode = normalViewGeometry;
+  const geometries = new Map();
+  return {
+    material,
+    geometryFor(kind) {
+      if (geometries.has(kind)) return geometries.get(kind);
+      if (kind !== 'shrub' && kind !== 'crown') throw new Error(`Unknown compact foliage: ${kind}`);
+      const shrub = kind === 'shrub';
+      const rng = mulberry32(CROWN_SEED + (shrub ? 31 : 63));
+      const gb = new CrownGeometryBuilder();
+      const height = shrub ? 0.58 : 1;
+      const center = shrub ? 0.39 : 0;
+      const crown = makeCrown([new V3(-1, center - height, -1), new V3(1, center + height, 1)]);
+      const count = shrub ? 36 : COMPACT_CROWN_TRIANGLES / 2;
+      for (let i = 0; i < count; i++) {
+        const a = i * 2.39996;
+        const radial = i % 4 === 0 ? 0.14 + rng() * 0.35 : 0.45 + rng() * 0.26;
+        const y = shrub ? 0.18 + rng() * 0.43 : (rng() - 0.5) * (1.42 - radial * 0.7);
+        const middle = new V3(radial * Math.cos(a), y, radial * Math.sin(a));
+        const heading = a + (rng() - 0.5) * 2;
+        const tilt = shrub ? 0.39 + rng() * 0.97 : 0.12 + rng() * 1.18;
+        const face = new V3(Math.cos(heading), 0, Math.sin(heading));
+        const up = new V3(face.x * Math.sin(tilt), Math.cos(tilt), face.z * Math.sin(tilt));
+        const size = (shrub ? 0.48 : 0.75) + rng() * 0.33;
+        const base = middle.addScaledVector(up, -size * 0.46);
+        if (shrub) base.y = Math.max(-0.04, base.y);
+        addCard(gb, base, up, face, size, i % 3 ? TILE_BROAD : TILE_FICUS, i % 2, rng(), crown, atlas);
+      }
+      const geometry = gb.build();
+      geometries.set(kind, geometry);
+      return geometry;
+    },
+    dispose() {
+      for (const geometry of geometries.values()) geometry.dispose();
+      material.dispose();
+      releaseLeafAtlas();
+    }
+  };
+}
+
+export function createDetailedTreeBatch(library, species, instances) {
+  const template = library.geometryFor(species);
+  const geometry = new THREE.BufferGeometry();
+  for (const [key, attr] of Object.entries(template.attributes)) geometry.setAttribute(key, attr);
+  geometry.setIndex(template.index);
+  geometry.boundingSphere = template.boundingSphere;
+  const data = new THREE.InstancedBufferAttribute(new Float32Array(instances.length * 4), 4);
+  const sway = new THREE.InstancedBufferAttribute(new Float32Array(instances.length * 2), 2);
+  geometry.setAttribute('aTreeData', data);
+  geometry.setAttribute('aTreeSway', sway);
+  const mesh = new THREE.InstancedMesh(geometry, library.material, instances.length);
+  const pose = new THREE.Object3D();
+  let maxSway = 0;
+  instances.forEach(({ x, y, z, crown, height, turn, tint, seed, windSeed = seed, amplitude }, i) => {
+    pose.position.set(x, y, z);
+    pose.scale.set(crown, height, crown);
+    pose.rotation.y = turn;
+    pose.updateMatrix();
+    mesh.setMatrixAt(i, pose.matrix);
+    data.setXYZW(i, tint.r, tint.g, tint.b, seed);
+    sway.setXY(i, amplitude, windSeed);
+    maxSway = Math.max(maxSway, amplitude);
+  });
+  mesh.computeBoundingSphere();
+  mesh.boundingSphere.radius += maxSway + 0.12;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
 function swayWeight(b, t) {
   switch (b.level) {
     case 0: return 0;
@@ -967,7 +1064,7 @@ export function createTreeCrownMaterial(leafAtlas) {
  * sz-trees.js 每个 LOD 子格、每个树种建一个实例网格，几何属性共享，只多一份实例属性和矩阵。
  */
 export function createCrownLibrary(names = Object.keys(CROWN_SPECIES)) {
-  const atlas = createLeafAtlas();
+  const atlas = acquireLeafAtlas();
   const geometries = new Map();
   const stats = [];
   for (const name of names) {
@@ -996,7 +1093,7 @@ export function createCrownLibrary(names = Object.keys(CROWN_SPECIES)) {
     dispose() {
       for (const geometry of geometries.values()) geometry.dispose();
       geometries.clear();
-      atlas.texture.dispose();
+      releaseLeafAtlas();
       material.dispose();
     }
   };

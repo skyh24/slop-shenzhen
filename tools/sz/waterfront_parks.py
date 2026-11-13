@@ -7,7 +7,7 @@ from pathlib import Path
 import osmium
 from shapely import STRtree, make_valid
 from shapely.geometry import LineString, Point, Polygon
-from shapely.ops import linemerge, unary_union
+from shapely.ops import linemerge, substring, unary_union
 
 from commercial_paving import ground_carriageway_mask
 from land import _polys, _to_local
@@ -69,6 +69,8 @@ def _bay_routes(plan, osm, pbf, sample, wet, sea_height):
         row = {'osmId': identity, **source, 'mode': mode, 'widthM': width or plan['cycleWidthM' if bicycle else 'walkWidthM'],
                'widthSource': 'osm' if width else 'estimate', 'material': path_material(tags),
                'bridge': bridge, 'heightSource': 'portal-estimate' if bridge else 'terrain-derived-estimate'}
+        if bicycle:
+            row['appearanceMaterial'] = 'dark-asphalt'
         if bridge:
             try:
                 height_at = _profile(line, sea_height, sample)
@@ -78,7 +80,8 @@ def _bay_routes(plan, osm, pbf, sample, wet, sea_height):
                 continue
             # 桥面随两端实际地坪接入，渲染和接触使用现有慢行桥计划。
             bridges.append({'id': identity, 'widthM': row['widthM'], 'girderDepthM': 0.55,
-                            'mode': mode, 'points': points, 'waterHeightM': sea_height, 'coastal': True})
+                            'mode': mode, 'points': points, 'waterHeightM': sea_height, 'coastal': True,
+                            **({'appearanceMaterial': row['appearanceMaterial']} if bicycle else {})})
             parts = [line]
         else:
             # 保留原中心线，穿湿地或无地面支撑的普通路径留缺口。
@@ -132,6 +135,52 @@ def _height_parts(line, sample, *, max_grade=0.22):
     if len(points) > 2:
         parts.append(points)
     return parts
+
+
+def _shore_cycle_line(line, width, coast, blocked, sample, design):
+    """局部平移已接入的骑行线，两端渐接源线，保持岸顶路肩和现有出入口。"""
+    start, end = design['fromM'], design['toM']
+    before = 0.0
+    points = []
+    coords = list(line.coords)
+    for a, b in zip(coords, coords[1:]):
+        length = math.dist(a, b)
+        if length == 0:
+            continue
+        after = before + length
+        cuts = math.ceil(length / 2) if before < end and after > start else 1
+        points.extend((before + length * i / cuts, Point(
+            a[0] + (b[0] - a[0]) * i / cuts, a[1] + (b[1] - a[1]) * i / cuts)) for i in range(cuts))
+        before = after
+    points.append((before, Point(coords[-1])))
+    shifted = []
+    edge = width / 2
+    for distance, p in points:
+        limit = min(design['maxShiftM'], max(0, min(distance - start, end - distance) * 0.20))
+        if limit <= 0:
+            shifted.append(p)
+            continue
+        q = coast.interpolate(coast.project(p))
+        gap = p.distance(q)
+        shift = min(limit, gap - edge - design['shoulderM'])
+        if shift <= 0:
+            shifted.append(p)
+            continue
+        target = Point(p.x + (q.x - p.x) * shift / gap, p.y + (q.y - p.y) * shift / gap)
+        y = sample(target.x, target.y)
+        initial = sample(p.x, p.y)
+        if y is None or initial is None or abs(y - initial) > 0.62 or blocked.distance(target) < edge + 0.20:
+            return line
+        shifted.append(target)
+    result = LineString(shifted)
+    # 复查整个平移带，避免端点之间切过岬角、步道或地形断面。
+    moved_points = [p for (distance, _), p in zip(points, shifted) if start < distance < end]
+    if len(moved_points) < 2 or not any(not a.equals(b) for (_, a), b in zip(points, shifted)):
+        return line
+    moved = LineString(moved_points)
+    if not result.is_simple or moved.distance(blocked) < edge + 0.15 or moved.distance(coast) < edge + design['shoulderM'] - 0.3:
+        return line
+    return result
 
 
 def _lake_routes(specs, payload, osm, sample, obstacles):
@@ -188,13 +237,18 @@ def _lake_routes(specs, payload, osm, sample, obstacles):
 def _bay_fixtures(rows, coastline, clearance, wet, park, sample, plan):
     lines = unary_union([line for row, line in rows if row['mode'] != 'walk' and not row['bridge']])
     park = park.buffer(2)
-    lamps, plants = [], []
+    lamps, trees, plants = [], [], []
+    layouts = (
+        (plan['lampSpacingM'], lamps, (3.2, 4.6, 6.2), 0.65, 0.5),
+        (plan['treeSpacingM'], trees, (5.0, 7.5, 10.5, 13.0, 15.5), 2.65, 0.5),
+        (plan['plantSpacingM'], plants, (3.9, 5.5, 7.3, 9.0, 12.5), 1.65, 0.25),
+    )
     for line in _lines(linemerge(list(_lines(lines)))):
         if line.length < 8:
             continue
-        for spacing, target in ((plan['lampSpacingM'], lamps), (plan['plantSpacingM'], plants)):
+        for spacing, target, offsets, pad, phase in layouts:
             for i in range(int(line.length / spacing)):
-                d = (i + 0.5) * spacing
+                d = (i + phase) * spacing
                 at = line.interpolate(d)
                 a, b = (line.interpolate(d + delta) for delta in (-0.8, 0.8))
                 length = a.distance(b)
@@ -203,10 +257,8 @@ def _bay_fixtures(rows, coastline, clearance, wet, park, sample, plan):
                 nx, nz = (b.y - a.y) / length, (a.x - b.x) / length
                 plus, minus = (Point(at.x + side * nx * 4, at.y + side * nz * 4) for side in (1, -1))
                 seaward = 1 if plus.distance(coastline) < minus.distance(coastline) else -1
-                for offset in ((3.2, 4.6, 6.2) if target is lamps else (4.5, 6.0, 8.0, 10.5)):
-                    side = -seaward if target is lamps else seaward
-                    q = Point(at.x + side * nx * offset, at.y + side * nz * offset)
-                    pad = 0.65 if target is lamps else 1.65
+                for offset in offsets:
+                    q = Point(at.x - seaward * nx * offset, at.y - seaward * nz * offset)
                     if wet.distance(q) < pad or not park.covers(q) or clearance.distance(q) < pad:
                         continue
                     height = sample(q.x, q.y)
@@ -215,7 +267,7 @@ def _bay_fixtures(rows, coastline, clearance, wet, park, sample, plan):
                     target.append([round(q.x, 3), round(height, 3), round(q.y, 3),
                                    round(at.x, 3), round(at.y, 3)])
                     break
-    return lamps, plants
+    return lamps, trees, plants
 
 
 def compile_waterfront_parks(payload, osm, pbf, report):
@@ -237,7 +289,9 @@ def compile_waterfront_parks(payload, osm, pbf, report):
     bay_routes, bridges, gaps = _bay_routes(bay, osm, pbf, sample, wet, payload['seaSurface']['heightM'])
     bay_data = payload['shenzhenBay']
     shore = _shorelines(bay, osm, surface, wetlands, park, bay_data['shore'])
-    coast = unary_union([LineString([(x, z) for x, _, z in row['stations']]) for row in [*bay_data['shore'], *shore]])
+    all_shore = [*bay_data['shore'], *shore]
+    shore_lines = [LineString([(x, z) for x, _, z in row['stations']]) for row in all_shore]
+    coast = unary_union(shore_lines)
     bay_strips = unary_union([line.buffer(row['widthM'] / 2) for row, line in bay_routes])
     lake_bounds = unary_union([_to_local(row['geom']).envelope.buffer(45) for row in osm['water']
                               if row['id'] in {w for s in plan['lakes'] for w in s['waterIds']}])
@@ -248,34 +302,70 @@ def compile_waterfront_parks(payload, osm, pbf, report):
         if floor < 2.5 and lake_bounds.intersects(Point(outer[0])):
             buildings.append(_valid(Polygon(outer)))
     road_mask, _ = ground_carriageway_mask(lake_bounds.union(bay_strips), payload['roadGraph'])
+    design = bay.get('shoreCycle')
+    previous_cycle = Polygon()
+    if design:
+        shore_edge = linemerge(list(_lines(unary_union([
+            line for row, line in zip(all_shore, shore_lines) if row['profile'] == 'retaining-edge'
+        ]))))
+        # 中湾只向同一段已建海堤靠拢，河口、岩坡和其他岸段沿原线。
+        edge_line = max(_lines(shore_edge), key=lambda line: line.length)
+        walks = [line.buffer(row['widthM'] / 2) for row, line in bay_routes if row['mode'] == 'walk']
+        lower = waterfront.get('bayLower')
+        if lower:
+            walks.append(LineString([(x, z) for x, _, z in lower['points']]).buffer(lower['widthM'] / 2))
+        blocked = unary_union([wet, road_mask, *walks])
+        for i, (row, line) in enumerate(bay_routes):
+            if row['osmId'] != design['way'] or row['bridge']:
+                continue
+            relocated = _shore_cycle_line(line, row['widthM'], edge_line, blocked, sample, design)
+            if relocated is not line:
+                legacy = next((p for p in bay_data['paths'] if p['osmId'] == row['osmId']), None)
+                width = max(row['widthM'], legacy['widthM'] if legacy else 0)
+                previous_cycle = substring(line, design['fromM'], design['toM']).buffer(
+                    width / 2, quad_segs=6, cap_style='flat').difference(blocked)
+                bay_routes[i] = (row | {'geometrySource': 'seawall-alignment-design', 'sourcePoints': list(line.coords)}, relocated)
+        if previous_cycle.is_empty:
+            raise ValueError('Reviewed coastal cycling alignment has no supported shift')
+        bay_strips = unary_union([line.buffer(row['widthM'] / 2) for row, line in bay_routes])
     lake_sample = _surface_sampler(surface, lake_bounds)
     lake_paths, lake_lamps, waters, lake_report = _lake_routes(plan['lakes'], payload, osm, lake_sample,
                                                                unary_union([wet, road_mask, *buildings]))
+    # 深色骑行面为深圳湾的场景外观；来源材质与通行权限仍分别保留。
+    cycle_mask = unary_union([line.buffer(row['widthM'] / 2, quad_segs=6) for row, line in bay_routes
+                              if not row['bridge'] and row.get('appearanceMaterial') == 'dark-asphalt'])
+    cycle_mask = cycle_mask.difference(road_mask).difference(wet)
     masks = {}
     all_paths = [(row, line) for row, line in bay_routes if not row['bridge']] + lake_paths
     for name, kind in PAVING.items():
         mask = unary_union([line.buffer(row['widthM'] / 2, quad_segs=6) for row, line in all_paths
-                            if row['material'] == name]).difference(road_mask).difference(wet)
+                            if row['material'] == name]).difference(road_mask).difference(wet).difference(cycle_mask)
         if masks:
             mask = mask.difference(unary_union(list(masks.values())))
         masks[kind] = mask
+    vacated = previous_cycle.difference(cycle_mask).difference(unary_union(list(masks.values())))
+    surface, restored, _ = _clip_terrain(surface, {1: vacated}, [], replace_kinds={4, 5, 7, 8, 9})
     surface, changed, _ = _clip_terrain(surface, masks, [], replace_kinds={0, 1, 2, 3, 8, 9, 10, 11})
+    surface, cycled, _ = _clip_terrain(surface, {9: cycle_mask}, [], replace_kinds={0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11})
     payload['terrainSurface'] = surface
     bay_data['shore'].extend(shore)
     waterfront['footbridges'].extend(bridges)
-    avoid = bay_strips.union(unary_union([LineString(p['points']).buffer(p['widthM'] / 2) for p in bay_data['paths']]))
-    bay_lamps, plants = _bay_fixtures(bay_routes, coast, avoid.union(road_mask), wet, park, sample, bay)
+    moved_ids = {row['osmId'] for row, _ in bay_routes if row.get('sourcePoints')}
+    avoid = bay_strips.union(unary_union([LineString(p['points']).buffer(p['widthM'] / 2) for p in bay_data['paths']
+                                         if p['osmId'] not in moved_ids]))
+    bay_lamps, trees, plants = _bay_fixtures(bay_routes, coast, avoid.union(road_mask), wet, park, sample, bay)
     bay_paths = [{**row, 'points': [list(p) for p in line.coords]} for row, line in bay_routes]
     lake_overlay = [{**row, 'points': [list(p) for p in line.coords]} for row, line in lake_paths
                     if row.get('geometrySource') == 'shore-outline-design']
     waterfront['parkNetwork'] = {'bayPaths': bay_paths, 'lakePaths': lake_overlay, 'bayLamps': bay_lamps,
-                                 'bayPlants': plants, 'lakeLamps': lake_lamps, 'waters': waters,
+                                 'bayTrees': trees, 'bayPlants': plants, 'lakeLamps': lake_lamps, 'waters': waters,
                                  'openingHours': bay['openingHours']}
     report['waterfrontParkNetwork'] = {'checkedAt': plan['checkedAt'], 'osmSnapshotSha256': plan['osmSnapshotSha256'],
         'sources': bay['sources'], 'coastM': round(coast.length, 1), 'bayCycleM': round(unary_union([
             line for row, line in bay_routes if row['mode'] != 'walk']).length, 1),
         'bayPathCount': len(bay_paths), 'bayBridges': [r['id'] for r in bridges],
-        'bayLamps': len(bay_lamps), 'bayPlants': len(plants), 'bayGaps': gaps, 'lakes': lake_report,
-        'changedTerrainChunks': changed}
+        'bayLamps': len(bay_lamps), 'bayTrees': len(trees), 'bayPlants': len(plants), 'bayGaps': gaps, 'lakes': lake_report,
+        'bayShoreAlignment': sorted(moved_ids),
+        'changedTerrainChunks': sorted(set(changed) | set(cycled) | set(restored))}
     report['terrainSurface'].update(vertices=sum(len(c['kinds']) for c in surface['chunks']),
                                     triangles=sum(len(c['indices']) // 3 for c in surface['chunks']))

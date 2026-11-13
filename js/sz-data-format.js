@@ -186,7 +186,7 @@ function validateWaterfront(site, raw) {
       && mode(p.mode) && positive(p.widthM) && p.points?.length >= 2
       && p.points.every(xz => xz.length === 2 && xz.every(Number.isFinite))), 'park waterfront paths');
   }
-  requireData(sites(network.bayLamps) && sites(network.bayPlants) && Array.isArray(network.lakeLamps)
+  requireData(sites(network.bayLamps) && sites(network.bayPlants) && sites(network.bayTrees ?? []) && Array.isArray(network.lakeLamps)
     && network.lakeLamps.every(row => polyline(row.points) && row.side === 'alternate'
       && positive(row.spacingM) && positive(row.widthM))
     && Array.isArray(network.waters) && network.waters.every(w => waterIndex(w.waterIndex)

@@ -10,6 +10,7 @@ const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const THREE_STUB = {};
 // 解码/LOD 纯函数测试用不到树冠库；真实 Three 用例里再加载 sz-tree-crown.js。
 const crownStub = {
+  COMPACT_CROWN_TRIANGLES: 80,
   CROWN_SPECIES: { ficus: {}, camphor: {}, phoenix: {}, bauhinia: {}, 'royal-palm': {}, kapok: {} },
   createCrownLibrary: () => { throw new Error('crown library not used here'); }
 };
@@ -170,7 +171,7 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
     imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
-      './sz-tree-crown.js': { CROWN_SPECIES: crown.CROWN_SPECIES, createCrownLibrary: crown.createCrownLibrary } }
+      './sz-tree-crown.js': crown }
   });
   const payload = makePayload([
     { x: 0, z: 0, height: 120, crown: 100, osm: 'node/1', source: 'osm-node', appearance: 'osm-tags' },
@@ -224,12 +225,13 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
   assert.equal(built.statistics.visible.hiddenCells, 1);
   assert.equal(built.statistics.lodCells, 2);
 
-  // 近景榕树用叶卡树冠：实例属性齐全，远景仍是 80 三角形的低模 icosahedron。
+  // 近景榕树保留实例属性，远景用同样有叶片缝隙的精简叶卡。
   assert.ok(nearMesh.geometry.attributes.aTreeData);
   assert.ok(nearMesh.geometry.attributes.aTreeSway);
   assert.equal(nearMesh.geometry.attributes.aTree.itemSize, 4);
   assert.equal(nearMesh.count, 1);
-  assert.equal(farMesh.geometry.attributes.position.count / 3, 80);
+  assert.equal(farMesh.geometry.index.count / 3, 80);
+  assert.ok(farMesh.material.alphaTest > 0);
   assert.deepEqual(Array.from(built.statistics.crown.species, item => item.name), ['ficus']);
   assert.equal(built.statistics.crown.species[0].seed, 20261110);
   assert.ok(built.statistics.triangles.cardPerTree.ficus > 500);
@@ -307,7 +309,7 @@ test('missing or empty tree payload leaves scene untouched apart from an empty g
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
     imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
-      './sz-tree-crown.js': { CROWN_SPECIES: crown.CROWN_SPECIES, createCrownLibrary: crown.createCrownLibrary } }
+      './sz-tree-crown.js': crown }
   });
   const scene = new THREE.Scene();
   const built = model.buildSzTrees(scene, undefined, {});
@@ -356,7 +358,7 @@ test('every species gets its own card-crown mesh in the near LOD', { skip: !thre
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
     imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
-      './sz-tree-crown.js': { CROWN_SPECIES: crown.CROWN_SPECIES, createCrownLibrary: crown.createCrownLibrary } }
+      './sz-tree-crown.js': crown }
   });
   const scene = new THREE.Scene();
   const built = model.buildSzTrees(scene, makePayload([
@@ -381,7 +383,7 @@ test('near LOD hysteresis keeps crowns steady across the 180–198 m band', { sk
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
     imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
-      './sz-tree-crown.js': { CROWN_SPECIES: crown.CROWN_SPECIES, createCrownLibrary: crown.createCrownLibrary } }
+      './sz-tree-crown.js': crown }
   });
   const scene = new THREE.Scene();
   const built = model.buildSzTrees(scene, makePayload([

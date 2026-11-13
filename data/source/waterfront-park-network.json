@@ -12,13 +12,15 @@
     "cycleWidthM": 3.6,
     "walkWidthM": 3.1,
     "lampSpacingM": 27,
+    "treeSpacingM": 5.5,
     "plantSpacingM": 4.8,
+    "shoreCycle": {"way": "way/255653770", "fromM": 1710, "toM": 1970, "maxShiftM": 10.5, "shoulderM": 1.1},
     "sources": [
       "https://cgj.sz.gov.cn/xsmh/gysz/twf/bhxx/content/post_10841320.html",
       "https://cgj.sz.gov.cn/xsmh/szlh/jpld/content/post_2053209.html",
       "https://www.sz.gov.cn/hdjlpt/detail?pid=3115634&via=pc"
     ],
-    "design": "用户参考图用于估计堤坝断面、骑行道单侧路灯和临海树丛；位置和尺寸为场景布置。"
+    "design": "按用户参考与修正，临海一侧为深色骑行面和岸缘栏杆，树带及单排路灯布置在陆侧。铺装外观、位置和尺寸为场景设计估计。"
   },
   "lakes": [
     {"id": "lychee-loop", "waterIds": ["way/25498931"], "route": "lychee-loop", "lampSpacingM": 21,
