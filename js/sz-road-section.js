@@ -7,7 +7,8 @@ const centeredLanes = (count, laneWidthM, travelWidthM) => Object.freeze(
 const offsetsFromRight = centers => Object.freeze(centers.map(center => -center).reverse());
 
 function createSection(link, metadata, deck) {
-  const [, , , sourceWidthM, sourceLaneCount, direction] = link;
+  const [, , , sourceWidthM, taggedLanes, direction] = link;
+  const sourceLaneCount = deck?.lanes || taggedLanes;
   const twoWay = direction === 0;
   const reviewed = Boolean(metadata.crossSection);
   const pavementWidthM = deck?.width ?? sourceWidthM;
@@ -49,7 +50,7 @@ function createSection(link, metadata, deck) {
     surfaceId: deck?.surfaceId ?? 'terrain',
     layer: deck?.layer ?? metadata.layer ?? 0,
     widthSource: metadata.widthSource ?? null,
-    laneSource: metadata.crossSection?.laneCountSource ?? (estimated ? 'width-estimate' : 'osm-lanes'),
+    laneSource: deck?.laneSource ?? metadata.crossSection?.laneCountSource ?? (estimated ? 'width-estimate' : 'osm-lanes'),
     sourceWidthM, pavementWidthM, travelWidthM, sourceLaneCount, laneCount, estimated, reviewed, direction, twoWay, splitM,
     narrow: pavementWidthM < 7 || (twoWay && laneCount <= 2),
     forwardLaneWidthM, backwardLaneWidthM, forwardCentersM, backwardCentersM,

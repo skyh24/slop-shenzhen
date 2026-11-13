@@ -36,10 +36,10 @@ def _lines(shape):
         yield from _lines(child)
 
 
-def _snapshots(pbf, path_ids):
+def _snapshots(pbf, path_ids, *, extra_tags=()):
     reader = osmium.FileProcessor(str(pbf), osmium.osm.WAY).with_filter(
         osmium.filter.IdFilter({int(identity.split('/')[1]) for identity in path_ids}))
-    return {f'way/{way.id}': {'version': way.version, 'tags': {key: way.tags[key] for key in ACCESS_TAGS
+    return {f'way/{way.id}': {'version': way.version, 'tags': {key: way.tags[key] for key in (*ACCESS_TAGS, *extra_tags)
                                                             if key in way.tags}} for way in reader}
 
 

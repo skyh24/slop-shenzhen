@@ -78,6 +78,53 @@
         "release": 43291,
         "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/43291/19/228432/428259"
       }
+    },
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 233384,
+      "bboxWgs84": [
+        113.92646086867947,
+        22.56733828907563,
+        113.92852889569743,
+        22.567686392992872
+      ],
+      "rawHeightM": 22.73639199999999,
+      "reason": "reviewed-nantou-open-viaduct",
+      "checkedAt": "2026-11-13",
+      "description": "南头立交西侧，轮廓沿南坪双幅桥面展开，影像中可见连续行车道与标线。",
+      "osmWayIds": [
+        "way/963575158",
+        "way/963575161"
+      ],
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "release": 43291,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/world_imagery/mapserver/tile/43291/18/114196/214031",
+        "imageSha256": "7328d8316d875e38297899f39e8e933907893afdb519b472065b0f2719604a0a"
+      }
+    },
+    {
+      "sourceId": "globfp-2265",
+      "sourceFid": 233403,
+      "bboxWgs84": [
+        113.92973967954345,
+        22.56730214650966,
+        113.93014643616254,
+        22.567532143673454
+      ],
+      "rawHeightM": 34.817592000000005,
+      "reason": "reviewed-nantou-open-viaduct",
+      "checkedAt": "2026-11-13",
+      "description": "南头立交东侧，轮廓落在南坪北幅桥面内，影像中为开敞车道。",
+      "osmWayIds": [
+        "way/963575161"
+      ],
+      "evidence": {
+        "publisher": "Esri World Imagery Wayback",
+        "release": 43291,
+        "imageUrl": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/world_imagery/mapserver/tile/43291/18/114196/214033",
+        "imageSha256": "f79986f1324d75e84ea49031bd1b99012e4e57c2b99bc11360d0531c86813203"
+      }
     }
   ]
 }

@@ -96,6 +96,7 @@ const pedestrians = loadModule(read('sz-pedestrians.js'), {
     'three/webgpu': three,
     './pedestrians.js': pedestrianStub.module,
     './sz-pedestrian-tracks.js': tracks,
+    './sz-walk-avoidance.js': loadModule(read('sz-walk-avoidance.js')),
     './sz-polygon.js': polygonModule
   }
 });
@@ -720,7 +721,7 @@ test('a pedestrian yields on the walk track for an approaching car and ignores t
     const at = sampleTrack(leg, 50);
     Object.assign(ped, { leg, s: 50, x: at.x, z: at.z, y: at.y, dir: 1, heading: Math.atan2(at.dx, at.dz),
       placed: true, lateral: 0, v: 1.2, speed: 1.2, pause: 0, restAt: Infinity });
-    const car = writeEntityCollider({}, { type: 'car', position: { x: at.x + 4.5, y: height, z: at.z + 1.1 },
+    const car = writeEntityCollider({}, { type: 'car', position: { x: at.x + 3.5, y: height, z: at.z + 0.45 },
       heading: -Math.PI / 2, speed: 5 });
     for (let i = 1; i <= 15; i++) {
       peds.update(0.05, focus, i * 0.05, null, null, [car]);
@@ -741,14 +742,15 @@ test('public walk keeps the same-frame queue and lets opposing pedestrians pass 
   const focus = { x: 50, z: 10 };
   const { peds, rigs } = makeFactory(straightGraph(100), { maxPeds: 3, pavement: false,
     excludeWalkAt: () => true, heightAt: () => 8,
+    publicWalkSurface: { allows: (x, z) => z > 4.45 },
     publicRoute: [{ x: 32, y: 8, z: 6 }, { x: 50, y: 8, z: 6 }, { x: 64, y: 8, z: 16 }] });
   peds.update(0, focus, 0);
   const [leg] = peds.region.tracks;
   const [leader, follower, opposing] = peds.peds;
   for (const [ped, s, dir, speed] of [[leader, 10, 1, 0.95], [follower, 8.9, 1, 1.4], [opposing, 24, -1, 1.1]]) {
     const p = sampleTrack(leg, s);
-    Object.assign(ped, { leg, s, dir, speed, v: speed, x: p.x + p.rightX * 0.38 * dir,
-      z: p.z + p.rightZ * 0.38 * dir, y: 8, placed: true, lateral: 0.38 * dir, pause: 0, restAt: Infinity });
+    Object.assign(ped, { leg, s, dir, speed, v: speed, x: p.x + p.rightX * -0.48 * dir,
+      z: p.z + p.rightZ * -0.48 * dir, y: 8, placed: true, lateral: -0.48 * dir, pause: 0, restAt: Infinity });
   }
   peds.update(0.05, focus, 0.05);
   assert.ok(follower.v < follower.speed);
@@ -757,7 +759,7 @@ test('public walk keeps the same-frame queue and lets opposing pedestrians pass 
     peds.update(0.05, focus, frame * 0.05);
     separation = Math.min(separation, ...[leader, follower].map(p => Math.hypot(p.x - opposing.x, p.z - opposing.z)));
   }
-  assert.ok(leader.s > 20 && follower.s > 19 && opposing.s < 12);
+  assert.ok(leader.s > 20 && follower.s > 19 && opposing.s < 17);
   assert.ok(separation > 0.68, String(separation));
   const update = rigs[0].updates.at(-1);
   assert.equal(update.ground(update.owner, update.x, update.z), 8);
@@ -767,15 +769,193 @@ test('the walking pose cancels lateral drift into an empty carriageway', () => {
   const focus = { x: 50, z: 0 };
   const { peds } = makeFactory(straightGraph(100, 8), { maxPeds: 1, pavement: false, keepRightM: 0.38,
     excludeWalkAt: () => true, heightAt: () => 8,
-    publicRoute: [{ x: 20, y: 8, z: 4.65 }, { x: 85, y: 8, z: 4.65 }] });
+    publicRoute: [{ x: 20, y: 8, z: -4.65 }, { x: 85, y: 8, z: -4.65 }] });
   peds.update(0, focus, 0);
   const [leg] = peds.region.tracks;
   const [ped] = peds.peds;
-  Object.assign(ped, { leg, s: 12, dir: 1, x: 32, y: 8, z: 4.65, heading: Math.PI / 2,
+  Object.assign(ped, { leg, s: 12, dir: 1, x: 32, y: 8, z: -4.65, heading: Math.PI / 2, motionDir: 1,
     placed: true, v: 1.1, speed: 1.1, pause: 0, restAt: Infinity, lateral: 0 });
   for (let frame = 1; frame <= 40; frame++) {
     peds.update(0.05, focus, frame * 0.05);
     assert.equal(peds.region.carriagewayOccupied(ped.x, ped.z), false);
   }
-  assert.ok(ped.x > 34);
+  assert.ok(ped.x > 33.5);
+});
+
+function walkingScenario(points, actors, { allows = () => true, colliders = [], keepRightM = 0.38 } = {}) {
+  const focus = { x: 50, z: 15 };
+  const { peds } = makeFactory(straightGraph(100), { maxPeds: actors.length, pavement: false,
+    excludeWalkAt: () => true, heightAt: () => 8, colliders, keepRightM, spawnBudget: 0,
+    publicWalkSurface: { allows }, publicRoute: points });
+  peds.update(0, focus, 0);
+  const [leg] = peds.region.tracks;
+  for (const [i, [s, dir, speed, lateral = 0]] of actors.entries()) {
+    const p = sampleTrack(leg, s);
+    Object.assign(peds.peds[i], { leg, s, dir, speed, v: speed, motionDir: dir,
+      heading: Math.atan2(p.dx * dir, p.dz * dir), vx: p.dx * dir * speed, vz: p.dz * dir * speed,
+      x: p.x + p.rightX * lateral, z: p.z + p.rightZ * lateral, y: 8, placed: true, lateral,
+      pause: 0, restAt: Infinity });
+  }
+  let clock = 0, minGap = Infinity;
+  return {
+    actors: peds.peds, stats: peds.statistics, leg, peds,
+    run(seconds, each = () => {}) {
+      for (let i = 0; i < Math.round(seconds * 20); i++) {
+        const previous = peds.peds.map(({ x, z, heading }) => ({ x, z, heading }));
+        peds.update(0.05, focus, clock += 0.05);
+        for (const [j, p] of peds.peds.entries()) {
+          const a = previous[j];
+          assert.ok(Math.hypot(p.x - a.x, p.z - a.z) <= 0.13);
+          assert.ok(Math.abs(Math.atan2(Math.sin(p.heading - a.heading), Math.cos(p.heading - a.heading))) < 0.15);
+          assert.ok(allows(p.x, p.z, 0.445));
+          assert.equal(peds.region.carriagewayOccupied(p.x, p.z), false);
+          for (const obstacle of colliders) {
+            assert.ok(p.x + 0.444 < obstacle.minX || p.x - 0.444 > obstacle.maxX
+              || p.z + 0.444 < obstacle.minZ || p.z - 0.444 > obstacle.maxZ);
+          }
+          for (const q of peds.peds.slice(j + 1)) minGap = Math.min(minGap, Math.hypot(q.x - p.x, q.z - p.z));
+        }
+        assert.ok(minGap >= 0.8899, String(minGap));
+        each(peds.peds);
+      }
+      return minGap;
+    }
+  };
+}
+
+const walkLine = [{ x: 20, y: 8, z: 15 }, { x: 90, y: 8, z: 15 }];
+const widthAt = (width) => (x, z, radius) => Math.abs(z - 15) + radius <= width(x);
+
+test('oncoming walkers choose and hold the same walking-side convention before contact', () => {
+  const world = walkingScenario(walkLine, [[20, 1, 1.3], [25, -1, 1.2]], { allows: widthAt(() => 1.5) });
+  const [a, b] = world.actors;
+  world.run(0.7);
+  assert.ok(a.z > 15.05 && b.z < 14.95 && b.x - a.x > 2.8);
+  world.run(5);
+  assert.ok(a.s > 26 && b.s < 19);
+  assert.ok(world.stats.walkPasses > 0);
+});
+
+test('a faster follower passes only in a wide strip and returns to its original line', () => {
+  for (const width of [1.5, 0.57]) {
+    const world = walkingScenario(walkLine, [[24, 1, 0.8], [22, 1, 1.5]],
+      { allows: widthAt(() => width), keepRightM: 0 });
+    const [leader, follower] = world.actors;
+    world.run(11);
+    if (width > 1) {
+      assert.ok(follower.s > leader.s + 2);
+      assert.ok(Math.abs(follower.z - 15) < 0.06);
+    } else {
+      assert.ok(leader.s > follower.s + 0.89 && leader.s < follower.s + 2.2);
+      assert.ok(follower.s > 28);
+    }
+  }
+});
+
+test('one walker backs into a passing pocket while the other passes before both resume', () => {
+  const world = walkingScenario(walkLine, [[19, 1, 1.25], [23, -1, 1.25]], {
+    allows: widthAt(x => x < 37.7 || x > 50 ? 1.5 : 0.58), keepRightM: 0
+  });
+  const [a, b] = world.actors;
+  let retreated = false, waited = false;
+  world.run(18.5, () => {
+    retreated ||= a.s < 17.7;
+    waited ||= Boolean(a.yielding?.waiting);
+  });
+  assert.ok(retreated && waited && world.stats.walkYields > 0);
+  assert.ok(a.s > 24 && b.s < 15, JSON.stringify([a.s, b.s]));
+});
+
+test('a walker skirts solid tree and lamp bases while staying inside the footway', () => {
+  const tree = collider(42.9, 14.82, 43.1, 15.18);
+  const pole = collider(44.85, 14.35, 45.15, 14.65);
+  const world = walkingScenario(walkLine, [[20, 1, 1.25]], {
+    allows: widthAt(() => 1.6), colliders: [tree, pole], keepRightM: 0
+  });
+  world.run(10);
+  assert.ok(world.actors[0].s > 29, String(world.actors[0].s));
+  assert.ok(world.stats.walkDetours > 0);
+});
+
+test('three converging walkers clear the intersection without crossing the road', () => {
+  const focus = { x: 50, z: 15 };
+  const routes = [
+    { id: 'horizontal', points: [{ x: 25, y: 8, z: 15 }, { x: 80, y: 8, z: 15 }] },
+    { id: 'vertical', points: [{ x: 50, y: 8, z: 8 }, { x: 50, y: 8, z: 40 }] }
+  ];
+  const { peds } = makeFactory(straightGraph(100), { maxPeds: 3, pavement: false,
+    excludeWalkAt: () => true, heightAt: () => 8, spawnBudget: 0,
+    publicRoutes: routes.map(route => ({ ...route, allows: () => true })) });
+  peds.update(0, focus, 0);
+  const [a, b] = peds.region.tracks;
+  for (const [i, [leg, s, dir, speed]] of [[a, 20, 1, 1.3], [a, 30, -1, 1.3], [b, 2, 1, 1.3]].entries()) {
+    const p = sampleTrack(leg, s);
+    Object.assign(peds.peds[i], { leg, s, dir, speed, v: speed, motionDir: dir,
+      heading: Math.atan2(p.dx * dir, p.dz * dir), vx: p.dx * dir * speed, vz: p.dz * dir * speed,
+      x: p.x, z: p.z, y: 8, placed: true, lateral: 0, pause: 0, restAt: Infinity });
+  }
+  for (let frame = 1; frame <= 220; frame++) {
+    peds.update(0.05, focus, frame * 0.05);
+    for (const [i, p] of peds.peds.entries()) {
+      assert.equal(peds.region.carriagewayOccupied(p.x, p.z), false);
+      for (const q of peds.peds.slice(i + 1)) assert.ok(Math.hypot(q.x - p.x, q.z - p.z) >= 0.8899);
+    }
+  }
+  assert.ok(peds.peds[0].s > 29 && peds.peds[1].s < 21 && peds.peds[2].s > 12,
+    JSON.stringify(peds.peds.map(p => p.s)));
+});
+
+test('one walker uses a connected side path to wait and returns to the original track', () => {
+  const world = walkingScenario(walkLine, [[2, 1, 1.2], [6.6, -1, 1.2]], {
+    allows: widthAt(() => 0.58), keepRightM: 0
+  });
+  const { createPublicWalkTrack } = tracks;
+  const branch = createPublicWalkTrack([{ x: 20, y: 8, z: 15 }, { x: 20, y: 8, z: 9 }]);
+  const continuation = createPublicWalkTrack([{ x: 20, y: 8, z: 15 }, { x: 5, y: 8, z: 15 }]);
+  world.leg.ends[0].push({ leg: branch, end: 0 }, { leg: continuation, end: 0 });
+  continuation.ends[0].push({ leg: world.leg, end: 0 });
+  branch.ends[0].push({ leg: world.leg, end: 0 });
+  let branchWait = false;
+  for (let frame = 1; frame <= 440; frame++) {
+    world.peds.update(0.05, { x: 50, z: 15 }, frame * 0.05);
+    const [a, b] = world.actors;
+    branchWait ||= a.leg === branch && a.yielding?.waiting;
+    assert.ok(Math.hypot(a.x - b.x, a.z - b.z) >= 0.8899);
+  }
+  assert.ok(branchWait);
+  assert.equal(world.actors[0].leg, world.leg);
+  assert.ok(world.actors[0].s > 9);
+});
+
+test('a walker waits on the sidewalk, crosses under a signal reservation and releases it on the far sidewalk', () => {
+  const road = straightGraph(100, 8);
+  const { createIntersectionControl } = loadModule(read('sz-intersection-control.js'));
+  road.nodeIds = ['node/1', 'node/2'];
+  road.metadata[0].osmId = 'way/1';
+  const signal = { id: 'fixture', group: 1 };
+  const control = createIntersectionControl({ intersections: [{ id: signal.id, bounds: [45, -5, 55, 5], approaches: [
+    { group: 0, osmWayId: 'way/1', fromNodeId: 'node/1', toNodeId: 'node/2' }
+  ] }] }, road);
+  const { peds } = makeFactory(road, { maxPeds: 1, pavement: false, heightAt: () => 8, excludeWalkAt: () => true,
+    crossingControl: control, crossingLegs: [[-16, -4.65], [-4.65, 4.65], [4.65, 16]].map(([a, b], i) => ({
+      id: `leg:${i}`, crossing: i === 1, signal: i === 1 ? signal : null,
+      points: [a, b].map(z => ({ x: 50, y: 8, z })), walkAt: () => 8
+    })) });
+  const focus = { x: 40, z: -12 };
+  peds.update(0, focus, 0);
+  const [ped] = peds.peds;
+  const from = peds.region.legs.find(row => row.id === 'leg:0');
+  Object.assign(ped, { leg: from, s: from.length - 0.05, dir: 1, x: 50, y: 8, z: -4.7, placed: true,
+    v: 1.3, speed: 1.3, heading: 0, lateral: 0, pause: 0, restAt: Infinity });
+  for (let frame = 1; frame < 80; frame++) peds.update(0.05, focus, frame * 0.05);
+  assert.equal(ped.leg.id, 'leg:0');
+  assert.equal(peds.statistics.crossingWaits, 1);
+  for (let frame = 80; frame <= 160; frame++) peds.update(0.05, focus, frame * 0.05);
+  assert.equal(ped.leg.id, 'leg:1');
+  assert.equal(control.snapshot(8)[0].pedestrianOwner, ped.collider.id);
+  assert.equal(control.canEnter(control.approachFor(0, 1), 8, 'car'), false);
+  for (let frame = 161; frame <= 238; frame++) peds.update(0.05, focus, frame * 0.05);
+  assert.equal(ped.leg.id, 'leg:2');
+  assert.equal(control.snapshot(12)[0].pedestrianOwner, null);
+  assert.equal(peds.statistics.crossingsCompleted, 1);
 });

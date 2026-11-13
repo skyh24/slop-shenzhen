@@ -57,24 +57,32 @@ function addDeckPaint(cells, graph, decks) {
       const a = deck.frames[i - 1], b = deck.frames[i];
       const cell = paintCell(cells, (a.x + b.x) / 2, (a.z + b.z) / 2);
       // 桥面分成两个三角面。标线在同一条对角线处切开，弯坡上也贴着实际桥面。
-      const [leftA, rightA, rightB] = deck.topTriangles[i * 2];
-      const [, , leftB] = deck.topTriangles[i * 2 + 1];
+      const triangle = (i - 1 + (deck.leadingOverlapFrames ?? 0)) * 2;
+      const [leftA, rightA, rightB] = deck.topTriangles[triangle];
+      const [, , leftB] = deck.topTriangles[triangle + 1];
+      const phase = deck.stationOffsetM ?? 0;
+      const widthA = Math.hypot(leftA.x - rightA.x, leftA.z - rightA.z);
+      const widthB = Math.hypot(leftB.x - rightB.x, leftB.z - rightB.z);
       const vertex = (p, q, t, station, color, duty) => {
         cell.position.push(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t + HEIGHT, p.z + (q.z - p.z) * t);
-        cell.paint.push(station, 10, duty);
+        cell.paint.push(station + phase, 10, duty);
         cell.color.push(color.r, color.g, color.b);
       };
       for (const line of lines) {
+        const side = line.offset < 0 ? 'left' : 'right';
+        const duty = line.duty === 1 && deck.openings?.get(i - 1)?.has(side) ? 0.32 : line.duty;
         const color = colorFor(line.color);
-        const lo = 0.5 + (line.offset - 0.09) / section.pavementWidthM;
-        const hi = 0.5 + (line.offset + 0.09) / section.pavementWidthM;
+        const center = 0.5 + line.offset / section.pavementWidthM;
+        const loA = center - 0.09 / widthA, loB = center - 0.09 / widthB;
+        const hiA = center + 0.09 / widthA, hiB = center + 0.09 / widthB;
+        const lo = loA / (1 + loA - loB), hi = hiA / (1 + hiA - hiB);
         const base = cell.position.length / 3;
-        vertex(leftA, rightA, lo, a.d, color, line.duty);
-        vertex(leftA, rightA, hi, a.d, color, line.duty);
-        vertex(leftA, rightB, hi, a.d + (b.d - a.d) * hi, color, line.duty);
-        vertex(leftA, rightB, lo, a.d + (b.d - a.d) * lo, color, line.duty);
-        vertex(leftB, rightB, hi, b.d, color, line.duty);
-        vertex(leftB, rightB, lo, b.d, color, line.duty);
+        vertex(leftA, rightA, loA, a.d, color, duty);
+        vertex(leftA, rightA, hiA, a.d, color, duty);
+        vertex(leftA, rightB, hi, a.d + (b.d - a.d) * hi, color, duty);
+        vertex(leftA, rightB, lo, a.d + (b.d - a.d) * lo, color, duty);
+        vertex(leftB, rightB, hiB, b.d, color, duty);
+        vertex(leftB, rightB, loB, b.d, color, duty);
         cell.index.push(base, base + 1, base + 2, base, base + 2, base + 3,
           base + 3, base + 2, base + 4, base + 3, base + 4, base + 5);
       }

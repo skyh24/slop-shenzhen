@@ -22,7 +22,16 @@ const loadCultural = name => loadModule(readLandmark(name), { imports: {
 const museum = loadCultural('qianhai-museum.js');
 const opera = loadCultural('bay-opera.js');
 const mocape = loadCultural('mocape.js');
-const tencent = loadModule(readLandmark('tencent-binhai.js'), { imports: { './parts.js': parts } });
+const profiles = loadModule(readLandmark('model-profile.js'), { imports: { './parts.js': parts } });
+const loadProfile = file => loadModule(readLandmark(file), { imports: { './parts.js': parts, './model-profile.js': profiles } });
+const tencent = loadProfile('tencent-binhai.js');
+const tencentTowers = loadProfile('tencent-towers.js');
+const library = loadProfile('university-town-library.js');
+const diwang = loadProfile('diwang.js');
+const kk100 = loadProfile('kk100.js');
+const exchange = loadProfile('stock-exchange.js');
+const shopping = loadProfile('shopping-park-shell.js');
+const newModels = [tencentTowers, library, diwang, kk100, exchange, shopping];
 const dji = loadModule(readLandmark('dji-sky-city.js'), { imports: { '../building-collision.js': collision, './parts.js': parts } });
 const pingAn = loadModule(readLandmark('ping-an.js'), { imports: { './parts.js': parts } });
 const chunsun = loadModule(readLandmark('chunsun.js'), { imports: { './parts.js': parts } });
@@ -57,9 +66,12 @@ const culture = loadCulture({});
 const upperhills = loadUpperhills({});
 const loadPlan = (cultureModule, upperhillsModule = upperhills, iecModule = iec, superHqModule = superHq) => loadModule(readLandmark('layout.js'), { imports: {
   './qianhai-museum.js': museum, './bay-opera.js': opera, './mocape.js': mocape,
+  './tencent-towers.js': tencentTowers, './university-town-library.js': library, './diwang.js': diwang, './kk100.js': kk100,
+  './stock-exchange.js': exchange, './shopping-park-shell.js': shopping,
   './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun,
   './civic-center.js': civic, './chunjian.js': stadium, './shenzhen-bay-culture-square.js': cultureModule,
   './convention-center.js': convention, './upperhills.js': upperhillsModule, './nonferrous-tower.js': nonferrous,
+  './shenzhen-north.js': { sourceIds: ['way/222088288', 'way/262922059', 'way/262922064'], build: () => [] },
   './iec-xiangmihu.js': iecModule, './super-hq.js': superHqModule, './press-tower.js': pressTower, '../building-collision.js': collision
 } });
 const { planSzLandmarks } = loadPlan(culture);
@@ -88,7 +100,8 @@ test('landmarks retire only the explicit source objects and keep the fallback on
   const verifiedDuplicates = [...civic.optionalSkipIds, ...nonferrous.optionalSkipIds, ...pressTower.optionalSkipIds].filter(id => byId.has(id));
   assert.deepEqual([...plan.skipIds].sort(), [...tencent.sourceIds, ...dji.sourceIds, ...pingAn.sourceIds, ...chunsun.sourceIds,
     ...museum.sourceIds, ...opera.sourceIds, ...mocape.sourceIds,
-    ...civic.sourceIds, ...verifiedDuplicates, ...stadium.sourceIds, ...convention.sourceIds, ...nonferrous.sourceIds, ...pressTower.sourceIds].sort());
+    ...civic.sourceIds, ...verifiedDuplicates, ...stadium.sourceIds, ...convention.sourceIds, ...nonferrous.sourceIds, ...pressTower.sourceIds,
+    ...newModels.flatMap(model => [...model.sourceIds, ...(model.optionalSkipIds ?? []).filter(id => byId.has(id))])].sort());
   assert.ok(byLandmark.has('civic-center'));
   assert.ok(byLandmark.has('chunjian'));
   assert.ok(byLandmark.has('convention-center'));
@@ -145,6 +158,40 @@ test('the cultural landmarks preserve the verified sites, roof profiles and entr
   assert.equal(geo.landmarks.find(row => row.id === 'mocape').height, 40);
   assert.equal(geo.landmarks.find(row => row.id === 'qianhai-museum').height, 68);
   assert.equal(geo.landmarks.find(row => row.id === 'bay-opera').height, 50);
+});
+
+test('the shopping park curved wall has a single shell at street level', () => {
+  const [podium, upper] = byLandmark.get('shopping-park-shell');
+  assert.equal(podium.maxY, upper.minY);
+  assert.equal(upper.bottomFace, false);
+  assert.ok(shopping.sourceIds.every(id => plan.skipIds.has(id)));
+  const fallback = planSzLandmarks(fixture.filter(building => building.id !== shopping.sourceIds[1]), geo.terrain);
+  assert.ok(!fallback.skipIds.has(shopping.sourceIds[0]));
+});
+
+test('priority landmarks keep distinct footprints, height provenance and open lower levels', () => {
+  const old = byLandmark.get('tencent-towers');
+  const coast = byLandmark.get('tencent-binhai');
+  assert.ok(old.every(part => !coast.some(row => row.sourceId === part.sourceId)));
+  const tip = old.filter(part => part.id.startsWith('tencent-towers:shaft')).at(-1);
+  const first = old.find(part => part.id.startsWith('tencent-towers:shaft'));
+  assert.equal(tip.heightSource, 'published');
+  assert.ok(tip.maxY - first.minY > 184.7 && tip.maxY - first.minY < 184.9);
+  const spears = byLandmark.get('diwang').filter(part => part.id.startsWith('diwang:spire'));
+  assert.equal(spears.length, 2);
+  assert.ok(spears.every(part => part.heightSource === 'published' && part.maxY === 392));
+  assert.ok(spears[0].maxZ + 30 < spears[1].minZ);
+
+  const libraryParts = byLandmark.get('university-town-library');
+  const deck = libraryParts.find(part => part.id === 'library:river-deck');
+  const center = deck.polygon.outer.reduce((sum, p) => [sum[0] + p.x / 4, sum[1] + p.z / 4], [0, 0]);
+  assert.ok(deck.roofContact && deck.climbableFromGround);
+  assert.ok(libraryParts.every(part => !occupies(part, ...center, 8, 10.2)));
+  assert.ok(libraryParts.some(part => part.heightSource === 'design' && part.maxY === 35));
+  const exchangeParts = byLandmark.get('shenzhen-stock-exchange');
+  assert.ok(exchangeParts.every(part => !occupies(part, -643, 244, 8, 10.2)));
+  assert.ok(exchangeParts.some(part => occupies(part, -643, 244, 52, 54)));
+  assert.ok(plan.skipIds.has('way/776182829'));
 });
 
 test('the Nonferrous pilot retires its verified parent only with the complete sourced model', () => {
@@ -585,14 +632,16 @@ test('actual roof triangles share the render vertices and collision elevation', 
   const tencentModel = renderLandmark(plan.plans.find(model => model.id === 'tencent-binhai'), () => material);
   const djiModel = renderLandmark(plan.plans.find(model => model.id === 'dji-sky-city'), () => material);
   const pingAnModel = renderLandmark(plan.plans.find(model => model.id === 'ping-an'), () => material);
-  assert.equal(tencentModel.surfaces.length, 2);
-  assert.equal(djiModel.surfaces.length, 0);
+  const towerRoofs = tencentModel.surfaces.filter(surface => tencent.sourceIds.slice(0, 2)
+    .some(id => surface.id.startsWith(`${id}:`)));
+  assert.equal(towerRoofs.length, 2);
+  assert.ok(!tencentModel.surfaces.some(surface => surface.id.startsWith('way/775462996:')));
   const towerMesh = tencentModel.group.children.find(mesh => mesh.name === 'tencentTower');
   const position = towerMesh.geometry.attributes.position;
   const vertices = new Set();
   for (let i = 0; i < position.count; i++) vertices.add(`${position.getX(i)},${position.getY(i)},${position.getZ(i)}`);
   const support = createSurfaceResolver({ groundHeight: (x, z) => terrain.terrainHeight(geo.terrain, x, z), surfaces: tencentModel.surfaces });
-  for (const surface of tencentModel.surfaces) {
+  for (const surface of towerRoofs) {
     for (const p of surface.triangles.flat()) assert.ok(vertices.has(`${p.x},${p.y},${p.z}`));
     const [a, b, c] = surface.triangles[0];
     const x = (a.x + b.x + c.x) / 3;
@@ -606,8 +655,8 @@ test('actual roof triangles share the render vertices and collision elevation', 
   const normals = deck.geometry.attributes.normal.array;
   assert.ok(normals.some((n, i) => i % 3 === 1 && n > 0.9));
   assert.ok(normals.some((n, i) => i % 3 === 1 && n < -0.9));
-  assert.equal(pingAnModel.surfaces.length, 1);
-  const roof = pingAnModel.surfaces[0];
+  const roof = pingAnModel.surfaces.find(surface => surface.id.startsWith('way/773719241:'));
+  assert.ok(roof);
   const bridge = byLandmark.get('ping-an').find(part => part.id === roof.id);
   const pingAnSupport = createSurfaceResolver({ groundHeight: (x, z) => terrain.terrainHeight(geo.terrain, x, z),
     surfaces: pingAnModel.surfaces });
@@ -648,7 +697,7 @@ test('new site landmarks build and render through the shared material dispatcher
   const iecModel = loadIec(THREE, tsl, atmosphere);
   const superModel = loadSuperHq(THREE, tsl, atmosphere);
   const materials = loadModule(readLandmark('materials.js'), { imports: {
-    'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': atmosphere,
+    '../sz-rail/geometry.js': {}, 'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': atmosphere,
     './shenzhen-bay-culture-square.js': { createCulturePavingMask: () => ({}) },
     './upperhills.js': { createUpperhillsMaterial: () => new THREE.MeshBasicMaterial() },
     './nonferrous-tower.js': { createNonferrousMaterial: () => new THREE.MeshBasicMaterial() },
@@ -659,7 +708,8 @@ test('new site landmarks build and render through the shared material dispatcher
   } });
   const planWithSites = planSzLandmarks(fixture, geo.terrain, geo.sites);
   const newVenues = ['qianhai-museum', 'bay-opera', 'mocape'];
-  for (const landmarkId of ['iec-xiangmihu', 'super-hq', ...newVenues]) {
+  const recent = ['tencent-towers', 'university-town-library', 'diwang', 'kk100', 'shenzhen-stock-exchange', 'shopping-park-shell'];
+  for (const landmarkId of ['iec-xiangmihu', 'super-hq', ...newVenues, ...recent]) {
     const plan = planWithSites.plans.find(item => item.id === landmarkId);
     assert.ok(plan, landmarkId);
     const rendered = renderLandmark(plan, materials.createLandmarkMaterial);
@@ -673,7 +723,7 @@ test('new site landmarks build and render through the shared material dispatcher
       triangles += (geometry.index ? geometry.index.count : position.count) / 3;
       if (mesh.material?.dispose) mesh.material.dispose();
     });
-    assert.ok(triangles > 0 && triangles < (newVenues.includes(landmarkId) ? 1800 : 300000), `${landmarkId} triangle budget: ${triangles}`);
+    assert.ok(triangles > 0 && triangles < (newVenues.includes(landmarkId) ? 1800 : recent.includes(landmarkId) ? 3000 : 300000), `${landmarkId} triangle budget: ${triangles}`);
     rendered.group.traverse(mesh => mesh.geometry?.dispose());
   }
 });

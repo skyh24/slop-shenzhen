@@ -166,6 +166,14 @@ function validateSamples(samples, model, roadHeight, isClear, stops, roads) {
     while (stopIndex < stops.length && s > stops[stopIndex].clearS) stopIndex++;
     if (stopIndex < stops.length && s >= stops[stopIndex].s - model.hz - 1) limits[i] = Math.min(limits[i], 10);
   }
+  // 窄车道按路宽再压一档限速：车身几乎占满铺装，只有慢速才能让四轮保持在同一块路面上。
+  for (let i = 0; i < samples.length; i++) {
+    const edge = samples[i].edge;
+    // 高架保留以桥面铺装宽分档的限速；护栏净宽用于车道和车身余量。
+    const width = edge?.elevated ? edge.section.pavementWidthM : edge?.section.travelWidthM ?? 0;
+    if (edge?.rampSpeed) limits[i] = Math.min(limits[i], edge.rampSpeed);
+    if (width > 0 && width < 6.5) limits[i] = Math.min(limits[i], width < 4.5 ? 4 : 5.5);
+  }
   const pose = {};
   const length = samples.at(-1).s;
   // 冲突区的弯道出口按更小步距复核，避免预约后才碰到很窄的路缘缺口。

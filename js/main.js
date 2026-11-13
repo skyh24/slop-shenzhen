@@ -12,6 +12,7 @@ import { createObservationSessions } from './sz-observation-session.js';
 import { getLocationLabel, inBounds, isWater, nearRoadsForFrontage, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
 import { createGroundSurfaceSampler, buildSzGround } from './sz-ground.js';
 import { buildSzBayWaterfront, createBayParkArrivals, createBayPathLookup } from './sz-bay-waterfront.js';
+import { buildSzWaterfront, createWaterfrontPaths } from './sz-waterfront.js';
 import { buildSzSea } from './sz-sea.js';
 import { buildSzRoads, planStreetTreeSides } from './sz-roads.js';
 import { buildSzRoadFrontage } from './sz-road-frontage.js';
@@ -22,7 +23,9 @@ import { buildSzStreetscape } from './sz-streetscape.js';
 import { prepareTalentPark } from './sz-talent-park.js';
 import { createTeleportMenu } from './sz-coco-park-approach.js';
 import { buildSzStreetLamps } from './sz-street-lamps.js';
+import { createUrbanPavingWalk } from './sz-urban-paving.js';
 import { buildSzTrees } from './sz-trees.js';
+import { planWoodlandTrees } from './sz-woodlands.js';
 import { buildApecTheme } from './sz-apec.js';
 import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzDroneRoutes } from './sz-drone-routes.js';
@@ -34,10 +37,17 @@ import { createCbdProgram, isCbdProgramBuilding } from './sz-cbd-program.js';
 import { buildLianhuashanSummit, reviewedParkOmissions, SUMMIT_ARRIVAL } from './sz-lianhuashan.js';
 import { buildIecGrounds } from './sz-landmarks/iec-grounds.js';
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
+import { buildNorthStation } from './sz-rail/station.js';
+import { northBridgeProfile } from './sz-rail/geometry.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
+import { buildSzDistricts } from './sz-districts/index.js';
+import { buildThemeParks } from './sz-theme-parks/index.js';
 import { buildShenzhenBayBridge, buildYanjiangExpressway } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { buildSzElevatedRoads } from './sz-elevated-roads.js';
+import { buildSzRoadStructures, graphWithRoadStructures } from './sz-road-structures.js';
+import { buildRoadLandscape } from './sz-road-landscape.js';
+import { terrainHeight } from './sz-terrain.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
 import { buildBuildingSigns } from './sz-building-signs.js';
 import { buildBuildingDetails } from './sz-building-details.js';
@@ -195,25 +205,41 @@ async function initApp() {
   const sea = qa.measureBuild('sea', () => buildSzSea(scene, GEO.seaSurface));
   markInit('ground');
   await showLoadingStage(STR.startup.roads, 'roads');
-  const roads = qa.measureBuild('roads', () => buildSzRoads(scene, GEO.roadGraph, GEO.terrainSurface, { frontageLight }));
+  const roadGraph = graphWithRoadStructures(GEO.roadGraph, GEO.roadStructures);
+  const roads = qa.measureBuild('roads', () => buildSzRoads(scene, roadGraph, GEO.terrainSurface, { frontageLight }));
   // 场地上下文：地形、路面、路网和各构建函数共用的接触面参数只构造一份，入口里不再重复传同一组闭包。
   const site = {
     buildings: REAL_BUILDINGS, terrain: GEO.terrain, terrainSurface: GEO.terrainSurface, sites: GEO.sites,
-    roadGraph: GEO.roadGraph, groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, isWater,
+    roadGraph, groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, isWater,
     colliders: [], golfCourse: GEO.golfCourse, style: createSceneStyle(GEO)
   };
   // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
   const elevatedRoads = qa.stage('elevated', () =>
-    buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface }));
-  const roadFrontage = qa.measureBuild('frontage', () =>
-    buildSzRoadFrontage(scene, GEO.roadFrontage, GEO.roadGraph, GEO.terrainSurface, site));
-  const roadPaint = qa.stage('paint', () =>
-    buildSzRoadPaint(scene, GEO.roadGraph, { ...site, intersections: roadFrontage.control.intersections,
-      frontage: GEO.roadFrontage, decks: elevatedRoads.links }));
-  const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface, site.style);
-  site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? publicWalk.heightAt(x, z) ?? ground.groundHeight(x, z);
-  site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
+    buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface,
+      extraCrossing: northBridgeProfile(GEO.shenzhenNorthRail), waterfront: GEO.waterfront, water: GEO.water, exclude: new Set(GEO.roadStructures?.records.map(row => row.index)) }));
+  const carriagewayOccupied = createCarriagewayBarrier(roadGraph).contains;
   const bayPaths = createBayPathLookup(GEO.shenzhenBay?.paths);
+  const roadStructures = qa.measureBuild('roadStructures', () => buildSzRoadStructures(scene, roadGraph, GEO.roadStructures, {
+    groundHeight: (x, z) => terrainHeight(GEO.terrain, x, z),
+    pierAllowed: (x, z, radius) => !carriagewayOccupied(x, z, radius + 4)
+      && !bayPaths(x, z, radius + 4).length && isWater(x, z) === false
+  }));
+  const roadLandscape = qa.measureBuild('roadLandscape', () =>
+    buildRoadLandscape(scene, GEO.roadStructures?.landscape, GEO.terrainSurface, ground.groundHeight));
+  const roadFrontage = qa.measureBuild('frontage', () =>
+    buildSzRoadFrontage(scene, GEO.roadFrontage, roadGraph, GEO.terrainSurface, site));
+  const roadPaint = qa.stage('paint', () =>
+    buildSzRoadPaint(scene, roadGraph, { ...site, intersections: roadFrontage.control.intersections,
+      frontage: GEO.roadFrontage, decks: [...elevatedRoads.links, ...roadStructures.links] }));
+  const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface, site.style);
+  site.heightAt = (x, z) => roadLandscape.pathHeight(x, z) ?? roadFrontage.contactHeight(x, z) ?? publicWalk.heightAt(x, z) ?? ground.groundHeight(x, z);
+  const districts = qa.measureBuild('districts', () => buildSzDistricts(scene, site,
+    { water: GEO.water, roads: roads.surfaces, carriagewayOccupied }));
+  const baseHeight = site.heightAt;
+  site.heightAt = (x, z) => districts.heightAt(x, z) ?? baseHeight(x, z);
+  site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
+  const waterfrontPaths = createWaterfrontPaths(GEO.waterfront);
+  const urbanPaving = createUrbanPavingWalk(GEO.urbanPaving, site.heightAt);
   site.reserveBayWalk = (x, z, radius) => bayPaths(x, z, radius).length > 0;
   markInit('roads');
   await showLoadingStage(STR.startup.landmarks, 'landmarks');
@@ -221,17 +247,21 @@ async function initApp() {
   const summit = buildLianhuashanSummit(scene, site.groundHeight, lianhuashan, site.style);
   const parkOmissions = reviewedParkOmissions(lianhuashan, site.buildings);
   const cbdProgram = createCbdProgram({ ...SUMMIT_ARRIVAL, y: SUMMIT_ARRIVAL.y + 1.68 }, sceneUniforms.night);
-  const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, { ...site, programEmission: cbdProgram.emission }));
+  const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, { ...site, northRail: GEO.shenzhenNorthRail, programEmission: cbdProgram.emission }));
   const iec = landmarks.group.getObjectByName('ShenzhenLandmark:iec-xiangmihu')
     ? buildIecGrounds(scene, { ...site, roadSurfaces: roads.surfaces, water: GEO.water, paths: GEO.iecPaths }) : null;
+  const northStation = landmarks.heights?.has('shenzhen-north')
+    ? qa.measureBuild('northStation', () => buildNorthStation(scene, GEO.shenzhenNorthRail, site)) : null;
+  const districtHeightAt = site.heightAt;
+  if (northStation) site.heightAt = (x, z) => northStation.heightAt(x, z) ?? districtHeightAt(x, z);
   const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
   const yanjiang = buildYanjiangExpressway(scene, GEO.yanjiangExpressway);
+  const themeParks = qa.stage('themeParks', () => buildThemeParks(scene, { ...site, mapRegions: GEO.mapRegions }));
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
-  const sceneSkipIds = new Set([...landmarks.skipIds, ...parkOmissions]);
+  const sceneSkipIds = new Set([...landmarks.skipIds, ...districts.skipIds, ...themeParks.skipIds, ...parkOmissions]);
   // 门槛接入现有铺装三角面、专项人行道或路侧步行面。
   const pavedHeight = createGroundSurfaceSampler(site.terrainSurface, kind => kind === 3 || kind === 4 || kind === 7);
-  const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
   const retail = {
     regions: GEO.mapRegions?.regions, nearRoads: nearRoadsForFrontage, carriageway: carriagewayOccupied,
     entrance: publicWalk.entrance,
@@ -255,12 +285,14 @@ async function initApp() {
     buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds, roofPlans: cityBlocks.roofPlans,
       retailBuildingIds: cityBlocks.retailBuildingIds, envelopePlans: cityBlocks.envelopePlans }));
   markInit('blocks');
-  const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders];
+  const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders, ...districts.colliders, ...themeParks.colliders, ...(northStation?.colliders ?? [])];
   site.colliders = buildings;
   const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
   const talentPark = prepareTalentPark(qa, scene, GEO, site);
   const { waterfront } = talentPark;
   site.pathAt = (x, z) => {
+    const parkPaths = themeParks.pathAt(x, z);
+    if (parkPaths.length) return parkPaths;
     const summitPaths = summit.pathAt(x, z);
     if (summitPaths.length) return summitPaths;
     const waterfrontPaths = waterfront?.pathAt(x, z);
@@ -268,23 +300,29 @@ async function initApp() {
   };
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
+  const exposedStructures = new Set(roadStructures.links.filter(link => !link.tunnel).map(link => link.surfaceId));
+  const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: [...elevatedRoads.surfaces,
+    ...roadStructures.surfaces.filter(surface => exposedStructures.has(surface.id))] });
+  const deckOccupied = (x, z, bottom, top) => deck.at(x, z).some(surface => surface.height + 4.5 > bottom
+    && surface.height - (exposedStructures.has(surface.surfaceId) ? GEO.roadStructures.bridgeSlabM : 0.35) < top);
   // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
-    ...site, carriagewayOccupied, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
-    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r),
-    observedTrees: streetscape.observedTrees, pilotTrees: [...publicWalk.trees, ...(waterfront?.pilotTrees ?? [])],
+    ...site, carriagewayOccupied, deckOccupied, excludedSite: themeParks.reserved, woodlandTrees: planWoodlandTrees(), simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
+    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r)
+      || northStation?.reserves(x, z, r) || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
+    observedTrees: streetscape.observedTrees, pilotTrees: [...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees, ...districts.trees, ...urbanPaving.trees],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
-  const streetLamps = qa.stage('lamps', () => {
-    const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: elevatedRoads.surfaces });
-    return buildSzStreetLamps(scene, site.roadGraph, {
-      ...site, roadStyle: site.style.road, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk, relocateSite: iec?.relocateLamp,
-      placementObstacles: [...buildings, ...trees.colliders],
-      deckOccupied: (x, z, bottom, top) =>
-        deck.at(x, z).some(surface => surface.height + 4.5 > bottom && surface.height - 0.35 < top)
-    });
-  });
+  const streetLamps = qa.stage('lamps', () => buildSzStreetLamps(scene, site.roadGraph, {
+    ...site, roadStyle: site.style.road, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk, relocateSite: candidate => {
+      const placed = iec ? iec.relocateLamp(candidate) : candidate;
+      return placed && !landmarks.reservesApproach?.(placed.x, placed.z, 0.34) ? placed : null;
+    },
+    reserveWalk: urbanPaving.reserves, reserveCrossing: roadFrontage.reserveWalk,
+    placementObstacles: [...buildings, ...trees.colliders],
+    deckOccupied
+  }));
   const anchors = iec?.anchors;
   // APEC 周城市元素：会期内默认打开，模块内所有几何都在主题开关下。
   const apecTheme = qa.stage('apec', () =>
@@ -307,7 +345,7 @@ async function initApp() {
   const xiliConstruction = stations?.xili ?? null;
   const colliders = [...buildings, ...roadFrontage.colliders, ...(streetLamps.colliders ?? []), ...trees.colliders,
     ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? []),
-    ...elevatedRoads.colliders, ...(waterfront?.colliders ?? [])];
+    ...elevatedRoads.colliders, ...roadStructures.colliders, ...(waterfront?.colliders ?? [])];
   const planter = publicWalk.placePlanter(colliders, site.heightAt);
   if (planter) colliders.push(planter);
   const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, site,
@@ -317,14 +355,21 @@ async function initApp() {
   const bayWaterfront = qa.measureBuild('bayWaterfront', () =>
     buildSzBayWaterfront(scene, GEO.shenzhenBay, { ...site, pathsNear: bayPaths }));
   colliders.push(...bayWaterfront.colliders);
+  const shoreSamples = qa.measureBuild('shoreSamples', () => buildSzWaterfront(scene, GEO.waterfront, {
+    water: GEO.water, network: waterfrontPaths, elevated: elevatedRoads, heightAt: site.heightAt, obstacles: colliders
+  }));
+  colliders.push(...shoreSamples.colliders);
   const { people: talentPeople, program: talentProgram, show: talentShow, update: updateTalentPark } = talentPark.connect(colliders);
   await showLoadingStage(STR.startup.traffic, 'traffic');
-  const traffic = qa.stage('traffic', () => createSzTraffic(scene, GEO.roadGraph, {
+  const traffic = qa.stage('traffic', () => createSzTraffic(scene, roadGraph, {
     ...site,
     // 车公庙高架车行链路：桥面顶面三角面来自 elevatedRoads，车流、自动规划和轮胎接触共用同一表面身份。
-    elevated: elevatedRoads.drive,
+    elevated: {
+      links: [...elevatedRoads.drive.links, ...roadStructures.links],
+      heightAt: (x, z, id) => roadStructures.heightAt(x, z, id) ?? elevatedRoads.drive.heightAt(x, z, id)
+    },
     signals: roadFrontage.control, detailedRoadIds: roadFrontage.detailedRoadIds,
-    canTurn: createTurnFilter(GEO.roadGraph)
+    canTurn: createTurnFilter(roadGraph)
   }));
   markInit('traffic');
 
@@ -332,9 +377,14 @@ async function initApp() {
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
-    surfaces: [...cityBlocks.surfaces, ...landmarks.surfaces, ...elevatedRoads.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
+    surfaces: [...cityBlocks.surfaces, ...themeParks.surfaces, ...(northStation?.surfaces ?? []), ...landmarks.surfaces, ...elevatedRoads.surfaces, ...roadStructures.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
     nearTraffic: traffic.nearColliders, nearWalkers: talentPeople?.nearColliders, flightSettings: GEO.airCruises?.flight,
-    groundAccess: bayWaterfront.allowsGroundMode
+    groundIdentity: waterfrontPaths.groundIdentity,
+    groundAccess: (mode, x, z, surface) => (surface?.heightSource !== 'terrain' && surface?.surfaceId !== 'terrain'
+      || (bayWaterfront.allowsGroundMode(mode, x, z) && !roadFrontage.plantingAt(x, z)
+        && (mode === 'person' || !roadLandscape.walkAt(x, z).length)))
+      && shoreSamples.allowsGroundMode(mode, x, z, surface)
+      && (!northStation?.inRestricted(x, z, 0.58) || (surface?.surfaceId !== 'terrain' && surface?.heightSource !== 'terrain'))
   });
   const cruise = qa.measureBuild('airCruises', () => createSceneAirCruise(GEO.airCruises, controllerManager, site, PLAYER_SPEED_LIMITS.helicopter));
   let initialTime = 'golden';
@@ -358,17 +408,22 @@ async function initApp() {
   buildingDetails.update(loadingFocus);
   for (let i = 0; i < 40 && buildingDetails.statistics.pending > 0; i++) buildingDetails.update(loadingFocus);
   // 环境人群复用纽约 PersonRig；行走位置是沿路侧模拟步行带，非全城实测人行道。
-  const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, GEO.roadGraph, {
+  const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, roadGraph, {
     ...site,
     publicRoute: publicWalk.route(colliders),
-    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || waterfront?.reserves(x, z, 2),
+    publicWalkSurface: publicWalk.pedestrianSurface,
+    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || urbanPaving.reserves(x, z, 2) || waterfront?.reserves(x, z, 2)
+      || northStation?.inRestricted(x, z, 2) || districts.reserves(x, z) || roadFrontage.reserveWalk(x, z) || roadFrontage.plantingAt(x, z),
+    crossingLegs: roadFrontage.walkLegs, crossingControl: roadFrontage.control,
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
     localWalk: iec?.walk, blockGenericWalk: iec?.blockGenericWalk,
     spawnMinM: 8,
     spawnMaxM: 160,
-    publicRoutes: bayWaterfront.publicRoutes
+    publicRoutes: [...bayWaterfront.publicRoutes, ...roadLandscape.routes, ...shoreSamples.publicRoutes, ...urbanPaving.connect(colliders, { contains: carriagewayOccupied }),
+      ...(northStation?.publicRoutes(colliders, carriagewayOccupied) ?? []),
+      ...districts.publicRoutes(colliders, { contains: carriagewayOccupied }, site.heightAt)]
   }));
   roadFrontage.update(0);
   traffic.update(0, loadingFocus, [controllerManager.getActiveEntity()], 0);
@@ -387,7 +442,7 @@ async function initApp() {
   const laneAssist = createLaneAssist({ ...driveOptions, network: traffic.network,
     isClear: pose => controllerManager.isClearCarPose(pose), nearTraffic: nearRoadUsers });
   let planner = null;
-  const drivePlanner = () => planner ??= createDrivePlanner(traffic.network, GEO.roadGraph, { ...driveOptions,
+  const drivePlanner = () => planner ??= createDrivePlanner(traffic.network, roadGraph, { ...driveOptions,
     isClear: pose => controllerManager.isClearCarPose(pose), detailedRoadIds: roadFrontage.detailedRoadIds });
 
   let showSession;
@@ -401,7 +456,7 @@ async function initApp() {
     } catch { /* Storage may be disabled or full. */ }
   }
 
-  const cameraSystem = new CameraSystem(renderer.domElement, controllerManager);
+  const cameraSystem = new CameraSystem(renderer.domElement, controllerManager, roadStructures.constrainCamera);
   const trafficFrustum = new THREE.Frustum();
   const trafficViewProjection = new THREE.Matrix4();
   const trafficBounds = new THREE.Box3();
@@ -439,11 +494,18 @@ async function initApp() {
     pedestrians.dispose();
     talentPeople?.dispose();
     publicWalk.dispose();
+    roadStructures.dispose();
+    roadLandscape.dispose();
+    districts.dispose();
+    northStation?.dispose();
     streetscape.dispose();
+    themeParks.dispose();
     trees.dispose?.();
     waterfront?.dispose();
     iec?.dispose();
     bayWaterfront.dispose();
+    shoreSamples.dispose();
+    elevatedRoads.dispose?.();
     drones.dispose();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) savePlayerState(); });
@@ -458,7 +520,7 @@ async function initApp() {
       else firstByMaterial.set(chunk.material, chunk);
     }
   }
-  setupSceneCulling(scene, [...cullingRoots, landmarks.group, summit.group, iec?.group, bridge.group, yanjiang, streetscape.group, publicWalk.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
+  setupSceneCulling(scene, [...cullingRoots, roadStructures.group, roadLandscape.group, landmarks.group, themeParks.group, summit.group, iec?.group, bridge.group, yanjiang, streetscape.group, publicWalk.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
     futianStation?.group, xiliConstruction?.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [
@@ -518,7 +580,8 @@ async function initApp() {
 
   const modeButtons = document.querySelectorAll('[data-mode]');
   const cameraButtons = document.querySelectorAll('[data-camera]');
-  const scenicAvailability = { bayBridge: Boolean(bridge.group), yanjiang: Boolean(yanjiang) };
+  const scenicAvailability = { bayBridge: Boolean(bridge.group), yanjiang: Boolean(yanjiang),
+    northRailView: Boolean(northStation), southRailView: Boolean(northStation) };
   const cameraPresets = CAMERA_PRESETS.filter(preset => scenicAvailability[preset.id] !== false);
   for (const [id, available] of Object.entries(scenicAvailability)) {
     document.getElementById(`cam-${id}`)?.toggleAttribute('hidden', !available);
@@ -528,7 +591,8 @@ async function initApp() {
   const streetscapeArrival = streetscape.findArrival(trees.colliders);
   const parkArrivals = createBayParkArrivals(bayPark, GEO.parks, bayWaterfront.arrival ?? streetscapeArrival,
     findGroundArrival, getLocationLabel);
-  const { entries: teleportEntries, buttons: teleportButtons, syncWalkApproach } = createTeleportMenu(TELEPORT_LOCATIONS, bayPark, getLocationLabel);
+  const { entries: teleportEntries, buttons: teleportButtons, syncWalkApproach } = createTeleportMenu(
+    TELEPORT_LOCATIONS, bayPark, getLocationLabel, districts.arrivals);
   const parkButton = teleportButtons.find(button => button.dataset.teleport === bayPark?.id);
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
   const placeModeIndicator = createModeIndicator(document.getElementById('mode-switch'));
@@ -540,7 +604,8 @@ async function initApp() {
   const elSpeedMeter = document.getElementById('hud-speed-meter');
   const elAltitude = document.getElementById('hud-altitude');
   const elLocation = document.getElementById('hud-location');
-  const landmarkViews = createLandmarkViews(SZ_LANDMARKS, landmarks.heights, site.heightAt, TELEPORT_LOCATIONS, anchors?.iecGate?.yaw);
+  const landmarkViews = createLandmarkViews(SZ_LANDMARKS, new Map([...landmarks.heights, ...districts.heights]),
+    site.heightAt, TELEPORT_LOCATIONS, anchors?.iecGate?.yaw, northStation?.arrival);
   const elControlsHint = document.getElementById('hud-controls-hint');
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
     onCycleMode: (step) => {
@@ -688,7 +753,7 @@ async function initApp() {
   });
   const { teleportTo, teleportFromMap } = createTeleportActions({ controllerManager, landmarkViews, parks: GEO.parks,
     inBounds, isWater, carriagewayOccupied, findGroundArrival, roadHeight: roads.roadHeight, flightStartAltitude: FLIGHT_START_ALTITUDE,
-    selectMode, onArrival: finishTeleport, closeMap: () => mapSystem.toggleFullMap(false) });
+    selectMode, excludeGround: northStation?.inRestricted, onArrival: finishTeleport, closeMap: () => mapSystem.toggleFullMap(false) });
   droneWatch = wireDroneWatch({ drones, controllerManager, cameraSystem, touchControls, gamepadControls,
     laneAssist, autoDrive, observationSessions, closePopovers, mapOpen: () => mapSystem.isFullMapOpen, teleport: teleportTo,
     onCameraLabel: label => { elCamera.textContent = label; } });
@@ -838,9 +903,9 @@ async function initApp() {
       buildingSigns, buildingDetails, traffic, pedestrians, roadFrontage, landmarks, streetscape, streetscapeArrival, sea, bridge, publicWalk,
       colliders, cityBlocks,
       modules: {
-        lamps: streetLamps, trees, apec: apecTheme, apecCity, drones, lightShow,
+        lamps: streetLamps, trees, themeParks, apec: apecTheme, apecCity, drones, lightShow,
         summit, cbdProgram, waterfront, talentProgram, talentPeople, programIds: cityBlocks.programIds ?? [], parkOmissions,
-        elevatedRoads, metroEntrances, futian: futianStation, xili: xiliConstruction
+        elevatedRoads, roadStructures, metroEntrances, futian: futianStation, xili: xiliConstruction, northStation
       },
       teleport: teleportTo,
       getElapsed: () => elapsed,
@@ -938,6 +1003,8 @@ async function initApp() {
   await showLoadingStage(STR.startup.warmup, 'warmup');
 
   let lastTime = performance.now();
+  let railResuming = false;
+  document.addEventListener('visibilitychange', () => { railResuming = true; });
   let nextPlayerSave = 0;
   let warmedUp = false; // see the first frame below
 
@@ -983,12 +1050,17 @@ async function initApp() {
     qa.applyCamera(cameraSystem.camera);
     streetLamps.update(cameraSystem.camera.position);
     trees.update(cameraSystem.camera.position);
+    districts.update(cameraSystem.camera.position);
     apecTheme.update(dt);
     apecCity.update(dt);
     showSession.update(rawDt);
     lightShow.update();
+    themeParks.update(now * 0.001, sceneUniforms.night.value >= 0.5, cameraSystem.camera.position);
     metroEntrances.update(cameraSystem.camera.position);
     bayWaterfront.update(cameraSystem.camera.position);
+    shoreSamples.update(cameraSystem.camera.position);
+    northStation?.update(document.hidden || railResuming ? 0 : rawDt, cameraSystem.camera.position, audioSystem);
+    railResuming = false;
     futianStation?.update(cameraSystem.camera.position);
     xiliConstruction?.update();
     buildingSigns.update(cameraSystem.camera.position);

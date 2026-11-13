@@ -470,7 +470,8 @@ test('the player controller drives from ground through the sourced Chegongmiao d
   const graph = geo.roadGraph;
   const groundSurface = load('sz-ground-surface.js');
   const plan = load('sz-elevated-roads.js', { 'three/webgpu': {}, 'three/tsl': {}, './sz-roads.js': roads,
-    './sz-ground-surface.js': groundSurface, './sz-controller-surfaces.js': surface }).planElevatedRoads(graph, geo.terrainSurface);
+    './sz-ground-surface.js': groundSurface, './sz-controller-surfaces.js': surface,
+    './sz-polygon.js': load('sz-polygon.js') }).planElevatedRoads(graph, geo.terrainSurface);
   const area = graph.links.flatMap((link, i) => roads.roadLinkPoints(graph, link)
     .some(p => p.x > -3500 && p.x < -3000 && p.z > 500 && p.z < 1200) ? [i] : []);
   const layout = roads.createRoadSurfaceLayout({ ...graph, links: area.map(i => graph.links[i]), metadata: area.map(i => graph.metadata[i]) },

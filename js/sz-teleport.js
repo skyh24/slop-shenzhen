@@ -3,7 +3,7 @@ import { parkAt } from './sz-park-arrivals.js';
 import { polygonContainsInclusive } from './sz-polygon.js';
 
 export function createTeleportActions({ controllerManager, landmarkViews, parks, inBounds, isWater,
-  carriagewayOccupied, findGroundArrival, roadHeight, flightStartAltitude, selectMode, onArrival, closeMap }) {
+  carriagewayOccupied, findGroundArrival, roadHeight, flightStartAltitude, selectMode, onArrival, closeMap, excludeGround = () => false }) {
   function teleportTo(x, z, heading, options = {}) {
     if (!inBounds(x, z)) return null;
     const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(parks, x, z) : null);
@@ -11,6 +11,8 @@ export function createTeleportActions({ controllerManager, landmarkViews, parks,
     const arrival = landmark && findLandmarkArrival(landmark, controllerManager,
       findGroundArrival, roadHeight, flightStartAltitude);
     if (landmark && !arrival) return null;
+    const target = arrival ?? { x, z };
+    if (controllerManager.activeMode !== 'helicopter' && excludeGround(target.x, target.z, 0.7)) return null;
     const destination = arrival
       ? controllerManager.teleportActiveTo(arrival.x, arrival.z, arrival.heading, arrival.y, { exact: true })
       : controllerManager.teleportActiveTo(x, z, heading, null, { requireArrival: true, park, exact: options.exact === true });
@@ -49,7 +51,7 @@ export function createTeleportActions({ controllerManager, landmarkViews, parks,
     if (!inBounds(x, z)) return null;
     const landmark = landmarkViews.get(options.landmarkId);
     const park = options.stationVisit ? null : options.park ?? parkAt(parks, x, z);
-    const exactWalk = (px, pz, direction) => controllerManager.findTeleportPosition(
+    const exactWalk = (px, pz, direction) => !excludeGround(px, pz, 0.7) && controllerManager.findTeleportPosition(
       px, pz, direction, 0, true, null, { exact: true, mode: 'person' });
     let destination;
     if (options.stationVisit) {
@@ -70,7 +72,7 @@ export function createTeleportActions({ controllerManager, landmarkViews, parks,
         if (roadside) destination = exactWalk(roadside.x, roadside.z, roadside.heading);
       }
     }
-    if (!destination || !selectMode('person', { ...destination, heading: destination.heading ?? heading })) return null;
+    if (!destination || excludeGround(destination.x, destination.z, 0.7) || !selectMode('person', { ...destination, heading: destination.heading ?? heading })) return null;
     onArrival(destination, options, park, landmark);
     closeMap();
     return destination;

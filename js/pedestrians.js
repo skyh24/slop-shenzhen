@@ -1181,13 +1181,13 @@ function makeFoot(side) {
     side,
     swing: false,
     // planted: ground point under the ankle (foot flat), heading
-    px: 0, py: 0, pz: 0, yaw: 0,
+    px: 0, py: 0, pz: 0, yaw: 0, slope: 0,
     // current ankle, foot pitch (+ heel up), toe bend (relative), heading while swinging, ground contact 0..1,
     // stance progress (0 at the ends, 1 at mid-stance)
-    ax: 0, ay: 0, az: 0, pitch: 0, toe: 0, swingYaw: 0, contact: 1, stance: 0,
+    ax: 0, ay: 0, az: 0, pitch: 0, toe: 0, swingYaw: 0, swingSlope: 0, swingSurface: 0, contact: 1, stance: 0,
     // swing progress, lift-off state (world + body-relative rx/ry/rz), landing target and the ankle at touchdown
-    w: 0, w0: 0, lx: 0, ly: 0, lz: 0, rx: 0, ry: 0, rz: 0, lyaw: 0, lpitch: 0, ltoe: 0, lground: 0,
-    tx: 0, ty: 0, tz: 0, tyaw: 0, ex: 0, ey: 0, ez: 0
+    w: 0, w0: 0, lx: 0, ly: 0, lz: 0, rx: 0, ry: 0, rz: 0, lyaw: 0, lpitch: 0, ltoe: 0, lground: 0, lsurface: 0,
+    tx: 0, ty: 0, tz: 0, tyaw: 0, tslope: 0, ex: 0, ey: 0, ez: 0
   };
 }
 
@@ -1200,6 +1200,28 @@ function ankleAt(px, py, pz, yaw, pitch, pivot, s, out) {
   const sp = Math.sin(pitch);
   const forward = pzl - pyl * sp - pzl * cp;
   return out.set(px + Math.sin(yaw) * forward, py + pyl + ANKLE_H * s - pyl * cp + pzl * sp, pz + Math.cos(yaw) * forward);
+}
+
+// 用鞋底长度估计平顺坡面。路缘或台阶两边不能当成同一个斜面。
+function soleSlope(ground, owner, x, y, z, yaw, s) {
+  const dx = Math.sin(yaw) * s, dz = Math.cos(yaw) * s;
+  const heel = ground(owner, x - dx * 0.075, z - dz * 0.075);
+  const toe = ground(owner, x + dx * 0.2, z + dz * 0.2);
+  const rise = toe - heel;
+  if (!Number.isFinite(rise) || Math.abs(rise) > 0.18 * s
+    || Math.abs(y - lerp(heel, toe, 0.075 / 0.275)) > 0.012 * s) return 0;
+  return -Math.atan2(rise, 0.275 * s);
+}
+
+function ankleOnSlope(x, y, z, yaw, pitch, slope, pivot, s, out) {
+  // 保留脚跟/前掌的滚动支点，把支点高度放在坡面上。
+  return ankleAt(x, y - Math.tan(slope) * pivot.z * s, z, yaw, pitch + slope, pivot, s, out);
+}
+
+function soleDepthOnSlope(pitch, slope, s) {
+  const relative = pitch - slope;
+  const sin = Math.sin(relative);
+  return s * (ANKLE_H * Math.cos(relative) + Math.max(0.208 * sin, -0.078 * sin)) / Math.cos(slope);
 }
 
 class PersonRig {
@@ -1294,6 +1316,7 @@ class PersonRig {
       foot.pz = _v.z;
       foot.py = ground(owner, _v.x, _v.z);
       foot.yaw = foot.swingYaw = yaw + foot.side * GAIT.toeOut;
+      foot.slope = soleSlope(ground, owner, foot.px, foot.py, foot.pz, foot.yaw, this.s);
       foot.swing = false;
       foot.w = foot.w0 = foot.pitch = foot.toe = foot.stance = 0;
       foot.contact = 1;
@@ -1314,11 +1337,11 @@ class PersonRig {
 
   // Ankle of the planted foot, pitched by `pitch` about `pivot`
   plant(foot, pitch, pivot) {
-    ankleAt(foot.px, foot.py, foot.pz, foot.yaw, pitch, pivot, this.s, _v);
+    ankleOnSlope(foot.px, foot.py, foot.pz, foot.yaw, pitch, foot.slope, pivot, this.s, _v);
     foot.ax = _v.x;
     foot.ay = _v.y;
     foot.az = _v.z;
-    foot.pitch = pitch;
+    foot.pitch = pitch + foot.slope;
   }
 
   /**
@@ -1434,12 +1457,13 @@ class PersonRig {
       leadFoot.px = leadFoot.ax;
       leadFoot.pz = leadFoot.az;
       leadFoot.py = ground(owner, leadFoot.px, leadFoot.pz);
+      leadFoot.slope = soleSlope(ground, owner, leadFoot.px, leadFoot.py, leadFoot.pz, leadFoot.yaw, this.s);
       this.phase = speed > 0.25 ? (leadIdx * 0.5 + 0.04) % 1 : 0;
       const duty = lerp(GAIT.dutyWalk, lerp(GAIT.dutyRun, 0.225, this.sprint), this.run);
       const trailLp = (this.phase + (1 - leadIdx) * 0.5) % 1;
       if (speed > 0.25 && trailLp >= duty) {
-        this.liftOff(trailFoot, x, z, (trailLp - duty) / (1 - duty));
-        trailFoot.lground = ground(owner, trailFoot.ax, trailFoot.az);
+        this.liftOff(trailFoot, x, z, ground, owner, (trailLp - duty) / (1 - duty));
+        trailFoot.lground = trailFoot.lsurface;
         trailFoot.ly = trailFoot.lground + ANKLE_H * this.s;
       } else {
         trailFoot.swing = false;
@@ -1447,6 +1471,7 @@ class PersonRig {
         trailFoot.px = trailFoot.ax;
         trailFoot.pz = trailFoot.az;
         trailFoot.py = ground(owner, trailFoot.px, trailFoot.pz);
+        trailFoot.slope = soleSlope(ground, owner, trailFoot.px, trailFoot.py, trailFoot.pz, trailFoot.yaw, this.s);
       }
     } else {
       this.jumpPrep = prepRaw > 0 ? prepRaw : this.jumpPrep * (1 - _e045);
@@ -1651,7 +1676,7 @@ class PersonRig {
           needLift = fdx * fdx + fdz * fdz > stopSettleSq
             || Math.abs(wrap(foot.yaw - this.yaw - foot.side * GAIT.toeOut)) > 0.25;
         }
-        if (needLift) this.liftOff(foot, x, z, 0);
+        if (needLift) this.liftOff(foot, x, z, ground, owner);
       }
       if (foot.swing) this.swingFoot(foot, other, clamp01((lp - duty) / (1 - duty)), tSwing, tStance, x, z, heading, turning, ground, owner);
       else this.stanceFoot(foot, clamp01(lp / duty), x, z);
@@ -1742,9 +1767,10 @@ class PersonRig {
     foot.py = foot.ty;
     foot.pz = foot.tz;
     foot.yaw = foot.tyaw;
+    foot.slope = foot.tslope;
   }
 
-  liftOff(foot, x, z, w0 = 0) {
+  liftOff(foot, x, z, ground, owner, w0 = 0) {
     foot.swing = true;
     foot.w0 = w0;
     foot.lx = foot.ax;
@@ -1756,6 +1782,7 @@ class PersonRig {
     foot.lpitch = foot.pitch;
     foot.ltoe = foot.toe;
     foot.lground = foot.py;
+    foot.lsurface = ground(owner, foot.ax, foot.az);
   }
 
   // Stance (u: 0 contact .. 1 push-off): forward walks roll heel-to-toe with early heel rise before opposite contact;
@@ -1827,12 +1854,13 @@ class PersonRig {
     }
     foot.ty = ground(owner, foot.tx, foot.tz);
     foot.tyaw = yawPred + foot.side * GAIT.toeOut;
+    foot.tslope = soleSlope(ground, owner, foot.tx, foot.ty, foot.tz, foot.tyaw, s);
 
     const stepScale = smooth(0.15, 1.35, this.speed);
     const fStrike = GAIT.heelStrike * g * (1 - run * (0.52 + 0.36 * sprint));
     const bStrike = 0.22 * g * (0.5 + 0.5 * stepScale);
     const strike = lerp(fStrike, bStrike, this.back);
-    ankleAt(foot.tx, foot.ty, foot.tz, foot.tyaw, strike, strike > 0 ? TOE_JOINT : HEEL, s, _v);
+    ankleOnSlope(foot.tx, foot.ty, foot.tz, foot.tyaw, strike, foot.tslope, strike > 0 ? TOE_JOINT : HEEL, s, _v);
     foot.ex = _v.x;
     foot.ey = _v.y;
     foot.ez = _v.z;
@@ -1868,11 +1896,9 @@ class PersonRig {
     const stepLen = Math.hypot(drx, drz);
     const liveRun = smooth(1.8, 3.2, this.speed) * run;
     const runClear = lerp(0.18, 0.28, sprint) * (1 - 0.45 * this.back) * s;
-    const stepChange = Math.max(0, foot.ty - foot.lground) * 1.15 + Math.max(0, foot.lground - foot.ty) * 0.25;
     const walkClear = (0.022 + 0.036 * Math.min(1, stepLen / (0.8 * s))) * s;
     const walkBump = 0.72 * Math.sin(Math.PI * Math.pow(w, 0.72)) + 0.28 * Math.sin(Math.PI * w);
     const runBump = Math.sin(Math.PI * Math.pow(w, 0.68)) * (1 - 0.22 * w2);
-    foot.ay = lerp(foot.ly, foot.ey, eY) + lerp(walkClear * walkBump, runClear * runBump, liveRun) + stepChange * Math.sin(Math.PI * w);
 
     // swing round the planted foot rather than through it
     const pass = ((foot.ax - other.ax) * cs - (foot.az - other.az) * sn) * foot.side;
@@ -1889,8 +1915,18 @@ class PersonRig {
     foot.toe = lerp(foot.ltoe, 0, smooth(0, 0.3, w));
     const eYaw = w2 * (3 - 2 * w);
     foot.swingYaw = foot.lyaw + wrap(foot.tyaw - foot.lyaw) * eYaw;
-    const solePitch = Math.sin(foot.pitch);
-    const minAnkleY = ground(owner, foot.ax, foot.az) + ANKLE_H * s + Math.max(solePitch * 0.14 * s, -solePitch * 0.08 * s);
+    const surface = ground(owner, foot.ax, foot.az);
+    // 两端只插值脚踝离地量。坡度由脚下实际表面提供，不再把落脚高差叠成抬腿幅度。
+    const landingSurface = ground(owner, foot.ex, foot.ez);
+    foot.ay = surface + lerp(foot.ly - foot.lsurface, foot.ey - landingSurface, eY)
+      + lerp(walkClear * walkBump, runClear * runBump, liveRun);
+    const slope = foot.swingSlope = Math.abs(foot.slope) > 0.015 || Math.abs(foot.tslope) > 0.015
+      ? soleSlope(ground, owner, foot.ax, surface, foot.az, foot.swingYaw, s) : 0;
+    foot.swingSurface = surface;
+    foot.pitch += foot.tslope * smooth(0.55, 1, w);
+    const solePitch = Math.sin(foot.pitch - slope);
+    const minAnkleY = surface + (Math.abs(slope) > 0.015 ? soleDepthOnSlope(foot.pitch, slope, s)
+      : (ANKLE_H + Math.max(solePitch * 0.14, -solePitch * 0.08)) * s);
     if (foot.ay < minAnkleY) foot.ay = minAnkleY;
     foot.contact = Math.max(0.25 * (1 - smooth(0, 0.2, w)), smooth(0.82, 1, w));
   }
@@ -2091,6 +2127,18 @@ class PersonRig {
           const naturalPitch = shinPitch * 0.9 + 0.12 * run * (1 - this.back);
           pitch = lerp(pitch, naturalPitch, followW);
           pitch = Math.max(shinPitch - 0.42, Math.min(shinPitch + 0.6, pitch));
+          // 小腿带动脚尖转动时，优先收回多余角度，避免为抬脚尖再抬整条腿。
+          const slope = foot.swingSlope;
+          const height = ankle.y - foot.swingSurface;
+          if (Math.abs(slope) > 0.015 && height < soleDepthOnSlope(pitch, slope, s)) {
+            let low = 0, high = 1;
+            for (let step = 0; step < 5; step++) {
+              const mid = (low + high) * 0.5;
+              if (soleDepthOnSlope(lerp(slope, pitch, mid), slope, s) <= height) low = mid;
+              else high = mid;
+            }
+            pitch = lerp(slope, pitch, low);
+          }
         } else {
           const airClear = smooth(0.06 * s, 0.22 * s, ankle.y - (foot.py + ANKLE_H * s));
           const airNatural = Math.max(shinPitch - 0.36, Math.min(shinPitch + 0.68, pitch + shinPitch * 0.45));

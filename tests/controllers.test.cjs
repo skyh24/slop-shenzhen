@@ -968,6 +968,21 @@ test('controller surface queries retain resolved elevated support and unknown re
   assert.equal(controller.getGroundHeight(20, 0), null);
 });
 
+test('a car spanning connected slab sections keeps contact and clears their shared seam', () => {
+  const { controller } = teleportHarness('car');
+  function slab(id, from, to, successor) {
+    const points = [[-3, from], [3, from], [3, to], [-3, to]].map(([x, z]) => ({ x, z, y: 4 + z * 0.045 }));
+    return { id, heightSource: 'estimate', structured: true, modes: ['car'], driveSuccessors: [successor, 'terrain'],
+      triangles: [[points[0], points[1], points[2]], [points[0], points[2], points[3]]] };
+  }
+  const first = slab('first', -12, 0, 'second'), second = slab('second', 0, 12, 'first');
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => 3.2, surfaces: [first, second] });
+  controller.colliders = [{ type: 'bridge-slab', name: 'second', minX: -3, maxX: 3, minZ: 0, maxZ: 12,
+    minY: 3.8, maxY: 4.54 }];
+  assert.equal(controller.isClearCarPose({ x: 0, y: 3.955, z: -1, heading: 0, surfaceId: 'first' }), true);
+  assert.equal(controller.isClearCarPose({ x: 0, y: 3.2, z: 5, heading: 0, surfaceId: 'terrain' }), false);
+});
+
 test('stationary player tires follow the four active contacts on a sloped deck and the road beneath', () => {
   const { controller } = keyboardHarness();
   const ground = (x, z) => 0.06 * x + 0.03 * z;
@@ -1480,4 +1495,47 @@ test('landing on a roof preserves the floor through walking cycling and driving'
     assert.equal(controller.setMode(mode), true, 'open flat ground does not require a road');
     assert.equal(controller.getActiveEntity().position.y, 8);
   }
+});
+
+test('landing across a graded bridge seam permits walking and driving on the same deck', () => {
+  const { controller, ent } = teleportHarness('helicopter');
+  delete controller.getGroundHeight;
+  controller.groundHeight = () => 8;
+  const surfaces = [[-20, 0], [0, 30]].map(([start, end], i) => {
+    const corners = [[-6, start], [6, start], [6, end], [-6, end]].map(([x, z]) => ({ x, y: 18 + z * 0.04, z }));
+    return { id: `deck-${i}`, heightSource: 'fixture-design', structured: true, flightRoadDeck: true,
+      modes: ['person', 'car', 'helicopter'], driveSuccessors: [`deck-${1 - i}`],
+      triangles: [[corners[0], corners[1], corners[2]], [corners[0], corners[2], corners[3]]] };
+  });
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: controller.groundHeight, surfaces });
+  controller.colliders = surfaces.flatMap(({ id, triangles }) => triangles.map(outer => {
+    const top = outer.map(p => p.y);
+    const bottom = top.map(y => y - 0.65);
+    return { name: id, type: 'bridge-slab', minX: -6, maxX: 6,
+      minZ: Math.min(...outer.map(p => p.z)), maxZ: Math.max(...outer.map(p => p.z)),
+      minY: Math.min(...bottom), maxY: Math.max(...top),
+      polygon: { outer, holes: [] }, roofPanel: { outer, top, bottom } };
+  }));
+  ent.collisionBounds = { min: { x: -3, y: 0, z: -3 }, max: { x: 3, y: 2.2, z: 3 } };
+  Object.assign(ent.position, { x: 4, y: 19, z: -0.2 });
+  ent.heading = ent.speed = 0;
+  assert.equal(controller.getFlightSupport(ent, ent.position.y), 8);
+  ent.position.x = 0;
+  for (const mode of ['person', 'car']) controller.entities[mode] = teleportHarness(mode).ent;
+  assert.equal(controller.findModePosition('person'), null);
+  ent.verticalSpeed = -5;
+  controller.keys.down = true;
+  for (let i = 0; i < 18; i++) controller.updateHelicopter(1 / 60);
+  assert.ok(Math.abs(ent.position.y - 18.112) < 1e-6);
+  assert.deepEqual([...ent.landedRoadDecks], ['deck-0', 'deck-1']);
+  assert.equal(controller.setMode('person'), true);
+  controller.keys.forward = true;
+  for (let i = 0; i < 120; i++) controller.updatePerson(1 / 60);
+  assert.ok(controller.entities.person.position.z > 1);
+  assert.equal(controller.entities.person._support.surfaceId, 'deck-1');
+  assert.equal(controller.setMode('car'), true);
+  assert.equal(controller.entities.car._support.surfaceId, 'deck-1');
+  assert.equal(controller.surfaceResolver.resolve(0, 2, {
+    mode: 'person', previousY: 8, previousSurfaceId: 'terrain'
+  }).surfaceId, 'terrain');
 });

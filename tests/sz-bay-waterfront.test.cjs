@@ -72,8 +72,8 @@ test('waterfront keeps mode permissions local and releases riprap detail after l
   assert.equal(layer.allowsGroundMode('cyclist', cx, cz), true);
   assert.equal(layer.allowsGroundMode('car', cx, cz), false);
   assert.equal(layer.allowsGroundMode('cyclist', 0, 0), true);
-  assert.ok(layer.publicRoutes[0].walkAt(x, z));
-  assert.equal(layer.publicRoutes[0].walkAt(cx, cz), false);
+  assert.ok(layer.publicRoutes[0].allows(x, z, 0.445));
+  assert.equal(layer.publicRoutes[0].allows(cx, cz, 0.445), false);
   assert.ok(layer.statistics.shoreTriangles > 200 && layer.statistics.lamps > 0 && layer.statistics.benches > 0);
   assert.ok(layer.colliders.every(c => c.minX < c.maxX && c.minY < c.maxY && c.minZ < c.maxZ));
   const staticMeshes = layer.group.children.length;

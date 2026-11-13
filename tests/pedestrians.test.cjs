@@ -681,6 +681,42 @@ test('PersonRig walk and full-speed run keep smooth kneecushion, bounded swing s
   }
 });
 
+test('PersonRig keeps a low swing and plants the shoe on uphill grades', () => {
+  const dt = 1 / 60;
+  for (const grade of [0.18, 0.35, 0.55]) {
+    for (const speed of [1.35, 2.6, 6.9]) {
+      const rig = new PersonRig({ seed: 4.2, scale: 1.0 });
+      const ground = (_owner, _x, z) => grade * Math.max(0, z);
+      rig.reset(0, -0.5, 0, ground);
+      let swingPeak = 0, stancePeak = 0, lowest = Infinity, steadySwingFrames = 0;
+      for (let frame = 1; frame <= 210; frame++) {
+        const z = -0.5 + frame * speed * dt;
+        rig.update(dt, 0, z, 0, ground);
+        if (z < 1.7) continue;
+        for (const [i, foot] of rig.feet.entries()) {
+          const heel = boneWorldPos(rig, i ? PERSON_BONES.FOOT_R : PERSON_BONES.FOOT_L,
+            new Vector3(foot.side * 0.09, 0, -0.078));
+          const toe = boneWorldPos(rig, i ? PERSON_BONES.TOE_R : PERSON_BONES.TOE_L,
+            new Vector3(foot.side * 0.09, 0.005, 0.208));
+          const clearance = Math.min(heel.y - ground(null, heel.x, heel.z), toe.y - ground(null, toe.x, toe.z));
+          lowest = Math.min(lowest, clearance);
+          if (foot.swing) {
+            steadySwingFrames++;
+            swingPeak = Math.max(swingPeak, clearance);
+          } else {
+            stancePeak = Math.max(stancePeak, clearance);
+          }
+        }
+      }
+      const context = `grade ${grade}, speed ${speed}`;
+      assert.ok(steadySwingFrames > 40, context);
+      assert.ok(swingPeak < (speed < 3 ? 0.12 : 0.46), `${context}: swing clearance ${swingPeak} m`);
+      assert.ok(stancePeak < 0.04, `${context}: planted shoe hovers ${stancePeak} m`);
+      assert.ok(lowest > -0.012, `${context}: sole penetrates ${-lowest} m`);
+    }
+  }
+});
+
 test('PersonRig backward locomotion rolls forefoot-to-heel and keeps torso upright instead of leaning forward', () => {
   const rig = new PersonRig({ seed: 4.2, scale: 1.0 });
   const dt = 1 / 60;

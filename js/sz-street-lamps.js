@@ -343,6 +343,10 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
   for (const candidate of plan.sites) {
     const site = options.relocateSite ? options.relocateSite(candidate) : candidate;
     if (!site) continue;
+    if (options.reserveCrossing?.(site.x, site.z, placementRadius)) {
+      skipped.reservedWalk++;
+      continue;
+    }
     if (!site.median && Number.isFinite(medianHeight?.(site.x, site.z))) continue;
     if (options.carriagewayOccupied?.(site.x, site.z, placementRadius)
       || (roadHeight && edgeProbes.some(([dx, dz]) => Number.isFinite(roadHeight(site.x + dx, site.z + dz))))) {
@@ -354,12 +358,12 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
       skipped.unsupportedGround++;
       continue;
     }
-    if (walkPlacement?.inPilot(site.x, site.z) && (
+    if (options.reserveWalk?.(site.x, site.z, placementRadius) || (walkPlacement?.inPilot(site.x, site.z) && (
       walkPlacement.reserves(site.x, site.z, placementRadius)
       || obstacles.some(item => item.polygon && item.maxY > y && item.minY < y + HEAD_HEIGHT_M
         && item.minX - placementRadius < site.x && item.maxX + placementRadius > site.x
         && item.minZ - placementRadius < site.z && item.maxZ + placementRadius > site.z
-        && polygonBoxOverlaps(item.polygon, site.x, site.z, placementRadius, placementRadius)))) {
+        && polygonBoxOverlaps(item.polygon, site.x, site.z, placementRadius, placementRadius))))) {
       skipped.reservedWalk++;
       continue;
     }

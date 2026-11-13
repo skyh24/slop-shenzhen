@@ -10,12 +10,14 @@ const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost']);
 // 跳过只用于启动/帧时二分，不保证被跳过的系统还能正常游玩。
 const STAGE_STUBS = {
   landmarks: () => ({ group: emptyGroup(), colliders: [], surfaces: [], skipIds: new Set(), dispose: () => {} }),
+  themeParks: () => ({ group: emptyGroup(), colliders: [], surfaces: [], skipIds: new Set(), trees: [],
+    pathAt: () => [], reserved: () => false, update() {}, snapshot: () => null, dispose() {} }),
   blocks: () => ({ group: emptyGroup(), colliders: [], allBlocks: [] }),
   lightshow: () => ({ group: emptyGroup(), update: () => {} }),
   signs: () => ({ group: emptyGroup(), update: () => {}, nearestName: () => null, statistics: {} }),
   details: () => ({ group: emptyGroup(), update: () => {}, statistics: {} }),
   paint: () => ({ group: emptyGroup() }),
-  elevated: () => ({ group: emptyGroup(), surfaces: [], colliders: [] }),
+  elevated: () => ({ group: emptyGroup(), links: [], surfaces: [], colliders: [], drive: { links: [], heightAt: () => null } }),
   streetscape: () => ({ group: emptyGroup(), observedTrees: [], findArrival: () => null, pathAt: () => [], statistics: {}, dispose() {} }),
   lamps: () => ({ group: emptyGroup(), update: () => {} }),
   trees: () => ({ group: emptyGroup(), colliders: [], update: () => {}, statistics: {} }),
@@ -65,6 +67,8 @@ class QaSession {
     // ?skip=landmarks,trees,…：只在 qa 下生效，其它地址下仍然走完整构建。
     this.skipped = new Set((this.enabled ? query.get('skip') ?? '' : '').split(',').map(name => name.trim()).filter(Boolean));
     this.cruiseEvidence = this.enabled && query.get('cruiseEvidence') === '1';
+    this.railEvidence = this.enabled && query.get('railEvidence') === '1';
+    this.railRecord = this.railEvidence && query.get('record') === '1';
     this.startup = {};
     this.startupAt = {};
     this.compilation = {};
@@ -150,6 +154,7 @@ class QaSession {
   endFrame(token, now, renderer) {
     if (!token) return;
     this.sampleTalent(now, renderer);
+    if (this.railOutput && now >= this.nextRailSample) this.sampleRailEvidence(now, renderer);
     if (this.previousFrameAt !== null) {
       this.frames.push({
         at: now, intervalMs: now - this.previousFrameAt, simulationMs: token.simulationEnd - token.start,
@@ -180,6 +185,76 @@ class QaSession {
         if (Number.isFinite(ms) && !document.hidden) this.gpu.push({ at: now, ms });
       }).catch(error => console.warn('[profile timestamp]', error)).finally(() => { this.queryPending = false; });
     }
+  }
+
+  sampleRailEvidence(now, renderer) {
+    this.nextRailSample = now + 1000;
+    const { modules, controllerManager, cameraSystem, lightingSystem, mapSystem } = this.runtime;
+    const player = controllerManager.getActiveEntity();
+    const north = modules.northStation?.snapshot();
+    if (north) {
+      const { log, ...state } = north;
+      this.railLog = log;
+      this.railCurrent = state;
+    }
+    const range = this.frames.filter(frame => frame.at > now - 1000);
+    const summary = key => {
+      const values = range.map(frame => frame[key]).sort((a, b) => a - b);
+      return values.length ? [values[Math.floor((values.length - 1) / 2)], values[Math.ceil(values.length * 0.95) - 1], values.at(-1)] : null;
+    };
+    this.railRows.push({ at: now, simulation: north?.time, trains: north?.trains, queued: north?.queued,
+      frameCount: range.length, intervalMs: summary('intervalMs'), drawCalls: summary('drawCalls'), triangles: summary('triangles'),
+      camera: cameraSystem.camera.position.toArray(), mode: controllerManager.activeMode, view: cameraSystem.activePresetId,
+      player: player.position.toArray(), support: player._support, time: lightingSystem.activePresetId,
+      map: mapSystem.isFullMapOpen, focused: document.hasFocus(), memory: { ...renderer.info.memory } });
+    if (this.railRows.length > 900) this.railRows.shift();
+    this.railOutput.textContent = JSON.stringify({ current: this.railCurrent, log: this.railLog,
+      visibility: this.railVisibility, rows: this.railRows, startup: this.startup, errors: this.railErrors });
+  }
+
+  installRailEvidence(runtime) {
+    this.railOutput = document.createElement('script');
+    this.railOutput.id = 'qa-rail-evidence';
+    this.railOutput.type = 'application/json';
+    this.railRows = [];
+    this.railVisibility = [];
+    this.railErrors = [];
+    this.nextRailSample = 0;
+    document.body.append(this.railOutput);
+    document.addEventListener('visibilitychange', () => {
+      this.railVisibility.push({ at: performance.now(), hidden: document.hidden, time: runtime.modules.northStation?.snapshot().time });
+    });
+    window.addEventListener('error', event => this.railErrors.push({ at: performance.now(), error: event.message }));
+    window.addEventListener('unhandledrejection', event => this.railErrors.push({ at: performance.now(), error: String(event.reason) }));
+    if (!this.railRecord || !window.MediaRecorder || !runtime.renderer.domElement.captureStream) return;
+    // 本机取证只录 WebGPU 场景画布，按钮本身不进入正式玩法。
+    const record = document.createElement('button');
+    record.textContent = 'QA record rail';
+    Object.assign(record.style, { position: 'fixed', top: '75px', right: '20px', zIndex: 3000 });
+    let recorder, stream, chunks;
+    record.addEventListener('click', () => {
+      if (recorder?.state === 'recording') { recorder.stop(); return; }
+      stream = runtime.renderer.domElement.captureStream(16);
+      chunks = [];
+      recorder = new MediaRecorder(stream, { videoBitsPerSecond: 1700000 });
+      recorder.addEventListener('dataavailable', event => { if (event.data.size) chunks.push(event.data); });
+      recorder.addEventListener('stop', () => {
+        stream.getTracks().forEach(track => track.stop());
+        const blob = new Blob(chunks, { type: recorder.mimeType });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.href = url;
+        link.download = 'shenzhen-north-rail.webm';
+        link.textContent = 'QA save rail video';
+        Object.assign(link.style, { position: 'fixed', top: '100px', right: '20px', zIndex: 3000, background: 'white' });
+        link.addEventListener('click', () => { setTimeout(() => URL.revokeObjectURL(url), 1000); link.remove(); });
+        document.body.append(link);
+        record.textContent = 'QA record rail';
+      });
+      recorder.start(1000);
+      record.textContent = 'QA stop rail recording';
+    });
+    document.body.append(record);
   }
 
   recordCruiseEvidence(now, renderer) {
@@ -225,11 +300,13 @@ class QaSession {
     if (modules.drones?.statistics) console.info('[drone routes]', JSON.stringify(modules.drones.statistics));
     window.__szLightShow = modules.lightShow;
     window.__szElevatedRoads = modules.elevatedRoads;
+    window.__szRoadStructures = modules.roadStructures;
     window.__szMetroEntrances = modules.metroEntrances;
     window.__szFutian = modules.futian;
     window.__szXili = modules.xili;
     this.installDebug(runtime);
     this.installSnapshot(runtime);
+    if (this.railEvidence) this.installRailEvidence(runtime);
     if (this.publishTalent && modules.waterfront) {
       const surface = document.createElement('script');
       surface.type = 'application/json';
@@ -242,10 +319,13 @@ class QaSession {
   // QA 专用传送与碰撞查询：只在本机回环地址的 ?qa=1 下暴露，便于固定机位复测和诊断。
   installDebug({ controllerManager, traffic, colliders, teleport }) {
     window.__szTeleport = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null, { exact: true });
+    window.__szCamera = values => { this.camera = values === null ? null : parseCamera(values.join(',')); };
     // QA：列出某点附近的交通碰撞体，用于区分“被 NPC 车辆挡住”与“桥面/坡度问题”。
     window.__szNearTraffic = (x, z, radius = 12) => (traffic.nearColliders(x, z, radius) ?? []).map(item => ({
       x: Math.round(item.x ?? item.minX ?? 0), z: Math.round(item.z ?? item.minZ ?? 0), kind: item.kind ?? item.type ?? 'vehicle'
     }));
+    // QA：同一次场景加载可以切换固定机位；null 恢复游戏相机。
+    window.__szSetCamera = (camera) => { this.camera = parseCamera(camera); };
     // QA：查询某点的接触候选面（地形/地标/高架），用于诊断载具卡住。
     window.__szSurfaceAt = (x, z) => controllerManager.surfaceResolver.at(x, z);
     // QA：把车辆放到最近的源路网节点（道路中心），用于自动驾驶/连续驾驶验收。
@@ -274,7 +354,7 @@ class QaSession {
     window.__szDebug = {
       scene: this.runtime.scene, renderer: this.runtime.renderer, camera: this.runtime.cameraSystem.camera,
       signs: this.runtime.buildingSigns, details: this.runtime.buildingDetails,
-      controllerManager, teleport, pedestrians: this.runtime.pedestrians
+      controllerManager, teleport, pedestrians: this.runtime.pedestrians, mapSystem: this.runtime.mapSystem
     };
   }
 
@@ -363,7 +443,9 @@ class QaSession {
     const active = controllerManager.getActiveEntity();
     const program = modules?.cbdProgram;
     return {
+      northStation: modules?.northStation?.snapshot(),
       talentShow: this.talentSnapshot(),
+      themeParks: modules?.themeParks?.snapshot(),
       summitProgram: program && {
         active: program.active, paused: program.paused, time: program.time, cue: program.cue,
         ...program.statistics, participants: modules.programIds,
@@ -379,7 +461,8 @@ class QaSession {
       },
       mode: controllerManager.activeMode,
       entities: Object.fromEntries(Object.entries(controllerManager.entities).map(([mode, entity]) => [mode, {
-        x: entity.position.x, y: entity.position.y, z: entity.position.z, heading: entity.heading, speed: entity.speed
+        x: entity.position.x, y: entity.position.y, z: entity.position.z, heading: entity.heading, speed: entity.speed,
+        surfaceId: entity._support?.surfaceId ?? null
       }])),
       camera: { id: cameraSystem.activePresetId, position: cameraSystem.camera.position.toArray() },
       time: lightingSystem.activePresetId,

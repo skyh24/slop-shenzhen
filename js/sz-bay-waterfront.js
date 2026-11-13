@@ -20,16 +20,33 @@ export function createBayPathLookup(paths = []) {
       if (length2 > 1e-8) edges.push({ x, z, dx, dz, length2, mode: path.mode, width: path.widthM / 2 });
     }
   }
-  const [minX, minZ, maxX, maxZ] = [
-    Math.min(...edges.map(edge => Math.min(edge.x, edge.x + edge.dx))),
-    Math.min(...edges.map(edge => Math.min(edge.z, edge.z + edge.dz))),
-    Math.max(...edges.map(edge => Math.max(edge.x, edge.x + edge.dx))),
-    Math.max(...edges.map(edge => Math.max(edge.z, edge.z + edge.dz)))
-  ];
+  // 海岸、湖岸、河岸相距数公里。按小块索引，避免跨样区时逐条扫描全部线段。
+  const cellSize = 32;
+  const cells = new Map();
+  const key = (x, z) => `${x},${z}`;
+  for (const edge of edges) {
+    for (let x = Math.floor(Math.min(edge.x, edge.x + edge.dx) / cellSize);
+      x <= Math.floor(Math.max(edge.x, edge.x + edge.dx) / cellSize); x++) {
+      for (let z = Math.floor(Math.min(edge.z, edge.z + edge.dz) / cellSize);
+        z <= Math.floor(Math.max(edge.z, edge.z + edge.dz) / cellSize); z++) {
+        const id = key(x, z);
+        if (!cells.has(id)) cells.set(id, new Set());
+        cells.get(id).add(edge);
+      }
+    }
+  }
+  const maxWidth = edges.reduce((width, edge) => Math.max(width, edge.width), 0);
   return function near(x, z, pad = 0) {
-    if (x < minX - 3 - pad || x > maxX + 3 + pad || z < minZ - 3 - pad || z > maxZ + 3 + pad) return [];
+    const reach = Math.max(0, maxWidth + pad);
+    const candidates = new Set();
+    for (let ix = Math.floor((x - reach) / cellSize); ix <= Math.floor((x + reach) / cellSize); ix++) {
+      for (let iz = Math.floor((z - reach) / cellSize); iz <= Math.floor((z + reach) / cellSize); iz++) {
+        for (const edge of cells.get(key(ix, iz)) ?? []) candidates.add(edge);
+      }
+    }
     const modes = new Set();
-    for (const edge of edges) {
+    for (const edge of candidates) {
+      if (edge.width + pad <= 0) continue;
       const ox = x - edge.x, oz = z - edge.z;
       const t = Math.max(0, Math.min(1, (ox * edge.dx + oz * edge.dz) / edge.length2));
       if ((ox - t * edge.dx) ** 2 + (oz - t * edge.dz) ** 2 <= (edge.width + pad) ** 2) modes.add(edge.mode);
@@ -141,7 +158,7 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
   const routePoints = source.walkRoute.map(([x, y, z]) => ({ x, y, z }));
   const restSpots = [];
   const publicRoutes = [{ id: 'shenzhen-bay:central-bay', points: routePoints,
-    walkAt: (x, z) => pathsNear(x, z).includes('walk'), reserve: (x, z) => pathsNear(x, z, 1.4).length > 0,
+    allows: (x, z, radius) => pathsNear(x, z, -radius).includes('walk'), reserve: (x, z) => pathsNear(x, z, 1.4).length > 0,
     restSide: s => restSpots.find(spot => Math.abs(spot.s - s) <= 2.6)?.side, jogSpeed: 2.25 }];
   const buckets = new Map();
   function bucket(x, z) {

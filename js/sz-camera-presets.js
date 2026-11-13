@@ -1,4 +1,5 @@
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
+import { northFrame } from './sz-rail/geometry.js';
 import { terrainHeight } from './sz-terrain.js';
 
 const landmarks = new Map(GEO.landmarks.map(l => [l.id, l]));
@@ -35,6 +36,12 @@ function nonferrousShot() {
   return { position: [cx - 55.55, base + 13.55, cz + 77.6], target: [cx - 6.55, base + 36.55, cz + 8.6] };
 }
 
+function northStationShot(direction) {
+  const { toWorld } = northFrame(GEO.shenzhenNorthRail);
+  const values = ({ x, y, z }) => [x, y, z];
+  return { position: values(toWorld(-35, 285 * direction, 28)), target: values(toWorld(10, 60 * direction, 10)) };
+}
+
 // 机位偏移是取景设计，不代表实测观景台位置或真实运营航线。
 export function getScenicCamera(id, elapsed = 0) {
   switch (id) {
@@ -63,6 +70,8 @@ export function getScenicCamera(id, elapsed = 0) {
     case 'iecXiangmihu': return { position: [-2892, 32, -330], target: [-2945, 24, -175] };
     case 'superHq': return { position: anchor('super-hq', 90, 205, 900), target: anchor('super-hq', 0, 175, 0) };
     case 'bayBridge': return bayBridgeShot();
+    case 'northRailView': return northStationShot(-1);
+    case 'southRailView': return northStationShot(1);
     case 'yanjiang': {
       const position = anchor('oh-bay', -60, 34, 145);
       return { position, target: [position[0] - 900, 15, position[2]] };

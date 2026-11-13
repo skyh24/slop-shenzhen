@@ -143,7 +143,7 @@ export function addFlatPolygon(b, rings, y, meta, uvScale = 1, facing = 1) {
 
 // 外墙：u 是每面墙自己的累计长度（米，从墙角 0 起，便于按墙拟合整数开间），v 是离地高度（米）。
 // meta 为 [立面编号, 种子, 0, 楼高]；顶点级 meta.z 改写为该面墙的长度，meta.w 保持楼高。
-export function addWalls(b, rings, y0, y1, meta, uvOriginY = 0, replaceEdge = null, clipEdge = null) {
+export function addWalls(b, rings, y0, y1, meta, uvOriginY = 0, replaceEdge = null, clipEdge = null, retailFront = null) {
   // 每面墙复用同一份 meta 数组，GeoBuilder 会立刻拷贝数值，不能跨顶点保留引用。
   const wallMeta = meta ? meta.slice() : null;
   const fullWall = { u0: 0, u1: 0, y0, y1 };
@@ -166,7 +166,7 @@ export function addWalls(b, rings, y0, y1, meta, uvOriginY = 0, replaceEdge = nu
       const wallBottom = !slices && ri === 0 && replaceEdge
         ? replaceEdge(ax, az, bx, bz, nx, nz, len) ?? y0 : y0;
       if (wallBottom >= y1) continue;
-      if (wallMeta) wallMeta[2] = len;
+      if (wallMeta) wallMeta[2] = ri === 0 && retailFront?.(ax, az, bx, bz, nx, nz, len) ? -len : len;
       fullWall.u1 = len;
       fullWall.y0 = wallBottom;
       for (const span of slices ?? fullSpan) {

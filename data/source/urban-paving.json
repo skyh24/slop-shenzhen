@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+  "sites": [
+    {
+      "id": "baishi-haiyuan-lawn",
+      "name": "白石路与海园一路围合空地",
+      "kind": "lawn",
+      "seedXZ": [-6865.9, 1827.5],
+      "roads": ["way/895941563", "way/1332832715", "way/227699545", "way/777650576"],
+      "pilot": true
+    },
+    {
+      "id": "coco-park-southeast-stone",
+      "name": "福田 COCO Park 东南侧临街铺装",
+      "kind": "stone",
+      "parcel": "way/546582690",
+      "seedXZ": [-498.3, 1189],
+      "publicRoute": {
+        "pointsXZ": [[-498.3, 1201.7], [-498.3, 1177.2]],
+        "widthM": 1.36,
+        "lateralM": 0.09,
+        "evidence": "data/source/coco-park-entrance-evidence.md"
+      },
+      "pilot": true
+    },
+    {
+      "id": "shennan-xiangmei-divider",
+      "name": "深南大道香梅路西侧主辅路分隔带",
+      "kind": "divider",
+      "seedXZ": [-2320, 571],
+      "roads": ["way/536764372", "way/892901021"],
+      "pilot": true
+    },
+    {
+      "id": "qiaoxiang-third-lawn",
+      "name": "侨香路与侨香三道围合空地",
+      "kind": "lawn",
+      "seedXZ": [-4958, -330],
+      "roads": ["way/971043222", "way/633620739", "way/633620741", "way/119460304"]
+    },
+    {
+      "id": "hongbao-lianyi-lawn",
+      "name": "红宝路与联益巷围合空地",
+      "kind": "lawn",
+      "seedXZ": [5105, -359],
+      "roads": ["way/775651072", "way/775651090", "way/775651073", "way/31354891"]
+    },
+    {
+      "id": "binhe-xinzhou-divider",
+      "name": "滨河大道新洲路西侧主辅路分隔带",
+      "kind": "divider",
+      "seedXZ": [-2440, 1754],
+      "roads": ["way/135913061", "way/25423077"]
+    },
+    {
+      "id": "shopping-park-stone",
+      "name": "购物公园临街铺装",
+      "kind": "stone",
+      "parcel": "way/529086160",
+      "seedXZ": [-560, 980]
+    }
+  ]
+}

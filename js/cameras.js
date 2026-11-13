@@ -29,6 +29,8 @@ const CAMERA_PRESETS = [
   { id: 'iecXiangmihu', name: STR.cameraNames.iecXiangmihu, category: 'scenic', fov: 58 },
   { id: 'superHq', name: STR.cameraNames.superHq, category: 'scenic', fov: 44 },
   { id: 'bayBridge',   name: STR.cameraNames.bayBridge, category: 'scenic', fov: 44 },
+  { id: 'northRailView', name: STR.cameraNames.northRailView, category: 'scenic', fov: 56 },
+  { id: 'southRailView', name: STR.cameraNames.southRailView, category: 'scenic', fov: 56 },
   { id: 'yanjiang', name: STR.cameraNames.yanjiang, category: 'scenic', fov: 56 }
 ];
 
@@ -36,9 +38,10 @@ const LANDMARK_ORBIT = { id: 'landmarkOrbit', name: STR.cameraNames.landmarkOrbi
 const ORBIT_SECONDS = 120;
 
 class CameraSystem {
-  constructor(domElement, controllerManager) {
+  constructor(domElement, controllerManager, constrainRoadCamera = null) {
     this.domElement = domElement;
     this.controllerManager = controllerManager;
+    this.constrainRoadCamera = constrainRoadCamera;
 
     this.camera = new THREE.PerspectiveCamera(
       56,
@@ -371,7 +374,8 @@ class CameraSystem {
         orbit.start ??= wallTime;
         const angle = orbit.angle + (wallTime - orbit.start) * 2 * Math.PI / ORBIT_SECONDS;
         const { x, y, z } = orbit.target;
-        desiredPos.set(x + Math.sin(angle) * LANDMARK_RADIUS, orbit.altitude, z + Math.cos(angle) * LANDMARK_RADIUS);
+        const radius = orbit.target.radius ?? LANDMARK_RADIUS;
+        desiredPos.set(x + Math.sin(angle) * radius, orbit.altitude, z + Math.cos(angle) * radius);
         desiredLook.set(x, y, z);
         break;
       }
@@ -411,6 +415,9 @@ class CameraSystem {
       this.currentLookAt.lerp(desiredLook, k);
     }
 
+    if (!cruiseEntity && preset.category === 'follow' && !this.landmarkOrbit) {
+      this.constrainRoadCamera?.(entity, this.currentPos, this.currentLookAt);
+    }
     this.camera.position.copy(this.currentPos);
     this.camera.lookAt(this.currentLookAt);
   }

@@ -51,4 +51,13 @@ test('the directional stop plane and rear clearance share one conflict reservati
   assert.equal(control.snapshot(8.11)[0].requests[0].ready, false);
   control.cancelRequest(stop.approach, 'car-a');
   assert.equal(control.snapshot(8.41)[0].requests.length, 0);
+
+  const walker = { id: 'fixture', group: 0 };
+  assert.equal(control.enterCrossing(walker, 8.5, 'ped-1'), true);
+  control.request(stop.approach, 'car-a', 9);
+  control.leaveCrossing(walker, 'ped-1', 9.1);
+  assert.equal(control.enterCrossing(walker, 9.2, 'ped-2'), false);
+  assert.equal(control.enter(stop.approach, 9.2, 'car-a'), true);
+  control.release(stop.approach, 'car-a');
+  assert.equal(control.enterCrossing(walker, 9.3, 'ped-2'), true);
 });

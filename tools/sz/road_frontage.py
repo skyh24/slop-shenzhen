@@ -8,7 +8,7 @@ from pathlib import Path
 import osmium
 from shapely import constrained_delaunay_triangles
 from shapely.geometry import LineString, MultiPoint, Point, Polygon, box
-from shapely.ops import linemerge, substring, unary_union
+from shapely.ops import linemerge, polygonize, substring, unary_union
 
 from beihuan import MANIFEST as BEIHUAN_MANIFEST
 from geo import project
@@ -90,10 +90,11 @@ def _unit_tangent(line, s):
 
 
 def _profile_layout(link):
-    profile = link['meta']['crossSection']
-    points = list(zip(profile['points'][::3], profile['points'][1::3], profile['points'][2::3]))
+    profile = link['meta'].get('crossSection')
     width = link['width']
-    travel_width = link['lanes'] * profile['laneWidthM']
+    points = (list(zip(profile['points'][::3], profile['points'][1::3], profile['points'][2::3]))
+              if profile else [(x, z, width / 2) for x, z in link['line'].coords])
+    travel_width = link['lanes'] * profile['laneWidthM'] if profile else width
     travel, footprints = [], []
     for i, (x, z, left) in enumerate(points):
         a, b = points[max(0, i - 1)], points[min(i + 1, len(points) - 1)]
@@ -127,32 +128,25 @@ def _profile_layout(link):
             'fromSection': from_section, 'toSection': end}
 
 
-def _asphalt_mask(links, extent):
+def _asphalt_mask(links, extent, junction_masks=None):
     footprints, junctions = [], defaultdict(list)
     for link in links:
         if not _ground(link['meta']):
             continue
-        if 'crossSection' in link['meta']:
-            profile = link['profile'] = _profile_layout(link)
-            footprints.append(profile['asphalt'].intersection(extent))
-            junctions[link['from']].extend(profile['fromSection'])
-            junctions[link['to']].extend(profile['toSection'])
-            continue
-        line, width = link['line'], link['width']
-        footprints.append(_buffer(line.intersection(extent), width))
-        for end, index, adjacent in [('from', 0, 1), ('to', -1, -2)]:
-            a, b = line.coords[index], line.coords[adjacent]
-            length = math.dist(a, b)
-            if length <= 0:
-                continue
-            x, z = (b[1] - a[1]) * width / (2 * length), (a[0] - b[0]) * width / (2 * length)
-            junctions[link[end]].extend([(a[0] + x, a[1] + z), (a[0] - x, a[1] - z)])
+        profile = link['profile'] = _profile_layout(link)
+        footprints.append(profile['asphalt'].intersection(extent))
+        for end, section in [('from', 'fromSection'), ('to', 'toSection')]:
+            junctions[link[end]].append((link, profile[section]))
     # 用与运行时一致的共享源节点断面凸包排除路口角区。
-    for points in junctions.values():
-        if len(points) >= 4:
-            hull = MultiPoint(points).convex_hull
+    for arms in junctions.values():
+        if len(arms) >= 2:
+            hull = MultiPoint([point for _, section in arms for point in section]).convex_hull
             if hull.area > 0:
                 footprints.append(hull)
+            if junction_masks is not None and len(arms) >= 3:
+                overlaps = [a['profile']['asphalt'].intersection(b['profile']['asphalt'])
+                            for i, (a, _) in enumerate(arms) for b, _ in arms[i + 1:]]
+                junction_masks.append(unary_union([hull, *overlaps]).buffer(0.7))
     return unary_union(footprints)
 
 
@@ -203,10 +197,10 @@ def _dash_parts(line, pitch=9.0, paint=3.7):
         yield from _lines(substring(line, start, min(line.length, start + paint)))
 
 
-def _lane_paint(links, clip, preserve, marking_width):
+def _lane_paint(links, clip, preserve, marking_width, include_unmeasured=False):
     paint, source_ids = [], []
     for link in links:
-        if link['direction'] == 0 or link['lanes'] < 1:
+        if link['direction'] == 0 or (link['lanes'] < 1 and not include_unmeasured):
             continue
         profile = link.get('profile')
         line, travel_width = (profile['travel'], profile['travelWidth']) if profile else (link['line'], link['width'])
@@ -340,11 +334,81 @@ def _hongshulin_walk_surfaces(paving, crossings, clip, buildings, style):
                'clipToRoadComplement': True, **feature}
 
 
+def _junction_design(spec, osm_ways, ground, asphalt, buildings, clip, control, style):
+    design = spec['junctionDesign']
+    source_ids = spec['sidewalks'] + spec['crossings']
+    axes = {identity: _way_line(osm_ways[identity]).intersection(clip) for identity in source_ids}
+    if not all(not axis.is_empty for axis in axes.values()):
+        raise ValueError(f"Reviewed walking axis leaves its corridor: {spec['id']}")
+    walk = unary_union([_buffer(axis, style['sidewalkWidthM']) for axis in axes.values()])
+    # 共享源端点围合的空地才是候选岛。平面相交不会新建节点或围合种植区。
+    plots = []
+    slip = set(design['slipWays'])
+    for island in polygonize([row['line'] for row in ground]):
+        if not clip.covers(island):
+            continue
+        edges = {row['meta']['osmId'] for row in ground if island.boundary.intersection(row['line']).length > 1}
+        if not edges & slip and not (len(edges) >= 3 and island.area < 450):
+            continue
+        free = island.difference(asphalt.buffer(0.8).union(buildings).union(walk.buffer(1.8)))
+        for part in _polys(free.buffer(-0.75).buffer(0.75)):
+            if part.area >= 8:
+                plots.append((edges, part))
+
+    legs, zebras = [], []
+    coords = {point for identity, axis in axes.items() if identity in spec['crossings']
+              for line in _lines(axis) for point in (line.coords[0], line.coords[-1])}
+    for identity, axis in axes.items():
+        for line in _lines(axis):
+            spans = []
+            if identity in spec['crossings']:
+                crossing = line.intersection(asphalt)
+                for span in _lines(linemerge(crossing) if crossing.geom_type == 'MultiLineString' else crossing):
+                    if span.length < 2.5:
+                        continue
+                    midpoint = span.interpolate(0.5, normalized=True)
+                    road = min(ground, key=lambda row: row['line'].distance(midpoint))
+                    dx, dz = _unit_tangent(road['line'], road['line'].project(midpoint))
+                    sx, sz = _unit_tangent(span, span.length / 2)
+                    if abs(dx * sx + dz * sz) > 0.72:
+                        continue
+                    start, end = sorted(line.project(Point(p)) for p in (span.coords[0], span.coords[-1]))
+                    group = None
+                    if control and identity in design['signalizedCrossings']:
+                        match = max(control['approaches'], key=lambda a: abs(dx * a['dx'] + dz * a['dz']))
+                        group = 1 - match['group']
+                    spans.append((max(0, start - 0.65), min(line.length, end + 0.65), group))
+                    local_pavement = asphalt.intersection(_buffer(span, 4.6).buffer(0.4))
+                    # 条纹长轴跟随车流，间距沿实际步行轴排列。
+                    bars = max(2, math.floor(span.length / 0.82))
+                    for i in range(bars):
+                        point = span.interpolate((i + 0.5) / bars, normalized=True)
+                        half = style['crossingWidthM'] / 2
+                        stripe = LineString([(point.x - half * dx, point.y - half * dz),
+                                             (point.x + half * dx, point.y + half * dz)])
+                        zebras.append(_buffer(stripe, 0.45).intersection(local_pavement))
+            cuts = {0., line.length, *(line.project(Point(p)) for p in coords if line.distance(Point(p)) < 0.001)}
+            cuts.update(s for a, b, _ in spans for s in (a, b))
+            cuts = sorted(cuts)
+            for start, end in zip(cuts, cuts[1:]):
+                part = substring(line, start, end)
+                if part.length < 0.04:
+                    continue
+                span = next((row for row in spans if row[0] < (start + end) / 2 < row[1]), None)
+                if span is None and part.intersection(asphalt).length > 0.02:
+                    continue
+                points = [[round(x, 3), round(z, 3)] for x, z in part.coords]
+                legs.append({'osmId': identity, 'points': points, 'crossing': span is not None,
+                             **({'signalGroup': span[2]} if span and span[2] is not None else {})})
+    return legs, unary_union(zebras), plots
+
+
 def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, report):
     clips = {spec['id']: _local_box(spec['bounds']) for spec in manifest['corridors']}
     extent = unary_union(list(clips.values())).buffer(25)
     links = list(_graph_lines(graph, extent))
-    asphalt = _asphalt_mask(links, extent)
+    junction_masks = []
+    asphalt = _asphalt_mask(links, extent, junction_masks)
     building_mask = unary_union([b['poly'] for b in buildings if b['minHeight'] < 0.3 and b['poly'].intersects(extent)])
     osm_ways = {way['id']: way for way in osm['roads']}
     style = manifest['styleEstimates']
@@ -361,12 +425,39 @@ def compile_road_frontage(manifest, osm, graph, buildings, way_tags, nodes, repo
         unresolved += missing
         pavement_ids = [identity for identity, _ in paving]
         crossings_ids = [identity for identity, _ in crossings]
-        marks, road_ids = _lane_paint(ground_links, clip, cross_shape.buffer(0.6), style['markingWidthM'])
+        preserve = cross_shape.buffer(0.6)
+        junction_design = spec.get('junctionDesign')
+        plots = []
+        if junction_design:
+            ground_links = [link for link in links if _ground(link['meta']) and link['line'].intersects(clip)]
+            control = next((row for row in intersections if row['id'] == spec['id']), None)
+            walk_legs, zebra, plots = _junction_design(spec, osm_ways, ground_links, asphalt, building_mask, clip, control, style)
+            if not set(spec['crossings']) <= {leg['osmId'] for leg in walk_legs if leg['crossing']}:
+                raise ValueError(f"A reviewed crossing no longer spans ground pavement: {spec['id']}")
+            preserve = unary_union([preserve, zebra.buffer(0.55), *(mask for mask in junction_masks if mask.intersects(clip)),
+                                    *[bar.buffer(0.8) for bar in stop_bars if bar.intersects(clip)]])
+        marks, road_ids = _lane_paint(ground_links, clip, preserve, style['markingWidthM'], bool(junction_design))
         corridor = {'id': spec['id'], 'bounds': list(clip.bounds), 'roadIds': sorted(set(road_ids)),
                     'unresolvedVerticalWays': sorted({link['meta']['osmId'] for link in local_links if not _ground(link['meta'])}),
                     'sidewalkIds': pavement_ids, 'crossingIds': crossings_ids}
         if crossing_axes:
             corridor['crossingAxes'] = crossing_axes
+        if junction_design:
+            corridor['walkLegs'] = walk_legs
+            corridor['plantingSource'] = 'estimated-from-same-level-road-enclosures'
+            for i, (edge_ids, plot) in enumerate(plots):
+                for kind, area, rise in [('median', plot, 0.16), ('flower-band', plot.buffer(-0.33), 0)]:
+                    feature = _encode_surface(kind, edge_ids, area, rise)
+                    if feature['trianglesXZ']:
+                        plant_sites = []
+                        if not rise:
+                            planting = area.buffer(-0.47)
+                            x0, z0, x1, z1 = area.bounds
+                            plant_sites = [[x, z] for x in range(math.ceil(x0), math.floor(x1) + 1)
+                                           for z in range(math.ceil(z0), math.floor(z1) + 1)
+                                           if (x + z) % 3 == 0 and planting.covers(Point(x, z))]
+                        features.append({'id': f"{spec['id']}:island-{i}:{kind}", **feature,
+                                         **({'solidPlanting': True} if rise else {'surfaceOffsetM': 0.164, 'plantSites': plant_sites})})
         polygons = [('sidewalk', pavement_ids, raised, style['sidewalkRiseM']), ('paving', pavement_ids, flush, 0),
                     ('paint', road_ids + crossings_ids, marks.union(zebra), 0)]
         if median := spec.get('median'):

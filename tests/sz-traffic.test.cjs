@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
+const { pathToFileURL } = require('node:url');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
 const driving = require('./helpers/driving.cjs');
@@ -543,7 +544,7 @@ test('Chegongmiao route clears both junction guardrails and keeps its deck conta
     'three/tsl': {},
     './sz-roads.js': roads,
     './sz-ground-surface.js': load('sz-ground-surface.js'),
-    './sz-controller-surfaces.js': surfaces
+    './sz-controller-surfaces.js': surfaces, './sz-polygon.js': load('sz-polygon.js')
   });
   const plan = planElevatedRoads(graph, geo.terrainSurface);
   const { createDrivePlanner, createTurnFilter } = load('sz-drive-route.js', {
@@ -610,4 +611,135 @@ test('Chegongmiao route clears both junction guardrails and keeps its deck conta
   });
   assert.ok(auto.canStart(departure, atLevel(deckY, bridge.surfaceId), 'car'));
   assert.equal(auto.canStart(departure, atLevel(groundY, 'terrain'), 'car'), false);
+});
+
+test('a source-connected tunnel route stays on its own floor across every seam and reaches ground', async () => {
+  const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
+  const { gunzipSync } = require('node:zlib');
+  const { geo } = load('sz-data-format.js').decodeCityPayload(JSON.parse(gunzipSync(
+    readFileSync(join(__dirname, '../js/sz-city.json.gz')))));
+  const surface = load('sz-controller-surfaces.js');
+  const ground = load('sz-ground-surface.js').createGroundSurfaceSampler(geo.terrainSurface);
+  const { buildSzRoadStructures, graphWithRoadStructures } = load('sz-road-structures.js', {
+    'three/webgpu': THREE, './sz-roads.js': roads, './sz-controller-surfaces.js': surface
+  });
+  const graph = graphWithRoadStructures(geo.roadGraph, geo.roadStructures);
+  const scene = new THREE.Group();
+  const built = buildSzRoadStructures(scene, graph, geo.roadStructures, { groundHeight: () => 8 });
+  const network = createTrafficGraph(graph, { elevated: built });
+  const parts = geo.roadStructures.records.filter(row => row.route === 'binhai-superhq-east');
+  assert.equal(parts.length, 3);
+  const chain = parts.map(part => network.edges.find(edge => edge.sourceIndex === part.index));
+  assert.ok(chain[0].next.includes(chain[1]) && chain[1].next.includes(chain[2]));
+  const approach = network.edges.find(edge => !edge.elevated && edge.next.includes(chain[0]));
+  const exit = chain[2].next.find(edge => !edge.elevated);
+  assert.ok(approach && exit);
+  const resolver = surface.createSurfaceResolver({ groundHeight: ground, surfaces: built.surfaces });
+  let support = { height: 8, surfaceId: 'terrain' };
+  const traversed = new Set();
+  for (const part of parts) {
+    const road = built.links.find(row => row.index === part.index);
+    for (const frame of road.frames) {
+      support = resolver.resolve(frame.x, frame.z, { previousY: support.height, previousSurfaceId: support.surfaceId, mode: 'car' });
+      assert.ok(support && Math.abs(support.height - frame.y) < 1e-5);
+      traversed.add(support.surfaceId);
+    }
+  }
+  assert.ok(chain.every(edge => traversed.has(edge.surfaceId)));
+  const exitPoint = exit.segments[0];
+  const end = resolver.resolve(exitPoint.x + exitPoint.dx * 5, exitPoint.z + exitPoint.dz * 5,
+    { previousY: support.height, previousSurfaceId: support.surfaceId, mode: 'car' });
+  assert.equal(end.surfaceId, 'terrain');
+  const bore = built.links.find(row => row.index === parts[1].index);
+  const middle = bore.frames[Math.floor(bore.frames.length / 2)];
+  assert.equal(resolver.resolve(middle.x, middle.z, { previousY: 8, previousSurfaceId: 'terrain', mode: 'person' }).height, 8);
+  const trench = built.links.find(row => row.index === parts[0].index).frames.find(frame => frame.d > 90);
+  assert.equal(ground(trench.x, trench.z), null);
+  assert.ok(built.colliders.some(c => c.type === 'tunnel-roof' && c.roofPanel));
+  assert.ok(built.colliders.some(c => c.type === 'tunnel-light' && c.roofPanel));
+  const model = trafficModelBounds(geometryFixture(0.96, 2.4).boundingBox, vehicleSpecs.taxi);
+  const segments = routeSegments({ edge: approach, segment: approach.segments.length - 1, distance: 24 },
+    model, () => 0, new Set(), 0.5);
+  assert.ok(chain.every(edge => segments.some(segment => segment.edge === edge)));
+  assert.equal(segments.at(-1).edge.elevated, undefined);
+  const { createDrivePlanner } = load('sz-drive-route.js', {
+    './sz-intersection-control.js': signalModule, './sz-traffic.js': { laneRoute, poseOnRoute }, './sz-road-section.js': sections
+  });
+  const planner = createDrivePlanner(network, graph, {
+    model, roadHeight: (x, z, edge) => edge?.surfaceId ? built.heightAt(x, z, edge.surfaceId) : ground(x, z),
+    isClear: () => true
+  });
+  const drive = planner.route(planner.snap(-9600, 2622.37), planner.snap(-7940, 2605));
+  assert.ok(drive && chain.every(edge => drive.edges.includes(edge)));
+  for (const id of ['nanping-xili-east', 'nanping-xili-west', 'nanguang-south', 'nanguang-north',
+    'huanggang-binhe-north', 'huanggang-binhe-south', 'beihuan-shahe-east', 'beihuan-shahe-west',
+    'nanping-branch-north', 'nanping-branch-south', 'guimiao-east', 'guimiao-west']) {
+    const records = geo.roadStructures.records.filter(row => row.route === id);
+    assert.ok(records.length >= 3, id);
+    const routeEdges = records.map(record => network.edges.find(edge => edge.sourceIndex === record.index));
+    assert.ok(routeEdges.every((edge, i) => edge && (!i || routeEdges[i - 1].next.includes(edge))), id);
+    const parts = records.map(record => built.links.find(link => link.index === record.index));
+    for (const [i, part] of parts.entries()) {
+      if (i) {
+        assert.deepEqual(part.frames[0].left, parts[i - 1].frames.at(-1).left, id);
+        assert.deepEqual(part.frames[0].right, parts[i - 1].frames.at(-1).right, id);
+      }
+      for (const frame of part.frames) {
+        const height = built.heightAt(frame.x, frame.z, part.surfaceId);
+        assert.ok(height !== null && Math.abs(height - frame.y) < 1e-5, `${part.osmId} @ ${frame.d}: ${height} vs ${frame.y}`);
+      }
+    }
+    if (id.startsWith('nanping-xili')) {
+      assert.ok(records.some(record => record.way === (id.endsWith('east') ? 'way/683489207' : 'way/221894936')));
+      const bridges = records.filter(record => record.kind === 'bridge');
+      assert.ok(bridges.length > 0 && bridges.every(record =>
+        resolver.isFlightRoadDeck(`sz-road-structure:${record.index}`)), id);
+      const first = routeEdges[0].segments[0];
+      const last = routeEdges.at(-1).segments.at(-1);
+      const from = planner.snap(first.x + first.dx * 14, first.z + first.dz * 14);
+      const to = planner.snap(last.x + last.dx * (last.length - 14), last.z + last.dz * (last.length - 14));
+      const full = from && to && planner.route(from, to);
+      assert.ok(full && routeEdges.every(edge => full.edges.includes(edge)), id);
+    }
+    if (id.startsWith('guimiao')) {
+      const bore = records.find(record => geo.roadGraph.metadata[record.index].tunnel);
+      assert.equal(bore.lanes, 3, id);
+      assert.ok(bore.coverM[1] > 1600, id);
+      assert.ok(built.colliders.some(c => c.name === `sz-road-structure:${bore.index}` && c.type === 'tunnel-roof'), id);
+      // 两向均接滨海大道东侧；西端相邻跨线桥另有独立高程待核。
+      if (id.endsWith('west')) {
+        assert.ok(network.edges.some(edge => !edge.elevated && edge.next.includes(routeEdges[0])), id);
+      } else {
+        assert.ok(routeEdges.at(-1).next.some(edge => !edge.elevated), id);
+      }
+      let contact = { height: 8, surfaceId: 'terrain' };
+      for (const part of parts) for (const frame of part.frames) {
+        contact = resolver.resolve(frame.x, frame.z, {
+          mode: 'car', previousY: contact.height, previousSurfaceId: contact.surfaceId
+        });
+        assert.ok(contact && Math.abs(contact.height - frame.y) < 0.025, `${id} ${part.osmId} @ ${frame.d}`);
+      }
+    }
+  }
+  const movements = [
+    [[1471.03, 1638.98], [1462.70, 1585.62], [17634, 214, 899, 213, 20449]],
+    [[1363.03, 1587.73], [1371.42, 1640.25], [20449, 39, 900, 212, 17634]],
+    [[-16184.84, -56.31], [-15726.49, -386.61], [18636, 18637, 15658, 7813]],
+    [[1348.42, 1640.55], [1487.03, 1638.77], [17634]]
+  ];
+  for (const [from, to, indices] of movements) {
+    const route = planner.route(planner.snap(...from), planner.snap(...to));
+    assert.ok(route);
+    assert.deepEqual(Array.from(route.edges, edge => edge.sourceIndex), indices);
+    for (const [i, sample] of route.samples.entries()) {
+      if (sample.edge.rampSpeed) assert.ok(route.limits[i] <= 6.5);
+    }
+  }
+  for (const { ramp, incoming, outgoing } of geo.roadStructures.connections) {
+    const rows = [ramp, incoming, outgoing].map(index => built.links.find(link => link.index === index));
+    assert.ok(rows[0].openings.size > 0);
+    assert.ok(rows[1].openings.size + rows[2].openings.size > 0);
+    assert.equal(rows[0].structureNeighbors.includes('terrain'), rows[0].sharedStart || rows[0].sharedEnd);
+  }
+  built.dispose();
 });

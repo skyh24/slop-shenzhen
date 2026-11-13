@@ -100,6 +100,16 @@ test('addWalls keeps the no-meta landmark path and addFlatPolygon keeps its meta
   }
 });
 
+test('storefront metadata marks an exterior wall without affecting courtyard walls or UV scale', () => {
+  const { GeoBuilder, addWalls } = loadGeometry();
+  const builder = new GeoBuilder(true);
+  const outer = [0, 0, 10, 0, 10, 10, 0, 10], court = [2, 2, 8, 2, 8, 8, 2, 8];
+  addWalls(builder, [outer, court], 0, 10, [2, 3, 0, 10], 0, null, null, (_ax, _az, _bx, _bz, _nx, nz) => nz < -0.9);
+  const walls = wallLengths(builder, 8);
+  assert.deepEqual(walls.map(wall => wall.meta[0][2]), [-10, 10, 10, 10, 6, 6, 6, 6]);
+  assert.ok(walls.every(wall => wall.u[1] === wall.length));
+});
+
 test('FACADE_PROFILES follows the data pipeline facade order and carries the shared facade parameters', () => {
   const pipeline = readFileSync(join(root, 'tools/sz/buildings.py'), 'utf8');
   const declaration = /FACADES\s*=\s*\[([^\]]+)\]/.exec(pipeline);
@@ -219,7 +229,11 @@ function createFacadeEvaluator() {
     pixel: new Input([0.0015])
   };
   const tsl = {
-    Fn: (fn) => (...args) => fn(args),
+    Fn: (fn) => {
+      const call = (...args) => fn(args);
+      call.setLayout = () => call;
+      return call;
+    },
     attribute: () => state.meta,
     uv: () => state.uv,
     vec2: (...args) => vector(args, 2),
@@ -317,6 +331,27 @@ test('the Houhai lobby affects only the named tower and its north wall', () => {
 });
 
 const hexToRgb = (hex) => [(hex >> 16 & 255) / 255, (hex >> 8 & 255) / 255, (hex & 255) / 255];
+
+test('retail bays repeat a glass door and display window, with an unlit solid frame', () => {
+  const { materials, cityUniforms, state, bump } = createFacadeEvaluator();
+  const material = materials.createBuildingMaterial();
+  const sample = (marked, bay, u, y, glow) => {
+    state.meta.current = [2, 3.1, marked ? -19.8 : 19.8, 16];
+    state.uv.current = [0.45 + (bay + u) * 6.3, y];
+    cityUniforms.uInteriorGlow.value = glow;
+    bump();
+    return [material.roughnessNode.values[0], material.emissiveNode.values[0], ...material.colorNode.values];
+  };
+  for (const bay of [0, 1, 2]) {
+    const door = sample(true, bay, 0.81, 0.28, 1.5);
+    const pane = sample(true, bay, 0.36, 1.6, 1.5);
+    const frame = sample(true, bay, 0.70, 1.6, 1.5);
+    assert.ok(door[0] < frame[0] && pane[0] < frame[0]);
+    assert.ok(door[1] > 0 && pane[1] > 0 && frame[1] === 0);
+    assert.ok(sample(true, bay, 0.36, 1.6, 0.24)[1] === 0);
+    assert.deepEqual(sample(true, bay, 0.36, 8, 1.5), sample(false, bay, 0.36, 8, 1.5));
+  }
+});
 const hash21 = (x, y) => {
   const value = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
   return value - Math.floor(value);

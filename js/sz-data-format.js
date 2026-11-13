@@ -142,6 +142,36 @@ function validateShenzhenBay(site, parks, sea) {
     && ['rock-slope', 'retaining-edge'].includes(shore.profile)), 'Shenzhen Bay shore');
 }
 
+function validateWaterfront(site, raw) {
+  if (site === undefined) return;
+  const way = /^way\/\d+$/;
+  const xyz = p => Array.isArray(p) && p.length === 3 && p.every(Number.isFinite);
+  const polyline = p => Array.isArray(p) && p.length > 1 && p.every(xyz);
+  const waterIndex = i => Number.isSafeInteger(i) && !!raw.water[i];
+  const positive = v => Number.isFinite(v) && v > 0;
+  const mode = v => v === 'walk' || v === 'shared';
+  requireData(site?.version === 1 && Array.isArray(site.waters) && site.waters.length === 2
+    && site.waters.every(w => way.test(w.id) && waterIndex(w.waterIndex) && Number.isFinite(w.heightM)
+      && w.heightSource === 'estimate'), 'waterfront water sources');
+  requireData(Array.isArray(site.roadBridges) && site.roadBridges.every(b => way.test(b.osmId)
+    && Number.isFinite(b.heightM) && positive(b.girderDepthM) && waterIndex(b.waterIndex)
+    && Number.isFinite(b.waterHeightM) && Array.isArray(b.edges) && b.edges.length > 0
+    && b.edges.every(i => Number.isSafeInteger(i) && raw.roadGraph.metadata[i]?.osmId === b.osmId
+      && raw.roadGraph.metadata[i].bridge && !raw.roadGraph.metadata[i].tunnel)
+    && b.portals?.length === b.edges.length && b.portals.every((p, i) => p.edge === b.edges[i]
+      && p.heightsM?.length === 2 && p.heightsM.every(Number.isFinite))), 'waterfront road bridges');
+  requireData(Array.isArray(site.footbridges) && site.footbridges.every(b => way.test(b.id) && polyline(b.points)
+    && positive(b.widthM) && positive(b.girderDepthM) && waterIndex(b.waterIndex) && Number.isFinite(b.waterHeightM)
+    && mode(b.mode)), 'waterfront slow bridges');
+  requireData(Array.isArray(site.routes) && site.routes.every(r => typeof r.id === 'string' && mode(r.mode)
+    && polyline(r.points) && Array.isArray(r.paths) && r.paths.every(p => way.test(p.osmId) && mode(p.mode)
+      && positive(p.widthM) && p.points?.length >= 2 && p.points.every(xz => xz.length === 2 && xz.every(Number.isFinite)))),
+  'waterfront routes');
+  requireData(Array.isArray(site.rails) && site.rails.every(r => typeof r.id === 'string'
+    && Array.isArray(r.stations) && r.stations.every(p => p === null || xyz(p)))
+    && polyline(site.bayLower?.points), 'waterfront banks');
+}
+
 function validateTrees(trees) {
   if (trees === undefined) return;
   requireData(trees?.version === 1 && Number.isSafeInteger(trees.count) && trees.count >= 0, 'trees header');
@@ -205,6 +235,53 @@ function validateAir(air) {
   requireData(suspension && Array.isArray(suspension.windows) && suspension.windows.length > 0
     && suspension.windows.every(window => typeof window.from === 'string' && typeof window.to === 'string'
       && window.from <= window.to && typeof window.sourceUrl === 'string'), 'air APEC suspension');
+}
+
+function validateNorthRail(data) {
+  if (data === undefined) return;
+  const xy = p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite);
+  const wayId = id => typeof id === 'string' && /^way\/\d+$/.test(id);
+  requireData(data?.version === 1 && data.source === 'osm-guangdong' && data.heightSource === 'estimate'
+    && wayId(data.stationId) && xy(data.center) && xy(data.axis)
+    && Math.abs(Math.hypot(...data.axis) - 1) < 1e-4
+    && data.published?.tracks === 20 && data.published?.platforms === 11
+    && [data.published.roofHeightM, data.published.roofSpanEastWestM, data.published.roofSpanNorthSouthM].every(n => Number.isFinite(n) && n > 0)
+    && Array.isArray(data.nodes) && Array.isArray(data.ways) && Array.isArray(data.edges)
+    && Array.isArray(data.routes) && data.routes.length === data.published.tracks, 'Shenzhen North rail header');
+  const { nodes, ways, edges, routes } = data;
+  requireData(nodes.every(node => Array.isArray(node) && node.length === 3 && /^\d+$/.test(node[0]) && xy(node.slice(1)))
+    && new Set(nodes.map(node => node[0])).size === nodes.length, 'Shenzhen North rail nodes');
+  requireData(ways.every(way => way && wayId(way.id) && typeof way.bridge === 'boolean' && Number.isInteger(way.layer))
+    && new Set(ways.map(way => way.id)).size === ways.length, 'Shenzhen North rail ways');
+  const index = (value, length) => Number.isInteger(value) && value >= 0 && value < length;
+  requireData(edges.every(e => Array.isArray(e) && e.length === 3 && e[0] !== e[1]
+    && index(e[0], nodes.length) && index(e[1], nodes.length) && index(e[2], ways.length)), 'Shenzhen North rail edges');
+  const berths = new Set();
+  for (const route of routes) {
+    requireData(route && index(route.berth - 1, routes.length) && !berths.has(route.berth)
+      && [-1, 1].includes(route.direction) && Array.isArray(route.edges) && route.edges.length > 1,
+    'Shenzhen North rail route');
+    berths.add(route.berth);
+    let previous = null;
+    for (const ref of route.edges) {
+      requireData(Number.isInteger(ref) && ref !== 0 && index(Math.abs(ref) - 1, edges.length), 'Shenzhen North rail route edge');
+      const [a, b] = edges[Math.abs(ref) - 1];
+      const from = ref > 0 ? a : b, to = ref > 0 ? b : a;
+      requireData(previous === null || previous === from, 'Shenzhen North disconnected rail route');
+      previous = to;
+    }
+  }
+  for (const side of ['west', 'east']) {
+    const plaza = data.plazas?.[side];
+    requireData(plaza && wayId(plaza.id) && Array.isArray(plaza.rings) && plaza.rings.length
+      && plaza.rings.every(r => Array.isArray(r) && r.length >= 6 && r.length % 2 === 0
+        && r.every(Number.isSafeInteger)), 'Shenzhen North plaza');
+  }
+  for (const role of ['northConcourse', 'southOverpass', 'eastWalk', 'eastWalkSouth', 'westRamp', 'eastRamp']) {
+    const walk = data.walks?.[role];
+    requireData(walk && wayId(walk.id) && Array.isArray(walk.points) && walk.points.length >= 2
+      && walk.points.every(xy), 'Shenzhen North footway');
+  }
 }
 
 function validateSites(sites) {
@@ -623,7 +700,19 @@ export function validateCityPayload(raw) {
   validateTalentPark(raw.talentPark, raw);
   validateTrees(raw.trees);
   validateSites(raw.sites);
+  validateNorthRail(raw.shenzhenNorthRail);
   validateAir(raw.air);
+  if (raw.urbanPaving !== undefined) {
+    const { version, manifestSha256, pilotOnly, publicRoutes, trees } = raw.urbanPaving ?? {};
+    requireData(version === 1 && typeof manifestSha256 === 'string' && /^[a-f0-9]{64}$/.test(manifestSha256)
+      && typeof pilotOnly === 'boolean' && Array.isArray(publicRoutes) && Array.isArray(trees), 'urban paving');
+    requireData(publicRoutes.every(route => typeof route?.id === 'string' && typeof route.evidence === 'string'
+      && Number.isFinite(route.widthM) && route.widthM > 0 && Number.isFinite(route.lateralM)
+      && route.lateralM >= 0 && route.lateralM <= 0.38 && Array.isArray(route.pointsXZ) && route.pointsXZ.length >= 2
+      && route.pointsXZ.every(p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite))), 'urban paving walks');
+    requireData(trees.every(tree => typeof tree?.id === 'string' && typeof tree.speciesName === 'string'
+      && [tree.x, tree.z, tree.height, tree.crown].every(Number.isFinite) && tree.height > 0 && tree.crown > 0), 'urban paving trees');
+  }
   validateShenzhenBay(raw.shenzhenBay, raw.parks ?? [], raw.seaSurface);
   for (let i = 0; i < buildings.h.length; i++) {
     requireData(typeof buildings.id[i] === 'string' && buildings.id[i].length > 0, 'building identity');
@@ -702,7 +791,63 @@ export function validateCityPayload(raw) {
         && stations.at(-3) === graph.nodes[b * 2] && stations.at(-2) === graph.nodes[b * 2 + 1], 'road graph cross section');
     }
   }
+  const structures = raw.roadStructures;
+  if (structures !== undefined) {
+    requireData(structures?.version === 1 && ['verticalStepM', 'maxGrade', 'bridgeSlabM', 'tunnelRoofM',
+      'tunnelClearanceM', 'tunnelLightDepthM', 'tunnelWallM'].every(key => Number.isFinite(structures[key]) && structures[key] > 0)
+      && Array.isArray(structures.routes) && Array.isArray(structures.records), 'road structures');
+    validateIds(structures.routes.map(route => route?.id), 'structure route identity');
+    const landscape = structures.landscape;
+    if (landscape != null) {
+      requireData(Array.isArray(landscape.patches) && Array.isArray(landscape.trees)
+        && landscape.publicPath?.mode === 'walk' && Number.isFinite(landscape.publicPath.widthM)
+        && landscape.publicPath.widthM > 0 && Array.isArray(landscape.publicPath.points)
+        && landscape.publicPath.points.length > 1 && landscape.publicPath.points.every(point =>
+          Array.isArray(point) && point.length === 2 && point.every(Number.isFinite)), 'road landscape path');
+      validateIds(landscape.patches.map(patch => patch?.id), 'road landscape patch identity');
+      validateIds(landscape.trees.map(tree => tree?.id), 'road landscape tree identity');
+      for (const patch of landscape.patches) {
+        requireData(['flowers', 'grass', 'path'].includes(patch.color) && Number.isFinite(patch.offsetM)
+          && Array.isArray(patch.trianglesXZ) && patch.trianglesXZ.length > 0 && patch.trianglesXZ.length % 6 === 0
+          && patch.trianglesXZ.every(Number.isFinite) && Array.isArray(patch.sourceIds)
+          && patch.sourceIds.every(isOsmId), 'road landscape patch');
+      }
+      requireData(landscape.trees.every(tree => [tree.x, tree.z, tree.height, tree.crown].every(Number.isFinite)
+        && tree.height > 0 && tree.crown > 0 && typeof tree.speciesName === 'string'), 'road landscape trees');
+    }
+    const routes = new Map(structures.routes.map(route => [route.id, route]));
+    const seen = new Set();
+    for (const row of structures.records) {
+      const route = routes.get(row?.route);
+      requireData(Number.isInteger(row?.index) && graph.metadata[row.index]?.osmId === row.way && !seen.has(row.index)
+        && ['bridge', 'tunnel', 'approach', 'ramp'].includes(row.kind)
+        && (route?.kind === row.kind || route?.kind === 'mixed' || (route?.kind === 'bridge' && row.kind === 'approach'))
+        && route?.ways?.includes(row.way) && (row.layer === undefined || Number.isFinite(row.layer))
+        && Number.isFinite(row.widthM) && row.widthM > 0 && Number.isInteger(row.lanes) && row.lanes >= 0
+        && Number.isFinite(row.stationOffsetM) && row.stationOffsetM >= 0
+        && Number.isFinite(row.maxGrade) && row.maxGrade >= 0 && row.maxGrade <= structures.maxGrade
+        && Number.isFinite(row.openApronM) && row.openApronM >= 0
+        && typeof row.sharedStart === 'boolean' && typeof row.sharedEnd === 'boolean'
+        && (row.kind !== 'tunnel' ? row.coverM === null : row.coverM?.length === 2 && row.coverM.every(Number.isFinite))
+        && Array.isArray(row.stations) && row.stations.length >= 16 && row.stations.length % 8 === 0
+        && row.stations[0] === 0 && row.stations.every((value, i) => Number.isFinite(value)
+          && (i < 8 || i % 8 !== 0 || value > row.stations[i - 8])), 'structure stations');
+      seen.add(row.index);
+    }
+    if (structures.connections !== undefined) {
+      const records = new Map(structures.records.map(row => [row.index, row]));
+      requireData(Array.isArray(structures.connections) && structures.connections.every(row => {
+        const { ramp, incoming, outgoing, template } = row ?? {};
+        if (records.get(ramp)?.kind !== 'ramp' || !records.has(incoming) || !records.has(outgoing)
+          || new Set([ramp, incoming, outgoing]).size !== 3 || !['loop', 'side'].includes(template)) return false;
+        const node = graph.links[incoming][1];
+        return graph.links[outgoing][0] === node && graph.links[ramp].slice(0, 2).includes(node);
+      }), 'road structure connections');
+      validateIds(structures.connections.map(row => String(row.ramp)), 'ramp connection identity');
+    }
+  }
   validateIds(roadEdges, 'road edge identity');
+  validateWaterfront(raw.waterfront, raw);
   validateAirCruises(raw.airCruises, graph);
   if (graph.turnRestrictions !== undefined) {
     const { version, source, rules } = graph.turnRestrictions ?? {};
@@ -719,6 +864,17 @@ export function validateCityPayload(raw) {
     requireData(frontage?.version === 1 && frontage.source?.osmSnapshotId === 'osm-guangdong'
       && Array.isArray(frontage.corridors) && Array.isArray(frontage.features) && Array.isArray(frontage.intersections), 'road frontage source');
     for (const feature of frontage.features) {
+      if (feature.solidPlanting !== undefined) {
+        requireData(feature.solidPlanting === true && feature.kind === 'median' && feature.riseM > 0
+          && Array.isArray(feature.outlines) && feature.outlines.length > 0
+          && feature.outlines.every(ring => ring.length >= 8 && ring.length % 2 === 0 && ring.every(Number.isFinite)),
+        'road frontage planting boundary');
+      }
+      if (feature.plantSites !== undefined) {
+        requireData(feature.kind === 'flower-band' && Array.isArray(feature.plantSites)
+          && feature.plantSites.every(point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite)),
+        'road frontage planting sites');
+      }
       if (feature.clipToRoadComplement === undefined && feature.vertexRisesM === undefined) continue;
       const { trianglesXZ, vertexRisesM } = feature;
       requireData(feature.clipToRoadComplement === true && Array.isArray(trianglesXZ)
@@ -727,6 +883,14 @@ export function validateCityPayload(raw) {
           && vertexRisesM.every(rise => Number.isFinite(rise) && rise >= 0))), 'road frontage clipped surface');
     }
     for (const corridor of frontage.corridors) {
+      if (corridor.walkLegs !== undefined) {
+        requireData(Array.isArray(corridor.walkLegs) && corridor.walkLegs.every(leg =>
+          (leg.crossing ? corridor.crossingIds.includes(leg.osmId) : [...corridor.sidewalkIds, ...corridor.crossingIds].includes(leg.osmId))
+          && typeof leg.crossing === 'boolean' && Array.isArray(leg.points) && leg.points.length >= 2
+          && leg.points.every(point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite))
+          && (leg.signalGroup === undefined || (leg.crossing && [0, 1].includes(leg.signalGroup)
+            && frontage.intersections.some(row => row.id === corridor.id)))), 'road frontage walk legs');
+      }
       if (corridor.crossingAxes === undefined) continue;
       requireData(Array.isArray(corridor.crossingAxes) && Array.isArray(corridor.crossingIds)
         && corridor.crossingAxes.every(axis => corridor.crossingIds.includes(axis.osmId)
@@ -782,9 +946,12 @@ export function decodeCityPayload(raw, metrics = null) {
     coverage: raw.coverage.map(polygon), land: raw.land.map(polygon), water: raw.water.map(polygon),
     wetland: raw.wetland.map(polygon), green: raw.green.map(polygon),
     roadGraph: raw.roadGraph, terrain: raw.terrain, terrainSurface: raw.terrainSurface,
+    roadStructures: raw.roadStructures ?? null,
     roadFrontage: raw.roadFrontage ?? null,
     mapRegions: raw.mapRegions ? { ...raw.mapRegions, regions: raw.mapRegions.regions.map(decodeMapRegion) } : null,
     shenzhenBay: raw.shenzhenBay ?? null,
+    waterfront: raw.waterfront ?? null,
+    urbanPaving: raw.urbanPaving ?? null,
     metro: raw.metro, landmarks: raw.landmarks,
     bridges: raw.bridges ?? [], yanjiangExpressway: raw.yanjiangExpressway ?? null,
     seaSurface: raw.seaSurface && { ...raw.seaSurface, polygons: raw.seaSurface.polygons.map(polygon) },
@@ -795,6 +962,7 @@ export function decodeCityPayload(raw, metrics = null) {
     iecPaths: raw.iecPaths ?? [],
     trees: raw.trees ?? null,
     sites: decodeSites(raw.sites),
+    shenzhenNorthRail: raw.shenzhenNorthRail ?? null,
     air: raw.air ?? null, airCruises: raw.airCruises ?? null,
     parks: (raw.parks ?? []).map(park => ({ ...park, areas: park.areas.map(area => ({ ...area, polygon: polygon(area.polygon) })) }))
   } };

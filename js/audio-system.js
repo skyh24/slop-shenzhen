@@ -300,12 +300,17 @@ class CityAudioSystem {
     this.events.splice(index, 1);
   }
 
+  railPass(id, point, speed) {
+    if (!this.ready || !this.enabled || !this.haveListener || this.context?.state !== 'running' || document.hidden) return false;
+    return this.emit('rail', { ...point, id, seed: id }, { speed, intensity: 0.25 + Math.min(0.65, speed / 45) });
+  }
+
   emit(kind, source, options = {}) {
     const now = this.context.currentTime;
     const crash = kind === 'crash';
     const severity = clamp(options.severity ?? options.intensity ?? 1, 0, 1);
-    const ref = crash ? 4 + severity * 8 : kind === 'horn' ? 8 : kind === 'talk' ? 2 : 1.8;
-    const range = crash ? 50 + severity * 110 : kind === 'horn' ? 140 : kind === 'talk' ? 30 : kind === 'footstep' ? 22 : 35;
+    const ref = crash ? 4 + severity * 8 : kind === 'rail' ? 15 : kind === 'horn' ? 8 : kind === 'talk' ? 2 : 1.8;
+    const range = crash ? 50 + severity * 110 : kind === 'rail' ? 115 : kind === 'horn' ? 140 : kind === 'talk' ? 30 : kind === 'footstep' ? 22 : 35;
     if (Math.hypot(source.x - this.listener.x, source.y - this.listener.y, source.z - this.listener.z) > range) return false;
     if (crash || options.priority) {
       // Impacts are immediate, between the 10 Hz ambience updates. Reclaim finished events first, then let

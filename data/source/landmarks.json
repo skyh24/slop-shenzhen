@@ -4,9 +4,11 @@
     {
       "id": "tencent-binhai", "name": "腾讯滨海大厦", "phase": 1,
       "center": [22.52585, 113.93035],
-      "osm": { "site": "way/737149477", "parts": { "southTower": "way/694152192", "northTower": "way/694152193", "links": ["way/775462995", "way/775462996", "way/775462997"] } },
+      "osm": { "site": "way/737149477", "parts": { "southTower": "way/694152192", "northTower": "way/694152193", "links": ["way/775462995", "way/775462996", "way/601101655", "way/775462997"] } },
       "heights": { "southTower": 245.8, "northTower": 194.8 },
-      "heightSource": "osm", "status": "osm"
+      "heightSource": "osm", "status": "verified",
+      "sources": ["https://global.ctbuh.org/resources/papers/3644-Ward_TencentSeafrontTowers.pdf", "https://commons.wikimedia.org/wiki/File:Tencent_Seafront_Towers,_the_Tencent_HQ_in_Shenzhen_(2026)_-_img_02.jpg"],
+      "verifiedAt": "2026-11-13"
     },
     {
       "id": "chunsun", "name": "中国华润大厦（春笋）", "phase": 1,
@@ -159,19 +161,33 @@
     {
       "id": "oct-loft", "name": "华侨城创意文化园", "short": "华侨城", "phase": 1, "mapPriority": true,
       "center": [22.5412214, 113.9886215],
+      "sceneReview": {"modelSource": "way/435827468", "evidence": "heritage-districts-evidence.md", "verifiedAt": "2026-11-13"},
       "osm": { "site": "way/741581536" }, "status": "osm",
       "sources": ["https://www.sz.gov.cn/zfgb/2024/gb1349/content/post_11702444.html"]
     },
     {
       "id": "tencent-towers", "name": "腾讯大厦", "phase": 1, "mapPriority": true,
       "center": [22.5434550, 113.9296473],
-      "osm": { "building": "way/600815118" }, "status": "osm",
+      "osm": { "building": "way/600815118", "annex": "way/600810213", "link": "way/707365805" },
+      "heightM": 193, "heightSource": "published", "status": "verified",
       "aliases": ["腾讯科技大厦"],
-      "sources": ["https://www.tencent.com/index.php/zh-cn/articles/80116.html"]
+      "sources": ["https://2bhn.cscec.com/kjcx/sfgc/202412/3835239.html", "https://commons.wikimedia.org/wiki/File:腾讯大厦.JPG", "https://commons.wikimedia.org/wiki/File:Entrance_of_headquarters_of_Tencent.jpg"],
+      "verifiedAt": "2026-11-13"
+    },
+    {
+      "id": "university-town-library", "name": "深圳大学城图书馆", "phase": 1, "mapPriority": true,
+      "center": [22.59278, 113.96859],
+      "osm": { "building": "way/319515324" },
+      "heightM": 27, "heightSource": "design", "status": "verified",
+      "aliases": ["深圳市科技图书馆"],
+      "sources": ["https://szeb.sz.gov.cn/gkmlpt/content/10/10960/post_10960825.html", "https://rmjm.com/portfolio/the-university-town-library-china/", "https://www.e-architect.com/hong%20kong/shenzhen-university-building", "https://utszlib.edu.cn/venueFacilities/index.html?locale=zh_CN", "https://commons.wikimedia.org/wiki/File:University_Town_Library_of_Shenzhen,_photographed_from_the_side.jpg"],
+      "verifiedAt": "2026-11-13",
+      "note": "27米为设计资料口径；480米包括跨河、跨路与两端接驳，不能把整个足迹当作同高实体。"
     },
     {
       "id": "nantou-ancient-city", "name": "南头古城", "phase": 1, "mapPriority": true,
       "center": [22.5462391, 113.9158929],
+      "sceneReview": {"modelSource": "way/1183877518", "passage": "way/1436861800", "evidence": "heritage-districts-evidence.md", "verifiedAt": "2026-11-13"},
       "osm": { "site": "way/219961346" }, "status": "osm",
       "aliases": ["新安故城"],
       "sources": ["https://wtl.sz.gov.cn/xxgk/qt/lypc/content/post_11078058.html"]
@@ -186,6 +202,7 @@
     {
       "id": "sea-world", "name": "海上世界（明华轮）", "short": "海上世界", "phase": 1, "mapPriority": true,
       "center": [22.48634, 113.91193],
+      "sceneReview": {"modelSource": "way/105683429", "basin": "way/261597655", "evidence": "heritage-districts-evidence.md", "verifiedAt": "2026-11-13"},
       "osm": { "ship": "way/105683429", "plaza": "way/543176177", "artsCenter": "way/740022007", "nuwa": "node/5250978477", "nuwaPark": "way/733499600" },
       "status": "osm"
     },
@@ -193,14 +210,30 @@
       "id": "kk100", "name": "京基100（京基百纳）", "short": "京基100", "phase": 1, "mapPriority": true,
       "aliases": ["京基一百", "KK100"],
       "center": [22.54573, 114.10158],
-      "osm": { "tower": "way/781166572", "site": "way/164033632" },
-      "heightM": 441.8, "heightSource": "osm", "status": "verified"
+      "osm": { "tower": "way/781166572", "site": "way/164033632", "porch": "way/781166573" },
+      "heightM": 441.8, "heightSource": "published", "status": "verified",
+      "sources": ["https://farrells.com/project/kk100/"],
+      "verifiedAt": "2026-11-13"
     },
     {
-      "id": "diwang", "name": "地王大厦（信兴广场）", "phase": 2,
+      "id": "diwang", "name": "地王大厦（信兴广场）", "phase": 2, "mapPriority": true,
       "center": [22.54534, 114.10552],
-      "osm": { "building": "way/64601041", "site": "way/773700365" },
-      "heightSource": "estimate", "status": "todo"
+      "osm": { "building": "way/64601041", "site": "way/773700365", "shaft": "way/279950100", "crownBases": ["relation/10722604", "relation/10722606"], "crownTurrets": ["relation/10722605", "relation/10722607"], "podium": "way/773700361", "entryWing": "way/1145586647" },
+      "heightM": 384, "heightSource": "published", "status": "verified",
+      "aliases": ["地王大厦", "信兴广场"],
+      "sources": ["https://www.skyscrapercenter.com/shenzhen/shun-hing-square/258", "https://commons.wikimedia.org/wiki/Category:Exterior_of_Shun_Hing_Square_信興廣場"],
+      "verifiedAt": "2026-11-13",
+      "note": "384米含双尖顶，最高使用层298米；源塔身与双冠各段分别建模。"
+    },
+    {
+      "id": "shenzhen-stock-exchange", "name": "深圳证券交易所", "phase": 1, "mapPriority": true,
+      "center": [22.544293, 114.048818],
+      "osm": { "site": "way/923157986", "tower": "way/529086136", "podium": "relation/12502051", "lowerTower": "relation/12502052" },
+      "heightM": 245.8, "heightSource": "osm", "status": "verified",
+      "aliases": ["深交所"],
+      "sources": ["https://www.oma.com/projects/shenzhen-stock-exchange", "https://global.ctbuh.org/resources/papers/download/1878-the-public-meaning-of-skyscrapers-shenzhen-stock-exchange-and-cctv.pdf"],
+      "verifiedAt": "2026-11-13",
+      "note": "西侧附属底板 way/776182829 按建成照片保留场地地面，不使用源楼层数推估的整层实墙。"
     },
     {
       "id": "super-hq", "name": "深圳湾超级总部基地", "phase": 1,

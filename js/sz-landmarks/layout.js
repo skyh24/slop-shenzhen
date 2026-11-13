@@ -1,4 +1,10 @@
-import { sourceIds as tencentIds, build as buildTencent } from './tencent-binhai.js';
+import * as tencentBinhai from './tencent-binhai.js';
+import * as tencentTowers from './tencent-towers.js';
+import * as universityTownLibrary from './university-town-library.js';
+import * as diwang from './diwang.js';
+import * as kk100 from './kk100.js';
+import * as stockExchange from './stock-exchange.js';
+import * as shoppingParkShell from './shopping-park-shell.js';
 import { sourceIds as skyCityIds, build as buildSkyCity } from './dji-sky-city.js';
 import { sourceIds as pingAnIds, build as buildPingAn } from './ping-an.js';
 import { sourceIds as chunsunIds, build as buildChunsun } from './chunsun.js';
@@ -14,6 +20,7 @@ import { sourceIds as superHqIds, optionalSkipIds as superHqSkips, build as buil
 import * as qianhaiMuseum from './qianhai-museum.js';
 import * as bayOpera from './bay-opera.js';
 import * as mocape from './mocape.js';
+import { sourceIds as northIds, build as buildNorth } from './shenzhen-north.js';
 import { polygonContains } from '../building-collision.js';
 
 // 超级总部/西丽在建场地由「建好形态/在建工地」接管：场地轮廓内的旧通用楼不再单独渲染。
@@ -23,7 +30,13 @@ const definitions = [
   { id: 'qianhai-museum', ...qianhaiMuseum },
   { id: 'bay-opera', ...bayOpera },
   { id: 'mocape', ...mocape },
-  { id: 'tencent-binhai', sourceIds: tencentIds, build: buildTencent },
+  { id: 'tencent-binhai', ...tencentBinhai },
+  { id: 'tencent-towers', ...tencentTowers },
+  { id: 'university-town-library', ...universityTownLibrary },
+  { id: 'diwang', ...diwang },
+  { id: 'kk100', ...kk100 },
+  { id: 'shenzhen-stock-exchange', ...stockExchange },
+  { id: 'shopping-park-shell', ...shoppingParkShell },
   { id: 'dji-sky-city', sourceIds: skyCityIds, build: buildSkyCity },
   { id: 'ping-an', sourceIds: pingAnIds, build: buildPingAn },
   { id: 'chunsun', sourceIds: chunsunIds, build: buildChunsun },
@@ -35,6 +48,7 @@ const definitions = [
   { id: 'nonferrous-tower', sourceIds: nonferrousIds, optionalSkipIds: nonferrousDuplicates, build: buildNonferrous },
   { id: 'press-tower', sourceIds: pressIds, optionalSkipIds: pressDuplicates, build: buildPress },
   { id: 'iec-xiangmihu', site: 'iec-xiangmihu', sourceIds: iecIds, optionalSkipIds: iecDuplicates, build: buildIec },
+  { id: 'shenzhen-north', sourceIds: northIds, build: buildNorth },
   { id: 'super-hq', site: 'super-hq', sourceIds: superHqIds, optionalSkipIds: superHqSkips, build: buildSuperHq }
 ];
 
@@ -55,7 +69,7 @@ export function siteTakeoverIds(buildings, sites = {}) {
   return ids;
 }
 
-export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, groundHeight } = {}) {
+export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, groundHeight, northRail } = {}) {
   const source = new Map(buildings.map(building => [building.id, building]));
   const skipIds = new Set();
   const plans = [];
@@ -64,12 +78,13 @@ export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, grou
     const sourceIds = definition.sourceIds ?? [];
     if (!sourceIds.every(id => source.has(id))) continue;
     // 已核场地与玩家活动地面一同传入；贴地接驳用显示面，楼体估高仍用原地形。
-    const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {}, heightAt, groundHeight };
+    const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {}, heightAt, groundHeight, northRail };
     const parts = definition.build(source, terrain, context);
     if (parts.length === 0) continue;
     for (const id of sourceIds) skipIds.add(id);
     for (const id of definition.optionalSkipIds ?? []) if (source.has(id)) skipIds.add(id);
-    plans.push({ id: definition.id, parts });
+    plans.push({ id: definition.id, parts, approaches: definition.approaches?.(source) ?? [],
+      trim: definition.trim?.(parts, source) ?? [] });
   }
   // 场地接管与地标接管合并成一份 skipIds：超级总部/西丽场地轮廓内的旧通用楼不再单独渲染。
   for (const id of siteTakeoverIds(buildings, sites)) skipIds.add(id);

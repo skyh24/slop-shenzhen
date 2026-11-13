@@ -349,7 +349,7 @@ function makeTrack(points, kind, extra) {
     length += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
     cum.push(length);
   }
-  return { kind, points, cum, length, ends: [[], []], ...extra };
+  return { kind, points, cum, length, ends: [[], []], normals: points.map((_, i) => tangentAt(points, i)), ...extra };
 }
 
 function onRaisedSidewalk({ heightAt, groundHeight }, x, z) {
@@ -460,7 +460,7 @@ export function buildSidewalkTracks(graph, options = {}) {
             continue;
           }
           tracks.push(makeTrack(points, 'sidewalk', { id: `walk:${nextId++}`, linkIndex: index, side,
-            highway: metadata.highway, widthM }));
+            highway: metadata.highway, widthM, raisedOnly }));
           statistics.walkableMeters += length;
         }
       }
@@ -766,12 +766,9 @@ export function buildWalkTracks(graph, options = {}) {
     pavement,
     carriagewayOccupied: (x, z) => barrier.contains(x, z, cfg.colliderRadiusM),
     walkableHeight(x, z, referenceY) {
-      const y = cfg.heightAt(x, z);
-      if (!Number.isFinite(y) || Math.abs(y - referenceY) > cfg.maxStepRiseM
-        || barrier.contains(x, z, cfg.carriagewayClearanceM) || cfg.blockGenericWalk?.(x, z)
-        || colliderAt(colliderIndex, x, z, y, cfg.colliderRadiusM, cfg.colliderHeightM)) return null;
-      return y;
+      return heightForPose(x, z, referenceY);
     },
+    heightForPose,
     statistics: {
       ...built.statistics,
       ...connected.statistics,
@@ -785,11 +782,46 @@ export function buildWalkTracks(graph, options = {}) {
       colliderIndexed: colliderIndex.indexed
     }
   };
+
+  function heightForPose(x, z, referenceY, leg, radius = cfg.colliderRadiusM, raised = false, padding = 0) {
+    const y = leg?.publicHeight ? leg.publicHeight(x, z) : cfg.heightAt(x, z);
+    if (!Number.isFinite(y) || Math.abs(y - referenceY) > (leg ? 0.19 : cfg.maxStepRiseM)
+      || (leg?.kind !== 'crossing-network' && barrier.contains(x, z, Math.max(radius, cfg.colliderRadiusM))) || cfg.isWater?.(x, z)
+      || colliderAt(colliderIndex, x, z, y, radius + padding, cfg.colliderHeightM)) return null;
+    if (leg?.allows && !leg.allows(x, z, radius)) return null;
+    const generic = leg?.kind !== 'public-walk' && !leg?.publicHeight;
+    if (generic && (cfg.excludeWalkAt?.(x, z) || cfg.blockGenericWalk?.(x, z))) return null;
+    if (leg?.walkAt || raised) {
+      for (const [dx, dz] of [[0, 0], [radius, 0], [-radius, 0], [0, radius], [0, -radius]]) {
+        if (leg.walkAt?.(x + dx, z + dz) === false || (raised && !onRaisedSidewalk(cfg, x + dx, z + dz))) return null;
+      }
+    }
+    return y;
+  }
 }
 
-export function createPublicWalkTrack(points, { id = 'public-walk:zhongxin-2-west', walkAt, reserve, restSide, jogSpeed } = {}) {
-  return makeTrack(points, 'public-walk', { id, walkAt, reserve, restSide, jogSpeed, highway: 'unclassified',
+export function createPublicWalkTrack(points, { id = 'public-walk:zhongxin-2-west', walkAt, allows, publicHeight, heightAt = publicHeight, surfaceId, lateralM, singleFile, reserve, restSide, jogSpeed } = {}) {
+  return makeTrack(points, 'public-walk', { id, walkAt, allows, publicHeight: heightAt, surfaceId, lateralM, singleFile, reserve, restSide, jogSpeed, highway: 'unclassified',
     normals: points.map((_, i) => tangentAt(points, i)) });
+}
+
+export function createCrossingWalkTracks(legs) {
+  const endpoints = new Map();
+  const tracks = legs.map(({ points, id, crossing, signal, walkAt }) => {
+    const track = makeTrack(points, 'crossing-network', { id, crossing, signal, publicHeight: walkAt, highway: 'footway' });
+    for (const [end, point] of [points[0], points.at(-1)].entries()) {
+      const key = `${point.x}/${point.z}`;
+      const linked = endpoints.get(key) ?? [];
+      for (const entry of linked) {
+        track.ends[end].push(entry);
+        entry.leg.ends[entry.end].push({ leg: track, end });
+      }
+      linked.push({ leg: track, end });
+      endpoints.set(key, linked);
+    }
+    return track;
+  });
+  return tracks;
 }
 
 export function sampleTrack(track, s, out = {}) {

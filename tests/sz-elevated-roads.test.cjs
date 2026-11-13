@@ -15,6 +15,7 @@ const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': tslStub,
   './sz-roads.js': roads,
   './sz-ground-surface.js': groundSurface,
+  './sz-polygon.js': loadModule(read('sz-polygon.js')),
   './sz-controller-surfaces.js': controllerSurfaces
 } });
 
@@ -153,6 +154,7 @@ test('real THREE build creates at most twelve chunk meshes and a walkable deck t
       'three/tsl': await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.tsl.js'))),
       './sz-roads.js': realRoads,
       './sz-ground-surface.js': groundSurface,
+      './sz-polygon.js': loadModule(read('sz-polygon.js')),
       './sz-controller-surfaces.js': controllerSurfaces
     } });
     const scene = new THREE.Scene();
@@ -190,23 +192,17 @@ function connectorFixture() {
   return graph;
 }
 
-test('links with different layer estimates get a connector ramp at the shared node', () => {
+test('a shared node with incompatible deck levels does not create an unsupported shortcut', () => {
   const result = plan(connectorFixture());
-  assert.ok(result.statistics.connectors >= 1, 'connector ramp exists');
-  const ramp = result.surfaces.find(surface => surface.id.startsWith('sz-elevated-ramp:'));
-  assert.ok(ramp, 'ramp has a walkable surface');
-  const ys = ramp.triangles.flat().map(point => point.y);
-  assert.ok(ys.every(Number.isFinite));
-  assert.ok(Math.max(...ys) - Math.min(...ys) > 0.6, 'ramp actually bridges the layer height difference');
-  const resolver = loadModule(read('sz-controller-surfaces.js')).createSurfaceResolver({
-    groundHeight: () => FLAT_TERRAIN, surfaces: result.surfaces
-  });
-  const heights = resolver.at(700 - 1, 300);
-  assert.ok(heights.length >= 1);
+  assert.equal(result.statistics.connectors, 0);
+  const low = result.links.find(link => link.index === 7);
+  const high = result.links.find(link => link.index === 3);
+  assert.ok(high.endDeckY - low.startDeckY > 4);
+  const highSurface = result.surfaces.find(surface => surface.id === high.surfaceId);
+  assert.ok(!highSurface.driveSuccessors.includes(low.surfaceId));
 });
 
-// 车行链路夹具：在基础夹具上补一条陡坡、一条隧道和一条 layer 0 桥，用来验证 driveLinks 的筛选条件。
-// 陡坡从共享地面节点起步（起点落地），60 m 内升到 layer2 的 9.6 m，派生纵坡约 16% 超过 12% 上限。
+// 60 米源边不足以在 5% 上限内平缓抬升两级。
 function driveFixture() {
   const graph = fixture();
   graph.nodes.push(160, 100, 700, 500, 760, 500, 800, 700, 860, 700);
@@ -298,7 +294,7 @@ test('built elevated roads expose drive surfaces and a deck height sampler on th
   const module = loadModule(read('sz-elevated-roads.js'), { imports: {
     'three/webgpu': fake, 'three/tsl': tslStub,
     './sz-roads.js': roads,
-    './sz-ground-surface.js': groundSurface,
+    './sz-ground-surface.js': groundSurface, './sz-polygon.js': loadModule(read('sz-polygon.js')),
     './sz-controller-surfaces.js': controllerSurfaces
   } });
   const built = module.buildSzElevatedRoads(new fake.Group(), { graph: driveFixture(), terrainSurface: surface, area: AREA });
@@ -414,7 +410,7 @@ test('guardrails appear where the deck leaves the ground and the contact wall sh
     for (const collider of link.barrierColliders) {
       assert.ok(collider.minY >= FLAT_TERRAIN + 0.75 - 1e-6,
         'guardrail contact starts above the street, so the road under the deck stays open');
-      assert.ok(collider.maxY <= FLAT_TERRAIN + 9.6 + 0.95 + 1e-6);
+      assert.ok(collider.maxY <= FLAT_TERRAIN + 10 + 0.95 + 1e-6);
     }
   }
   const offender = result.colliders.filter(collider => collider.type === 'elevated-barrier'
@@ -450,6 +446,7 @@ test('built elevated roads expose the guardrail and pier contact bodies', () => 
     'three/webgpu': fake, 'three/tsl': tslStub,
     './sz-roads.js': roads,
     './sz-ground-surface.js': groundSurface,
+    './sz-polygon.js': loadModule(read('sz-polygon.js')),
     './sz-controller-surfaces.js': controllerSurfaces
   } });
   const built = module.buildSzElevatedRoads(new fake.Group(), {

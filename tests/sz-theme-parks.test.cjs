@@ -1,0 +1,166 @@
+const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const { registerHooks } = require('node:module');
+const { resolve } = require('node:path');
+const { pathToFileURL } = require('node:url');
+const { gunzipSync } = require('node:zlib');
+const test = require('node:test');
+
+const root = process.env.SZ_THREE_PACKAGE_DIR ?? resolve(__dirname, '../.agents/three-0.187.0');
+registerHooks({ resolve(specifier, context, next) {
+  const file = specifier === 'three/tsl' ? 'build/three.tsl.js'
+    : specifier === 'three/webgpu' ? 'build/three.webgpu.js' : null;
+  return file ? { url: pathToFileURL(resolve(root, file)).href, shortCircuit: true } : next(specifier, context);
+} });
+
+test('the production pack fits all three parks and preserves ground access', async () => {
+  const { Scene, Vector3 } = await import('three/webgpu');
+  const { sceneUniforms } = await import('../js/sz-materials.js');
+  const { createCarriagewayBarrier } = await import('../js/sz-pedestrian-tracks.js');
+  const { EDGE_OPENINGS } = await import('../js/sz-theme-parks/sites.js');
+  const { decodeCityPayload } = await import('../js/sz-data-format.js');
+  const { createGroundSurfaceSampler } = await import('../js/sz-ground-surface.js');
+  const { distanceToRing, polygonContainsInclusive, ringArea } = await import('../js/sz-polygon.js');
+  const { buildThemeParks } = await import('../js/sz-theme-parks/index.js');
+  const raw = JSON.parse(gunzipSync(readFileSync(resolve(__dirname, '../js/sz-city.json.gz'))));
+  const { geo, buildings } = decodeCityPayload(raw);
+  const scene = new Scene();
+  const groundHeight = createGroundSurfaceSampler(geo.terrainSurface);
+  const isWater = (x, z) => geo.water.some(p => polygonContainsInclusive(p, x, z));
+  const parks = buildThemeParks(scene, { ...geo, buildings, groundHeight, isWater });
+  const summary = parks.snapshot();
+  assert.deepEqual(summary.rejected, []);
+  assert.deepEqual(summary.parks.map(p => p.models.length), [6, 6, 3, 4]);
+  assert.deepEqual(summary.parks.map(p => p.walks), [3, 4, 3, 1]);
+  assert.ok(summary.omittedSmallBuildings > 50);
+  assert.equal(parks.skipIds.size, 5 + summary.omittedSmallBuildings);
+  const byId = new Map(buildings.map(b => [b.id, b]));
+  assert.ok(!parks.skipIds.has('way/610762992'), 'keep the mapped Happy Valley entrance building');
+  for (const id of parks.skipIds) {
+    if (id.startsWith('way/')) continue;
+    const b = byId.get(id);
+    assert.ok(b && !b.name && b.height <= 18);
+  }
+  const modelTop = sourceId => Math.max(...parks.colliders.filter(c => c.sourceId === sourceId).map(c => c.maxY));
+  const modelHeight = (sourceId, x, z) => modelTop(sourceId) - groundHeight(x, z);
+  assert.ok(Math.abs(modelHeight('theme-giza-1150884224', -8970, 1170) - 54) < 1);
+  assert.ok(Math.abs(modelHeight('theme-pisa', -8662, 1150) - 54) < 1.5);
+  assert.ok(modelHeight('theme-drop-tower', -7970, 428.4) > 82);
+  assert.ok(modelHeight('theme-water-slide', -8190, 149) > 30);
+  assert.ok(modelHeight('theme-forbidden-city', -6955, 1300) > 20);
+  assert.ok(modelHeight('theme-potala', -7090, 1365) > 43);
+  assert.equal(parks.pathAt(-7012, 1342).length, 1);
+  assert.equal(parks.pathAt(-6922, 1448).length, 1);
+  assert.equal(summary.flowerBeds.length, 5);
+  assert.ok(summary.flowerBeds.includes('expo-flower-apec'));
+  assert.ok(summary.flowerBeds.every(id => parks.group.getObjectByName(`${id}:blooms`)?.count > 100));
+  const footprints = id => parks.colliders.filter(c => c.sourceId === id);
+  const bedArea = id => ringArea(footprints(id)[0].polygon.outer);
+  assert.ok(bedArea('expo-flower-rosette') > 1300 && bedArea('expo-flower-terraces') > 1800);
+  assert.ok(bedArea('china-flower-peony') > 800);
+  assert.ok(parks.reserved(-6985, 1434, 1));
+  assert.ok(parks.reserved(-5957, 1118, 1) && parks.reserved(-5934, 1118, 1));
+  assert.ok(!parks.reserved(-5945.3, 1118.3, 3) && parks.pathAt(-5945.3, 1118.3).length === 1);
+  for (const id of ['expo-flower-ribbon', 'expo-flower-apec']) {
+    const panels = footprints(id);
+    assert.ok(panels.reduce((area, p) => area + ringArea(p.polygon.outer), 0) > 1300);
+    assert.ok(panels.every(p => p.polygon.outer.every(({ x, z }) => !parks.pathAt(x, z).length)));
+  }
+  assert.ok(!parks.reserved(-5899.7, 1168.1, 4), 'keep the south pedestrian path clear');
+  const barrier = createCarriagewayBarrier(geo.roadGraph);
+  for (const [i, key] of ['world', 'china', 'valley', 'expo'].entries()) {
+    const walls = parks.colliders.filter(c => c.sourceId === `theme-${key}-perimeter`);
+    const lamps = parks.colliders.filter(c => c.sourceId === `theme-${key}-path-lamps`);
+    assert.ok(summary.parks[i].wallLengthM > (key === 'expo' ? 5000 : 1400));
+    assert.ok(summary.parks[i].lamps >= 6);
+    assert.ok(parks.group.children.some(m => m.isInstancedMesh && m.name.startsWith(`theme-${key}-perimeter:iron:`)));
+    assert.ok(walls.some(w => Math.abs(w.maxY - groundHeight((w.minX + w.maxX) / 2, (w.minZ + w.maxZ) / 2) - 3) < 0.05));
+    for (const wall of walls) {
+      for (const [x, z, radius] of EDGE_OPENINGS[key]) {
+        assert.ok(!polygonContainsInclusive(wall.polygon, x, z) && distanceToRing(wall.polygon.outer, x, z) >= radius - 0.1);
+      }
+      assert.ok(wall.polygon.outer.every(({ x, z }) => !barrier.contains(x, z, 0.5)));
+    }
+    for (const lamp of lamps) {
+      assert.ok(lamp.polygon.outer.every(({ x, z }) => !parks.pathAt(x, z).length));
+    }
+  }
+  assert.ok(parks.group.getObjectByName('ShenzhenLandmark:theme-eiffel').children
+    .some(mesh => mesh.material.emissiveNode));
+  try {
+    sceneUniforms.night.value = 0.86;
+    parks.update(10, true, new Vector3(-8750, 10, 1025));
+    assert.equal(parks.snapshot().lightPoolsVisible, true);
+    sceneUniforms.night.value = 0;
+    parks.update(11, false, new Vector3(-8750, 10, 1025));
+    assert.equal(parks.snapshot().lightPoolsVisible, false);
+  } finally {
+    sceneUniforms.night.value = 0;
+  }
+  assert.equal(parks.pathAt(-8750, 1025).length, 1);
+  assert.equal(parks.pathAt(0, 0).length, 0);
+  for (const mesh of parks.group.children.filter(o => o.name.includes('-walk:'))) {
+    const p = mesh.geometry.attributes.position;
+    for (let i = 0; i < p.count; i += 7) {
+      assert.ok(Math.abs(p.getY(i) - groundHeight(p.getX(i) + mesh.position.x, p.getZ(i) + mesh.position.z)) < 0.002);
+    }
+  }
+  assert.ok(parks.colliders.every(p => p.heightSource && p.minY < p.maxY));
+  assert.ok(!parks.colliders.some(p => p.minY < 9.9 && p.maxY > 8
+    && polygonContainsInclusive(p.polygon, -8750, 1025)));
+  assert.ok(parks.reserved(-8660, 1045, 0));
+  assert.equal(parks.pathAt(-8660, 1045).length, 0);
+  parks.dispose();
+  assert.equal(scene.children.length, 0);
+});
+
+test('the coaster center and both rails are closed and keep clearance above the terrain', async () => {
+  const { decodeCityPayload } = await import('../js/sz-data-format.js');
+  const { createGroundSurfaceSampler } = await import('../js/sz-ground-surface.js');
+  const { rollerCoaster } = await import('../js/sz-theme-parks/rides.js');
+  const raw = JSON.parse(gunzipSync(readFileSync(resolve(__dirname, '../js/sz-city.json.gz'))));
+  const { geo } = decodeCityPayload(raw);
+  const ground = createGroundSurfaceSampler(geo.terrainSurface);
+  const { track, rings, parts } = rollerCoaster(ground, () => true);
+  assert.ok(track.getPointAt(0).distanceTo(track.getPointAt(1)) < 1e-6);
+  for (let i = 0; i < rings.length; i++) for (let r = 0; r < 3; r++) {
+    const a = rings[i][r], b = rings[(i + 1) % rings.length][r];
+    assert.ok(a.y - ground(a.x, a.z) > 3.5);
+    assert.ok(Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 6);
+  }
+  assert.ok(parts.some(p => p.style === 'basalt' && p.maxY < 12));
+});
+
+test('fireworks complete each cycle, skip distant launches and stop at daylight', async () => {
+  const { Scene, Vector3 } = await import('three/webgpu');
+  const { buildParkFireworks } = await import('../js/sz-park-fireworks.js');
+  const scene = new Scene();
+  const show = buildParkFireworks(scene, { x: 0, y: 8, z: 0 });
+  const near = new Vector3(0, 12, 450);
+  const reduced = new Vector3(0, 15, 1100);
+  const far = new Vector3(0, 12, 2500);
+  for (let i = 0; i < 6; i++) {
+    const t = i * 5;
+    show.update(t, true, near);
+    assert.equal(show.snapshot().phase, 'ascent');
+    assert.equal(show.snapshot().launched, i + 1);
+    show.update(t + 2, true, near);
+    assert.equal(show.snapshot().phase, 'burst');
+    assert.equal(show.snapshot().particles, 96);
+    show.update(t + 2.1, true, reduced);
+    assert.equal(show.snapshot().particles, 48);
+    show.update(t + 4.7, true, near);
+    assert.equal(show.snapshot().particles, 0);
+  }
+  show.update(30, true, far);
+  show.update(32, true, near);
+  assert.equal(show.snapshot().phase, 'idle');
+  show.update(35, true, near);
+  assert.equal(show.snapshot().launched, 7);
+  show.update(37, false, near);
+  assert.equal(show.snapshot().particles, 0);
+  show.update(46, false, near);
+  assert.equal(show.snapshot().launched, 7);
+  show.dispose();
+  assert.equal(scene.children.length, 0);
+});

@@ -61,7 +61,7 @@ test('contact query reads rendered Float32 triangle positions and excludes missi
   renderInput.origin[0] = 100;
   assert.equal(createGroundSurfaceSampler(surface)(5, 10), expected);
   const replacement = structuredClone(surface);
-  replacement.chunks[1].kinds[0] = 8;
+  replacement.chunks[1].kinds[0] = 12;
   assert.throws(() => createGroundSurfaceSampler(replacement), /Invalid terrain surface chunk/);
   replacement.chunks[1].kinds[0] = 3;
   replacement.chunks[1].positions[1] = 11;

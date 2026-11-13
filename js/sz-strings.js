@@ -144,6 +144,13 @@ export const STR = {
     stop: '退出环绕'
   },
   bayWaterfront: { destination: '中湾阅海广场', walk: '观海步道' },
+  districts: {
+    minghua: '明华轮', seaWorld: '海上世界', b10: 'OCAT · B10', octLoft: 'OCT-LOFT',
+    ningnan: '寧南', nantouGate: '嶺南重鎮', nantouPaifang: '城古頭南', closed: '暂不开放',
+    shops: { sea: ['海岸小食', '饮品补给', '港湾餐桌'], oct: ['独立出版', '工艺小铺', '厂房咖啡'],
+      nantou: ['巷口茶档', '街坊小食', '手作杂货'] },
+    seaWalk: '海上世界 · 观船广场', octWalk: '华侨城创意园 · B10 步道', nantouWalk: '南头古城 · 南牌坊外'
+  },
   teleport: {
     cocoParkApproach: 'COCO Park 一期东南门前场',
     cocoParkApproachDetail: '福华三路北侧步行起点',
@@ -206,7 +213,14 @@ export const STR = {
     },
     xiliVisit: '参观落点在工地外围。',
     futianVisit: '参观地面站口。',
-    visitUnavailable: '附近暂无安全落点，请在地图上另选位置。'
+    visitUnavailable: '附近暂无安全落点，请在地图上另选位置。',
+    title: '高铁图层',
+    futian: '福田站（地下高铁）',
+    xili: '西丽站（在建）',
+    north: '深圳北站',
+    northEn: 'Shenzhen North Railway Station',
+    northOrbit: '观看深圳北站与高铁（模拟）',
+    highSpeedRail: '高铁'
   },
   cruise: {
     short: '巡游',
@@ -309,7 +323,9 @@ export const STR = {
     nonferrousTower: '西南侧看中国有色大厦',
     iecXiangmihu: '香蜜湖看国际交流中心', superHq: '深圳湾看超级总部双塔',
     bayBridge: '深圳湾公园远眺大桥',
-    yanjiang: '欢乐港湾远眺沿江高速'
+    yanjiang: '欢乐港湾远眺沿江高速',
+    northRailView: '深圳北站 · 北端股道',
+    southRailView: '深圳北站 · 南端股道'
   },
   subtitle: 'MVP 预览 · 南山 + 福田 · APEC 2026 深圳',
   loading: '正在载入深圳……',

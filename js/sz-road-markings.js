@@ -242,6 +242,44 @@ function outsideBounds(strip, bounds) {
   return result;
 }
 
+function junctionArms(graph) {
+  const nodes = new Map();
+  graph.links.forEach((link, index) => {
+    if (!isGroundRoad(graph.metadata[index])) return;
+    const points = roadSectionPoints(graph, link, graph.metadata[index]);
+    if (points.length < 2) return;
+    const ends = [[points[0], points[1]], [points.at(-1), points.at(-2)]];
+    ends.forEach(([point, next], end) => {
+      const dx = next.x - point.x, dz = next.z - point.z;
+      const length = Math.hypot(dx, dz);
+      if (length < 1e-6) return;
+      const arms = nodes.get(link[end]) ?? [];
+      const left = point.leftM ?? link[3] / 2, right = link[3] - left;
+      arms.push({ index, dx: dx / length, dz: dz / length, left: end ? right : left, right: end ? left : right });
+      nodes.set(link[end], arms);
+    });
+  });
+  return nodes;
+}
+
+function junctionGap(arms, index, length) {
+  if (!arms || arms.length < 3) return 0;
+  const arm = arms.find(item => item.index === index);
+  if (!arm) return 0;
+  let clearance = 0;
+  for (const other of arms) {
+    if (other === arm) continue;
+    const cos = arm.dx * other.dx + arm.dz * other.dz;
+    if (cos < -0.96) continue;
+    const sin = arm.dx * other.dz - arm.dz * other.dx;
+    // 从共享节点沿本进向退到两幅沥青边缘分离处。小角度分流给标线留渐开距离。
+    const otherHalf = sin > 0 ? other.left : other.right;
+    const ownHalf = sin > 0 ? arm.right : arm.left;
+    clearance = Math.max(clearance, (otherHalf + Math.max(0, cos) * ownHalf) / Math.max(0.25, Math.abs(sin)));
+  }
+  return Math.min(clearance + 0.75, 28, length * 0.5);
+}
+
 export function createMarkingLayout(graph, { intersections = [], frontage } = {}) {
   if (!graph?.links || !graph.metadata || graph.links.length !== graph.metadata.length) throw new Error('Matched road graph required');
   const strips = [];
@@ -272,13 +310,7 @@ export function createMarkingLayout(graph, { intersections = [], frontage } = {}
       approachesByLink.set(approach.sourceIndex, list);
     }
   }
-  const degree = new Map();
-  for (let i = 0; i < graph.links.length; i++) {
-    const m = graph.metadata[i];
-    if (!isGroundRoad(m)) continue;
-    const [a, b] = graph.links[i];
-    degree.set(a, (degree.get(a) ?? 0) + 1); degree.set(b, (degree.get(b) ?? 0) + 1);
-  }
+  const arms = junctionArms(graph);
   for (let i = 0; i < graph.links.length; i++) {
     const link = graph.links[i], metadata = graph.metadata[i];
     statistics.links++;
@@ -296,9 +328,9 @@ export function createMarkingLayout(graph, { intersections = [], frontage } = {}
     const points = roadSectionPoints(graph, link, metadata);
     if (points.length < 2) continue;
     const length = points.reduce((sum, point, index) => index ? sum + Math.hypot(point.x - points[index - 1].x, point.z - points[index - 1].z) : 0, 0);
-    const junctionGap = Math.min(width * 0.38, 7, length * 0.30);
-    let startS = (degree.get(link[0]) ?? 0) >= 3 ? junctionGap : 0;
-    let endS = (degree.get(link[1]) ?? 0) >= 3 ? length - junctionGap : Infinity;
+    let startS = junctionGap(arms.get(link[0]), i, length);
+    const tail = junctionGap(arms.get(link[1]), i, length);
+    let endS = tail ? length - tail : Infinity;
     for (const approach of approachesByLink.get(i) ?? []) {
       // 只有信号进向才有停止线；已核实过街（无信号）不剪纵向标线。
       if (!Number.isInteger(approach.group)) continue;
@@ -330,7 +362,7 @@ export function createMarkingLayout(graph, { intersections = [], frontage } = {}
       if (areas) {
         let generic = strips.splice(before);
         for (const area of areas) generic = generic.flatMap(strip => outsideBounds(strip, area));
-        for (const strip of generic) strips.push(strip);
+        for (const strip of generic) if (Math.hypot(strip.bx - strip.ax, strip.bz - strip.az) >= 0.25) strips.push(strip);
         statistics.reviewedLinks++;
       }
     }
@@ -338,6 +370,7 @@ export function createMarkingLayout(graph, { intersections = [], frontage } = {}
   for (const junction of intersections) {
     const approaches = junction.approaches ?? [];
     for (const approach of approaches) {
+      if (Number.isInteger(approach.sourceIndex) && !isGroundRoad(graph.metadata[approach.sourceIndex])) continue;
       if (signalPaint.has(`node/${approach.osmNodeId}`)) continue;
       const signal = Number.isInteger(approach.group);
       const verifiedCrossing = approach.crosswalk === true || junction.crosswalk === true;

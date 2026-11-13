@@ -18,6 +18,8 @@ const TRUNK_SIDES = 8;
 const TRUNK_TRIANGLES = TRUNK_SIDES * 2; // 无盖圆柱
 const FAR_CROWN_TRIANGLES = 80; // IcosahedronGeometry detail=1
 const COLLIDER_CELL_M = 48;
+const WOODLAND_CLEAR_M = 6;
+const WOODLAND_SOURCE = 'simulated-woodland';
 const OSM_SOURCE_NAMES = new Set(['osm-node', 'osm-row']);
 const TREE_CLEARANCE_CORRIDOR = 'shennan-chegongmiao';
 const D1_ENTRANCE_NODE = 1491790883;
@@ -361,7 +363,9 @@ export function buildSzTrees(scene, payload, options = {}) {
     const scale = 0.84 + treeSeed(tree.id) * 0.36;
     additionalTrees.push({ ...tree, speciesName: 'ficus', height: 5.9 * scale, crown: 4.9 * scale });
   }
-  const count = payloadCount + additionalTrees.length;
+  const woodlandTrees = options.woodlandTrees ?? [];
+  const woodlandStart = payloadCount + additionalTrees.length;
+  const count = woodlandStart + woodlandTrees.length;
   const empty = emptyResult();
   if (!count || typeof groundHeight !== 'function') {
     empty.statistics.payloadCount = payloadCount;
@@ -380,20 +384,31 @@ export function buildSzTrees(scene, payload, options = {}) {
   const treeColliders = [];
   const crownTemplates = new Set();
   for (let index = 0; index < count; index++) {
-    const extra = additionalTrees[index - payloadCount];
+    const woodland = index >= woodlandStart;
+    const extra = woodland ? woodlandTrees[index - woodlandStart] : additionalTrees[index - payloadCount];
     const osmId = trees?.osm.get(index);
     const observed = observedById.get(extra?.id ?? osmId);
     const x = observed?.x ?? extra?.x ?? trees.x[index];
     const z = observed?.z ?? extra?.z ?? trees.z[index];
     const height = extra?.height ?? trees.height[index];
     const crown = extra?.crown ?? trees.crown[index];
-    const sourceName = extra ? extra.positionSource ?? 'simulated-street' : trees.sources[trees.source[index]] ?? 'unknown';
+    const sourceName = woodland ? WOODLAND_SOURCE
+      : extra ? extra.positionSource ?? 'simulated-street' : trees.sources[trees.source[index]] ?? 'unknown';
     const appearanceSource = extra ? extra.appearanceSource ?? 'species-estimate' : trees.appearanceSources[trees.appearance[index]];
     // 树列可从同一 OSM 线生成多个实例，保留各自位置和共同源 ID。
     const legacyId = osmId ?? `tree/${index}`;
     const locationId = `tree:${x},${z}`;
     const id = extra?.id ?? (osmId?.startsWith('node/') ? osmId : `${osmId ?? sourceName}:${locationId}`);
     const sourceId = extra?.id ? id : legacyId;
+    const clearance = woodland ? crown * 0.57 + 0.35 : crown / 2;
+    if (options.excludedSite?.(x, z, clearance)) {
+      skipped.reservedWalk++;
+      continue;
+    }
+    if (woodland && options.isWater && options.isWater(x, z) !== false) {
+      skipped.unsupportedGround++;
+      continue;
+    }
     if (sourceName.startsWith('simulated-') && Number.isFinite(shennanMedianHeight(x, z))) {
       skipped.openMedian++;
       continue;
@@ -404,8 +419,9 @@ export function buildSzTrees(scene, payload, options = {}) {
     }
     let baseY = Infinity;
     let reason = null;
+    const scale = woodland ? crown * 0.03 / PROBE_RADIUS_M : 1;
     for (const [dx, dz] of probes) {
-      const sample = groundHeight(x + dx, z + dz);
+      const sample = groundHeight(x + dx * scale, z + dz * scale);
       if (sample === null || sample === undefined || !Number.isFinite(sample)) {
         reason = 'unsupportedGround';
         break;
@@ -426,7 +442,7 @@ export function buildSzTrees(scene, payload, options = {}) {
       }
     }
     if (sourceName === 'simulated-street') baseY = heightAt(x, z) ?? baseY;
-    if (!reason && hitsCollider(x, z, crown / 2, baseY, baseY + height)) reason = 'buildingConflict';
+    if (!reason && hitsCollider(x, z, clearance, baseY, baseY + height)) reason = 'buildingConflict';
     if (reason) {
       skipped[reason] += 1;
       continue;
@@ -438,7 +454,8 @@ export function buildSzTrees(scene, payload, options = {}) {
     const habit = CROWN_SPECIES[crownTemplate];
     const trunkHeight = height * habit.trunkRatio;
     const trunkRadius = crown * habit.trunkRadiusRatio;
-    if (options.carriagewayOccupied?.(x, z, trunkRadius)) {
+    if (options.carriagewayOccupied?.(x, z, woodland ? clearance : trunkRadius) || (sourceName.startsWith('simulated-')
+      && probes.some(([dx, dz]) => options.deckOccupied?.(x + dx * trunkRadius, z + dz * trunkRadius, baseY, baseY + height)))) {
       skipped.roadConflict++;
       continue;
     }
@@ -452,19 +469,45 @@ export function buildSzTrees(scene, payload, options = {}) {
       skipped.reservedWalk++;
       continue;
     }
-    crownTemplates.add(crownTemplate);
+    if (!woodland) crownTemplates.add(crownTemplate);
     candidates.push({ id, sourceId, x, z, y: baseY, height, crown, speciesName, sourceName, appearanceSource,
-      style, trunkHeight, trunkRadius, checkFrontage, seed: treeSeed(sourceId), crownTemplate });
+      style, trunkHeight, trunkRadius, checkFrontage, seed: treeSeed(sourceId), crownTemplate, woodland });
   }
 
   // 近景共用的树种几何也用于低枝净高检查。
   const crownLibrary = crownTemplates.size > 0 ? createCrownLibrary([...crownTemplates]) : null;
   const placed = [];
+  // 已验收树点优先。只在构建时查询九个相邻格，补植树点与原有树干至少相距 6 米。
+  const occupied = new Map();
+  for (const { x, z, woodland } of candidates) {
+    if (!woodland) continue;
+    const ix = Math.floor(x / WOODLAND_CLEAR_M), iz = Math.floor(z / WOODLAND_CLEAR_M);
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+      const key = `${ix + dx},${iz + dz}`;
+      if (!occupied.has(key)) occupied.set(key, []);
+    }
+  }
   for (const record of candidates) {
-    const { id, sourceId, x, z, y, trunkHeight, trunkRadius, sourceName, appearanceSource, checkFrontage, crownTemplate } = record;
+    const { id, sourceId, x, z, y, trunkHeight, trunkRadius, sourceName, appearanceSource, checkFrontage, crownTemplate,
+      woodland } = record;
     if (checkFrontage && crownBlocksFrontage(record, crownLibrary.geometryFor(crownTemplate), frontage, heightAt)) {
       skipped.frontageCrownConflict++;
       continue;
+    }
+    if (occupied.size) {
+      const ix = Math.floor(x / WOODLAND_CLEAR_M), iz = Math.floor(z / WOODLAND_CLEAR_M);
+      let overlaps = false;
+      if (woodland) {
+        for (let dx = -1; dx <= 1 && !overlaps; dx++) for (let dz = -1; dz <= 1 && !overlaps; dz++) {
+          overlaps = occupied.get(`${ix + dx},${iz + dz}`)?.some(other =>
+            (other.x - x) ** 2 + (other.z - z) ** 2 < WOODLAND_CLEAR_M ** 2);
+        }
+        if (overlaps) {
+          skipped.woodlandOverlap = (skipped.woodlandOverlap ?? 0) + 1;
+          continue;
+        }
+      }
+      occupied.get(`${ix},${iz}`)?.push(record);
     }
     countsBySource[sourceName] = (countsBySource[sourceName] ?? 0) + 1;
     placed.push(record);
@@ -500,6 +543,7 @@ export function buildSzTrees(scene, payload, options = {}) {
   const color = new THREE.Color();
   const tint = new THREE.Color();
   const trunkLight = new THREE.Color(0x77634c);
+  const lowDetailPipelines = new Map();
   // 每个树种只建一次颜色对象，避免为每棵树重复分配 THREE.Color。
   const styleColors = new Map();
   const colorsFor = name => {
@@ -542,6 +586,33 @@ export function buildSzTrees(scene, payload, options = {}) {
     sway.setXY(instance, amplitude, treeSeed(record.sourceId + ':wind'));
     return amplitude;
   }
+  function buildLowDetail(records, name, shadow) {
+    if (!records.length) return [];
+    const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, records.length);
+    trunks.name = `tree-trunks-${name}`;
+    trunks.userData.sources = records.map(record => record.sourceId);
+    const crowns = new THREE.InstancedMesh(farGeometry, leafMaterial, records.length);
+    crowns.name = `tree-crowns-${name}`;
+    records.forEach((record, instance) => {
+      pose(trunks, instance, record.x, record.y, record.z, record.trunkRadius, record.trunkHeight, record.trunkRadius);
+      color.setHex(record.style.trunkColor).lerp(trunkLight, treeSeed(record.sourceId + ':trunk'));
+      trunks.setColorAt(instance, color);
+      poseFar(record, crowns, instance);
+    });
+    trunks.castShadow = shadow;
+    for (const mesh of [trunks, crowns]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.instanceColor.needsUpdate = true;
+      mesh.receiveShadow = true;
+      mesh.computeBoundingSphere();
+      const pipelineKey = mesh === crowns ? 'crown' : shadow ? 'shadow-trunk' : 'trunk';
+      const pipeline = lowDetailPipelines.get(pipelineKey);
+      if (pipeline) mesh.userData.sharesPipelineWith = pipeline;
+      else lowDetailPipelines.set(pipelineKey, mesh);
+      group.add(mesh);
+    }
+    return [trunks, crowns];
+  }
   for (const key of [...grouped.keys()].sort(compareChunkKeys)) {
     const records = grouped.get(key);
     const cells = new Map();
@@ -559,28 +630,14 @@ export function buildSzTrees(scene, payload, options = {}) {
     const chunkCells = [];
     for (const cellKey of [...cells.keys()].sort(compareChunkKeys)) {
       const cell = cells.get(cellKey);
-      const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, cell.records.length);
-      trunks.name = `tree-trunks-far:${key}/${cellKey}`;
-      trunks.userData.sources = cell.records.map(record => record.sourceId);
-      const far = new THREE.InstancedMesh(farGeometry, leafMaterial, cell.records.length);
-      far.name = `tree-crowns-far:${key}/${cellKey}`;
-      cell.records.forEach((record, instance) => {
-        pose(trunks, instance, record.x, record.y, record.z, record.trunkRadius, record.trunkHeight, record.trunkRadius);
-        color.setHex(record.style.trunkColor).lerp(trunkLight, treeSeed(record.sourceId + ':trunk'));
-        trunks.setColorAt(instance, color);
-        poseFar(record, far, instance);
-      });
-      trunks.castShadow = true;
-      for (const mesh of [trunks, far]) {
-        mesh.instanceMatrix.needsUpdate = true;
-        mesh.instanceColor.needsUpdate = true;
-        mesh.receiveShadow = true;
-        mesh.computeBoundingSphere();
-        group.add(mesh);
-      }
+      const regular = [], woodland = [];
+      for (const record of cell.records) (record.woodland ? woodland : regular).push(record);
+      const far = buildLowDetail(regular, `far:${key}/${cellKey}`, true);
+      // 补植树木始终使用同一低模，不建叶卡和阴影投射批次。
+      const grove = buildLowDetail(woodland, `woodland:${key}/${cellKey}`, false);
       // 近冠按树种分实例网格：几何不同，但材质、图集共用。
       const byTemplate = new Map();
-      for (const record of cell.records) {
+      for (const record of regular) {
         let list = byTemplate.get(record.crownTemplate);
         if (!list) byTemplate.set(record.crownTemplate, (list = []));
         list.push(record);
@@ -625,7 +682,7 @@ export function buildSzTrees(scene, payload, options = {}) {
         cardTrees += groupRecords.length;
         cellCardTriangles += triangles;
       }
-      chunkCells.push({ key: cellKey, cards, far, trunks, trees: cell.records.length,
+      chunkCells.push({ key: cellKey, cards, far, grove, trees: cell.records.length, woodland: woodland.length,
         cardTrees, cardTriangles: cellCardTriangles, box: cell.box, mode: 'far' });
     }
     chunks.push({ cells: chunkCells });
@@ -642,7 +699,7 @@ export function buildSzTrees(scene, payload, options = {}) {
     countsBySource,
     skipped,
     cardCrownSpecies: crownLibrary ? crownLibrary.statistics.species.map(item => item.name) : [],
-    instances: { trunks: placed.length, cards: placed.length, farCrowns: placed.length },
+    instances: { trunks: placed.length, cards: placed.length - (countsBySource[WOODLAND_SOURCE] ?? 0), farCrowns: placed.length },
     triangles: {
       trunkPerTree: TRUNK_TRIANGLES,
       cardPerTree: { ...cardTriangles },
@@ -671,6 +728,8 @@ export function buildSzTrees(scene, payload, options = {}) {
     let farTrees = 0;
     let cardTrees = 0;
     let nearCardTriangles = 0;
+    let nearWoodlandTrees = 0;
+    let visibleWoodlandTrees = 0;
     const x = cameraPosition.x;
     const z = cameraPosition.z;
     for (const chunk of chunks) {
@@ -681,19 +740,21 @@ export function buildSzTrees(scene, payload, options = {}) {
         const visible = cell.mode === 'hidden' ? distance <= FAR_ENTER_M : distance <= FAR_EXIT_M;
         cell.mode = visible ? (canBeNear ? 'near' : 'far') : 'hidden';
         for (const card of cell.cards) card.mesh.visible = cell.mode === 'near';
-        cell.far.visible = cell.mode === 'far';
-        cell.trunks.visible = cell.far.visible;
+        for (const mesh of cell.far) mesh.visible = cell.mode === 'far';
+        for (const mesh of cell.grove) mesh.visible = visible;
         if (!visible) {
           hiddenCells += 1;
           continue;
         }
         visibleCells += 1;
+        visibleWoodlandTrees += cell.woodland;
         chunkVisible = true;
         if (cell.mode === 'near') {
           nearCells += 1;
           nearTrees += cell.trees;
           cardTrees += cell.cardTrees;
           nearCardTriangles += cell.cardTriangles;
+          nearWoodlandTrees += cell.woodland;
         } else {
           farCells += 1;
           farTrees += cell.trees;
@@ -711,7 +772,8 @@ export function buildSzTrees(scene, payload, options = {}) {
       nearTrees,
       farTrees,
       cardTrees,
-      triangles: nearCardTriangles + farTrees * (TRUNK_TRIANGLES + FAR_CROWN_TRIANGLES)
+      woodlandTrees: visibleWoodlandTrees,
+      triangles: nearCardTriangles + (farTrees + nearWoodlandTrees) * (TRUNK_TRIANGLES + FAR_CROWN_TRIANGLES)
     };
   }
 

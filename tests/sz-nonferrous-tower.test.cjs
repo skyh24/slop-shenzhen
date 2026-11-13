@@ -78,7 +78,7 @@ test('real Three draws and collides with the same curved recess, slabs and suppo
       'three/webgpu': THREE, '../sz-geometry.js': load('sz-geometry.js', { 'three/webgpu': THREE })
     });
     const { createLandmarkMaterial } = load('sz-landmarks/materials.js', {
-      'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': { sceneUniforms: { night: tsl.uniform(0) } },
+      '../sz-rail/geometry.js': {}, 'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': { sceneUniforms: { night: tsl.uniform(0) } },
       './shenzhen-bay-culture-square.js': {}, './upperhills.js': {}, './nonferrous-tower.js': nonferrous, './press-tower.js': { sourceIds: [], build: () => [] },
       './iec-xiangmihu.js': {}, './super-hq.js': {}
     });
