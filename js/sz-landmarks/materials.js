@@ -12,6 +12,19 @@ const styles = {
   tencentTower: { metal: 0xc9d0d5, glass: 0x60819c, roof: 0x879096, bay: 1.58, floor: 4.87, fin: 0.22, sill: 0.092, lit: 0.15, rough: 0.16, glow: 0xeeeaf2 },
   tencentPodium: { metal: 0xaab2af, glass: 0x556d79, roof: 0x697371, bay: 3.1, floor: 6.9, fin: 0.12, sill: 0.065, lit: 0.1, rough: 0.24, glow: 0xffca97 },
   tencentCopper: { metal: 0xb87543, glass: 0x93603f, roof: 0x776454, bay: 1.38, floor: 5.4, fin: 0.24, sill: 0.095, lit: 0.21, rough: 0.26, glow: 0xffb179 },
+  tencentLegacyGlass: { metal: 0x6a7f82, glass: 0x496f73, roof: 0x647678, bay: 2.22, floor: 4.72, fin: 0.06, sill: 0.22, lit: 0.11, rough: 0.23, glow: 0xcde4ff, wash: 0.04 },
+  landmarkLobby: { metal: 0x839095, glass: 0x3e545a, roof: 0x8a8b82, bay: 2.7, floor: 7.8, fin: 0.09, sill: 0.1, lit: 0.22, rough: 0.31, glow: 0xffdfb7, wash: 0.15 },
+  libraryRibbon: { metal: 0xb7c1be, glass: 0x51696c, roof: 0xa7adab, bay: 1.75, floor: 3.4, fin: 0.11, sill: 0.14, lit: 0.12, rough: 0.31, glow: 0xffdfbc, wash: 0.12 },
+  diwangShaft: { metal: 0x9b9987, glass: 0x2c6863, roof: 0x728477, bay: 4.4, floor: 4.35, fin: 0.20, sill: 0.10, lit: 0.12, rough: 0.21, glow: 0xc8f2de, wash: 0.047 },
+  diwangGlass: { metal: 0x5d9183, glass: 0x2a6059, roof: 0x68877a, bay: 2.6, floor: 4.35, fin: 0.095, sill: 0.14, lit: 0.08, rough: 0.24, glow: 0xc8f2de, wash: 0.074 },
+  diwangPodium: { metal: 0xb6a390, glass: 0x544941, roof: 0x87766b, bay: 3.7, floor: 3.35, fin: 0.24, sill: 0.23, lit: 0.19, rough: 0.33, glow: 0xffd6aa },
+  kkGlass: { metal: 0x9faeb8, glass: 0x456886, roof: 0x718492, bay: 3.15, floor: 4.3, fin: 0.135, sill: 0.085, lit: 0.105, rough: 0.2, glow: 0xe3efff, wash: 0.036 },
+  kkCrown: { metal: 0xb7c7d0, glass: 0x54768e, roof: 0x9daab2, bay: 2.7, floor: 6.1, fin: 0.1, sill: 0.12, lit: 0.16, rough: 0.24, glow: 0xdceeff, wash: 0.19 },
+  stockExchangeTower: { metal: 0xc0c7c9, glass: 0x738795, roof: 0x8f999d, bay: 5.54, floor: 8.1, fin: 0.19, sill: 0.15, lit: 0.11, rough: 0.25, glow: 0xd6e4ee },
+  stockExchangePodium: { metal: 0xa7b0b4, glass: 0x5c7179, roof: 0x818b90, bay: 2.55, floor: 8.8, fin: 0.23, sill: 0.13, lit: 0.18, rough: 0.27, glow: 0xe9e6d1, wash: 0.11 },
+  stockExchangeLobby: { metal: 0xadb5b5, glass: 0x5b6b76, roof: 0x9ea6a7, bay: 4.15, floor: 7.0, fin: 0.12, sill: 0.14, lit: 0.14, rough: 0.29, glow: 0xffdfb7 },
+  shoppingParkBase: { metal: 0xb1a7a0, glass: 0x546779, roof: 0x9e9a96, bay: 5.4, floor: 4.4, fin: 0.2, sill: 0.29, lit: 0.14, rough: 0.35, glow: 0xffd6aa },
+  shoppingParkGlass: { metal: 0x8d9ba6, glass: 0x345575, roof: 0x717d86, bay: 3.5, floor: 4.1, fin: 0.12, sill: 0.11, lit: 0.11, rough: 0.26, glow: 0xd5e9ff },
   djiCore: { metal: 0xadb5ba, glass: 0x5f6c75, roof: 0x8d959a, bay: 0.67, floor: 4.5, fin: 0.54, sill: 0.04, lit: 0.045, rough: 0.3, glow: 0xe9eff5 },
   djiWing: { metal: 0x9faeb9, glass: 0x385666, roof: 0x828f89, bay: 1.54, floor: 4.5, fin: 0.052, sill: 0.065, lit: 0.14, rough: 0.125, glow: 0xe6f1ff },
   pingAnGlass: { metal: 0x7e929c, glass: 0x455b6d, roof: 0x67737c, bay: 1.56, floor: 4.45, fin: 0.09, sill: 0.11, lit: 0.075, rough: 0.19, glow: 0xd5e9fa, wash: 0.052 },
@@ -66,6 +79,15 @@ function facadeMaterial(style, programEmission) {
 function crownMaterial(tint, roughness, metalness, strength) {
   const material = new THREE.MeshStandardNodeMaterial({ color: tint, roughness, metalness });
   material.emissiveNode = color(0xc0def7).mul(sceneUniforms.night).mul(strength);
+  return material;
+}
+
+function libraryShellMaterial() {
+  const material = new THREE.MeshStandardNodeMaterial({ metalness: 0.34, roughness: 0.46 });
+  const seam = cell => smoothstep(0.46, 0.5, abs(fract(cell).sub(0.5)))
+    .mul(smoothstep(0.12, 0.55, fwidth(cell)).oneMinus());
+  const joints = max(seam(uv().x.div(2.15)), seam(uv().y.div(1.9)));
+  material.colorNode = mix(color(0xc0c6c4), color(0x889291), joints.mul(0.45));
   return material;
 }
 
@@ -162,6 +184,9 @@ export function createLandmarkMaterial(name, programEmission = null) {
   if (name.startsWith('iec')) return createIecMaterial(name);
   if (name.startsWith('superHq')) return createSuperHqMaterial(name);
   switch (name) {
+    case 'landmarkEdge': return crownMaterial(0xc0c6c7, 0.39, 0.29, 0.15);
+    case 'libraryDeck': return new THREE.MeshStandardMaterial({ color: 0xadada1, roughness: 0.86 });
+    case 'libraryShell': return libraryShellMaterial();
     case 'djiBrace': return new THREE.MeshStandardMaterial({ color: 0xc4cbd0, metalness: 0.34, roughness: 0.37 });
     case 'djiDeck': return new THREE.MeshStandardMaterial({ color: 0x596570, metalness: 0.36, roughness: 0.62 });
     case 'djiGuard': return new THREE.MeshStandardMaterial({ color: 0x69828c, metalness: 0.48, roughness: 0.36 });

@@ -262,7 +262,7 @@ async function initApp() {
   const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
     ...site, carriagewayOccupied, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
-    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r),
+    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r),
     observedTrees: streetscape.observedTrees, pilotTrees: [...publicWalk.trees, ...(waterfront?.pilotTrees ?? [])],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
@@ -270,7 +270,11 @@ async function initApp() {
   const streetLamps = qa.stage('lamps', () => {
     const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: elevatedRoads.surfaces });
     return buildSzStreetLamps(scene, site.roadGraph, {
-      ...site, roadStyle: site.style.road, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk, relocateSite: iec?.relocateLamp,
+      ...site, roadStyle: site.style.road, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk,
+      relocateSite: candidate => {
+        const placed = iec ? iec.relocateLamp(candidate) : candidate;
+        return placed && !landmarks.reservesApproach?.(placed.x, placed.z, 0.34) ? placed : null;
+      },
       placementObstacles: [...buildings, ...trees.colliders],
       deckOccupied: (x, z, bottom, top) =>
         deck.at(x, z).some(surface => surface.height + 4.5 > bottom && surface.height - 0.35 < top)

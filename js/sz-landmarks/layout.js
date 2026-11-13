@@ -1,4 +1,10 @@
-import { sourceIds as tencentIds, build as buildTencent } from './tencent-binhai.js';
+import * as tencentBinhai from './tencent-binhai.js';
+import * as tencentTowers from './tencent-towers.js';
+import * as universityTownLibrary from './university-town-library.js';
+import * as diwang from './diwang.js';
+import * as kk100 from './kk100.js';
+import * as stockExchange from './stock-exchange.js';
+import * as shoppingParkShell from './shopping-park-shell.js';
 import { sourceIds as skyCityIds, build as buildSkyCity } from './dji-sky-city.js';
 import { sourceIds as pingAnIds, build as buildPingAn } from './ping-an.js';
 import { sourceIds as chunsunIds, build as buildChunsun } from './chunsun.js';
@@ -17,7 +23,13 @@ import { polygonContains } from '../building-collision.js';
 const siteTakeoverSites = ['super-hq', 'xili-station'];
 
 const definitions = [
-  { id: 'tencent-binhai', sourceIds: tencentIds, build: buildTencent },
+  { id: 'tencent-binhai', ...tencentBinhai },
+  { id: 'tencent-towers', ...tencentTowers },
+  { id: 'university-town-library', ...universityTownLibrary },
+  { id: 'diwang', ...diwang },
+  { id: 'kk100', ...kk100 },
+  { id: 'shenzhen-stock-exchange', ...stockExchange },
+  { id: 'shopping-park-shell', ...shoppingParkShell },
   { id: 'dji-sky-city', sourceIds: skyCityIds, build: buildSkyCity },
   { id: 'ping-an', sourceIds: pingAnIds, build: buildPingAn },
   { id: 'chunsun', sourceIds: chunsunIds, build: buildChunsun },
@@ -63,7 +75,8 @@ export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, grou
     if (parts.length === 0) continue;
     for (const id of sourceIds) skipIds.add(id);
     for (const id of definition.optionalSkipIds ?? []) if (source.has(id)) skipIds.add(id);
-    plans.push({ id: definition.id, parts });
+    plans.push({ id: definition.id, parts, approaches: definition.approaches?.(source) ?? [],
+      trim: definition.trim?.(parts, source) ?? [] });
   }
   // 场地接管与地标接管合并成一份 skipIds：超级总部/西丽场地轮廓内的旧通用楼不再单独渲染。
   for (const id of siteTakeoverIds(buildings, sites)) skipIds.add(id);

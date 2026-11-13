@@ -9,6 +9,12 @@ export function createLandmarkViews(landmarks, heights, heightAt, approaches, ga
     'civic-center': [0, 1],
     'convention-center': [0, -1],
     'press-tower': [0, 1],
+    'tencent-towers': [0, 1],
+    'tencent-binhai': [-1, 0],
+    'university-town-library': [-0.44, -0.90],
+    diwang: [0, 1],
+    kk100: [0, 1],
+    'shenzhen-stock-exchange': [0, 1],
     chunjian: [-1, 0],
     ...(Number.isFinite(gateYaw) && { 'iec-xiangmihu': [Math.sin(gateYaw), Math.cos(gateYaw)] })
   };

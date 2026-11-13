@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "checkedAt": "2026-11-12T12:23:36.260045+00:00",
+  "checkedAt": "2026-11-13T04:32:32.549710+00:00",
   "encodingValidation": "passed",
   "realityValidation": "incomplete",
   "recentObservationWindow": [
     2025,
     2026
   ],
-  "payloadSha256": "683b650e168da829ca38978bec995fa64e31d442ae87b75a7bb72ab18962d13b",
+  "payloadSha256": "c972f3c9d52f9e23d9ec921baa3140897176bc3b5fa28a7e6905154690da4d37",
   "sourceIntegrity": [
     {
       "id": "osm-guangdong",
@@ -141,12 +141,12 @@
     "overture/c59094e9-6f9d-47a3-9ed4-f60b10537eac": 2
   },
   "heightSources": {
-    "osm-height": 1605,
-    "osm-levels": 8575,
+    "osm-height": 1603,
+    "osm-levels": 8574,
     "globfp": 28443,
     "estimate": 37385,
-    "landmark": 7,
-    "published": 4,
+    "landmark": 8,
+    "published": 6,
     "overture-floors": 3,
     "overture-height": 2
   },
@@ -522,12 +522,12 @@
   "output": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7630,
-    "metadataBytes": 16718892,
-    "numericBytes": 33623736,
-    "uncompressedBytes": 50342680,
+    "columns": 7634,
+    "metadataBytes": 16721698,
+    "numericBytes": 33624856,
+    "uncompressedBytes": 50346608,
     "lossless": true,
-    "compressedBytes": 11384910,
-    "compressedSha256": "bcd223eba66dc3e5437d50a0220e61153f753c551c3d3de1bea8f5141d4323fb"
+    "compressedBytes": 11387958,
+    "compressedSha256": "9f98a2772bc2cad4ee220e4c91aeaca98f00e46ce1b5217f5646dacf8a6cdb74"
   }
 }

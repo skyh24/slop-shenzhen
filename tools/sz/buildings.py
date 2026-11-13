@@ -510,6 +510,8 @@ def load_landmark_bindings():
             if h is None and part in ('building', 'tower') and 'heightM' in lm:
                 h = lm['heightM']
             bindings[osm_id] = {'landmark': lm['id'], 'part': part, 'height': h}
+            if h is not None and lm.get('heightSource') == 'published':
+                bindings[osm_id]['heightSource'] = 'published'
     return bindings
 
 
@@ -861,7 +863,7 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
         height = source = None
         size_mismatch = False
         if binding and binding['height']:
-            height, source = binding['height'], 'landmark'
+            height, source = binding['height'], binding.get('heightSource', 'landmark')
         elif r.get('height'):
             height, source = r['height'], 'osm-height'
         elif r.get('levels'):

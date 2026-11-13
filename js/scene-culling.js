@@ -168,6 +168,12 @@ function setupSceneCulling(scene, roots, shadow = null) {
   for (const root of roots) {
     root.traverse((o) => {
       if (!isStaticMesh(o)) return;
+      // 有显式距离且已按地标分组的实例直接用组的包围球，不再拆城市网格。
+      if (o.userData.localInstanceCull && o.userData.cullDistance > 0 && o.isInstancedMesh) {
+        if (!o.boundingSphere) o.computeBoundingSphere();
+        pushCulled(o, o.boundingSphere.clone().applyMatrix4(o.matrixWorld), o.userData.cullDistance);
+        return;
+      }
       if (!o.isInstancedMesh) {
         if (o.userData.cullDistance > 0) {
           if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();

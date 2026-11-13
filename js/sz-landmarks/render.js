@@ -55,7 +55,7 @@ function addSpan(batch, part) {
 function addLoft(batch, part) {
   const { lower, upper, minY, maxY } = part.loft;
   const skin = part.loftSkin;
-  if (skin?.bottom !== false) addBottom(batch, [flatten(lower)], minY);
+  if (part.bottomFace !== false && skin?.bottom !== false) addBottom(batch, [flatten(lower)], minY);
   const y0 = minY - part.uvOriginY;
   const y1 = maxY - part.uvOriginY;
   const sides = lower.map((p, i) => {
@@ -78,7 +78,7 @@ function addLoft(batch, part) {
     u0 += lowWidth;
     u1 += highWidth;
   }
-  if (skin?.top === false && !part.roofContact) return null;
+  if (part.topFace === false || (skin?.top === false && !part.roofContact)) return null;
   const firstIndex = batch.idx.length;
   addFlatPolygon(batch, [flatten(upper)], maxY);
   return part.roofContact ? readTriangles(batch, firstIndex) : null;
@@ -109,7 +109,8 @@ export function addLandmarkPart(batch, part) {
   if (Array.isArray(part.top)) return addSpan(batch, part);
   const rings = [part.polygon.outer, ...part.polygon.holes].map(flatten);
   addWalls(batch, rings, part.minY, part.maxY, null, part.minY);
-  addBottom(batch, rings, part.minY);
+  if (part.bottomFace !== false) addBottom(batch, rings, part.minY);
+  if (part.topFace === false) return null;
   const firstIndex = batch.idx.length;
   addFlatPolygon(batch, rings, part.maxY);
   return part.roofContact ? readTriangles(batch, firstIndex) : null;
@@ -123,9 +124,9 @@ export function renderLandmark(plan, materialFor) {
   for (const part of plan.parts) {
     if (!batches.has(part.style)) batches.set(part.style, new GeoBuilder());
     // 可见实体的水平顶面可供落脚；未封顶的外壳不凭空增加平台，斜屋面保留原声明。
-    const roofContact = part.roofContact || (!Array.isArray(part.top) && part.loftSkin?.top !== false);
+    const roofContact = part.topFace !== false && (part.roofContact || (!Array.isArray(part.top) && part.loftSkin?.top !== false));
     const roof = addLandmarkPart(batches.get(part.style), { ...part, roofContact });
-    if (roof) surfaces.push({ id: part.id, heightSource: part.heightSource, triangles: roof });
+    if (roof) surfaces.push({ id: part.id, heightSource: part.heightSource, triangles: roof, climbableFromGround: part.climbableFromGround });
   }
   for (const [style, batch] of batches) {
     const mesh = new THREE.Mesh(batch.build(), materialFor(style));
@@ -135,4 +136,22 @@ export function renderLandmark(plan, materialFor) {
     group.add(mesh);
   }
   return { group, surfaces };
+}
+
+// 细小而重复的金属框件只做近景，一组实例共用一个网格。实体支承仍由模型部件负责。
+export function renderLandmarkTrim(items, material) {
+  if (!items.length) return null;
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), material, items.length);
+  const transform = new THREE.Object3D();
+  for (const [i, item] of items.entries()) {
+    transform.position.set(item.x, item.y, item.z);
+    transform.scale.set(...item.size);
+    transform.rotation.set(item.pitch ?? 0, item.yaw ?? 0, 0, 'YXZ');
+    transform.updateMatrix();
+    mesh.setMatrixAt(i, transform.matrix);
+  }
+  mesh.name = 'LandmarkCloseTrim';
+  mesh.userData.cullDistance = 140;
+  mesh.userData.localInstanceCull = true;
+  return mesh;
 }
