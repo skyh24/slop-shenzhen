@@ -1,5 +1,5 @@
 import { CatmullRomCurve3, Vector3 } from 'three/webgpu';
-import { disk, parkParts, rectangle } from './parts.js';
+import { disk, parkParts, rectangle, scaledParkParts } from './parts.js';
 
 // 雪域雄鹰片区参考 way/936620421、way/1426564269–272；闭合线和高程为避楼设计。
 const TRACK_LAYOUT = [
@@ -13,8 +13,8 @@ const TRACK_LAYOUT = [
 export function rollerCoaster(ground, canPlace) {
   const id = 'theme-coaster';
   const p = parkParts(id, ground);
-  const track = new CatmullRomCurve3(TRACK_LAYOUT.map(([x, z, h]) => new Vector3(x, 8 + h, z)), true);
-  const samples = 144;
+  const track = new CatmullRomCurve3(TRACK_LAYOUT.map(([x, z, h]) => new Vector3(x, 8 + (h <= 6 ? h : 6 + (h - 6) * 1.40), z)), true);
+  const samples = 160;
   const rings = Array.from({ length: samples }, (_, i) => {
     const t = i / samples;
     const c = track.getPointAt(t), tangent = track.getTangentAt(t);
@@ -58,9 +58,9 @@ export function rollerCoaster(ground, canPlace) {
 
 export function dropTower(ground) {
   const id = 'theme-drop-tower';
-  const p = parkParts(id, ground);
   // 太空梭 node/6942405222；塔高和座舱是静态示意。
-  const [x, z] = [-7970, 421.4];
+  const [x, z] = [-7970, 428.4];
+  const p = scaledParkParts(id, ground, x, z, 1.42);
   const base = p.footing(rectangle(x, z, 12, 12), 0.32, 'courtyard');
   const corners = rectangle(x, z, 4.2, 4.2);
   for (let i = 0; i < corners.length; i++) {
@@ -81,6 +81,62 @@ export function dropTower(ground) {
       const cx = x + 3.07 * Math.cos(a) - i * 1.26 * Math.sin(a);
       const cz = z + 3.07 * Math.sin(a) + i * 1.26 * Math.cos(a);
       p.box(cx, cz, 0.86, 0.95, base + 13.24, base + 14.48, 'brass', a);
+    }
+  }
+  return { id, parts: p.parts };
+}
+
+export function waterSlide(ground) {
+  const id = 'theme-water-slide';
+  const p = parkParts(id, ground);
+  // 玛雅水公园片区参考 way/1564674154；彩色滑槽与终点水池只作景观。
+  const x = -8190, z = 166;
+  const base = p.footing(rectangle(x, z, 20, 13), 0.26, 'courtyard');
+  const h = base + 22;
+  for (const dx of [-7.8, 7.8]) for (const dz of [-4.4, 4.4]) {
+    const pad = disk(x + dx, z + dz, 1.1, 8);
+    const foot = p.footing(pad, 0.18, 'basalt');
+    p.loft(disk(x + dx, z + dz, 0.63, 8), disk(x + dx, z + dz, 0.47, 8), foot, h, 'rideblue');
+  }
+  for (const dx of [-7.8, 7.8]) {
+    p.span({ x: x + dx, z: z - 4.4, y: base + 6 }, { x: x + dx, z: z + 4.4, y: h }, 0.45, 0.43, 'rideblue');
+  }
+  p.box(x, z, 18, 10.8, h - 0.6, h, 'slideTurquoise');
+  p.box(x, z - 5.2, 18, 0.22, h, h + 1.2, 'rideblue');
+  const end = 247;
+  const poolX = x + 10, poolZ = end + 9;
+  const poolBase = p.footing(rectangle(poolX, poolZ, 36, 27), 0.31, 'poolDeck');
+  p.box(poolX, poolZ, 32, 23, poolBase, poolBase + 0.1, 'slideWater');
+  for (const [lane, style] of [[-1, 'slideTurquoise'], [0, 'slideYellow'], [1, 'railred']]) {
+    const path = new CatmullRomCurve3([[x + lane * 4.7, h, z + 5.3],
+      [x + lane * 4.7, h - 3.4, z + 18], [x + lane * 4.7 + 8, h - 9.4, z + 32],
+      [x + lane * 4.7 + 14, h - 12.4, z + 48], [x + lane * 4.7 + 11, h - 16, z + 62],
+      [poolX + lane * 4.7, poolBase + 0.42, end]].map(v => new Vector3(...v)));
+    const n = 26;
+    const points = Array.from({ length: n + 1 }, (_, i) => {
+      const t = i / n, a = path.getPoint(t), b = path.getTangent(t);
+      const l = Math.hypot(b.x, b.z);
+      return { x: a.x, z: a.z, y: a.y, dx: b.z / l, dz: -b.x / l };
+    });
+    for (let i = 1; i <= n; i++) {
+      const a = points[i - 1], b = points[i];
+      const join = (a, b, w, depth) => {
+        const f = 0.10 / Math.hypot(b.x - a.x, b.z - a.z);
+        const extend = (u, v, overlap) => ({
+          x: u.x + (u.x - v.x) * overlap, z: u.z + (u.z - v.z) * overlap, y: u.y + (u.y - v.y) * overlap
+        });
+        p.span(extend(a, b, f), extend(b, a, f), w, depth, style);
+      };
+      join(a, b, 3.1, 0.46);
+      for (const side of [-1.43, 1.43]) {
+        const edge = q => ({ x: q.x + q.dx * side, z: q.z + q.dz * side, y: q.y + 0.63 });
+        join(edge(a), edge(b), 0.32, 0.73);
+      }
+      if (i % 5 === 0 && i < 24) {
+        const pad = disk(b.x, b.z, 0.76, 8);
+        const foot = p.footing(pad, 0.18, 'basalt');
+        if (foot < b.y - 0.4) p.loft(disk(b.x, b.z, 0.45, 8), disk(b.x, b.z, 0.33, 8), foot, b.y - 0.4, 'rideblue');
+      }
     }
   }
   return { id, parts: p.parts };

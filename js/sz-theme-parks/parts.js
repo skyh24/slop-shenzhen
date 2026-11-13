@@ -58,3 +58,23 @@ export function parkParts(id, ground, parts = [], heightSource = 'estimate') {
   }
   return { parts, box, solid, loft, span, limits, footing };
 }
+
+// 以局部原点放大参数几何，地基仍从真实渲染地面采样。
+export function scaledParkParts(id, ground, x, z, scale) {
+  const reference = ground(x, z);
+  const wx = v => x + (v - x) * scale, wz = v => z + (v - z) * scale;
+  const wy = v => reference + (v - reference) * scale;
+  const raw = parkParts(id, ground);
+  const shape = ring => ring.map(p => ({ x: wx(p.x), z: wz(p.z) }));
+  return {
+    parts: raw.parts,
+    box: (a, b, w, d, bottom, top, style, angle) =>
+      raw.box(wx(a), wz(b), w * scale, d * scale, wy(bottom), wy(top), style, angle),
+    solid: (ring, bottom, top, style) => raw.solid(shape(ring), wy(bottom), wy(top), style),
+    loft: (lo, hi, bottom, top, style) => raw.loft(shape(lo), shape(hi), wy(bottom), wy(top), style),
+    span: (a, b, width, depth, style) => raw.span({ x: wx(a.x), z: wz(a.z), y: wy(a.y) },
+      { x: wx(b.x), z: wz(b.z), y: wy(b.y) }, width * scale, depth * scale, style),
+    footing: (ring, rise, style) => reference + (raw.footing(shape(ring), rise * scale, style) - reference) / scale,
+    limits: ring => raw.limits(shape(ring)).map(y => reference + (y - reference) / scale)
+  };
+}

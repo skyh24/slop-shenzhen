@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { color } from 'three/tsl';
 import { sceneUniforms } from '../sz-materials.js';
-import { buildPathPools, createParkPoolMaterial, parkNight, planPathLamps, planPerimeter } from './ambience.js';
+import { buildFenceMetal, buildPathPools, createParkPoolMaterial, parkNight, planPathLamps, planPerimeter } from './ambience.js';
 import { buildingPlacement } from '../sz-building-layout.js';
 import { partCollider } from '../sz-landmarks/parts.js';
 import { renderLandmark } from '../sz-landmarks/render.js';
@@ -10,10 +10,10 @@ import { distanceToRing, polygonContainsInclusive } from '../sz-polygon.js';
 import { createRoadPolygonLayout } from '../sz-roads.js';
 import { createPavingMaterial, pavingMesh } from '../sz-paving.js';
 import { buildParkFireworks } from '../sz-park-fireworks.js';
-import { eiffelTower, EIFFEL, forbiddenCity, greatWall, leaningTower, potalaPalace, pyramid, PYRAMIDS } from './miniatures.js';
+import { colosseum, COLOSSEUM, eiffelTower, EIFFEL, forbiddenCity, greatWall, leaningTower, octagonalPavilion, potalaPalace, pyramid, PYRAMIDS, shaolinTemple } from './miniatures.js';
 import { disk, rectangle, sampleFootprint } from './parts.js';
-import { dropTower, rollerCoaster } from './rides.js';
-import { FIREWORK_SITE, LAWNS, PARK_IDS, TREES, VALLEY_BOUNDARY, WALKS } from './sites.js';
+import { dropTower, rollerCoaster, waterSlide } from './rides.js';
+import { EDGE_OPENINGS, FIREWORK_SITE, LAWNS, PARK_IDS, TREES, VALLEY_BOUNDARY, WALKS } from './sites.js';
 
 const COLORS = {
   iron: 0x51453c, brass: 0xe2a444, basalt: 0x766d68, sandstone: 0xc9a378, sandcap: 0xe7cb9e,
@@ -21,14 +21,16 @@ const COLORS = {
   courtyard: 0xc0a898, vermilion: 0x9b392d, tilegold: 0xd7a326, rock: 0x806c5e,
   rideblue: 0x34547e, railred: 0xd84d46,
   perimeterSand: 0xa48a72, perimeterRed: 0x8c4d40, perimeterBlue: 0x586a76, perimeterCap: 0x9b9282,
-  lampSteel: 0x414749, lampGlass: 0xb3a590
+  lampSteel: 0x414749, lampGlass: 0xb3a590, arenaStone: 0xc7a184, arenaTrim: 0xa2785d,
+  templeTile: 0x576b60, slideTurquoise: 0x27aab3, slideYellow: 0xf6bf46, poolDeck: 0x92b6ad, slideWater: 0x267f9d
 };
 // 柔和泛光给主体留轮廓，较亮的压顶、座舱和灯罩形成局部光点。
 const NIGHT_FINISH = {
   iron: [0xe4a762, 0.36], brass: [0xffb13f, 1.35], sandstone: [0xe8a25d, 0.36], sandcap: [0xffcb8d, 0.53],
   limestone: [0xffd4a2, 0.34], wallstone: [0xf3ba81, 0.26], wallcap: [0xffd195, 0.44],
   vermilion: [0xe95a36, 0.27], tilegold: [0xffb84c, 0.65], rideblue: [0x5990ff, 0.33], railred: [0xff5639, 0.85],
-  lampGlass: [0xffce84, 3.2]
+  lampGlass: [0xffce84, 3.2], arenaStone: [0xffae72, 0.23], arenaTrim: [0xffb26f, 0.46],
+  templeTile: [0x7cc0a6, 0.29], slideTurquoise: [0x42d0ea, 0.53], slideYellow: [0xffc25a, 0.62], slideWater: [0x3d91b4, 0.21]
 };
 const PARK_BOUNDS = { minX: -9430, maxX: -6540, minZ: -225, maxZ: 1740 };
 
@@ -48,22 +50,37 @@ function strip(line, halfWidth) {
 
 export function planThemeParks({ buildings, terrain, mapRegions, groundHeight, roadGraph, isWater }) {
   const barrier = createCarriagewayBarrier(roadGraph, { bounds: PARK_BOUNDS });
-  const sourceIds = new Set([EIFFEL, ...PYRAMIDS.map(([id]) => id)]);
+  const sourceIds = new Set([EIFFEL, COLOSSEUM, ...PYRAMIDS.map(([id]) => id)]);
   const byId = new Map(buildings.filter(row => sourceIds.has(row.id)).map(row => [row.id, row]));
-  const existing = buildings.filter(b => b.maxX > PARK_BOUNDS.minX && b.minX < PARK_BOUNDS.maxX
-    && b.maxZ > PARK_BOUNDS.minZ && b.minZ < PARK_BOUNDS.maxZ)
-    .flatMap(b => buildingPlacement(b, terrain).colliders);
+  const localBuildings = buildings.filter(b => b.maxX > PARK_BOUNDS.minX && b.minX < PARK_BOUNDS.maxX
+    && b.maxZ > PARK_BOUNDS.minZ && b.minZ < PARK_BOUNDS.maxZ);
+  const existing = localBuildings.flatMap(b => buildingPlacement(b, terrain).colliders);
   const parks = [];
   const rejected = [];
   const skipIds = new Set();
+  const sceneryOmissions = new Set();
   for (const [key, id] of Object.entries(PARK_IDS)) {
     const boundary = mapRegions?.regions.find(row => row.id === `osm:${id}`)?.polygons[0]
       ?? (key === 'valley' ? { outer: VALLEY_BOUNDARY, holes: [] } : null);
     if (!boundary) continue;
-    const park = { key, id, boundary, plans: [], walks: [], lawns: [], trees: [], launch: null };
+    const park = { key, id, boundary, plans: [], walks: [], lawns: [], trees: [], launch: null, omittedSmallBuildings: 0 };
+    // 只隐藏完全在园内的小型无名预测体块；保留 OSM 楼、具名场馆、近边界和入口对象。
+    for (const b of localBuildings) {
+      if (sourceIds.has(b.id) || b.name || b.height > 18 || !/^(globfp|overture)\//.test(b.id)
+        || (b.maxX - b.minX) * (b.maxZ - b.minZ) > 2000
+        || !polygonContainsInclusive(boundary, b.cx, b.cz)
+        || EDGE_OPENINGS[key].some(([x, z, r]) => Math.hypot(x - b.cx, z - b.cz) < r + 22)) continue;
+      if (b.polygons.every(p => p.outer.every(({ x, z }) => polygonContainsInclusive(boundary, x, z)
+        && distanceToRing(boundary.outer, x, z) > 13 && !barrier.contains(x, z, 2)))) {
+        park.omittedSmallBuildings++;
+        sceneryOmissions.add(b.id);
+        skipIds.add(b.id);
+      }
+    }
     const solids = [];
+    const retained = existing.filter(b => !sceneryOmissions.has(b.sourceId));
     const canPlace = (ring, low, high, grounded = false, ignore = [], clearance = 0.35, roadMargin = 0.4) => {
-      const candidates = [...existing, ...solids].filter(b => !ignore.includes(b.sourceId)
+      const candidates = [...retained, ...solids].filter(b => !ignore.includes(b.sourceId)
         && b.minY < high + clearance && b.maxY > low - clearance
         && !ring.every(p => p.x < b.minX) && !ring.every(p => p.x > b.maxX)
         && !ring.every(p => p.z < b.minZ) && !ring.every(p => p.z > b.maxZ));
@@ -88,15 +105,19 @@ export function planThemeParks({ buildings, terrain, mapRegions, groundHeight, r
     };
     if (key === 'world') {
       if (byId.has(EIFFEL)) add(eiffelTower(byId.get(EIFFEL), groundHeight));
-      for (const [id, h] of PYRAMIDS) if (byId.has(id)) add(pyramid(byId.get(id), groundHeight, h));
+      for (const [id, ...layout] of PYRAMIDS) if (byId.has(id)) add(pyramid(byId.get(id), groundHeight, ...layout));
+      if (byId.has(COLOSSEUM)) add(colosseum(byId.get(COLOSSEUM), groundHeight));
       add(leaningTower(groundHeight));
     } else if (key === 'china') {
       add(greatWall(groundHeight));
       add(forbiddenCity(groundHeight));
       add(potalaPalace(groundHeight));
+      add(shaolinTemple(groundHeight));
+      add(octagonalPavilion(groundHeight));
     } else {
       add(rollerCoaster(groundHeight, canPlace));
       add(dropTower(groundHeight));
+      add(waterSlide(groundHeight));
     }
     for (const [i, line] of WALKS[key].entries()) {
       const halfWidth = key === 'world' ? 2.15 : 1.7;
@@ -134,17 +155,17 @@ export function planThemeParks({ buildings, terrain, mapRegions, groundHeight, r
     }
     parks.push(park);
   }
-  return { parks, skipIds, rejected };
+  return { parks, skipIds, rejected, sceneryOmissions };
 }
 
 export function buildThemeParks(scene, site) {
-  const { parks, skipIds, rejected } = planThemeParks(site);
+  const { parks, skipIds, rejected, sceneryOmissions } = planThemeParks(site);
   const group = new THREE.Group();
   group.name = 'ShenzhenThemeParks';
   const surfaces = [], colliders = [], paths = [], trees = [], details = [];
   const materials = new Map();
   const poolMaterial = createParkPoolMaterial();
-  const pools = [];
+  const pools = [], fenceResources = [];
   const lawnMat = createPavingMaterial('park-gravel', { color: 0x81965c, depthBias: -1 });
   const pathMat = createPavingMaterial('park-gravel', { color: 0xc6b398, depthBias: -3 });
   const materialFor = style => {
@@ -161,7 +182,7 @@ export function buildThemeParks(scene, site) {
   let fireworks;
   for (const park of parks) {
     for (const plan of [...park.plans, park.perimeter, park.lanterns]) {
-      const core = renderLandmark({ ...plan, parts: plan.parts.filter(part => !part.nearDetail) }, materialFor);
+      const core = renderLandmark({ ...plan, parts: plan.parts.filter(part => !part.nearDetail && !part.collisionOnly) }, materialFor);
       group.add(core.group);
       colliders.push(...plan.parts.map(partCollider));
       surfaces.push(...core.surfaces);
@@ -183,6 +204,7 @@ export function buildThemeParks(scene, site) {
       for (const chunk of chunks) group.add(pavingMesh(chunk.positions, chunk.origin, isWalk ? pathMat : lawnMat, area.id));
       if (isWalk && chunks.length) paths.push({ outer: area.ring, holes: [] });
     }
+    fenceResources.push(buildFenceMetal(group, park));
     const pool = buildPathPools(park, site.terrainSurface, poolMaterial);
     if (pool) {
       pool.visible = false;
@@ -205,13 +227,19 @@ export function buildThemeParks(scene, site) {
       for (const pool of pools) pool.visible = sceneUniforms.night.value > 0.10;
       fireworks?.update(now, night, camera);
     },
-    snapshot: () => ({ rejected, parks: parks.map(p => ({ id: p.id, models: p.plans.map(plan => plan.id),
+    snapshot: () => ({ rejected, omittedSmallBuildings: sceneryOmissions.size, parks: parks.map(p => ({ id: p.id, models: p.plans.map(plan => plan.id),
       walks: p.walks.length, trees: p.trees.length, lamps: p.lanterns.lamps.length,
-      wallSegments: p.perimeter.segments, wallLengthM: Math.round(p.perimeter.lengthM) })),
+      omittedSmallBuildings: p.omittedSmallBuildings, wallSegments: p.perimeter.segments, wallLengthM: Math.round(p.perimeter.lengthM) })),
     lightPoolsVisible: pools.some(pool => pool.visible), fireworks: fireworks?.snapshot() }),
     dispose() {
       fireworks?.dispose();
-      group.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
+      const geometries = new Set(fenceResources.map(r => r.geometry));
+      group.traverse(o => {
+        if (o.isInstancedMesh) o.dispose();
+        if (o.isMesh) geometries.add(o.geometry);
+      });
+      for (const geometry of geometries) geometry.dispose();
+      for (const { material } of fenceResources) material.dispose();
       for (const material of [...materials.values(), lawnMat, pathMat, poolMaterial]) material.dispose();
       scene.remove(group);
     }

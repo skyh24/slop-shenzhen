@@ -30,15 +30,31 @@ test('the production pack fits all three parks and preserves ground access', asy
   const parks = buildThemeParks(scene, { ...geo, buildings, groundHeight, isWater });
   const summary = parks.snapshot();
   assert.deepEqual(summary.rejected, []);
-  assert.deepEqual(summary.parks.map(p => p.models.length), [5, 3, 2]);
-  assert.deepEqual(summary.parks.map(p => p.walks), [3, 2, 2]);
-  assert.equal(parks.skipIds.size, 4);
+  assert.deepEqual(summary.parks.map(p => p.models.length), [6, 5, 3]);
+  assert.deepEqual(summary.parks.map(p => p.walks), [3, 3, 3]);
+  assert.ok(summary.omittedSmallBuildings > 50);
+  assert.equal(parks.skipIds.size, 5 + summary.omittedSmallBuildings);
+  const byId = new Map(buildings.map(b => [b.id, b]));
+  assert.ok(!parks.skipIds.has('way/610762992'), 'keep the mapped Happy Valley entrance building');
+  for (const id of parks.skipIds) {
+    if (id.startsWith('way/')) continue;
+    const b = byId.get(id);
+    assert.ok(b && !b.name && b.height <= 18);
+  }
+  const modelTop = sourceId => Math.max(...parks.colliders.filter(c => c.sourceId === sourceId).map(c => c.maxY));
+  const modelHeight = (sourceId, x, z) => modelTop(sourceId) - groundHeight(x, z);
+  assert.ok(Math.abs(modelHeight('theme-giza-1150884224', -8970, 1170) - 54) < 1);
+  assert.ok(Math.abs(modelHeight('theme-pisa', -8662, 1150) - 54) < 1.5);
+  assert.ok(modelHeight('theme-drop-tower', -7970, 428.4) > 82);
+  assert.ok(modelHeight('theme-water-slide', -8190, 166) > 20);
   const barrier = createCarriagewayBarrier(geo.roadGraph);
   for (const [i, key] of ['world', 'china', 'valley'].entries()) {
     const walls = parks.colliders.filter(c => c.sourceId === `theme-${key}-perimeter`);
     const lamps = parks.colliders.filter(c => c.sourceId === `theme-${key}-path-lamps`);
     assert.ok(summary.parks[i].wallLengthM > 1400);
     assert.ok(summary.parks[i].lamps >= 6);
+    assert.ok(parks.group.children.some(m => m.isInstancedMesh && m.name.startsWith(`theme-${key}-perimeter:iron:`)));
+    assert.ok(walls.some(w => Math.abs(w.maxY - groundHeight((w.minX + w.maxX) / 2, (w.minZ + w.maxZ) / 2) - 3) < 0.05));
     for (const wall of walls) {
       for (const [x, z, radius] of EDGE_OPENINGS[key]) {
         assert.ok(!polygonContainsInclusive(wall.polygon, x, z) && distanceToRing(wall.polygon.outer, x, z) >= radius - 0.1);

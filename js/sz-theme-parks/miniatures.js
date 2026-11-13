@@ -1,9 +1,12 @@
 import { ringCentroid } from '../sz-polygon.js';
-import { disk, parkParts, rectangle } from './parts.js';
+import { disk, parkParts, rectangle, scaledParkParts } from './parts.js';
 
 export const EIFFEL = 'way/264187661';
+export const COLOSSEUM = 'way/1150884237';
 export const PYRAMIDS = [
-  ['way/1150884224', 10], ['way/1150884225', 8.5], ['way/1150884226', 5]
+  ['way/1150884224', -8970, 1170, 90, 54],
+  ['way/1150884225', -9055, 1112, 48, 29],
+  ['way/1150884226', -9108, 1092, 28, 17]
 ];
 
 export function eiffelTower(building, ground) {
@@ -50,15 +53,10 @@ export function eiffelTower(building, ground) {
   return { id, parts: p.parts, skipIds: [building.id] };
 }
 
-export function pyramid(building, ground, height) {
+export function pyramid(building, ground, x, z, edge, height) {
   const id = `theme-giza-${building.id.split('/')[1]}`;
   const p = parkParts(id, ground);
-  const ring = building.polygons[0].outer;
-  const center = ringCentroid(ring);
-  // 两个 GloBFP 通用体块擦过源足迹边缘。保留原楼，只把底座略向南收进园内空地。
-  const x = center.x, z = center.z + (building.id.endsWith('225') ? 0 : 2.25);
-  const edge = Math.hypot(ring[1].x - ring[0].x, ring[1].z - ring[0].z) * (building.id.endsWith('225') ? 1 : 0.88);
-  const angle = Math.atan2(ring[1].z - ring[0].z, ring[1].x - ring[0].x);
+  const angle = 0.18;
   const baseRing = rectangle(x, z, edge, edge, angle);
   const base = p.footing(baseRing, 0.38, 'sandstone');
   const slice = r => rectangle(x, z, edge * r, edge * r, angle);
@@ -69,9 +67,9 @@ export function pyramid(building, ground, height) {
 
 export function leaningTower(ground) {
   const id = 'theme-pisa';
-  const p = parkParts(id, ground);
-  // node/10705991225 同时标记斜塔与教堂；高度与倾斜方向按照片和可用场地估计。
-  const [x, z] = [-8718.3, 1191.6];
+  // node/10705991225 标识景观；移到其东北侧开阔地，高度按游戏内铁塔的约一半设计。
+  const [x, z] = [-8662, 1150];
+  const p = scaledParkParts(id, ground, x, z, 54 / 21.2);
   const base = p.footing(disk(x, z, 4.55, 16), 0.43, 'limestone');
   const ring = (y, r) => disk(x + y * 0.154, z + y * 0.038, r, 16);
   p.loft(ring(0, 3.7), ring(3.4, 3.65), base, base + 3.4, 'limestone');
@@ -98,21 +96,21 @@ export function greatWall(ground) {
   // node/6269626844 标记长城模型；沿园界内侧的一小段折线为场景设计。
   const points = [[-6964, 1178], [-6947, 1169], [-6935, 1174], [-6924, 1186], [-6910, 1184],
     [-6897, 1176], [-6881, 1183], [-6865, 1193], [-6847, 1194], [-6835, 1205]];
-  const line = points.map(([x, z], i) => ({ x, z, y: ground(x, z) + [2.4, 3.7, 4.4, 4.4, 4.9, 5.5, 4.5, 3.4, 2.9, 2.6][i] }));
+  const line = points.map(([x, z], i) => ({ x, z, y: ground(x, z) + [2.4, 3.7, 4.4, 4.4, 4.9, 5.5, 4.5, 3.4, 2.9, 2.6][i] * 1.7 }));
   for (let i = 1; i < line.length; i++) {
     const a = line[i - 1], b = line[i];
     const angle = Math.atan2(b.z - a.z, b.x - a.x);
     const length = Math.hypot(b.x - a.x, b.z - a.z);
-    const ring = rectangle((a.x + b.x) / 2, (a.z + b.z) / 2, length, 3.1, angle);
-    p.span(a, b, 3.05, Math.max(a.y, b.y) - p.limits(ring)[0] + 0.27, 'wallstone');
-    p.solid(disk(a.x, a.z, 1.55, 8), ground(a.x, a.z) - 0.3, a.y, 'wallstone');
+    const ring = rectangle((a.x + b.x) / 2, (a.z + b.z) / 2, length, 4.5, angle);
+    p.span(a, b, 4.4, Math.max(a.y, b.y) - p.limits(ring)[0] + 0.27, 'wallstone');
+    p.solid(disk(a.x, a.z, 2.22, 8), ground(a.x, a.z) - 0.3, a.y, 'wallstone');
     for (let j = 1; j < length - 0.65; j += 2.25) {
       const t = j / length;
       for (const side of [-1, 1]) {
-        const x = a.x + (b.x - a.x) * t - Math.sin(angle) * 1.2 * side;
-        const z = a.z + (b.z - a.z) * t + Math.cos(angle) * 1.2 * side;
+        const x = a.x + (b.x - a.x) * t - Math.sin(angle) * 1.75 * side;
+        const z = a.z + (b.z - a.z) * t + Math.cos(angle) * 1.75 * side;
         const y = a.y + (b.y - a.y) * t;
-        p.box(x, z, 1.16, 0.57, y - 0.16, y + 0.7, 'wallcap', angle);
+        p.box(x, z, 1.16, 0.72, y - 0.16, y + 1, 'wallcap', angle);
       }
     }
   }
@@ -141,9 +139,9 @@ function hipRoof(p, x, z, y, w, d, rise, style) {
 
 export function forbiddenCity(ground) {
   const id = 'theme-forbidden-city';
-  const p = parkParts(id, ground);
   // 故宫落在御花园 node/3851480004 西侧空地；本模型不替换旁边身份不明的体块。
-  const [x, z] = [-6947, 1283];
+  const [x, z] = [-6949, 1283];
+  const p = scaledParkParts(id, ground, x, z, 1.65);
   const base = p.footing(rectangle(x, z, 31, 56), 0.34, 'courtyard');
   for (const sign of [-1, 1]) {
     p.box(x + sign * 14.8, z, 0.85, 54, base, base + 2.0, 'vermilion');
@@ -168,9 +166,9 @@ export function forbiddenCity(ground) {
 
 export function potalaPalace(ground) {
   const id = 'theme-potala';
-  const p = parkParts(id, ground);
   // 园方确认景观身份；此空地落位、台地高度和建筑轮廓为估计。
-  const [x, z] = [-7043, 1260];
+  const [x, z] = [-7043, 1249];
+  const p = scaledParkParts(id, ground, x, z, 1.58);
   const ridge = rectangle(x, z, 47, 32, -0.08);
   const [low, high] = p.limits(ridge);
   p.loft(ridge, rectangle(x - 1.5, z - 2.5, 35, 21, -0.08), low - 0.28, high + 5.3, 'rock');
@@ -190,5 +188,83 @@ export function potalaPalace(ground) {
     }
   }
   for (const dx of [-3.1, 3.3]) hipRoof(p, x + dx, z - 5.8, base + 13.78, 5.4, 5.7, 1.25, 'tilegold');
+  return { id, parts: p.parts };
+}
+
+export function colosseum(building, ground) {
+  const id = 'theme-colosseum';
+  const p = parkParts(id, ground);
+  // way/1150884237 标识园内模型；把主体放在铁塔东侧的空地。
+  const [x, z] = [-8548, 1040];
+  const rim = (a, r) => ({ x: x + 43 * r * Math.cos(a), z: z + 31 * r * Math.sin(a) });
+  const n = 28, step = Math.PI * 2 / n;
+  const deck = Array.from({ length: n }, (_, i) => rim(i * step, 1.03));
+  const base = p.footing(deck, 0.52, 'arenaStone');
+  const stage = (a, b, y, width, depth, style, r = 1) =>
+    p.span({ ...rim(a, r), y: base + y }, { ...rim(b, r), y: base + y }, width, depth, style);
+  for (let i = 0; i < n; i++) {
+    const a = i * step, b = (i + 1) * step;
+    const floors = i < 11 || i >= 24 ? 4 : i < 17 ? 3 : 2;
+    const pier = rim(a, 1);
+    for (let f = 0; f < floors; f++) {
+      const y = f * 6.5;
+      p.box(pier.x, pier.z, 2.05, 2.6, base + y, base + y + 6.5, 'arenaStone', a + Math.PI / 2);
+      // 拱肩分三段抬升，拱洞下方留空。
+      const arc = [0, 0.22, 0.5, 0.78, 1];
+      const yArc = [3.5, 4.65, 5.24, 4.65, 3.5];
+      for (let j = 1; j < arc.length; j++) {
+        p.span({ ...rim(a + step * arc[j - 1], 1), y: base + y + yArc[j - 1] },
+          { ...rim(a + step * arc[j], 1), y: base + y + yArc[j] }, 2.28, 1.5, 'arenaStone');
+      }
+      stage(a, b, y + 6.5, 2.7, 1.28, 'arenaTrim');
+    }
+    stage(a, b, 1.5, 3.6, 1.5, 'arenaTrim', 0.69);
+    stage(a, b, 3.35, 4, 1.9, 'arenaStone', 0.80);
+    stage(a, b, 5.35, 3.9, 2.1, 'arenaTrim', 0.90);
+  }
+  return { id, parts: p.parts, skipIds: [building.id] };
+}
+
+export function shaolinTemple(ground) {
+  const id = 'theme-shaolin';
+  const p = parkParts(id, ground);
+  // 园方目录列有少林寺；此处是独立布置的寺院剪影，门朝南。
+  const [x, z] = [-6826, 1375];
+  const base = p.footing(rectangle(x, z, 53, 40), 0.35, 'courtyard');
+  for (const [offset, w, d, body, rise] of [[13, 15, 8, 4.6, 3.4], [-7, 27, 13, 7, 5.4]]) {
+    const cz = z + offset;
+    p.box(x, cz, w + 3.4, d + 2.8, base, base + 0.7, 'wallstone');
+    p.box(x, cz, w - 2.3, d - 2, base + 0.7, base + body, 'vermilion');
+    for (let i = -3; i <= 3; i++) {
+      p.box(x + i * w / 7.5, cz + d / 2 - 0.45, 0.74, 0.74, base + 0.7, base + body, 'vermilion');
+    }
+    hipRoof(p, x, cz, base + body, w + 2, d + 1.6, rise, 'templeTile');
+  }
+  for (const side of [-1, 1]) {
+    p.box(x + side * 24.5, z - 1, 1, 30, base, base + 2.9, 'vermilion');
+    p.box(x + side * 24.5, z - 1, 1.48, 30, base + 2.9, base + 3.22, 'templeTile');
+  }
+  return { id, parts: p.parts };
+}
+
+export function octagonalPavilion(ground) {
+  const id = 'theme-octagonal-pavilion';
+  const p = parkParts(id, ground);
+  // 景真八角亭为造型参考，选在故宫南侧空地，八柱之间留空。
+  const [x, z] = [-6950, 1390];
+  const base = p.footing(disk(x, z, 10.8, 8), 0.24, 'limestone');
+  const columns = disk(x, z, 6.8, 8);
+  for (let i = 0; i < columns.length; i++) {
+    const a = columns[i], b = columns[(i + 1) % columns.length];
+    p.loft(disk(a.x, a.z, 0.54, 8), disk(a.x, a.z, 0.41, 8), base, base + 6.1, 'vermilion');
+    p.span({ ...a, y: base + 6.1 }, { ...b, y: base + 6.1 }, 0.83, 0.78, 'vermilion');
+  }
+  const roof = (low, high, bottom, top) => p.loft(disk(x, z, low, 8), disk(x, z, high, 8),
+    base + bottom, base + top, 'templeTile');
+  roof(9.4, 9.4, 6.1, 6.48);
+  roof(9.4, 6.8, 6.48, 7.36);
+  roof(6.8, 3.5, 7.36, 9.4);
+  roof(5.15, 0.85, 9.4, 12.5);
+  p.loft(disk(x, z, 0.86, 8), disk(x, z, 0.12, 8), base + 12.5, base + 13.8, 'brass');
   return { id, parts: p.parts };
 }
