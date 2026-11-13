@@ -423770,15 +423770,31 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7888,
-    "metadataBytes": 17058260,
-    "numericBytes": 35860144,
-    "uncompressedBytes": 52918456,
+    "columns": 7895,
+    "metadataBytes": 17060840,
+    "numericBytes": 35863040,
+    "uncompressedBytes": 52923928,
     "lossless": true,
-    "compressedBytes": 13080228,
-    "compressedSha256": "4ba5cf753efe8e08627e2eea6b530d1a4f2f965de24db3e05a6c45b982e75269"
+    "compressedBytes": 13081153,
+    "compressedSha256": "cd65750b3d9f29da52b60e660063a3aad3b0b7f583c3297c4fb0ea1541bae58f"
   },
-  "outputBytes": 12877314,
-  "outputSha256": "46c9cb918cf7523e6f19090e2808b15ab2dea2ef1b9c6b40dd677bbce205816d",
-  "seconds": 248.5
+  "outputBytes": 12878505,
+  "outputSha256": "91e03e999280c375e4f83430bed971203b965e6c9cacfa0cad000a27f4e7cd2a",
+  "seconds": 29.3,
+  "landmarkSitesRefresh": {
+    "ids": [
+      "chunjian",
+      "shenzhen-gymnasium",
+      "shenzhen-stadium",
+      "szu-yuanping-stadium",
+      "university-town-stadium"
+    ],
+    "source": "osm-guangdong",
+    "requestedObjects": 10,
+    "resolvedObjects": 10,
+    "landmarks": 5,
+    "roles": 11,
+    "missing": [],
+    "missingCount": 0
+  }
 }

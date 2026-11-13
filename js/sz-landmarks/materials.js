@@ -220,7 +220,28 @@ function conventionCover(glazed) {
 
 const CBD_GLASS_STYLES = new Set(['pingAnGlass', 'pingAnObservation', 'civicGlass', 'pressTowerGlass']);
 
+const sportsColors = {
+  sportsApron: 0xb4b9b3, sportsInfield: 0x64864f,
+  sportsTurf: 0x3b7a40, sportsTurfLight: 0x4a8744, sportsTrack: 0xb05b49,
+  sportsPitchLine: 0xf0f2de, sportsTrackLine: 0xe8cfb8,
+  sportsGoal: 0xf0f3e9, sportsRoof: 0xd8dedf, sportsFin: 0xe2dfd3,
+  sportsMetal: 0x748086, sportsGlass: 0x465d67, sportsConcrete: 0xa5a6a0,
+  sportsCitySeats: 0x395768, sportsTownSeats: 0x347f81, sportsCampusSeats: 0x82625c,
+  sportsCitySeat: 0x537991, sportsTownSeat: 0x4da5a0, sportsCampusSeat: 0xb78575,
+  sportsLamp: 0xf2e6cf
+};
+const sportsDecals = new Set(['sportsApron', 'sportsInfield', 'sportsTurf', 'sportsTurfLight', 'sportsTrack',
+  'sportsPitchLine', 'sportsTrackLine']);
+
 export function createLandmarkMaterial(name, programEmission = null) {
+  if (Object.hasOwn(sportsColors, name)) {
+    const decal = sportsDecals.has(name);
+    const bias = name.endsWith('Line') ? -8 : name.startsWith('sportsTurf') ? -5 : name === 'sportsApron' ? -1 : -3;
+    return new THREE.MeshStandardMaterial({ color: sportsColors[name], roughness: name === 'sportsGlass' ? 0.37 : 0.82,
+      metalness: name === 'sportsRoof' || name === 'sportsFin' ? 0.22 : 0,
+      polygonOffset: decal, polygonOffsetFactor: bias, polygonOffsetUnits: bias,
+      ...(name === 'sportsLamp' ? { emissive: 0xf3dab0, emissiveIntensity: 0.65 } : {}) });
+  }
   if (Object.hasOwn(styles, name)) {
     return facadeMaterial(styles[name], CBD_GLASS_STYLES.has(name) ? programEmission : null);
   }

@@ -548,6 +548,8 @@ def main():
                       help='apply the reviewed Shenzhen Golf Course site to the verified package')
     mode.add_argument('--rebuild-shenzhen-north', action='store_true',
                       help='compile only Shenzhen North rail on the verified city package')
+    mode.add_argument('--rebuild-landmark-sites', nargs='+', metavar='LANDMARK',
+                      help='refresh selected landmark locations and site outlines on the verified city package')
     mode.add_argument('--rebuild-iec', action='store_true',
                       help='add reviewed Xiangmi Lake paths and reflecting pool to the current verified snapshot')
     mode.add_argument('--rebuild-talent-park', action='store_true',
@@ -625,6 +627,34 @@ def main():
                        source_sha256=osm_source['sha256'])
         write_city_packages(payload, json.loads(REPORT.read_text()), sources, started,
                             refresh_regions=False, appearance_osm=osm)
+        return
+
+    if args.rebuild_landmark_sites:
+        started = time.time()
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
+        pbf = ROOT / osm_source['file']
+        osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=pbf, source_sha256=osm_source['sha256'])
+        manifest = {row['id']: row for row in json.loads(LANDMARKS.read_text())['landmarks']}
+        selected = set(args.rebuild_landmark_sites)
+        if selected - manifest.keys():
+            raise ValueError(f'Unknown landmarks: {sorted(selected - manifest.keys())}')
+        report = json.loads(REPORT.read_text())
+        # 已有建筑表仍引用原地图序号。原位更新选中地标，新地图点追加。
+        rows = [row for key, row in manifest.items() if key in selected]
+        landmarks = {row['id']: row for row in payload['landmarks']}
+        landmarks.update((row['id'], row) for row in landmark_entries(rows))
+        payload['landmarks'] = list(landmarks.values())
+        scoped = {}
+        new_sites = build_landmark_sites(rows, scoped, pbf, area_entries=[*osm['buildings'], *osm['green']])
+        for identity in selected:
+            payload['sites']['sites'].pop(identity, None)
+        payload['sites']['sites'].update(new_sites['sites'])
+        report['landmarkSitesRefresh'] = {'ids': sorted(selected), **scoped['landmarkSites']}
+        write_city_packages(payload, report, sources, started, refresh_regions=False)
         return
 
     if args.rebuild_shenzhen_north:
