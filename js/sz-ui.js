@@ -324,7 +324,7 @@ export function wireShowPrograms({ shows, controllerManager, cameraSystem, light
 
 // 全局快捷键：模式 1–4、相机 V 与 5–0、HUD H、声音 N、喇叭 B；输入框内的按键不拦截。
 // 按键码是开放集合，默认分支静默忽略，不按有限取值的 switch 抛错。
-export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, onToggleSound, onHonk, onLane, onLaneCancel, onExitOrbit, onExitCruise, onToggleLane, onToggleEmergencyBrake }) {
+export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, onToggleSound, onHonk, onLane, onLaneCancel, onExitOrbit, onExitCruise, onToggleLane, onSpeedCruise }) {
   window.addEventListener('keydown', (e) => {
     if (isTypingInField(e)) return;
     switch (e.code) {
@@ -374,11 +374,11 @@ export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, on
       case 'KeyL':
         if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) onLane?.(e.code === 'KeyJ' ? 1 : -1);
         break;
+      case 'KeyF':
+        if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) onSpeedCruise?.();
+        break;
       case 'KeyK':
         if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) onToggleLane?.();
-        break;
-      case 'KeyU':
-        if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) onToggleEmergencyBrake?.();
         break;
       case 'Escape':
         onLaneCancel?.();
@@ -391,18 +391,17 @@ export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, on
   });
 }
 
-export function wireDrivingAssists(controller, lane) {
+export function wireDrivingAssists(lane) {
   const message = document.getElementById('assist-status');
   const storageKey = 'sz-driving-assists';
   const labels = STR.assists;
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey));
-    controller.emergencyBrakeEnabled = saved?.brake !== false;
     lane.enabled = saved?.lane !== false;
   } catch { /* 浏览器存储不可用时使用默认设置。 */ }
 
   function save() {
-    try { localStorage.setItem(storageKey, JSON.stringify({ brake: controller.emergencyBrakeEnabled, lane: lane.enabled })); }
+    try { localStorage.setItem(storageKey, JSON.stringify({ lane: lane.enabled })); }
     catch { /* 浏览器存储不可用时本次仍生效。 */ }
   }
 
@@ -433,41 +432,39 @@ export function wireDrivingAssists(controller, lane) {
       save();
       lastStatus = lane.status;
       show(lane.enabled ? labels.laneOn : lane.active ? labels.laneFinishing : labels.laneOff);
-    },
-    toggleEmergencyBrake() {
-      controller.emergencyBrakeEnabled = !controller.emergencyBrakeEnabled;
-      save();
-      show(controller.emergencyBrakeEnabled ? labels.brakeOn : labels.brakeOff);
     }
   };
 }
 
-export function wireCarCruise(controller, available) {
-  const button = document.getElementById('car-cruise');
+export function wireSpeedCruise(controller, available, toggleCruise) {
+  const button = document.getElementById('speed-cruise');
   let previous;
   function render() {
+    const mode = controller.activeMode;
     const visible = available();
-    const speed = controller.carCruiseSpeed;
+    const speed = controller.cruiseSpeed;
     const active = speed != null;
-    const ready = visible && (active || controller.canSetCarCruise());
-    const state = `${visible}/${active}/${ready}/${speed}`;
+    const ready = visible && (active || controller.canSetCruise());
+    const state = `${mode}/${visible}/${active}/${ready}/${speed}`;
     if (state === previous) return;
     previous = state;
     button.hidden = !visible;
     button.disabled = !ready;
-    button.textContent = active ? STR.carCruise.set(Math.round(speed * 3.6)) : STR.carCruise.label;
-    button.title = active ? STR.carCruise.cancel : ready ? STR.carCruise.capture : STR.carCruise.moving;
+    button.textContent = active ? STR.speedCruise.set(Math.round(speed * 3.6)) : STR.speedCruise.label;
+    const label = active ? STR.speedCruise.cancel : ready ? STR.speedCruise.capture[mode] : STR.speedCruise.moving;
+    button.title = STR.shortcut(label, 'F');
     button.setAttribute('aria-pressed', String(active));
   }
-  button.addEventListener('click', () => {
-    if (available()) controller.toggleCarCruise();
+  function toggle() {
+    toggleCruise();
     render();
-  });
-  // 空格仍是刹车；键盘聚焦按钮后可用回车切换。
+  }
+  button.addEventListener('click', toggle);
+  // 空格仍是刹车或上升；聚焦按钮后也可用回车切换。
   button.addEventListener('keydown', event => {
     if (event.code === 'Space') event.preventDefault();
   });
-  return render;
+  return { render, toggle };
 }
 
 export function renderControlHints(el, mode) {

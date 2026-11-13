@@ -18,15 +18,13 @@ import { FLIGHT_ENTRY_SECONDS, FLIGHT_FORWARD_ACCELERATION, flightEntryYaw, flig
 const groundCollider = { type: 'ground' };
 
 const CAR_DRIVE = {
-  speed: 80 / 3.6, boostSpeed: 120 / 3.6, reverseSpeed: 10.5, acceleration: 4.5,
-  forwardAcceleration: 80 / 3.6 / 4, boostAcceleration: 120 / 3.6 / 4,
-  // 松开 Shift 后主动回落到常规上限，避免长时间停在 120 km/h。
-  boostDeceleration: 4,
+  speed: 120 / 3.6, reverseSpeed: 10.5, acceleration: 4.5,
+  forwardAcceleration: 40 / 3.6,
   powerSpeed: 14.5, // Above 52 km/h, engine power limits acceleration.
   rolling: 0.18, drag: 0.0012, coast: 0.6, brake: 9,
   wheelbase: VEHICLE_SPECS.taxi.wheelbase, grip: 9.5, cornering: 10.5
 };
-const CAR_BOOST_DRIVE = { ...CAR_DRIVE, speed: CAR_DRIVE.boostSpeed, forwardAcceleration: CAR_DRIVE.boostAcceleration };
+const CAR_BOOST_DRIVE = { ...CAR_DRIVE, forwardAcceleration: 60 / 3.6 };
 const BICYCLE_DRIVE = {
   speed: 60 / 3.6, reverseSpeed: 4.5, acceleration: 6.5, forwardAcceleration: 60 / 3.6 / 4,
   powerSpeed: 10.5, // Above 38 km/h, rider power limits acceleration.
@@ -39,7 +37,7 @@ const EVTOL_DRIVE = {
   verticalSpeed: 20, verticalAcceleration: 10
 };
 export const PLAYER_SPEED_LIMITS = Object.freeze({
-  person: 8.2, car: CAR_DRIVE.boostSpeed, cyclist: BICYCLE_DRIVE.speed, helicopter: EVTOL_DRIVE.speed
+  person: 8.2, car: CAR_DRIVE.speed, cyclist: BICYCLE_DRIVE.speed, helicopter: EVTOL_DRIVE.speed
 });
 const PERSON_STEP_UP = 0.38;
 const CONTACT_EPSILON = 1e-5;
@@ -187,8 +185,7 @@ class ThirdPersonControllerManager {
     this.nearTraffic = options.nearTraffic;
     this.nearPedestrians = options.nearPedestrians;
     this.nearWalkers = options.nearWalkers;
-    this.emergencyBrakeEnabled = true;
-    this.carCruiseSpeed = null;
+    this.cruiseSpeed = null;
     this.roadHeight = options.roadHeight;
     this.spawnPoint = options.spawnPoint ?? SPAWN_POINT;
     if (!this.spawnPoint) throw new Error('No sourced ground spawn is available');
@@ -337,7 +334,7 @@ class ThirdPersonControllerManager {
   }
 
   resetInput() {
-    this.carCruiseSpeed = null;
+    this.cruiseSpeed = null;
     this._pressedCodes.clear();
     this._keyboardKeys = {};
     this._touchKeys = {};
@@ -562,7 +559,7 @@ class ThirdPersonControllerManager {
   }
 
   _placeActiveAt(point, heading, support = null, turnOnEntry = false) {
-    this.carCruiseSpeed = null;
+    this.cruiseSpeed = null;
     const ent = this.getActiveEntity();
     const heli = this.activeMode === 'helicopter';
     ent.position.x = point.x;
@@ -1115,7 +1112,7 @@ class ThirdPersonControllerManager {
   applyCarContact(car, obstacle, kind, nx, nz, x, z) {
     const closing = constrainContactVelocity(car, nx, nz, kind === 'building' ? null : obstacle);
     if (closing > 0) {
-      this.carCruiseSpeed = null;
+      this.cruiseSpeed = null;
       car.angularVel *= 0.4;
     }
     if (closing < 1.4 || car.contactCooldown > 0) return;
@@ -1357,14 +1354,11 @@ class ThirdPersonControllerManager {
     }
   }
 
-  canSetCarCruise() {
-    return this.activeMode === 'car' && this.occupant.state === OCCUPANT_STATES.SEATED
-      && this.entities.car.speed >= 1 / 3.6 && !this.keys.brake && !this.keys.backward;
-  }
-
-  toggleCarCruise() {
-    if (this.carCruiseSpeed != null) this.carCruiseSpeed = null;
-    else if (this.canSetCarCruise()) this.carCruiseSpeed = Math.min(this.entities.car.speed, CAR_DRIVE.boostSpeed);
+  canSetCruise() {
+    if (this.occupant.state !== OCCUPANT_STATES.SEATED || !(this.getActiveEntity().speed >= 1 / 3.6)
+      || this.keys.backward) return false;
+    if (this.activeMode === 'helicopter') return true;
+    return this.activeMode === 'car' && !this.keys.brake && !this.keys.left && !this.keys.right;
   }
 
   updateCar(dt, driveInput = null) {
@@ -1381,13 +1375,15 @@ class ThirdPersonControllerManager {
     const search = 8 + speedMagnitude * (speedMagnitude / 8.5 + 0.25);
     const obstacles = [...(this.nearTraffic?.(c.position.x, c.position.z, search) ?? []),
       ...(this.nearPedestrians?.(c.position.x, c.position.z, search) ?? [])];
-    const assistance = this.emergencyBrakeEnabled && !driveInput && obstacles.length
+    const assistance = !driveInput && obstacles.length
       ? emergencyBrake(writeEntityCollider(this._carBrakeBody ??= {}, c), obstacles) : 0;
     const serviceBrake = Math.max(driveInput?.brake ?? 0, this.keys.brake ? 1 : 0, assistance);
-    if (driveInput || serviceBrake || this.keys.backward) this.carCruiseSpeed = null;
+    if (!driveInput || !driveInput.cruise || this.keys.brake || this.keys.backward || this.keys.left || this.keys.right) {
+      this.cruiseSpeed = null;
+    }
     c.contactCooldown = Math.max(0, (c.contactCooldown ?? 0) - dt);
     const braking = serviceBrake > 0 || c.speed * throttle < 0;
-    // 手动驾驶按住 Shift 时可到 120 km/h；自动驾驶仍用自身限速。
+    // Shift 提高前进加速度；地图自动驾驶按自己的路线限速。
     const drive = driveInput ? CAR_AUTO_DRIVE : boost ? CAR_BOOST_DRIVE : CAR_DRIVE;
 
     let steerInput = 0;
@@ -1410,15 +1406,7 @@ class ThirdPersonControllerManager {
       const vx = sin * c.speed + c.vx, vz = cos * c.speed + c.vz;
       const forward = vx * sin + vz * cos;
       const sideways = vx * cos - vz * sin;
-      const target = this.carCruiseSpeed;
-      // 定速只控制纵向动力，车轮仍按驾驶者的转向和正常抓地力推进。
-      let speed = target == null ? driveSpeed(forward, throttle, step, drive, serviceBrake)
-        : forward < target ? Math.min(target, driveSpeed(forward, 1, step, CAR_BOOST_DRIVE))
-          : Math.max(target, driveSpeed(forward, 0, step, CAR_DRIVE));
-      // 松开 Shift 后从加力区回落到常规上限，制动和碰撞仍按原有方式处理。
-      if (target == null && !driveInput && !boost && !braking && speed > CAR_DRIVE.speed) {
-        speed = Math.max(CAR_DRIVE.speed, speed - CAR_DRIVE.boostDeceleration * step);
-      }
+      const speed = driveSpeed(forward, throttle, step, drive, serviceBrake);
       const acceleration = (speed - forward) / step;
       // 普通制动仍分配侧向抓地，S 与空格共用轮胎约束。
       const tireAcceleration = acceleration + CAR_DRIVE.drag * forward * Math.abs(forward);
@@ -1455,7 +1443,7 @@ class ThirdPersonControllerManager {
       c.position.x = nextX;
       c.position.z = nextZ;
       if (this.resolveHorizontalCollision(c.position, 1.35, c, c, driveInput?.avoidContact) === false) {
-        this.carCruiseSpeed = null;
+        this.cruiseSpeed = null;
         driveInput?.rejectMove?.('surface');
         c.heading = previousHeading;
         break;
@@ -1605,6 +1593,7 @@ class ThirdPersonControllerManager {
     let fwdInput = 0;
     if (this.keys.forward) fwdInput = this.keys.forward;
     else if (this.keys.backward) fwdInput = -this.keys.backward;
+    if (this.keys.backward) this.cruiseSpeed = null;
 
     let yawInput = 0;
     if (this.keys.left) yawInput = this.keys.left;
@@ -1637,7 +1626,9 @@ class ThirdPersonControllerManager {
 
   stepHelicopter(h, dt, fwdInput, yawInput, vertInput) {
     const { speed, reverseSpeed, reverseAcceleration, braking, verticalSpeed: maxVertSpeed } = EVTOL_DRIVE;
-    if (fwdInput !== 0) {
+    if (this.cruiseSpeed != null) {
+      h.speed = this.cruiseSpeed;
+    } else if (fwdInput !== 0) {
       // 反向输入先减速，停稳后用本步剩余时间按新方向加速。
       const brakingTime = h.speed * fwdInput < 0 ? Math.min(dt, -h.speed / (fwdInput * braking)) : 0;
       const acceleration = fwdInput > 0 ? this.flightSettings?.accelerationMps2 ?? FLIGHT_FORWARD_ACCELERATION : reverseAcceleration;
@@ -1674,6 +1665,7 @@ class ThirdPersonControllerManager {
       h.position.x = previousX;
       h.position.z = previousZ;
       h.speed = 0;
+      this.cruiseSpeed = null;
       roadContact.surfaces = null;
       landing = this.getFlightSupport(h, previousSkidY, roadContact);
       floor = Number.isFinite(landing) ? landing - skidBase : null;
@@ -1701,6 +1693,7 @@ class ThirdPersonControllerManager {
       const actualSpeed = ((h.position.x - previousX) * sin + (h.position.z - previousZ) * cos) / dt;
       if (h.speed > 0) h.speed = Math.max(0, Math.min(h.speed, actualSpeed));
       else if (h.speed < 0) h.speed = Math.min(0, Math.max(h.speed, actualSpeed));
+      if (this.cruiseSpeed != null && h.speed < this.cruiseSpeed - 0.01) this.cruiseSpeed = null;
     }
     return floor;
   }

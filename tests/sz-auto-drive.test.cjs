@@ -73,6 +73,63 @@ const deckLink = (overrides = {}) => ({ index: 1, osmId: 'way/900', surfaceId: D
 const emptyGraph = () => ({ nodes: [], nodeIds: ['node/1', 'node/2'], names: [], links: [], metadata: [],
   turnRestrictions: { rules: [] } });
 
+test('car cruise follows a continuous bend at the set speed and keeps going straight at an ambiguous fork', () => {
+  const graph = { nodes: [0, 0, 0, 72, 15, 130, 13, 160, 34, 160], nodeIds: [],
+    names: ['Road', 'West fork', 'East fork'],
+    links: [[0, 1, 0, 10.5, 3, 1, []], [1, 2, 0, 10.5, 3, 1, []],
+      [2, 3, 1, 10.5, 3, 1, []], [2, 4, 2, 10.5, 3, 1, []]],
+    metadata: [groundRoad(1), groundRoad(2), groundRoad(3), groundRoad(4)] };
+  const network = traffic.createTrafficGraph(graph);
+  const roadHeight = () => 0;
+  const planner = createDrivePlanner(network, graph, { model, roadHeight, isClear: () => true });
+  const auto = createAutoDrive({ model, roadHeight, planCruise: planner.planCruise });
+  const { controller, car } = playerCarFixture(roadHeight);
+  Object.assign(car.position, { x: -3.5, y: 0, z: 25 });
+  car.heading = 0;
+  car.speed = 10;
+  assert.equal(auto.startCruise(car, car.speed), true);
+  controller.cruiseSpeed = car.speed;
+  assert.equal(auto.active, false);
+  assert.equal(auto.requestLane(car, 1), false);
+  const dt = 1 / 60;
+  for (let i = 0; i < 780; i++) {
+    const drive = auto.update(car, { dt, elapsed: i * dt, mode: 'car', manual: false });
+    assert.ok(drive?.cruise);
+    controller.updateCar(dt, drive);
+    assert.ok(Math.abs(car.speed - 10) < 0.15, 'cruise does not slow for the bend or route end');
+  }
+  assert.ok(car.heading > 0.15 && car.heading < 0.35, JSON.stringify({heading: car.heading, position: car.position}));
+  assert.ok(car.position.z > 146 && car.position.x > 13 && car.position.x < 21);
+  assert.equal(auto.update(car, { dt, elapsed: 13, mode: 'car', manual: true }), null);
+  controller.keys.brake = true;
+  controller.updateCar(dt);
+  assert.equal(controller.cruiseSpeed, null);
+  assert.ok(car.speed < 10);
+});
+
+test('straight cruise still stops at a known red signal and resumes on green', () => {
+  const graph = { nodes: [0, 0, 0, 75, 0, 160], nodeIds: ['node/1', 'node/2', 'node/3'], names: ['Road'],
+    links: [[0, 1, 0, 10, 2, 1, []], [1, 2, 0, 10, 2, 1, []]],
+    metadata: [groundRoad(1), groundRoad(2)] };
+  const control = signalApi.createIntersectionControl({ intersections: [{ id: 'test', bounds: [-5, 66, 5, 87], approaches: [
+    { osmNodeId: 50, osmWayId: 'way/1', fromNodeId: 'node/1', toNodeId: 'node/2', group: 0, stopX: 0, stopZ: 66, dx: 0, dz: 1, widthM: 10 }
+  ] }] }, graph);
+  const roadHeight = () => 0;
+  const { controller, car } = playerCarFixture(roadHeight);
+  Object.assign(car.position, { x: 0, y: 0, z: 25 });
+  car.heading = 0;
+  car.speed = 10;
+  const auto = createAutoDrive({ model, roadHeight, control, planCruise: () => null });
+  assert.equal(auto.startCruise(car, 10), true);
+  const dt = 1 / 60;
+  const tick = elapsed => controller.updateCar(dt, auto.update(car, { dt, elapsed, mode: 'car', manual: false }));
+  for (let i = 0; i < 510; i++) tick(4);
+  assert.ok(car.position.z > 61 && car.position.z < 64 && car.speed < 0.05);
+  assert.equal(auto.cruising, true);
+  for (let i = 0; i < 420; i++) tick(8);
+  assert.ok(car.position.z > 87 && car.speed > 9.9);
+});
+
 test('lane requests require an active route and keep the same destination after passing and returning', () => {
   const graph = { nodes: [0, 0, 0, 240], nodeIds: ['node/1', 'node/2'], names: ['Road'],
     links: [[0, 1, 0, 10.5, 3, 1, []]], metadata: [{ ...groundRoad(1), maxspeed: '40' }] };

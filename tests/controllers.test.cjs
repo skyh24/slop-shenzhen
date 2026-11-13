@@ -276,19 +276,21 @@ function carVelocity(car) {
 test('car accelerates gradually to full speed and preserves coasting and braking', () => {
   const acceleration = carDynamicsHarness();
   acceleration.controller.keys.forward = true;
-  acceleration.advance(2);
+  acceleration.advance(1);
   assert.ok(Math.abs(acceleration.car.speed * 3.6 - 40) < 0.01);
-  acceleration.advance(2);
+  acceleration.advance(1);
   assert.ok(Math.abs(acceleration.car.speed * 3.6 - 80) < 0.01);
-  acceleration.advance(5);
-  assert.equal(acceleration.car.speed, 80 / 3.6);
-
-  acceleration.controller.keys.boost = true;
-  acceleration.advance(5);
-  assert.equal(acceleration.car.speed, 120 / 3.6);
-  acceleration.controller.keys.boost = false;
+  acceleration.advance(1);
+  assert.ok(Math.abs(acceleration.car.speed * 3.6 - 120) < 0.01);
   acceleration.advance(3);
-  assert.equal(acceleration.car.speed, 80 / 3.6, 'releasing Shift settles back to the normal limit');
+  assert.equal(acceleration.car.speed, 120 / 3.6);
+
+  const boosted = carDynamicsHarness();
+  boosted.controller.keys.forward = boosted.controller.keys.boost = true;
+  boosted.advance(1);
+  assert.ok(Math.abs(boosted.car.speed * 3.6 - 60) < 0.01);
+  boosted.advance(1);
+  assert.ok(Math.abs(boosted.car.speed * 3.6 - 120) < 0.01);
 
   const coasting = carDynamicsHarness({ speed: 50 / 3.6 });
   coasting.advance(5);
@@ -1188,7 +1190,7 @@ test('aircraft stops before terrain above its ceiling without compressing skids 
 
 test('player vehicles reach their configured speed limits across frame rates', () => {
   for (const hz of [30, 60, 120, null]) {
-    for (const [mode, target, seconds] of [['car', 80, 4], ['cyclist', 60, 4], ['helicopter', 600, 3], ['helicopter', -400, 4]]) {
+    for (const [mode, target, seconds] of [['car', 120, 3], ['cyclist', 60, 4], ['helicopter', 600, 3], ['helicopter', -400, 4]]) {
       const sim = mode === 'car' ? carDynamicsHarness() : teleportHarness(mode);
       const { controller } = sim;
       const entity = sim.car || sim.ent;
@@ -1276,7 +1278,6 @@ function contactCar({ speed = 0, heading = 0, colliders = [], y = 0 } = {}) {
     heaveVel: 0, heaveY: 0, _safePosition: { ...origin }, _support: { height: y, surfaceId: 'terrain' } });
   Object.assign(car.position, origin);
   car.collisionBounds = { min: { x: -1.1, y: 0, z: -2.37 }, max: { x: 1.1, y: 1.8, z: 2.38 } };
-  controller.emergencyBrakeEnabled = false;
   return { controller, car };
 }
 
@@ -1312,7 +1313,7 @@ test('an oblique wall strike sheds the inward velocity and preserves bounded tan
   assert.ok(Math.hypot(vx, vz) < 120 / 3.6);
 });
 
-test('manual car contact still stops for pedestrians with emergency braking disabled and ignores another deck', () => {
+test('manual car stops for same-level pedestrians and ignores another deck', () => {
   const { writePedestrianCollider } = driving['./sz-driving-motion.js'];
   for (const height of [0, 5]) {
     const { controller, car } = contactCar({ speed: 120 / 3.6 });
@@ -1333,68 +1334,37 @@ test('a rear-end contact matches the lead normal velocity while an approaching c
     const { controller, car } = contactCar({ speed: 18 });
     const lead = writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: 5.1 }, heading: 0, speed: leadSpeed });
     controller.nearTraffic = () => [lead];
-    controller.updateCar(0.05);
+    // 直接进入接触阶段，以免前置紧急制动掩盖碰撞后的速度约束。
+    controller.applyCarContact(car, lead, 'vehicle', 0, -1, 0, 2.5);
     assert.ok(Math.abs(car.speed - Math.max(leadSpeed, 0)) < 0.1);
-    assert.ok(car.position.z < 0.56);
   }
 });
 
-test('manual emergency brake intervenes before contact and can be switched off', () => {
+test('manual emergency brake intervenes before contact without a player setting', () => {
   const { writeEntityCollider } = driving['./sz-driving-motion.js'];
   const leader = writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: 20 }, heading: 0, speed: 0 });
-  const speeds = [true, false].map(enabled => {
-    const { controller, car } = contactCar({ speed: 22 });
-    controller.emergencyBrakeEnabled = enabled;
-    controller.nearTraffic = () => [leader];
-    controller.keys.forward = true;
-    controller.updateCar(0.05);
-    assert.ok(car.position.z < 1.2);
-    return car.speed;
-  });
-  assert.ok(speeds[0] < 22 && speeds[1] > 22);
+  const { controller, car } = contactCar({ speed: 22 });
+  controller.nearTraffic = () => [leader];
+  controller.keys.forward = true;
+  controller.updateCar(0.05);
+  assert.ok(car.position.z < 1.2 && car.speed < 22);
 });
 
-test('manual cruise holds the captured speed under steering and releases on brake, reverse or input reset', () => {
-  for (const speed of [9.5, 120 / 3.6]) {
-    const { controller, car } = contactCar({ speed });
-    controller.occupant = { state: 'seated' };
-    controller.toggleCarCruise();
-    assert.equal(controller.carCruiseSpeed, speed);
-    for (let i = 0; i < 240; i++) {
-      controller.keys.left = i > 120 ? 0.1 : false;
-      controller.updateCar(1 / 60);
-    }
-    assert.ok(Math.abs(car.speed - speed) < 0.03);
-    assert.ok(car.position.x > 0.1);
-    assert.ok(car.heading > 0);
-    controller.keys.brake = true;
-    controller.updateCar(1 / 60);
-    assert.equal(controller.carCruiseSpeed, null);
-    assert.ok(car.speed < speed);
-    controller.keys.brake = false;
-    controller.toggleCarCruise();
-    controller.keys.backward = true;
-    controller.updateCar(1 / 60);
-    assert.equal(controller.carCruiseSpeed, null);
-    controller.keys.backward = false;
-    controller.toggleCarCruise();
-    assert.ok(controller.carCruiseSpeed > 0);
-    controller.resetInput();
-    assert.equal(controller.carCruiseSpeed, null);
-  }
-  const { controller, car } = contactCar({ speed: -4 });
+test('flight cruise holds horizontal speed through manual turning and climbing until reverse input', () => {
+  const { controller, ent } = teleportHarness('helicopter');
   controller.occupant = { state: 'seated' };
-  controller.carCruiseSpeed = null;
-  controller.toggleCarCruise();
-  assert.equal(controller.carCruiseSpeed, null);
-  car.speed = 20;
-  controller.emergencyBrakeEnabled = true;
-  const { writeEntityCollider } = driving['./sz-driving-motion.js'];
-  controller.nearTraffic = () => [writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: 16 }, heading: 0, speed: 0 })];
-  controller.toggleCarCruise();
-  controller.updateCar(1 / 60);
-  assert.equal(controller.carCruiseSpeed, null);
-  assert.ok(car.speed < 20);
+  ent.speed = 45;
+  ent.position.y = 300;
+  assert.equal(controller.canSetCruise(), true);
+  controller.cruiseSpeed = ent.speed;
+  controller.keys.left = controller.keys.up = true;
+  for (let i = 0; i < 120; i++) controller.updateHelicopter(1 / 60);
+  assert.equal(ent.speed, 45);
+  assert.ok(ent.heading > 1 && ent.position.y > 300);
+  controller.keys.backward = true;
+  controller.updateHelicopter(1 / 60);
+  assert.equal(controller.cruiseSpeed, null);
+  assert.ok(ent.speed < 45);
 });
 
 test('lane shortcuts request one direction and leave typing, modifiers and repeated keydown alone', () => {
@@ -1406,13 +1376,14 @@ test('lane shortcuts request one direction and leave typing, modifiers and repea
   });
   const calls = [];
   wireShortcuts({ onLane: direction => calls.push(direction), onLaneCancel: () => calls.push('cancel'),
-    onToggleLane: () => calls.push('lane toggle'), onToggleEmergencyBrake: () => calls.push('brake toggle') });
+    onToggleLane: () => calls.push('lane toggle'), onSpeedCruise: () => calls.push('speed cruise') });
   for (const event of [{ code: 'KeyJ' }, { code: 'KeyL' }, { code: 'KeyJ', repeat: true },
     { code: 'KeyL', ctrlKey: true }, { code: 'KeyJ', target: { tagName: 'INPUT' } }, { code: 'Escape' },
-    { code: 'KeyK' }, { code: 'KeyU' }, { code: 'KeyU', metaKey: true }, { code: 'KeyK', repeat: true }]) {
+    { code: 'KeyK' }, { code: 'KeyU' }, { code: 'KeyE' }, { code: 'KeyF' }, { code: 'KeyF', repeat: true },
+    { code: 'KeyF', target: { tagName: 'INPUT' } }, { code: 'KeyF', metaKey: true }, { code: 'KeyK', repeat: true }]) {
     window.dispatch('keydown', event);
   }
-  assert.deepEqual(calls, [1, -1, 'cancel', 'lane toggle', 'brake toggle']);
+  assert.deepEqual(calls, [1, -1, 'cancel', 'lane toggle', 'speed cruise']);
 });
 
 

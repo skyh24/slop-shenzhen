@@ -133,11 +133,11 @@ export const STR = {
   controlHints: {
     person: [[['W', 'S'], '走 / 跑'], [['A', 'D'], '转向'], [['空格'], '跳跃'], [['拖动'], '环视']],
     car: [[['W', 'S'], '前进 / 倒车'], [['A', 'D'], '转向'], [['Shift'], '加力'], [['空格'], '刹车'], [['B'], '鸣笛'],
-      [['U'], '紧急制动开关'], [['拖动'], '环视']],
+      [['F'], '定速巡航'], [['拖动'], '环视']],
     autoCar: [[['J', 'L'], '左 / 右换道'], [['K'], '换道辅助开关'],
       [['W', 'A', 'S', 'D', '空格'], '手动接管'], [['拖动'], '环视']],
     cyclist: [[['W', 'S'], '踩踏 / 刹车'], [['空格'], '刹车'], [['A', 'D'], '转向'], [['拖动'], '环视']],
-    helicopter: [[['W', 'S'], '俯仰'], [['A', 'D'], '转向'], [['空格', 'E'], '上升'], [['Q', 'C'], '下降']]
+    helicopter: [[['W', 'S'], '俯仰'], [['A', 'D'], '转向'], [['空格', 'E'], '上升'], [['Q', 'C'], '下降'], [['F'], '定速巡航']]
   },
   touchActions: { jump: '跳跃', ascend: '上升', descend: '下降' },
   vehicleLabels: { taxi: '深圳出租', available: '空车', taxiMark: '深圳', taxiSign: 'TAXI' },
@@ -295,8 +295,6 @@ export const STR = {
     laneOn: '换道辅助已开启',
     laneOff: '换道辅助已关闭',
     laneFinishing: '本次完成后关闭换道辅助',
-    brakeOn: '紧急制动已开启',
-    brakeOff: '紧急制动已关闭',
     status: {
       disabled: '换道辅助已关闭',
       slow: '车速过低，暂无法辅助换道',
@@ -307,11 +305,11 @@ export const STR = {
       complete: '已回到规划车道'
     }
   },
-  carCruise: {
+  speedCruise: {
     label: '定速巡航',
     set: kmh => `定速 ${kmh} km/h`,
-    capture: '保持当前车速',
-    moving: '车辆前进后可开启定速巡航',
+    capture: { car: '沿当前车道定速前进', helicopter: '保持当前平飞速度' },
+    moving: '前进后可开启定速巡航',
     cancel: '取消定速巡航'
   },
   modeUnavailable: '当前位置无法安全切换，请稍候或移动到开阔处。',

@@ -51,7 +51,7 @@ function frontDistance(approach, model, x, z, heading) {
     + Math.abs(along) * model.hz + Math.abs(across) * model.hx + model.z * along + model.x * across;
 }
 
-export function createAutoDrive({ model, roadHeight, control, nearTraffic = () => [], replan = () => null, laneAssist }) {
+export function createAutoDrive({ model, roadHeight, control, nearTraffic = () => [], replan = () => null, laneAssist, planCruise }) {
   let run = null;
   let departure = null;
   let activeRoute = null;
@@ -61,6 +61,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   const statistics = { routeLength: 0, travelled: 0, signalWaits: 0, intersectionWaits: 0, signalEntries: 0 };
   const intersectionMargin = Math.hypot(model.hx, model.hz) + 0.35;
   const candidate = {}, contact = {}, ego = {};
+  const signalApproaches = control?.intersections?.flatMap(junction => junction.approaches) ?? [];
 
   // 取当前进度前后 ±8 m 内的路段表面，与 poseOnRoute 在衔接处的取边窗口一致；
   // 地面与高架端头各自只覆盖到自己的端头，四角需要能回退到相邻段的表面。
@@ -112,9 +113,88 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     return true;
   }
 
+  function getCruiseStart(route, car) {
+    const { x, y, z } = car.position;
+    const progress = route && project(route.samples, x, z, 0, 16);
+    const edge = progress && route.samples[progress.i].edge;
+    if (!edge || progress.error > 1.8 || (edge.surfaceId ?? 'terrain') !== (car._support?.surfaceId ?? 'terrain')
+      || Math.abs(headingError(car.heading, Math.atan2(progress.dx, progress.dz))) > 0.55
+      || !hasRoadFootprint(roadHeight, model, x, z, car.heading, routeEdges(route, progress.i, car.position), y)) return null;
+    return progress;
+  }
+
+  function startCruise(car, speed) {
+    if (run || departure || reservation || !planCruise || !(speed > 0)) return false;
+    const route = planCruise(car);
+    const progress = getCruiseStart(route, car);
+    const aligned = progress && !route.stops.some(stop => progress.s > stop.s - model.hz - model.z - 0.65
+      && progress.s < stop.clearS);
+    run = { cruiseSpeed: speed, route: null, stalled: 0 };
+    if (aligned) useCruiseRoute(route, progress);
+    return true;
+  }
+
+  function useCruiseRoute(route, progress) {
+    run.route = route;
+    run.index = progress.i;
+    run.s = progress.s;
+    run.stopIndex = route.stops.findIndex(stop => stop.clearS > progress.s);
+    if (run.stopIndex < 0) run.stopIndex = route.stops.length;
+    run.extended = false;
+  }
+
+  function straightCruise(car, elapsed, clearsReservation) {
+    if (reservation && clearsReservation) release();
+    const { x, z } = car.position;
+    const speed = Math.max(0, car.speed);
+    const reach = followingReach(speed);
+    const bodies = nearTraffic(x, z, reach);
+    const dx = Math.sin(car.heading), dz = Math.cos(car.heading);
+    let signal = null, remaining = Infinity;
+    if (!reservation && (car._support?.surfaceId ?? 'terrain') === 'terrain') {
+      for (const approach of signalApproaches) {
+        const along = (approach.stopX - x) * dx + (approach.stopZ - z) * dz;
+        if (along < 0 || along >= Math.min(remaining, reach) || approach.dx * dx + approach.dz * dz < 0.95) continue;
+        const side = (x + along * dx - approach.stopX) * approach.dz - (z + along * dz - approach.stopZ) * approach.dx;
+        if (Math.abs(side) > approach.widthM / 2) continue;
+        signal = approach;
+        remaining = along;
+      }
+    }
+    const distance = signal ? -frontDistance(signal, model, x, z, car.heading) - 0.65 : Infinity;
+    const request = distance < 4 ? signal : null;
+    if (run.request && run.request !== request) control.cancelRequest(run.request, ACTOR);
+    if (request) control.request(request, ACTOR, elapsed);
+    run.request = request;
+    const held = signal && !control.canEnter(signal, elapsed, ACTOR);
+    const target = Math.min(run.cruiseSpeed, held ? Math.sqrt(3.3 * Math.max(0, distance)) : Infinity);
+    return {
+      ...speedInput(car, target, bodies), cruise: true, steerAngle: 0, avoidContact: true,
+      permitMove(px, pz, heading) {
+        if (!signal || reservation || frontDistance(signal, model, px, pz, heading) < -ROAD_MARGIN) return true;
+        if (!control.enter(signal, elapsed, ACTOR)) return false;
+        reservation = signal;
+        return true;
+      }
+    };
+  }
+
+  function speedInput(car, targetSpeed, bodies, paused = false) {
+    const speed = Math.max(0, car.speed);
+    const rolling = 0.18 + 0.0012 * speed ** 2;
+    const power = 4.5 * 14.5 / Math.max(speed, 14.5);
+    // 抵消滚阻，按目标速度调节油门。
+    const acceleration = (targetSpeed - speed) * 2.4 + rolling;
+    return {
+      throttle: targetSpeed <= 0 ? 0 : clamp(acceleration / power, 0, 1),
+      brake: car.speed < -0.05 ? 1 : Math.max(emergencyBrake(writeEntityCollider(ego, car), bodies),
+        paused ? 0.27 : targetSpeed <= 0 ? clamp(speed / 3, 0.24, 1) : clamp(-acceleration / 9, 0, 1))
+    };
+  }
+
   function stop(reason = 'idle') {
     if (run?.request) control.cancelRequest(run.request, ACTOR);
-    if (run || departure || reason === 'idle') status = reason;
+    if ((run && run.cruiseSpeed == null) || departure || reason === 'idle') status = reason;
     run = null;
     departure = null;
     laneAssist?.cancel();
@@ -131,7 +211,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   }
 
   function pause() {
-    if (!run || run.paused || run.unsafe) return;
+    if (!run || run.cruiseSpeed != null || run.paused || run.unsafe) return;
     run.paused = true;
     if (run.request) control.cancelRequest(run.request, ACTOR);
     run.request = null;
@@ -145,7 +225,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   }
 
   function requestLane(car, direction) {
-    if (!run || run.paused || run.unsafe || reservation) return false;
+    if (!run || run.cruiseSpeed != null || run.paused || run.unsafe || reservation) return false;
     const stop = run.route.stops[run.stopIndex];
     const route = laneAssist?.request(run.route, car, direction, run.index, stop?.s ?? run.route.length);
     if (!route) return false;
@@ -186,6 +266,10 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     }
     if (!run) return null;
     if (mode !== 'car') { stop('manual'); return null; }
+    if (run.unsafe && run.cruiseSpeed != null) {
+      run.route = null;
+      run.unsafe = null;
+    }
     if (run.unsafe) {
       // 静态净空或承托失败时已由扫掠拒绝移动；不把临时车流等待计作失效。
       const next = !reservation && !run.replanned && replan(run.route, car, run.route.samples[run.index]?.edge, run.unsafe);
@@ -196,14 +280,30 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
       stop('blocked');
       return null;
     }
+    if (!run.route) return straightCruise(car, elapsed, clearsReservation);
+    // 巡航分段向前续接；在已预约或即将停车的路口保留原轨迹。
+    if (run.cruiseSpeed != null && run.route.continues && !reservation && !run.request
+      && !run.extended && run.route.length - run.s < Math.max(70, car.speed ** 2 / 3.5 + 20)) {
+      run.extended = true;
+      const next = planCruise(car, run.route.samples[run.index]?.edge);
+      const progress = getCruiseStart(next, car);
+      if (progress && next.length - progress.s > run.route.length - run.s + 25
+        && !next.stops.some(stop => progress.s > stop.s - model.hz - model.z - 0.65 && progress.s < stop.clearS)) {
+        useCruiseRoute(next, progress);
+      }
+    }
     const { route } = run;
     const progress = project(route.samples, car.position.x, car.position.z, Math.max(0, run.index - 2), run.s + 18);
+    if (run.cruiseSpeed != null && (!progress || progress.error > 2.6 || route.length - progress.s < 4)) {
+      run.route = null;
+      return straightCruise(car, elapsed, clearsReservation);
+    }
     if (!progress || progress.error > 2.6) { stop('blocked'); return null; }
     run.index = progress.i;
     const advance = progress.s - run.s;
     run.s = Math.max(run.s, progress.s);
-    statistics.travelled = run.s;
-    if (route.length - run.s < 0.7 && Math.abs(car.speed) < 0.05) {
+    if (run.cruiseSpeed == null) statistics.travelled = run.s;
+    if (run.cruiseSpeed == null && route.length - run.s < 0.7 && Math.abs(car.speed) < 0.05) {
       stop('arrived');
       return { throttle: 0, brake: 1, steerAngle: 0, permitMove: () => true };
     }
@@ -232,10 +332,10 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     const dx = target.x - car.position.x, dz = target.z - car.position.z;
     const lateral = dx * Math.cos(car.heading) - dz * Math.sin(car.heading);
     const desiredSteer = Math.atan2(4 * model.halfWheelbase * lateral, dx * dx + dz * dz);
-    const lastStop = Math.min(route.length - 0.24, held ? stopAt : Infinity);
+    const lastStop = Math.min(run.cruiseSpeed == null ? route.length - 0.24 : Infinity, held ? stopAt : Infinity);
     const remaining = Math.max(0, lastStop - run.s);
     const speedIndex = sampleAhead(route.samples, run.index, Math.min(route.length, run.s + speed * dt)).i;
-    const limit = route.limits[speedIndex];
+    const limit = run.cruiseSpeed ?? route.limits[speedIndex];
     const laneWaiting = laneAssist?.update(car, run.s);
     const targetSpeed = run.paused || laneWaiting ? 0 : Math.min(limit, Math.sqrt(3.3 * remaining), leader.limit);
     let state = leader.limit < Math.min(2.8, limit) ? 'traffic' : 'driving';
@@ -245,29 +345,25 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
       state = control.approachState(sourceIndex, to, elapsed).phase === 'green' ? 'intersection' : 'signal';
     }
     if (run.paused) state = speed < 0.05 ? 'paused' : 'pausing';
-    if (state === 'signal' && status !== 'signal') statistics.signalWaits++;
-    if (state === 'intersection' && status !== 'intersection') statistics.intersectionWaits++;
-    status = state;
+    if (run.cruiseSpeed == null) {
+      if (state === 'signal' && status !== 'signal') statistics.signalWaits++;
+      if (state === 'intersection' && status !== 'intersection') statistics.intersectionWaits++;
+      status = state;
+    }
     run.stalled = advance < 0.004 && state === 'driving' ? run.stalled + dt : 0;
     if (run.stalled > 7) { stop('blocked'); return null; }
 
-    const demand = targetSpeed - speed;
-    const rolling = 0.18 + 0.0012 * speed ** 2;
-    const power = 4.5 * 14.5 / Math.max(speed, 14.5);
-    // 抵消滚阻后按目标速度调节油门，提前制动，稳态可达到规划限速。
-    const acceleration = demand * 2.4 + rolling;
     // 许可检查沿用当前路线采样点及其相邻段的表面身份：地面/高架衔接处四角逐点回退，避免误判无路面。
     const contactEdges = routeEdges(route, run.index, car.position);
     return {
-      throttle: targetSpeed <= 0 ? 0 : clamp(acceleration / power, 0, 1),
-      brake: car.speed < -0.05 ? 1 : Math.max(emergencyBrake(egoBody, bodies),
-        run.paused ? 0.27 : targetSpeed <= 0 ? clamp(speed / 3, 0.24, 1) : clamp(-acceleration / 9, 0, 1)),
+      ...speedInput(car, targetSpeed, bodies, run.paused),
+      cruise: run.cruiseSpeed != null,
       steerAngle: desiredSteer,
       avoidContact: true,
       rejectMove(kind) {
         if (kind === 'traffic') {
           run.stalled = 0;
-          if (status === 'driving') status = 'traffic';
+          if (run.cruiseSpeed == null && status === 'driving') status = 'traffic';
         } else run.unsafe = route.samples[speedIndex + 1]?.edge ?? route.samples[speedIndex]?.edge ?? true;
       },
       permitMove(x, z, heading, y = null) {
@@ -291,14 +387,15 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
           || frontDistance(signal.approach, model, x, z, heading) < -ROAD_MARGIN) return true;
         if (exitBlocked || !control.enter(signal.approach, elapsed, ACTOR)) return false;
         reservation = signal.approach;
-        statistics.signalEntries++;
+        if (run.cruiseSpeed == null) statistics.signalEntries++;
         return true;
       }
     };
   }
 
-  return { start, queue, pause, resume, stop, update, canStart, requestLane,
-    get active() { return Boolean(run || departure); },
+  return { start, queue, pause, resume, stop, update, canStart, requestLane, startCruise,
+    get cruising() { return run?.cruiseSpeed != null; },
+    get active() { return Boolean(departure || (run && run.cruiseSpeed == null)); },
     get status() { return status; },
     get route() { return activeRoute; },
     get progress() {

@@ -480,7 +480,7 @@ class QaSession {
       }) },
       pedestrians: { ...pedestrians.statistics },
       assists: laneAssist && { lane: laneAssist.status, changing: laneAssist.active, enabled: laneAssist.enabled,
-        emergencyBrake: controllerManager.emergencyBrakeEnabled },
+        cruiseSpeed: controllerManager.cruiseSpeed },
       publicWalk: publicWalk && { ...publicWalk.statistics, actors: (pedestrians.peds ?? [])
         .filter(actor => actor.leg?.kind === 'public-walk')
         .map(({ id, x, y, z, s, dir, v }) => ({ id, x, y, z, s, dir, v })) },

@@ -1,6 +1,6 @@
 import { STR } from './sz-strings.js';
 import { waitForFirstFrame } from './sz-startup.js';
-import { wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, wireCarCruise, renderControlHints, wireShowPrograms, wireApecTheme, createLocationReadout, createHudTelemetry, renderSoundButton, wireHudToggle, createModeIndicator } from './sz-ui.js';
+import { wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, wireSpeedCruise, renderControlHints, wireShowPrograms, wireApecTheme, createLocationReadout, createHudTelemetry, renderSoundButton, wireHudToggle, createModeIndicator } from './sz-ui.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
@@ -450,7 +450,7 @@ async function initApp() {
   const laneAssist = createLaneAssist({ ...driveOptions,
     isClear: pose => controllerManager.isClearCarPose(pose), nearTraffic: nearRoadUsers });
   const autoDrive = createAutoDrive({ ...driveOptions, nearTraffic: nearRoadUsers, laneAssist,
-    replan: (...args) => drivePlanner().replan(...args) });
+    replan: (...args) => drivePlanner().replan(...args), planCruise: (...args) => drivePlanner().planCruise(...args) });
   let planner = null;
   const drivePlanner = () => planner ??= createDrivePlanner(traffic.network, roadGraph, { ...driveOptions,
     isClear: pose => controllerManager.isClearCarPose(pose), detailedRoadIds: roadFrontage.detailedRoadIds });
@@ -870,10 +870,22 @@ async function initApp() {
 
   const carControlsAvailable = () => !cruise.active && !droneWatch.active
     && controllerManager.activeMode === 'car' && !mapSystem.isFullMapOpen;
-  const manualCarAvailable = () => carControlsAvailable() && !autoDrive.active;
   const autoCarAvailable = () => carControlsAvailable() && autoDrive.active;
-  const renderCarCruise = wireCarCruise(controllerManager, manualCarAvailable);
-  const drivingAssists = wireDrivingAssists(controllerManager, laneAssist);
+  const cruiseAvailable = () => !cruise.active && !droneWatch.active && !mapSystem.isFullMapOpen && !autoDrive.active
+    && (controllerManager.activeMode === 'car' || controllerManager.activeMode === 'helicopter');
+  function toggleSpeedCruise() {
+    if (!cruiseAvailable()) return;
+    if (controllerManager.cruiseSpeed != null) {
+      if (autoDrive.cruising) autoDrive.stop('manual');
+      controllerManager.cruiseSpeed = null;
+    } else if (controllerManager.canSetCruise()) {
+      const speed = controllerManager.getActiveEntity().speed;
+      if (controllerManager.activeMode === 'car' && !autoDrive.startCruise(driveCar, speed)) return;
+      controllerManager.cruiseSpeed = speed;
+    }
+  }
+  const speedCruise = wireSpeedCruise(controllerManager, cruiseAvailable, toggleSpeedCruise);
+  const drivingAssists = wireDrivingAssists(laneAssist);
   wireShortcuts({
     onMode: selectMode,
     onCamera: (id) => selectCamera(id, true),
@@ -890,8 +902,8 @@ async function initApp() {
     onLaneCancel: () => { if (autoCarAvailable() && laneAssist.active) autoDrive.stop('manual'); },
     onExitOrbit: landmarkOrbit.stop,
     onExitCruise: cruiseUi.close,
-    onToggleLane: () => { if (autoCarAvailable()) drivingAssists.toggleLane(); },
-    onToggleEmergencyBrake: () => { if (manualCarAvailable()) drivingAssists.toggleEmergencyBrake(); }
+    onSpeedCruise: speedCruise.toggle,
+    onToggleLane: () => { if (autoCarAvailable()) drivingAssists.toggleLane(); }
   });
   window.addEventListener('resize', () => {
     cameraSystem.onResize(window.innerWidth, window.innerHeight);
@@ -1048,12 +1060,14 @@ async function initApp() {
     const { forward, backward, left, right, brake, boost } = controllerManager.keys;
     const manual = !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right || brake || boost);
     if (!cruise.active && !droneWatch.active) {
-      const autoInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode, manual });
+      if (autoDrive.cruising && controllerManager.cruiseSpeed == null) autoDrive.stop('manual');
+      const takeover = autoDrive.cruising ? Boolean(backward || left || right || brake || boost) : manual;
+      const autoInput = autoDrive.update(driveCar, { dt, elapsed, mode: controllerManager.activeMode, manual: takeover });
       controllerManager.update(dt, elapsed, autoInput);
     }
     const prefetch = cruiseUi.update(now, rawDt);
-    drivingAssists.render(carControlsAvailable());
-    renderCarCruise();
+    drivingAssists.render(autoCarAvailable());
+    speedCruise.render();
     const hintMode = autoCarAvailable() ? 'autoCar' : controllerManager.activeMode;
     if (elControlsHint?.dataset.mode !== hintMode) renderControlHints(elControlsHint, hintMode);
     landmarkOrbit.update(manual);

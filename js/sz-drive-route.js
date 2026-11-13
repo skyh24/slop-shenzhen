@@ -343,6 +343,95 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
     return null;
   }
 
+  function cruiseLanes(edge) {
+    const { section } = edge;
+    const width = edge.sign === 1 ? section.forwardLaneWidthM : section.backwardLaneWidthM;
+    const centers = edge.sign === 1 ? section.forwardCentersM : section.backwardCentersM;
+    if (width < model.hx * 2 + 0.15) return section.defaultOffsetsM;
+    return centers.map(center => -center).reverse();
+  }
+
+  function cruiseContinuation(edge) {
+    const { dx, dz } = edge.segments.at(-1);
+    const candidates = edge.next.filter(next => roads.has(next) && canTurn(edge, next)).map(next => ({
+      next, sameWay: Boolean(edge.osmId && next.osmId === edge.osmId),
+      sameName: Boolean(edge.name && next.name === edge.name),
+      straight: dx * next.segments[0].dx + dz * next.segments[0].dz
+    }));
+    const sameWay = candidates.filter(c => c.sameWay);
+    const sameName = candidates.filter(c => c.sameName);
+    if (sameWay.length === 1) return sameWay[0].next;
+    if (!sameWay.length && sameName.length === 1) return sameName[0].next;
+    const options = (sameWay.length ? sameWay : sameName.length ? sameName : candidates)
+      .filter(c => c.straight >= 0.85).sort((a, b) => b.straight - a.straight);
+    if (options[0] && (!options[1] || options[0].straight - options[1].straight > 0.12)) return options[0].next;
+    return null;
+  }
+
+  function planCruise(car, previousEdge = null) {
+    const { x, y, z } = car.position;
+    const { surfaceId = 'terrain' } = car._support ?? {};
+    const sin = Math.sin(car.heading), cos = Math.cos(car.heading);
+    const candidates = [];
+    for (const { edge, segment: index } of network.nearSegments(x, z, 9)) {
+      if (!roads.has(edge) || (edge.surfaceId ?? 'terrain') !== surfaceId) continue;
+      if (previousEdge && edge !== previousEdge && !previousEdge.next.includes(edge)) continue;
+      const seg = edge.segments[index];
+      const heading = sin * seg.dx + cos * seg.dz;
+      if (heading < 0.87) continue;
+      const along = (x - seg.x) * seg.dx + (z - seg.z) * seg.dz;
+      if (along < -0.8 || along > seg.length + 0.8) continue;
+      const side = (x - seg.x) * -seg.dz + (z - seg.z) * seg.dx;
+      const lanes = cruiseLanes(edge);
+      const lengthBefore = edge.segments.slice(0, index).reduce((sum, part) => sum + part.length, 0);
+      for (let lane = 0; lane < lanes.length; lane++) {
+        const error = Math.abs(side - lanes[lane]);
+        if (error <= 1.65) candidates.push({ edge, lane, s: lengthBefore + Math.max(0, Math.min(seg.length, along)),
+          score: error + 4 * (1 - heading) });
+      }
+    }
+    candidates.sort((a, b) => a.score - b.score);
+    const margin = model.hz + model.z + 1.25;
+    for (const start of candidates.slice(0, 3)) {
+      const height = roadHeight(x, z, start.edge);
+      if (!Number.isFinite(height) || Math.abs(height - y) > 0.26) continue;
+      const path = [];
+      const selectedRoads = new Map();
+      let distance = -start.s, next = start.edge;
+      while (next && !selectedRoads.has(next) && path.length < 48 && distance < 900) {
+        const lanes = cruiseLanes(next);
+        // 并入段车道较少时提前交回，避免巡航在没有换道指令时横移。
+        if (start.lane >= lanes.length) { next = null; break; }
+        const length = roads.get(next).length;
+        selectedRoads.set(next, { length, offset: lanes[start.lane],
+          speed: roads.get(next).speed });
+        path.push(next);
+        distance += length;
+        next = cruiseContinuation(next);
+      }
+      const last = path.at(-1);
+      const continues = Boolean(next && !selectedRoads.has(next) && start.lane < cruiseLanes(next).length);
+      if (!last || distance < 6 + margin) continue;
+      let samples = laneRoute(laneSegments({ path, start: { s: Math.max(0, start.s - 9) },
+        end: { s: selectedRoads.get(last).length - margin } }, selectedRoads), TURN_BEND);
+      for (let attempt = 0; attempt < 2 && samples.length >= 2; attempt++) {
+        let stops = routeSignalStops(samples, control, intersectionMargin);
+        const incomplete = stops.find(stop => !Number.isFinite(stop.clearS));
+        if (incomplete) {
+          samples = samples.filter(p => p.s <= incomplete.s - margin);
+          stops = stops.filter(stop => stop.clearS < (samples.at(-1)?.s ?? 0));
+        }
+        if (samples.length < 2) break;
+        const length = samples.at(-1).s;
+        const { limits, failedAt } = validateSamples(samples, model, roadHeight, isClear, stops, selectedRoads);
+        if (limits) return { samples, stops, length,
+          continues: continues && attempt === 0 && !incomplete };
+        samples = samples.filter(p => p.s <= failedAt - margin);
+      }
+    }
+    return null;
+  }
+
   function replan(current, car, edge, failedEdge) {
     const { x, z } = car.position;
     const candidates = snap(x, z, { car })?.candidates.filter(p => p.edge === edge
@@ -351,5 +440,5 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
     return route({ candidates: candidates ?? [] }, current.destination, { blockedEdge: failedEdge });
   }
 
-  return { snap, route, replan };
+  return { snap, route, replan, planCruise };
 }
