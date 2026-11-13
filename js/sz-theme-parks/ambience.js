@@ -9,7 +9,8 @@ import { EDGE_OPENINGS } from './sites.js';
 const WALLS = {
   world: { width: 0.46, finish: 'perimeterSand', metal: 0x34383a },
   china: { width: 0.50, finish: 'perimeterRed', metal: 0x352e2c },
-  valley: { width: 0.44, finish: 'perimeterBlue', metal: 0x304254 }
+  valley: { width: 0.44, finish: 'perimeterBlue', metal: 0x304254 },
+  expo: { width: 0.46, finish: 'perimeterSand', metal: 0x303d36 }
 };
 
 export const parkNight = smoothstep(0.10, 0.82, sceneUniforms.night);

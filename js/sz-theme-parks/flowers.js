@@ -1,13 +1,16 @@
 import * as THREE from 'three/webgpu';
 import { distanceToRing, polygonContainsInclusive } from '../sz-polygon.js';
-import { disk, parkParts, rectangle, sampleFootprint } from './parts.js';
+import { roofPanelPart } from '../sz-landmarks/parts.js';
+import { resamplePolyline } from '../sz-pedestrian-tracks.js';
+import { disk, parkParts } from './parts.js';
+import { EXPO_SERVICE_WALK } from './sites.js';
 
-export const FLOWER_EXPO_ID = 'osm:way/207170378';
 // 保留南区花圃附近的 OSM 服务通道及南侧步行线。
 const EXPO_PATHS = [
   // way/450262071
-  [[-5924.7, 1171.7], [-5934.5, 1151.2], [-5943.6, 1129.8], [-5945.3, 1118.3], [-5944.4, 1106.8],
-    [-5940.5, 1094.4], [-5932.4, 1080.2], [-5921, 1064.2], [-5912.8, 1049.2], [-5905.4, 1033.6], [-5899.7, 1014.7]],
+  [[-5924.7, 1171.7], ...EXPO_SERVICE_WALK, [-5912.8, 1049.2], [-5905.4, 1033.6], [-5899.7, 1014.7],
+    [-5896.6, 996.8], [-5896.1, 979.9], [-5898, 962.8], [-5899.7, 941.6], [-5898.9, 926.8], [-5896.8, 910.4],
+    [-5896.9, 895.8], [-5898.9, 880.7], [-5906.2, 857.6]],
   // way/450262060 与 way/1275488523
   [[-5985.5, 1177.3], [-5976.1, 1177.1], [-5967.4, 1176.5], [-5937, 1173.5], [-5924.7, 1171.7],
     [-5899.7, 1168.1], [-5863.3, 1161], [-5831.8, 1150.7]],
@@ -15,13 +18,13 @@ const EXPO_PATHS = [
   [[-6042.7, 1234.3], [-5991.9, 1227.7], [-5939.7, 1221], [-5788, 1196]]
 ];
 
-function nearExpoPath(x, z) {
+export function nearExpoPath(x, z, radius = 0) {
   for (const path of EXPO_PATHS) {
     for (let i = 1; i < path.length; i++) {
       const [ax, az] = path[i - 1], [bx, bz] = path[i];
       const dx = bx - ax, dz = bz - az;
       const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
-      if ((x - ax - t * dx) ** 2 + (z - az - t * dz) ** 2 < 4 ** 2) return true;
+      if ((x - ax - t * dx) ** 2 + (z - az - t * dz) ** 2 < (4 + radius) ** 2) return true;
     }
   }
   return false;
@@ -90,9 +93,9 @@ function rosette(id, ground, x, z, scale) {
 }
 
 function terraces(ground) {
-  const x = -5951, z = 1048;
+  const x = -5980, z = 890;
   const p = planter('expo-flower-terraces', ground);
-  const terraceRing = (rx, rz) => ellipse(x, z, rx * 1.72, rz * 1.43, -0.25);
+  const terraceRing = (rx, rz) => ellipse(x, z, rx * 2.32, rz * 2, -0.25);
   const outer = terraceRing(13.2, 9.8);
   let y = p.footing(outer, 0.58, STONE);
   const layers = [[12.5, 9.1, VIOLET], [9.1, 6.6, LILAC], [5.4, 3.9, WHITE], [2.3, 1.65, YELLOW]];
@@ -102,77 +105,69 @@ function terraces(ground) {
     y += 0.51;
     const next = layers[i + 1];
     const covered = next && { outer: terraceRing(next[0] + 0.22, next[1] + 0.22), holes: [] };
-    p.patch(ring, y, 1.08, (a, b) => covered && polygonContainsInclusive(covered, a, b) ? null : tint);
+    p.patch(ring, y, 1.27, (a, b) => covered && polygonContainsInclusive(covered, a, b) ? null : tint);
   }
   return p;
 }
 
-function ribbon(ground) {
-  const x = -5968, z = 1136, length = 55;
-  const p = planter('expo-flower-ribbon', ground);
-  const center = t => x + 3.75 * Math.sin(t * 2 * Math.PI);
-  const band = (left, right) => {
-    const side = offset => Array.from({ length: 21 }, (_, i) => {
-      const t = i / 20;
-      return { x: center(t) + offset * 1.9, z: z - length / 2 + length * t };
-    });
-    return [...side(right), ...side(left).reverse()];
+function roadsideBed(id, ground, side, lettering) {
+  const p = planter(id, ground);
+  const points = resamplePolyline(EXPO_SERVICE_WALK.map(([x, z]) => ({ x, z })), 5);
+  const normal = (a, b) => {
+    const length = Math.hypot(b.x - a.x, b.z - a.z);
+    return [(b.z - a.z) / length, (a.x - b.x) / length];
   };
-  const base = p.footing(band(-6.2, 6.2), 0.56, STONE);
-  for (const [a, b, height, first, second] of [[-5.6, -2, 0.38, PEACH, YELLOW],
-    [-2, 2, 1.15, YELLOW, CREAM], [2, 5.6, 0.56, CRIMSON, CORAL]]) {
-    const ring = band(a, b);
-    p.solid(ring, base, base + height, SOIL);
-    p.patch(ring, base + height, 1.16, (x, z) => Math.sin(z * 0.64 + x * 0.21) > 0.26 ? second : first);
-  }
-  return p;
-}
-
-function apecBed(ground) {
-  const x = -5895, z = 1190;
-  const widthScale = 1.39, depthScale = 1.48;
-  const outline = (u, v, w, d) => rectangle(x + u * widthScale, z + v * depthScale, w * widthScale, d * depthScale);
-  const p = planter('expo-flower-apec', ground);
-  const base = p.footing(outline(0, 0, 33.4, 17), 0.66, STONE);
-  const north = z - 7.8 * depthScale, south = z + 7.8 * depthScale;
-  const yAt = b => base + 1.36 - 0.92 * (b - north) / (south - north);
-  p.span({ x, z: north, y: yAt(north) }, { x, z: south, y: yAt(south) }, 32 * widthScale, 1.38, FOLIAGE);
-  // 字母用两排花冠组成每个笔画，面向南侧游人。
-  const cell = 1.12;
-  for (const [i, rows] of APEC.entries()) for (const [row, cells] of rows.entries()) {
-    for (let col = 0; col < cells.length; col++) {
-      if (cells[col] !== '1') continue;
-      for (const dx of [-0.25, 0.25]) for (const dz of [-0.25, 0.25]) {
-        const a = x + ((i * 6 + col - 11) * cell + dx) * widthScale;
-        const b = z + ((row - 3) * cell + dz) * depthScale;
-        p.flower(a, b, yAt(b), i % 2 ? WHITE : CREAM, 0.90);
-      }
+  const edge = (q, i, distance) => {
+    const a = normal(points[Math.max(0, i - 1)], points[Math.max(1, i)]);
+    const b = normal(points[Math.min(i, points.length - 2)], points[Math.min(i + 1, points.length - 1)]);
+    const shift = side * distance / (1 + a[0] * b[0] + a[1] * b[1]);
+    const x = q.x + shift * (a[0] + b[0]), z = q.z + shift * (a[1] + b[1]);
+    const y = ground(x, z);
+    return { x, z, y: Number.isFinite(y) ? y + 0.43 : NaN };
+  };
+  const inner = points.map((q, i) => edge(q, i, 6.2));
+  const outer = points.map((q, i) => edge(q, i, 19.6));
+  if (![...inner, ...outer].every(q => Number.isFinite(q.y))) return p;
+  const lengths = [0];
+  for (let i = 1; i < inner.length; i++) {
+    const a = inner[i - 1], b = inner[i], c = outer[i - 1], d = outer[i];
+    lengths.push(lengths.at(-1) + Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z));
+    // 同一个截面连接相邻两段，花带随坡转弯，侧壁埋入活动地面。
+    for (const triangle of [[a, b, d], [a, d, c]]) {
+      const depth = triangle.map(q => q.y - Math.min(a.y, b.y, c.y, d.y) + 0.7);
+      p.parts.push(roofPanelPart(`${id}:${p.parts.length}`, { id }, triangle, depth, SOIL,
+        { baseSource: 'rendered-terrain' }));
     }
   }
-  for (const side of [-1, 1]) {
-    p.patch(outline(0, side * 6.1, 30, 2.15), yAt, 0.86,
-      (a, b) => Math.sin(a * 0.27 + b * 0.4) > 0 ? VIOLET : CORAL);
-    p.patch(outline(side * 14.1, 0, 2.6, 9.6), yAt, 0.87, () => YELLOW);
+  const total = lengths.at(-1);
+  let segment = 1;
+  for (let s = 0.68; s < total - 0.65; s += 1.15) {
+    while (s > lengths[segment]) segment++;
+    const t = (s - lengths[segment - 1]) / (lengths[segment] - lengths[segment - 1]);
+    const [a, b, c, d] = [inner[segment - 1], inner[segment], outer[segment - 1], outer[segment]];
+    for (let u = 0.055; u < 0.98; u += 0.081) {
+      const middle = u <= t ? b : c;
+      const middleWeight = Math.abs(t - u), tipWeight = Math.min(t, u);
+      const x = a.x + (middle.x - a.x) * middleWeight + (d.x - a.x) * tipWeight;
+      const z = a.z + (middle.z - a.z) * middleWeight + (d.z - a.z) * tipWeight;
+      const y = a.y + (middle.y - a.y) * middleWeight + (d.y - a.y) * tipWeight;
+      // 花字按园路的行进方向排布，浅色花冠与紫色底花分层。
+      const col = Math.floor((total * 0.5 + 33 - s) / 2.85);
+      const row = Math.floor((0.81 - u) / 0.09);
+      const letter = lettering && col >= 0 && col < 23 && APEC[Math.floor(col / 6)][row]?.[col % 6] === '1';
+      const tint = lettering ? (letter ? CREAM : u < 0.14 || u > 0.86 ? CORAL : VIOLET)
+        : Math.sin(u * 14 + s * 0.20) > 0 ? CORAL : YELLOW;
+      p.flower(x, z, y, tint, letter ? 1.05 : 0.9);
+    }
   }
-  return p;
+  return { ...p, footprint: { outer: [...inner, ...outer.slice().reverse()], holes: [] } };
 }
 
 export const chinaFlowerBed = ground => rosette('china-flower-peony', ground, -6985, 1434, 1.58);
 
-export function planExpoFlowerBeds({ mapRegions, groundHeight, isWater }, buildings, barrier) {
-  const boundary = mapRegions?.regions.find(r => r.id === FLOWER_EXPO_ID)?.polygons[0];
-  if (!boundary) return { beds: [], rejected: [] };
-  const beds = [], rejected = [];
-  for (const p of [rosette('expo-flower-rosette', groundHeight, -6030, 1090, 1.56), terraces(groundHeight),
-    ribbon(groundHeight), apecBed(groundHeight)]) {
-    const fits = p.parts.every(part => sampleFootprint(part.polygon.outer, (x, z) =>
-      polygonContainsInclusive(boundary, x, z) && !barrier.contains(x, z, 2) && !isWater(x, z) && !nearExpoPath(x, z)
-        && !buildings.some(b => x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ
-          && polygonContainsInclusive(b.polygon, x, z)), 1.25));
-    if (fits) beds.push(p);
-    else rejected.push(p.id);
-  }
-  return { beds, rejected };
+export function expoFlowerBeds(ground) {
+  return [rosette('expo-flower-rosette', ground, -6120, 1035, 2.04), terraces(ground),
+    roadsideBed('expo-flower-ribbon', ground, 1, false), roadsideBed('expo-flower-apec', ground, -1, true)];
 }
 
 export function createFlowerCrown() {

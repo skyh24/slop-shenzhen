@@ -10,11 +10,12 @@ import { distanceToRing, polygonContainsInclusive } from '../sz-polygon.js';
 import { createRoadPolygonLayout } from '../sz-roads.js';
 import { createPavingMaterial, pavingMesh } from '../sz-paving.js';
 import { buildParkFireworks } from '../sz-park-fireworks.js';
+import { spatialIndex } from '../sz-spatial.js';
 import { colosseum, COLOSSEUM, eiffelTower, EIFFEL, forbiddenCity, greatWall, leaningTower, octagonalPavilion, potalaPalace, pyramid, PYRAMIDS, shaolinTemple } from './miniatures.js';
 import { disk, rectangle, sampleFootprint } from './parts.js';
 import { dropTower, rollerCoaster, waterSlide } from './rides.js';
-import { addFlowerCrowns, chinaFlowerBed, createFlowerCrown, planExpoFlowerBeds } from './flowers.js';
-import { EDGE_OPENINGS, FIREWORK_SITE, LAWNS, PARK_IDS, TREES, VALLEY_BOUNDARY, WALKS } from './sites.js';
+import { addFlowerCrowns, chinaFlowerBed, createFlowerCrown, expoFlowerBeds, nearExpoPath } from './flowers.js';
+import { EDGE_OPENINGS, EXPO_SERVICE_WALK, FIREWORK_SITE, LAWNS, PARK_IDS, TREES, VALLEY_BOUNDARY, WALKS } from './sites.js';
 
 const COLORS = {
   iron: 0x51453c, brass: 0xe2a444, basalt: 0x766d68, sandstone: 0xc9a378, sandcap: 0xe7cb9e,
@@ -35,6 +36,7 @@ const NIGHT_FINISH = {
   templeTile: [0x7cc0a6, 0.29], slideTurquoise: [0x42d0ea, 0.53], slideYellow: [0xffc25a, 0.62], slideWater: [0x3d91b4, 0.21]
 };
 const PARK_BOUNDS = { minX: -9430, maxX: -6540, minZ: -225, maxZ: 1740 };
+const SCENE_BOUNDS = { ...PARK_BOUNDS, maxX: -4825 };
 
 function strip(line, halfWidth) {
   const normal = ([ax, az], [bx, bz]) => {
@@ -52,7 +54,7 @@ function strip(line, halfWidth) {
 
 export function planThemeParks(site) {
   const { buildings, terrain, mapRegions, groundHeight, roadGraph, isWater } = site;
-  const barrier = createCarriagewayBarrier(roadGraph, { bounds: { ...PARK_BOUNDS, maxX: -5870 } });
+  const barrier = createCarriagewayBarrier(roadGraph, { bounds: SCENE_BOUNDS });
   const sourceIds = new Set([EIFFEL, COLOSSEUM, ...PYRAMIDS.map(([id]) => id)]);
   const byId = new Map(buildings.filter(row => sourceIds.has(row.id)).map(row => [row.id, row]));
   const localBuildings = buildings.filter(b => b.maxX > PARK_BOUNDS.minX && b.minX < PARK_BOUNDS.maxX
@@ -68,7 +70,7 @@ export function planThemeParks(site) {
     if (!boundary) continue;
     const park = { key, id, boundary, plans: [], walks: [], lawns: [], trees: [], launch: null, omittedSmallBuildings: 0 };
     // 只隐藏完全在园内的小型无名预测体块；保留 OSM 楼、具名场馆、近边界和入口对象。
-    for (const b of localBuildings) {
+    for (const b of key === 'expo' ? [] : localBuildings) {
       if (sourceIds.has(b.id) || b.name || b.height > 18 || !/^(globfp|overture)\//.test(b.id)
         || (b.maxX - b.minX) * (b.maxZ - b.minZ) > 2000
         || !polygonContainsInclusive(boundary, b.cx, b.cz)
@@ -82,8 +84,19 @@ export function planThemeParks(site) {
     }
     const solids = [];
     const retained = existing.filter(b => !sceneryOmissions.has(b.sourceId));
+    let expoBuildings;
+    if (key === 'expo') {
+      const minX = Math.min(...boundary.outer.map(p => p.x)), maxX = Math.max(...boundary.outer.map(p => p.x));
+      const minZ = Math.min(...boundary.outer.map(p => p.z)), maxZ = Math.max(...boundary.outer.map(p => p.z));
+      const colliders = buildings.filter(b => b.maxX > minX && b.minX < maxX && b.maxZ > minZ && b.minZ < maxZ)
+        .flatMap(b => buildingPlacement(b, terrain).colliders);
+      expoBuildings = spatialIndex(colliders, b => b.polygon.outer);
+    }
     const canPlace = (ring, low, high, grounded = false, ignore = [], clearance = 0.35, roadMargin = 0.4) => {
-      const candidates = [...retained, ...solids].filter(b => !ignore.includes(b.sourceId)
+      const anchor = ring[0];
+      const local = expoBuildings ? expoBuildings(anchor.x, anchor.z, Math.max(...ring.map(p =>
+        Math.max(Math.abs(p.x - anchor.x), Math.abs(p.z - anchor.z))))) : retained;
+      const candidates = [...local, ...solids].filter(b => !ignore.includes(b.sourceId)
         && b.minY < high + clearance && b.maxY > low - clearance
         && !ring.every(p => p.x < b.minX) && !ring.every(p => p.x > b.maxX)
         && !ring.every(p => p.z < b.minZ) && !ring.every(p => p.z > b.maxZ));
@@ -97,9 +110,10 @@ export function planThemeParks(site) {
     };
     const add = plan => {
       if (!plan) return;
-      const conflict = plan.parts.find(p => !canPlace(p.polygon.outer, p.minY, p.maxY, false, plan.skipIds));
-      if (conflict) {
-        rejected.push(conflict.id);
+      const conflict = plan.parts.find(p => !canPlace(p.polygon.outer, p.minY, p.maxY, false, plan.skipIds)
+        || (key === 'expo' && !sampleFootprint(p.polygon.outer, (x, z) => !nearExpoPath(x, z))));
+      if (conflict || !plan.parts.length) {
+        rejected.push(conflict?.id ?? plan.id);
         return;
       }
       park.plans.push(plan);
@@ -118,13 +132,15 @@ export function planThemeParks(site) {
       add(shaolinTemple(groundHeight));
       add(octagonalPavilion(groundHeight));
       add(chinaFlowerBed(groundHeight));
-    } else {
+    } else if (key === 'valley') {
       add(rollerCoaster(groundHeight, canPlace));
       add(dropTower(groundHeight));
       add(waterSlide(groundHeight));
+    } else {
+      for (const bed of expoFlowerBeds(groundHeight)) add(bed);
     }
-    for (const [i, line] of WALKS[key].entries()) {
-      const halfWidth = key === 'world' ? 2.15 : 1.7;
+    for (const [i, line] of (key === 'expo' ? [EXPO_SERVICE_WALK] : WALKS[key]).entries()) {
+      const halfWidth = key === 'expo' ? 2.25 : key === 'world' ? 2.15 : 1.7;
       const ring = strip(line, halfWidth);
       if (!canPlace(ring, -Infinity, Infinity, true, [...skipIds])) {
         rejected.push(`${key}:walk:${i}`);
@@ -132,7 +148,7 @@ export function planThemeParks(site) {
       }
       park.walks.push({ id: `theme-${key}-walk:${i}`, ring, line, halfWidth });
     }
-    for (const [i, [x, z, w, d]] of LAWNS[key].entries()) {
+    for (const [i, [x, z, w, d]] of (LAWNS[key] ?? []).entries()) {
       const ring = rectangle(x, z, w, d, 0.18);
       if (canPlace(ring, -Infinity, Infinity, true, [...skipIds])) park.lawns.push({ id: `theme-${key}-lawn:${i}`, ring });
     }
@@ -140,11 +156,12 @@ export function planThemeParks(site) {
       polygonContainsInclusive({ outer: ring }, x, z) || (r > 0 && distanceToRing(ring, x, z) < r));
     const fits = (ring, low, high, clearance, margin) =>
       canPlace(ring, low, high, false, [...skipIds], clearance, margin);
-    park.perimeter = planPerimeter(key, boundary, groundHeight, fits, walkAt);
+    const perimeterWalkAt = key === 'expo' ? (x, z, r) => nearExpoPath(x, z, r) : walkAt;
+    park.perimeter = planPerimeter(key, boundary, groundHeight, fits, perimeterWalkAt);
     solids.push(...park.perimeter.parts.map(partCollider));
     park.lanterns = planPathLamps(key, park.walks, groundHeight, fits, walkAt);
     solids.push(...park.lanterns.parts.map(partCollider));
-    for (const [i, [x, z]] of TREES[key].entries()) {
+    for (const [i, [x, z]] of (TREES[key] ?? []).entries()) {
       const y = groundHeight(x, z), height = 3.6 + i % 3 * 0.6;
       if (!walkAt(x, z, 2.3) && canPlace(disk(x, z, 2, 8), y, y + height, true, [...skipIds])) {
         park.trees.push({ id: `theme-${key}-tree:${i}`, x, z, height, crown: 2.9 + i % 3 * 0.35,
@@ -159,15 +176,11 @@ export function planThemeParks(site) {
     }
     parks.push(park);
   }
-  const expoBuildings = buildings.filter(b => b.maxX > -6055 && b.minX < -5870 && b.maxZ > 1010 && b.minZ < 1208)
-    .flatMap(b => buildingPlacement(b, terrain).colliders);
-  const expo = planExpoFlowerBeds(site, expoBuildings, barrier);
-  rejected.push(...expo.rejected);
-  return { parks, skipIds, rejected, sceneryOmissions, expoBeds: expo.beds };
+  return { parks, skipIds, rejected, sceneryOmissions };
 }
 
 export function buildThemeParks(scene, site) {
-  const { parks, skipIds, rejected, sceneryOmissions, expoBeds } = planThemeParks(site);
+  const { parks, skipIds, rejected, sceneryOmissions } = planThemeParks(site);
   const group = new THREE.Group();
   group.name = 'ShenzhenThemeParks';
   const surfaces = [], colliders = [], paths = [], trees = [], details = [];
@@ -190,14 +203,13 @@ export function buildThemeParks(scene, site) {
   const flowerGeometry = createFlowerCrown();
   const flowerMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.9,
     emissiveNode: color(0xffddbd).mul(0.035) });
-  const flowerBeds = [...expoBeds, ...parks.flatMap(park => park.plans.filter(plan => plan.blooms))];
+  const flowerBeds = parks.flatMap(park => park.plans.filter(plan => plan.blooms));
   for (const bed of flowerBeds) addFlowerCrowns(group, bed, flowerGeometry, flowerMaterial);
-  for (const bed of expoBeds) {
-    const result = renderLandmark(bed, materialFor);
-    group.add(result.group);
-    colliders.push(...bed.parts.map(partCollider));
-    surfaces.push(...result.surfaces);
-  }
+  const flowerFootprints = flowerBeds.map(({ parts: [base], footprint }) => {
+    if (!footprint) return base;
+    const xs = footprint.outer.map(p => p.x), zs = footprint.outer.map(p => p.z);
+    return { polygon: footprint, minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) };
+  });
   let fireworks;
   for (const park of parks) {
     for (const plan of [...park.plans, park.perimeter, park.lanterns]) {
@@ -236,11 +248,11 @@ export function buildThemeParks(scene, site) {
   scene.add(group);
   const launch = parks.find(park => park.launch)?.launch;
   const reserved = (x, z, radius) => Boolean(launch && (x - launch.x) ** 2 + (z - launch.z) ** 2 < (10 + radius) ** 2)
-    || flowerBeds.some(({ parts: [bed] }) => x >= bed.minX - radius && x <= bed.maxX + radius
+    || flowerFootprints.some(bed => x >= bed.minX - radius && x <= bed.maxX + radius
       && z >= bed.minZ - radius && z <= bed.maxZ + radius
       && (polygonContainsInclusive(bed.polygon, x, z) || distanceToRing(bed.polygon.outer, x, z) < radius));
-  const onPath = (x, z) => x >= PARK_BOUNDS.minX && x <= PARK_BOUNDS.maxX
-    && z >= PARK_BOUNDS.minZ && z <= PARK_BOUNDS.maxZ && paths.some(path => polygonContainsInclusive(path, x, z));
+  const onPath = (x, z) => x >= SCENE_BOUNDS.minX && x <= SCENE_BOUNDS.maxX
+    && z >= SCENE_BOUNDS.minZ && z <= SCENE_BOUNDS.maxZ && paths.some(path => polygonContainsInclusive(path, x, z));
   return {
     group, skipIds, colliders, surfaces, trees, reserved,
     pathAt: (x, z) => onPath(x, z) ? ['theme-park-path'] : [],

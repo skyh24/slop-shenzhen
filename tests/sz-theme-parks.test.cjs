@@ -22,7 +22,6 @@ test('the production pack fits all three parks and preserves ground access', asy
   const { createGroundSurfaceSampler } = await import('../js/sz-ground-surface.js');
   const { distanceToRing, polygonContainsInclusive, ringArea } = await import('../js/sz-polygon.js');
   const { buildThemeParks } = await import('../js/sz-theme-parks/index.js');
-  const { sampleFootprint } = await import('../js/sz-theme-parks/parts.js');
   const raw = JSON.parse(gunzipSync(readFileSync(resolve(__dirname, '../js/sz-city.json.gz'))));
   const { geo, buildings } = decodeCityPayload(raw);
   const scene = new Scene();
@@ -31,8 +30,8 @@ test('the production pack fits all three parks and preserves ground access', asy
   const parks = buildThemeParks(scene, { ...geo, buildings, groundHeight, isWater });
   const summary = parks.snapshot();
   assert.deepEqual(summary.rejected, []);
-  assert.deepEqual(summary.parks.map(p => p.models.length), [6, 6, 3]);
-  assert.deepEqual(summary.parks.map(p => p.walks), [3, 4, 3]);
+  assert.deepEqual(summary.parks.map(p => p.models.length), [6, 6, 3, 4]);
+  assert.deepEqual(summary.parks.map(p => p.walks), [3, 4, 3, 1]);
   assert.ok(summary.omittedSmallBuildings > 50);
   assert.equal(parks.skipIds.size, 5 + summary.omittedSmallBuildings);
   const byId = new Map(buildings.map(b => [b.id, b]));
@@ -55,23 +54,24 @@ test('the production pack fits all three parks and preserves ground access', asy
   assert.equal(summary.flowerBeds.length, 5);
   assert.ok(summary.flowerBeds.includes('expo-flower-apec'));
   assert.ok(summary.flowerBeds.every(id => parks.group.getObjectByName(`${id}:blooms`)?.count > 100));
-  const bedFootprint = id => parks.colliders.find(c => c.sourceId === id).polygon;
-  const expoBeds = summary.flowerBeds.filter(id => id.startsWith('expo-')).map(bedFootprint);
-  assert.ok(expoBeds.reduce((sum, bed) => sum + ringArea(bed.outer), 0) > 4200);
-  for (const [i, bed] of expoBeds.entries()) {
-    assert.ok(expoBeds.slice(0, i).every(other => sampleFootprint(bed.outer, (x, z) =>
-      !polygonContainsInclusive(other, x, z) && distanceToRing(other.outer, x, z) >= 30)),
-    'keep at least 30 metres between the Expo flower beds');
+  const footprints = id => parks.colliders.filter(c => c.sourceId === id);
+  const bedArea = id => ringArea(footprints(id)[0].polygon.outer);
+  assert.ok(bedArea('expo-flower-rosette') > 1300 && bedArea('expo-flower-terraces') > 1800);
+  assert.ok(bedArea('china-flower-peony') > 800);
+  assert.ok(parks.reserved(-6985, 1434, 1));
+  assert.ok(parks.reserved(-5957, 1118, 1) && parks.reserved(-5934, 1118, 1));
+  assert.ok(!parks.reserved(-5945.3, 1118.3, 3) && parks.pathAt(-5945.3, 1118.3).length === 1);
+  for (const id of ['expo-flower-ribbon', 'expo-flower-apec']) {
+    const panels = footprints(id);
+    assert.ok(panels.reduce((area, p) => area + ringArea(p.polygon.outer), 0) > 1300);
+    assert.ok(panels.every(p => p.polygon.outer.every(({ x, z }) => !parks.pathAt(x, z).length)));
   }
-  assert.ok(ringArea(bedFootprint('china-flower-peony').outer) > 800);
-  assert.ok(parks.reserved(-6985, 1434, 1) && parks.reserved(-5895, 1190, 1));
-  assert.ok(!parks.reserved(-5944, 1120, 1), 'keep the source service path clear between flower beds');
-  assert.ok(!parks.reserved(-5899.7, 1168.1, 4), 'keep the south pedestrian path clear of the APEC bed');
+  assert.ok(!parks.reserved(-5899.7, 1168.1, 4), 'keep the south pedestrian path clear');
   const barrier = createCarriagewayBarrier(geo.roadGraph);
-  for (const [i, key] of ['world', 'china', 'valley'].entries()) {
+  for (const [i, key] of ['world', 'china', 'valley', 'expo'].entries()) {
     const walls = parks.colliders.filter(c => c.sourceId === `theme-${key}-perimeter`);
     const lamps = parks.colliders.filter(c => c.sourceId === `theme-${key}-path-lamps`);
-    assert.ok(summary.parks[i].wallLengthM > 1400);
+    assert.ok(summary.parks[i].wallLengthM > (key === 'expo' ? 5000 : 1400));
     assert.ok(summary.parks[i].lamps >= 6);
     assert.ok(parks.group.children.some(m => m.isInstancedMesh && m.name.startsWith(`theme-${key}-perimeter:iron:`)));
     assert.ok(walls.some(w => Math.abs(w.maxY - groundHeight((w.minX + w.maxX) / 2, (w.minZ + w.maxZ) / 2) - 3) < 0.05));
