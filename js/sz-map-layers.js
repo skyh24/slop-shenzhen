@@ -272,21 +272,23 @@ function mapLayers() {
   for (const { trianglesXZ } of GEO.golfCourse?.surfaces ?? []) {
     for (let i = 0; i < trianglesXZ.length; i += 6) layers.gardenPaths.ring(trianglesXZ.slice(i, i + 6));
   }
-  // 全图高铁图层：只用 sites 段里已核实的站体/场地轮廓，不画没有来源的线路。
-  layers.hsr = [];
-  for (const station of [{ id: 'futian-station', role: 'station', name: '福田站', note: '地下高铁', underConstruction: false },
-    { id: 'xili-station', role: 'site', name: '西丽站', note: '在建', underConstruction: true },
-    { id: 'shenzhen-north', role: 'station', name: STR.hsr.north, note: STR.hsr.highSpeedRail, underConstruction: false }]) {
-    const polygons = GEO.sites?.[station.id]?.[station.role]?.polygons;
-    if (!Array.isArray(polygons) || polygons.length === 0) continue;
-    const path = new Path2D();
-    for (const polygon of polygons) {
-      addLine(path, [...polygon.outer, polygon.outer[0]]);
-      for (const hole of polygon.holes ?? []) addLine(path, [...hole, hole[0]]);
-    }
+  // 福田、深圳北和西丽使用已收录的轮廓，深圳站用已有位置标注。
+  layers.hsr = Object.entries(STR.hsr.stations).flatMap(([id, name]) => {
+    const landmark = GEO.landmarks?.find(item => item.id === id);
+    if (!landmark) return [];
+    const underConstruction = id === 'xili-station';
+    const polygons = GEO.sites?.[id]?.[underConstruction ? 'site' : 'station']?.polygons ?? [];
     const points = polygons.flatMap(polygon => polygon.outer);
-    layers.hsr.push({ ...station, path, bounds: boundsOf(points) });
-  }
+    const path = points.length ? new Path2D() : null;
+    if (path) {
+      for (const polygon of polygons) {
+        addLine(path, [...polygon.outer, polygon.outer[0]]);
+        for (const hole of polygon.holes ?? []) addLine(path, [...hole, hole[0]]);
+      }
+    }
+    const { x, z } = landmark;
+    return [{ id, name, x, z, path, polygons, underConstruction, bounds: boundsOf([...points, { x, z }]) }];
+  });
   const metroColours = new Map((GEO.metro?.lines || []).map(line => [line.ref, line.colour]));
   layers.metro = (GEO.metro?.segments || []).map(segment => {
     const path = new Path2D();

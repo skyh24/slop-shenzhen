@@ -101,7 +101,8 @@ test('map travel resolves a walking pose before closing and leaves the map open 
         assert.equal(args.at(-1), 'person');
         return curb;
       } },
-      './sz-park-arrivals.js': { parkAt: () => null }
+      './sz-park-arrivals.js': { parkAt: () => null },
+      './sz-polygon.js': require('./helpers/polygon.cjs')
     } }).createTeleportActions,
     FLIGHT_START_ALTITUDE: 200,
     roads: { roadHeight: () => null },
@@ -199,6 +200,15 @@ test('map travel resolves a walking pose before closing and leaves the map open 
   assert.equal(mode, 'person');
   assert.equal(map.waypoint.name, 'Landmark');
 
+  map.open = true;
+  const waypoint = { x: 110, z: 200, name: 'Station' };
+  const footprint = { outer: [{ x: 106, z: 194 }, { x: 114, z: 194 }, { x: 114, z: 206 }, { x: 106, z: 206 }], holes: [] };
+  assert.equal(map.onTeleport(110, 200, undefined, { waypoint, stationVisit: { exterior: [footprint] } }), null);
+  assert.equal(map.open, true, 'the station visit rejects a curb inside the site');
+  assert.deepEqual(map.onTeleport(110, 200, undefined, { waypoint, stationVisit: { exterior: [] } }), curb);
+  assert.equal(map.open, false);
+  assert.equal(map.waypoint, waypoint);
+
   mode = 'cyclist';
   map.open = true;
   calls.length = 0;
@@ -207,7 +217,7 @@ test('map travel resolves a walking pose before closing and leaves the map open 
   assert.equal(mode, 'cyclist');
   assert.equal(map.open, true);
   assert.deepEqual(calls, []);
-  assert.equal(map.waypoint.name, 'Landmark');
+  assert.equal(map.waypoint.name, 'Station');
   arrival = null;
   calls.length = 0;
   handlers.get('ping-an')();
@@ -215,7 +225,7 @@ test('map travel resolves a walking pose before closing and leaves the map open 
   assert.equal(feedback.hidden, false);
   assert.equal(feedback.textContent, 'No arrival');
   assert.equal(map.onTeleport(10000, 10000), null);
-  assert.equal(map.waypoint.x, curb.x);
+  assert.equal(map.waypoint, waypoint);
 });
 
 test('landmark flight arrivals search the front arc at exactly 200 metres and face the centre', async () => {

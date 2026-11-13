@@ -86,7 +86,7 @@ function wireMapInspection(map) {
       if (!map.drive.active) map.pickDrivePoint(point.x, point.z);
       return;
     }
-    if (map.pickDroneStation?.(point)) return;
+    if (map.pickTransportStation?.(point)) return;
     const pin = visiblePin(point);
     const region = pin ? null : map.regionLayer()?.hit(point.x, point.z, map.viewZoom, map.mapLayersVisible) ?? null;
     selected = { x: pin?.x ?? point.x, z: pin?.z ?? point.z, landmarkId: pin?.id,

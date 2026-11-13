@@ -3,6 +3,8 @@ const driveDistance = length => length >= 1000 ? `${(length / 1000).toFixed(2)} 
 // 玩家可见文字集中在这里，代码里只引用键名
 export const STR = {
   map: {
+    transport: '地图交通',
+    visit: '参观',
     counts: (roads, buildings) => `${roads.toLocaleString('zh-CN')} 个路名 · ${buildings.toLocaleString('zh-CN')} 栋建筑`,
     searchPlaceholder: '搜索道路、地标、地铁站或区域…',
     layers: '地图图层',
@@ -158,23 +160,30 @@ export const STR = {
   },
   metro: {
     title: '地铁',
-    all: '全部显示',
-    none: '全部隐藏',
+    tab: '地铁线路',
+    all: '全选',
+    none: '全不选',
     line: ref => `${ref} 号线`
   },
   drones: {
     title: '无人机航线',
-    layer: '无人机航线图层',
+    tab: '无人机线路',
+    stationNames: {
+      'meituan-tidal-plaza': '人才公园潮汐广场',
+      'meituan-coastcity': '海岸城商圈',
+      'meituan-center-park': '中心公园',
+      'meituan-lianhuashan': '莲花山公园'
+    },
+    noStations: '暂无可定位的无人机站点。',
+    visitSimulation: '参观（模拟）',
+    visitUnavailable: '暂时无法开始跟拍，请稍后再试。',
     statusSuspended: '会期低空管控 · 停运',
     receiver: '无人机接收点 · 估计站位',
-    choose: '选择接收点',
-    approach: '前往步行起点',
-    walkCloser: '请走到接收点附近再开始。',
+    approach: '前往站点附近',
     unavailable: '当前路线暂无经过场景净空校验的完整路径。',
     approachUnavailable: '当前没有安全步行落点。',
     blocked: '请停稳并结束当前驾驶或节目，再开始观看。',
     failed: '配送已结束，已恢复玩家视角。',
-    normal: '跟随无人机送货',
     simulation: '模拟配送',
     simulationOnly: '端点配对待核实 · 仅供模拟',
     estimate: '估计站位与示意航迹 · 无实时运营信息',
@@ -185,11 +194,17 @@ export const STR = {
     phase: { loading: '待命 / 装载', takeoff: '起飞', cruise: '巡航', descent: '下降', delivery: '到站交付', complete: '已返回起点' }
   },
   hsr: {
-    title: '高铁图层',
-    futian: '福田站（地下高铁）',
-    xili: '西丽站（在建）',
-    north: '深圳北站',
-    highSpeedRail: '高铁'
+    tab: '高铁站',
+    show: '显示高铁站',
+    stations: {
+      'shenzhen-north': '深圳北站',
+      'xili-station': '西丽站（在建）',
+      'futian-station': '福田站',
+      'shenzhen-station': '深圳站（罗湖）'
+    },
+    xiliVisit: '参观落点在工地外围。',
+    futianVisit: '参观地面站口。',
+    visitUnavailable: '附近暂无安全落点，请在地图上另选位置。'
   },
   cruise: {
     short: '巡游',
@@ -239,7 +254,7 @@ export const STR = {
       `${Math.floor(Math.min(100, 100 * travelled / length))}% · ${Math.round(speed * 3.6)} 公里/小时 · 剩余 ${driveDistance(Math.max(0, length - travelled))}`,
     clear: '重选起点',
     repickEnd: '重选终点',
-    start: '开始自动驾驶',
+    start: '开始驾驶',
     pause: '暂停',
     resume: '继续',
     stop: '结束',

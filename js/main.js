@@ -747,7 +747,14 @@ async function initApp() {
       touchControls.setEnabled(!open && !cruise.active && !droneWatch.active);
       gamepadControls.setEnabled(!open);
     },
-    onTeleport: (...args) => !cruise.active && !droneWatch.active && teleportFromMap(...args),
+    onTeleport: (x, z, heading, options) => {
+      if (cruise.active || droneWatch.active) return null;
+      const visit = options?.stationVisit;
+      if (visit?.id === 'futian-station') {
+        options = { ...options, stationVisit: { ...visit, entrances: futianStation?.entrances } };
+      }
+      return teleportFromMap(x, z, heading, options);
+    },
     drones: droneWatch.map,
     drive: {
       snap: (x, z, start) => cruise.active ? null : drivePlanner().snap(x, z, {

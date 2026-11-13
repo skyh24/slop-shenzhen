@@ -66,13 +66,14 @@ class NYCMapSystem {
 
     this.waypoint = null;
     this.metroLines = new Set();
+    this.transportTab = 'map-metro';
+    this.hsrStation = null;
     this.hsrVisible = false;
     this.dronesVisible = false;
     this.droneControls = drones;
     this.droneLayer = drones ? droneMapLayer(drones.stations, drones.routes) : null;
     this.droneStation = null;
     this.droneFeedback = '';
-    this.isPlanningDrive = false;
     this.driveStart = null;
     this.driveEnd = null;
     this.driveRoute = null;
@@ -91,6 +92,7 @@ class NYCMapSystem {
 
     this.initEvents();
     this.inspection = wireMapInspection(this);
+    this.bindTransportTabs();
   }
 
   initEvents() {
@@ -147,28 +149,118 @@ class NYCMapSystem {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape' && this.isFullMapOpen) {
         if (this.airCruise?.active) e.preventDefault();
-        const metro = document.getElementById('metro-popover');
-        if (typeof metro?.hidePopover !== 'function' || !metro.matches(':popover-open')) this.toggleFullMap(false);
+        this.toggleFullMap(false);
       } else if (e.code === 'KeyM' && !isTypingInField(e)) {
         this.toggleFullMap(!this.isFullMapOpen);
       }
     });
+  }
 
-    const hsrButton = document.getElementById('map-hsr');
-    if (hsrButton) {
-      hsrButton.addEventListener('click', () => {
-        this.hsrVisible = !this.hsrVisible;
-        hsrButton.setAttribute('aria-pressed', String(this.hsrVisible));
-        hsrButton.classList.toggle('active', this.hsrVisible);
-        this.miniCache = null;
-        this.fullStaticKey = '';
-        this.renderFullMap();
+  get isPlanningDrive() {
+    return this.transportTab === 'map-plan-drive';
+  }
+
+  bindTransportTabs() {
+    const first = document.getElementById('map-metro');
+    if (!first) return;
+    const tabs = [...first.parentElement.querySelectorAll('[role="tab"]')];
+    this.transportTabs = new Map(tabs.map(tab => [tab.id, {
+      tab, page: document.getElementById(tab.getAttribute('aria-controls'))
+    }]));
+    for (const [index, tab] of tabs.entries()) {
+      tab.addEventListener('click', () => this.selectTransportTab(tab.id));
+      tab.addEventListener('keydown', event => {
+        const target = { ArrowLeft: (index - 1 + tabs.length) % tabs.length,
+          ArrowRight: (index + 1) % tabs.length, Home: 0, End: tabs.length - 1 }[event.key];
+        if (target === undefined) return;
+        event.preventDefault();
+        this.selectTransportTab(tabs[target].id);
+        tabs[target].focus();
       });
     }
+    this.bindDroneCard();
+  }
 
-    if (this.droneLayer?.stations.length) this.bindDroneCard();
-    else document.getElementById('map-drones')?.toggleAttribute('hidden', true);
+  selectTransportTab(id) {
+    if (!this.transportTabs?.has(id) || this.transportTab === id) return;
+    const previous = this.transportTab;
+    this.transportTab = id;
+    for (const [key, { tab, page }] of this.transportTabs) {
+      const active = key === id;
+      tab.setAttribute('aria-selected', String(active));
+      tab.tabIndex = active ? 0 : -1;
+      page.hidden = !active;
+    }
+    if (id === 'map-hsr' && !this.hsrUI) this.bindHsrCard();
+    this.inspection?.reset();
+    this.setDroneLayer(id === 'map-drones');
+    if (previous === 'map-plan-drive' || this.isPlanningDrive) this.invalidateLayers();
+    this.renderDriveUi();
+    this.refreshView();
+  }
 
+  invalidateLayers() {
+    this.miniCache = null;
+    this.fullStaticKey = '';
+  }
+
+  focusStation({ x, z }) {
+    this.viewCenterX = x;
+    this.viewCenterZ = z;
+    this.viewZoom = Math.max(this.viewZoom, 0.75);
+  }
+
+  bindHsrCard() {
+    const get = suffix => document.getElementById('map-hsr-' + suffix);
+    const list = get('stations'), layer = get('layer'), visit = get('visit'), status = get('status');
+    this.hsrUI = { layer, visit, status, buttons: new Map() };
+    for (const station of mapLayers().hsr) {
+      const button = this.stationButton(station.name, () => this.selectHsrStation(station));
+      this.hsrUI.buttons.set(station.id, button);
+      list.append(button);
+    }
+    layer.addEventListener('change', () => this.setHsrVisible(layer.checked));
+    visit.addEventListener('click', () => {
+      const station = this.hsrStation;
+      if (!station) return;
+      const { id, x, z, name, polygons } = station;
+      const arrived = this.onTeleport?.(x, z, undefined, {
+        waypoint: { x, z, name }, stationVisit: { id, exterior: id === 'futian-station' ? [] : polygons }
+      });
+      if (!arrived) {
+        status.textContent = STR.hsr.visitUnavailable;
+        status.hidden = false;
+      }
+    });
+  }
+
+  stationButton(name, select) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'pop-item';
+    button.textContent = name;
+    button.setAttribute('aria-pressed', 'false');
+    button.addEventListener('click', select);
+    return button;
+  }
+
+  selectHsrStation(station, center = true) {
+    this.hsrStation = station;
+    const { visit, status, buttons } = this.hsrUI;
+    for (const [id, button] of buttons) button.setAttribute('aria-pressed', String(id === station.id));
+    visit.disabled = false;
+    status.textContent = station.underConstruction ? STR.hsr.xiliVisit
+      : station.id === 'futian-station' ? STR.hsr.futianVisit : '';
+    status.hidden = !status.textContent;
+    if (center) this.focusStation(station);
+    this.setHsrVisible(true);
+  }
+
+  setHsrVisible(visible) {
+    this.hsrVisible = visible;
+    this.hsrUI.layer.checked = visible;
+    this.invalidateLayers();
+    this.refreshView();
   }
 
   regionLayer() {
@@ -183,26 +275,12 @@ class NYCMapSystem {
 
   initDriveEvents() {
     const get = id => document.getElementById(id);
-    this.driveUi = { toggle: get('map-plan-drive'), panel: get('map-drive-panel'), status: get('map-drive-status'),
+    this.driveUi = { panel: get('map-drive-panel'), status: get('map-drive-status'),
       levels: get('map-drive-levels'), clear: get('map-drive-clear'), repickEnd: get('map-drive-repick-end'),
       start: get('map-drive-start'), progress: get('map-drive-progress'), hudProgress: get('drive-hud-progress'),
       pauses: [get('map-drive-pause'), get('drive-hud-pause')], resumes: [get('map-drive-resume'), get('drive-hud-resume')],
       stops: [get('map-drive-stop'), get('drive-hud-stop')], hud: get('drive-hud'), hudStatus: get('drive-hud-status') };
-    const { toggle, clear, repickEnd, start, pauses, resumes, stops } = this.driveUi;
-    toggle?.addEventListener('click', () => {
-      if (this.drive.active) {
-        if (this.dronesVisible) this.toggleDroneCard(false);
-        this.isPlanningDrive = true;
-        this.renderDriveUi();
-        this.renderPointerHint();
-        return;
-      }
-      this.isPlanningDrive = !this.isPlanningDrive;
-      if (this.isPlanningDrive && this.dronesVisible) this.toggleDroneCard(false);
-      this.resetDrivePlan();
-      this.inspection?.reset();
-      this.renderPointerHint();
-    });
+    const { clear, repickEnd, start, pauses, resumes, stops } = this.driveUi;
     clear?.addEventListener('click', () => this.resetDrivePlan());
     repickEnd?.addEventListener('click', () => this.resetDrivePlan(true));
     start?.addEventListener('click', () => {
@@ -305,12 +383,9 @@ class NYCMapSystem {
       element.hidden = !summary;
       if (element.textContent !== summary) element.textContent = summary;
     }
-    const pressed = String(this.isPlanningDrive);
-    if (ui.toggle.getAttribute('aria-pressed') !== pressed) ui.toggle.setAttribute('aria-pressed', pressed);
-    ui.panel.hidden = !this.isPlanningDrive;
     ui.clear.hidden = active || (!this.drivePicks[0] && !this.driveStart);
     ui.repickEnd.hidden = !this.drivePicks[1] || active;
-    ui.start.hidden = !hasRoute || active;
+    ui.start.hidden = active;
     ui.start.disabled = !canStart;
     ui.hud.hidden = !stateText;
     for (const button of ui.stops) button.hidden = !active;
@@ -427,20 +502,21 @@ class NYCMapSystem {
   }
 
   bindDroneCard() {
-    const byId = suffix => document.getElementById('map-drone-' + suffix);
+    const get = suffix => document.getElementById('map-drone-' + suffix);
     const ui = this.droneUI = {
-      toggle: document.getElementById('map-drones'), panel: byId('panel'), select: byId('station'),
-      route: byId('route'), status: byId('status'), approach: byId('approach'),
-      follow: byId('follow'), demo: byId('simulate')
+      route: get('route'), status: get('status'), approach: get('approach'), follow: get('follow'), buttons: new Map()
     };
-    for (const station of this.droneLayer.stations) {
-      const option = document.createElement('option');
-      option.value = station.id;
-      option.textContent = station.name;
-      ui.select.append(option);
+    if (!this.droneLayer?.stations.length) {
+      ui.status.textContent = STR.drones.noStations;
+      return;
     }
-    ui.toggle.addEventListener('click', () => this.toggleDroneCard(!this.dronesVisible));
-    ui.select.addEventListener('change', () => this.selectDroneStation(ui.select.value, true));
+    const list = get('stations');
+    for (const station of this.droneLayer.stations) {
+      const name = STR.drones.stationNames[station.id] ?? station.name;
+      const button = this.stationButton(name, () => this.selectDroneStation(station.id, true));
+      ui.buttons.set(station.id, button);
+      list.append(button);
+    }
     ui.approach.addEventListener('click', () => {
       if (this.droneControls.approach(this.droneStation)) this.toggleFullMap(false);
       else {
@@ -448,49 +524,42 @@ class NYCMapSystem {
         this.renderDroneCard();
       }
     });
-    for (const [button, demo] of [[ui.follow, false], [ui.demo, true]]) {
-      button.addEventListener('click', () => {
-        if (this.droneControls.follow(this.droneStation, demo)) this.toggleFullMap(false);
-        else this.renderDroneCard();
-      });
-    }
+    ui.follow.addEventListener('click', () => {
+      const { suspended, route } = this.droneControls.status(this.droneStation.id);
+      const demo = suspended || Boolean(route?.simulationOnly);
+      if (this.droneControls.follow(this.droneStation, demo, { remote: true })) this.toggleFullMap(false);
+      else {
+        this.droneFeedback = STR.drones.visitUnavailable;
+        this.renderDroneCard();
+      }
+    });
   }
 
-  toggleDroneCard(open) {
-    if (!this.droneUI) return;
-    this.dronesVisible = open;
-    this.droneUI.toggle.setAttribute('aria-pressed', String(open));
-    this.droneUI.toggle.classList.toggle('active', open);
-    this.droneUI.panel.hidden = !open;
-    this.miniCache = null;
-    this.fullStaticKey = '';
-    if (open) {
-      if (this.isPlanningDrive) {
-        this.isPlanningDrive = false;
-        this.renderDriveUi();
-        this.renderPointerHint();
-      }
-      const nearby = this.droneLayer.stations.find(station => this.droneControls.status(station.id).nearby);
-      const id = nearby?.id ?? this.droneStation?.id ?? this.droneLayer.stations[0]?.id;
-      if (id) this.selectDroneStation(id, !nearby);
+  setDroneLayer(visible) {
+    if (!this.droneLayer?.stations.length || this.dronesVisible === visible) return;
+    this.dronesVisible = visible;
+    if (visible) {
+      this.selectDroneStation(this.droneStation?.id ?? this.droneLayer.stations[0].id, false);
     } else {
       this.droneControls.preview(null);
-      this.renderFullMap();
+      this.invalidateLayers();
     }
   }
 
-  pickDroneStation(point) {
-    if (!this.dronesVisible || !this.droneLayer) return false;
+  pickTransportStation(point) {
+    const stations = this.transportTab === 'map-drones' && this.dronesVisible ? this.droneLayer.stations
+      : this.transportTab === 'map-hsr' && this.hsrVisible ? mapLayers().hsr : [];
     let selected;
     let distance = 10 / this.viewZoom;
-    for (const station of this.droneLayer.stations) {
+    for (const station of stations) {
       const d = Math.hypot(station.x - point.x, station.z - point.z);
       if (d > distance) continue;
       selected = station;
       distance = d;
     }
     if (!selected) return false;
-    this.selectDroneStation(selected.id, false);
+    if (this.transportTab === 'map-drones') this.selectDroneStation(selected.id, false);
+    else this.selectHsrStation(selected, false);
     return true;
   }
 
@@ -499,52 +568,50 @@ class NYCMapSystem {
     if (!station) return;
     this.droneStation = station;
     this.droneFeedback = '';
-    this.droneUI.select.value = id;
-    if (center) {
-      this.viewCenterX = station.x;
-      this.viewCenterZ = station.z;
-      this.viewZoom = Math.max(this.viewZoom, 0.75);
-    }
+    for (const [key, button] of this.droneUI.buttons) button.setAttribute('aria-pressed', String(key === id));
+    if (center) this.focusStation(station);
     this.droneControls.preview(id);
+    this.invalidateLayers();
     this.renderDroneCard();
-    this.renderFullMap();
+    this.refreshView();
   }
 
   renderDroneCard() {
     if (!this.droneStation || !this.dronesVisible || !this.isFullMapOpen) return;
     const ui = this.droneUI, strings = STR.drones;
-    const { route, suspended, nearby, mission, available, blocked, canApproach } = this.droneControls.status(this.droneStation.id);
+    const { route, suspended, mission, available, blocked, canApproach } = this.droneControls.status(this.droneStation.id);
+    const demo = suspended || Boolean(route?.simulationOnly);
     const active = mission && mission.pose.phase !== 'complete';
     const phase = active && strings.phase[mission.pose.phase];
     const lines = [this.droneFeedback, suspended && strings.statusSuspended, route?.simulationOnly && strings.simulationOnly,
-      !available && strings.unavailable, available && !nearby && strings.walkCloser,
-      nearby && blocked && strings.blocked, phase && (mission.demo ? strings.simulation + ' · ' : '')
-        + (mission.pose.returning ? strings.returning(phase) : phase)].filter(Boolean);
+      !available && strings.unavailable, blocked && strings.blocked,
+      active && (mission.demo ? strings.simulation + ' · ' : '') + (mission.pose.returning ? strings.returning(phase) : phase)]
+      .filter(Boolean);
     const status = lines.join(' / ') || strings.phase.loading;
     if (ui.status.textContent !== status) ui.status.textContent = status;
-    const routeLabel = route?.from && route.to ? route.from.name + ' ⇄ ' + route.to.name + ' · ' + strings.estimate : strings.estimate;
+    const label = demo ? strings.visitSimulation : STR.map.visit;
+    if (ui.follow.textContent !== label) ui.follow.textContent = label;
+    const name = station => strings.stationNames[station.id] ?? station.name;
+    const routeLabel = route?.from && route.to ? name(route.from) + ' ⇄ ' + name(route.to) + ' · ' + strings.estimate : strings.estimate;
     if (ui.route.textContent !== routeLabel) ui.route.textContent = routeLabel;
-    ui.approach.hidden = nearby || !canApproach;
-    ui.follow.disabled = !nearby || !available || suspended || route?.simulationOnly || blocked || Boolean(active && mission.demo);
-    ui.demo.disabled = !nearby || !available || blocked || Boolean(active && !mission.demo);
+    ui.approach.hidden = !this.droneStation.approach || !canApproach;
+    ui.follow.disabled = !available || blocked || Boolean(active && mission.demo !== demo);
   }
 
   toggleFullMap(open) {
     this.isFullMapOpen = Boolean(open);
-    if (this.isFullMapOpen && this.drive?.active) this.isPlanningDrive = true;
     if (!this.isFullMapOpen) {
       this.inspection?.reset();
       if (this.cruisePreview) {
         this.viewZoom = this.cruisePreview.zoom;
         this.cruisePreview = null;
       }
-      if (this.dronesVisible) this.toggleDroneCard(false);
+      this.setDroneLayer(false);
     }
     if (this.onToggle) this.onToggle(this.isFullMapOpen);
     if (!this.modal) return;
     this.modal.classList.toggle('hidden', !this.isFullMapOpen);
     if (this.isFullMapOpen) {
-      this.renderPointerHint();
       for (const pop of document.querySelectorAll('.popover[popover]')) {
         if (typeof pop.hidePopover === 'function' && pop.matches(':popover-open')) pop.hidePopover();
       }
@@ -552,11 +619,11 @@ class NYCMapSystem {
       this.viewCenterX = ent.position.x;
       this.viewCenterZ = ent.position.z;
       this.resizeFullCanvas();
-      if (!this.isPlanningDrive && this.droneLayer?.stations.some(station => this.droneControls.status(station.id).nearby)) {
-        this.toggleDroneCard(true);
-      } else {
-        this.renderFullMap();
-      }
+      if (this.drive?.active) this.selectTransportTab('map-plan-drive');
+      this.setDroneLayer(this.transportTab === 'map-drones');
+      this.renderPointerHint();
+      this.renderDriveUi();
+      this.renderFullMap();
     }
   }
 
@@ -717,26 +784,17 @@ class NYCMapSystem {
     if (this.hsrVisible) {
       for (const station of layers.hsr) {
         if (!v.sees(station.bounds)) continue;
-        ctx.fillStyle = MAP.railFill;
-        ctx.fill(station.path);
-        ctx.strokeStyle = MAP.rail;
-        ctx.lineWidth = 2.2 / v.s;
-        ctx.setLineDash(station.underConstruction ? [8 / v.s, 5 / v.s] : []);
-        ctx.stroke(station.path);
-        ctx.setLineDash([]);
-        if (!isMinimap) {
-          const label = `${station.name}（${station.note}）`;
-          ctx.font = '600 ' + (11 / v.s) + 'px ' + FONT;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.lineWidth = 3 / v.s;
-          ctx.strokeStyle = MAP.halo;
-          const X = v.toX((station.bounds.minX + station.bounds.maxX) / 2);
-          const Y = v.toY((station.bounds.minZ + station.bounds.maxZ) / 2);
-          ctx.strokeText(label, X, Y);
-          ctx.fillStyle = '#cfe0ff';
-          ctx.fillText(label, X, Y);
+        if (station.path) {
+          ctx.fillStyle = MAP.railFill;
+          ctx.fill(station.path);
+          ctx.strokeStyle = MAP.rail;
+          ctx.lineWidth = 2.2 / v.s;
+          ctx.setLineDash(station.underConstruction ? [8 / v.s, 5 / v.s] : []);
+          ctx.stroke(station.path);
+          ctx.setLineDash([]);
         }
+        const selected = this.hsrStation?.id === station.id;
+        this.drawTransportMarker(ctx, v, station, MAP.rail, selected, isMinimap ? '' : station.name);
       }
     }
     if (this.dronesVisible) {
@@ -752,22 +810,10 @@ class NYCMapSystem {
         ctx.setLineDash([]);
         for (const station of drones.stations) {
           if (!v.sees(station.bounds)) continue;
-          ctx.fillStyle = station.available === false ? '#ab9d87' : MAP.droneStation;
-          ctx.beginPath();
-          ctx.arc(v.toX(station.x), v.toY(station.z), 4 / v.s, 0, Math.PI * 2);
-          ctx.fill();
-          if (!isMinimap && v.s >= 0.32) {
-            // 缩到城市级时只画站点名，放大后才显示核实日期，避免标签互相压住。
-            const label = v.s >= 0.85 ? `${station.name}（${station.verifiedAt} 核实）` : station.name;
-            ctx.font = '600 ' + (10 / v.s) + 'px ' + FONT;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.lineWidth = 3 / v.s;
-            ctx.strokeStyle = MAP.halo;
-            ctx.strokeText(label, v.toX(station.x), v.toY(station.z) - 10 / v.s);
-            ctx.fillStyle = '#d8ecff';
-            ctx.fillText(label, v.toX(station.x), v.toY(station.z) - 10 / v.s);
-          }
+          const selected = this.droneStation?.id === station.id;
+          const name = STR.drones.stationNames[station.id] ?? station.name;
+          const label = !isMinimap && (selected || v.s >= 0.32) ? name : '';
+          this.drawTransportMarker(ctx, v, station, station.available === false ? '#ab9d87' : MAP.droneStation, selected, label);
         }
       }
     }
@@ -776,7 +822,7 @@ class NYCMapSystem {
       ctx.lineWidth = Math.max(3 / v.s, 9);
       ctx.stroke(this.searchPath);
     }
-    if (this.drivePath) {
+    if (this.drivePath && (this.isPlanningDrive || this.drive?.active)) {
       ctx.strokeStyle = MAP.halo;
       ctx.lineWidth = 7 / v.s;
       ctx.stroke(this.drivePath);
@@ -785,6 +831,26 @@ class NYCMapSystem {
       ctx.stroke(this.drivePath);
     }
     ctx.restore();
+  }
+
+  drawTransportMarker(ctx, view, station, colour, selected, label) {
+    const x = station.x, z = station.z;
+    ctx.beginPath();
+    ctx.arc(x, z, (selected ? 6 : 4) / view.s, 0, Math.PI * 2);
+    ctx.fillStyle = colour;
+    ctx.fill();
+    ctx.lineWidth = 2 / view.s;
+    ctx.strokeStyle = selected ? '#f3f7ff' : MAP.halo;
+    ctx.stroke();
+    if (!label) return;
+    ctx.font = `600 ${11 / view.s}px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.lineWidth = 3 / view.s;
+    ctx.strokeStyle = MAP.halo;
+    ctx.strokeText(label, x, z - 9 / view.s);
+    ctx.fillStyle = '#d8ecff';
+    ctx.fillText(label, x, z - 9 / view.s);
   }
 
   drawRoadLabels(ctx, v, { fontPx = 10, maxLabels = 400, sameNameGap = 260, placed = [], majorOnly = false, mini = false } = {}) {
@@ -850,7 +916,12 @@ class NYCMapSystem {
 
   update() {
     this.renderDroneCard();
-    if (this.drive?.active || (this.isFullMapOpen && this.isPlanningDrive) || this.drive?.status !== this.previousDriveStatus) {
+    const driveActive = Boolean(this.drive?.active);
+    if (driveActive !== this.previousDriveActive) {
+      this.previousDriveActive = driveActive;
+      this.invalidateLayers();
+    }
+    if (driveActive || (this.isFullMapOpen && this.isPlanningDrive) || this.drive?.status !== this.previousDriveStatus) {
       this.renderDriveUi();
       this.previousDriveStatus = this.drive?.status;
     }

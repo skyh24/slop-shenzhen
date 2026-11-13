@@ -83,12 +83,15 @@ test('native module entry and imports share canonical preloaded URLs on GitHub P
   }
 });
 
-test('metro layers are controlled only inside the full map', () => {
+test('map transport has one tablist and defaults to the metro panel', () => {
   const map = html.slice(html.indexOf('id="fullmap-modal"'));
   assert.doesNotMatch(html, /id="btn-metro"/);
-  assert.equal([...html.matchAll(/popovertarget="metro-popover"/g)].length, 1);
-  assert.match(map, /id="map-metro"[^>]*popovertarget="metro-popover"/);
-  assert.match(map, /id="metro-popover"/);
+  assert.equal([...map.matchAll(/role="tablist"/g)].length, 1);
+  assert.deepEqual([...map.matchAll(/role="tab" aria-selected="(true|false)" aria-controls="([^"]+)"/g)]
+    .map(([, selected, panel]) => [selected, panel]), [
+    ['true', 'map-metro-panel'], ['false', 'map-hsr-panel'],
+    ['false', 'map-drone-panel'], ['false', 'map-drive-panel']
+  ]);
   assert.match(map, /id="metro-lines"/);
 });
 

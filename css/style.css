@@ -688,10 +688,6 @@ body.hud-minimized .icon-show {
   cursor: not-allowed;
 }
 
-.metro-actions {
-  display: flex;
-}
-
 .metro-line {
   justify-content: flex-start;
   gap: 8px;
@@ -1264,12 +1260,10 @@ body[data-mode='helicopter'] .gauge-alt {
   background: var(--grain), var(--glass-strong);
 }
 
-/* (centred with `translate`, which the rise-in entrance animation on `transform` leaves alone) */
 .map-controls {
   position: absolute;
-  top: 50%;
+  top: calc(var(--edge) + 68px);
   right: var(--edge);
-  translate: 0 -50%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1376,22 +1370,79 @@ body[data-mode='helicopter'] .gauge-alt {
 
 .map-region-gap .map-region-swatch { border-style: dashed; background: none; }
 
-.map-drive-panel {
+.map-transport {
   position: absolute;
-  left: var(--edge);
-  top: calc(var(--edge) + 110px);
-  width: min(320px, calc(100% - 2 * var(--edge) - 54px));
-  padding: 12px 14px;
-  font-size: 13px;
-  line-height: 1.4;
+  z-index: 1;
+  right: max(var(--edge), env(safe-area-inset-right));
+  bottom: max(var(--edge), env(safe-area-inset-bottom));
+  width: min(390px, calc(100% - 2 * var(--edge)));
+  display: flex;
+  flex-direction: column;
+  max-height: min(380px, 44dvh);
+  background: var(--grain), #151b24f2;
 }
 
-.map-drive-panel p {
-  margin: 6px 0 10px;
+.map-transport-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+  padding: 6px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.map-transport-tabs button {
+  min-height: 38px;
+  padding: 4px 2px;
+  border-radius: 8px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.map-transport-tabs button:hover { background: var(--hover); }
+
+.map-transport-tabs [aria-selected="true"] {
+  background: #334458;
+  color: #f5f8ff;
+}
+
+.map-transport-page {
+  min-height: 0;
+  padding: 10px 12px 12px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.map-transport-page p {
+  margin: 0 0 8px;
   color: var(--text-2);
 }
 
-.map-drive-actions,
+.map-transport-page p:last-child { margin: 8px 0 0; }
+.map-transport-page p:empty { display: none; }
+
+.map-transport-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.map-transport-grid + .map-transport-actions,
+.map-transport-grid + p,
+.map-transport-actions + .map-transport-grid { margin-top: 8px; }
+
+#metro-lines { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.map-transport-grid .pop-item { min-height: 34px; }
+.map-transport-grid [aria-pressed="true"] { background: #29384b; }
+.map-transport-grid .metro-line { background: #ffffff05; }
+.map-transport-grid .metro-line:hover { background: var(--hover); }
+.map-transport-grid .metro-line:has(input:checked) { background: #29384b; }
+
+.map-transport-actions,
+.map-transport-check,
 .drive-hud {
   display: flex;
   align-items: center;
@@ -1399,25 +1450,37 @@ body[data-mode='helicopter'] .gauge-alt {
   gap: 6px;
 }
 
+.map-transport-check {
+  flex: 1;
+  min-height: 36px;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.map-transport-actions .tool-btn,
+.drive-hud .tool-btn {
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.map-transport-actions .map-transport-primary {
+  margin-inline-start: auto;
+  background: #c9dff7;
+  color: #112337;
+}
+
+.map-transport-actions .map-transport-primary:hover { background: #e3efff; }
+.map-transport-actions .tool-btn:disabled { opacity: .45; cursor: default; }
+
+#map-drive-levels:not([hidden]) { margin-bottom: 8px; }
+
 .drive-hud {
   align-self: start;
   padding: 4px 8px;
   font-size: 12.5px;
 }
 
-.map-drive-actions .tool-btn,
-.drive-hud .tool-btn {
-  padding: 0 8px;
-  font-size: 12px;
-}
-
-.map-drive-actions .tool-btn:disabled {
-  opacity: .45;
-  cursor: default;
-}
-
-.map-drive-panel[hidden],
-.map-drive-panel [hidden],
+.map-transport [hidden],
 .drive-hud[hidden],
 .drive-hud [hidden] {
   display: none;
@@ -1425,11 +1488,10 @@ body[data-mode='helicopter'] .gauge-alt {
 
 .fullmap-footer {
   position: absolute;
-  left: 50%;
-  bottom: var(--edge);
-  translate: -50% 0;
+  left: var(--edge);
+  bottom: calc(var(--edge) + 25px);
   display: flex;
-  max-width: min(460px, calc(100% - 2 * var(--edge)));
+  max-width: min(460px, calc(100% - 390px - 3 * var(--edge)));
 }
 
 .fullmap-status {
@@ -1465,8 +1527,8 @@ body[data-mode='helicopter'] .gauge-alt {
 
 .fullmap-legend {
   position: absolute;
-  right: var(--edge);
-  bottom: var(--edge);
+  left: var(--edge);
+  bottom: calc(var(--edge) + 72px);
   display: flex;
   align-items: center;
   gap: 14px;
@@ -1563,8 +1625,23 @@ body[data-mode='helicopter'] .gauge-alt {
   .map-layer-buttons .tool-btn, .map-region-legend summary { min-height: 44px; }
   .map-region-legend summary { padding-top: 12px; }
   #map-selection-go, #map-selection-clear { min-height: 44px; }
-  .fullmap-footer { max-width: calc(100% - 2 * var(--edge)); bottom: calc(var(--edge) + 34px); }
-  .map-controls { top: auto; bottom: calc(var(--edge) + 96px); translate: none; }
+  .fullmap-footer {
+    max-width: calc(100% - 2 * var(--edge));
+    top: calc(var(--edge) + 110px);
+    bottom: auto;
+  }
+  .map-controls { top: calc(var(--edge) + 158px); }
+  .map-transport-tabs button, .map-transport-grid .pop-item { min-height: 44px; }
+}
+
+@media (max-width: 420px) {
+  #metro-lines { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-height: 540px) {
+  .map-controls, .map-zoom { flex-direction: row; }
+  .map-controls { gap: 5px; }
+  .map-zoom .icon-btn { width: 32px; height: 32px; }
 }
 
 @media (max-width: 620px) {
@@ -1833,20 +1910,6 @@ body[data-cruising] #drive-hud {
   padding: 0 6px;
 }
 
-#map-drone-station {
-  display: block;
-  width: 100%;
-  margin-top: 5px;
-  padding: 6px;
-  border-radius: 6px;
-  color: var(--text-1);
-  background: #202a34;
-}
-
-#map-drone-panel .tool-btn, #drone-follow-hud .tool-btn {
-  min-height: 38px;
-}
-
 #drone-follow-hud {
   position: fixed;
   z-index: 8;
@@ -1857,7 +1920,7 @@ body[data-cruising] #drive-hud {
   width: max-content;
 }
 
-body.touch-enabled #map-drone-panel .tool-btn,
+body.touch-enabled .map-transport-actions .tool-btn,
 body.touch-enabled #drone-follow-hud .tool-btn { min-height: 44px; }
 
 body[data-drone-follow] #hud-controls-hint { visibility: hidden; }

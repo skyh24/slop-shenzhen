@@ -125,7 +125,7 @@ test('suspended operations, manual simulation, following visibility and disposal
   assert.equal(line.visible, true);
   assert.equal(line.geometry.attributes.position.count, system.routes[0].path.points.length);
   assert.equal(system.start(a.id, false, b), null);
-  const normal = system.start(b.id, false, b);
+  const normal = system.start(b.id, false, a, { remote: true });
   assert.equal(normal.stationId, b.id);
   assert.ok(normal.pose.position.equals(new THREE.Vector3(b.x, b.y, b.z)));
   now = '2026-11-06T16:00:00Z';
@@ -133,7 +133,8 @@ test('suspended operations, manual simulation, following visibility and disposal
   assert.equal(system.isActive(normal), false);
   assert.equal(aircraft.visible, false);
   assert.equal(system.start(a.id, false, a), null);
-  const demo = system.start(a.id, true, a);
+  assert.equal(system.start(a.id, false, b, { remote: true }), null);
+  const demo = system.start(a.id, true, b, { remote: true });
   assert.equal(system.status(b.id, b).mission, demo);
   assert.equal(system.start(b.id, true, b), demo);
   assert.equal(demo.stationId, a.id);

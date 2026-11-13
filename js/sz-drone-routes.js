@@ -387,11 +387,11 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
     return { route: record?.route, suspended, nearby: Boolean(nearby), mission: record?.mission,
       available: !disposed && Boolean(record?.aircraft) };
   }
-  function start(stationId, demo, player) {
+  function start(stationId, demo, player, { remote = false } = {}) {
     if (disposed) return null;
     checkSuspension();
     const state = status(stationId, player);
-    if (!state.available || !state.nearby || !demo && (suspended || state.route.simulationOnly)) return null;
+    if (!state.available || (!remote && !state.nearby) || (!demo && (suspended || state.route.simulationOnly))) return null;
     const record = records.get(state.route.id);
     const active = record.mission;
     if (active && active.demo !== demo && active.pose.phase !== 'complete') return null;

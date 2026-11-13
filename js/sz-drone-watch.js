@@ -11,11 +11,11 @@ export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchC
   const inputs = { controllerManager, touchControls, gamepadControls };
   let feedbackTimer;
   const session = observationSessions.bind('drone-follow', {
-    prepare({ station, demo }) {
-      return station && !watchBlocked() && { station, demo };
+    prepare({ station, demo, remote }) {
+      return station && !watchBlocked() && { station, demo, remote };
     },
     commit(target) {
-      target.mission = drones.start(target.station.id, target.demo, player().position);
+      target.mission = drones.start(target.station.id, target.demo, player().position, { remote: target.remote });
       return Boolean(target.mission);
     },
     enter: start,
@@ -99,13 +99,13 @@ export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchC
       stations: drones.stations, routes: drones.routes,
       status(stationId) {
         const status = drones.status(stationId, player().position);
-        return { ...status, blocked: status.nearby && watchBlocked(), canApproach: canApproach() };
+        return { ...status, blocked: watchBlocked(), canApproach: canApproach() };
       },
       preview: stationId => drones.preview(stationId),
       approach: station => canApproach() && station?.approach
         && teleport(station.approach.x, station.approach.z, station.approach.heading,
           { exact: true, waypoint: { x: station.x, z: station.z, name: station.name } }),
-      follow: (station, demo) => session.enter({ station, demo }).ok
+      follow: (station, demo, { remote = false } = {}) => session.enter({ station, demo, remote }).ok
     }
   };
 }

@@ -23,6 +23,10 @@ function fixture(roads = []) {
         trackStatus: 'schematic', altitudeM: 100, altitudeSource: 'estimate', verifiedAt: '2026-11-09' }],
       apecSuspension: { windows: [{ from: '2026-11-07', to: '2026-11-21', sourceUrl: 'https://example.com' }] }
     },
+    landmarks: [
+      { id: 'shenzhen-north', x: 30, z: 60 }, { id: 'xili-station', x: 60, z: 60 },
+      { id: 'futian-station', x: 15, z: 15 }, { id: 'shenzhen-station', x: 70, z: 30 }
+    ],
     sites: {
       'futian-station': { station: { polygons: [{ outer: [{ x: 10, z: 10 }, { x: 40, z: 10 }, { x: 40, z: 40 }, { x: 10, z: 40 }], holes: [] }] } },
       'xili-station': { site: { polygons: [{ outer: [{ x: 55, z: 55 }, { x: 90, z: 55 }, { x: 90, z: 90 }, { x: 55, z: 90 }], holes: [] }] } },
@@ -35,7 +39,9 @@ function fixture(roads = []) {
     getLocationLabel: () => 'location', isTypingInField: () => false,
     STR: { map: { counts:()=>'', searchPlaceholder:'',teleportHint:x=>x,playerLocation:x=>x,
       clickHint: 'Click to teleport', touchHint: 'Tap to teleport', roadInitials: { 深南大道: 'sndd' }, landmarkInitials: {} },
-      hsr: { north: '深圳北站', highSpeedRail: '高铁' },
+      hsr: { stations: { 'shenzhen-north': '深圳北站', 'xili-station': '西丽站', 'futian-station': '福田站',
+        'shenzhen-station': '深圳站（罗湖）' } },
+      drones: { stationNames: {} },
       drive: { mapHint: 'Click to pick route endpoints', touchHint: 'Tap to pick route endpoints' } },
     document: { getElementById:()=>null,addEventListener(){} }, window:{ addEventListener(){} } });
   for (const name of ['sz-map-layers.js','sz-map.js']) {
@@ -138,7 +144,7 @@ test('map pointer guidance switches from teleport to route selection on mouse an
   map.elHoverInfo = {};
   map.renderPointerHint();
   assert.equal(map.elHoverInfo.textContent, 'Click to teleport');
-  map.isPlanningDrive = true;
+  map.transportTab = 'map-plan-drive';
   map.renderPointerHint();
   assert.equal(map.elHoverInfo.textContent, 'Click to pick route endpoints');
   map.touchHints = true;
@@ -146,7 +152,7 @@ test('map pointer guidance switches from teleport to route selection on mouse an
   assert.equal(map.elHoverInfo.textContent, 'Tap to pick route endpoints');
 });
 
-test('HSR layer draws only verified station footprints and stays off by default', () => {
+test('HSR layer uses sourced footprints and a point for Luohu, and stays off by default', () => {
   const { context, map } = fixture();
   const strokes = [];
   const dashes = [];
@@ -165,7 +171,10 @@ test('HSR layer draws only verified station footprints and stays off by default'
   map.drawWorld(ctx, view, false);
   assert.ok(strokes.includes('#6f93c9'), 'rail station outlines use the rail colour');
   const layers = vm.runInContext('mapLayers()', context);
-  assert.equal(layers.hsr.length, 3);
+  assert.equal(layers.hsr.length, 4);
+  const luohu = layers.hsr.find(station => station.id === 'shenzhen-station');
+  assert.equal(luohu.path, null);
+  assert.deepEqual([luohu.x, luohu.z], [70, 30]);
   assert.equal(layers.hsr.find(station => station.id === 'shenzhen-north').name, '深圳北站');
   assert.equal(layers.hsr.find(station => station.id === 'xili-station').underConstruction, true);
   assert.equal(layers.hsr.find(station => station.id === 'futian-station').underConstruction, false);
