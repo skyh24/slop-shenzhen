@@ -951,6 +951,7 @@ export function decodeCityPayload(raw, metrics = null) {
     mapRegions: raw.mapRegions ? { ...raw.mapRegions, regions: raw.mapRegions.regions.map(decodeMapRegion) } : null,
     shenzhenBay: raw.shenzhenBay ?? null,
     waterfront: raw.waterfront ?? null,
+    regionalScene: raw.regionalScene ?? null,
     urbanPaving: raw.urbanPaving ?? null,
     metro: raw.metro, landmarks: raw.landmarks,
     bridges: raw.bridges ?? [], yanjiangExpressway: raw.yanjiangExpressway ?? null,

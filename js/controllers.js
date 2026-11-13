@@ -185,6 +185,7 @@ class ThirdPersonControllerManager {
     this.groundHeight = options.groundHeight ?? terrainHeight;
     this.surfaceResolver = createSurfaceResolver({ groundHeight: this.groundHeight, groundIdentity: options.groundIdentity, surfaces: options.surfaces ?? [] });
     this.nearTraffic = options.nearTraffic;
+    this.nearRegional = options.nearRegional;
     this.nearPedestrians = options.nearPedestrians;
     this.nearWalkers = options.nearWalkers;
     this.emergencyBrakeEnabled = true;
@@ -941,7 +942,7 @@ class ThirdPersonControllerManager {
   }
 
   // Static colliders within `r` of (x, z), kept in their original order and indexed once into 48 m cells.
-  nearColliders(x, z, r, includeTraffic = true) {
+  nearColliders(x, z, r, includeTraffic = true, includePending = true) {
     const CELL = 48;
     const key = (ix, iz) => (ix + 4096) * 8192 + (iz + 4096);
     if (!this._colliderCells) {
@@ -975,6 +976,7 @@ class ThirdPersonControllerManager {
       }
     }
     if (out.length > 1) out.sort((a, b) => a._order - b._order);
+    if (this.nearRegional) out.push(...this.nearRegional(x, z, r, includePending));
     if (includeTraffic && this.nearTraffic) out.push(...this.nearTraffic(x, z, r));
     return out;
   }

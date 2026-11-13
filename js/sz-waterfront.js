@@ -3,6 +3,7 @@ import { polygonBoxOverlaps } from './building-collision.js';
 import { createBayPathLookup } from './sz-bay-waterfront.js';
 import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
 import { createFixtureBatches, planLantern, planRail } from './sz-site-fixtures.js';
+import { spatialIndex } from './sz-spatial.js';
 import { buildSzSea } from './sz-sea.js';
 
 const DETAIL_CELL = 95;
@@ -42,21 +43,26 @@ function beamCollider({ a, b, width, height }, type) {
     maxZ: Math.max(...outer.map(p => p.z)), minY: Math.min(a.y, b.y) - verticalPad, maxY: Math.max(a.y, b.y) + verticalPad };
 }
 
-export function buildSzWaterfront(scene, source, { water, network, elevated, heightAt, obstacles }) {
-  const group = new THREE.Group();
-  group.name = 'shenzhen-waterfront-samples';
-  const waters = (source?.waters ?? []).map(row => buildSzSea(group, {
-    polygons: [water[row.waterIndex]], heightM: row.heightM, source: row.id
-  }, { name: `waterfront-water:${row.id}`, coastal: false, cityReflection: false }));
+function walkBlocked(obstacles, x, z, y) {
+  return [...obstacles].some(c => c.minX < x + 0.38 && c.maxX > x - 0.38
+    && c.minZ < z + 0.38 && c.maxZ > z - 0.38 && c.minY < y + SUPPORT_CLEARANCE && c.maxY > y + 0.05
+    && (!c.polygon || polygonBoxOverlaps(c.polygon, x, z, 0.38, 0.38)));
+}
+
+export function planWaterfront(source, { network, elevated, heightAt, nearObstacles }) {
   const colliders = [];
   const buckets = new Map();
   function add(row, material, type) {
     const ix = Math.floor(row.a.x / DETAIL_CELL), iz = Math.floor(row.a.z / DETAIL_CELL);
     const key = `${ix},${iz}`;
     if (!buckets.has(key)) buckets.set(key, { key, x: (ix + 0.5) * DETAIL_CELL, z: (iz + 0.5) * DETAIL_CELL,
-      steel: [], lamp: [], live: null });
+      steel: [], lamp: [], colliders: [] });
     buckets.get(key)[material].push(row);
-    if (type) colliders.push(beamCollider(row, type));
+    if (type) {
+      const collider = beamCollider(row, type);
+      buckets.get(key).colliders.push(collider);
+      colliders.push(collider);
+    }
   }
   for (const rail of source?.rails ?? []) {
     let previous = null;
@@ -75,7 +81,7 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
   }
 
   const bridgeHeight = createSurfaceHeightAt(elevated.surfaces.filter(s => s.id.startsWith('waterfront-bridge:')));
-  const fixtureBlocked = (x, y, z, radius, height) => obstacles.some(c => c.minY < y + height && c.maxY > y
+  const fixtureBlocked = (x, y, z, radius, height) => [...nearObstacles(x, z, radius)].some(c => c.minY < y + height && c.maxY > y
     && c.minX < x + radius && c.maxX > x - radius && c.minZ < z + radius && c.maxZ > z - radius
     && (!c.polygon || polygonBoxOverlaps(c.polygon, x, z, radius, radius)));
   for (const route of network.routes.filter(r => ['lychee-loop', 'west-bank', 'east-bank'].includes(r.id))) {
@@ -105,19 +111,7 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
     }
   }
 
-  const obstaclesByCell = new Map();
-  const cellKey = (x, z) => `${x},${z}`;
-  const size = 32;
-  for (const c of [...colliders, ...obstacles]) {
-    for (let ix = Math.floor((c.minX - 0.4) / size); ix <= Math.floor((c.maxX + 0.4) / size); ix++) {
-      for (let iz = Math.floor((c.minZ - 0.4) / size); iz <= Math.floor((c.maxZ + 0.4) / size); iz++) {
-        const key = cellKey(ix, iz);
-        if (!obstaclesByCell.has(key)) obstaclesByCell.set(key, []);
-        obstaclesByCell.get(key).push(c);
-      }
-    }
-  }
-  const nearObstacles = (x, z) => obstaclesByCell.get(cellKey(Math.floor(x / size), Math.floor(z / size))) ?? [];
+  const nearFixtures = spatialIndex(colliders, c => c.polygon.outer);
   const publicRoutes = network.routes.flatMap(route => {
     // 桥与岸路分别取实际三角面。同一 XZ 上的桥面不会把桥下人物抬起。
     return route.paths.map((path, index) => {
@@ -127,51 +121,91 @@ export function buildSzWaterfront(scene, source, { water, network, elevated, hei
       const publicHeight = (x, z) => {
         if (!near(x, z, -0.45).length) return null;
         const y = support(x, z);
-        return Number.isFinite(y) && !nearObstacles(x, z).some(c => c.minX < x + 0.38 && c.maxX > x - 0.38
-          && c.minZ < z + 0.38 && c.maxZ > z - 0.38 && c.minY < y + SUPPORT_CLEARANCE && c.maxY > y + 0.05
-          && (!c.polygon || polygonBoxOverlaps(c.polygon, x, z, 0.38, 0.38))) ? y : null;
+        return Number.isFinite(y) && !walkBlocked([...nearObstacles(x, z, 0.4), ...nearFixtures(x, z, 0.4)], x, z, y) ? y : null;
       };
       const points = path.points.map(([x, z]) => ({ x, y: support(x, z), z }));
-      return points.every(p => Number.isFinite(p.y)) && points.some(p => publicHeight(p.x, p.z) !== null)
-        ? { id: `waterfront:${route.id}:${index}`, points, publicHeight, jogSpeed: 2.15,
-          surfaceId, restSide: () => undefined, reserve: (x, z) => near(x, z, 0.5).length > 0 }
+      const clear = points.map(p => Number.isFinite(p.y) && publicHeight(p.x, p.z) !== null);
+      return points.every(p => Number.isFinite(p.y)) && clear.some(Boolean)
+        ? { id: `waterfront:${route.id}:${index}`, points, clear, widthM: path.widthM,
+          surfaceId, mode: path.mode }
         : null;
     }).filter(Boolean);
   });
+  return { batches: [...buckets.values()], colliders, publicRoutes };
+}
+
+export function createWaterfrontAccess(source, network) {
+  return {
+    allowsGroundMode(mode, x, z, surface) {
+      if (mode === 'person' || surface?.surfaceId?.startsWith('sz-elevated-road:')) return true;
+      if (surface?.surfaceId?.startsWith('waterfront-bridge:')) {
+        const bridge = source.footbridges.find(b => `waterfront-bridge:${b.id}` === surface.surfaceId);
+        return mode === 'cyclist' && bridge?.mode === 'shared';
+      }
+      const modes = network.lookup(x, z);
+      return mode === 'car' ? !modes.length : !modes.includes('walk') || modes.includes('shared');
+    }
+  };
+}
+
+export function createWaterfrontPublicRoutes(routes, heightAt, surfaces, nearObstacles) {
+  if (!routes.length) return [];
+  const bridgeHeight = createSurfaceHeightAt(surfaces.filter(s => s.id.startsWith('waterfront-bridge:')));
+  return routes.map(({ widthM, mode, clear, ...route }) => {
+    const near = createBayPathLookup([{ widthM, mode, points: route.points.map(({ x, z }) => [x, z]) }]);
+    // 玩家和行人继续贴合对应的实际三角面，区域步行碰撞用同一份障碍数据。
+    return { ...route, clear, jogSpeed: 2.15,
+      publicHeight(x, z) {
+        if (!near(x, z, -0.45).length) return null;
+        const y = route.surfaceId ? bridgeHeight(x, z, route.surfaceId) : heightAt(x, z);
+        return Number.isFinite(y) && (!nearObstacles || !walkBlocked(nearObstacles(x, z, 0.4), x, z, y)) ? y : null;
+      },
+      reserve: (x, z) => near(x, z, 0.5).length > 0 };
+  });
+}
+
+export function mountWaterfrontBatch(group, batch) {
+  const fixtures = createFixtureBatches(group, 'bay', 'z');
+  fixtures.build(batch.steel, 'steel', `waterfront-steel:${batch.key}`);
+  fixtures.build(batch.lamp, 'lamp', `waterfront-lamps:${batch.key}`);
+  return fixtures;
+}
+
+export function buildSzWaterfront(scene, source, { water, network, elevated, heightAt, obstacles }) {
+  const group = new THREE.Group();
+  group.name = 'shenzhen-waterfront-samples';
+  const waters = (source?.waters ?? []).map(row => buildSzSea(group, {
+    polygons: [water[row.waterIndex]], heightM: row.heightM, source: row.id
+  }, { name: `waterfront-water:${row.id}`, coastal: false, cityReflection: false }));
+  const nearObstacles = spatialIndex(obstacles, c => [{ x: c.minX, z: c.minZ }, { x: c.maxX, z: c.maxZ }]);
+  const { batches, colliders, publicRoutes } = planWaterfront(source, { network, elevated, heightAt, nearObstacles });
+  const nearFixtures = spatialIndex(colliders, c => c.polygon.outer);
+  for (const batch of batches) batch.live = null;
   scene.add(group);
-  const statistics = { fixtureChunks: buckets.size, activeFixtureChunks: 0, colliders: colliders.length };
+  const statistics = { fixtureChunks: batches.length, activeFixtureChunks: 0, colliders: colliders.length };
   let disposed = false;
   return {
-    group, colliders, publicRoutes, statistics,
+    group, colliders, publicRoutes: createWaterfrontPublicRoutes(publicRoutes, heightAt, elevated.surfaces,
+      (x, z, radius) => [...nearObstacles(x, z, radius), ...nearFixtures(x, z, radius)]), statistics,
+    ...createWaterfrontAccess(source, network),
     update({ x, z }) {
       if (disposed) return;
-      for (const batch of buckets.values()) {
+      for (const batch of batches) {
         const d = Math.hypot(batch.x - x, batch.z - z);
         if (batch.live && d > 335) {
           batch.live.dispose();
           batch.live = null;
           statistics.activeFixtureChunks--;
         } else if (!batch.live && d < 275) {
-          batch.live = createFixtureBatches(group, 'bay', 'z');
-          batch.live.build(batch.steel, 'steel', `waterfront-steel:${batch.key}`);
-          batch.live.build(batch.lamp, 'lamp', `waterfront-lamps:${batch.key}`);
+          batch.live = mountWaterfrontBatch(group, batch);
           statistics.activeFixtureChunks++;
         }
       }
     },
-    allowsGroundMode(mode, x, z, surface) {
-      if (mode === 'person' || surface?.surfaceId.startsWith('sz-elevated-road:')) return true;
-      if (surface?.surfaceId.startsWith('waterfront-bridge:')) {
-        const bridge = source.footbridges.find(b => `waterfront-bridge:${b.id}` === surface.surfaceId);
-        return mode === 'cyclist' && bridge?.mode === 'shared';
-      }
-      const modes = network.lookup(x, z);
-      return mode === 'car' ? !modes.length : !modes.includes('walk') || modes.includes('shared');
-    },
     dispose() {
       if (disposed) return;
       disposed = true;
-      for (const batch of buckets.values()) batch.live?.dispose();
+      for (const batch of batches) batch.live?.dispose();
       for (const water of waters) water.dispose();
       group.removeFromParent();
     }

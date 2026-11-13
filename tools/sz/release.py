@@ -29,7 +29,7 @@ TOKEN = r'[A-Za-z0-9_.-]+'
 SAFE_FILE = re.compile(rf'{TOKEN}(?:/{TOKEN})*')
 VERSION = re.compile(r'[0-9a-f]{64}')
 MIME = {'.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.gz': 'application/gzip',
-        '.md': 'text/plain', '': 'text/plain'}
+        '.json': 'application/json', '.md': 'text/plain', '': 'text/plain'}
 CACHE = 'public, max-age=31536000, immutable'
 
 
@@ -72,6 +72,8 @@ def module_path(name, spec):
     if spec.startswith(('./', '../')):
         child = posixpath.normpath(posixpath.join(posixpath.dirname(name), spec))
         # 应用模块不能跨到其它目录，Three 的相对导入也必须在引擎目录内。
+        if (name, child) == ('js/sz-lianhuashan.js', 'data/source/lianhuashan-summit.json'):
+            return child
         if child.split('/')[0] != name.split('/')[0]:
             raise ValueError(f'Module escapes its runtime directory: {name}: {spec}')
         return child
@@ -110,10 +112,25 @@ def release_files(source, engine):
             or digest(city) != report['outputSha256']):
         raise ValueError('City package does not match the verified build report')
 
+    regional = report.get('regionalScene', {})
+    for name, expected in regional.get('rules', {}).items():
+        if digest(checked_path(source, name).read_bytes()) != expected:
+            raise ValueError(f'Regional scene rules changed; rebuild the regional scene: {name}')
+    for name, expected in regional.get('files', {}).items():
+        if not re.fullmatch(r'js/sz-regional/[a-f0-9]{20}/[a-z-]+-[0-9]+\.json', name):
+            raise ValueError(f'Unexpected regional resource: {name}')
+        data = checked_path(source, name).read_bytes()
+        if digest(data) != expected:
+            raise ValueError(f'Regional resource does not match the verified build report: {name}')
+        files[name] = data
+
     stack = list(entry.modules | {'engine/' + path for key, path in IMPORT_MAP.items() if not key.endswith('/')})
     while stack:
         name = stack.pop()
         if name in files:
+            continue
+        if name == 'data/source/lianhuashan-summit.json':
+            files[name] = checked_path(source, name).read_bytes()
             continue
         if not name.endswith('.js'):
             raise ValueError(f'Unexpected module: {name}')
@@ -142,7 +159,7 @@ def store_version(store, files):
             path.write_bytes(data)
             row = {'identity': variant(data)}
             # 城市包本身是 gzip 文件：应用解压，HTTP 不再加 Content-Encoding。
-            if path.suffix in ('.html', '.css', '.js', '.md', ''):
+            if path.suffix in ('.html', '.css', '.js', '.json', '.md', ''):
                 compressed = gzip.compress(data, compresslevel=9, mtime=0)
                 if len(compressed) < len(data):
                     encoded = stage / '.gzip' / name

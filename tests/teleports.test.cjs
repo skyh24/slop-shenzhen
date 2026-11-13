@@ -79,7 +79,7 @@ test('park arrivals retain a verified site member and require rendered ground su
 
 test('map travel resolves a walking pose before closing and leaves the map open on failure', () => {
   const main = read('js/main.js');
-  const start = main.indexOf('  const { teleportTo, teleportFromMap }');
+  const start = main.indexOf('  let travelRequest = 0;');
   const end = main.indexOf('  const openMapBtn', start);
   const handlers = new Map();
   const calls = [];
@@ -148,6 +148,7 @@ test('map travel resolves a walking pose before closing and leaves the map open 
       toggleFullMap(open) { calls.push(['map', open]); this.open = open; }
     },
     wireMetroMenu: () => {},
+    regional: { prepare: () => null, prepareFlight: () => null, flightFailed: () => false },
     wireDroneWatch: () => ({ active: false, map: null }),
     observationSessions: {},
     drones: {},

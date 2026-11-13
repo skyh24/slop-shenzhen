@@ -243,7 +243,8 @@ function colliderBoxAt(index, x, z, y, radius, height) {
       }
     }
   }
-  return null;
+  return index.nearRegional?.(x, z, radius).find(collider =>
+    collider.maxY > minY && collider.minY < maxY) ?? null;
 }
 
 // 只测人物身体实际占用的高度区间，架空层/雨棚下方仍可通行。
@@ -264,7 +265,8 @@ function colliderAt(index, x, z, y, radius, height) {
       }
     }
   }
-  return null;
+  return index.nearRegional?.(x, z, radius).find(collider => collider.maxY > minY && collider.minY < maxY
+    && (!collider.polygon || polygonBoxOverlaps(collider.polygon, x, z, radius, radius))) ?? null;
 }
 
 // 车行面访问器返回逆时针凸多边形。点在所有边的内侧时 signed <= 0。
@@ -746,6 +748,7 @@ export function buildWalkTracks(graph, options = {}) {
   const cfg = config(options);
   const bounds = cfg.bounds ?? null;
   const colliderIndex = createColliderIndex(cfg.colliders ?? [], bounds, cfg.colliderGrid ?? null);
+  colliderIndex.nearRegional = cfg.nearRegional;
   const barrier = createCarriagewayBarrier(graph, { bounds, linkExtendM: cfg.barrierLinkExtendM });
   const built = buildSidewalkTracks(graph, { ...cfg, colliderIndex, barrier });
   const connected = connectTracks(built.tracks, { ...cfg, colliderIndex, barrier });

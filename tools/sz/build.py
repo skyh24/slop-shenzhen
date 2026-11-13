@@ -4,6 +4,8 @@ import argparse
 import gzip
 import hashlib
 import json
+import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -228,6 +230,38 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
     return terrain, apply_commercial_carriageway(surface, manifest, graph, report)
 
 
+def write_regional_scene(payload, report):
+    """复用正式场地采样器，生成带输入指纹的区域数据。"""
+    payload.pop('regionalScene', None)
+    with tempfile.TemporaryDirectory(prefix='sz-regional-') as temporary:
+        source = Path(temporary) / 'city.json'
+        plan = Path(temporary) / 'plan.json'
+        source.write_bytes(json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode())
+        subprocess.run(['node', str(ROOT / 'tools/sz/plan-regional-scene.mjs'), str(source), str(plan)],
+                       cwd=ROOT, check=True)
+        result = json.loads(plan.read_text())
+    manifest = result['manifest']
+    directory = OUT.parent / 'sz-regional' / manifest['fingerprint'][:20]
+    directory.mkdir(parents=True, exist_ok=True)
+    files = {}
+    for row in manifest['cells']:
+        packet = {key: manifest[key] for key in ('version', 'fingerprint')}
+        packet.update(id=row['id'], data=result['data'][row['id']])
+        data = json.dumps(packet, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
+        if len(data) > 192 * 1024:
+            raise ValueError(f'Regional chunk exceeds size limit: {row["id"]}')
+        row['bytes'] = len(data)
+        target = directory / (row['id'] + '.json')
+        temporary = target.with_suffix('.tmp')
+        temporary.write_bytes(data)
+        temporary.replace(target)
+        files[target.relative_to(ROOT).as_posix()] = hashlib.sha256(data).hexdigest()
+    payload['regionalScene'] = manifest
+    report['regionalScene'] = {'version': manifest['version'], 'fingerprint': manifest['fingerprint'],
+                               'bytes': sum(row['bytes'] for row in manifest['cells']), 'files': files,
+                               'rules': result['rules'], **result['audit']}
+
+
 def write_city_packages(payload, report, sources, started, *, refresh_regions=True, appearance_osm=None, structure_base=None):
     payload.pop('roads', None)
     osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
@@ -240,6 +274,11 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
     if appearance_osm is not None:
         apply_building_appearance(payload, appearance_osm, report)
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    write_regional_scene(payload, report)
+    write_payload(payload, report, sources, started)
+
+
+def write_payload(payload, report, sources, started):
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
     compressed = gzip.compress(raw, 9, mtime=0)
     temporary = OUT.with_suffix('.tmp')
@@ -249,6 +288,13 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
         temporary.replace(OUT)
     finally:
         temporary.unlink(missing_ok=True)
+    regional_dir = OUT.parent / 'sz-regional'
+    fingerprint = payload.get('regionalScene', {}).get('fingerprint', '')[:20]
+    for old in regional_dir.glob('*/*.json'):
+        if old.parent.name != fingerprint:
+            old.unlink()
+            if not any(old.parent.iterdir()):
+                old.parent.rmdir()
     report['outputBytes'] = len(compressed)
     report['outputSha256'] = hashlib.sha256(compressed).hexdigest()
     report['seconds'] = round(time.time() - started, 1)
@@ -552,6 +598,8 @@ def main():
                       help='add reviewed Xiangmi Lake paths and reflecting pool to the current verified snapshot')
     mode.add_argument('--rebuild-talent-park', action='store_true',
                       help='compile the reviewed Talent Park waterfront on the verified package')
+    mode.add_argument('--rebuild-regional-scene', action='store_true',
+                      help='refresh waterfront, metro and drone placements from the verified city package')
     mode.add_argument('--rebuild-waterfront', action='store_true',
                       help='compile the reviewed lake, bay and river samples on the verified package')
     mode.add_argument('--rebuild-urban-paving', action='store_true',
@@ -568,14 +616,18 @@ def main():
         export_road_preview(not args.no_cache)
         return
 
-    if args.rebuild_drive_rules or args.repack_existing or args.rebuild_map_regions or args.rebuild_air_cruises or args.rebuild_road_structures:
+    if args.rebuild_regional_scene or args.rebuild_drive_rules or args.repack_existing or args.rebuild_map_regions or args.rebuild_air_cruises or args.rebuild_road_structures:
         started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
         sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
         report = json.loads(VALIDATION_REPORT.read_text())
         require_matching_snapshot(raw, report, sources)
-        if args.rebuild_drive_rules:
+        if args.rebuild_regional_scene:
+            build_report = json.loads(REPORT.read_text())
+            write_regional_scene(payload, build_report)
+            write_payload(payload, build_report, sources, started)
+        elif args.rebuild_drive_rules:
             report = json.loads(REPORT.read_text())
             osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
             apply_drive_rules(ROOT / osm_source['file'], payload['roadGraph'], report)
@@ -594,7 +646,15 @@ def main():
                                                 {row['id']: row for row in sources}, 'reviewed-nantou-open-viaduct')
             write_city_packages(payload, build_report, sources, started, structure_base=structure_base)
         else:
-            print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
+            build_report = json.loads(REPORT.read_text())
+            rules = build_report.get('regionalScene', {}).get('rules', {})
+            if not payload.get('regionalScene') or not rules or any(
+                    hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != digest
+                    for path, digest in rules.items()):
+                write_regional_scene(payload, build_report)
+                write_payload(payload, build_report, sources, started)
+            else:
+                print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
         return
 
     if args.rebuild_road_frontage:

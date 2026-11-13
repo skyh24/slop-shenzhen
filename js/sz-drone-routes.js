@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { createCargoDroneMesh } from './sz-vehicles.js';
 import { terrainHeight } from './sz-terrain.js';
+import { spatialIndex } from './sz-spatial.js';
 import { STR } from './sz-strings.js';
 
 const SHENZHEN_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai',
@@ -76,10 +77,10 @@ export function cameraClearFraction(target, desired, obstacles, heightAt) {
   return fraction;
 }
 
-function stationSite(source, site, obstacles) {
+function stationSite(source, site, nearObstacles) {
   const radius = Math.min(180, source.coordinatePrecisionM ?? 0);
   const roofPad = source.kind === 'landing';
-  const local = obstacles.filter(item => overlaps(item, box(source.x, source.z, radius + 32, radius + 32)));
+  const local = nearObstacles(source.x, source.z, radius + 32);
   const ground = (x, z) => site.isWater(x, z) !== false || Number.isFinite(site.roadHeight(x, z))
     ? null : site.heightAt(x, z);
   const offsets = [];
@@ -126,7 +127,7 @@ function stationSite(source, site, obstacles) {
   return null;
 }
 
-function flightPath(from, to, altitude, obstacles, heightAt, lateral = 0) {
+function flightPath(from, to, altitude, nearObstacles, heightAt, lateral = 0) {
   const a = new THREE.Vector3(from.x, from.y, from.z), b = new THREE.Vector3(to.x, to.y, to.z);
   const startXZ = a.clone().setY(0), endXZ = b.clone().setY(0);
   const span = startXZ.distanceTo(endXZ);
@@ -146,9 +147,6 @@ function flightPath(from, to, altitude, obstacles, heightAt, lateral = 0) {
   let highest = lower;
   let limitingObstacle = null;
   const corridor = new Set();
-  const bounds = new THREE.Box3().setFromPoints(groundTrack).expandByScalar(2);
-  const area = { minX: bounds.min.x, maxX: bounds.max.x, minZ: bounds.min.z, maxZ: bounds.max.z };
-  const local = obstacles.filter(obstacle => overlaps(obstacle, area));
   for (let i = 1; i < groundTrack.length; i++) {
     const start = groundTrack[i - 1], end = groundTrack[i];
     const dx = end.x - start.x, dz = end.z - start.z;
@@ -161,6 +159,7 @@ function flightPath(from, to, altitude, obstacles, heightAt, lateral = 0) {
         highest = Math.max(highest, y);
       }
     }
+    const local = nearObstacles((start.x + end.x) / 2, (start.z + end.z) / 2, Math.max(Math.abs(dx), Math.abs(dz)) / 2 + 2);
     for (const obstacle of local) {
       if (Number.isFinite(boxEntry(start, end, obstacle, 2, true))) corridor.add(obstacle);
     }
@@ -215,21 +214,21 @@ function flightPath(from, to, altitude, obstacles, heightAt, lateral = 0) {
 
 export function planDroneFlights(air, site) {
   const sources = air?.droneStations ?? [];
-  const obstacles = site.obstacles ?? [];
+  const nearObstacles = site.nearObstacles ?? indexObstacles(site.obstacles ?? []);
   const stations = sources.map(source => {
-    const placement = stationSite(source, site, obstacles);
+    const placement = stationSite(source, site, nearObstacles);
     return { ...source, sourceX: source.x, sourceZ: source.z, ...placement, available: Boolean(placement) };
   });
   const byId = new Map(stations.map(station => [station.id, station]));
   const routes = (air?.droneRoutes ?? []).map(source => {
     const from = byId.get(source.fromStationId), to = byId.get(source.toStationId);
     let path = from?.available && to?.available
-      ? flightPath(from, to, source.altitudeM ?? 100, obstacles, site.flightHeightAt)
+      ? flightPath(from, to, source.altitudeM ?? 100, nearObstacles, site.flightHeightAt)
       : { reason: 'no-safe-station' };
     if (source.id === TALENT_ROUTE && ['cruise-ceiling', 'blocked-segment'].includes(path.reason)) {
       // 原始端点不动，仅在场景里寻找可飞的示意绕行路线。
       for (const lateral of DETOUR_OFFSETS) {
-        const candidate = flightPath(from, to, source.altitudeM ?? 100, obstacles, site.flightHeightAt, lateral);
+        const candidate = flightPath(from, to, source.altitudeM ?? 100, nearObstacles, site.flightHeightAt, lateral);
         if (candidate.points) { path = candidate; break; }
       }
     }
@@ -354,7 +353,22 @@ function stationMesh(station, materials, resources) {
   return { group, light };
 }
 
-export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacles ?? [], treeObstacles, clock = () => new Date() } = {}) {
+function indexObstacles(obstacles) {
+  // 保留相同高度时原有障碍物的归因顺序。
+  const order = new Map(obstacles.map((obstacle, i) => [obstacle, i]));
+  const near = spatialIndex(obstacles, c => [{ x: c.minX, z: c.minZ }, { x: c.maxX, z: c.maxZ }]);
+  return (x, z, radius) => {
+    const bounds = box(x, z, radius, radius);
+    return [...near(x, z, radius)].filter(c => overlaps(c, bounds)).sort((a, b) => order.get(a) - order.get(b));
+  };
+}
+
+export function droneFlightHeight(site) {
+  return site.flightHeightAt ?? ((x, z) => site.heightAt(x, z)
+    ?? terrainHeight(site.terrain, x, z) ?? (site.isWater(x, z) === true ? 0 : null));
+}
+
+export function planSceneDroneFlights(air, site, obstacles, treeObstacles) {
   const sourceStations = new Map((air?.droneStations ?? []).map(station => [station.id, station]));
   const canopies = (air?.droneRoutes ?? []).flatMap(route => {
     const from = sourceStations.get(route.fromStationId), to = sourceStations.get(route.toStationId);
@@ -365,9 +379,25 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
       minZ: Math.min(from.z, to.z) - margin, maxZ: Math.max(from.z, to.z) + margin
     });
   });
-  const flightHeightAt = site.flightHeightAt ?? ((x, z) => site.heightAt(x, z)
-    ?? terrainHeight(site.terrain, x, z) ?? (site.isWater(x, z) === true ? 0 : null));
-  const { stations, routes } = planDroneFlights(air, { ...site, obstacles: [...obstacles, ...canopies], flightHeightAt });
+  return planDroneFlights(air, { ...site, obstacles: [...obstacles, ...canopies], flightHeightAt: droneFlightHeight(site) });
+}
+
+export function droneStationColliders(station) {
+  const cabinet = offset(station, station.roofPad ? 0 : CABINET_X, 0);
+  const [width, height, depth] = station.roofPad ? ROOF_CABINET_SIZE : CABINET_SIZE;
+  const halfWidth = width / 2 + 0.075, halfDepth = depth / 2 + 0.075;
+  const [hx, hz] = Math.abs(Math.cos(station.yaw)) > 0.5 ? [halfWidth, halfDepth] : [halfDepth, halfWidth];
+  const padDepth = station.roofPad ? ROOF_PAD_DEPTH : PAD_DEPTH;
+  return [{ ...box(cabinet.x, cabinet.z, hx, hz, station.baseY - PAD_DEPTH, station.baseY + height),
+    type: 'drone-cabinet', name: station.name },
+  { ...box(station.x, station.z, PAD_HALF, PAD_HALF, station.y - padDepth, station.y),
+    type: 'drone-platform', name: station.name }];
+}
+
+export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacles ?? [], treeObstacles,
+  regional, clock = () => new Date() } = {}) {
+  const flightHeightAt = droneFlightHeight(site);
+  const { stations, routes } = regional ?? planSceneDroneFlights(air, site, obstacles, treeObstacles);
   const group = new THREE.Group();
   group.name = 'shenzhen-drone-routes';
   scene.add(group);
@@ -379,41 +409,74 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
     received: new THREE.MeshBasicMaterial({ color: 0x38ee92 }),
     route: new THREE.LineBasicMaterial({ color: 0xa3ddff, transparent: true, opacity: 0.26, depthWrite: false })
   };
-  const resources = new Set(Object.values(materials));
   const facilities = new Map();
   const colliders = [];
-  for (const station of stations) {
-    if (!station.available) continue;
+  function mountStation(station) {
+    const resources = new Set();
     const facility = stationMesh(station, materials, resources);
     facilities.set(station.id, facility);
     group.add(facility.group);
-    const cabinet = offset(station, station.roofPad ? 0 : CABINET_X, 0);
-    const [width, height, depth] = station.roofPad ? ROOF_CABINET_SIZE : CABINET_SIZE;
-    const halfWidth = width / 2 + 0.075, halfDepth = depth / 2 + 0.075;
-    const [hx, hz] = Math.abs(Math.cos(station.yaw)) > 0.5 ? [halfWidth, halfDepth] : [halfDepth, halfWidth];
-    colliders.push({ ...box(cabinet.x, cabinet.z, hx, hz, station.baseY - PAD_DEPTH, station.baseY + height),
-      type: 'drone-cabinet', name: station.name });
-    const padDepth = station.roofPad ? ROOF_PAD_DEPTH : PAD_DEPTH;
-    colliders.push({ ...box(station.x, station.z, PAD_HALF, PAD_HALF, station.y - padDepth, station.y),
-      type: 'drone-platform', name: station.name });
+    facility.group.updateMatrixWorld(true);
+    return { dispose() {
+      facilities.delete(station.id);
+      facility.group.removeFromParent();
+      for (const resource of resources) resource.dispose();
+    } };
+  }
+  const localFacilities = [];
+  if (!regional) for (const station of stations) {
+    if (!station.available) continue;
+    localFacilities.push(mountStation(station));
+    colliders.push(...droneStationColliders(station));
   }
 
   const records = new Map();
   const byStation = new Map();
   for (const route of routes) {
-    const record = { route, mission: null };
+    const record = { route, mission: null, lines: new Set(), path: regional ? null : route.path };
     records.set(route.id, record);
     for (const station of [route.from, route.to]) if (station) byStation.set(station.id, record);
-    if (!route.path.points) continue;
-    const geometry = new THREE.BufferGeometry().setFromPoints(route.path.points);
-    resources.add(geometry);
-    record.line = new THREE.Line(geometry, materials.route);
-    record.line.name = route.id;
-    record.line.visible = false;
+  }
+
+  function mountRoute(routeId, encoded) {
+    const record = records.get(routeId);
+    const { legs, ...motion } = encoded;
+    const path = { ...motion, legs: legs.map(({ segment, ...leg }) => ({ ...leg,
+      segment: segment.map(([x, y, z]) => new THREE.Vector3(x, y, z)) })) };
+    path.points = [path.legs[0].segment[0], path.legs.at(-1).segment.at(-1)];
+    record.path = path;
+    return { dispose() { record.path = null; } };
+  }
+
+  function mountLine(record, points) {
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const line = new THREE.Line(geometry, materials.route);
+    line.name = record.route.id;
+    line.visible = false;
+    group.add(line);
+    record.lines.add(line);
+    showLines();
+    return { dispose() {
+      line.removeFromParent();
+      geometry.dispose();
+      record.lines.delete(line);
+    } };
+  }
+  function ensureAircraft(record) {
+    if (record.aircraft) return;
     record.aircraft = createCargoDroneMesh();
-    record.aircraft.group.name = route.id + ':drone';
+    record.aircraft.group.name = record.route.id + ':drone';
     record.aircraft.group.visible = false;
-    group.add(record.line, record.aircraft.group);
+    group.add(record.aircraft.group);
+  }
+
+  function clearAircraft(record, dispose = Boolean(regional)) {
+    if (!record.aircraft) return;
+    record.aircraft.group.visible = false;
+    if (!dispose) return;
+    record.aircraft.dispose();
+    record.aircraft.group.removeFromParent();
+    record.aircraft = null;
   }
 
   let suspended = isApecAirSuspended(air, clock());
@@ -428,22 +491,31 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
     for (const record of records.values()) {
       if (suspended && record.mission && !record.mission.demo) {
         record.mission = null;
-        record.aircraft.group.visible = false;
+        clearAircraft(record);
       }
     }
   }
   function showLines() {
     for (const record of records.values()) {
-      if (record.line) record.line.visible = record.route.id === preview || record.mission === following && following !== null;
+      const visible = record.route.id === preview || record.mission === following && following !== null;
+      for (const line of record.lines) line.visible = visible;
     }
   }
+  const localLines = [];
+  if (!regional) for (const record of records.values()) {
+    if (record.path?.points) {
+      localLines.push(mountLine(record, record.path.points));
+      ensureAircraft(record);
+    }
+  }
+
   function status(stationId, player) {
     const record = byStation.get(stationId);
     const station = record?.route.from?.id === stationId ? record.route.from : record?.route.to;
     const nearby = station?.available && Math.hypot(player.x - station.x, player.z - station.z) <= APPROACH_DISTANCE
       && Math.abs(player.y - station.baseY) <= 4;
     return { route: record?.route, suspended, nearby: Boolean(nearby), mission: record?.mission,
-      available: !disposed && Boolean(record?.aircraft) };
+      available: !disposed && Boolean(record?.path?.points) };
   }
   function start(stationId, demo, player, { remote = false } = {}) {
     if (disposed) return null;
@@ -453,10 +525,11 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
     const record = records.get(state.route.id);
     const active = record.mission;
     if (active && active.demo !== demo && active.pose.phase !== 'complete') return null;
+    ensureAircraft(record);
     if (!active || active.pose.phase === 'complete' && active !== following || active.demo !== demo) {
       const fromEnd = stationId === state.route.to.id;
       record.mission = { routeId: state.route.id, droneId: record.aircraft.group.name, stationId, demo,
-        fromEnd, elapsed: 0, pose: dronePoseAt(state.route.path, fromEnd, 0) };
+        fromEnd, elapsed: 0, pose: dronePoseAt(record.path, fromEnd, 0) };
     }
     following = record.mission;
     showLines();
@@ -464,7 +537,11 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
   }
 
   return {
-    group, colliders, stations, routes,
+    group, colliders, stations, routes, mountStation, mountRoute,
+    mountLine(routeId, points) { return mountLine(records.get(routeId), points); },
+    get previewRoute() { return preview; },
+    get followedRoute() { return following?.routeId; },
+    isFlying(routeId) { return Boolean(records.get(routeId)?.mission); },
     get suspended() { return suspended; },
     get statistics() {
       return { stations: stations.map(({ id, x, y, z, available, offsetM, approach }) => ({ id, x, y, z, available, offsetM, approach })),
@@ -478,7 +555,7 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
         cameraTarget.copy(target);
         cameraObstacles = controller.nearColliders(target.x, target.z, 10, false).slice();
         const local = box(target.x, target.z, 9, 9);
-        for (const crown of canopies) {
+        for (const crown of treeObstacles?.({ ...local, minY: target.y - 2, maxY: target.y + 8 }) ?? []) {
           if (overlaps(crown, local) && crown.minY < target.y + 8 && crown.maxY > target.y - 2) cameraObstacles.push(crown);
         }
       }
@@ -487,7 +564,7 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
     preview(stationId) { preview = byStation.get(stationId)?.route.id ?? null; showLines(); },
     stopFollowing() { following = null; showLines(); },
     isActive(mission) { return !disposed && records.get(mission.routeId)?.mission === mission
-      && records.get(mission.routeId).aircraft.group.parent === group && group.parent === scene; },
+      && records.get(mission.routeId).aircraft?.group.parent === group && group.parent === scene; },
     repeat(mission) {
       if (mission !== following || !this.isActive(mission) || mission.pose.phase !== 'complete' || mission.pose.rotors > 0) return false;
       checkSuspension();
@@ -507,11 +584,11 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
         if (!mission) continue;
         if (mission.pose.phase === 'complete' && mission !== following && mission.pose.rotors === 0) {
           record.mission = null;
-          aircraft.group.visible = false;
+          clearAircraft(record);
           continue;
         }
         mission.elapsed += step;
-        const pose = dronePoseAt(route.path, mission.fromEnd, mission.elapsed, mission.pose, mission.turnAtHome);
+        const pose = dronePoseAt(record.path, mission.fromEnd, mission.elapsed, mission.pose, mission.turnAtHome);
         aircraft.group.visible = mission === following || !camera || pose.position.distanceToSquared(camera) < 550 ** 2;
         aircraft.group.position.copy(pose.position);
         aircraft.group.position.y -= aircraft.bounds.min.y;
@@ -520,15 +597,20 @@ export function buildSzDroneRoutes(scene, { air, site, obstacles = site.obstacle
         aircraft.statusLight.visible = pose.rotors > 0.2 && mission.elapsed % 1.1 < 0.55;
         if (aircraft.group.visible) aircraft.update(step, pose.rotors);
         aircraft.group.updateMatrixWorld(true);
-        if (pose.delivered) facilities.get((mission.fromEnd ? route.from : route.to).id).light.material = materials.received;
+        if (pose.delivered) {
+          const receiver = facilities.get((mission.fromEnd ? route.from : route.to).id);
+          if (receiver) receiver.light.material = materials.received;
+        }
       }
     },
     dispose() {
       if (disposed) return;
       disposed = true;
       scene.remove(group);
-      for (const record of records.values()) record.aircraft?.dispose();
-      for (const resource of resources) resource.dispose();
+      for (const record of records.values()) clearAircraft(record, true);
+      for (const facility of localFacilities) facility.dispose();
+      for (const line of localLines) line.dispose();
+      for (const resource of Object.values(materials)) resource.dispose();
       records.clear();
       byStation.clear();
       facilities.clear();

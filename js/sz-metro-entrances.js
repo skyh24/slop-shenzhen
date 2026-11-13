@@ -105,10 +105,6 @@ function resolvedLines(entrance, station, lineLookup) {
   return lines.sort((a, b) => a.ref.localeCompare(b.ref, 'en'));
 }
 
-/** 解析：优先使用已复核样区的包内站点关系，其他入口沿用距离匹配。
- *  输入：metro.entrances/stations/lines；距离匹配上限默认 300 m。
- *  输出：{ entrances, unresolved }；无站名或无可用线路色的入口记 unresolved。
- *  来源：位置来自 OSM 节点；朝向、雨棚形状为外观估计。 */
 export function planMetroEntrances(metro, options = {}) {
   if (!Array.isArray(metro?.entrances) || !Array.isArray(metro?.stations)) {
     throw new Error('Metro entrances require entrance and station arrays');
@@ -222,7 +218,7 @@ function drawBadgeTile(context, x, y, width, height, ref) {
   context.fillText(ref, x + width / 2, y + height / 2 + 1);
 }
 
-function signAtlas(entrances) {
+function signAtlas(entrances, regional) {
   const stationKeys = new Map();
   const stationOrder = [];
   for (const entrance of entrances) {
@@ -236,12 +232,12 @@ function signAtlas(entrances) {
   }
   const letterKeys = new Map();
   for (const entrance of entrances) if (entrance.ref && !letterKeys.has(entrance.ref)) letterKeys.set(entrance.ref, letterKeys.size + 1);
-  const columns = 8;
+  const columns = regional ? 4 : 8;
   const stationRows = Math.max(1, Math.ceil(stationOrder.length / columns));
-  const width = 2048;
+  const width = columns * 256;
   const stationRegionHeight = stationRows * 64;
   const badgeRows = Math.ceil(letterKeys.size / (width / 64));
-  const height = Math.max(1024, 2 ** Math.ceil(Math.log2(stationRegionHeight + badgeRows * 64)));
+  const height = Math.max(regional ? 128 : 1024, 2 ** Math.ceil(Math.log2(stationRegionHeight + badgeRows * 64)));
   // WebGPU 的最低纹理维度上限为 8192，按实际行数扩展并保留现有 UV 布局。
   if (height > 8192) throw new Error(`Metro sign atlas exceeds supported dimensions: ${width} × ${height}`);
   const texture = canvasTexture(width, height, (context) => {
@@ -253,8 +249,8 @@ function signAtlas(entrances) {
       drawStationTile(context, column * 256, row * 64, 256, 64, tile.name, tile.lines);
     });
     for (const [ref, index] of letterKeys) {
-      const column = (index - 1) % 32;
-      const row = Math.floor((index - 1) / 32);
+      const column = (index - 1) % (width / 64);
+      const row = Math.floor((index - 1) / (width / 64));
       drawBadgeTile(context, column * 64, stationRegionHeight + row * 64, 64, 64, ref);
     }
   });
@@ -367,8 +363,8 @@ function signGeometry(entrances, atlas) {
     if (badgeIndex !== undefined && entrance.colours.length) {
       badgeColour.set(entrance.colours[0]).convertSRGBToLinear();
       plate(-1.5, -0.98, {
-        column: (badgeIndex - 1) % 32,
-        row: Math.floor((badgeIndex - 1) / 32),
+        column: (badgeIndex - 1) % (atlas.width / 64),
+        row: Math.floor((badgeIndex - 1) / (atlas.width / 64)),
         regionTop: atlas.stationRegionHeight,
         width: 64,
         height: 64,
@@ -411,9 +407,8 @@ function rotatePoint(x, z, yaw, lx, lz) {
  *  输入：groundHeight/roadHeight/pathAt/colliders/isWater 用于落点校验；chunkSizeM 可调。
  *  输出：{ group, colliders, statistics, entrances, update(camera), dispose }；
  *        站名牌按相机距离 LOD（<450 m 文字牌、450–1200 m 纯色牌、>1200 m 不画）。 */
-export function buildSzMetroEntrances(scene, metro, options = {}) {
-  const chunkSizeM = options.chunkSizeM ?? ENTRANCE_CHUNK_SIZE_M;
-  const { groundHeight, roadHeight = null, pathAt = () => [], colliders = [], isWater = null } = options;
+export function planMetroPlacement(metro, options = {}) {
+  const { groundHeight, roadHeight = null, pathAt = () => [], colliders = [], nearObstacles = () => colliders, isWater = null } = options;
   if (typeof groundHeight !== 'function') throw new Error('Metro entrances require a ground height sampler');
   const plan = planMetroEntrances(metro, options);
   const stationById = new Map((metro?.stations ?? []).map(station => [station.id, station]));
@@ -440,7 +435,7 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
     else {
       const key = `${Math.round(entrance.x * 2)},${Math.round(entrance.z * 2)}`;
       if (seen.has(key)) reason = 'duplicate';
-      else if (nearbyCollider(colliders, entrance.x, Math.min(...heights), entrance.z,
+      else if (nearbyCollider(nearObstacles(entrance.x, entrance.z, 3), entrance.x, Math.min(...heights), entrance.z,
         COLLIDER_HALF_X_M, COLLIDER_HALF_Z_M, 3.4)) reason = 'buildingConflict';
       else seen.add(key);
     }
@@ -471,17 +466,58 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
       'canopy style is a generic Shenzhen-metro exit prototype, not a per-entrance surveyed design'
     ]
   };
+  return { placed, baseStatistics, skippedEntrances };
+}
+
+export function metroEntranceCollider(entrance) {
+  const outer = [[-COLLIDER_HALF_X_M, -COLLIDER_HALF_Z_M], [COLLIDER_HALF_X_M, -COLLIDER_HALF_Z_M],
+    [COLLIDER_HALF_X_M, COLLIDER_HALF_Z_M], [-COLLIDER_HALF_X_M, COLLIDER_HALF_Z_M]]
+    .map(([lx, lz]) => rotatePoint(entrance.x, entrance.z, entrance.yaw, lx, lz));
+  return {
+    type: 'metro-entrance',
+    name: entrance.id,
+    sourceId: entrance.id,
+    stationId: entrance.stationId,
+    stationName: entrance.stationName,
+    exitRef: entrance.ref,
+    polygon: { outer, holes: [] },
+    minX: Math.min(...outer.map(point => point.x)),
+    maxX: Math.max(...outer.map(point => point.x)),
+    minZ: Math.min(...outer.map(point => point.z)),
+    maxZ: Math.max(...outer.map(point => point.z)),
+    minY: entrance.y,
+    maxY: entrance.y + 3.4,
+    heightSource: 'estimate'
+  };
+}
+
+export function createMetroStructureResources() {
+  const structureMaterial = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.06 });
+  const glassMaterial = new THREE.MeshStandardNodeMaterial({
+    color: GLASS_COLOR, transparent: true, opacity: 0.32, roughness: 0.08, metalness: 0.04, depthWrite: false
+  });
+  const structure = structureGeometry();
+  const glass = glassGeometry();
+  return { structureMaterial, glassMaterial, structure, glass, dispose() {
+    structureMaterial.dispose();
+    glassMaterial.dispose();
+    structure.dispose();
+    glass.dispose();
+  } };
+}
+
+export function buildSzMetroEntrances(scene, metro, options = {}) {
+  const chunkSizeM = options.chunkSizeM ?? ENTRANCE_CHUNK_SIZE_M;
+  const { placed, baseStatistics } = options.placement ?? planMetroPlacement(metro, options);
   if (placed.length === 0) {
     return { group: null, colliders: [], statistics: { ...baseStatistics, chunks: 0, entrances: [],
       drawCallsEstimate: 0, colliderCount: 0, signAtlas: null },
     entrances: [], update() {}, dispose() {} };
   }
 
-  const structureMaterial = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.06 });
-  const glassMaterial = new THREE.MeshStandardNodeMaterial({
-    color: GLASS_COLOR, transparent: true, opacity: 0.32, roughness: 0.08, metalness: 0.04, depthWrite: false
-  });
-  const atlas = signAtlas(placed);
+  const shared = options.shared ?? createMetroStructureResources();
+  const { structureMaterial, glassMaterial, structure, glass } = shared;
+  const atlas = signAtlas(placed, Boolean(options.shared));
   const nearSignMaterial = new THREE.MeshBasicNodeMaterial({ map: atlas.texture, alphaTest: 0.5 });
   const farSignMaterial = new THREE.MeshBasicNodeMaterial({ vertexColors: true, alphaTest: 0.5 });
   // 站名牌按相机距离渐隐/渐显：近距离显示文字，450–1200 m 用纯色牌示意，超过 1200 m 不画。
@@ -496,8 +532,6 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
 
   const group = new THREE.Group();
   group.name = 'shenzhen-metro-entrances';
-  const structure = structureGeometry();
-  const glass = glassGeometry();
   const signs = signGeometry(placed, atlas);
   const structureMeshes = [];
   // 玻璃和结构共用同一套 chunkMap 分块：包围球只覆盖一个块，视锥剔除才真正生效。
@@ -544,27 +578,7 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
   group.add(nearSigns, farSigns);
   scene.add(group);
 
-  const entranceColliders = placed.map(entrance => {
-    const outer = [[-COLLIDER_HALF_X_M, -COLLIDER_HALF_Z_M], [COLLIDER_HALF_X_M, -COLLIDER_HALF_Z_M],
-      [COLLIDER_HALF_X_M, COLLIDER_HALF_Z_M], [-COLLIDER_HALF_X_M, COLLIDER_HALF_Z_M]]
-      .map(([lx, lz]) => rotatePoint(entrance.x, entrance.z, entrance.yaw, lx, lz));
-    return {
-      type: 'metro-entrance',
-      name: entrance.id,
-      sourceId: entrance.id,
-      stationId: entrance.stationId,
-      stationName: entrance.stationName,
-      exitRef: entrance.ref,
-      polygon: { outer, holes: [] },
-      minX: Math.min(...outer.map(point => point.x)),
-      maxX: Math.max(...outer.map(point => point.x)),
-      minZ: Math.min(...outer.map(point => point.z)),
-      maxZ: Math.max(...outer.map(point => point.z)),
-      minY: entrance.y,
-      maxY: entrance.y + 3.4,
-      heightSource: 'estimate'
-    };
-  });
+  const entranceColliders = placed.map(metroEntranceCollider);
   const statistics = {
     ...baseStatistics,
     chunks: chunkMap.size,
@@ -600,16 +614,15 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
       farSigns.visible = anyVisible;
     },
     dispose() {
-      scene.remove(group);
-      structure.dispose();
-      glass.dispose();
+      group.removeFromParent();
+      for (const mesh of [...structureMeshes, ...glassMeshes]) mesh.dispose();
+      if (!options.shared) shared.dispose();
       signs.near.dispose();
       signs.far.dispose();
-      structureMaterial.dispose();
-      glassMaterial.dispose();
       nearSignMaterial.dispose();
       farSignMaterial.dispose();
       atlas.texture.dispose();
+      group.clear();
     }
   };
 }

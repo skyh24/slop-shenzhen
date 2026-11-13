@@ -807,9 +807,18 @@ export function buildSzTrees(scene, payload, options = {}) {
   if (representative) {
     for (const mesh of cardMeshes) if (mesh !== representative) mesh.userData.sharesPipelineWith = representative;
   }
+  const flightCrownReach = placed.reduce((max, record) => Math.max(max, record.crown * 0.75 + 0.35), 0);
   function flightObstacles(bounds) {
     const obstacles = [];
-    for (const record of placed) {
+    const candidates = new Set();
+    for (let x = Math.floor((bounds.minX - flightCrownReach) / CHUNK_SIZE_M);
+      x <= Math.floor((bounds.maxX + flightCrownReach) / CHUNK_SIZE_M); x++) {
+      for (let z = Math.floor((bounds.minZ - flightCrownReach) / CHUNK_SIZE_M);
+        z <= Math.floor((bounds.maxZ + flightCrownReach) / CHUNK_SIZE_M); z++) {
+        for (const record of grouped.get(`${x},${z}`) ?? []) candidates.add(record);
+      }
+    }
+    for (const record of candidates) {
       // 树干碰撞只覆盖近地；低空检查必须计入远近两档树冠及摆动。
       const radius = record.crown * 0.75 + 0.35;
       if (record.x + radius < bounds.minX || record.x - radius > bounds.maxX

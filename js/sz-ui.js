@@ -205,7 +205,7 @@ export function wireApecTheme(theme, onChange) {
 
 // 所有节目共用一个时钟与机位会话。切换节目先验证新落点，保留最早的恢复状态。
 export function wireShowPrograms({ shows, controllerManager, cameraSystem, lightingSystem,
-  selectMode, selectCamera, selectTime, closePopovers, resetInput, markArrival, observationSessions }) {
+  selectMode, selectCamera, selectTime, closePopovers, resetInput, markArrival, observationSessions, prepareArrival }) {
   const panel = document.getElementById('program-panel');
   const menuButton = document.getElementById('btn-program');
   const feedback = document.getElementById('program-feedback');
@@ -291,13 +291,19 @@ export function wireShowPrograms({ shows, controllerManager, cameraSystem, light
     session.exit(focus ? 'button' : 'cancelled');
   }
 
+  let request = 0;
   for (const show of shows) {
-    const { program, entryIds, labels, arrival } = show;
-    const unavailable = !arrival || !Number.isFinite(arrival.y) || program?.available === false || !program;
+    const { entryIds, labels, arrival } = show;
+    const available = show.available ?? (show.program && show.program.available !== false);
+    const unavailable = !arrival || !Number.isFinite(arrival.y) || !available;
     for (const id of entryIds) {
       const entry = document.getElementById(id);
       entry.disabled = unavailable;
-      entry.addEventListener('click', () => {
+      entry.addEventListener('click', async () => {
+        const id = ++request;
+        const pending = arrival && prepareArrival?.(arrival.x, arrival.z);
+        if (pending) await pending;
+        if (request !== id) return;
         const message = entry.closest('#teleport-popover') ? document.getElementById('teleport-feedback') : feedback;
         const { ok, reason } = session.enter({ show, message });
         if (ok || reason === 'busy') return;

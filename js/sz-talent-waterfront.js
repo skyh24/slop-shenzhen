@@ -114,23 +114,48 @@ function boxCorners(x, z, length, width, dx, dz) {
     ({ x: x + a * length / 2 * dx + b * width / 2 * dz, z: z + a * length / 2 * dz - b * width / 2 * dx }));
 }
 
-export function buildTalentWaterfront(scene, source, lake, site) {
-  if (!source || !lake) return null;
-  const group = new THREE.Group();
-  group.name = TALENT_WALK_ID;
+export function createTalentWaterfrontAccess(source, allSurfaces, pilotTrees = []) {
+  if (!source || !allSurfaces) return null;
+  const surfaces = allSurfaces.filter(s => !s.id.includes(':tread:'));
+  const stepSurfaces = allSurfaces.filter(s => s.id.includes(':tread:'));
+  const walkHeight = createSurfaceHeightAt(surfaces);
+  const pathHeightAt = (x, z) => {
+    for (const row of surfaces) {
+      const y = walkHeight(x, z, row.id);
+      if (Number.isFinite(y)) return y;
+    }
+    return null;
+  };
+
+  const route = createWaterfrontLine(rowsToPoints(source.route.flatMap((row, i) => i ? row.points.slice(1) : row.points)));
+  const extent = bounds(route.segments.flatMap(({ a, b }) => [a, b]));
+  const [vx, vz] = source.view;
+  const { x: ax, y: ay, z: az } = source.simulation.airspaceCenter;
+  const arrival = { x: vx, z: vz, y: pathHeightAt(vx, vz), heading: Math.atan2(ax - vx, az - vz),
+    surfaceId: `${TALENT_WALK_ID}:gravel` };
+  const viewS = route.nearest(vx, vz).s;
+  const pathAt = (x, z) => inBounds(extent, x, z, 25) && (pathHeightAt(x, z) !== null
+    || stepSurfaces.some(row => row.triangles.some(t => inBounds(bounds(t), x, z, 0.15))))
+    ? [TALENT_WALK_ID] : [];
+  const closeToSight = (x, z, radius) => {
+    const towardX = Math.sin(arrival.heading), towardZ = Math.cos(arrival.heading);
+    const rx = x - vx, rz = z - vz;
+    const forward = rx * towardX + rz * towardZ;
+    return forward > -radius && forward < 37 + radius
+      && Math.abs(rx * towardZ - rz * towardX) < 5 + forward * 0.39 + radius;
+  };
+  function reserves(x, z, radius = 0) {
+    if (!inBounds(extent, x, z, radius + 40)) return false;
+    return route.nearest(x, z).distance < 2.45 + radius || Math.hypot(x - vx, z - vz) < 5.9 + radius
+      || pathAt(x, z).length > 0 || closeToSight(x, z, radius);
+  }
+  return { surfaces: allSurfaces, arrival, route, pathHeightAt, pathAt, pilotTrees, reserves, extent, viewS,
+    closeToSight, airspace: { x: ax, y: ay, z: az, heading: arrival.heading } };
+}
+
+export function planTalentWaterfront(source, site, nearObstacles = () => site.colliders) {
   const { groundHeight, terrainSurface, isWater } = site;
   const colliders = [], surfaces = [];
-  const map = makeAggregate();
-  const terrainMaterial = new Map(Object.entries({ greenway: 0x477987, promenade: 0x9c9888,
-    gravel: 0xd8ccbd, steps: 0x888173 }).map(([kind, tint]) => {
-    const material = new THREE.MeshStandardNodeMaterial({ color: tint, roughness: 0.94,
-      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-      ...(kind === 'gravel' ? { map: map[0], bumpMap: map[1], bumpScale: 0.019 } : {}) });
-    material.emissiveNode = color(tint).mul(sceneUniforms.night).mul(kind === 'greenway' ? 0.16 : 0.11);
-    if (kind !== 'steps') material.emissiveNode = material.emissiveNode.add(
-      color(0xffca8a).mul(sceneUniforms.night).mul(attribute('lanternFalloff', 'float')).mul(0.24));
-    return [kind, material];
-  }));
   for (const surface of source.surfaces) {
     const id = `${TALENT_WALK_ID}:${surface.material}`;
     const { chunks } = createRoadPolygonLayout({ id, trianglesXZ: surface.trianglesXZ }, terrainSurface);
@@ -141,17 +166,7 @@ export function buildTalentWaterfront(scene, source, lake, site) {
       return rows;
     });
     surfaces.push({ id, triangles, heightSource: 'terrain', climbableFromGround: true });
-    groundMesh(group, triangles, terrainMaterial.get(surface.material), id);
   }
-  const walkHeight = createSurfaceHeightAt(surfaces);
-  const pathHeightAt = (x, z) => {
-    for (const row of surfaces) {
-      const y = walkHeight(x, z, row.id);
-      if (Number.isFinite(y)) return y;
-    }
-    return null;
-  };
-
   const stepRoute = source.entrances.find(row => row.kind === 'steps');
   const [start, end] = rowsToPoints(stepRoute.points);
   const stepLength = segmentLength(start, end);
@@ -173,30 +188,11 @@ export function buildTalentWaterfront(scene, source, lake, site) {
     // 实际标绘的是台阶，宽和踏高从附近可见地形推导；每块顶面与可站立三角面同源。
     risers.push({ a: { ...p, y: bottom }, b: { ...p, y: top }, width: stepLength / stepCount, height: width, dx, dz, top });
   }
-  const treads = new THREE.InstancedMesh(new THREE.BoxGeometry(), terrainMaterial.get('steps'), risers.length);
-  treads.name = `${TALENT_WALK_ID}:steps`;
-  const pose = new THREE.Object3D();
-  for (const [i, row] of risers.entries()) {
-    pose.position.set(row.a.x, (row.a.y + row.b.y) / 2, row.a.z);
-    pose.rotation.y = Math.atan2(-row.dz, row.dx);
-    pose.scale.set(row.width, row.b.y - row.a.y, row.height);
-    pose.updateMatrix();
-    treads.setMatrixAt(i, pose.matrix);
-  }
-  treads.instanceMatrix.needsUpdate = true;
-  treads.computeBoundingSphere();
-  treads.receiveShadow = true;
-  group.add(treads);
-
-  const route = createWaterfrontLine(rowsToPoints(source.route.flatMap((row, i) => i ? row.points.slice(1) : row.points)));
-  const extent = bounds(route.segments.flatMap(({ a, b }) => [a, b]));
+  surfaces.push(...stepSurfaces);
+  const { route, viewS, pathAt, closeToSight } = createTalentWaterfrontAccess(source, surfaces);
   const [vx, vz] = source.view;
-  const { x: ax, y: ay, z: az } = source.simulation.airspaceCenter;
-  const arrival = { x: vx, z: vz, y: pathHeightAt(vx, vz), heading: Math.atan2(ax - vx, az - vz),
-    surfaceId: `${TALENT_WALK_ID}:gravel` };
   const edge = createWaterfrontLine(rowsToPoints(source.retainingEdge));
   const steel = [], wall = [], timber = [], lamps = [], pilotTrees = [];
-  const fixtureBatches = createFixtureBatches(group, 'park', 'z');
 
   function obstacle(name, x, z, length, width, dx, dz, minY, maxY) {
     const outer = boxCorners(x, z, length, width, dx, dz);
@@ -233,23 +229,12 @@ export function buildTalentWaterfront(scene, source, lake, site) {
   if (Number.isFinite(lastY)) steel.push({ a: { ...lastPost, y: lastY - 0.08 },
     b: { ...lastPost, y: lastY + 1.19 }, width: 0.11, height: 0.11 });
 
-  const viewS = route.nearest(vx, vz).s;
-  const pathAt = (x, z) => inBounds(extent, x, z, 25) && (pathHeightAt(x, z) !== null
-    || stepSurfaces.some(row => row.triangles.some(t => inBounds(bounds(t), x, z, 0.15))))
-    ? [TALENT_WALK_ID] : [];
-  const closeToSight = (x, z, radius) => {
-    const towardX = Math.sin(arrival.heading), towardZ = Math.cos(arrival.heading);
-    const rx = x - vx, rz = z - vz;
-    const forward = rx * towardX + rz * towardZ;
-    return forward > -radius && forward < 37 + radius
-      && Math.abs(rx * towardZ - rz * towardX) < 5 + forward * 0.39 + radius;
-  };
   function fixtureAt(s, side) {
     const p = route.at(s, side);
     if (isWater(p.x, p.z) !== false || site.roadHeight(p.x, p.z) !== null
       || pathAt(p.x, p.z).length || closeToSight(p.x, p.z, 1.8)) return null;
     const y = groundHeight(p.x, p.z);
-    if (!Number.isFinite(y) || site.colliders.some(c => inBounds(c, p.x, p.z, 1.3)
+    if (!Number.isFinite(y) || [...nearObstacles(p.x, p.z, 1.3)].some(c => inBounds(c, p.x, p.z, 1.3)
         && c.minY < y + 5 && c.maxY > y && polygonBoxOverlaps(c.polygon, p.x, p.z, 1.3, 1.3))) return null;
     if (maxSlopeRatio !== null) {
       const offsets = [[0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]];
@@ -287,6 +272,49 @@ export function buildTalentWaterfront(scene, source, lake, site) {
         crown: 4.5 + i % 3, height: 5.9 + i % 4, speciesName: 'camphor' });
     }
   }
+  return { surfaces, pilotTrees, risers, steel, wall, timber, lamps, colliders,
+    statistics: { lengthM: source.lengthM, lakeWaterIndex: source.lakeWaterIndex, steps: stepCount,
+      railLengthM: edge.length, lanterns: lamps.length, benches: timber.length / 2, sourceNode: source.viewNode } };
+}
+
+export function buildTalentWaterfront(scene, source, lake, site, plan) {
+  if (!source || !lake) return null;
+  const group = new THREE.Group();
+  group.name = TALENT_WALK_ID;
+  const { surfaces, pilotTrees, risers, steel, wall, timber, lamps, colliders, statistics } =
+    plan ?? planTalentWaterfront(source, site);
+  const access = createTalentWaterfrontAccess(source, surfaces, pilotTrees);
+  const fixtureBatches = createFixtureBatches(group, 'park', 'z');
+  const map = makeAggregate();
+  const terrainMaterial = new Map(Object.entries({ greenway: 0x477987, promenade: 0x9c9888,
+    gravel: 0xd8ccbd, steps: 0x888173 }).map(([kind, tint]) => {
+    const material = new THREE.MeshStandardNodeMaterial({ color: tint, roughness: 0.94,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+      ...(kind === 'gravel' ? { map: map[0], bumpMap: map[1], bumpScale: 0.019 } : {}) });
+    material.emissiveNode = color(tint).mul(sceneUniforms.night).mul(kind === 'greenway' ? 0.16 : 0.11);
+    if (kind !== 'steps') material.emissiveNode = material.emissiveNode.add(
+      color(0xffca8a).mul(sceneUniforms.night).mul(attribute('lanternFalloff', 'float')).mul(0.24));
+    return [kind, material];
+  }));
+  for (const surface of source.surfaces) {
+    const row = surfaces.find(row => row.id === `${TALENT_WALK_ID}:${surface.material}`);
+    groundMesh(group, row.triangles, terrainMaterial.get(surface.material), row.id);
+  }
+  const treads = new THREE.InstancedMesh(new THREE.BoxGeometry(), terrainMaterial.get('steps'), risers.length);
+  treads.name = `${TALENT_WALK_ID}:steps`;
+  const pose = new THREE.Object3D();
+  for (const [i, row] of risers.entries()) {
+    pose.position.set(row.a.x, (row.a.y + row.b.y) / 2, row.a.z);
+    pose.rotation.y = Math.atan2(-row.dz, row.dx);
+    pose.scale.set(row.width, row.b.y - row.a.y, row.height);
+    pose.updateMatrix();
+    treads.setMatrixAt(i, pose.matrix);
+  }
+  treads.instanceMatrix.needsUpdate = true;
+  treads.computeBoundingSphere();
+  treads.receiveShadow = true;
+  group.add(treads);
+
   // 将灯下的暖色光斑烘焙到已存在的铺装顶点，夜间显示，不增加场景点光源。
   for (const mesh of group.children) {
     if (!surfaces.some(surface => surface.id === mesh.name)) continue;
@@ -312,14 +340,8 @@ export function buildTalentWaterfront(scene, source, lake, site) {
   group.add(water);
   scene.add(group);
 
-  function reserves(x, z, radius = 0) {
-    if (!inBounds(extent, x, z, radius + 40)) return false;
-    return route.nearest(x, z).distance < 2.45 + radius || Math.hypot(x - vx, z - vz) < 5.9 + radius
-      || pathAt(x, z).length > 0 || closeToSight(x, z, radius);
-  }
   let disposed = false;
-  return { group, colliders, surfaces: [...surfaces, ...stepSurfaces], arrival, route, pathHeightAt, pathAt,
-    pilotTrees, reserves, extent, viewS, airspace: { x: ax, y: ay, z: az, heading: arrival.heading },
+  return { ...access, group, colliders, statistics,
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -332,6 +354,5 @@ export function buildTalentWaterfront(scene, source, lake, site) {
       }
       for (const resource of [...map, ...terrainMaterial.values()]) resource.dispose();
     },
-    statistics: { lengthM: source.lengthM, lakeWaterIndex: source.lakeWaterIndex, steps: stepCount,
-      railLengthM: edge.length, lanterns: lamps.length, benches: timber.length / 2, sourceNode: source.viewNode } };
+  };
 }

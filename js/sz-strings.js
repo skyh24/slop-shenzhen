@@ -190,6 +190,7 @@ export const STR = {
     receiver: '无人机接收点 · 估计站位',
     approach: '前往站点附近',
     unavailable: '当前路线暂无经过场景净空校验的完整路径。',
+    preparing: '正在加载附近航线',
     approachUnavailable: '当前没有安全步行落点。',
     blocked: '请停稳并结束当前驾驶或节目，再开始观看。',
     failed: '配送已结束，已恢复玩家视角。',

@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "checkedAt": "2026-11-13T07:50:42.142673+00:00",
+  "checkedAt": "2026-11-13T09:27:23.578474+00:00",
   "encodingValidation": "passed",
   "realityValidation": "incomplete",
   "recentObservationWindow": [
     2025,
     2026
   ],
-  "payloadSha256": "5fe027ae565d6872b69626a411b8b1e895c7081e05e681ca6e1067d6c1925a45",
+  "payloadSha256": "537142f5c819599b6c20e8ec3b98d0dd87344d61d50a7a772b3bcdee3f2ebc26",
   "sourceIntegrity": [
     {
       "id": "osm-guangdong",
@@ -541,11 +541,11 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7774,
-    "metadataBytes": 16994408,
+    "metadataBytes": 17166782,
     "numericBytes": 35346680,
-    "uncompressedBytes": 52341136,
+    "uncompressedBytes": 52513512,
     "lossless": true,
-    "compressedBytes": 12640321,
-    "compressedSha256": "b40e47dbced8926c5a5f997ffbfdc3f640a911d55f33b1bf7c8b4a9558a3fde7"
+    "compressedBytes": 12674933,
+    "compressedSha256": "ba77cc0f3ae16aa31d4cb5fc2f33a25e63a154bd862a5e1eb0e36c74d981606f"
   }
 }
