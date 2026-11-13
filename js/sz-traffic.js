@@ -141,7 +141,7 @@ export function createTrafficGraph(graph, { canTurn = () => true, elevated = nul
       const path = sign === 1 ? record.points : [...record.points].reverse();
       const from = sign === 1 ? record.startNode : record.endNode;
       const to = sign === 1 ? record.endNode : record.startNode;
-      const edge = { from, to, sign, section,
+      const edge = { from, to, sign, section, groundFork: record.groundFork,
         name: record.name ?? '', osmId: record.osmId, highway: null, sourceIndex: record.index,
         structureNeighbors: record.structureNeighbors, tunnel: record.tunnel === true, rampSpeed: record.ramp ? 6.5 : undefined,
         segments: [], next: [], surfaceId: section.surfaceId, elevated: true,
@@ -254,6 +254,27 @@ function joinRampLane(segments, from, to) {
   return result;
 }
 
+function guideBridgeForks(segments) {
+  const result = [];
+  for (let i = 0; i < segments.length;) {
+    const edge = segments[i].edge;
+    let end = i + 1;
+    while (segments[end]?.edge === edge) end++;
+    const following = segments[end];
+    const branch = following && edge?.groundFork?.[following.edge.osmId];
+    const deck = segments.slice(i, end);
+    if (branch) {
+      const last = deck.at(-1);
+      const target = segmentEnd(last);
+      // 在桥面内提前对齐分流幅，避免把横移压到同一桥头断面。
+      const offset = branch * following.edge.section.pavementWidthM / 2;
+      result.push(...joinRampLane(deck, null, { x: target.x + last.dz * offset, z: target.z - last.dx * offset }));
+    } else result.push(...deck);
+    i = end;
+  }
+  return result;
+}
+
 function guideReviewedRamps(segments) {
   if (!segments.some(segment => segment.edge?.section.reviewed)) return segments;
   const guided = [];
@@ -327,7 +348,8 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice) 
 }
 
 export function laneRoute(path, maxBend = 3.2) {
-  const segments = guideReviewedRamps(path);
+  const ramps = guideReviewedRamps(path);
+  const segments = ramps.some(segment => segment.edge?.groundFork) ? guideBridgeForks(ramps) : ramps;
   const samples = [];
   const bend = (a, b) => a && b ? Math.min(maxBend, a.length * 0.36, b.length * 0.36) : 0;
   function add(x, z, dx, dz, edge) {

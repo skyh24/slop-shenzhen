@@ -186,6 +186,11 @@ function validateWaterfront(site, raw) {
   requireData(Array.isArray(site.rails) && site.rails.every(r => typeof r.id === 'string'
     && Array.isArray(r.stations) && r.stations.every(p => p === null || xyz(p)))
     && polyline(site.bayLower?.points), 'waterfront banks');
+  if (site.bridgeWaters !== undefined) {
+    requireData(Array.isArray(site.bridgeWaters) && site.bridgeWaters.every(w => way.test(w.id)
+      && waterIndex(w.waterIndex) && Number.isFinite(w.heightM) && w.heightSource === 'estimate'),
+    'waterfront bridge waters');
+  }
   if (site.extensions === undefined && site.extensionWaters === undefined) return;
   requireData(Array.isArray(site.extensions) && site.extensions.every(r => typeof r.id === 'string'
     && typeof r.waterId === 'string' && polyline(r.points) && positive(r.lengthM)
@@ -823,6 +828,19 @@ export function validateCityPayload(raw) {
     validateIds(structures.routes.map(route => route?.id), 'structure route identity');
     requireData(structures.routes.every(route => route.waterPierBaseM === undefined
       || (route.kind === 'bridge' && Number.isFinite(route.waterPierBaseM))), 'bridge water pier base');
+    for (const route of structures.routes) {
+      if (route.groundFork === undefined) continue;
+      const fork = route.groundFork;
+      const deck = structures.records.find(row => row?.route === route.id && row.sharedEnd);
+      const link = graph.links[deck?.index], end = link?.[1];
+      const branches = [fork?.leftWay, fork?.rightWay].map(way =>
+        graph.metadata.findIndex((meta, i) => meta.osmId === way && graph.links[i][0] === end));
+      requireData(fork && Number.isFinite(fork.blendM) && fork.blendM > 2 && route.kind === 'bridge'
+        && link?.[5] === 1 && branches[0] !== branches[1] && branches.every(i => i >= 0
+          && graph.links[i][5] === 1 && graph.links[i][4] > 0 && graph.metadata[i].heightSource === 'terrain'
+          && graph.metadata[i].lengthM > fork.blendM && graph.links[i][3] * 2 === deck.widthM)
+        && branches.reduce((sum, i) => sum + graph.links[i][4], 0) === deck.lanes, 'bridge ground fork');
+    }
     const landscape = structures.landscape;
     if (landscape != null) {
       requireData(Array.isArray(landscape.patches) && Array.isArray(landscape.trees)

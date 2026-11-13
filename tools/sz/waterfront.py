@@ -76,6 +76,24 @@ def _water(payload, osm, identity):
     return next((i, poly) for i, rings in enumerate(payload['water']) if (poly := _polygon(rings)).covers(marker))
 
 
+def compile_bridge_waters(payload, osm, report, plan):
+    waterfront = payload['waterfront']
+    if plan['osmSnapshotSha256'] != osm['sourceSha256']:
+        raise ValueError('Bridge waters require the reviewed OSM snapshot')
+    used = {row['waterIndex'] for key in ('waters', 'extensionWaters') for row in waterfront.get(key, [])}
+    waters = []
+    for spec in plan.get('bridgeWaters', []):
+        identity = spec['id']
+        index, polygon = _water(payload, osm, identity)
+        source = _to_local(next(row['geom'] for row in osm['water'] if row['id'] == identity))
+        if index in used or source.intersection(polygon).area < 0.95 * source.union(polygon).area:
+            raise ValueError(f'Bridge water does not identify a distinct source polygon: {identity}')
+        used.add(index)
+        waters.append({'id': identity, 'waterIndex': index, 'heightM': spec['heightM'], 'heightSource': 'estimate'})
+    waterfront['bridgeWaters'] = waters
+    report['waterfrontSamples']['bridgeWaters'] = waters
+
+
 def _clip_terrain(surface, masks, grades, *, replace_kinds=None):
     """在原三角面内切材质与高程影响范围；范围外保留原来的几何和采样。"""
     affected = unary_union([*masks.values(), *(shape for shape, _ in grades)])

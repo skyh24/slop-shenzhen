@@ -116,7 +116,7 @@ fixtureCells(bay, 'bay', ['metal', 'wood', 'light']);
 fixtureCells(shore, 'shore', ['steel', 'lamp']);
 if (bay.routePoints.length) cell('bay-walk', bay.routePoints, { points: bay.routePoints, restSpots: bay.restSpots }, 1);
 for (const route of shore.publicRoutes) cell('shore-walk', route.points, route, 1);
-for (const row of [...(GEO.waterfront?.waters ?? []), ...(GEO.waterfront?.extensionWaters ?? [])]) {
+for (const row of ['waters', 'extensionWaters', 'bridgeWaters'].flatMap(key => GEO.waterfront?.[key] ?? [])) {
   cell('shore-water', GEO.water[row.waterIndex].outer, row, 1);
 }
 

@@ -2623,6 +2623,33 @@
       "profileM": [[0, 8], [265.251, 8]],
       "waterPierBaseM": -0.85,
       "required": true
+    },
+    {
+      "id": "houhai-second-bridge-north",
+      "kind": "bridge",
+      "source": "https://www.szmedi.com.cn/gsxw/info_24.aspx?itemid=424",
+      "ways": ["way/232498906"],
+      "portalNodes": ["node/920047675", "node/2408443258"],
+      "profileSource": "project-design-estimate-from-both-ground-approaches",
+      "profileM": [[0, 8], [104.109, 8]],
+      "groundFork": {
+        "leftWay": "way/232498908",
+        "rightWay": "way/359908860",
+        "blendM": 65
+      },
+      "waterPierBaseM": -0.85,
+      "required": true
+    },
+    {
+      "id": "houhai-second-bridge-south",
+      "kind": "bridge",
+      "source": "https://www.szmedi.com.cn/gsxw/info_24.aspx?itemid=424",
+      "ways": ["way/232498910"],
+      "portalNodes": ["node/2408443252", "node/2408443257"],
+      "profileSource": "project-design-estimate-from-both-ground-approaches",
+      "profileM": [[0, 8], [104.109, 8]],
+      "waterPierBaseM": -0.85,
+      "required": true
     }
   ],
   "minimumVehicleClearanceM": 3.7,

@@ -598,7 +598,9 @@ def compile_road_structures(payload, manifest, report, *, base=None, cover_shape
         plan['roadCovers'] = previous['roadCovers']
     if previous and previous != plan and base is None:
         old_ids = {route['id'] for route in previous['routes']}
-        geometry_route = lambda route: {key: value for key, value in route.items() if key != 'tunnelLighting'}
+        # 分流仅调整地面道路的程序化断面，既有桥面站点和开挖保持原值。
+        geometry_route = lambda route: {key: value for key, value in route.items()
+                                        if key not in ('tunnelLighting', 'groundFork')}
         if ([geometry_route(route) for route in routes if route['id'] in old_ids]
                 != [geometry_route(route) for route in previous['routes']]
                 or [row for row in records if row['route'] in old_ids] != previous['records']

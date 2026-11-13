@@ -47,7 +47,8 @@ from road_structures import compile_road_structures
 from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
-from waterfront import compile_waterfront, compile_waterfront_routes, restore_bay_paving
+from waterfront import (SOURCE as WATERFRONT_SAMPLES, compile_bridge_waters, compile_waterfront,
+                        compile_waterfront_routes, restore_bay_paving)
 from urban_paving import compile_urban_paving
 from yanjiang import build_yanjiang
 from fastpack import encode_city
@@ -316,7 +317,13 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
         report['mapRegions'] = {key: regions[key] for key in ('version', 'source', 'pilot', 'coverage')}
         payload['airCruises'], report['airCruises'] = build_air_cruises(payload['roadGraph'], osm_source)
     manifest = json.loads(ROAD_STRUCTURES.read_text())
-    cover_shapes = read_road_covers(manifest, osm_source, appearance_osm)
+    if 'waterfront' in payload:
+        waterfront_osm = appearance_osm or read_osm(PHASE1_BBOX, pbf=ROOT / osm_source['file'],
+                                                    source_sha256=osm_source['sha256'])
+        compile_bridge_waters(payload, waterfront_osm, report, json.loads(WATERFRONT_SAMPLES.read_text()))
+        cover_shapes = read_road_covers(manifest, osm_source, waterfront_osm)
+    else:
+        cover_shapes = read_road_covers(manifest, osm_source, appearance_osm)
     exclude_packaged_road_covers(payload, report, cover_shapes)
     compile_road_structures(payload, manifest, report, base=structure_base, cover_shapes=cover_shapes or None)
     if arterial_osm is not None:

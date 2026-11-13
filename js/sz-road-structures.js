@@ -3,14 +3,63 @@ import { roadLinkPoints } from './sz-roads.js';
 import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
 
 const STATION_SIZE = 8;
+const FORK_LEAD_M = 2;
 const CHUNK_M = 240;
 const PALETTE = { asphalt: 0x34393b, concrete: 0xb3bbb8, lining: 0x686d70, light: 0xf4f8ff };
+
+// 在桥端把两条地面车行幅对齐到桥的左右半幅，再沿各自源线展开。
+function groundForkSection(graph, index, frame, axis, side, blendM, routeId) {
+  const link = graph.links[index];
+  const points = roadLinkPoints(graph, link);
+  const width = link[3], half = width / 2;
+  const stations = [0, FORK_LEAD_M];
+  for (let d = 6; d < blendM; d += 4) stations.push(d);
+  stations.push(blendM);
+  let walked = 0, station = 0;
+  const samples = [];
+  const append = (x, z) => {
+    if (x !== samples.at(-3) || z !== samples.at(-2)) samples.push(x, z, half);
+  };
+  for (let j = 1; j < points.length; j++) {
+    const a = points[j - 1], b = points[j];
+    const length = Math.hypot(b.x - a.x, b.z - a.z);
+    const end = walked + length;
+    const blendAt = d => {
+      const t = (d - walked) / length;
+      const mix = Math.max(0, (d - FORK_LEAD_M) / (blendM - FORK_LEAD_M));
+      const weight = mix * mix * (3 - 2 * mix);
+      const x = frame.x + d * axis.x + side * half * axis.z;
+      const z = frame.z + d * axis.z - side * half * axis.x;
+      append(x + weight * (a.x + t * (b.x - a.x) - x), z + weight * (a.z + t * (b.z - a.z) - z));
+    };
+    while (station < stations.length && stations[station] <= end) blendAt(stations[station++]);
+    if (end > blendM) append(b.x, b.z);
+    else if (end > FORK_LEAD_M && end < blendM) blendAt(end);
+    walked = end;
+  }
+  return { id: routeId, laneWidthM: width / link[4], outerShoulderM: 0, laneCountSource: 'osm-lanes', points: samples };
+}
 
 export function graphWithRoadStructures(graph, plan) {
   if (!plan?.records.length) return graph;
   const approaches = new Set(plan.records.map(record => record.index));
-  return { ...graph, metadata: graph.metadata.map((meta, i) =>
-    approaches.has(i) && meta.heightSource === 'terrain' ? { ...meta, heightSource: 'structure-approach' } : meta) };
+  const forks = new Map();
+  for (const route of plan.routes) {
+    if (!route.groundFork) continue;
+    const { leftWay, rightWay, blendM } = route.groundFork;
+    const deck = plan.records.find(record => record.route === route.id && record.sharedEnd);
+    const end = graph.links[deck.index][1];
+    const frames = readFrames(deck.stations);
+    const frame = frames.at(-1), prev = frames.at(-2);
+    const length = Math.hypot(frame.x - prev.x, frame.z - prev.z);
+    const axis = { x: (frame.x - prev.x) / length, z: (frame.z - prev.z) / length };
+    for (const [way, side] of [[leftWay, 1], [rightWay, -1]]) {
+      const i = graph.metadata.findIndex((meta, i) => meta.osmId === way && graph.links[i][0] === end);
+      forks.set(i, groundForkSection(graph, i, frame, axis, side, blendM, route.id));
+    }
+  }
+  return { ...graph, metadata: graph.metadata.map((meta, i) => forks.has(i) ? { ...meta, crossSection: forks.get(i) }
+    : approaches.has(i) && meta.heightSource === 'terrain' ? { ...meta, heightSource: 'structure-approach' } : meta) };
 }
 
 function readFrames(stations) {
@@ -151,6 +200,8 @@ export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAl
   const waterBases = new Map(plan.routes.filter(route => Number.isFinite(route.waterPierBaseM))
     .map(route => [route.id, route.waterPierBaseM]));
   const widthEstimates = new Map(plan.routes.map(route => [route.id, route.widthEstimates]));
+  const groundForks = new Map(plan.routes.filter(route => route.groundFork)
+    .map(route => [route.id, { [route.groundFork.leftWay]: 1, [route.groundFork.rightWay]: -1 }]));
   const materials = {
     asphalt: new THREE.MeshStandardNodeMaterial({ color: PALETTE.asphalt, roughness: 0.94, side: THREE.DoubleSide,
       polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
@@ -432,6 +483,7 @@ export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAl
     const road = { index, osmId: record.way, name: graph.names[link[2]], direction: link[5], layer: record.layer ?? (tunnel ? -1 : 1),
       width: widthM, lanes, laneSource: widthEstimates.get(route)?.[record.way] && lanes !== link[4] ? 'reviewed-estimate'
         : lanes && !link[4] ? 'municipal-design' : undefined,
+      groundFork: sharedEnd ? groundForks.get(route) : undefined,
       barrierWidthM: sideAllowance, frames, points: roadLinkPoints(graph, link),
       topTriangles, surfaceId: id, startNode: link[0], endNode: link[1], sharedStart, sharedEnd,
       startDeckY: first.y, endDeckY: last.y, tunnel, structured: true,

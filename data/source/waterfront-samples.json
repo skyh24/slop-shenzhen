@@ -2,6 +2,9 @@
   "version": 1,
   "checkedAt": "2026-11-13",
   "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+  "bridgeWaters": [
+    {"id": "way/232499155", "heightM": 0.65}
+  ],
   "lake": {
     "waterOsmId": "way/25498931",
     "parkOsmId": "way/178426795",

@@ -1,4 +1,5 @@
 // 用正式图和结构计划导出环境车与自动驾驶共用的有向边。
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 import { resolve } from 'node:path';
@@ -23,14 +24,27 @@ try {
   const { createTrafficGraph } = await import('../../js/sz-traffic.js');
   const { createTurnFilter } = await import('../../js/sz-drive-route.js');
   const { buildSzRoadStructures, graphWithRoadStructures } = await import('../../js/sz-road-structures.js');
-  const { geo } = decodeCityPayload(JSON.parse(gunzipSync(readFileSync(new URL('../../js/sz-city.json.gz', import.meta.url)))));
+  const { createGroundSurfaceSampler } = await import('../../js/sz-ground-surface.js');
+  const { northBridgeProfile } = await import('../../js/sz-rail/geometry.js');
+  const packed = readFileSync(process.argv[2] ?? new URL('../../js/sz-city.json.gz', import.meta.url));
+  const { geo } = decodeCityPayload(JSON.parse(gunzipSync(packed)));
   const graph = graphWithRoadStructures(geo.roadGraph, geo.roadStructures);
   const exclude = new Set(geo.roadStructures?.records.map(row => row.index));
-  const elevated = planElevatedRoads(graph, geo.terrainSurface, { exclude });
+  const elevated = planElevatedRoads(graph, geo.terrainSurface, { exclude, waterfront: geo.waterfront,
+    extraCrossing: northBridgeProfile(geo.shenzhenNorthRail), water: geo.water });
   const structures = buildSzRoadStructures(new Group(), graph, geo.roadStructures);
   const drive = [...elevated.driveLinks, ...structures.links];
   const network = createTrafficGraph(graph, { elevated: { links: drive }, canTurn: createTurnFilter(graph) });
-  console.log(JSON.stringify({ edges: network.edges.map(edge => [edge.sourceIndex, edge.sign]),
+  const groundHeight = createGroundSurfaceSampler(geo.terrainSurface);
+  const orangeNodes = new Set(graph.links.flatMap(([start, end], i) => {
+    const { bridge, tunnel, layer } = graph.metadata[i];
+    return !tunnel && (bridge || layer > 0) ? [start, end] : [];
+  }));
+  const groundPortals = [...orangeNodes].map(node => [node, groundHeight(graph.nodes[node * 2], graph.nodes[node * 2 + 1])]);
+  console.log(JSON.stringify({ packageSha256: createHash('sha256').update(packed).digest('hex'),
+    groundPortals,
+    deckSurfaces: [...elevated.links, ...structures.links].map(({ index, surfaceId }) => [index, surfaceId]),
+    edges: network.edges.map(edge => [edge.sourceIndex, edge.sign]),
     movements: network.edges.map(edge => [edge.sourceIndex, edge.sign, edge.next.map(next => [next.sourceIndex, next.sign])]),
     legacyGradeConflicts: elevated.links.filter(link => elevated.statistics.gradeConflicts.includes(link.index))
       .map(link => ({ index: link.index, osmId: link.osmId, maxGrade: link.maxGrade })),

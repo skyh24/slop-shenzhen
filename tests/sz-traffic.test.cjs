@@ -784,24 +784,42 @@ test('a source-connected tunnel route stays on its own floor across every seam a
     assert.equal(rows[0].structureNeighbors.includes('terrain'), rows[0].sharedStart || rows[0].sharedEnd);
   }
   const houhai = [
-    ['way/232498909', [-11027.9, 3837.8], [-10961.1, 3491.2]],
-    ['way/232498913', [-10977.5, 3488.8], [-11046.0, 3836.3]]
+    ['way/232498909', 3, [-11027.9, 3837.8], [-10961.1, 3491.2], ['way/232498911']],
+    ['way/232498913', 3, [-10977.5, 3488.8], [-11046.0, 3836.3], ['way/135328254']],
+    ['way/232498906', 4, [-10933.3, 3307.7], [-10903.85, 3068.3], ['way/232498908', 'way/359908860']],
+    ['way/232498910', 4, [-10932.2, 3144.0], [-10951.4, 3304.7], ['way/232498905']]
   ];
-  for (const [way, from, to] of houhai) {
+  for (const [way, lanes, from, to, exits] of houhai) {
     const road = built.links.find(link => link.osmId === way);
     assert.ok(road && road.sharedStart && road.sharedEnd, way);
-    assert.equal(road.lanes, 3);
+    assert.equal(road.lanes, lanes);
     const edge = network.edges.find(row => row.sourceIndex === road.index);
     assert.ok(network.edges.some(row => !row.elevated && row.next.includes(edge)), way);
-    assert.ok(edge.next.some(row => !row.elevated), way);
-    const drive = planner.route(planner.snap(...from), planner.snap(...to));
-    assert.ok(drive?.edges.includes(edge), way);
+    assert.deepEqual(Array.from(edge.next.filter(row => !row.elevated), row => row.osmId), exits, way);
+    const start = planner.snap(...from), finish = planner.snap(...to);
+    const drive = planner.route(start, finish);
+    assert.ok(drive?.edges.includes(edge), JSON.stringify({ way, route: drive?.edges.map(row => row.osmId),
+      starts: start?.candidates.map(row => row.edge.osmId), ends: finish?.candidates.map(row => row.edge.osmId) }));
     const middle = road.frames[Math.floor(road.frames.length / 2)];
     assert.equal(ground(middle.x, middle.z), null);
     assert.ok(Math.abs(built.heightAt(middle.x, middle.z, road.surfaceId) - middle.y) < 1e-5);
     assert.ok(built.colliders.some(c => c.name === road.surfaceId && c.type === 'bridge-slab'));
     assert.ok(built.colliders.some(c => c.name === road.surfaceId && c.type === 'elevated-barrier'));
   }
+  const bridgeWater = geo.waterfront.bridgeWaters.find(row => row.id === 'way/232499155');
+  const secondBridge = built.links.find(link => link.osmId === 'way/232498906');
+  const bridgeMiddle = secondBridge.frames[Math.floor(secondBridge.frames.length / 2)];
+  const forkEnd = secondBridge.frames.at(-1);
+  assert.ok(Math.abs(Math.hypot(forkEnd.left.x - forkEnd.right.x, forkEnd.left.z - forkEnd.right.z) - 13) < 1e-5);
+  const branches = ['way/232498908', 'way/359908860'].map(way => network.edges.find(edge => edge.osmId === way));
+  for (const [i, edge] of branches.entries()) {
+    const side = i === 0 ? forkEnd.left : forkEnd.right;
+    const { x, z } = edge.segments[0];
+    assert.ok(Math.hypot(x - (forkEnd.x + side.x) / 2, z - (forkEnd.z + side.z) / 2) < 1e-5);
+    assert.equal(edge.section.laneCount, 2);
+  }
+  assert.ok(polygonModule.polygonContains(geo.water[bridgeWater.waterIndex], bridgeMiddle.x, bridgeMiddle.z));
+  assert.ok(bridgeMiddle.y - geo.roadStructures.bridgeSlabM > bridgeWater.heightM);
   const dongbin = ['east', 'west'].map(direction => {
     const records = geo.roadStructures.records.filter(row => row.route === `yanjiang-dongbin-${direction}`);
     assert.ok(records.length > 10, direction);

@@ -9,11 +9,14 @@ from pathlib import Path
 import pickle
 import sys
 
-from shapely.geometry import LineString, Point
+from shapely import make_valid
+from shapely.geometry import LineString, Point, Polygon
+from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools/sz'))
+from package_validation import ring_points
 from roadgraph import graph_components
 
 
@@ -83,7 +86,64 @@ def classify(a, b, shared):
     return 'bridge-crossing' if max(levels) > 0 else 'tunnel-crossing'
 
 
-def audit(graph, source, runtime=None):
+def audit_elevated_roads(payload, edges, lines, incidence, runtime):
+    """用与小地图相同的源属性找高架，再核对实体、路网和跨水证据。"""
+    graph = payload['roadGraph']
+    polygons = [make_valid(Polygon(ring_points(outer), [ring_points(ring) for ring in holes]))
+                for outer, *holes in [*payload['water'], *payload.get('seaSurface', {}).get('polygons', [])]]
+    water = STRtree(polygons)
+    surfaces = dict(runtime['deckSurfaces'])
+    portals = dict(runtime['groundPortals'])
+    movements = runtime['movements']
+    arrivals = {target for targets in movements.values() for target in targets}
+
+    def ground_approaches(node, incoming):
+        return [i for i in incidence[node] if edges[i]['structure'] == 'ground'
+                and any(graph['links'][i][int((sign == 1) == incoming)] == node
+                        for sign in edges[i]['runtimeDirections'])]
+
+    rows = []
+    for edge, line in zip(edges, lines):
+        if edge['tunnel'] or not (edge['bridge'] or edge['layer'] > 0):
+            continue
+        index = edge['index']
+        a, b = graph['links'][index][:2]
+        surface = surfaces.get(index)
+        directions = edge['runtimeDirections']
+        expected_directions = [edge['direction']] if edge['direction'] else [1, -1]
+        missing_directions = [sign for sign in expected_directions if sign not in directions]
+        gaps = [{'direction': sign, 'entry': (index, sign) not in arrivals,
+                 'exit': not movements.get((index, sign))}
+                for sign in directions if (index, sign) not in arrivals or not movements.get((index, sign))]
+        status = ('missing-deck' if surface is None else 'missing-vehicle-route' if missing_directions
+                  else 'open-end' if gaps else 'connected')
+        row = {key: edge[key] for key in ('index', 'osmId', 'name', 'nodes', 'highway', 'layer', 'bridge', 'lanes', 'lengthM')}
+        row.update(status=status, surfaceId=surface, runtimeDirections=directions,
+                   missingDirections=missing_directions, openEnds=gaps)
+
+        if status == 'missing-deck' and edge['bridge']:
+            overlap = unary_union([line.intersection(polygons[i]) for i in water.query(line, predicate='intersects')])
+            row['waterOverlapM'] = round(overlap.length, 2)
+            if overlap.length > 0:
+                points = (Point(line.coords[0]), Point(line.coords[-1]))
+                dry = [not bool(water.query(point, predicate='intersects').size) for point in points]
+                incoming, outgoing = ((b, a) if edge['direction'] == -1 else (a, b))
+                approaches = [ground_approaches(incoming, True), ground_approaches(outgoing, False)]
+                if edge['direction'] == 0:
+                    # 双向桥同时核对两端的进和出。
+                    approaches += [ground_approaches(outgoing, True), ground_approaches(incoming, False)]
+                row.update(portalHeightsM=[portals.get(a), portals.get(b)], dryPortals=dry,
+                           groundApproaches=approaches)
+                if (overlap.geom_type == 'LineString' and overlap.length >= 5
+                        and all(dry) and all(h is not None for h in row['portalHeightsM'])
+                        and all(approaches) and not edge['highway'].endswith('_link')):
+                    row['candidate'] = 'cross-water-deck'
+        rows.append(row)
+    return rows
+
+
+def audit(payload, source, runtime=None):
+    graph = payload['roadGraph']
     node_ids = graph['nodeIds']
     coords = list(zip(graph['nodes'][::2], graph['nodes'][1::2]))
     incidence, refs = defaultdict(list), defaultdict(list)
@@ -186,6 +246,7 @@ def audit(graph, source, runtime=None):
     compiled = runtime.get('structures', []) if runtime else []
     candidates = junction_candidates(graph, edges, incidence, {row['index'] for row in compiled},
                                      runtime_movements) if runtime else []
+    elevated = audit_elevated_roads(payload, edges, lines, incidence, runtime) if runtime else []
     return {
         'counts': {'nodes': len(node_ids), 'edges': len(edges), 'ways': len(represented),
                    'snapshotRoadWays': len(source_by_id) if source else None,
@@ -195,12 +256,16 @@ def audit(graph, source, runtime=None):
                    'runtimeEdges': sum(bool(e.get('runtimeDirections')) for e in edges) if runtime else None,
                    'runtimeDirectedEdges': sum(len(e.get('runtimeDirections', [])) for e in edges) if runtime else None,
                    'junctionContinuationCandidates': len(candidates) if runtime else None,
+            'elevatedRoads': dict(Counter(row['status'] for row in elevated)) if runtime else None,
+            'crossWaterDeckCandidates': sum(row.get('candidate') == 'cross-water-deck' for row in elevated)
+            if runtime else None,
                    'endpoints': dict(Counter(row['reason'] for row in ends)),
                    'sourceGraphConnectivity': graph_components(len(node_ids), graph['links'])},
         'corridors': {name: {key: sorted(set(values)) for key, values in corridor.items()}
                       for name, corridor in corridors.items()},
         'runtimeStructureConflicts': runtime.get('legacyGradeConflicts', []) if runtime else [],
         'compiledStructures': compiled, 'junctionContinuationCandidates': candidates,
+        'elevatedRoads': elevated,
         'edges': edges, 'sourceNodes': connections, 'unconnectedCrossings': crossings, 'endpoints': ends,
         'turnRestrictions': graph.get('turnRestrictions', []),
         'snapshotStructureWaysOutsideGraph': [
@@ -216,10 +281,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--package', type=Path, default=ROOT / 'js/sz-city.json.gz')
     parser.add_argument('--osm-cache', type=Path)
-    parser.add_argument('--runtime', type=Path)
+    parser.add_argument('--runtime', type=Path, help='output of road-network-runtime.mjs for this package')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     packed = args.package.read_bytes()
+    digest = hashlib.sha256(packed).hexdigest()
     payload = json.loads(gzip.decompress(packed))
     source = None
     if args.osm_cache:
@@ -228,14 +294,16 @@ def main():
     runtime = None
     if args.runtime:
         runtime = json.loads(args.runtime.read_text())
+        if runtime.get('packageSha256') != digest:
+            parser.error('Runtime export must be generated from the same city package')
         directions = defaultdict(list)
         for index, direction in runtime['edges']:
             directions[index].append(direction)
         runtime['directions'] = directions
         runtime['movements'] = {(i, direction): {tuple(item) for item in next_edges}
                                 for i, direction, next_edges in runtime['movements']}
-    result = audit(payload['roadGraph'], source, runtime)
-    result['packageSha256'] = hashlib.sha256(packed).hexdigest()
+    result = audit(payload, source, runtime)
+    result['packageSha256'] = digest
     result['snapshotSha256'] = source['sourceSha256'] if source else None
     args.output.write_text(json.dumps(result, ensure_ascii=False, separators=(',', ':')) + '\n')
     print(json.dumps(result['counts'], ensure_ascii=False, indent=2))
