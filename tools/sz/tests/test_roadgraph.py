@@ -5,7 +5,7 @@ from pathlib import Path
 from shapely.geometry import LineString, box
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from geo import KX, KY, ORIGIN_LON, ORIGIN_LAT
-from roadgraph import build_roadgraph, graph_components
+from roadgraph import build_roadgraph, drive_rules, graph_components
 from roads import road_direction, build_roads
 from build import enc_ring
 from turn_restrictions import collect_turn_restrictions
@@ -75,6 +75,15 @@ class RoadGraphTests(unittest.TestCase):
         del rows[1]['nodeRefs']
         with self.assertRaisesRegex(ValueError, 'Missing OSM'):
             self.build(rows)
+
+    def test_navigation_rules_preserve_direction_and_vehicle_precedence(self):
+        self.assertEqual(drive_rules({
+            'access': 'private', 'motorcar': 'yes', 'taxi:backward': 'no',
+            'maxspeed': '50', 'maxspeed:forward': '20 mph', 'maxheight': '2.2 m',
+            'maxspeed:backward': 'signals',
+        }), {'closed': ['backward'], 'maxKph': {'both': 50, 'forward': 32.187}, 'maxheight': 2.2})
+        self.assertEqual(drive_rules({'oneway:conditional': 'yes @ (Mo-Fr)'}), {'closed': ['both']})
+        self.assertEqual(drive_rules({'motor_vehicle:forward:conditional': 'no @ (snow)'}), {'closed': ['forward']})
 
     def test_lollipop_road_keeps_its_internal_loop(self):
         graph, report = self.build([road('way/1', [1, 2, 3, 4, 5, 2],

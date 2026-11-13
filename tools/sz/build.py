@@ -27,7 +27,7 @@ from map_regions import build_map_regions
 from parks import build_parks
 from road_frontage import build_road_frontage
 from roads import CLASSES, build_roads
-from roadgraph import build_roadgraph
+from roadgraph import apply_drive_rules, build_roadgraph
 from sea_surface import build_sea_surface
 from shenzhen_bay import build_shenzhen_bay
 from shenzhen_golf import build_shenzhen_golf
@@ -509,6 +509,8 @@ def main():
                       help='refresh estimated building heights and retail use on the verified city package')
     mode.add_argument('--build-shenzhen-bay', action='store_true',
                       help='apply the reviewed Shenzhen Bay waterfront to an unmodified verified city package')
+    mode.add_argument('--rebuild-drive-rules', action='store_true',
+                      help='refresh navigation rules from the verified OSM snapshot without rebuilding geometry')
     mode.add_argument('--repack-existing', action='store_true',
                     help='validate the snapshot and repack SZC1; migrate legacy road preview out of both packages')
     mode.add_argument('--audit-road-preview', action='store_true',
@@ -541,14 +543,19 @@ def main():
         export_road_preview(not args.no_cache)
         return
 
-    if args.repack_existing or args.rebuild_map_regions or args.rebuild_air_cruises:
+    if args.rebuild_drive_rules or args.repack_existing or args.rebuild_map_regions or args.rebuild_air_cruises:
         started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
         sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
         report = json.loads(VALIDATION_REPORT.read_text())
         require_matching_snapshot(raw, report, sources)
-        if 'roads' in payload or args.rebuild_map_regions or args.rebuild_air_cruises:
+        if args.rebuild_drive_rules:
+            report = json.loads(REPORT.read_text())
+            osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
+            apply_drive_rules(ROOT / osm_source['file'], payload['roadGraph'], report)
+            write_city_packages(payload, report, sources, started, refresh_regions=False)
+        elif 'roads' in payload or args.rebuild_map_regions or args.rebuild_air_cruises:
             write_city_packages(payload, json.loads(REPORT.read_text()), sources, started)
         else:
             print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
@@ -641,6 +648,7 @@ def main():
     sea_surface = build_sea_surface(osm, envelope, land, terrain, report)
     road_graph = build_roadgraph(osm, clip, report)
     apply_beihuan_sections(road_graph, report)
+    apply_drive_rules(pbf, road_graph, report)
     road_graph['turnRestrictions'] = build_turn_restrictions(pbf, road_graph, report)
     sites = build_landmark_sites(landmark_manifest, report, pbf=pbf, area_entries=osm['buildings'])
     # 春茧两座封闭厅是已核实的地面裁除区：派生路面不得改写馆内格点，先按原始 DSM 求出并复用。

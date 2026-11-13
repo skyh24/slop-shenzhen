@@ -382,7 +382,8 @@ async function initApp() {
   ];
   const nearRoadUsers = (x, z, radius) => [...traffic.nearColliders(x, z, radius), ...nearPedestrians(x, z, radius)];
   controllerManager.nearPedestrians = nearPedestrians;
-  const autoDrive = createAutoDrive({ ...driveOptions, nearTraffic: nearRoadUsers });
+  const autoDrive = createAutoDrive({ ...driveOptions, nearTraffic: nearRoadUsers,
+    replan: (...args) => drivePlanner().replan(...args) });
   const laneAssist = createLaneAssist({ ...driveOptions, network: traffic.network,
     isClear: pose => controllerManager.isClearCarPose(pose), nearTraffic: nearRoadUsers });
   let planner = null;
@@ -707,18 +708,32 @@ async function initApp() {
     };
   }
 
-  function goToDriveStart(route) {
-    if (!route || cruise.active || droneWatch?.active || autoDrive.active) return false;
-    const { x, z, dx, dz } = route.from;
+  function prepareDriveStart(route) {
+    if (cruise.active || droneWatch.active) return null;
+    if (controllerManager.activeMode === 'car') {
+      if (autoDrive.canStart(route, driveCar, 'car')) {
+        return controllerManager.isClearCarPose({ ...driveCar.position, heading: driveCar.heading, edge: route.from.edge }, true)
+          ? 'car' : 'occupied';
+      }
+      if (Math.abs(driveCar.speed) > 0.3) return null;
+    }
+    const { x, z, dx, dz, edge } = route.from;
     const heading = Math.atan2(dx, dz);
-    const destination = controllerManager.findTeleportPosition(x, z, heading, 0, true, null, { exact: true, mode: 'car' });
-    if (!destination || !selectMode('car', destination)) return false;
-    controllerManager.resetInput();
-    touchControls.reset();
-    gamepadControls.reset();
+    const destination = controllerManager.findTeleportPosition(x, z, heading, 0, true, null,
+      { exact: true, mode: 'car', surfaceId: edge?.surfaceId ?? 'terrain' });
+    if (!destination) return 'occupied';
+    if (!selectMode('car', destination)) return null;
+    cameraSystem.resetForTeleport();
+    return 'car';
+  }
+
+  function startMapDrive(route) {
+    if (!route || cruise.active || droneWatch.active || autoDrive.active) return false;
+    if (controllerManager.activeMode === 'car' && Math.abs(driveCar.speed) > 0.3) return false;
+    resetTravelInput();
     cameraSystem.resetForTeleport();
     selectCamera('chase', true);
-    return true;
+    return autoDrive.queue(route, prepareDriveStart);
   }
   const mapSystem = new SZMapSystem({
     controllerManager,
@@ -735,14 +750,20 @@ async function initApp() {
     onTeleport: (...args) => !cruise.active && !droneWatch.active && teleportFromMap(...args),
     drones: droneWatch.map,
     drive: {
-      snap: (x, z) => cruise.active ? null : drivePlanner().snap(x, z),
+      snap: (x, z, start) => cruise.active ? null : drivePlanner().snap(x, z, {
+        car: start && controllerManager.activeMode === 'car' ? driveCar : null
+      }),
       route: (start, end) => drivePlanner().route(start, end),
-      goToStart: goToDriveStart,
-      canStart: route => !cruise.active && !droneWatch.active && autoDrive.canStart(route, driveCar, controllerManager.activeMode),
-      start: route => !cruise.active && !droneWatch.active && autoDrive.start(route, driveCar, controllerManager.activeMode),
+      canStart: route => !cruise.active && !droneWatch.active && (controllerManager.activeMode !== 'car'
+        || Math.abs(driveCar.speed) <= 0.3),
+      start: startMapDrive,
+      pause: autoDrive.pause,
+      resume: autoDrive.resume,
       stop: autoDrive.stop,
       get active() { return autoDrive.active; },
-      get status() { return autoDrive.status; }
+      get status() { return autoDrive.status; },
+      get progress() { return autoDrive.progress; },
+      get activeRoute() { return autoDrive.route; }
     }
   });
   wireMetroMenu(mapSystem, GEO.metro?.lines ?? []);

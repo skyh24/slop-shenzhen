@@ -675,6 +675,18 @@ export function validateCityPayload(raw) {
       && typeof road.bridge === 'boolean' && typeof road.tunnel === 'boolean'
       && typeof road.heightSource === 'string' && road.heightSource.length > 0
       && typeof road.widthSource === 'string' && road.widthSource.length > 0, `road metadata: ${index}`);
+    if (road.drive !== undefined) {
+      const drive = road.drive;
+      const directions = ['both', 'forward', 'backward'];
+      const positive = value => Number.isFinite(value) && value > 0;
+      requireData(drive && typeof drive === 'object' && !Array.isArray(drive)
+        && Object.keys(drive).every(key => ['closed', 'maxKph', 'maxheight', 'maxwidth', 'maxlength', 'maxweight'].includes(key))
+        && (drive.closed === undefined || (Array.isArray(drive.closed) && drive.closed.every(key => directions.includes(key))))
+        && (drive.maxKph === undefined || (drive.maxKph && !Array.isArray(drive.maxKph) && typeof drive.maxKph === 'object'
+          && Object.entries(drive.maxKph).every(([key, value]) => directions.includes(key) && positive(value))))
+        && ['maxheight', 'maxwidth', 'maxlength', 'maxweight'].every(key => drive[key] === undefined || positive(drive[key])),
+      `road drive rules: ${index}`);
+    }
     roadEdges.push(`${road.osmId}:${graph.nodeIds[a]}:${graph.nodeIds[b]}`);
     if (road?.crossSection !== undefined) {
       const section = road.crossSection;

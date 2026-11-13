@@ -513,6 +513,9 @@
     </div>
     <div id="drive-hud" class="panel drive-hud" hidden>
       <span id="drive-hud-status" role="status"></span>
+      <span id="drive-hud-progress" hidden></span>
+      <button id="drive-hud-pause" class="tool-btn" type="button" data-text="drive.pause"></button>
+      <button id="drive-hud-resume" class="tool-btn" type="button" data-text="drive.resume" hidden></button>
       <button id="drive-hud-stop" class="tool-btn" type="button" data-text="drive.stop"></button>
     </div>
     <p id="assist-status" class="panel mode-feedback" role="status" hidden></p>
@@ -714,9 +717,13 @@
     <section id="map-drive-panel" class="panel map-drive-panel" data-label="drive.plan" hidden>
       <strong data-text="drive.plan"></strong>
       <p id="map-drive-status" role="status"></p>
+      <p id="map-drive-progress" hidden></p>
+      <div id="map-drive-levels" class="map-drive-actions" role="group" data-label="drive.chooseLayer" hidden></div>
       <div class="map-drive-actions">
         <button id="map-drive-clear" class="tool-btn" type="button" data-text="drive.clear"></button>
-        <button id="map-drive-to-start" class="tool-btn" type="button" data-text="drive.toStart" hidden></button>
+        <button id="map-drive-repick-end" class="tool-btn" type="button" data-text="drive.repickEnd" hidden></button>
+        <button id="map-drive-pause" class="tool-btn" type="button" data-text="drive.pause" hidden></button>
+        <button id="map-drive-resume" class="tool-btn" type="button" data-text="drive.resume" hidden></button>
         <button id="map-drive-start" class="tool-btn" type="button" data-text="drive.start" hidden></button>
         <button id="map-drive-stop" class="tool-btn" type="button" data-text="drive.stop" hidden></button>
       </div>

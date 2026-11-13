@@ -317,8 +317,6 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
   const half = Math.max(0.7, Math.min(1.4, width * 0.08));
   const geometry = [];
   const topTriangles = [];
-  const pierRecords = [];
-  const pierColliders = [];
   const surfaceId = `sz-elevated-road:${index}`;
   const osmId = metadata.osmId ?? null;
   let areaM2 = 0;
@@ -374,34 +372,6 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
   pushEndCap(geometry, firstLeft, firstRight, first.y - GIRDER_DEPTH_M, false);
   pushEndCap(geometry, lastLeft, lastRight, last.y - GIRDER_DEPTH_M, true);
 
-  for (const station of pierSpacing({ frames, lengthM: length })) {
-    const terrainY = groundHeight(station.x, station.z);
-    if (!Number.isFinite(terrainY)) continue;
-    const clearance = station.y - terrainY;
-    if (clearance <= PIER_MIN_CLEARANCE_M) continue;
-    const topY = station.y - GIRDER_DEPTH_M;
-    if (topY - terrainY <= 0.2) continue;
-    const pier = { x: station.x, z: station.z, baseY: terrainY, topY, half };
-    pierRecords.push(pier);
-    pushPier(geometry, pier);
-    // 桥墩接触体和可见墩身同一尺寸，minY 从地面起，只挡桥墩本身。
-    pierColliders.push({
-      type: 'elevated-pier',
-      name: `${surfaceId}:pier:${pierRecords.length}`,
-      sourceId: osmId,
-      minX: pier.x - half,
-      maxX: pier.x + half,
-      minZ: pier.z - half,
-      maxZ: pier.z + half,
-      minY: terrainY,
-      maxY: topY,
-      polygon: {
-        outer: [{ x: pier.x - half, z: pier.z - half }, { x: pier.x + half, z: pier.z - half },
-          { x: pier.x + half, z: pier.z + half }, { x: pier.x - half, z: pier.z + half }],
-        holes: []
-      }
-    });
-  }
 
   return {
     index,
@@ -430,8 +400,8 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes) {
     frames,
     geometry,
     topTriangles,
-    piers: pierRecords,
-    pierColliders,
+    piers: [],
+    pierColliders: [],
     surfaceId
   };
 }
@@ -458,6 +428,53 @@ function reviewedJunctionNeighbors(graph, driveLinks) {
     }
   }
   return neighbors;
+}
+
+function addPiers(record, groundHeight, neighbors = []) {
+  const { frames, geometry, osmId, surfaceId, piers, pierColliders, width } = record;
+  const half = Math.max(0.7, Math.min(1.4, width * 0.08));
+  const adjacent = [...neighbors].map(road => ({ id: road.surfaceId, triangles: road.topTriangles }));
+  const heightAt = adjacent.length ? createSurfaceHeightAt(adjacent) : null;
+  function overlapsNeighbor(frame) {
+    const clearance = half + 0.25;
+    return [-clearance, 0, clearance].some(dx => [-clearance, 0, clearance].some(dz =>
+      adjacent.some(({ id }) => {
+        const deck = heightAt(frame.x + dx, frame.z + dz, id);
+        return deck !== null && deck < frame.y - GIRDER_DEPTH_M + JUNCTION_BARRIER_CLEARANCE_M;
+      })));
+  }
+  for (const planned of pierSpacing(record)) {
+    // 分岔内两条派生桥面仍有重叠。只在原桥纵线上顺移估算桥墩，避开同节点支道的铺装和车身净空。
+    const station = frames.find(frame => frame.d >= planned.d && frame.d <= planned.d + 24
+      && frame.d <= record.lengthM - 2 && !overlapsNeighbor(frame));
+    if (!station) continue;
+    const terrainY = groundHeight(station.x, station.z);
+    if (!Number.isFinite(terrainY)) continue;
+    const clearance = station.y - terrainY;
+    if (clearance <= PIER_MIN_CLEARANCE_M) continue;
+    const topY = station.y - GIRDER_DEPTH_M;
+    if (topY - terrainY <= 0.2) continue;
+    const pier = { x: station.x, z: station.z, baseY: terrainY, topY, half };
+    piers.push(pier);
+    pushPier(geometry, pier);
+    // 桥墩接触体和可见墩身同一尺寸，minY 从地面起，只挡桥墩本身。
+    pierColliders.push({
+      type: 'elevated-pier',
+      name: `${surfaceId}:pier:${piers.length}`,
+      sourceId: osmId,
+      minX: pier.x - half,
+      maxX: pier.x + half,
+      minZ: pier.z - half,
+      maxZ: pier.z + half,
+      minY: terrainY,
+      maxY: topY,
+      polygon: {
+        outer: [{ x: pier.x - half, z: pier.z - half }, { x: pier.x + half, z: pier.z - half },
+          { x: pier.x + half, z: pier.z + half }, { x: pier.x - half, z: pier.z + half }],
+        holes: []
+      }
+    });
+  }
 }
 
 function addBarriers(record, groundHeight, neighbors = []) {
@@ -757,7 +774,11 @@ export function planElevatedRoads(graph, terrainSurface, options) {
   const driveLinks = records.filter(record => !record.tunnel && record.layer > 0
     && record.maxGrade <= ELEVATED_DRIVE_MAX_GRADE);
   const junctionNeighbors = reviewedJunctionNeighbors(graph, driveLinks);
-  for (const record of records) addBarriers(record, groundHeight, junctionNeighbors.get(record));
+  for (const record of records) {
+    const neighbors = junctionNeighbors.get(record);
+    addPiers(record, groundHeight, neighbors);
+    addBarriers(record, groundHeight, neighbors);
+  }
   const driveByStart = new Map();
   for (const record of driveLinks) {
     if (!driveByStart.has(record.startNode)) driveByStart.set(record.startNode, []);

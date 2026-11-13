@@ -106,10 +106,12 @@ test('starting is explicit and signal occupancy survives manual takeover inside 
   const narrowGap = createDrivePlanner(traffic.createTrafficGraph(graph), graph, { model, control, roadHeight,
     isClear: pose => pose.x <= 4.3 || pose.x >= 4.52 });
   assert.equal(narrowGap.route(narrowGap.snap(-22, 0), narrowGap.snap(54, 0)), null);
-  assert.equal(planner.snap(10, 0), null, 'this approach has no nearby validated arrival outside the conflict rectangle');
+  const shifted = planner.snap(10, 0);
+  assert.ok(shifted && !control.contains(shifted.x, shifted.z, Math.hypot(model.hx, model.hz) + 0.35));
+  assert.ok(Math.abs(shifted.x - 10) > 12, 'the parking target is outside the signal conflict area');
   const trafficBodies = [];
   const auto = createAutoDrive({ model, control, roadHeight, nearTraffic: () => trafficBodies });
-  const car = { position: { x: -25, z: 0, y: 2 }, heading: Math.PI / 2, speed: 0 };
+  const car = { position: { x: -25, z: route.from.z, y: 2 }, heading: Math.PI / 2, speed: 0 };
   assert.equal(auto.start(route, car, 'car'), false);
   assert.equal(car.position.x, -25);
   car.position.x = route.from.x;
@@ -123,21 +125,21 @@ test('starting is explicit and signal occupancy survives manual takeover inside 
     assert.ok(tick(4));
   }
   const red = tick(4);
-  assert.equal(red.permitMove(-2, 0, car.heading), false);
+  assert.equal(red.permitMove(-2, route.from.z, car.heading), false);
   assert.equal(auto.status, 'signal');
   const occupied = tick(8);
-  assert.equal(occupied.permitMove(-2, 0, car.heading), false);
+  assert.equal(occupied.permitMove(-2, route.from.z, car.heading), false);
   assert.equal(auto.status, 'intersection');
   control.release(approach, 'traffic-ahead');
-  trafficBodies.push({ x: 22, z: 0, sin: 1, cos: 0, halfW: 1.2, halfL: 3.1, minY: 2, maxY: 4 });
-  assert.equal(tick(8).permitMove(-2, 0, car.heading), false, 'a stopped vehicle blocks an otherwise open green exit');
+  trafficBodies.push({ x: 22, z: route.from.z, sin: 1, cos: 0, halfW: 1.2, halfL: 3.1, minY: 2, maxY: 4 });
+  assert.equal(tick(8).permitMove(-2, route.from.z, car.heading), false, 'a stopped vehicle blocks an otherwise open green exit');
   trafficBodies.length = 0;
   const green = tick(8);
-  trafficBodies.push({ x: -2, z: 1.9, sin: 1, cos: 0, halfW: 1.2, halfL: 2.4, minY: 2, maxY: 4 });
-  assert.equal(green.permitMove(-2, 0, car.heading), false, 'candidate contact is checked before reserving the intersection');
+  trafficBodies.push({ x: -2, z: route.from.z + 1.9, sin: 1, cos: 0, halfW: 1.2, halfL: 2.4, minY: 2, maxY: 4 });
+  assert.equal(green.permitMove(-2, route.from.z, car.heading), false, 'candidate contact is checked before reserving the intersection');
   assert.equal(auto.statistics.signalEntries, 0);
   trafficBodies.length = 0;
-  assert.equal(green.permitMove(-2, 0, car.heading), true);
+  assert.equal(green.permitMove(-2, route.from.z, car.heading), true);
   car.position.x = 6;
   assert.equal(tick(8.5, true), null);
   assert.equal(auto.status, 'manual');
@@ -182,6 +184,26 @@ test('a North Ring vehicle contact outside route lookahead waits and clears with
   assert.equal(auto.active, true);
 });
 
+function playerCarFixture(groundHeight, { surfaces = [], colliders = [], carBounds = bounds } = {}) {
+  const { ThirdPersonControllerManager } = load('controllers.js', { 'three/webgpu': {}, './sz-city-config.js': {
+    ISLAND_BOUNDS: { minX: -16000, minZ: -16000, maxX: 16000, maxZ: 16000 }
+  }, './sz-controller-surfaces.js': surface, './sz-park-arrivals.js': {}, './sz-strings.js': {}, './city-lighting-materials.js': {},
+  './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } }, './pedestrians.js': {},
+  './vehicle-lights.js': {}, './building-collision.js': collision, ...driving });
+  const car = { type: 'car', collisionBounds: carBounds, chassisPivot: { rotation: { x: 0, z: 0 }, position: { y: 0 } }, wheels: [],
+    position: {}, speed: 0, vx: 0, vz: 0, angularVel: 0, pitchVel: 0, rollVel: 0, heaveY: 0, heaveVel: 0, steerAngle: 0, wheelSpin: 0 };
+  const controller = Object.assign(Object.create(ThirdPersonControllerManager.prototype), { entities: { car }, activeMode: 'car', keys: {},
+    groundHeight, surfaceResolver: surface.createSurfaceResolver({ groundHeight, surfaces }), colliders });
+  return { controller, car };
+}
+
+function placeAtStart(car, route, roadHeight) {
+  const { x, z, dx, dz, edge } = route.from;
+  const y = roadHeight(x, z, edge);
+  Object.assign(car, { position: { x, y, z }, heading: Math.atan2(dx, dz), _safePosition: { x, y, z },
+    _support: { height: y, surfaceId: edge?.surfaceId ?? 'terrain' } });
+}
+
 test('the player car uses existing physics on the sourced eastbound Shennan signal approach', () => {
   const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
   const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
@@ -191,22 +213,12 @@ test('the player car uses existing physics on the sourced eastbound Shennan sign
   const { chunks } = roads.createRoadSurfaceLayout(geo.roadGraph, geo.terrainSurface);
   const roadHeight = roads.createRoadHeightSampler(chunks, geo.terrainSurface.grid);
   const groundHeight = load('sz-ground-surface.js').createGroundSurfaceSampler(geo.terrainSurface);
-  const { ThirdPersonControllerManager } = load('controllers.js', { 'three/webgpu': {}, './sz-city-config.js': {
-    ISLAND_BOUNDS: { minX: geo.bounds[0], minZ: geo.bounds[1], maxX: geo.bounds[2], maxZ: geo.bounds[3] }
-  }, './sz-controller-surfaces.js': surface, './sz-park-arrivals.js': {}, './sz-strings.js': {}, './city-lighting-materials.js': {},
-  './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } }, './pedestrians.js': {},
-  './vehicle-lights.js': {}, './building-collision.js': collision, ...driving });
-  const car = { type: 'car', collisionBounds: bounds, chassisPivot: { rotation: { x: 0, z: 0 }, position: { y: 0 } }, wheels: [],
-    position: {}, speed: 0, vx: 0, vz: 0, angularVel: 0, pitchVel: 0, rollVel: 0, heaveY: 0, heaveVel: 0, steerAngle: 0, wheelSpin: 0 };
-  const controller = Object.assign(Object.create(ThirdPersonControllerManager.prototype), { entities: { car }, activeMode: 'car', keys: {},
-    groundHeight, surfaceResolver: surface.createSurfaceResolver({ groundHeight }), colliders: [] });
+  const { controller, car } = playerCarFixture(groundHeight);
   const planner = createDrivePlanner(traffic.createTrafficGraph(geo.roadGraph), geo.roadGraph, { model, roadHeight, control,
     detailedRoadIds: geo.roadFrontage.corridors.flatMap(corridor => corridor.roadIds), isClear: p => controller.isClearCarPose(p) });
   const route = planner.route(planner.snap(-5423, 1183), planner.snap(-5150, 1132));
   assert.deepEqual(Array.from(route.stops, stop => stop.approach.osmNodeId), [8894987731]);
-  const { x, z, dx, dz } = route.from;
-  const y = groundHeight(x, z);
-  Object.assign(car, { position: { x, y, z }, heading: Math.atan2(dx, dz), _safePosition: { x, y, z }, _support: { height: y, surfaceId: 'terrain' } });
+  placeAtStart(car, route, roadHeight);
   const auto = createAutoDrive({ model, roadHeight, control });
   assert.equal(auto.start(route, car, 'car'), true);
   for (let frame = 0; frame < 3000 && auto.active; frame++) {
@@ -355,4 +367,143 @@ test('hasRoadFootprint forwards the edge identity to every height query', () => 
   assert.equal(hasRoadFootprint((x, z, edge) => edge === null ? 3 : null, model, 0, 0, 0), true, '省略边时按 null 查询地面');
   assert.equal(hasRoadFootprint((x, z, edge) => edge?.surfaceId ? 20 : null, model, 0, 0, 0), false);
   assert.equal(hasRoadFootprint((x, z, edge) => edge?.surfaceId ? 20 : null, model, 0, 0, 0, deck), true);
+});
+
+
+test('directed same-edge routes, source access and posted speeds preserve legal lane stations', () => {
+  const graph = { nodes: [0, 0, 640, 0, 0, 100, 640, 100, 0, 210, 640, 210],
+    nodeIds: [], names: ['Road'], links: [[0, 1, 0, 10, 2, 1, []], [2, 3, 0, 10, 2, 0, []], [4, 5, 0, 10, 2, 1, []]],
+    metadata: [{ ...groundRoad(1), highway: 'trunk', drive: { maxKph: { forward: 30 } } },
+      { ...groundRoad(2), drive: { closed: ['backward'] } }, { ...groundRoad(3), drive: { maxheight: 1.7 } }] };
+  const roadHeight = (x, z) => x >= 0 && x <= 640 && [0, 100, 210].some(c => Math.abs(z - c) <= 5) ? 8 : null;
+  const planner = createDrivePlanner(traffic.createTrafficGraph(graph), graph, { model, roadHeight, isClear: () => true });
+  const from = planner.snap(20, 1), to = planner.snap(510, 1);
+  const route = planner.route(from, to);
+  assert.ok(route);
+  assert.equal(route.length, 490);
+  assert.equal(route.from.x, 20);
+  assert.equal(route.to.x, 510);
+  assert.ok(Math.max(...route.limits) <= 30 / 3.6);
+  assert.ok(route.seconds >= route.length / (30 / 3.6));
+  assert.equal(planner.route(to, from), null);
+  assert.equal(planner.route(planner.snap(500, 100), planner.snap(20, 100)), null);
+  assert.equal(planner.snap(20, 210), null);
+  assert.equal(planner.snap(20, 380), null);
+  assert.equal(planner.route(from, planner.snap(500, 100)), null);
+});
+
+test('automatic driving cruises at 80 km/h at 30, 60 and 120 Hz, and parks at the same lane station', t => {
+  const graph = { nodes: [0, 0, 900, 0], nodeIds: [], names: ['Trunk'], links: [[0, 1, 0, 10, 2, 1, []]],
+    metadata: [{ ...groundRoad(1), highway: 'trunk' }] };
+  const groundHeight = () => 8;
+  const roadHeight = (x, z) => x >= 0 && x <= 900 && Math.abs(z) <= 5 ? 8 : null;
+  const planner = createDrivePlanner(traffic.createTrafficGraph(graph), graph, { model, roadHeight, isClear: () => true });
+  const route = planner.route(planner.snap(20, 0), planner.snap(820, 0));
+  const durations = [];
+  for (const hz of [30, 60, 120]) {
+    const { controller, car } = playerCarFixture(groundHeight);
+    placeAtStart(car, route, roadHeight);
+    const auto = createAutoDrive({ model, roadHeight });
+    assert.equal(auto.start(route, car, 'car'), true);
+    let elapsed = 0, first, last;
+    const dt = 1 / hz;
+    for (; elapsed < 65 && auto.active; elapsed += dt) {
+      const input = auto.update(car, { dt, elapsed, mode: 'car', manual: false });
+      if (input) controller.updateCar(dt, input);
+      if (!first && car.position.x >= 200) first = { x: car.position.x, elapsed };
+      if (!last && car.position.x >= 600) last = { x: car.position.x, elapsed };
+    }
+    assert.equal(auto.status, 'arrived');
+    const speedKph = (last.x - first.x) / (last.elapsed - first.elapsed) * 3.6;
+    assert.ok(Math.abs(speedKph - 80) < 0.15);
+    assert.ok(Math.abs(car.position.x - route.to.x) < 0.7 && Math.abs(car.speed) < 0.05);
+    durations.push(elapsed);
+    t.diagnostic(`${hz} Hz: ${(last.x - first.x).toFixed(2)} m / ${(last.elapsed - first.elapsed).toFixed(3)} s = ${speedKph.toFixed(3)} km/h; parked after ${elapsed.toFixed(3)} s`);
+  }
+  assert.ok(Math.max(...durations) - Math.min(...durations) < 0.1);
+});
+
+test('an occupied departure queues once, pauses to a stop, and resumes without resetting position', () => {
+  const graph = { nodes: [0, 0, 450, 0], nodeIds: [], names: ['Trunk'], links: [[0, 1, 0, 10, 2, 1, []]],
+    metadata: [{ ...groundRoad(1), highway: 'trunk' }] };
+  const groundHeight = () => 8;
+  const planner = createDrivePlanner(traffic.createTrafficGraph(graph), graph, { model, roadHeight: groundHeight, isClear: () => true });
+  const route = planner.route(planner.snap(20, 0), planner.snap(410, 0));
+  const { controller, car } = playerCarFixture(groundHeight);
+  const auto = createAutoDrive({ model, roadHeight: groundHeight });
+  let attempts = 0, elapsed = 0;
+  const prepare = () => {
+    if (++attempts === 1) return 'occupied';
+    placeAtStart(car, route, groundHeight);
+    return 'car';
+  };
+  assert.equal(auto.queue(route, prepare), true);
+  assert.equal(auto.queue(route, prepare), false);
+  const tick = (mode = 'car') => {
+    const dt = 1 / 60;
+    const input = auto.update(car, { dt, elapsed: elapsed += dt, mode, manual: false });
+    if (input) controller.updateCar(dt, input);
+  };
+  tick('person');
+  assert.equal(auto.status, 'occupied');
+  for (let i = 0; i < 120; i++) tick();
+  assert.equal(attempts, 2);
+  assert.equal(auto.status, 'driving');
+  auto.pause();
+  for (let i = 0; i < 420; i++) tick();
+  assert.equal(auto.status, 'paused');
+  assert.equal(car.speed, 0);
+  const stopped = car.position.x;
+  for (let i = 0; i < 30; i++) tick();
+  assert.equal(car.position.x, stopped);
+  auto.resume();
+  for (let i = 0; i < 60; i++) tick();
+  assert.ok(car.position.x > stopped);
+  const { x } = car.position;
+  auto.stop('cancelled');
+  assert.equal(auto.status, 'cancelled');
+  assert.equal(car.position.x, x);
+});
+
+test('the player controller drives from ground through the sourced Chegongmiao deck and returns to ground', t => {
+  const { geo } = load('sz-data-format.js').decodeCityPayload(JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz')))));
+  const graph = geo.roadGraph;
+  const groundSurface = load('sz-ground-surface.js');
+  const plan = load('sz-elevated-roads.js', { 'three/webgpu': {}, 'three/tsl': {}, './sz-roads.js': roads,
+    './sz-ground-surface.js': groundSurface, './sz-controller-surfaces.js': surface }).planElevatedRoads(graph, geo.terrainSurface);
+  const area = graph.links.flatMap((link, i) => roads.roadLinkPoints(graph, link)
+    .some(p => p.x > -3500 && p.x < -3000 && p.z > 500 && p.z < 1200) ? [i] : []);
+  const layout = roads.createRoadSurfaceLayout({ ...graph, links: area.map(i => graph.links[i]), metadata: area.map(i => graph.metadata[i]) },
+    geo.terrainSurface);
+  const pavement = roads.createRoadHeightSampler(layout.chunks, geo.terrainSurface.grid);
+  const groundHeight = groundSurface.createGroundSurfaceSampler(geo.terrainSurface);
+  const deckHeight = surface.createSurfaceHeightAt(plan.surfaces);
+  const roadHeight = (x, z, edge) => edge?.surfaceId ? deckHeight(x, z, edge.surfaceId) : pavement(x, z);
+  const carBounds = { min: { x: -1.11500001, y: 0, z: -2.36949992 }, max: { x: 1.11500001, y: 1.80900002, z: 2.37986207 } };
+  const bridgeModel = traffic.trafficModelBounds(carBounds, { wheelbase: 2.8, track: 1.54 });
+  const { controller, car } = playerCarFixture(groundHeight, { surfaces: plan.surfaces, colliders: plan.colliders, carBounds });
+  const control = signalApi.createIntersectionControl(geo.roadFrontage, graph);
+  const network = traffic.createTrafficGraph(graph, { elevated: { links: plan.driveLinks } });
+  const planner = createDrivePlanner(network, graph, { model: bridgeModel, roadHeight, control, isClear: pose => controller.isClearCarPose(pose) });
+  const start = planner.snap(-3311.9624, 730.481), end = planner.snap(-3179.0028, 975.6674);
+  const route = planner.route(start.levels.find(l => l.level === 'ground'), end.levels.find(l => l.level === 'ground'));
+  assert.ok(route?.surfaces.length, 'route traverses the existing elevated surfaces');
+  placeAtStart(car, route, roadHeight);
+  const auto = createAutoDrive({ model: bridgeModel, roadHeight, control });
+  assert.equal(auto.start(route, car, 'car'), true);
+  const visited = new Set([car._support.surfaceId]);
+  let elapsed = 0;
+  for (; elapsed < 120 && auto.active; elapsed += 1 / 60) {
+    const input = auto.update(car, { dt: 1 / 60, elapsed, mode: 'car', manual: false });
+    if (input) controller.updateCar(1 / 60, input);
+    visited.add(car._support.surfaceId);
+    assert.ok(hasRoadFootprint(roadHeight, bridgeModel, car.position.x, car.position.z, car.heading,
+      route.edges, car.position.y), `unsupported car at ${car.position.x},${car.position.z}`);
+    if (car._support.surfaceId !== 'terrain') assert.ok(Math.abs(deckHeight(car.position.x, car.position.z, car._support.surfaceId) - car.position.y) < 0.02);
+  }
+  assert.equal(auto.status, 'arrived', JSON.stringify({ elapsed, progress: auto.progress, position: car.position, surfaces: [...visited] }));
+  assert.deepEqual([...visited], ['terrain', ...route.surfaces]);
+  assert.equal(car._support.surfaceId, 'terrain');
+  assert.ok(Math.hypot(car.position.x - route.to.x, car.position.z - route.to.z) < 0.7);
+  t.diagnostic(`${route.length.toFixed(2)} m / ${elapsed.toFixed(2)} s, terrain → ${route.surfaces.join(' → ')} → terrain`);
 });

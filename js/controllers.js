@@ -32,7 +32,7 @@ const BICYCLE_DRIVE = {
   powerSpeed: 10.5, // Above 38 km/h, rider power limits acceleration.
   rolling: 0.1, drag: 0.004, coast: 0.45, brake: 10.5
 };
-const CAR_AUTO_DRIVE = { ...CAR_DRIVE, speed: 36, forwardAcceleration: null };
+const CAR_AUTO_DRIVE = { ...CAR_DRIVE, forwardAcceleration: null };
 // 2026-11-11 用户指定升降上限 20 m/s、2 秒加速到位，因此垂直加速度取 10 m/s²。
 const EVTOL_DRIVE = {
   speed: 600 / 3.6, reverseSpeed: 400 / 3.6, reverseAcceleration: 400 / 3.6 / 4, braking: 24,
@@ -632,7 +632,7 @@ class ThirdPersonControllerManager {
 
   // Find a fully clear arrival before moving the player. Sequential collision pushes can leave a player trapped
   // between overlapping buildings, so test whole candidate footprints instead; retain the old position if none fits.
-  findTeleportPosition(x, z, heading, altitude, requireArrival = false, park = null, { exact = false, mode = this.activeMode } = {}) {
+  findTeleportPosition(x, z, heading, altitude, requireArrival = false, park = null, { exact = false, mode = this.activeMode, surfaceId = null } = {}) {
     if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
     const heli = mode === 'helicopter';
     const radius = heli ? 4.5 : mode === 'person' ? 0.48 : 0.65;
@@ -648,7 +648,7 @@ class ThirdPersonControllerManager {
       const shape = requireArrival && !heli && Number.isFinite(p.heading)
         ? collisionBody(mode, radius, p.heading, 0.1, entity.collisionBounds)
         : requestedShape;
-      const support = heli ? null : this.supportedFootprint(p.x, p.z, shape, null);
+      const support = heli ? null : this.supportedFootprint(p.x, p.z, shape, null, false, surfaceId);
       let baseY = heli ? altitude : support?.height;
       if (requireArrival && heli) {
         const hx = shape.car ? shape.hx : shape.radius;
@@ -892,11 +892,13 @@ class ThirdPersonControllerManager {
     })?.height ?? null;
   }
 
-  supportedFootprint(x, z, body, entity, landingOnRoad = false) {
+  supportedFootprint(x, z, body, entity, landingOnRoad = false, surfaceId = null) {
     if (this.groundAccess && !this.groundAccess(body.mode, x, z)) return null;
     const previous = entity?._support;
     const options = { previousY: previous?.height ?? null, previousSurfaceId: previous?.surfaceId ?? null };
-    const center = this.surfaceResolver.resolve(x, z, options);
+    const resolve = surfaceId === null ? (px, pz) => this.surfaceResolver.resolve(px, pz, options)
+      : (px, pz) => this.surfaceResolver.at(px, pz).find(surface => surface.surfaceId === surfaceId);
+    const center = resolve(x, z);
     if (!center || (landingOnRoad && !this.isRoadContact(x, z, center.height))) return null;
     const halfX = body.car ? body.hx : body.extX, halfZ = body.car ? body.hz : body.extZ;
     const sin = body.car ? body.sin : 0, cos = body.car ? body.cos : 1;
@@ -908,7 +910,7 @@ class ThirdPersonControllerManager {
         const offsetX = dx * scale, offsetZ = dz * scale;
         const sampleX = x + offsetX * cos + offsetZ * sin;
         const sampleZ = z - offsetX * sin + offsetZ * cos;
-        const support = this.surfaceResolver.resolve(sampleX, sampleZ, options);
+        const support = resolve(sampleX, sampleZ);
         if (!support) return null;
         const maxRise = landingOnRoad ? Math.hypot(offsetX, offsetZ) * FLIGHT_LANDING_MAX_GRADE : 1.5;
         if (Math.abs(support.height - center.height) > maxRise) return null;
@@ -971,12 +973,15 @@ class ThirdPersonControllerManager {
       || (mode === 'person' && (this.nearWalkers?.(x, z, reach + 0.5) ?? []).some(touching));
   }
 
-  isClearCarPose({ x, y, z, heading }) {
+  isClearCarPose({ x, y, z, heading, edge }, includeMoving = false) {
+    if (this.groundAccess && !this.groundAccess('car', x, z)) return false;
     const body = collisionBody('car', 1.35, heading, 0.05, this.entities.car.collisionBounds);
-    const support = this.supportedFootprint(x, z, body, null);
-    return Boolean(support && Math.abs(support.height - y) <= 0.26
-      && !this.nearColliders(x, z, Math.max(body.extX, body.extZ), false)
-        .some(c => buildingContact(c, x, support.height, z, body)));
+    // 规划已按路线身份验证跨缝轮胎；静态净空按该处车身实际高度检测。
+    const support = edge ? { height: y } : this.supportedFootprint(x, z, body, null);
+    if (!Number.isFinite(y) || !support || Math.abs(support.height - y) > 0.26) return false;
+    return includeMoving ? !this.arrivalBlocked('car', x, support.height, z, body)
+      : !this.nearColliders(x, z, Math.max(body.extX, body.extZ), false)
+        .some(c => buildingContact(c, x, support.height, z, body));
   }
 
   personStep(pos, body, entity, near) {
@@ -995,7 +1000,7 @@ class ThirdPersonControllerManager {
     return step;
   }
 
-  resolveHorizontalCollision(pos, radius, carEntity = null, entity = carEntity) {
+  resolveHorizontalCollision(pos, radius, carEntity = null, entity = carEntity, avoidContact = false) {
     const mode = entity?.type || this.activeMode;
     const heli = mode === 'helicopter';
     const m = heli ? 6000 : 0;
@@ -1017,12 +1022,12 @@ class ThirdPersonControllerManager {
     if (!heli) {
       const previous = entity?._safePosition ?? { x: entity?.prevX ?? pos.x, z: entity?.prevZ ?? pos.z };
       const steps = Math.ceil(Math.hypot(pos.x - previous.x, pos.z - previous.z) / 0.5);
-      if (steps > 256) { restore(); return; }
+      if (steps > 256) { restore(); return false; }
       for (let step = 0; step <= steps; step++) {
         const t = steps ? step / steps : 1;
         support = this.supportedFootprint(previous.x + (pos.x - previous.x) * t,
           previous.z + (pos.z - previous.z) * t, body, entity);
-        if (!support) { restore(); return; }
+        if (!support) { restore(); return false; }
       }
     }
     if (carEntity && support) pos.y = support.height;
@@ -1046,6 +1051,7 @@ class ThirdPersonControllerManager {
     for (let i = 0; i < near.length; i++) {
       const c = near[i];
       if (buildingContact(c, pos.x, pos.y, pos.z, body, contact)) {
+        if (avoidContact) { restore(); return false; }
         const { nx, nz, depth } = contact;
         pos.x += nx * depth;
         pos.z += nz * depth;
@@ -1080,7 +1086,7 @@ class ThirdPersonControllerManager {
     }
     if (!heli) {
       support ??= this.supportedFootprint(pos.x, pos.z, body, entity);
-      if (!support) { restore(); return; }
+      if (!support) { restore(); return false; }
       if (entity) entity._support = support;
       if (carEntity) pos.y = support.height;
     }
@@ -1103,7 +1109,7 @@ class ThirdPersonControllerManager {
     }
   }
 
-  clipCarTrafficMove(car, previous, obstacles) {
+  clipCarTrafficMove(car, previous, obstacles, avoidContact = false) {
     if (!obstacles.length) return;
     const { position } = car;
     const dx = position.x - previous.x, dz = position.z - previous.z;
@@ -1133,6 +1139,7 @@ class ThirdPersonControllerManager {
       probe.z = startZ;
     }
     if (!hit) return;
+    if (avoidContact) return false;
     const safe = Math.max(0, first - 0.002 / Math.max(0.002, Math.hypot(dx, dz)));
     position.x = previous.x + dx * safe;
     position.z = previous.z + dz * safe;
@@ -1410,13 +1417,15 @@ class ThirdPersonControllerManager {
       const beforeY = c.position.y;
       c.position.x = nextX;
       c.position.z = nextZ;
-      if (this.resolveHorizontalCollision(c.position, 1.35, c) === false) {
+      if (this.resolveHorizontalCollision(c.position, 1.35, c, c, driveInput?.avoidContact) === false) {
+        driveInput?.rejectMove?.('surface');
         c.heading = previousHeading;
         break;
       }
-      this.clipCarTrafficMove(c, { x: beforeX, y: beforeY, z: beforeZ, heading: previousHeading,
-        safe: previousSafe, support: previousSupport }, obstacles);
-      if (driveInput && !driveInput.permitMove(c.position.x, c.position.z, c.heading)) {
+      const clear = this.clipCarTrafficMove(c, { x: beforeX, y: beforeY, z: beforeZ, heading: previousHeading,
+        safe: previousSafe, support: previousSupport }, obstacles, driveInput?.avoidContact);
+      if (clear === false) driveInput?.rejectMove?.('traffic');
+      if (driveInput && (clear === false || !driveInput.permitMove(c.position.x, c.position.z, c.heading, c.position.y))) {
         c.position.x = beforeX;
         c.position.y = beforeY;
         c.position.z = beforeZ;

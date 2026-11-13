@@ -1417,7 +1417,7 @@ body[data-mode='helicopter'] .gauge-alt {
 }
 
 .map-drive-panel[hidden],
-.map-drive-actions [hidden],
+.map-drive-panel [hidden],
 .drive-hud[hidden],
 .drive-hud [hidden] {
   display: none;

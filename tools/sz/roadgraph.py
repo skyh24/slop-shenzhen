@@ -1,6 +1,9 @@
 """按 OSM 节点身份建立路网；不把空间上相交的跨层道路拼成路口。"""
 
+import re
 from collections import Counter
+
+import osmium
 
 from shapely.geometry import LineString, Point
 
@@ -8,6 +11,56 @@ from geo import project
 from roads import CLASS_OF, _num, road_dimensions, road_direction
 
 DRIVABLE = {hw for hw, cls in CLASS_OF.items() if cls not in ('service', 'pedestrian')}
+
+
+def drive_rules(tags):
+    """只保留可解释的快照限制；未解条件通行按不可用，未知限速由驾驶策略估计。"""
+    result = {}
+    modes = ('taxi', 'motorcar', 'motor_vehicle', 'vehicle', 'access')
+    for suffix, direction in (('', 'both'), (':forward', 'forward'), (':backward', 'backward')):
+        keys = [f'{mode}{suffix}' for mode in modes]
+        access = next((tags[key] for key in keys if key in tags), None)
+        if (access and access not in ('yes', 'designated', 'permissive')) or any(
+                tags.get(f'{key}:conditional') for key in keys):
+            result.setdefault('closed', []).append(direction)
+        limit = tags.get(f'maxspeed{suffix}', '').strip().lower()
+        match = re.fullmatch(r'(\d+(?:\.\d+)?)\s*(km/h|kph|mph)?', limit)
+        if match:
+            value = float(match[1]) * (1.609344 if match[2] == 'mph' else 1)
+            if value > 0:
+                result.setdefault('maxKph', {})[direction] = round(value, 3)
+    if tags.get('oneway:conditional'):
+        result['closed'] = ['both']
+    for key in ('maxheight', 'maxwidth', 'maxlength', 'maxweight'):
+        value = tags.get(key, '').strip().lower()
+        match = re.fullmatch(r'(\d+(?:\.\d+)?)\s*' + ('t' if key == 'maxweight' else 'm') + '?', value)
+        if match and float(match[1]) > 0:
+            result[key] = float(match[1])
+    return result
+
+
+def apply_drive_rules(pbf, graph, report):
+    """以源 way 身份补规则，保持已审核的边、路面及桥头索引。"""
+    wanted = {int(row['osmId'].split('/')[1]) for row in graph['metadata']}
+    rules = {}
+    found = set()
+    for way in osmium.FileProcessor(str(pbf), osmium.osm.WAY):
+        if way.id not in wanted:
+            continue
+        found.add(way.id)
+        if value := drive_rules(dict(way.tags)):
+            rules[f'way/{way.id}'] = value
+    if found != wanted:
+        raise ValueError(f'Drive rule scan did not resolve {len(wanted - found)} source ways')
+    for row in graph['metadata']:
+        row.pop('drive', None)
+        if row['osmId'] in rules:
+            row['drive'] = rules[row['osmId']]
+    report['driveRules'] = {'source': 'osm-guangdong', 'sourceWays': len(found),
+                            'limitedWays': sum('maxKph' in rule for rule in rules.values()),
+                            'restrictedWays': sum('closed' in rule for rule in rules.values()),
+                            'dimensionLimitedWays': sum(any(k.startswith('max') and k != 'maxKph' for k in rule)
+                                                       for rule in rules.values())}
 
 
 def graph_components(count, links):

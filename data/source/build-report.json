@@ -415171,14 +415171,21 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7631,
-    "metadataBytes": 16732758,
+    "metadataBytes": 16788035,
     "numericBytes": 33624008,
-    "uncompressedBytes": 50356816,
+    "uncompressedBytes": 50412096,
     "lossless": true,
-    "compressedBytes": 11394678,
-    "compressedSha256": "6f8e79af3d66a0bb5dcf73e2947e4bc8612b240026a0bb3d3e4f113103223392"
+    "compressedBytes": 11396878,
+    "compressedSha256": "460d3c4490fd76fbe6ecc909bd8e049d5ddb8bab859955f18166fc17a2710937"
   },
-  "outputBytes": 11365315,
-  "outputSha256": "f0bdc399b17caa70a130d27f55b9cc8d038ee07dceab950e72e71c899a9953c1",
-  "seconds": 20.6
+  "outputBytes": 11371872,
+  "outputSha256": "15ded6cbc0216247c84ea64b2361c38c45ca27e9f6f6f9fc7149c5c28b0154a4",
+  "seconds": 18.6,
+  "driveRules": {
+    "source": "osm-guangdong",
+    "sourceWays": 13503,
+    "limitedWays": 794,
+    "restrictedWays": 111,
+    "dimensionLimitedWays": 62
+  }
 }

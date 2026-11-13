@@ -78,6 +78,8 @@ class NYCMapSystem {
     this.driveRoute = null;
     this.drivePath = null;
     this.driveFeedback = '';
+    this.drivePicks = [null, null];
+    this.driveLayer = null;
 
     if (document.fonts) {
       document.fonts.ready.then(() => {
@@ -182,11 +184,19 @@ class NYCMapSystem {
   initDriveEvents() {
     const get = id => document.getElementById(id);
     this.driveUi = { toggle: get('map-plan-drive'), panel: get('map-drive-panel'), status: get('map-drive-status'),
-      clear: get('map-drive-clear'), arrive: get('map-drive-to-start'), start: get('map-drive-start'),
-      stop: get('map-drive-stop'), hud: get('drive-hud'), hudStatus: get('drive-hud-status'), hudStop: get('drive-hud-stop') };
-    const { toggle, clear, arrive, start, stop, hudStop } = this.driveUi;
+      levels: get('map-drive-levels'), clear: get('map-drive-clear'), repickEnd: get('map-drive-repick-end'),
+      start: get('map-drive-start'), progress: get('map-drive-progress'), hudProgress: get('drive-hud-progress'),
+      pauses: [get('map-drive-pause'), get('drive-hud-pause')], resumes: [get('map-drive-resume'), get('drive-hud-resume')],
+      stops: [get('map-drive-stop'), get('drive-hud-stop')], hud: get('drive-hud'), hudStatus: get('drive-hud-status') };
+    const { toggle, clear, repickEnd, start, pauses, resumes, stops } = this.driveUi;
     toggle?.addEventListener('click', () => {
-      if (this.drive.active) return;
+      if (this.drive.active) {
+        if (this.dronesVisible) this.toggleDroneCard(false);
+        this.isPlanningDrive = true;
+        this.renderDriveUi();
+        this.renderPointerHint();
+        return;
+      }
       this.isPlanningDrive = !this.isPlanningDrive;
       if (this.isPlanningDrive && this.dronesVisible) this.toggleDroneCard(false);
       this.resetDrivePlan();
@@ -194,24 +204,37 @@ class NYCMapSystem {
       this.renderPointerHint();
     });
     clear?.addEventListener('click', () => this.resetDrivePlan());
-    arrive?.addEventListener('click', () => {
-      this.driveFeedback = this.drive.goToStart(this.driveRoute) ? '' : STR.drive.startUnavailable;
-      this.renderDriveUi();
-    });
+    repickEnd?.addEventListener('click', () => this.resetDrivePlan(true));
     start?.addEventListener('click', () => {
       if (this.drive.start(this.driveRoute)) this.toggleFullMap(false);
+      else this.driveFeedback = STR.drive.needsStart;
       this.renderDriveUi();
     });
-    for (const button of [stop, hudStop]) button?.addEventListener('click', () => this.drive.stop('manual'));
+    for (const button of pauses) button?.addEventListener('click', () => this.drive.pause());
+    for (const button of resumes) button?.addEventListener('click', () => this.drive.resume());
+    for (const button of stops) button?.addEventListener('click', () => this.drive.stop('cancelled'));
   }
 
-  resetDrivePlan() {
+  resetDrivePlan(keepStart = false) {
+    if (this.drive.active) return;
     this.drive.stop();
-    this.driveStart = this.driveEnd = this.driveRoute = this.drivePath = null;
+    if (!keepStart) {
+      this.driveStart = null;
+      this.drivePicks[0] = null;
+    }
+    this.drivePicks[1] = null;
+    this.driveEnd = this.driveRoute = null;
+    this.setDrivePath(null);
+    this.driveLayer = null;
     this.driveFeedback = '';
+    this.renderDriveUi();
+  }
+
+  setDrivePath(route) {
+    this.drivePath = route ? new Path2D() : null;
+    if (route) addLine(this.drivePath, route.samples);
     this.miniCache = null;
     this.fullStaticKey = '';
-    this.renderDriveUi();
   }
 
   renderPointerHint(region = '') {
@@ -224,24 +247,33 @@ class NYCMapSystem {
   }
 
   pickDrivePoint(x, z) {
-    if (this.driveRoute) this.resetDrivePlan();
-    const point = this.drive.snap(x, z);
-    this.driveFeedback = '';
+    if (this.drive.active) return;
+    if (this.driveEnd || (!this.driveLayer && this.drive.status !== 'idle')) this.resetDrivePlan(true);
+    const start = !this.driveStart;
+    this.drivePicks[start ? 0 : 1] = { x, z };
+    const point = this.drive.snap(x, z, start);
+    this.driveLayer = null;
     if (!point) {
       this.driveFeedback = STR.drive.noPoint;
-    } else if (!this.driveStart) {
-      this.driveStart = point;
+    } else if (point.levels?.length > 1) {
+      this.driveLayer = point.levels;
+      this.driveFeedback = STR.drive.chooseLayer;
     } else {
+      this.chooseDrivePoint(point);
+      return;
+    }
+    this.renderDriveUi();
+  }
+
+  chooseDrivePoint(point) {
+    this.driveLayer = null;
+    this.driveFeedback = '';
+    if (!this.driveStart) this.driveStart = point;
+    else {
       this.driveEnd = point;
       this.driveRoute = this.drive.route(this.driveStart, point);
-      if (this.driveRoute) {
-        this.drivePath = new Path2D();
-        addLine(this.drivePath, this.driveRoute.samples);
-        this.miniCache = null;
-        this.fullStaticKey = '';
-      } else {
-        this.driveFeedback = STR.drive.noRoute;
-      }
+      this.setDrivePath(this.driveRoute);
+      if (!this.driveRoute) this.driveFeedback = STR.drive.noRoute;
     }
     this.renderDriveUi();
   }
@@ -251,33 +283,79 @@ class NYCMapSystem {
     if (!ui?.panel) return;
     const state = this.drive.status;
     const active = this.drive.active;
+    const replacement = this.drive.activeRoute;
+    if (replacement && this.driveRoute !== replacement) {
+      this.driveRoute = replacement;
+      this.drivePicks[0] = null;
+      this.setDrivePath(replacement);
+    }
     const hasRoute = Boolean(this.driveRoute);
     const canStart = hasRoute && !active && this.isFullMapOpen && this.drive.canStart(this.driveRoute);
     const stateText = STR.drive[state] ?? '';
-    const routeStatus = hasRoute ? STR.drive.distance(this.driveRoute.length) : '';
+    const routeStatus = hasRoute ? STR.drive.distance(this.driveRoute.length, this.driveRoute.seconds) : '';
     const hint = this.driveFeedback || (hasRoute ? (canStart ? STR.drive.ready : STR.drive.needsStart)
       : this.driveStart ? STR.drive.chooseEnd : STR.drive.chooseStart);
-    const text = [routeStatus, active ? stateText : hint].filter(Boolean).join(' · ');
+    const text = [routeStatus, active || stateText ? stateText : hint].filter(Boolean).join(' · ');
     if (ui.status.textContent !== text) ui.status.textContent = text;
+    if (ui.hudStatus.textContent !== stateText) ui.hudStatus.textContent = stateText;
+    const progress = this.drive.progress;
+    const summary = active && progress?.length && !['occupied', 'preparing'].includes(state)
+      ? STR.drive.progress(progress.speed, progress.travelled, progress.length) : '';
+    for (const element of [ui.progress, ui.hudProgress]) {
+      element.hidden = !summary;
+      if (element.textContent !== summary) element.textContent = summary;
+    }
     const pressed = String(this.isPlanningDrive);
     if (ui.toggle.getAttribute('aria-pressed') !== pressed) ui.toggle.setAttribute('aria-pressed', pressed);
-    ui.toggle.disabled = active;
     ui.panel.hidden = !this.isPlanningDrive;
-    ui.clear.hidden = !this.driveStart || active;
-    ui.arrive.hidden = !hasRoute || active || canStart;
+    ui.clear.hidden = active || (!this.drivePicks[0] && !this.driveStart);
+    ui.repickEnd.hidden = !this.drivePicks[1] || active;
     ui.start.hidden = !hasRoute || active;
     ui.start.disabled = !canStart;
-    ui.stop.hidden = !active;
     ui.hud.hidden = !stateText;
-    ui.hudStop.hidden = !active;
-    if (ui.hudStatus.textContent !== stateText) ui.hudStatus.textContent = stateText;
+    for (const button of ui.stops) button.hidden = !active;
+    for (const button of ui.pauses) button.hidden = !active || ['occupied', 'preparing', 'pausing', 'paused'].includes(state);
+    for (const button of ui.resumes) button.hidden = state !== 'paused';
+    ui.levels.hidden = !this.driveLayer;
+    if (this.driveLayer !== this.previousDriveLayer) {
+      this.previousDriveLayer = this.driveLayer;
+      ui.levels.replaceChildren(...(this.driveLayer ?? []).map(level => {
+        const button = document.createElement('button');
+        button.className = 'tool-btn';
+        button.type = 'button';
+        button.textContent = STR.drive.layer(level.level, level.heightLayer, level.y, level.name);
+        button.addEventListener('click', () => this.chooseDrivePoint(level));
+        return button;
+      }));
+    }
   }
 
   drawDrivePins(ctx, view, mini = false) {
-    if (!this.isPlanningDrive) return;
+    if (!this.isPlanningDrive && !this.drive?.active) return;
     const start = this.driveRoute?.from ?? this.driveStart;
     const end = this.driveRoute?.to ?? this.driveEnd;
-    for (const [point, colour, label] of [[start, '#8ce2a9', STR.drive.from], [end, MAP.route, STR.drive.to]]) {
+    const picks = this.drivePicks;
+    if (!mini) {
+      for (const [pick, actual] of [[picks[0], start], [picks[1], end]]) {
+        if (!pick || !actual) continue;
+        const x = view.toX(pick.x), y = view.toY(pick.z);
+        const ax = view.toX(actual.x), ay = view.toY(actual.z);
+        if (Math.hypot(ax - x, ay - y) < 3) continue;
+        ctx.save();
+        ctx.strokeStyle = '#e1ebf5';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(ax, ay);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+    const pins = mini ? [] : [[picks[0], '#ccd5df', start ? '' : STR.drive.pickFrom],
+      [picks[1], '#ccd5df', end ? '' : STR.drive.pickTo]];
+    pins.push([start, '#8ce2a9', STR.drive.from], [end, MAP.route, STR.drive.to]);
+    for (const [point, colour, label] of pins) {
       if (!point || !view.sees({ minX: point.x, maxX: point.x, minZ: point.z, maxZ: point.z })) continue;
       const x = view.toX(point.x), y = view.toY(point.z);
       ctx.fillStyle = MAP.halo;
@@ -288,7 +366,7 @@ class NYCMapSystem {
       ctx.beginPath();
       ctx.arc(x, y, mini ? 3 : 5, 0, Math.PI * 2);
       ctx.fill();
-      if (!mini) {
+      if (!mini && label) {
         ctx.font = `700 11px ${FONT}`;
         ctx.textAlign = 'left';
         ctx.lineWidth = 4;
@@ -453,6 +531,7 @@ class NYCMapSystem {
 
   toggleFullMap(open) {
     this.isFullMapOpen = Boolean(open);
+    if (this.isFullMapOpen && this.drive?.active) this.isPlanningDrive = true;
     if (!this.isFullMapOpen) {
       this.inspection?.reset();
       if (this.cruisePreview) {
@@ -771,7 +850,7 @@ class NYCMapSystem {
 
   update() {
     this.renderDroneCard();
-    if (this.isFullMapOpen && this.isPlanningDrive || this.drive?.status !== this.previousDriveStatus) {
+    if (this.drive?.active || (this.isFullMapOpen && this.isPlanningDrive) || this.drive?.status !== this.previousDriveStatus) {
       this.renderDriveUi();
       this.previousDriveStatus = this.drive?.status;
     }
