@@ -4,7 +4,7 @@ import json
 import math
 from pathlib import Path
 
-from shapely import constrained_delaunay_triangles, prepare
+from shapely import STRtree, constrained_delaunay_triangles, make_valid, prepare
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import substring, unary_union
 
@@ -12,10 +12,11 @@ from commercial_paving import ground_carriageway_mask
 from geo import project_coords
 from land import _polys, _to_local
 from roads import _num
-from shenzhen_bay import PUBLIC, _polygon, _snapshots, _surface_sampler
+from shenzhen_bay import PAVING, PUBLIC, _polygon, _snapshots, _surface_sampler, bay_paving, path_material, paving_masks
 from terrain_surface import _triangle_height
 
 SOURCE = Path(__file__).resolve().parents[2] / 'data/source/waterfront-samples.json'
+ROUTES = SOURCE.with_name('waterfront-routes.json')
 
 
 def _line(row):
@@ -75,7 +76,7 @@ def _water(payload, osm, identity):
     return next((i, poly) for i, rings in enumerate(payload['water']) if (poly := _polygon(rings)).covers(marker))
 
 
-def _clip_terrain(surface, masks, grades):
+def _clip_terrain(surface, masks, grades, *, replace_kinds=None):
     """在原三角面内切材质与高程影响范围；范围外保留原来的几何和采样。"""
     affected = unary_union([*masks.values(), *(shape for shape, _ in grades)])
     prepare(affected)
@@ -108,15 +109,19 @@ def _clip_terrain(surface, masks, grades):
                         continue
                     pieces, rest = [], tri
                     old_kind = max(kinds[v] for v in face)
-                    for kind, mask in masks.items():
-                        if kind == old_kind:
-                            continue
-                        piece = rest.intersection(mask)
-                        if piece.area > 1e-10:
-                            totals[kind] += piece.area
-                            pieces.append((piece, kind))
-                            rest = rest.difference(piece)
+                    if replace_kinds is None or old_kind in replace_kinds:
+                        for kind, mask in masks.items():
+                            if kind == old_kind or not mask.intersects(rest):
+                                continue
+                            piece = rest.intersection(mask)
+                            if piece.area > 1e-10:
+                                totals[kind] += piece.area
+                                pieces.append((piece, kind))
+                                rest = rest.difference(piece)
                     pieces.append((rest, old_kind))
+                    if not grades and all(kind == old_kind for _, kind in pieces):
+                        indices.extend(face)
+                        continue
 
                     def emit(shape, kind, grade=None):
                         for poly in _polys(shape):
@@ -158,6 +163,22 @@ def _clip_terrain(surface, masks, grades):
     return {**surface, 'chunks': chunks}, changed, totals
 
 
+def restore_bay_paving(payload, report):
+    """在既有双包上局部改材质，保留已完成的岸道标高、桥面与其余地面。"""
+    paths = payload['shenzhenBay']['paths']
+    masks, _, _ = bay_paving(paths, payload['roadGraph'])
+    surface, changed, totals = _clip_terrain(payload['terrainSurface'], masks, [], replace_kinds={4, 5, 6, 7, 8, 9})
+    payload['terrainSurface'] = surface
+    for path in paths:
+        path['material'] = path_material(path['tags'])
+    bay_report = report['shenzhenBayWaterfront']
+    bay_report['paths'] = [{key: value for key, value in path.items() if key != 'points'} for path in paths]
+    bay_report['pavingM2'] = {name: round(totals[kind], 2) for name, kind in PAVING.items()}
+    bay_report['materialRepairTerrainChunks'] = changed
+    report['terrainSurface'].update(vertices=sum(len(c['kinds']) for c in surface['chunks']),
+                                    triangles=sum(len(c['indices']) // 3 for c in surface['chunks']))
+
+
 def _height_rows(line, sample, *, step=2):
     rows = []
     for x, z in _points(line, step):
@@ -166,6 +187,96 @@ def _height_rows(line, sample, *, step=2):
             raise ValueError(f'Waterfront route has no support at {x:.2f}, {z:.2f}')
         rows.append([round(x, 4), round(y, 4), round(z, 4)])
     return rows
+
+
+def compile_waterfront_routes(payload, osm, pbf, report):
+    """按已审核源节点增量裁切地面路线；桥、台阶和岸坡仍由各自的结构方案接入。"""
+    plan = json.loads(ROUTES.read_text())
+    if plan['version'] != 1 or plan['osmSnapshotSha256'] != osm['sourceSha256']:
+        raise ValueError('Waterfront routes require the reviewed OSM snapshot')
+    waterfront = payload['waterfront']
+    if 'extensions' in waterfront:
+        raise ValueError('Rebuild the underlying terrain before replacing waterfront routes')
+    specs = plan['routes']
+    identities = {path[0] for spec in specs for path in spec['paths']}
+    ways = {row['id']: row for row in osm['roads'] if row['id'] in identities}
+    snapshots = _snapshots(pbf, identities)
+    water = [_polygon(rings) for rings in [*payload['water'], *payload['wetland'], *payload['seaSurface']['polygons']]]
+    wet = STRtree([poly if poly.is_valid else make_valid(poly) for poly in water])
+    surface = payload['terrainSurface']
+    routes, waters = [], {}
+    changed_chunks = set()
+    for spec in specs:
+        rows = []
+        for identity, start, end, mode, fallback in spec['paths']:
+            way, source = ways[identity], snapshots[identity]
+            tags = source['tags']
+            highway = tags.get('highway')
+            pedestrian = tags.get('foot') in (PUBLIC if highway != 'cycleway' else PUBLIC[1:])
+            bicycle = tags.get('bicycle') in (PUBLIC if highway == 'cycleway' else PUBLIC[1:])
+            if (highway not in ('path', 'footway', 'cycleway') or tags.get('access') not in PUBLIC
+                    or any(tags.get(k, 'no') != 'no' for k in ('bridge', 'tunnel'))
+                    or any(tags.get(k, '0') != '0' for k in ('layer', 'level'))
+                    or 'opening_hours' in tags or any(k.endswith(':conditional') for k in tags)
+                    or (mode in ('walk', 'shared') and not pedestrian)
+                    or (mode in ('cycle', 'shared') and not bicycle)
+                    or mode not in ('walk', 'cycle', 'shared')):
+                raise ValueError(f'Unreviewed waterfront route access or level: {identity}')
+            refs = way['nodeRefs']
+            a, b = refs.index(start), refs.index(end)
+            step = 1 if a < b else -1
+            coords = _line(way).coords
+            line = LineString([tuple(round(value, 4) for value in coords[i]) for i in range(a, b + step, step)])
+            width = _num(tags.get('width'))
+            if (width or fallback) <= 0:
+                raise ValueError(f'Invalid waterfront path width: {identity}')
+            rows.append({'osmId': identity, **source, 'nodes': [start, end], 'line': line, 'mode': mode,
+                         'widthM': width or fallback, 'widthSource': 'osm' if width else 'estimate',
+                         'material': path_material(tags), 'heightSource': 'terrain-derived-estimate'})
+
+        line = _joined(rows)
+        strips = unary_union([row['line'].buffer(row['widthM'] / 2, quad_segs=8) for row in rows])
+        if len(wet.query(strips, predicate='intersects')):
+            raise ValueError(f'Waterfront route enters water or wetland: {spec["id"]}')
+        masks, _, _ = paving_masks([(row['line'], row['widthM'], row['tags']) for row in rows], payload['roadGraph'])
+        surface, changed, _ = _clip_terrain(surface, masks, [], replace_kinds={0, 1, 2, 3, 8, 9, 10, 11})
+        changed_chunks.update(changed)
+        sample = _surface_sampler(surface, strips)
+        water_height = spec.get('waterHeightM')
+        if water_height is not None:
+            water_index, _ = _water(payload, osm, spec['waterId'])
+            if (water_index in waters and waters[water_index]['heightM'] != water_height
+                    or any(row['waterIndex'] == water_index for row in waterfront['waters'])):
+                raise ValueError(f'Conflicting waterfront water height: {spec["waterId"]}')
+            waters[water_index] = {'id': spec['waterId'], 'waterIndex': water_index,
+                                   'heightM': water_height, 'heightSource': 'estimate'}
+        for row in rows:
+            points = list(_points(row['line']))
+            for (x, z), (nx, nz) in zip(points, points[1:]):
+                length = math.hypot(nx - x, nz - z)
+                if length < 1e-7:
+                    continue
+                offset = row['widthM'] * 0.42 / length
+                for side in (-offset, 0, offset):
+                    h1 = sample(x + side * (nz - z), z - side * (nx - x))
+                    h2 = sample(nx + side * (nz - z), nz - side * (nx - x))
+                    if (None in (h1, h2) or abs(h2 - h1) > 0.15 * length + 0.005
+                            or water_height is not None and min(h1, h2) < water_height + 0.4):
+                        raise ValueError(f'Unsupported waterfront width or grade: {row["osmId"]} at {x:.2f}, {z:.2f}')
+        routes.append({**{k: v for k, v in spec.items() if k != 'paths'},
+                       'points': _height_rows(line, sample), 'closed': line.is_ring,
+                       'lengthM': round(line.length, 2),
+                       'paths': [{**{k: v for k, v in row.items() if k != 'line'},
+                                  'points': [list(p) for p in row['line'].coords]} for row in rows]})
+    payload['terrainSurface'] = surface
+    waterfront['extensions'] = routes
+    waterfront['extensionWaters'] = list(waters.values())
+    report['waterfrontRoutes'] = {'checkedAt': plan['checkedAt'], 'osmSnapshotSha256': plan['osmSnapshotSha256'],
+                                  'routes': [{k: v for k, v in row.items() if k != 'points'} for row in routes],
+                                  'waters': waterfront['extensionWaters'],
+                                  'changedTerrainChunks': sorted(changed_chunks)}
+    report['terrainSurface'].update(vertices=sum(len(c['kinds']) for c in surface['chunks']),
+                                    triangles=sum(len(c['indices']) // 3 for c in surface['chunks']))
 
 
 def _profile(line, water, sample, depth=0.45):
@@ -270,18 +381,13 @@ def compile_waterfront(payload, osm, pbf, report):
             return y - max(0, y-river['bankHeightM'])*weight*portal_weight
         return grade
 
-    def strip(line, width):
-        return line.buffer(width/2, quad_segs=6)
-    lake_paths = unary_union([strip(row['line'], row['widthM']) for row in lake_rows if not row['bridge']]).difference(lake_water)
-    bank_paths = unary_union([strip(row['line'], row['widthM']) for rows in banks.values() for row in rows]).difference(river_water)
-    road_mask, _ = ground_carriageway_mask(lake_paths, graph)
-    # 中湾既有步骑材质不参与重新分类；下沉高程仍沿同一条岸路调整。
-    masks = {4: lake_paths.difference(road_mask), 9: bank_paths}
-    for shape in masks.values():
-        prepare(shape)
+    ground_rows = [*(row for row in lake_rows if not row['bridge']), *(row for rows in banks.values() for row in rows)]
+    masks, paths_area, _ = paving_masks([(row['line'], row['widthM'], row['tags']) for row in ground_rows],
+                                        graph, exclude=lake_water.union(river_water))
+    # 深圳湾铺装已在前一步完成，这里只改变下沉岸道高程。
     grades = [(bay_influence, bay_grade), *((bank_influence[k], bank_grade(k, v)) for k, v in bank_lines.items())]
     surface, changed, paving = _clip_terrain(ground, masks, grades)
-    lookup_area = unary_union([lake_paths, bay_influence, *bank_influence.values(),
+    lookup_area = unary_union([paths_area, bay_influence, *bank_influence.values(),
                               *(r['line'].buffer(2) for r in [*lake_rows, *slow_bridges])]).buffer(25)
     sample = _surface_sampler(surface, lookup_area)
     original = _surface_sampler(ground, lookup_area)

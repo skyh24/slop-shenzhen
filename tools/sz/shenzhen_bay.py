@@ -21,7 +21,35 @@ ACCESS_TAGS = ('highway', 'width', 'surface', 'access', 'foot', 'bicycle', 'lit'
                'layer', 'level', 'opening_hours', 'access:conditional', 'foot:conditional',
                'bicycle:conditional')
 PUBLIC = (None, 'yes', 'designated', 'permissive')
-PAVING = {'walk': 4, 'cycle': 5, 'crossing': 6, 'cycle-stone': 7}
+# 已知材质优先于未标注面。石材和沥青交叠时沿用石材，通行权仍由原路径判定。
+PAVING = {'paving_stones': 7, 'sett': 4, 'asphalt': 5, 'unknown': 8}
+
+
+def path_material(tags):
+    surface = tags.get('surface')
+    return surface if surface in PAVING else 'unknown'
+
+
+def paving_masks(paths, graph, *, exclude=None):
+    strips = {}
+    for material, kind in PAVING.items():
+        strips[kind] = unary_union([line.buffer(width / 2, quad_segs=8)
+                                   for line, width, tags in paths if path_material(tags) == material])
+    pavement = unary_union(list(strips.values()))
+    road_mask, roads = ground_carriageway_mask(pavement, graph)
+    if exclude is not None:
+        road_mask = road_mask.union(exclude)
+    masks = {}
+    for kind, strip in strips.items():
+        mask = strip.difference(road_mask)
+        prepare(mask)
+        masks[kind] = mask
+        road_mask = road_mask.union(mask)
+    return masks, pavement, roads
+
+
+def bay_paving(paths, graph):
+    return paving_masks([(LineString(path['points']), path['widthM'], path['tags']) for path in paths], graph)
 
 
 def _polygon(rings):
@@ -67,20 +95,10 @@ def _paths(manifest, osm, pbf):
         points = [tuple(round(value, 4) for value in project(*way['geom'].coords[i])) for i in sequence]
         nodes = [refs[i] for i in sequence]
         width = _num(tags.get('width'))
-        material = ('walk' if mode == 'walk' else 'cycle-stone' if tags.get('surface') == 'paving_stones' else 'cycle')
+        material = path_material(tags)
         paths.append({**source, 'osmId': identity, 'mode': mode, 'material': material, 'nodes': nodes, 'points': points,
                       'widthM': width or spec['widthM'], 'widthSource': 'osm-width' if width else 'visual-estimate'})
     return paths
-
-
-def bay_paving_masks(paths):
-    """保持原始步行、骑行材质及两者交汇处的优先级。"""
-    strips = {kind: unary_union([LineString(path['points']).buffer(path['widthM'] / 2, quad_segs=8)
-                                 for path in paths if path['material'] == kind])
-              for kind in ('walk', 'cycle', 'cycle-stone')}
-    crossing = strips['walk'].intersection(strips['cycle'].union(strips['cycle-stone']))
-    return {'crossing': crossing, 'walk': strips['walk'].difference(crossing),
-            'cycle': strips['cycle'].difference(crossing), 'cycle-stone': strips['cycle-stone'].difference(crossing)}
 
 
 def _terrain_boundary(surface, extent):
@@ -169,7 +187,7 @@ def _cut_paving(chunk, grade, masks, area, grid):
                     if overlap.area <= 1e-10:
                         continue
                     totals[key] += overlap.area
-                    emit(overlap, plane, PAVING[key])
+                    emit(overlap, plane, key)
                     remaining = remaining.difference(overlap)
                 if remaining is triangle:
                     indices.extend(face)
@@ -274,12 +292,7 @@ def build_shenzhen_bay(payload, osm, pbf, report):
     if arrival_gap > 8 or any(LineString(path['points']).difference(park_area.buffer(8)).length > 0.01
                              for path in paths[1:]):
         raise ValueError('Waterfront path leaves the reviewed park or station approach')
-    masks = bay_paving_masks(paths)
-    pavement = unary_union(list(masks.values()))
-    road_mask, roads = ground_carriageway_mask(pavement, payload['roadGraph'])
-    masks = {mode: strip.difference(road_mask) for mode, strip in masks.items()}
-    for mask in masks.values():
-        prepare(mask)
+    masks, pavement, roads = bay_paving(paths, payload['roadGraph'])
 
     estimate = manifest['estimates']
     influence = coastline.buffer(estimate['gradeBlendM'])
@@ -322,6 +335,6 @@ def build_shenzhen_bay(payload, osm, pbf, report):
         'paths': [{key: value for key, value in row.items() if key != 'points'} for row in path_rows],
         'walkRouteM': round(sum(math.dist((a[0], a[2]), (b[0], b[2])) for a, b in zip(route, route[1:])), 2),
         'arrivalReference': {'osmId': arrival['id'], 'distanceToApproachM': round(arrival_gap, 2)},
-        'changedTerrainChunks': rebuilt, 'pavingM2': {key: round(area, 2) for key, area in paving_m2.items()},
+        'changedTerrainChunks': rebuilt, 'pavingM2': {name: round(paving_m2[kind], 2) for name, kind in PAVING.items()},
         'roadMask': roads, 'sourceHeight': 'local-visual-estimate-on-existing-terrain'
     }

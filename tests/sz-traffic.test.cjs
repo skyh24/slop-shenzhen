@@ -671,6 +671,20 @@ test('a source-connected tunnel route stays on its own floor across every seam a
   });
   const drive = planner.route(planner.snap(-9600, 2622.37), planner.snap(-7940, 2605));
   assert.ok(drive && chain.every(edge => drive.edges.includes(edge)));
+  for (const id of ['junction-bridge-41018947', 'junction-bridge-41018949', 'junction-tunnel-154879196']) {
+    const records = geo.roadStructures.records.filter(row => row.route === id);
+    assert.equal(records.length, 3, id);
+    const [entry, structure, exit] = records.map(row => network.edges.find(edge => edge.sourceIndex === row.index));
+    assert.ok(entry?.next.includes(structure) && structure.next.includes(exit), id);
+    assert.ok(network.edges.some(edge => !edge.elevated && edge.next.includes(entry)), id);
+    assert.ok(exit.next.some(edge => !edge.elevated), id);
+    assert.ok(records.every(row => row.maxGrade <= 0.05), id);
+    const middle = built.links.find(link => link.index === structure.sourceIndex);
+    const frame = middle.frames[Math.floor(middle.frames.length / 2)];
+    assert.ok(Math.abs(built.heightAt(frame.x, frame.z, middle.surfaceId) - frame.y) < 1e-5, id);
+    assert.ok(built.colliders.some(c => c.name === middle.surfaceId
+      && c.type === (structure.tunnel ? 'tunnel-roof' : 'bridge-slab')), id);
+  }
   for (const id of ['nanping-xili-east', 'nanping-xili-west', 'nanguang-south', 'nanguang-north',
     'huanggang-binhe-north', 'huanggang-binhe-south', 'beihuan-shahe-east', 'beihuan-shahe-west',
     'nanping-branch-north', 'nanping-branch-south', 'guimiao-east', 'guimiao-west',
@@ -739,26 +753,26 @@ test('a source-connected tunnel route stays on its own floor across every seam a
     }
   }
   const movements = [
-    [[1471.03, 1638.98], [1462.70, 1585.62], [17634, 214, 899, 213, 20449]],
-    [[1363.03, 1587.73], [1371.42, 1640.25], [20449, 39, 900, 212, 17634]],
-    [[-16184.84, -56.31], [-15726.49, -386.61], [18636, 18637, 15658, 7813]],
-    [[1348.42, 1640.55], [1487.03, 1638.77], [17634]],
-    [[-15015.39, -555.70], [-15042.28, -526.05], [2605, 1984, 10260, 8687]],
-    [[-10338.15, 420.78], [-10313.66, 342.07], [18237, 2767, 7801, 161]],
-    [[-10318.65, 313.39], [-10341.11, 249.72], [3269, 1356, 7802, 18237]],
-    [[-1021.64, 442.36], [-1032.76, 521.74], [5216, 50, 9557, 18001]],
-    [[-10436.82, -1747.69], [-9863.84, -1890.33], [20018, 7946, 7947, 7795]],
-    [[-14955.36, 165.10], [-15385.70, 183.52], [12221, 23776, 2622, 2630, 4084]],
-    [[-10953.09, 2472.81], [-10486.96, 2530.27], [17724, 2008, 15990]],
-    [[-14974.59, 2255.99], [-15830.63, 2258.30], [11298, 12746, 14222, 14822, 12747]],
-    [[810.29, -6520.95], [1398.15, -6859.29], [7377, 8635, 3352, 3349, 7378]]
+    [[1471.03, 1638.98], [1462.70, 1585.62], ['way/997152262', 'way/25584098', 'way/41019622', 'way/25584036', 'way/1183851123']],
+    [[1363.03, 1587.73], [1371.42, 1640.25], ['way/1183851123', 'way/25423324', 'way/41019785', 'way/25584034', 'way/997152262']],
+    [[-16184.84, -56.31], [-15726.49, -386.61], ['way/1051266597', 'way/1051266597', 'way/963403145', 'way/375061135']],
+    [[1348.42, 1640.55], [1487.03, 1638.77], ['way/997152262']],
+    [[-15015.39, -555.70], [-15042.28, -526.05], ['way/165265283', 'way/101316531', 'way/582000076', 'way/498477955']],
+    [[-10338.15, 420.78], [-10313.66, 342.07], ['way/1050765270', 'way/182832354', 'way/374508069', 'way/25529353']],
+    [[-10318.65, 313.39], [-10341.11, 249.72], ['way/220882377', 'way/91743153', 'way/374508070', 'way/1050765270']],
+    [[-1021.64, 442.36], [-1032.76, 521.74], ['way/245389549', 'way/25435186', 'way/545784771', 'way/1050511756']],
+    [[-10436.82, -1747.69], [-9863.84, -1890.33], ['way/1125426270', 'way/377812319', 'way/377812320', 'way/374379998']],
+    [[-14955.36, 165.10], [-15385.70, 183.52], ['way/690978992', 'way/1463713909', 'way/165265337', 'way/165265363', 'way/231787772']],
+    [[-10953.09, 2472.81], [-10486.96, 2530.27], ['way/1031889490', 'way/101316668', 'way/974372180']],
+    [[-14974.59, 2255.99], [-15830.63, 2258.30], ['way/636282333', 'way/739020654', 'way/862777455', 'way/894814743', 'way/739020657']],
+    [[810.29, -6520.95], [1398.15, -6859.29], ['way/306304905', 'way/497322876', 'way/221892582', 'way/221892578', 'way/306304906']]
   ];
-  for (const [from, to, indices] of movements) {
+  for (const [from, to, wayIds] of movements) {
     const start = planner.snap(...from), end = planner.snap(...to);
     const route = planner.route(start, end);
     assert.ok(route, JSON.stringify({from, to, starts: start?.levels.map(level => [level.level, level.candidates.map(c => c.edge.sourceIndex)]),
       ends: end?.levels.map(level => [level.level, level.candidates.map(c => c.edge.sourceIndex)])}));
-    assert.deepEqual(Array.from(route.edges, edge => edge.sourceIndex), indices);
+    assert.deepEqual(Array.from(route.edges, edge => edge.osmId), wayIds);
     for (const [i, sample] of route.samples.entries()) {
       if (sample.edge.rampSpeed) assert.ok(route.limits[i] <= 6.5);
     }

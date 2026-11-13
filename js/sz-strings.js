@@ -87,7 +87,9 @@ export const STR = {
     mapPlayer: '玩家',
     mapLandmark: '地标',
     mapWaypoint: '传送点',
-    mapHighway: '桥梁 / 快速路'
+    mapHighway: '桥梁 / 快速路',
+    mapWaterfrontWalk: '滨水步道',
+    mapWaterfrontCycle: '滨水骑行 / 共享路（按时段开放）'
   },
   startup: {
     data: '正在读取深圳地理数据……',
@@ -190,6 +192,7 @@ export const STR = {
     receiver: '无人机接收点 · 估计站位',
     approach: '前往站点附近',
     unavailable: '当前路线暂无经过场景净空校验的完整路径。',
+    preparing: '正在加载附近航线',
     approachUnavailable: '当前没有安全步行落点。',
     blocked: '请停稳并结束当前驾驶或节目，再开始观看。',
     failed: '配送已结束，已恢复玩家视角。',

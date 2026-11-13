@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { color, smoothstep, uv } from 'three/tsl';
+import { smoothstep, uv } from 'three/tsl';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { sceneUniforms } from './sz-materials.js';
 import { createFixtureBatches, planBench, planLantern, planRail } from './sz-site-fixtures.js';
@@ -144,45 +144,36 @@ function addWayfinding(group, point, tangent) {
   sign.position.set(point.x - tangent.x * 0.074, point.y + 1.76, point.z - tangent.z * 0.074);
   sign.rotation.y = Math.atan2(-tangent.x, -tangent.z);
   group.add(sign);
-  return { map, material };
+  return { map, material, sign };
 }
 
-export function buildSzBayWaterfront(scene, source, { heightAt, isWater, colliders: obstacles, pathsNear }) {
-  const group = new THREE.Group();
-  group.name = 'shenzhen-bay-central-waterfront';
+export function planBayWaterfront(source, { heightAt, isWater, colliders: obstacles = [], pathsNear,
+  nearObstacles = () => obstacles, wayfindingEnabled = true }) {
   const colliders = [];
-  const statistics = { shoreTriangles: 0, rails: 0, lamps: 0, benches: 0, bins: 0, detailChunks: 0 };
-  if (!source) return { group, colliders, statistics, publicRoutes: [], allowsGroundMode: () => true,
-    update() {}, dispose() {} };
+  const statistics = { shoreTriangles: 0, rails: 0, lamps: 0, benches: 0, bins: 0 };
+  if (!source) return { batches: [], colliders, statistics, routePoints: [], restSpots: [] };
 
   const routePoints = source.walkRoute.map(([x, y, z]) => ({ x, y, z }));
   const restSpots = [];
-  const publicRoutes = [{ id: 'shenzhen-bay:central-bay', points: routePoints,
-    allows: (x, z, radius) => pathsNear(x, z, -radius).includes('walk'), reserve: (x, z) => pathsNear(x, z, 1.4).length > 0,
-    restSide: s => restSpots.find(spot => Math.abs(spot.s - s) <= 2.6)?.side, jogSpeed: 2.25 }];
   const buckets = new Map();
   function bucket(x, z) {
     const ix = Math.floor(x / CELL), iz = Math.floor(z / CELL);
     const id = `${ix},${iz}`;
     if (!buckets.has(id)) buckets.set(id, {
       id, x: (ix + 0.5) * CELL, z: (iz + 0.5) * CELL, positions: [], colors: [], rockSites: [],
-      metal: [], wood: [], light: [], poolPositions: [], poolUvs: [], pool: null, details: null
+      metal: [], wood: [], light: [], poolPositions: [], poolUvs: []
     });
     return buckets.get(id);
   }
 
-  function addBox(rows, a, b, height, width, type) {
-    rows.push({ a, b, height, width });
-    if (type) colliders.push(beamCollider(a, b, height, width, type));
+  function addBox(batch, finish, a, b, height, width, type) {
+    batch[finish].push({ a, b, height, width });
+    if (type) {
+      const collider = beamCollider(a, b, height, width, type);
+      (batch.colliders ??= []).push(collider);
+      colliders.push(collider);
+    }
   }
-
-  const shoreMaterial = new THREE.MeshStandardNodeMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.96 });
-  const fixtureBatches = createFixtureBatches(group, 'bay');
-  const poolMaterial = new THREE.MeshBasicNodeMaterial({ color: 0xffd9a1, transparent: true, depthWrite: false,
-    blending: THREE.AdditiveBlending });
-  poolMaterial.opacityNode = smoothstep(0.06, 0.5, uv().sub(0.5).length()).oneMinus().mul(sceneUniforms.night).mul(0.26);
-  const stone = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.96 });
-  const rockGeometry = new THREE.IcosahedronGeometry(1, 0);
 
   for (const shore of source.shore) {
     const stations = shore.stations.map(([x, y, z]) => ({ x, y, z })).filter((point, i, rows) =>
@@ -230,16 +221,17 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
         p.y = heightAt(p.x, p.z) ?? a.crest.y;
         q.y = heightAt(q.x, q.z) ?? b.crest.y;
         for (const { a, b, height, width } of planRail(p, q, [[0.57, 0.075, 0.075], [1.05, 0.075, 0.075]])) {
-          addBox(batch.metal, a, b, height, width, 'bay-rail');
+          addBox(batch, 'metal', a, b, height, width, 'bay-rail');
         }
-        addBox(batch.metal, p, { ...p, y: p.y + 1.1 }, 0.09, 0.09, 'bay-rail-post');
+        addBox(batch, 'metal', p, { ...p, y: p.y + 1.1 }, 0.09, 0.09, 'bay-rail-post');
         statistics.rails++;
       }
       statistics.shoreTriangles += 2;
     }
   }
 
-  const fixtures = [...obstacles];
+  const fixtures = [];
+  const nearby = (x, z, radius) => [...nearObstacles(x, z, radius), ...fixtures];
   let wayfinding = null;
   const coastPath = source.paths.find(path => path.nodes.includes(source.viewNode));
   const view = coastPath.points[coastPath.nodes.indexOf(source.viewNode)];
@@ -248,7 +240,7 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
     const shoulder = offset(p, normal, side * 1.42);
     if (pathsNear(shoulder.x, shoulder.z, -0.37).includes('walk')
       && !pathsNear(shoulder.x, shoulder.z, 0.37).includes('cycle')
-      && safeFootprint(shoulder.x, shoulder.z, 0.42, fixtures)) restSpots.push({ s, side: -side * 1.42 });
+      && safeFootprint(shoulder.x, shoulder.z, 0.42, nearby(shoulder.x, shoulder.z, 0.42))) restSpots.push({ s, side: -side * 1.42 });
   }
   for (let i = 1; i < routePoints.length; i++) {
     const a = routePoints[i - 1], b = routePoints[i], normal = horizontalNormal(a, b);
@@ -265,29 +257,31 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
     const viewpoint = Math.hypot(a.x - view[0], a.z - view[1]) < 15;
     const options = [3.4, -3.4, 4.8, -4.8].map(d => offset(a, normal, d));
     const p = options.find(({ x, z }) => isWater(x, z) === false && !pathsNear(x, z, clearance).length
-      && safeFootprint(x, z, clearance, fixtures) && Number.isFinite(heightAt(x, z)));
+      && safeFootprint(x, z, clearance, nearby(x, z, clearance)) && Number.isFinite(heightAt(x, z)));
     if (!p || (viewpoint && kind === 0)) continue;
     p.y = heightAt(p.x, p.z);
     const batch = bucket(p.x, p.z);
     const tangent = { x: normal.z, z: -normal.x };
     const before = colliders.length;
-    if (!wayfinding && distance < 50 && (wayfinding = addWayfinding(group, p, tangent))) {
-      addBox(batch.metal, p, { ...p, y: p.y + 1.94 }, 0.10, 0.10, 'bay-sign-post');
+    if (!wayfinding && distance < 50 && wayfindingEnabled) {
+      batch.wayfinding = [p, tangent];
+      wayfinding = true;
+      addBox(batch, 'metal', p, { ...p, y: p.y + 1.94 }, 0.10, 0.10, 'bay-sign-post');
     } else if (kind === 1) {
       const { wood, steel } = planBench(p, tangent.x, tangent.z, { halfLengthM: 0.92, seatHeightM: 0.46,
         seatWidthM: 0.52, legBottomM: -0.05, legTopM: 0.46, legWidthM: 0.28, legDepthM: 0.11 });
-      for (const { a, b, height, width } of wood) addBox(batch.wood, a, b, height, width, 'bay-bench');
-      for (const { a, b, height, width } of steel) addBox(batch.metal, a, b, height, width, 'bay-bench-leg');
+      for (const { a, b, height, width } of wood) addBox(batch, 'wood', a, b, height, width, 'bay-bench');
+      for (const { a, b, height, width } of steel) addBox(batch, 'metal', a, b, height, width, 'bay-bench-leg');
       statistics.benches++;
       const side = Math.sign((p.x - a.x) * normal.x + (p.z - a.z) * normal.z);
       restSpot(a, normal, distance, side);
     } else if (kind === 3) {
-      addBox(batch.metal, p, { ...p, y: p.y + 0.85 }, 0.44, 0.44, 'bay-bin');
+      addBox(batch, 'metal', p, { ...p, y: p.y + 0.85 }, 0.44, 0.44, 'bay-bin');
       statistics.bins++;
     } else {
       const { pole, lamp } = planLantern(p, { poleBottomM: -0.05, poleTopM: 3.18, headBottomM: 3.16,
         headTopM: 3.30, headWidthM: 0.27 });
-      addBox(batch.metal, pole.a, pole.b, pole.height, pole.width, 'bay-lamp');
+      addBox(batch, 'metal', pole.a, pole.b, pole.height, pole.width, 'bay-lamp');
       batch.light.push(lamp);
       // 光斑顺地形落在路缘，灯头发光，场景不增加实时点光源。
       const side = Math.sign((p.x - a.x) * normal.x + (p.z - a.z) * normal.z);
@@ -297,44 +291,89 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
     fixtures.push(...colliders.slice(before));
   }
 
-  for (const batch of buckets.values()) {
-    if (batch.positions.length) {
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(batch.positions, 3));
-      geometry.setAttribute('color', new THREE.Float32BufferAttribute(batch.colors, 3));
-      geometry.computeVertexNormals();
-      geometry.computeBoundingSphere();
-      const mesh = new THREE.Mesh(geometry, shoreMaterial);
-      mesh.name = `shenzhen-bay-shore:${batch.id}`;
-      mesh.receiveShadow = true;
-      group.add(mesh);
+  const arrival = { ...routePoints[0], heading: Math.atan2(routePoints[1].x - routePoints[0].x, routePoints[1].z - routePoints[0].z),
+    sourcePathId: source.paths[0].osmId };
+  statistics.restSpots = restSpots.length;
+  return { batches: [...buckets.values()], colliders, statistics, routePoints, restSpots, arrival };
+}
+
+export function createBayWaterfrontAccess(pathsNear) {
+  return {
+    allowsGroundMode(mode, x, z) {
+      if (mode === 'person') return true;
+      const modes = pathsNear(x, z);
+      if (mode === 'car') return modes.length === 0;
+      return mode !== 'cyclist' || modes.includes('cycle') || !pathsNear(x, z, 6).length;
     }
-    fixtureBatches.build(batch.metal, 'steel', `shenzhen-bay-steel:${batch.id}`);
-    fixtureBatches.build(batch.wood, 'wood', `shenzhen-bay-timber:${batch.id}`);
-    fixtureBatches.build(batch.light, 'lamp', `shenzhen-bay-lamps:${batch.id}`);
-    if (batch.poolPositions.length) {
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(batch.poolPositions, 3));
-      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(batch.poolUvs, 2));
-      batch.pool = new THREE.Mesh(geometry, poolMaterial);
-      batch.pool.name = `shenzhen-bay-path-light:${batch.id}`;
-      batch.pool.visible = false;
-      group.add(batch.pool);
-    }
+  };
+}
+
+export function createBayPublicRoutes(routePoints, restSpots, pathsNear) {
+  if (!routePoints.length) return [];
+  const publicRoutes = [{ id: 'shenzhen-bay:central-bay', points: routePoints,
+    allows: (x, z, radius) => pathsNear(x, z, -radius).includes('walk'), reserve: (x, z) => pathsNear(x, z, 1.4).length > 0,
+    restSide: s => restSpots.find(spot => Math.abs(spot.s - s) <= 2.6)?.side, jogSpeed: 2.25 }];
+  return publicRoutes;
+}
+
+export function createBayWaterfrontResources() {
+  const shoreMaterial = new THREE.MeshStandardNodeMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.96 });
+  const poolMaterial = new THREE.MeshBasicNodeMaterial({ color: 0xffd9a1, transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending });
+  poolMaterial.opacityNode = smoothstep(0.06, 0.5, uv().sub(0.5).length()).oneMinus().mul(sceneUniforms.night).mul(0.26);
+  const stone = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.96 });
+  const rockGeometry = new THREE.IcosahedronGeometry(1, 0);
+
+  return { shoreMaterial, poolMaterial, stone, rockGeometry, dispose() {
+    for (const resource of [shoreMaterial, poolMaterial, stone, rockGeometry]) resource.dispose();
+  } };
+}
+
+export function mountBayWaterfrontBatch(group, batch, shared, scheduleDetail = build => build()) {
+  const { shoreMaterial, poolMaterial, stone, rockGeometry } = shared;
+  const fixtureBatches = createFixtureBatches(group, 'bay');
+  const owned = [];
+  const add = mesh => { group.add(mesh); owned.push(mesh); };
+  const wayfinding = batch.wayfinding && addWayfinding(group, ...batch.wayfinding);
+  if (wayfinding) owned.push(wayfinding.sign);
+  if (batch.positions.length) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(batch.positions, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(batch.colors, 3));
+    geometry.computeVertexNormals();
+    geometry.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geometry, shoreMaterial);
+    mesh.name = `shenzhen-bay-shore:${batch.id}`;
+    mesh.receiveShadow = true;
+    add(mesh);
+  }
+  fixtureBatches.build(batch.metal, 'steel', `shenzhen-bay-steel:${batch.id}`);
+  fixtureBatches.build(batch.wood, 'wood', `shenzhen-bay-timber:${batch.id}`);
+  fixtureBatches.build(batch.light, 'lamp', `shenzhen-bay-lamps:${batch.id}`);
+  if (batch.poolPositions.length) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(batch.poolPositions, 3));
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(batch.poolUvs, 2));
+    batch.pool = new THREE.Mesh(geometry, poolMaterial);
+    batch.pool.name = `shenzhen-bay-path-light:${batch.id}`;
+    batch.pool.visible = false;
+    add(batch.pool);
   }
 
-  function update({ x, z }) {
-    if (disposed) return;
-    for (const batch of buckets.values()) {
+  let details = null, wantsDetails = false;
+  return {
+    get detailActive() { return Boolean(details); },
+    update({ x, z }) {
       if (batch.pool) batch.pool.visible = sceneUniforms.night.value > 0.025;
-      if (!batch.rockSites.length) continue;
+      if (!batch.rockSites.length) return;
       const d2 = (x - batch.x) ** 2 + (z - batch.z) ** 2;
-      if (batch.details && d2 > 265 ** 2) {
-        batch.details.removeFromParent();
-        batch.details.dispose();
-        batch.details = null;
-        statistics.detailChunks--;
-      } else if (!batch.details && d2 < 210 ** 2) {
+      wantsDetails = d2 < 210 ** 2;
+      if (details && d2 > 265 ** 2) {
+        details.removeFromParent();
+        details.dispose();
+        details = null;
+      } else if (!details && wantsDetails) scheduleDetail(() => {
+        if (details || !wantsDetails) return;
         const mesh = new THREE.InstancedMesh(rockGeometry, stone, batch.rockSites.length);
         mesh.name = `shenzhen-bay-riprap:${batch.id}`;
         const matrix = new THREE.Matrix4();
@@ -346,37 +385,43 @@ export function buildSzBayWaterfront(scene, source, { heightAt, isWater, collide
         mesh.computeBoundingSphere();
         mesh.receiveShadow = true;
         group.add(mesh);
-        batch.details = mesh;
-        statistics.detailChunks++;
-      }
-    }
-  }
-
-  const arrival = { ...routePoints[0], heading: Math.atan2(routePoints[1].x - routePoints[0].x, routePoints[1].z - routePoints[0].z),
-    sourcePathId: source.paths[0].osmId };
-  statistics.restSpots = restSpots.length;
-  scene.add(group);
-  let disposed = false;
-  return { group, colliders, publicRoutes, arrival, statistics, update,
-    allowsGroundMode(mode, x, z) {
-      if (mode === 'person') return true;
-      const modes = pathsNear(x, z);
-      if (mode === 'car') return modes.length === 0;
-      return mode !== 'cyclist' || modes.includes('cycle') || !pathsNear(x, z, 6).length;
+        details = mesh;
+      });
     },
     dispose() {
-      if (disposed) return;
-      disposed = true;
       fixtureBatches.dispose();
-      group.removeFromParent();
-      for (const mesh of [...group.children]) {
+      details?.removeFromParent();
+      details?.dispose();
+      for (const mesh of owned) {
         mesh.removeFromParent();
-        if (mesh.isInstancedMesh) mesh.dispose();
-        else mesh.geometry.dispose();
+        mesh.geometry.dispose();
       }
       wayfinding?.map.dispose();
       wayfinding?.material.dispose();
-      for (const resource of [rockGeometry, shoreMaterial, stone, poolMaterial]) resource.dispose();
+    }
+  };
+}
+
+export function buildSzBayWaterfront(scene, source, options) {
+  const { pathsNear } = options;
+  const plan = planBayWaterfront(source, { ...options, wayfindingEnabled: typeof document !== 'undefined' });
+  const group = new THREE.Group();
+  group.name = 'shenzhen-bay-central-waterfront';
+  const shared = createBayWaterfrontResources();
+  const batches = plan.batches.map(batch => mountBayWaterfrontBatch(group, batch, shared));
+  const statistics = { ...plan.statistics, detailChunks: 0 };
+  scene.add(group);
+  return { group, colliders: plan.colliders, arrival: plan.arrival, statistics,
+    publicRoutes: createBayPublicRoutes(plan.routePoints, plan.restSpots, pathsNear),
+    ...createBayWaterfrontAccess(pathsNear),
+    update(position) {
+      for (const batch of batches) batch.update(position);
+      statistics.detailChunks = batches.filter(batch => batch.detailActive).length;
+    },
+    dispose() {
+      for (const batch of batches) batch.dispose();
+      group.removeFromParent();
+      shared.dispose();
       statistics.detailChunks = 0;
     }
   };

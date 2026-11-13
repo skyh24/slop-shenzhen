@@ -13,7 +13,7 @@ from land import _to_local
 from map_regions import parts, valid_area
 from road_frontage import _way_line
 from roads import _num
-from shenzhen_bay import PAVING, PUBLIC, _lines, _snapshots, _surface_sampler, bay_paving_masks
+from shenzhen_bay import PAVING, PUBLIC, _lines, _snapshots, _surface_sampler, bay_paving
 from urban_paving import LAWN, STONE, _at_grade, _frontage_reservations, _partition, _source_masks
 
 SOURCE = Path(__file__).resolve().parents[2] / 'data/source/ground-walk.json'
@@ -116,9 +116,11 @@ def compile_ground_walk(payload, osm, source, report):
     candidates += [_candidate('street-stone', stone, STONE, (0,)), _candidate('street-lawn', lawn, LAWN, (0,))]
 
     # 旧包迁移只重标滨水生成器覆盖的三角面；新包已保留中湾材质。
-    bay = bay_paving_masks(payload['shenzhenBay']['paths'])
-    for name, mask in bay.items():
-        candidates.append(_candidate(f'bay-{name}', mask, PAVING[name], (8, 9)))
+    bay, _, _ = bay_paving(payload['shenzhenBay']['paths'], payload['roadGraph'])
+    bay_candidates = [f'bay-{name}' for name, kind in PAVING.items() if kind != 8]
+    for name, kind in PAVING.items():
+        if kind != 8:
+            candidates.append(_candidate(f'bay-{name}', bay[kind], kind, (8, 9)))
     # 沿既有环线换面，保持桥面、道路、树灯位置和岸线高程。
     for route in payload['waterfront']['routes']:
         if route['id'].startswith('lychee-'):
@@ -156,6 +158,6 @@ def compile_ground_walk(payload, osm, source, report):
                            'parkCenterlineM': {k: round(v, 2) for k, v in park_lengths.items()},
                            'parkWalkRoutes': sum(row['id'].startswith('park-ground:') for row in walks),
                            'pavedM2': {k: round(sum(p.area for p in covered.get(k, ())), 2)
-                                       for k in ('street-stone', 'street-lawn', *[f'bay-{name}' for name in bay])}}
+                                       for k in ('street-stone', 'street-lawn', *bay_candidates)}}
     report['terrainSurface'].update(vertices=sum(len(c['kinds']) for c in chunks),
                                     triangles=sum(len(c['indices']) // 3 for c in chunks))

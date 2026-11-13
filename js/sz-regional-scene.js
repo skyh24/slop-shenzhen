@@ -1,0 +1,124 @@
+import * as THREE from 'three/webgpu';
+import { buildSzMetroEntrances, createMetroStructureResources, metroEntranceCollider } from './sz-metro-entrances.js';
+import { createBayWaterfrontResources, createBayPublicRoutes, mountBayWaterfrontBatch } from './sz-bay-waterfront.js';
+import { createWaterfrontPublicRoutes, mountWaterfrontBatch } from './sz-waterfront.js';
+import { buildSzDroneRoutes, droneStationColliders } from './sz-drone-routes.js';
+import { buildSzSea } from './sz-sea.js';
+import { compatibleRegionalScene } from './sz-regional-format.js';
+import { createRegionalStream } from './sz-regional-stream.js';
+
+function fixtures(batch, keys) {
+  for (const key of keys) {
+    batch[key] = batch[key].map(([ax, ay, az, bx, by, bz, width, height]) => ({
+      a: { x: ax, y: ay, z: az }, b: { x: bx, y: by, z: bz }, width, height
+    }));
+  }
+  return batch;
+}
+
+export function createRegionalScene(scene, geo, { site, talentPark, trees, vegetation, elevatedRoads, bayPaths }, skip) {
+  const manifest = geo.regionalScene;
+  const drone = compatibleRegionalScene(manifest) && !skip('drones') ? manifest.drone : { stations: [], routes: [] };
+  const stations = new Map(drone.stations.map(station => [station.id, station]));
+  const routes = drone.routes.map(route => ({ ...route, from: stations.get(route.fromStationId), to: stations.get(route.toStationId) }));
+  const drones = buildSzDroneRoutes(scene, { air: geo.air, site, regional: { stations: drone.stations, routes },
+    treeObstacles: bounds => [...trees.flightObstacles(bounds), ...vegetation.flightObstacles(bounds)] });
+  const bay = new THREE.Group(), shore = new THREE.Group(), metro = new THREE.Group();
+  bay.name = 'shenzhen-bay-central-waterfront';
+  shore.name = 'shenzhen-waterfront-samples';
+  metro.name = 'shenzhen-metro-entrances';
+  scene.add(bay, shore, metro);
+  let bayShared, metroShared;
+  const entrances = new Map();
+  const stream = createRegionalStream(manifest, {
+    routeSelected: () => [drones.previewRoute, drones.followedRoute],
+    routeFlying: drones.isFlying,
+    skip: kind => kind === 'metro' ? skip('metro')
+      : (kind.startsWith('flight') || kind === 'drone-station') && skip('drones'),
+    decode({ kind }, data) {
+      switch (kind) {
+        case 'metro': return { placed: data, colliders: data.map(metroEntranceCollider) };
+        case 'drone-station': {
+          const station = stations.get(data);
+          if (!station?.available) throw new Error('Unknown regional drone station');
+          return { station, colliders: droneStationColliders(station) };
+        }
+        case 'bay-walk': return { routes: createBayPublicRoutes(data.points, data.restSpots, bayPaths) };
+        case 'shore-walk': return { routes: createWaterfrontPublicRoutes([data], site.heightAt, elevatedRoads.surfaces,
+          (x, z, radius) => site.nearObstacles(x, z, radius)) };
+        default: return data;
+      }
+    },
+    mount(row, data) {
+      switch (row.kind) {
+        case 'metro': {
+          metroShared ??= createMetroStructureResources();
+          const live = buildSzMetroEntrances(metro, null, { placement: data, shared: metroShared, chunkSizeM: 500 });
+          live.group.updateMatrixWorld(true);
+          for (const entrance of live.entrances) entrances.set(entrance.id, entrance);
+          return { update: live.update, dispose() {
+            for (const entrance of live.entrances) entrances.delete(entrance.id);
+            live.dispose();
+          } };
+        }
+        case 'bay': {
+          bayShared ??= createBayWaterfrontResources();
+          const live = mountBayWaterfrontBatch(bay, fixtures(data.batch, ['metal', 'wood', 'light']), bayShared,
+            build => stream.visual(build, row));
+          bay.updateMatrixWorld(true);
+          return live;
+        }
+        case 'shore': {
+          // 近处才分配实例缓冲。离开细节范围就释放，保留已加载的接触数据。
+          let live, desired = false;
+          return { update(point) {
+            const { batch } = data;
+            const d = Math.hypot(point.x - batch.x, point.z - batch.z);
+            desired = d < 275;
+            if (live && d > 335) { live.dispose(); live = null; }
+            else if (!live && desired) {
+              stream.visual(() => {
+                if (live || !desired) return;
+                if (Array.isArray(batch.steel[0]) || Array.isArray(batch.lamp[0])) fixtures(batch, ['steel', 'lamp']);
+                live = mountWaterfrontBatch(shore, batch);
+                shore.updateMatrixWorld(true);
+              }, row);
+            }
+          }, dispose() { live?.dispose(); } };
+        }
+        case 'shore-water': {
+          const live = buildSzSea(shore, { polygons: [geo.water[data.waterIndex]], heightM: data.heightM, source: data.id },
+            { name: `waterfront-water:${data.id}`, coastal: false, cityReflection: false });
+          live.mesh.updateMatrixWorld(true);
+          return live;
+        }
+        case 'talent': return talentPark.mount(fixtures(data, ['steel', 'wall', 'timber', 'lamps']), data.colliders);
+        case 'drone-station': return drones.mountStation(data.station);
+        case 'flight': return drones.mountRoute(row.routeId, data);
+        case 'flight-line': return drones.mountLine(row.routeId, data.map(([x, y, z]) => ({ x, y, z })));
+        default: return { dispose() {} };
+      }
+    }
+  });
+  return { ...stream, drones,
+    get statistics() { return { ...stream.statistics, sceneObjects: {
+      metro: metro.children.reduce((count, group) => count + group.children.length, 0),
+      waterfront: bay.children.length + shore.children.length + (talentPark.visualObjects ?? 0),
+      drones: drones.group.children.length
+    } }; },
+    flightFailed: stream.failedRoute,
+    prepareFlight(stationId) {
+      const station = stations.get(stationId);
+      return station?.available ? stream.prepare(station) : null;
+    },
+    metro: { group: metro, get entrances() { return [...entrances.values()]; },
+      get statistics() { return { placed: entrances.size, ...stream.statistics }; } },
+    dispose() {
+      stream.dispose();
+      drones.dispose();
+      bayShared?.dispose();
+      metroShared?.dispose();
+      for (const root of [bay, shore, metro]) root.removeFromParent();
+    }
+  };
+}

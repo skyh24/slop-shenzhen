@@ -148,14 +148,17 @@ export function renderLandmark(plan, materialFor) {
   }
   for (const [style, parts] of instances) {
     const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(), materialFor(style), parts.length);
-    const pose = new THREE.Object3D();
+    const matrix = new THREE.Matrix4();
     parts.forEach((part, i) => {
       const [a, b, c, d] = part.polygon.outer;
-      pose.position.set((a.x + c.x) / 2, (part.minY + part.maxY) / 2, (a.z + c.z) / 2);
-      pose.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
-      pose.scale.set(Math.hypot(d.x - a.x, d.z - a.z), part.maxY - part.minY, Math.hypot(b.x - a.x, b.z - a.z));
-      pose.updateMatrix();
-      mesh.setMatrixAt(i, pose.matrix);
+      const dx = b.x - a.x, dz = b.z - a.z, ratio = Math.hypot(d.x - a.x, d.z - a.z) / Math.hypot(dx, dz);
+      const [t0, t1] = Array.isArray(part.top) ? part.top : [part.maxY, part.maxY];
+      const bottom = Array.isArray(part.bottom) ? part.bottom[0] : part.minY;
+      // 平行边斜梁用竖向剪切，顶底端点与 spanPart 的碰撞截面一致。
+      matrix.set(dz * ratio, 0, dx, (a.x + c.x) / 2,
+        0, t0 - bottom, t1 - t0, (t1 + bottom) / 2,
+        -dx * ratio, 0, dz, (a.z + c.z) / 2, 0, 0, 0, 1);
+      mesh.setMatrixAt(i, matrix);
     });
     mesh.name = style;
     mesh.castShadow = true;

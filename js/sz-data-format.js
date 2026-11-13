@@ -186,6 +186,14 @@ function validateWaterfront(site, raw) {
   requireData(Array.isArray(site.rails) && site.rails.every(r => typeof r.id === 'string'
     && Array.isArray(r.stations) && r.stations.every(p => p === null || xyz(p)))
     && polyline(site.bayLower?.points), 'waterfront banks');
+  if (site.extensions === undefined && site.extensionWaters === undefined) return;
+  requireData(Array.isArray(site.extensions) && site.extensions.every(r => typeof r.id === 'string'
+    && typeof r.waterId === 'string' && polyline(r.points) && positive(r.lengthM)
+    && Array.isArray(r.paths) && r.paths.length > 0 && r.paths.every(p => way.test(p.osmId)
+      && (mode(p.mode) || p.mode === 'cycle') && positive(p.widthM) && p.heightSource === 'terrain-derived-estimate'
+      && p.points?.length >= 2 && p.points.every(xz => xz.length === 2 && xz.every(Number.isFinite)))), 'waterfront extensions');
+  requireData(Array.isArray(site.extensionWaters) && site.extensionWaters.every(w => way.test(w.id)
+    && waterIndex(w.waterIndex) && Number.isFinite(w.heightM) && w.heightSource === 'estimate'), 'waterfront extension waters');
 }
 
 function validateTrees(trees) {
@@ -897,6 +905,12 @@ export function validateCityPayload(raw) {
     requireData(frontage?.version === 1 && frontage.source?.osmSnapshotId === 'osm-guangdong'
       && Array.isArray(frontage.corridors) && Array.isArray(frontage.features) && Array.isArray(frontage.intersections), 'road frontage source');
     for (const feature of frontage.features) {
+      if (feature.arterialStyle !== undefined) {
+        requireData(feature.kind === 'median' && ['grass', 'separator'].includes(feature.arterialStyle)
+          && feature.riseM === 0 && Array.isArray(feature.sourceIds) && feature.sourceIds.length >= 2
+          && feature.sourceIds.every(isOsmId) && Array.isArray(feature.trianglesXZ) && feature.trianglesXZ.length > 0
+          && feature.trianglesXZ.length % 6 === 0 && feature.trianglesXZ.every(Number.isFinite), 'arterial median finish');
+      }
       if (feature.solidPlanting !== undefined) {
         requireData(feature.solidPlanting === true && feature.kind === 'median' && feature.riseM > 0
           && Array.isArray(feature.outlines) && feature.outlines.length > 0
@@ -984,6 +998,7 @@ export function decodeCityPayload(raw, metrics = null) {
     mapRegions: raw.mapRegions ? { ...raw.mapRegions, regions: raw.mapRegions.regions.map(decodeMapRegion) } : null,
     shenzhenBay: raw.shenzhenBay ?? null,
     waterfront: raw.waterfront ?? null,
+    regionalScene: raw.regionalScene ?? null,
     urbanPaving: raw.urbanPaving ?? null,
     metro: raw.metro, landmarks: raw.landmarks,
     bridges: raw.bridges ?? [], yanjiangExpressway: raw.yanjiangExpressway ?? null,

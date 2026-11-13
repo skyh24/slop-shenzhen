@@ -141,8 +141,8 @@ function latticeParts(source, polygon, profile, center) {
         for (let j = 1; j < joints.length; j++) {
           const a = joints[j - 1], b = joints[j];
           if (b - a < 0.04) continue;
-          parts.push(spanPart(`chunjian:rib:${source.id}:${sign}:${line}:${i}:${j}`, source, vertex(a), vertex(b),
-            ribWidth, ribWidth, ribDepth, 'stadiumRib', { baseSourceId: stadiumId }));
+          parts.push({ ...spanPart(`chunjian:rib:${source.id}:${sign}:${line}:${i}:${j}`, source, vertex(a), vertex(b),
+            ribWidth, ribWidth, ribDepth, 'stadiumRib', { baseSourceId: stadiumId }), instanced: true });
         }
       }
     }

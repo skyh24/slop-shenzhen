@@ -12,6 +12,8 @@ const MAP = {
   piers: '#283039',
   streets: '#363f4b',
   gardenPath: '#95856d',
+  waterfrontWalk: '#c1a67e',
+  waterfrontCycle: '#78c6ba',
   shore: '#4f5b6b',
   park: '#19301f',
   parkEdge: '#24432f',
@@ -272,6 +274,15 @@ function mapLayers() {
   for (const { trianglesXZ } of GEO.golfCourse?.surfaces ?? []) {
     for (let i = 0; i < trianglesXZ.length; i += 6) layers.gardenPaths.ring(trianglesXZ.slice(i, i + 6));
   }
+  const shorePaths = [...(GEO.shenzhenBay?.paths ?? []),
+    ...[...(GEO.waterfront?.routes ?? []), ...(GEO.waterfront?.extensions ?? [])].flatMap(route => route.paths),
+    ...[...(GEO.talentPark?.route ?? []), ...(GEO.talentPark?.entrances ?? [])].map(path => ({ ...path, mode: 'walk' }))];
+  layers.waterfront = shorePaths.map(row => {
+    const points = row.points.flat();
+    const path = new Path2D();
+    addLine(path, points);
+    return { path, bounds: boundsOf(points), widthM: row.widthM, mode: row.mode, steps: row.kind === 'steps' };
+  });
   // 福田、深圳北和西丽使用已收录的轮廓，深圳站用已有位置标注。
   layers.hsr = Object.entries(STR.hsr.stations).flatMap(([id, name]) => {
     const landmark = GEO.landmarks?.find(item => item.id === id);

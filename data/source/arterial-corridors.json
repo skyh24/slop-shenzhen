@@ -1,0 +1,19 @@
+{
+  "osmSnapshotId": "osm-guangdong",
+  "checkedAt": "2026-11-13",
+  "style": {
+    "北环大道": "separator",
+    "深南大道": "grass",
+    "滨海大道": "grass"
+  },
+  "evidence": {
+    "streetHistory": "https://pnr.sz.gov.cn/attachment/1/1442/1442495/10537363.pdf",
+    "beihuanSection": "beihuan-profile.json",
+    "binhaiTunnel": "https://jtys.sz.gov.cn/pcjt/tsjt/content/post_12123186.html",
+    "binhaiPark": "https://cgj.sz.gov.cn/xsmh/gysz/gydt/content/post_12919159.html"
+  },
+  "duplicates": [
+    {"omit": "way/96934588", "keep": "way/1337092544", "nodes": ["node/1992853849", "node/7293795831"]},
+    {"omit": "way/1337092548", "keep": "way/1337092549", "nodes": ["node/7293795831", "node/3379374435"]}
+  ]
+}

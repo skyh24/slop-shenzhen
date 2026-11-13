@@ -352,6 +352,34 @@ def compile_reviewed_profile(route, graph, grid, indices, config):
     return records, unary_union(openings), unary_union(envelope)
 
 
+def compile_junction_continuation(route, graph, grid, indices, config):
+    """按源线补齐单幅一级桥隧，洞口、坡道和桥面共用纵断面。"""
+    if len(indices) != 3 or route['kind'] not in ('bridge', 'tunnel'):
+        raise ValueError('Junction continuation requires approach, structure and exit')
+    start, middle, end = (graph['metadata'][i] for i in indices)
+    tunnel = route['kind'] == 'tunnel'
+    if (any(row['heightSource'] != 'terrain' for row in (start, end))
+            or middle['tunnel'] != tunnel or middle['bridge'] == tunnel
+            or middle['layer'] not in ((-1,) if tunnel else (0, 1))):
+        raise ValueError('Junction continuation does not match the source structure')
+    lines = [LineString(source_points(graph, graph['links'][i])) for i in indices]
+    entry, crossing, exit_length = [line.length for line in lines]
+    apron = 10
+    if min(entry, exit_length) <= apron:
+        raise ValueError('Junction continuation has no room for its ground apron')
+    first = ground_height(grid, *lines[0].coords[0])
+    last = ground_height(grid, *lines[2].coords[-1])
+    center = ground_height(grid, *lines[1].interpolate(0.5, normalized=True).coords[0])
+    level = center + config['verticalStepM'] * (-1 if tunnel else 1)
+    total = entry + crossing + exit_length
+    profile = {**route, 'profileM': [[0, first], [apron, first], [entry, level],
+                                   [entry + crossing, level], [total - apron, last], [total, last]],
+               'verticalCurveM': 10, 'groundApronM': [apron, apron]}
+    if tunnel:
+        profile.update(boreWays=[middle['osmId']], portalApproachWays=[start['osmId'], end['osmId']])
+    return compile_reviewed_profile(profile, graph, grid, indices, config)
+
+
 def compile_route(route, graph, grid, by_way, config, accepted=()):
     indices = resolve_route(route, graph, by_way)
     if not indices:
@@ -361,6 +389,8 @@ def compile_route(route, graph, grid, by_way, config, accepted=()):
         raise ValueError('Route must have continuous, forward source nodes')
     if route.get('junction'):
         return compile_interchange_ramp(route, graph, grid, indices, config, accepted)
+    if route.get('junctionContinuation'):
+        return compile_junction_continuation(route, graph, grid, indices, config)
     if route.get('profileM'):
         return compile_reviewed_profile(route, graph, grid, indices, config)
     tunnel = route['kind'] == 'tunnel'
@@ -474,14 +504,22 @@ def compile_road_structures(payload, manifest, report, *, base=None, cover_shape
     road_tree = STRtree(road_lines)
     accepted, conflicts = [], []
     connections = {}
+    occupied = set()
     for route in manifest['routes']:
         try:
             parts, opening, envelope, *junction = compile_route(route, graph, grid, by_way, manifest, accepted)
             if junction and route['junction']['mainline'] == route['id']:
                 raise ValueError('Ramp cannot be its own mainline')
             clearances = []
-            replaced = {part['index'] for _, group, *_ in accepted for part in group} | {part['index'] for part in parts}
+            indices = {part['index'] for part in parts}
+            if indices & occupied:
+                raise ValueError('Source link already belongs to a reviewed structure')
+            replaced = occupied | indices
             for part in parts:
+                if route.get('junctionContinuation') and part['kind'] == 'approach':
+                    _, crossings = bridge_crossing_clearance(part, graph, grid, road_lines, road_tree, 0, indices)
+                    if any(abs(crossing['clearanceM']) > 0.05 for crossing in crossings):
+                        raise ValueError('Junction approach intersects an existing ground carriageway')
                 if part['kind'] not in ('bridge', 'ramp'):
                     continue
                 clearance, crossings = bridge_crossing_clearance(part, graph, grid, road_lines, road_tree,
@@ -497,6 +535,7 @@ def compile_road_structures(payload, manifest, report, *, base=None, cover_shape
             conflicts.append({'route': route['id'], 'ways': route['ways'], 'reason': str(error)})
             continue
         accepted.append((route, parts, opening, envelope, clearances))
+        occupied.update(indices)
         if junction:
             connections[route['id']] = junction[0]
     # 仅剔除发生冲突的开挖路线。被剔除的路线恢复为原始地面后，再校验剩余洞口。

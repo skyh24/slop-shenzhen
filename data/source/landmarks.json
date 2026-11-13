@@ -19,8 +19,37 @@
     {
       "id": "chunjian", "name": "深圳湾体育中心（春茧）", "phase": 1,
       "center": [22.52132, 113.94477],
-      "osm": { "site": "way/542049855" },
-      "heightSource": "estimate", "status": "todo"
+      "osm": { "site": "way/542049855", "pitch": "way/493390579" },
+      "heightSource": "estimate", "status": "partial"
+    },
+    {
+      "id": "szu-yuanping-stadium", "name": "深圳大学元平田径场", "short": "元平田径场", "phase": 1,
+      "aliases": ["深圳大学足球场", "深大球场", "元平体育场"],
+      "center": [22.5391294, 113.9359223],
+      "osm": { "stadium": "relation/3110985", "pitch": "way/231813499" },
+      "heightSource": "estimate", "status": "partial",
+      "sources": ["https://en.szu.edu.cn/info/1029/1010.htm", "https://news.szu.edu.cn/info/1003/1632.htm"]
+    },
+    {
+      "id": "university-town-stadium", "name": "深圳大学城体育中心体育场", "short": "大学城体育场", "phase": 1,
+      "center": [22.5903924, 113.9752982],
+      "osm": { "stadium": "relation/7664887", "pitch": "way/533642877" },
+      "heightSource": "estimate", "status": "partial",
+      "sources": ["https://www.sport.gov.cn/n14471/n14507/n14531/c698913/content.html", "https://www.hitsz.edu.cn/news/2018/0423/c9a11400/page.htm"]
+    },
+    {
+      "id": "shenzhen-stadium", "name": "深圳市体育中心体育场", "short": "深圳体育场", "phase": 1,
+      "center": [22.5621561, 114.0868797],
+      "osm": { "site": "way/636736822", "stadium": "relation/3777627", "pitch": "way/285020297" },
+      "heightM": 45.58, "heightSource": "design", "status": "partial",
+      "sources": ["https://www.sz.gov.cn/cn/xxgk/zfxxgj/zwdt/content/post_12092103.html", "https://www.sz.gov.cn/attachment/1/1567/1567461/12118688.pdf", "https://lola.land/project/redevelopment-sports-oasis-center-shenzen/"]
+    },
+    {
+      "id": "shenzhen-gymnasium", "name": "深圳市体育中心体育馆", "short": "深圳体育馆", "phase": 1,
+      "center": [22.5598601, 114.0885052],
+      "osm": { "site": "way/636736822", "arena": "way/927162338" },
+      "heightM": 47.185, "heightSource": "design", "status": "partial",
+      "sources": ["https://www.cscec.com/xwzx_new/zqydt_new/202212/3610293.html", "https://www.sz.gov.cn/attachment/1/1567/1567461/12118688.pdf", "https://lola.land/project/redevelopment-sports-oasis-center-shenzen/"]
     },
     {
       "id": "talent-park", "name": "深圳人才公园", "phase": 1,

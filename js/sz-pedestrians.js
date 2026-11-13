@@ -366,19 +366,22 @@ export function createSzPedestrians(scene, graph, options = {}) {
     const started = typeof performance === 'object' && performance?.now ? performance.now() : Date.now();
     const radius = cfg.regionRadiusM;
     const bounds = { minX: focus.x - radius, minZ: focus.z - radius, maxX: focus.x + radius, maxZ: focus.z + radius };
+    const regionalTracks = (cfg.regionalRoutes?.(focus.x, focus.z, radius) ?? [])
+      .map(route => createPublicWalkTrack(route.points, route));
+    const tracks = [...publicTracks, ...regionalTracks];
     const built = buildWalkTracks(graph, {
       ...cfg,
       bounds,
       heightAt: cfg.heightAt,
       colliders: cfg.colliders,
       colliderGrid,
-      excludeWalkAt: (x, z) => cfg.excludeWalkAt?.(x, z) || publicTracks.some(track => track.reserve?.(x, z)),
+      excludeWalkAt: (x, z) => cfg.excludeWalkAt?.(x, z) || tracks.some(track => track.reserve?.(x, z)),
       pavement: cfg.pavement,
       surfaceRiseM: cfg.surfaceRiseM,
       pavementHalfWidthM: cfg.pavementHalfWidthM,
       walkMarginM: cfg.walkMarginM
     });
-    for (const track of [...publicTracks, ...crossingTracks]) {
+    for (const track of [...tracks, ...crossingTracks]) {
       if (!track.points.some(p => p.x >= bounds.minX && p.x <= bounds.maxX && p.z >= bounds.minZ && p.z <= bounds.maxZ)) continue;
       if (!track.crossing) built.tracks.push(track);
       built.legs.push(track);

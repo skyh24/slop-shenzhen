@@ -221,12 +221,12 @@ class NYCMapSystem {
       list.append(button);
     }
     layer.addEventListener('change', () => this.setHsrVisible(layer.checked));
-    visit.addEventListener('click', () => {
+    visit.addEventListener('click', async () => {
       const station = this.hsrStation;
       if (!station) return;
       const { id, x, z, name, polygons } = station;
-      const arrived = this.onTeleport?.(x, z, undefined, {
-        waypoint: { x, z, name }, stationVisit: { id, exterior: id === 'futian-station' ? [] : polygons }
+      const arrived = await this.onTeleport?.(x, z, undefined, {
+        current: () => this.hsrStation === station, waypoint: { x, z, name }, stationVisit: { id, exterior: id === 'futian-station' ? [] : polygons }
       });
       if (!arrived) {
         status.textContent = STR.hsr.visitUnavailable;
@@ -285,9 +285,17 @@ class NYCMapSystem {
     clear?.addEventListener('click', () => this.resetDrivePlan());
     repickEnd?.addEventListener('click', () => this.resetDrivePlan(true));
     start?.addEventListener('click', () => {
-      if (this.drive.start(this.driveRoute)) this.toggleFullMap(false);
-      else this.driveFeedback = STR.drive.needsStart;
-      this.renderDriveUi();
+      const route = this.driveRoute;
+      const current = () => this.isFullMapOpen && this.driveRoute === route;
+      const finish = started => {
+        if (!current()) return;
+        if (started) this.toggleFullMap(false);
+        else this.driveFeedback = STR.drive.needsStart;
+        this.renderDriveUi();
+      };
+      const started = this.drive.start(route, current);
+      if (started?.then) started.then(finish);
+      else finish(started);
     });
     for (const button of pauses) button?.addEventListener('click', () => this.drive.pause());
     for (const button of resumes) button?.addEventListener('click', () => this.drive.resume());
@@ -518,17 +526,20 @@ class NYCMapSystem {
       ui.buttons.set(station.id, button);
       list.append(button);
     }
-    ui.approach.addEventListener('click', () => {
-      if (this.droneControls.approach(this.droneStation)) this.toggleFullMap(false);
+    ui.approach.addEventListener('click', async () => {
+      const station = this.droneStation;
+      if (await this.droneControls.approach(station, () => this.isFullMapOpen && station === this.droneStation)) this.toggleFullMap(false);
       else {
         this.droneFeedback = STR.drones.approachUnavailable;
         this.renderDroneCard();
       }
     });
-    ui.follow.addEventListener('click', () => {
-      const { suspended, route } = this.droneControls.status(this.droneStation.id);
+    ui.follow.addEventListener('click', async () => {
+      const station = this.droneStation;
+      const { suspended, route } = this.droneControls.status(station.id);
       const demo = suspended || Boolean(route?.simulationOnly);
-      if (this.droneControls.follow(this.droneStation, demo, { remote: true })) this.toggleFullMap(false);
+      if (await this.droneControls.follow(station, demo, { remote: true,
+        current: () => this.isFullMapOpen && station === this.droneStation })) this.toggleFullMap(false);
       else {
         this.droneFeedback = STR.drones.visitUnavailable;
         this.renderDroneCard();
@@ -580,12 +591,14 @@ class NYCMapSystem {
   renderDroneCard() {
     if (!this.droneStation || !this.dronesVisible || !this.isFullMapOpen) return;
     const ui = this.droneUI, strings = STR.drones;
-    const { route, suspended, mission, available, blocked, canApproach } = this.droneControls.status(this.droneStation.id);
+    const { route, suspended, mission, available, failed, blocked, canApproach } = this.droneControls.status(this.droneStation.id);
     const demo = suspended || Boolean(route?.simulationOnly);
     const active = mission && mission.pose.phase !== 'complete';
     const phase = active && strings.phase[mission.pose.phase];
-    const lines = [this.droneFeedback, suspended && strings.statusSuspended, route?.simulationOnly && (route.path.detour ? strings.detour : strings.simulationOnly),
-      !available && strings.unavailable, blocked && strings.blocked,
+    const loading = !failed && route?.path.points && !route.path.reason;
+    const lines = [this.droneFeedback, suspended && strings.statusSuspended,
+      route?.simulationOnly && (route.path.detour ? strings.detour : strings.simulationOnly),
+      !available && (loading ? strings.preparing : strings.unavailable), blocked && strings.blocked,
       active && (mission.demo ? strings.simulation + ' · ' : '') + (mission.pose.returning ? strings.returning(phase) : phase)]
       .filter(Boolean);
     const status = lines.join(' / ') || strings.phase.loading;
@@ -765,6 +778,16 @@ class NYCMapSystem {
       ctx.stroke(road.path);
     }
     ctx.globalAlpha = 1;
+    if (v.s >= 0.035) {
+      for (const route of layers.waterfront) {
+        if (!v.sees(route.bounds)) continue;
+        ctx.strokeStyle = route.mode === 'walk' ? MAP.waterfrontWalk : MAP.waterfrontCycle;
+        ctx.lineWidth = Math.max(1.15 / v.s, route.widthM);
+        if (route.steps) ctx.setLineDash([2 / v.s, 3 / v.s]);
+        ctx.stroke(route.path);
+        if (route.steps) ctx.setLineDash([]);
+      }
+    }
     if (this.metroLines.size > 0) {
       for (const segment of layers.metro) {
         if (!v.sees(segment.bounds)) continue;

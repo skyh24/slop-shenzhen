@@ -21,6 +21,7 @@ import * as qianhaiMuseum from './qianhai-museum.js';
 import * as bayOpera from './bay-opera.js';
 import * as mocape from './mocape.js';
 import { sourceIds as northIds, build as buildNorth } from './shenzhen-north.js';
+import { buildSportsVenue, sportsLandmarks } from './sports-venues.js';
 import { polygonContains } from '../building-collision.js';
 
 // 超级总部/西丽在建场地由「建好形态/在建工地」接管：场地轮廓内的旧通用楼不再单独渲染。
@@ -41,7 +42,13 @@ const definitions = [
   { id: 'ping-an', sourceIds: pingAnIds, build: buildPingAn },
   { id: 'chunsun', sourceIds: chunsunIds, build: buildChunsun },
   { id: 'civic-center', sourceIds: civicIds, optionalSkipIds: civicDuplicates, build: buildCivic },
-  { id: 'chunjian', sourceIds: chunjianIds, build: buildChunjian },
+  { id: 'chunjian', sourceIds: chunjianIds, build: (source, terrain, context) => {
+    const shell = buildChunjian(source, terrain, context);
+    if (!shell.length) return shell;
+    const field = buildSportsVenue('chunjian', source, terrain, context);
+    return { ...field, parts: [...shell, ...field.parts] };
+  } },
+  ...sportsLandmarks,
   { id: 'shenzhen-bay-culture-square', sourceIds: cultureIds, build: buildCulture },
   { id: 'convention-center', sourceIds: conventionIds, build: buildConvention },
   { id: 'upperhills', sourceIds: upperhillsIds, build: buildUpperhills },
@@ -69,7 +76,7 @@ export function siteTakeoverIds(buildings, sites = {}) {
   return ids;
 }
 
-export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, groundHeight, northRail } = {}) {
+export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, groundHeight, roadHeight, northRail } = {}) {
   const source = new Map(buildings.map(building => [building.id, building]));
   const skipIds = new Set();
   const plans = [];
@@ -78,13 +85,14 @@ export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, grou
     const sourceIds = definition.sourceIds ?? [];
     if (!sourceIds.every(id => source.has(id))) continue;
     // 已核场地与玩家活动地面一同传入；贴地接驳用显示面，楼体估高仍用原地形。
-    const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {}, heightAt, groundHeight, northRail };
-    const parts = definition.build(source, terrain, context);
+    const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {}, heightAt, groundHeight, roadHeight, northRail };
+    const model = definition.build(source, terrain, context);
+    const { parts, patches = [], trim = [], approaches = [], reservesField } = Array.isArray(model) ? { parts: model } : model;
     if (parts.length === 0) continue;
     for (const id of sourceIds) skipIds.add(id);
     for (const id of definition.optionalSkipIds ?? []) if (source.has(id)) skipIds.add(id);
-    plans.push({ id: definition.id, parts, approaches: definition.approaches?.(source) ?? [],
-      trim: definition.trim?.(parts, source) ?? [] });
+    plans.push({ id: definition.id, parts, patches, reservesField, approaches: definition.approaches?.(source) ?? approaches,
+      trim: definition.trim?.(parts, source) ?? trim });
   }
   // 场地接管与地标接管合并成一份 skipIds：超级总部/西丽场地轮廓内的旧通用楼不再单独渲染。
   for (const id of siteTakeoverIds(buildings, sites)) skipIds.add(id);

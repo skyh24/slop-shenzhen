@@ -21,7 +21,7 @@ async function load() {
   const { decodeCityPayload } = await import('../js/sz-data-format.js');
   const { createGroundSurfaceSampler } = await import('../js/sz-ground-surface.js');
   const { polygonContainsInclusive } = await import('../js/sz-polygon.js');
-  const { buildTalentWaterfront } = await import('../js/sz-talent-waterfront.js');
+  const { buildTalentWaterfront, planTalentWaterfront } = await import('../js/sz-talent-waterfront.js');
   const { planElevatedRoads } = await import('../js/sz-elevated-roads.js');
   const { createRoadHeightSampler, createRoadSurfaceLayout } = await import('../js/sz-roads.js');
   const raw = JSON.parse(gunzipSync(readFileSync(resolve(__dirname, '../js/sz-city.json.gz'))));
@@ -42,8 +42,9 @@ async function load() {
   const decks = planElevatedRoads(geo.roadGraph, geo.terrainSurface, {
     parkFootbridges: source.footbridges, water: geo.water
   });
-  const walk = buildTalentWaterfront(scene, source, lake,
-    { terrainSurface: geo.terrainSurface, groundHeight, isWater, roadHeight, colliders }, decks.surfaces);
+  const site = { terrainSurface: geo.terrainSurface, groundHeight, isWater, roadHeight, colliders };
+  const plan = planTalentWaterfront(source, site, undefined, decks.surfaces);
+  const walk = buildTalentWaterfront(scene, source, lake, site, plan, decks.surfaces);
   fixture = { scene, walk, source, lake, groundHeight, isWater, decks,
     colliders: [...colliders, ...walk.colliders, ...decks.colliders] };
   return fixture;

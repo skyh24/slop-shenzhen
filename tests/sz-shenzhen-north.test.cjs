@@ -14,6 +14,7 @@ const layoutFile = join(__dirname, '../js/sz-landmarks/layout.js');
 const layoutSource = readFileSync(layoutFile, 'utf8');
 const imports = Object.fromEntries([...layoutSource.matchAll(/import .* from '(\.\/[^']+)'/g)]
   .map(([, path]) => [path, { sourceIds: [], build: () => [] }]));
+imports['./sports-venues.js'] = { sportsLandmarks: [] };
 imports['./shenzhen-north.js'] = require('../js/sz-landmarks/shenzhen-north.js');
 imports['../building-collision.js'] = require('../js/building-collision.js');
 const { planSzLandmarks } = loadModule(layoutSource, { imports });

@@ -44,6 +44,9 @@ const civic = loadModule(readLandmark('civic-center.js'), { imports: {
 const stadium = loadModule(readLandmark('chunjian.js'), { imports: {
   '../building-collision.js': collision, './parts.js': parts, '../sz-terrain.js': terrain
 } });
+const sports = loadModule(readLandmark('sports-venues.js'), { imports: {
+  '../building-collision.js': collision, './parts.js': parts, '../sz-terrain.js': terrain
+} });
 const convention = loadModule(readLandmark('convention-center.js'), { imports: { '../sz-terrain.js': terrain, './parts.js': parts } });
 const loadCulture = THREE => loadModule(readLandmark('shenzhen-bay-culture-square.js'), { imports: {
   'three/webgpu': THREE, '../building-collision.js': collision, '../sz-terrain.js': terrain, './parts.js': parts
@@ -72,7 +75,7 @@ const loadPlan = (cultureModule, upperhillsModule = upperhills, iecModule = iec,
   './tencent-towers.js': tencentTowers, './university-town-library.js': library, './diwang.js': diwang, './kk100.js': kk100,
   './stock-exchange.js': exchange, './shopping-park-shell.js': shopping,
   './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun,
-  './civic-center.js': civic, './chunjian.js': stadium, './shenzhen-bay-culture-square.js': cultureModule,
+  './civic-center.js': civic, './chunjian.js': stadium, './sports-venues.js': sports, './shenzhen-bay-culture-square.js': cultureModule,
   './convention-center.js': convention, './upperhills.js': upperhillsModule, './nonferrous-tower.js': nonferrous,
   './shenzhen-north.js': { sourceIds: ['way/222088288', 'way/262922059', 'way/262922064'], build: () => [] },
   './iec-xiangmihu.js': iecModule, './super-hq.js': superHqModule, './press-tower.js': pressTower, '../building-collision.js': collision
@@ -768,5 +771,68 @@ test('the shopping park podium contact omits the roof under its upper shell',
     }
     assert.ok(covered > 10 && exposed > 10);
     rendered.group.traverse(object => object.geometry?.dispose());
+    material.dispose();
+  });
+
+test('the sports venues bind one source each and keep the indoor arena closed', () => {
+  const sampler = loadModule(read('sz-ground-surface.js')).createGroundSurfaceSampler(geo.terrainSurface);
+  const planned = planSzLandmarks(fixture, geo.terrain, geo.sites, { groundHeight: sampler });
+  for (const def of sports.sportsLandmarks) {
+    const venue = planned.plans.find(p => p.id === def.id);
+    assert.ok(venue?.parts.length > 0, def.id);
+    for (const id of [...def.sourceIds, ...(def.optionalSkipIds ?? [])]) assert.ok(planned.skipIds.has(id), id);
+  }
+  for (const id of ['way/230956722', 'way/285020282', 'way/1425702429']) assert.ok(!planned.skipIds.has(id), id);
+  const arena = planned.plans.find(p => p.id === 'shenzhen-gymnasium');
+  assert.ok(arena.parts.some(p => p.id.endsWith(':closed-roof') && p.heightSource === 'design'));
+  assert.ok(arena.patches.every(p => ['sportsApron', 'sportsInfield'].includes(p.style)));
+  const stadium = planned.plans.find(p => p.id === 'shenzhen-stadium');
+  assert.ok(stadium.patches.every(p => !p.style.startsWith('sportsTrack')));
+  assert.ok(stadium.parts.some(p => p.id.includes(':gate-bridge:') && p.minY > 13));
+  const incomplete = planSzLandmarks(fixture, geo.terrain, {}, { groundHeight: sampler });
+  assert.ok(!incomplete.skipIds.has('relation/3777627'));
+});
+
+test('sports field markings use the active terrain and sloped goal frames render their collision shape',
+  { skip: !threeDir }, async () => {
+    const THREE = await import(new URL('build/three.webgpu.js', pathToFileURL(join(threeDir, '/'))));
+    const geometry = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } });
+    const { planSportsGround } = loadModule(readLandmark('sports-ground.js'), { imports: {
+      'three/webgpu': THREE, '../sz-geometry.js': geometry
+    } });
+    const { renderLandmark } = loadModule(readLandmark('render.js'), { imports: {
+      'three/webgpu': THREE, '../sz-geometry.js': geometry
+    } });
+    const sampler = loadModule(read('sz-ground-surface.js')).createGroundSurfaceSampler(geo.terrainSurface);
+    const field = sports.buildSportsVenue('university-town-stadium', byId, geo.terrain,
+      { groundHeight: sampler, sites: geo.sites['university-town-stadium'] });
+    const patches = planSportsGround(field.patches, geo.terrainSurface);
+    const markings = patches.filter(p => p.style === 'sportsPitchLine');
+    assert.ok(markings.length > 50);
+    assert.ok(patches.some(p => p.style === 'sportsTrack'));
+    const heights = markings.flatMap(p => p.points.map(v => v.y));
+    assert.ok(Math.max(...heights) - Math.min(...heights) > 1);
+    for (const { points } of markings) {
+      const midpoint = points.reduce((acc, p) => ({ x: acc.x + p.x / 3, y: acc.y + p.y / 3, z: acc.z + p.z / 3 }),
+        { x: 0, y: 0, z: 0 });
+      assert.ok(Math.abs(sampler(midpoint.x, midpoint.z) - midpoint.y) < 0.001);
+    }
+    const goals = field.parts.filter(p => p.style === 'sportsGoal');
+    assert.equal(goals.filter(p => p.id.endsWith(':crossbar')).length, 2);
+    const material = new THREE.MeshStandardMaterial();
+    const { group } = renderLandmark({ id: 'goals', parts: goals }, () => material);
+    const mesh = group.getObjectByName('sportsGoal');
+    const index = goals.findIndex(p => p.id.includes(':brace:'));
+    const matrix = new THREE.Matrix4();
+    mesh.getMatrixAt(index, matrix);
+    const brace = goals[index];
+    for (const [k, z] of [-0.5, 0.5].entries()) {
+      const a = new THREE.Vector3(0, 0.5, z).applyMatrix4(matrix);
+      assert.ok(Math.abs(a.y - brace.top[k]) < 1e-5);
+      const section = parts.partCollider(brace).verticalSpan;
+      assert.ok(Math.abs(a.y - section[k + 2]) < 1e-5);
+    }
+    mesh.dispose();
+    mesh.geometry.dispose();
     material.dispose();
   });

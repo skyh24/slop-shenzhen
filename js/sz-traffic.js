@@ -446,6 +446,19 @@ function intersects(a, b) {
   return a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ && a.minY < b.maxY && a.maxY > b.minY;
 }
 
+function touchesObstacle(body, candidate) {
+  if (!intersects(body, candidate)) return false;
+  if (candidate.type === 'bridge-slab' && (body.supportedSlabs?.has(candidate.name)
+    || (body.supportedSlabs?.size && body.minY >= candidate.maxY - 0.02)
+    || (candidate.roadAccess && body.minY >= candidate.maxY - 0.28))) return false;
+  if (!candidate.polygon) return true;
+  let polygon = candidate.polygon;
+  if (candidate.roofPanel) polygon = roofPanelContactPolygon(candidate.roofPanel, body.minY, body.maxY);
+  else if (candidate.verticalSpan) polygon = spanContactPolygon(polygon, candidate.verticalSpan, body.minY, body.maxY);
+  return polygon && polygonBoxOverlaps(polygon, body.x, body.z,
+    body.halfW, body.halfL, body.cos, body.sin);
+}
+
 function makeObstacleIndex(colliders) {
   const cells = new Map();
   for (const collider of colliders) {
@@ -461,16 +474,7 @@ function makeObstacleIndex(colliders) {
     for (let x = Math.floor(body.minX / BODY_CELL); x <= Math.floor(body.maxX / BODY_CELL); x++) {
       for (let z = Math.floor(body.minZ / BODY_CELL); z <= Math.floor(body.maxZ / BODY_CELL); z++) {
         for (const candidate of cells.get(cellKey(x, z)) ?? []) {
-          if (!intersects(body, candidate)) continue;
-          if (candidate.type === 'bridge-slab' && (body.supportedSlabs?.has(candidate.name)
-            || (body.supportedSlabs?.size && body.minY >= candidate.maxY - 0.02)
-            || (candidate.roadAccess && body.minY >= candidate.maxY - 0.28))) continue;
-          if (!candidate.polygon) return candidate;
-          let polygon = candidate.polygon;
-          if (candidate.roofPanel) polygon = roofPanelContactPolygon(candidate.roofPanel, body.minY, body.maxY);
-          else if (candidate.verticalSpan) polygon = spanContactPolygon(polygon, candidate.verticalSpan, body.minY, body.maxY);
-          if (polygon && polygonBoxOverlaps(polygon, body.x, body.z,
-            body.halfW, body.halfL, body.cos, body.sin)) return candidate;
+          if (touchesObstacle(body, candidate)) return candidate;
         }
       }
     }
@@ -478,7 +482,7 @@ function makeObstacleIndex(colliders) {
   };
 }
 
-export function createSzTraffic(scene, graph, { roadHeight, elevated = null, colliders = [], signals = null, detailedRoadIds = [], canTurn } = {}) {
+export function createSzTraffic(scene, graph, { roadHeight, elevated = null, colliders = [], nearRegional, signals = null, detailedRoadIds = [], canTurn } = {}) {
   if (typeof roadHeight !== 'function') throw new Error('Traffic requires rendered road height');
   const network = createTrafficGraph(graph, { canTurn, elevated });
   // 轮胎跨接缝时由调用方依次试相邻路段。单条高架边查不到三角面时保留空值，
@@ -490,7 +494,9 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
     return Number.isFinite(height) ? height : null;
   };
   const detailedRoads = new Set(detailedRoadIds);
-  const blockedByBuilding = makeObstacleIndex(colliders);
+  const staticObstacle = makeObstacleIndex(colliders);
+  const blockedByBuilding = body => staticObstacle(body) || nearRegional?.(body.x, body.z, Math.max(body.halfW, body.halfL) * 1.42)
+    .find(candidate => touchesObstacle(body, candidate));
   const group = new THREE.Group();
   group.name = 'shenzhen-ground-traffic';
   const busMaterial = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.53 });

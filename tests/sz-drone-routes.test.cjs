@@ -20,8 +20,11 @@ const site = {
   heightAt: () => 8, flightHeightAt: () => 8
 };
 const terrain = loadModule(readFileSync(join(__dirname, '../js/sz-terrain.js'), 'utf8'));
+const spatial = loadModule(readFileSync(join(__dirname, '../js/sz-spatial.js'), 'utf8'), {
+  imports: { './sz-ground-surface.js': {}, './sz-polygon.js': {} }
+});
 const load = (THREE = {}, createCargoDroneMesh) => loadModule(source, {
-  imports: { 'three/webgpu': THREE, './sz-vehicles.js': { createCargoDroneMesh }, './sz-strings.js': { STR: {} }, './sz-terrain.js': terrain }
+  imports: { 'three/webgpu': THREE, './sz-vehicles.js': { createCargoDroneMesh }, './sz-strings.js': { STR: {} }, './sz-terrain.js': terrain, './sz-spatial.js': spatial }
 });
 const pkg = process.env.SZ_THREE_PACKAGE_DIR;
 const realThree = () => import(pathToFileURL(join(pkg, 'build/three.webgpu.js')));
@@ -265,4 +268,47 @@ test('watching restores the same player after Escape and uses a safe fallback af
   assert.equal(watch.active, false);
   assert.equal(nodes.get('drone-follow-exit').hidden, true);
   assert.equal(nodes.get('drone-follow-status').textContent, strings.STR.drones.failed);
+});
+
+test('compiled flight runs both legs and releases the regional aircraft after completion', { skip: !pkg }, async () => {
+  const THREE = await realThree();
+  let releases = 0;
+  const { buildSzDroneRoutes } = load(THREE, () => {
+    const group = new THREE.Group();
+    return { group, cargoBox: new THREE.Group(), statusLight: new THREE.Group(),
+      bounds: new THREE.Box3(new THREE.Vector3(), new THREE.Vector3(1, 1, 1)),
+      update() {}, dispose() { releases++; } };
+  });
+  const raw = JSON.parse(require('node:zlib').gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
+  const plan = raw.regionalScene;
+  const [route] = plan.drone.routes;
+  const stations = new Map(plan.drone.stations.map(station => [station.id, station]));
+  const from = stations.get(route.fromStationId), to = stations.get(route.toStationId);
+  const row = plan.cells.find(row => row.kind === 'flight' && row.routeId === route.id);
+  const packet = JSON.parse(readFileSync(join(__dirname, '../js/sz-regional', plan.fingerprint.slice(0, 20), row.id + '.json')));
+  const rejectPlanning = () => { throw new Error('Runtime must use compiled placement and motion'); };
+  const scene = new THREE.Scene();
+  const drones = buildSzDroneRoutes(scene, { air: raw.air,
+    site: { heightAt: rejectPlanning, isWater: rejectPlanning, roadHeight: rejectPlanning },
+    regional: { stations: [from, to], routes: [{ ...route, from, to }] } });
+  assert.equal(drones.status(from.id, from).available, false);
+  const flight = drones.mountRoute(route.id, packet.data);
+  const mission = drones.start(from.id, true, from, { remote: true });
+  const phases = new Set();
+  let returning = false;
+  for (let i = 0; i < (route.path.seconds * 2 + 17) / 0.05; i++) {
+    drones.update(0.05);
+    phases.add(mission.pose.phase);
+    returning ||= mission.pose.returning;
+  }
+  assert.deepEqual([...phases], ['loading', 'takeoff', 'cruise', 'descent', 'delivery', 'complete']);
+  assert.equal(returning, true);
+  assert.ok(mission.pose.position.distanceTo(new THREE.Vector3(from.x, from.y, from.z)) < 1e-6);
+  drones.stopFollowing();
+  drones.update(0.05);
+  assert.equal(releases, 1);
+  assert.equal(drones.isActive(mission), false);
+  flight.dispose();
+  assert.equal(drones.status(from.id, from).available, false);
+  drones.dispose();
 });

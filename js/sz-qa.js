@@ -114,6 +114,16 @@ class QaSession {
     if (this.enabled) this.startupAt[label] = performance.now();
   }
 
+  reportRegionalStartup(regional) {
+    if (!this.enabled) return;
+    console.info('[regional startup]', JSON.stringify({
+      readyMs: this.startupAt.ready, startupMs: this.startup, regional,
+      start: this.runtime.controllerManager.getActiveEntity().position.toArray(),
+      city: performance.getEntriesByType('resource').filter(row => /sz-city\.(json|szc)\.gz/.test(row.name))
+        .map(({ transferSize, encodedBodySize }) => ({ transferSize, encodedBodySize }))
+    }));
+  }
+
   // 按场景顶层组归因，未命名对象归入未标记组。批次按首个对象归属，调用按各自对象归属。
   compileEvent(object, event, value = 1) {
     if (!this.enabled) return;
@@ -318,7 +328,7 @@ class QaSession {
   }
 
   // QA 专用传送与碰撞查询：只在本机回环地址的 ?qa=1 下暴露，便于固定机位复测和诊断。
-  installDebug({ controllerManager, traffic, colliders, teleport }) {
+  installDebug({ controllerManager, traffic, teleport }) {
     window.__szTeleport = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null, { exact: true });
     window.__szCamera = values => { this.camera = values === null ? null : parseCamera(values.join(',')); };
     // QA：列出某点附近的交通碰撞体，用于区分“被 NPC 车辆挡住”与“桥面/坡度问题”。
@@ -342,7 +352,7 @@ class QaSession {
     // QA：非精确传送（自动找最近可站立落点），用于把车辆/人物放到道路上做连续走通测试。
     window.__szTeleportNear = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null);
     // QA 诊断：列出某点附近的碰撞体，用于定位“走不过去”的地面入口。
-    window.__szNearColliders = (x, z, radius = 40) => colliders.filter(collider =>
+    window.__szNearColliders = (x, z, radius = 40) => controllerManager.nearColliders(x, z, radius, false).filter(collider =>
       Number.isFinite(collider?.minX) && collider.maxX > x - radius && collider.minX < x + radius
       && collider.maxZ > z - radius && collider.minZ < z + radius)
       .sort((a, b) => Math.hypot((a.minX + a.maxX) / 2 - x, (a.minZ + a.maxZ) / 2 - z)
@@ -414,10 +424,10 @@ class QaSession {
     return program && {
       ...program.statistics, active: program.active, paused: program.paused, time: program.time, cue: program.cue,
       available: program.available, delivery: modules.drones.statistics,
-      waterfront: modules.waterfront.statistics, arrival: modules.waterfront.arrival,
+      waterfront: modules.talentPark?.statistics ?? modules.waterfront.statistics, arrival: modules.waterfront.arrival,
       routeDistance: modules.waterfront.route.nearest(active.position.x, active.position.z),
       support: active._support,
-      actors: modules.talentPeople.actors.map(({ id, x, y, z, heading, mode, s, v }) => ({ id, x, y, z, heading, mode, s, v }))
+      actors: (modules.talentPeople?.actors ?? []).map(({ id, x, y, z, heading, mode, s, v }) => ({ id, x, y, z, heading, mode, s, v }))
     };
   }
 
@@ -454,6 +464,7 @@ class QaSession {
         summitSurfaces: modules.summit.surfaces.length
       },
       ready: audioSystem.ready,
+      regional: modules.regional?.statistics,
       airCruise: cruise && {
         status: cruise.status, id: cruise.route?.id, distance: cruise.distance, altitude: cruise.altitude,
         position: cruise.entity?.position.toArray(), speed: cruise.entity?.speed,

@@ -1,3 +1,4 @@
+import { prepareSceneSite } from './sz-scene-site.js';
 import { STR } from './sz-strings.js';
 import { waitForFirstFrame } from './sz-startup.js';
 import { wireMetroMenu, wirePopovers, wireShortcuts, wireDrivingAssists, wireSpeedCruise, renderControlHints, wireShowPrograms, wireApecTheme, createLocationReadout, createHudTelemetry, renderSoundButton, wireHudToggle, createModeIndicator } from './sz-ui.js';
@@ -6,56 +7,21 @@ import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
-import { GEO, REAL_BUILDINGS, DATA_TIMINGS } from './sz-geodata.js';
-import { createSceneStyle } from './sz-scene-style.js';
+import { GEO, DATA_TIMINGS } from './sz-geodata.js';
 import { createObservationSessions } from './sz-observation-session.js';
-import { getLocationLabel, inBounds, isWater, nearRoadsForFrontage, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS } from './sz-city-config.js';
-import { createGroundSurfaceSampler, buildSzGround } from './sz-ground.js';
-import { buildSzBayWaterfront, createBayParkArrivals, createBayPathLookup } from './sz-bay-waterfront.js';
-import { buildSzWaterfront, createWaterfrontPaths } from './sz-waterfront.js';
-import { buildSzSea } from './sz-sea.js';
-import { buildSzRoads, planStreetTreeSides } from './sz-roads.js';
-import { buildSzRoadFrontage } from './sz-road-frontage.js';
-import { buildSzRoadPaint } from './sz-road-paint.js';
-import { createRoadBuildingClearance } from './sz-road-building-clearance.js';
-import { createSurfaceResolver } from './sz-controller-surfaces.js';
-import { buildSzStreetscape } from './sz-streetscape.js';
-import { prepareTalentPark } from './sz-talent-park.js';
+import { getLocationLabel, inBounds, isWater, findGroundArrival, LANDMARK_SITES, SZ_LANDMARKS, TELEPORT_LOCATIONS, SPAWN_POINT } from './sz-city-config.js';
+import { createBayWaterfrontAccess, createBayParkArrivals } from './sz-bay-waterfront.js';
+import { createWaterfrontAccess, findWaterfrontWalkPoint } from './sz-waterfront.js';
 import { createTeleportMenu } from './sz-coco-park-approach.js';
-import { buildSzStreetLamps } from './sz-street-lamps.js';
-import { createUrbanPavingWalk } from './sz-urban-paving.js';
-import { buildSzTrees } from './sz-trees.js';
-import { planWoodlandTrees } from './sz-woodlands.js';
-import { buildVegetationPilots } from './sz-vegetation.js';
-import { buildApecTheme } from './sz-apec.js';
-import { buildApecCityElements } from './sz-apec-city.js';
-import { buildSzDroneRoutes } from './sz-drone-routes.js';
+import { createRegionalScene } from './sz-regional-scene.js';
 import { createSceneAirCruise } from './sz-air-cruise.js';
 import { wireAirCruise } from './sz-air-cruise-ui.js';
 import { wireDroneWatch } from './sz-drone-watch.js';
-import { buildSzLightShow, planLandmarkBands } from './sz-light-show.js';
-import { createCbdProgram, isCbdProgramBuilding } from './sz-cbd-program.js';
-import { buildLianhuashanSummit, reviewedParkOmissions, SUMMIT_ARRIVAL } from './sz-lianhuashan.js';
-import { buildIecGrounds } from './sz-landmarks/iec-grounds.js';
-import { buildSzMetroEntrances } from './sz-metro-entrances.js';
-import { buildNorthStation } from './sz-rail/station.js';
-import { northBridgeProfile } from './sz-rail/geometry.js';
-import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
-import { buildSzLandmarks } from './sz-landmarks/index.js';
-import { buildSzDistricts } from './sz-districts/index.js';
-import { buildThemeParks } from './sz-theme-parks/index.js';
-import { buildShenzhenBayBridge, buildYanjiangExpressway } from './sz-landmarks/shenzhen-bay-bridge.js';
-import { buildSzElevatedRoads } from './sz-elevated-roads.js';
-import { buildSzRoadStructures, graphWithRoadStructures } from './sz-road-structures.js';
-import { buildRoadLandscape } from './sz-road-landscape.js';
-import { terrainHeight } from './sz-terrain.js';
-import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
-import { buildBuildingSigns } from './sz-building-signs.js';
-import { buildBuildingDetails } from './sz-building-details.js';
+import { SUMMIT_ARRIVAL } from './sz-lianhuashan.js';
+import { BUILDING_RENDER_CHUNK_SIZE } from './sz-buildings.js';
 import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
 import { createSzPedestrians } from './sz-pedestrians.js';
-import { createCarriagewayBarrier } from './sz-pedestrian-tracks.js';
-import { buildZhongxinWalk, COCO_PARK_ENTRANCE } from './sz-zhongxin-walk.js';
+import { COCO_PARK_ENTRANCE } from './sz-zhongxin-walk.js';
 import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
 import { createAutoDrive } from './sz-auto-drive.js';
 import { createLaneAssist } from './sz-lane-assist.js';
@@ -201,183 +167,20 @@ async function initApp() {
   markInit('lighting');
 
   await showLoadingStage(STR.startup.ground, 'ground');
-  const frontageLight = { ...COCO_PARK_ENTRANCE, night: sceneUniforms.night };
-  const ground = qa.measureBuild('ground', () => buildSzGround(scene, GEO.terrainSurface, { frontageLight }));
-  const sea = qa.measureBuild('sea', () => buildSzSea(scene, GEO.seaSurface));
-  markInit('ground');
-  await showLoadingStage(STR.startup.roads, 'roads');
-  const roadGraph = graphWithRoadStructures(GEO.roadGraph, GEO.roadStructures);
-  const roads = qa.measureBuild('roads', () => buildSzRoads(scene, roadGraph, GEO.terrainSurface, { frontageLight }));
-  // 场地上下文：地形、路面、路网和各构建函数共用的接触面参数只构造一份，入口里不再重复传同一组闭包。
-  const site = {
-    buildings: REAL_BUILDINGS, terrain: GEO.terrain, terrainSurface: GEO.terrainSurface, sites: GEO.sites,
-    roadGraph, groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, isWater,
-    colliders: [], golfCourse: GEO.golfCourse, style: createSceneStyle(GEO)
-  };
-  // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
-  const elevatedRoads = qa.stage('elevated', () =>
-    buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface,
-      extraCrossing: northBridgeProfile(GEO.shenzhenNorthRail), waterfront: GEO.waterfront,
-      parkFootbridges: GEO.talentPark?.footbridges, water: GEO.water,
-      exclude: new Set(GEO.roadStructures?.records.map(row => row.index)) }));
-  const carriagewayOccupied = createCarriagewayBarrier(roadGraph).contains;
-  const bayPaths = createBayPathLookup(GEO.shenzhenBay?.paths);
-  const roadStructures = qa.measureBuild('roadStructures', () => buildSzRoadStructures(scene, roadGraph, GEO.roadStructures, {
-    groundHeight: (x, z) => terrainHeight(GEO.terrain, x, z),
-    pierAllowed: (x, z, radius) => !carriagewayOccupied(x, z, radius + 4)
-      && !bayPaths(x, z, radius + 4).length && isWater(x, z) === false
-  }));
-  const roadLandscape = qa.measureBuild('roadLandscape', () =>
-    buildRoadLandscape(scene, GEO.roadStructures?.landscape, GEO.terrainSurface, ground.groundHeight));
-  const roadFrontage = qa.measureBuild('frontage', () =>
-    buildSzRoadFrontage(scene, GEO.roadFrontage, roadGraph, GEO.terrainSurface, site));
-  const roadPaint = qa.stage('paint', () =>
-    buildSzRoadPaint(scene, roadGraph, { ...site, intersections: roadFrontage.control.intersections,
-      frontage: GEO.roadFrontage, decks: [...elevatedRoads.links, ...roadStructures.links] }));
-  const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface, site.style);
-  site.heightAt = (x, z) => roadLandscape.pathHeight(x, z) ?? roadFrontage.contactHeight(x, z) ?? publicWalk.heightAt(x, z) ?? ground.groundHeight(x, z);
-  const districts = qa.measureBuild('districts', () => buildSzDistricts(scene, site,
-    { water: GEO.water, roads: roads.surfaces, carriagewayOccupied }));
-  const baseHeight = site.heightAt;
-  site.heightAt = (x, z) => districts.heightAt(x, z) ?? baseHeight(x, z);
-  site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
-  const waterfrontPaths = createWaterfrontPaths(GEO.waterfront);
-  const urbanPaving = createUrbanPavingWalk(GEO.urbanPaving, site.heightAt);
-  site.reserveBayWalk = (x, z, radius) => bayPaths(x, z, radius).length > 0;
-  markInit('roads');
-  await showLoadingStage(STR.startup.landmarks, 'landmarks');
-  const lianhuashan = GEO.parks.find(park => park.id === 'lianhuashan');
-  const summit = buildLianhuashanSummit(scene, site.groundHeight, lianhuashan, site.style);
-  const parkOmissions = reviewedParkOmissions(lianhuashan, site.buildings);
-  const cbdProgram = createCbdProgram({ ...SUMMIT_ARRIVAL, y: SUMMIT_ARRIVAL.y + 1.68 }, sceneUniforms.night);
-  const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, { ...site, northRail: GEO.shenzhenNorthRail, programEmission: cbdProgram.emission }));
-  const iec = landmarks.group.getObjectByName('ShenzhenLandmark:iec-xiangmihu')
-    ? buildIecGrounds(scene, { ...site, roadSurfaces: roads.surfaces, water: GEO.water, paths: GEO.iecPaths }) : null;
-  const northStation = landmarks.heights?.has('shenzhen-north')
-    ? qa.measureBuild('northStation', () => buildNorthStation(scene, GEO.shenzhenNorthRail, site)) : null;
-  const districtHeightAt = site.heightAt;
-  if (northStation) site.heightAt = (x, z) => northStation.heightAt(x, z) ?? districtHeightAt(x, z);
-  const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
-  const yanjiang = buildYanjiangExpressway(scene, GEO.yanjiangExpressway,
-    new Set(roadStructures.links.map(link => Number(link.osmId.split('/')[1]))));
-  const themeParks = qa.stage('themeParks', () => buildThemeParks(scene, { ...site, mapRegions: GEO.mapRegions }));
-  markInit('landmarks');
-  await showLoadingStage(STR.startup.blocks, 'blocks');
-  const sceneSkipIds = new Set([...landmarks.skipIds, ...districts.skipIds, ...themeParks.skipIds, ...parkOmissions]);
-  // 门槛接入现有铺装三角面、专项人行道或路侧步行面。
-  const pavedHeight = createGroundSurfaceSampler(site.terrainSurface, kind => kind === 3 || kind === 4 || kind === 7);
-  const retail = {
-    regions: GEO.mapRegions?.regions, nearRoads: nearRoadsForFrontage, carriageway: carriagewayOccupied,
-    entrance: publicWalk.entrance,
-    pavementAt: (x, z) => publicWalk.heightAt(x, z) ?? roadFrontage.contactHeight(x, z) ?? pavedHeight(x, z)
-  };
-  const cityBlocks = qa.stage('blocks', () =>
-    buildCityBlocks(scene, { skipIds: sceneSkipIds, renderChunkSize: qa.chunkSize, retail,
-      programEmission: cbdProgram.emission, programParticipant: isCbdProgramBuilding,
-      roadClearance: createRoadBuildingClearance(site.roadGraph, site.roadHeight, elevatedRoads.links) }));
-  const detailSkipIds = new Set([...sceneSkipIds, ...(cityBlocks.duplicateIds?.keys() ?? []),
-    ...(cityBlocks.roadConflicts ?? []).map(row => row.buildingId)]);
-  // 福田中心区夜景灯光秀：只给已建成普通高层加灯带，颜色/节奏为展示估计；白天隐藏。
-  // 地标源对象已由专模打光，排除它们；地标外露钢架（平安 8 根巨柱）单独沿柱轴生成灯带。
-  const landmarkBands = planLandmarkBands(landmarks.colliders);
-  const lightShow = qa.stage('lightshow', () =>
-    buildSzLightShow(scene, { buildings: site.buildings, terrain: site.terrain,
-      excludeIds: detailSkipIds, landmarkBands, isProgramActive: () => cbdProgram.active }));
-  const buildingSigns = qa.stage('signs', () =>
-    buildBuildingSigns(scene, { buildings: cityBlocks.allBlocks, roadGraph: site.roadGraph }));
-  // 近景补足屋顶和立面细节，避开基础屋顶已绘制的构件。
-  const buildingDetails = qa.stage('details', () =>
-    buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds, roofPlans: cityBlocks.roofPlans,
-      retailBuildingIds: cityBlocks.retailBuildingIds, envelopePlans: cityBlocks.envelopePlans }));
-  markInit('blocks');
-  const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders, ...districts.colliders, ...themeParks.colliders, ...(northStation?.colliders ?? [])];
-  site.colliders = buildings;
-  const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
-  const talentPark = prepareTalentPark(qa, scene, GEO, site, elevatedRoads.surfaces);
-  const { waterfront } = talentPark;
-  site.pathAt = (x, z) => {
-    const parkPaths = themeParks.pathAt(x, z);
-    if (parkPaths.length) return parkPaths;
-    const summitPaths = summit.pathAt(x, z);
-    if (summitPaths.length) return summitPaths;
-    const waterfrontPaths = waterfront?.pathAt(x, z);
-    return waterfrontPaths?.length ? waterfrontPaths : streetscape.pathAt(x, z);
-  };
-  const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
-    .map(row => row.bounds);
-  const exposedStructures = new Set(roadStructures.links.filter(link => !link.tunnel).map(link => link.surfaceId));
-  const openTunnels = roadStructures.links.filter(link => link.exposedTriangles.length)
-    .map(link => ({ id: link.surfaceId, heightSource: 'estimate', triangles: link.exposedTriangles }));
-  const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: [...elevatedRoads.surfaces,
-    ...roadStructures.surfaces.filter(surface => exposedStructures.has(surface.id)), ...openTunnels] });
-  for (const surface of openTunnels) exposedStructures.add(surface.id);
-  const deckOccupied = (x, z, bottom, top) => deck.at(x, z).some(surface => surface.height + 4.5 > bottom
-    && surface.height - (exposedStructures.has(surface.surfaceId) ? GEO.roadStructures.bridgeSlabM : 0.35) < top);
-  // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
-  const treeSite = {
-    ...site, carriagewayOccupied, deckOccupied, excludedSite: themeParks.reserved, woodlandTrees: planWoodlandTrees(), simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
-    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r)
-      || northStation?.reserves(x, z, r) || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
-    observedTrees: streetscape.observedTrees, pilotTrees: [...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees, ...districts.trees, ...urbanPaving.trees],
-    streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
-  };
-  const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, treeSite));
-  // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
-  const streetLamps = qa.stage('lamps', () => buildSzStreetLamps(scene, site.roadGraph, {
-    ...site, roadStyle: site.style.road, carriagewayOccupied, medianHeight: roadFrontage.medianHeight, walkPlacement: publicWalk, relocateSite: candidate => {
-      const placed = iec ? iec.relocateLamp(candidate) : candidate;
-      return placed && !landmarks.reservesApproach?.(placed.x, placed.z, 0.34) ? placed : null;
-    },
-    reserveWalk: (x, z, r) => urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r)
-      || site.reserveBayWalk(x, z, r) || waterfront?.reserves(x, z, r),
-    reserveCrossing: roadFrontage.reserveWalk,
-    placementObstacles: [...buildings, ...trees.colliders],
-    deckOccupied
-  }));
-  const anchors = iec?.anchors;
-  // APEC 周城市元素：会期内默认打开，模块内所有几何都在主题开关下。
-  const apecTheme = qa.stage('apec', () =>
-    buildApecTheme(scene, { ...site, lampSites: streetLamps.sites, lampChunkVisible: streetLamps.chunkVisible,
-      landmarks: GEO.landmarks, area: GEO.bounds, anchors }));
-  const apecCity = qa.stage('apecCity', () =>
-    buildApecCityElements(scene, { ...site, landmarks: GEO.landmarks, anchors }));
-  // 地铁出入口：点位来自 OSM 已核实节点；雨棚/站名牌是外观参数，吸附到实际渲染地面。
-  // 1000 m 分块：286 个出入口的分块数约减半，draw call 明显下降，剔除粒度仍够用。
-  const metroEntrances = qa.stage('metro', () =>
-    buildSzMetroEntrances(scene, GEO.metro, { ...site, chunkSizeM: 1000 }));
-  // 福田站只建地面出入口/采光天窗；西丽站只做在建工地围挡/塔吊/基坑，不造站房。
-  const stations = qa.stage('stations', () => ({
-    futian: GEO.sites?.['futian-station']?.station
-      ? buildFutianStation(scene, GEO.sites['futian-station'].station, site) : null,
-    xili: GEO.sites?.['xili-station']?.site
-      ? buildXiliConstruction(scene, GEO.sites['xili-station'].site, site) : null
-  }));
-  const futianStation = stations?.futian ?? null;
-  const xiliConstruction = stations?.xili ?? null;
-  const colliders = [...buildings, ...roadFrontage.colliders, ...(streetLamps.colliders ?? []), ...trees.colliders,
-    ...metroEntrances.colliders, ...(futianStation?.colliders ?? []), ...(xiliConstruction?.colliders ?? []),
-    ...elevatedRoads.colliders, ...roadStructures.colliders, ...(waterfront?.colliders ?? [])];
-  const planter = publicWalk.placePlanter(colliders, site.heightAt);
-  if (planter) colliders.push(planter);
-  const bayWaterfront = qa.measureBuild('bayWaterfront', () =>
-    buildSzBayWaterfront(scene, GEO.shenzhenBay, { ...site, pathsNear: bayPaths }));
-  const vegetation = qa.measureBuild('vegetation', () => buildVegetationPilots(scene, GEO, {
-    ...treeSite, colliders: [...colliders, ...bayWaterfront.colliders], pavedAt: retail.pavementAt,
-    nearRoads: nearRoadsForFrontage,
-    reserveWalk: (x, z, r) => treeSite.reserveWalk(x, z, r) || site.reserveBayWalk(x, z, r)
-  }, trees.colliders));
-  colliders.push(...vegetation.colliders);
-  const drones = qa.stage('drones', () => buildSzDroneRoutes(scene, { air: GEO.air, site,
-    obstacles: colliders, treeObstacles: bounds =>
-      [...(trees.flightObstacles?.(bounds) ?? []), ...vegetation.flightObstacles(bounds)] }));
-  colliders.push(...drones.colliders);
+  const { site, sea, ground, roads, roadGraph, elevatedRoads, roadStructures, roadLandscape, roadFrontage, roadPaint,
+    publicWalk, districts, carriagewayOccupied, bayPaths, waterfrontPaths, urbanPaving, summit, parkOmissions, cbdProgram,
+    landmarks, iec, northStation, bridge, yanjiang, themeParks, cityBlocks, lightShow, buildingSigns, buildingDetails,
+    streetscape, talentPark, waterfront, trees, vegetation, streetLamps, apecTheme, apecCity, futianStation, xiliConstruction, colliders } = await prepareSceneSite(scene, {
+    qa, showLoadingStage, markInit, startup: STR.startup
+  });
+  const regional = qa.measureBuild('regional-index', () => createRegionalScene(scene, GEO,
+    { site, talentPark, trees, vegetation, elevatedRoads, bayPaths }, name => qa.skipped.has(name)));
+  const { metro: metroEntrances, drones } = regional;
+  const bayWaterfront = createBayWaterfrontAccess(bayPaths);
+  const shoreSamples = createWaterfrontAccess(GEO.waterfront, waterfrontPaths);
+  const nearTalentPeople = talentPark.nearColliders;
+  const { show: talentShow } = talentPark;
   site.colliders = colliders;
-  colliders.push(...bayWaterfront.colliders);
-  const shoreSamples = qa.measureBuild('shoreSamples', () => buildSzWaterfront(scene, GEO.waterfront, {
-    water: GEO.water, network: waterfrontPaths, elevated: elevatedRoads, heightAt: site.heightAt, obstacles: colliders
-  }));
-  colliders.push(...shoreSamples.colliders);
-  const { people: talentPeople, program: talentProgram, show: talentShow, update: updateTalentPark } = talentPark.connect(colliders);
   await showLoadingStage(STR.startup.traffic, 'traffic');
   const traffic = qa.stage('traffic', () => createSzTraffic(scene, roadGraph, {
     ...site,
@@ -386,29 +189,38 @@ async function initApp() {
       links: [...elevatedRoads.drive.links, ...roadStructures.links],
       heightAt: (x, z, id) => roadStructures.heightAt(x, z, id) ?? elevatedRoads.drive.heightAt(x, z, id)
     },
-    signals: roadFrontage.control, detailedRoadIds: roadFrontage.detailedRoadIds,
+    nearRegional: regional.colliders, signals: roadFrontage.control, detailedRoadIds: roadFrontage.detailedRoadIds,
     canTurn: createTurnFilter(roadGraph)
   }));
   markInit('traffic');
 
   await showLoadingStage(STR.startup.controllers, 'controllers');
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(PLAYER_STATE_KEY)); }
+  catch { /* 存储不可用时使用默认出生点。 */ }
+  const savedPose = saved?.version === 2 ? saved.position : saved?.version === 1 ? saved.entities?.[saved.activeMode] : null;
+  const safetyStarted = performance.now();
+  await Promise.all([regional.prepare(SPAWN_POINT, 180, true), Number.isFinite(savedPose?.x) && Number.isFinite(savedPose?.z)
+    ? regional.prepare(savedPose, 180, true) : null]);
+  qa.markStartup('regional.safety', performance.now() - safetyStarted);
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
     surfaces: [...cityBlocks.surfaces, ...themeParks.surfaces, ...(northStation?.surfaces ?? []), ...landmarks.surfaces, ...elevatedRoads.surfaces, ...roadStructures.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
-    nearTraffic: traffic.nearColliders, nearWalkers: talentPeople?.nearColliders, flightSettings: GEO.airCruises?.flight,
+    nearTraffic: traffic.nearColliders, nearWalkers: nearTalentPeople, nearRegional: regional.colliders, flightSettings: GEO.airCruises?.flight,
     groundIdentity: waterfrontPaths.groundIdentity,
     groundAccess: (mode, x, z, surface) => (surface?.heightSource !== 'terrain' && surface?.surfaceId !== 'terrain'
       || (bayWaterfront.allowsGroundMode(mode, x, z) && !roadFrontage.plantingAt(x, z)
         && (mode === 'person' || !roadLandscape.walkAt(x, z).length)))
       && shoreSamples.allowsGroundMode(mode, x, z, surface)
-      && ((mode !== 'car' && mode !== 'cyclist') || !waterfront?.pathAt(x, z).length)
+      && (mode === 'person' || !surface?.surfaceId?.startsWith('talent-park:waterfront')
+        && (surface?.heightSource !== 'terrain' || !waterfront?.pathAt(x, z).length))
       && (!northStation?.inRestricted(x, z, 0.58) || (surface?.surfaceId !== 'terrain' && surface?.heightSource !== 'terrain'))
   });
+  site.nearObstacles = (x, z, r) => controllerManager.nearColliders(x, z, r, false, false);
   const cruise = qa.measureBuild('airCruises', () => createSceneAirCruise(GEO.airCruises, controllerManager, site, PLAYER_SPEED_LIMITS.helicopter));
   let initialTime = 'golden';
   try {
-    const saved = JSON.parse(localStorage.getItem(PLAYER_STATE_KEY));
     if ((saved?.version === 1 || saved?.version === 2) && Object.hasOwn(controllerManager.entities, saved.activeMode)) {
       if (Object.hasOwn(STR.timeNames, saved.time)) initialTime = saved.time;
       const mode = saved.activeMode;
@@ -440,7 +252,9 @@ async function initApp() {
     localWalk: iec?.walk, blockGenericWalk: iec?.blockGenericWalk,
     spawnMinM: 8,
     spawnMaxM: 160,
-    publicRoutes: [...bayWaterfront.publicRoutes, ...roadLandscape.routes, ...shoreSamples.publicRoutes, ...urbanPaving.connect(colliders, { contains: carriagewayOccupied }),
+    nearRegional: regional.colliders,
+    regionalRoutes: regional.routes,
+    publicRoutes: [...roadLandscape.routes, ...urbanPaving.connect(colliders, { contains: carriagewayOccupied }),
       ...(northStation?.publicRoutes(colliders, carriagewayOccupied) ?? []),
       ...districts.publicRoutes(colliders, { contains: carriagewayOccupied }, site.heightAt)]
   }));
@@ -452,7 +266,7 @@ async function initApp() {
   // 自动驾驶与地图规划使用交通模块的组合高度：地面沥青 + 高架桥面（按边表面身份取样）。
   const driveOptions = { model: driveModel, roadHeight: traffic.roadHeight, control: roadFrontage.control };
   const nearPedestrians = (x, z, radius) => [
-    ...(pedestrians.nearColliders?.(x, z, radius) ?? []), ...(talentPeople?.nearColliders(x, z, radius) ?? [])
+    ...(pedestrians.nearColliders?.(x, z, radius) ?? []), ...nearTalentPeople(x, z, radius)
   ];
   const nearRoadUsers = (x, z, radius) => [...traffic.nearColliders(x, z, radius), ...nearPedestrians(x, z, radius)];
   controllerManager.nearPedestrians = nearPedestrians;
@@ -511,7 +325,6 @@ async function initApp() {
     showSession?.end();
     audioSystem.dispose();
     pedestrians.dispose();
-    talentPeople?.dispose();
     publicWalk.dispose();
     roadStructures.dispose();
     roadLandscape.dispose();
@@ -521,12 +334,9 @@ async function initApp() {
     themeParks.dispose();
     trees.dispose?.();
     vegetation.dispose();
-    waterfront?.dispose();
     iec?.dispose();
-    bayWaterfront.dispose();
-    shoreSamples.dispose();
     elevatedRoads.dispose?.();
-    drones.dispose();
+    regional.dispose();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) savePlayerState(); });
   markInit('controllers');
@@ -540,7 +350,7 @@ async function initApp() {
       else firstByMaterial.set(chunk.material, chunk);
     }
   }
-  setupSceneCulling(scene, [...cullingRoots, roadStructures.group, roadLandscape.group, landmarks.group, themeParks.group, summit.group, iec?.group, bridge.group, yanjiang, streetscape.group, publicWalk.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group, metroEntrances.group,
+  setupSceneCulling(scene, [...cullingRoots, roadStructures.group, roadLandscape.group, landmarks.group, themeParks.group, summit.group, iec?.group, bridge.group, yanjiang, streetscape.group, publicWalk.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group,
     futianStation?.group, xiliConstruction?.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [
@@ -607,9 +417,12 @@ async function initApp() {
     document.getElementById(`cam-${id}`)?.toggleAttribute('hidden', !available);
   }
   const timeButtons = document.querySelectorAll('[data-time]');
+  const bayWalk = GEO.shenzhenBay?.walkRoute;
+  const bayArrival = bayWalk?.length > 1 ? { x: bayWalk[0][0], y: bayWalk[0][1], z: bayWalk[0][2],
+    heading: Math.atan2(bayWalk[1][0] - bayWalk[0][0], bayWalk[1][2] - bayWalk[0][2]) } : null;
   const bayPark = LANDMARK_SITES['shenzhen-bay-park'];
   const streetscapeArrival = streetscape.findArrival(trees.colliders);
-  const parkArrivals = createBayParkArrivals(bayPark, GEO.parks, bayWaterfront.arrival ?? streetscapeArrival,
+  const parkArrivals = createBayParkArrivals(bayPark, GEO.parks, bayArrival ?? streetscapeArrival,
     findGroundArrival, getLocationLabel);
   const { entries: teleportEntries, buttons: teleportButtons, syncWalkApproach } = createTeleportMenu(
     TELEPORT_LOCATIONS, bayPark, getLocationLabel, districts.arrivals);
@@ -625,7 +438,7 @@ async function initApp() {
   const elAltitude = document.getElementById('hud-altitude');
   const elLocation = document.getElementById('hud-location');
   const landmarkViews = createLandmarkViews(SZ_LANDMARKS, new Map([...landmarks.heights, ...districts.heights]),
-    site.heightAt, TELEPORT_LOCATIONS, anchors?.iecGate?.yaw, northStation?.arrival);
+    site.heightAt, TELEPORT_LOCATIONS, iec?.anchors?.iecGate?.yaw, northStation?.arrival);
   const elControlsHint = document.getElementById('hud-controls-hint');
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
     onCycleMode: (step) => {
@@ -728,6 +541,7 @@ async function initApp() {
     shows: [{ entryIds: ['btn-cbd-show'], program: cbdProgram, labels: STR.program,
       arrival: summit.group ? SUMMIT_ARRIVAL : null }, talentShow],
     controllerManager, cameraSystem, lightingSystem, selectMode, selectCamera, selectTime, closePopovers,
+    prepareArrival: (x, z) => regional.prepare({ x, z }),
     resetInput: resetTravelInput, markArrival: ({ x, z }, name) => markWaypoint({ x, z, name })
   });
   for (const button of modeButtons) button.addEventListener('click', () => selectMode(button.dataset.mode));
@@ -769,11 +583,19 @@ async function initApp() {
     els: { fps: elFps, speed: elSpeed, speedMeter: elSpeedMeter, altitude: elAltitude },
     controllerManager, cameraSystem, topSpeed: PLAYER_SPEED_LIMITS, renderLocation, cruise
   });
+  let travelRequest = 0;
+  const prepareRegional = (x, z) => Number.isFinite(x) && Number.isFinite(z) && inBounds(x, z)
+    ? regional.prepare({ x, z }, 260, true) : null;
   const { teleportTo, teleportFromMap } = createTeleportActions({ controllerManager, landmarkViews, parks: GEO.parks,
     inBounds, isWater, carriagewayOccupied, findGroundArrival, roadHeight: roads.roadHeight, flightStartAltitude: FLIGHT_START_ALTITUDE,
-    selectMode, excludeGround: northStation?.inRestricted, onArrival: finishTeleport, closeMap: () => mapSystem.toggleFullMap(false) });
+    selectMode, prepareRegional, excludeGround: northStation?.inRestricted,
+    waterfrontArrival: (x, z, heading) => findWaterfrontWalkPoint([
+      ...waterfrontPaths.paths, ...(GEO.shenzhenBay?.paths ?? []),
+      ...[...(GEO.talentPark?.route ?? []), ...(GEO.talentPark?.entrances ?? [])].map(path => ({ ...path, mode: 'walk' }))
+    ], x, z, heading),
+    onArrival: finishTeleport, closeMap: () => mapSystem.toggleFullMap(false) });
   droneWatch = wireDroneWatch({ drones, controllerManager, cameraSystem, touchControls, gamepadControls,
-    autoDrive, observationSessions, closePopovers, mapOpen: () => mapSystem.isFullMapOpen, teleport: teleportTo,
+    autoDrive, observationSessions, closePopovers, mapOpen: () => mapSystem.isFullMapOpen, teleport: teleportTo, prepareFlight: regional.prepareFlight, flightFailed: regional.flightFailed,
     onCameraLabel: label => { elCamera.textContent = label; } });
   function finishTeleport(destination, options, park, landmark) {
     autoDrive.stop('manual');
@@ -809,13 +631,19 @@ async function initApp() {
     return 'car';
   }
 
-  function startMapDrive(route) {
+  function startMapDrive(route, current) {
     if (!route || cruise.active || droneWatch.active || autoDrive.active) return false;
     if (controllerManager.activeMode === 'car' && Math.abs(driveCar.speed) > 0.3) return false;
-    resetTravelInput();
-    cameraSystem.resetForTeleport();
-    selectCamera('chase', true);
-    return autoDrive.queue(route, prepareDriveStart);
+    const request = ++travelRequest;
+    const pending = prepareRegional(route.from.x, route.from.z);
+    const start = () => {
+      if (request !== travelRequest || current?.() === false || cruise.active || droneWatch.active || autoDrive.active) return false;
+      resetTravelInput();
+      cameraSystem.resetForTeleport();
+      selectCamera('chase', true);
+      return autoDrive.queue(route, prepareDriveStart);
+    };
+    return pending ? pending.then(start) : start();
   }
   const mapSystem = new SZMapSystem({
     controllerManager,
@@ -823,6 +651,7 @@ async function initApp() {
     airCruise: cruise,
     touchHints: touchControls.available,
     onToggle: (open) => {
+      travelRequest++;
       closePopovers();
       controllerManager.resetInput();
       touchControls.setEnabled(!open && !cruise.active && !droneWatch.active);
@@ -834,7 +663,9 @@ async function initApp() {
       if (visit?.id === 'futian-station') {
         options = { ...options, stationVisit: { ...visit, entrances: futianStation?.entrances } };
       }
-      return teleportFromMap(x, z, heading, options);
+      const request = ++travelRequest;
+      return teleportFromMap(x, z, heading, { ...options,
+        current: () => request === travelRequest && options?.current?.() !== false && !cruise.active && !droneWatch.active });
     },
     drones: droneWatch.map,
     drive: {
@@ -862,12 +693,19 @@ async function initApp() {
       if (cruise.active || droneWatch.active) return;
       const key = btn.dataset.teleport;
       const loc = key === bayPark?.id ? parkArrivals[controllerManager.activeMode] : teleportEntries[key];
-      const arrived = loc && teleportTo(loc.x, loc.z, loc.heading, loc);
-      if (teleportFeedback) {
-        teleportFeedback.textContent = arrived ? '' : STR.map.noArrival;
-        teleportFeedback.hidden = Boolean(arrived);
-      }
-      if (arrived) closePopovers();
+      const request = ++travelRequest;
+      const current = () => request === travelRequest && !cruise.active && !droneWatch.active;
+      const finish = arrived => {
+        if (!current()) return;
+        if (teleportFeedback) {
+          teleportFeedback.textContent = arrived ? '' : STR.map.noArrival;
+          teleportFeedback.hidden = Boolean(arrived);
+        }
+        if (arrived) closePopovers();
+      };
+      const arrived = loc && teleportTo(loc.x, loc.z, loc.heading, { ...loc, current });
+      if (arrived?.then) arrived.then(finish);
+      else finish(arrived);
     });
   });
   const openMapBtn = document.getElementById('btn-open-map');
@@ -935,7 +773,8 @@ async function initApp() {
       colliders, cityBlocks,
       modules: {
         lamps: streetLamps, trees, vegetation, themeParks, apec: apecTheme, apecCity, drones, lightShow,
-        summit, cbdProgram, waterfront, talentProgram, talentPeople, programIds: cityBlocks.programIds ?? [], parkOmissions,
+        summit, cbdProgram, waterfront, regional, talentPark,
+        get talentProgram() { return talentPark.program; }, get talentPeople() { return talentPark.people; }, programIds: cityBlocks.programIds ?? [], parkOmissions,
         elevatedRoads, roadStructures, metroEntrances, futian: futianStation, xili: xiliConstruction, northStation
       },
       teleport: teleportTo,
@@ -1065,7 +904,7 @@ async function initApp() {
     traffic.update(dt, activityFocus, [active], elapsed, isTrafficVisible, nearPedestrians(activityFocus.x, activityFocus.z, 140));
     pedestrians.update(dt, activityFocus, elapsed, isPedVisible, [active],
       traffic.nearColliders(activityFocus.x, activityFocus.z, 175));
-    updateTalentPark(dt, active.position, cameraSystem.camera.position, isPedVisible);
+    talentPark.update(dt, active.position, cameraSystem.camera.position, isPedVisible);
     const { forward, backward, left, right, brake, boost } = controllerManager.keys;
     const manual = !mapSystem.isFullMapOpen && Boolean(forward || backward || left || right || brake || boost);
     if (!cruise.active && !droneWatch.active) {
@@ -1092,9 +931,7 @@ async function initApp() {
     showSession.update(rawDt);
     lightShow.update();
     themeParks.update(now * 0.001, sceneUniforms.night.value >= 0.5, cameraSystem.camera.position);
-    metroEntrances.update(cameraSystem.camera.position);
-    bayWaterfront.update(cameraSystem.camera.position);
-    shoreSamples.update(cameraSystem.camera.position);
+    regional.update(active.position, cameraSystem.camera.position);
     northStation?.update(document.hidden || railResuming ? 0 : rawDt, cameraSystem.camera.position, audioSystem);
     railResuming = false;
     futianStation?.update(cameraSystem.camera.position);
@@ -1163,6 +1000,8 @@ async function initApp() {
   audioSystem.ready = true;
   boot?.ready?.();
   qa.markMilestone('ready');
+  regional.start();
+  qa.reportRegionalStartup(regional.statistics.startup);
 }
 
 initApp().catch(error => {

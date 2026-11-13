@@ -79,7 +79,7 @@ test('park arrivals retain a verified site member and require rendered ground su
 
 test('map travel resolves a walking pose before closing and leaves the map open on failure', () => {
   const main = read('js/main.js');
-  const start = main.indexOf('  const { teleportTo, teleportFromMap }');
+  const start = main.indexOf('  let travelRequest = 0;');
   const end = main.indexOf('  const openMapBtn', start);
   const handlers = new Map();
   const calls = [];
@@ -119,6 +119,8 @@ test('map travel resolves a walking pose before closing and leaves the map open 
       return true;
     },
     bayPark: null,
+    waterfrontPaths: { paths: [] },
+    findWaterfrontWalkPoint: (_paths, x, z, heading) => x === 103 ? { x: 100, z, heading } : null,
     northStation: null,
     controllerManager: {
       get activeMode() { return mode; },
@@ -148,6 +150,7 @@ test('map travel resolves a walking pose before closing and leaves the map open 
       toggleFullMap(open) { calls.push(['map', open]); this.open = open; }
     },
     wireMetroMenu: () => {},
+    regional: { prepare: () => null, prepareFlight: () => null, flightFailed: () => false },
     wireDroneWatch: () => ({ active: false, map: null }),
     observationSessions: {},
     drones: {},
@@ -187,6 +190,9 @@ test('map travel resolves a walking pose before closing and leaves the map open 
     ['autoStop', 'manual'], ['touch'], ['gamepad'], ['camera'], ['selectCamera', 'chase', true], ['map', false]]);
   assert.equal(map.waypoint.x, 100);
   assert.equal(map.waypoint.name, '100, 200');
+  map.open = true;
+  assert.equal(map.onTeleport(103, 200), walking);
+  assert.equal(map.open, false);
 
   mode = 'car';
   map.open = true;

@@ -16,6 +16,24 @@ const crownStub = {
 const trees = loadModule(read('sz-trees.js'), {
   imports: { 'three/webgpu': THREE_STUB, './sz-polygon.js': polygonModule, './sz-tree-crown.js': crownStub }
 });
+const { createArterialTreeFilter } = loadModule(read('sz-arterial-trees.js'));
+
+test('arterial street trees stay beyond the frontage road and clear the median', () => {
+  const roads = [
+    { name: '深南大道', z: -15, heading: -Math.PI / 2, w: 12 },
+    { name: '深南大道', z: 15, heading: Math.PI / 2, w: 12 },
+    { name: '深南大道辅路', z: 30, heading: Math.PI / 2, w: 6 }
+  ];
+  const nearest = (x, z, radius) => roads.map(road => ({
+    road: { ...road, dir: 1, highway: 'primary' }, heading: road.heading, x, z: road.z, distance: Math.abs(road.z - z)
+  })).filter(hit => hit.distance <= radius).sort((a, b) => a.distance - b.distance);
+  const allowed = createArterialTreeFilter(nearest);
+  assert.equal(allowed(0, 0, 'osm-node'), false);
+  assert.equal(allowed(0, 23.5, 'simulated-street'), false);
+  assert.equal(allowed(0, 35.5, 'simulated-street'), true);
+  assert.equal(allowed(0, -23.5, 'simulated-street'), false);
+  assert.equal(allowed(0, 55, 'simulated-park'), true);
+});
 
 const SPECIES = ['ficus', 'camphor', 'phoenix', 'bauhinia', 'royal-palm', 'kapok'];
 const SOURCES = ['osm-node', 'osm-row', 'simulated-street', 'simulated-park'];
@@ -195,7 +213,7 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
   assert.equal(built.statistics.placed, 2);
   assert.equal(JSON.stringify(built.statistics.skipped), JSON.stringify({
     unsupportedGround: 1, roadConflict: 2, pathConflict: 1, buildingConflict: 1,
-    openMedian: 0, roadside: 0, frontageTrunkConflict: 0, frontageCrownConflict: 0, reservedWalk: 0
+    openMedian: 0, roadside: 0, arterialLayout: 0, frontageTrunkConflict: 0, frontageCrownConflict: 0, reservedWalk: 0
   }));
   assert.equal(built.statistics.payloadCount, 7);
   assert.equal(built.statistics.chunks, 2);

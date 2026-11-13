@@ -2,7 +2,7 @@ import { STR } from './sz-strings.js';
 import { setObservationInputBlocked } from './sz-observation-session.js';
 
 export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchControls, gamepadControls,
-  autoDrive, observationSessions, closePopovers, mapOpen, teleport, onCameraLabel }) {
+  autoDrive, observationSessions, closePopovers, mapOpen, teleport, prepareFlight, flightFailed, onCameraLabel }) {
   const droneHud = document.getElementById('drone-follow-hud');
   const droneStatus = document.getElementById('drone-follow-status');
   const droneRepeat = document.getElementById('drone-follow-repeat');
@@ -99,13 +99,17 @@ export function wireDroneWatch({ drones, controllerManager, cameraSystem, touchC
       get followedMission() { return session.target?.mission ?? null; },
       status(stationId) {
         const status = drones.status(stationId, player().position);
-        return { ...status, blocked: watchBlocked(), canApproach: canApproach() };
+        return { ...status, failed: flightFailed?.(status.route?.id), blocked: watchBlocked(), canApproach: canApproach() };
       },
       preview: stationId => drones.preview(stationId),
-      approach: station => canApproach() && station?.approach
+      approach: (station, current) => canApproach() && station?.approach
         && teleport(station.approach.x, station.approach.z, station.approach.heading,
-          { exact: true, waypoint: { x: station.x, z: station.z, name: station.name } }),
-      follow: (station, demo, { remote = false } = {}) => session.enter({ station, demo, remote }).ok
+          { exact: true, current, waypoint: { x: station.x, z: station.z, name: station.name } }),
+      follow: (station, demo, { remote = false, current } = {}) => {
+        const pending = prepareFlight?.(station.id);
+        const enter = () => current?.() !== false && session.enter({ station, demo, remote }).ok;
+        return pending ? pending.then(enter) : enter();
+      }
     }
   };
 }

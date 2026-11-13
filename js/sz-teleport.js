@@ -3,9 +3,12 @@ import { parkAt } from './sz-park-arrivals.js';
 import { polygonContainsInclusive } from './sz-polygon.js';
 
 export function createTeleportActions({ controllerManager, landmarkViews, parks, inBounds, isWater,
-  carriagewayOccupied, findGroundArrival, roadHeight, flightStartAltitude, selectMode, onArrival, closeMap, excludeGround = () => false }) {
+  carriagewayOccupied, findGroundArrival, roadHeight, flightStartAltitude, selectMode, onArrival, closeMap, prepareRegional,
+  excludeGround = () => false, waterfrontArrival = () => null }) {
   function teleportTo(x, z, heading, options = {}) {
-    if (!inBounds(x, z)) return null;
+    if (!inBounds(x, z) || options.current?.() === false) return null;
+    const pending = !options.regionalPrepared && prepareRegional?.(x, z);
+    if (pending) return pending.then(() => teleportTo(x, z, heading, { ...options, regionalPrepared: true }));
     const park = options.park ?? (controllerManager.activeMode === 'person' ? parkAt(parks, x, z) : null);
     const landmark = landmarkViews.get(options.landmarkId);
     const arrival = landmark && findLandmarkArrival(landmark, controllerManager,
@@ -48,11 +51,15 @@ export function createTeleportActions({ controllerManager, landmarkViews, parks,
   }
 
   function teleportFromMap(x, z, heading = Math.PI, options = {}) {
-    if (!inBounds(x, z)) return null;
+    if (!inBounds(x, z) || options.current?.() === false) return null;
+    const pending = !options.regionalPrepared && prepareRegional?.(x, z);
+    if (pending) return pending.then(() => teleportFromMap(x, z, heading, { ...options, regionalPrepared: true }));
     const landmark = landmarkViews.get(options.landmarkId);
     const park = options.stationVisit ? null : options.park ?? parkAt(parks, x, z);
     const exactWalk = (px, pz, direction) => !excludeGround(px, pz, 0.7) && controllerManager.findTeleportPosition(
       px, pz, direction, 0, true, null, { exact: true, mode: 'person' });
+    const shore = !options.stationVisit && !landmark && isWater(x, z) === false
+      && !carriagewayOccupied(x, z, 0.58) && waterfrontArrival(x, z, heading);
     let destination;
     if (options.stationVisit) {
       destination = stationArrival(x, z, options.stationVisit, exactWalk);
@@ -60,6 +67,10 @@ export function createTeleportActions({ controllerManager, landmarkViews, parks,
       const front = findLandmarkArrival(landmark, controllerManager,
         findGroundArrival, roadHeight, flightStartAltitude, 'person');
       if (front) destination = exactWalk(front.x, front.z, front.heading);
+    } else if (shore) {
+      if (isWater(shore.x, shore.z) === false && !carriagewayOccupied(shore.x, shore.z, 0.58)) {
+        destination = exactWalk(shore.x, shore.z, shore.heading);
+      }
     } else if (park) {
       destination = controllerManager.findTeleportPosition(x, z, heading, 0, true, park, { mode: 'person' });
     } else {

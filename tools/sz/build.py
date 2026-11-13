@@ -4,6 +4,8 @@ import argparse
 import gzip
 import hashlib
 import json
+import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -12,6 +14,8 @@ from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
 from air_cruises import build_air_cruises
+from arterial_corridors import (MANIFEST as ARTERIAL_CORRIDORS, compile_arterial_medians,
+                                omit_reviewed_duplicates, remap_structure_indices)
 from beihuan import apply_beihuan_sections
 from bridges import build_bridges
 from building_appearance import apply_building_appearance
@@ -43,7 +47,7 @@ from road_structures import compile_road_structures
 from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
-from waterfront import compile_waterfront
+from waterfront import compile_waterfront, compile_waterfront_routes, restore_bay_paving
 from urban_paving import compile_urban_paving
 from yanjiang import build_yanjiang
 from fastpack import encode_city
@@ -270,7 +274,40 @@ def exclude_packaged_road_covers(payload, report, shapes):
     report['osmBuildings'] -= len(removed)
 
 
-def write_city_packages(payload, report, sources, started, *, refresh_regions=True, appearance_osm=None, structure_base=None):
+def write_regional_scene(payload, report):
+    """复用正式场地采样器，生成带输入指纹的区域数据。"""
+    payload.pop('regionalScene', None)
+    with tempfile.TemporaryDirectory(prefix='sz-regional-') as temporary:
+        source = Path(temporary) / 'city.json'
+        plan = Path(temporary) / 'plan.json'
+        source.write_bytes(json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode())
+        subprocess.run(['node', str(ROOT / 'tools/sz/plan-regional-scene.mjs'), str(source), str(plan)],
+                       cwd=ROOT, check=True)
+        result = json.loads(plan.read_text())
+    manifest = result['manifest']
+    directory = OUT.parent / 'sz-regional' / manifest['fingerprint'][:20]
+    directory.mkdir(parents=True, exist_ok=True)
+    files = {}
+    for row in manifest['cells']:
+        packet = {key: manifest[key] for key in ('version', 'fingerprint')}
+        packet.update(id=row['id'], data=result['data'][row['id']])
+        data = json.dumps(packet, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
+        if len(data) > 192 * 1024:
+            raise ValueError(f'Regional chunk exceeds size limit: {row["id"]}')
+        row['bytes'] = len(data)
+        target = directory / (row['id'] + '.json')
+        temporary = target.with_suffix('.tmp')
+        temporary.write_bytes(data)
+        temporary.replace(target)
+        files[target.relative_to(ROOT).as_posix()] = hashlib.sha256(data).hexdigest()
+    payload['regionalScene'] = manifest
+    report['regionalScene'] = {'version': manifest['version'], 'fingerprint': manifest['fingerprint'],
+                               'bytes': sum(row['bytes'] for row in manifest['cells']), 'files': files,
+                               'rules': result['rules'], **result['audit']}
+
+
+def write_city_packages(payload, report, sources, started, *, refresh_regions=True, appearance_osm=None,
+                        structure_base=None, arterial_osm=None):
     payload.pop('roads', None)
     osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
     if refresh_regions:
@@ -282,9 +319,16 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
     cover_shapes = read_road_covers(manifest, osm_source, appearance_osm)
     exclude_packaged_road_covers(payload, report, cover_shapes)
     compile_road_structures(payload, manifest, report, base=structure_base, cover_shapes=cover_shapes or None)
+    if arterial_osm is not None:
+        compile_arterial_medians(payload, arterial_osm, json.loads(ARTERIAL_CORRIDORS.read_text()), report)
     if appearance_osm is not None:
         apply_building_appearance(payload, appearance_osm, report)
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    write_regional_scene(payload, report)
+    write_payload(payload, report, sources, started)
+
+
+def write_payload(payload, report, sources, started):
     raw = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode()
     compressed = gzip.compress(raw, 9, mtime=0)
     temporary = OUT.with_suffix('.tmp')
@@ -294,6 +338,13 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
         temporary.replace(OUT)
     finally:
         temporary.unlink(missing_ok=True)
+    regional_dir = OUT.parent / 'sz-regional'
+    fingerprint = payload.get('regionalScene', {}).get('fingerprint', '')[:20]
+    for old in regional_dir.glob('*/*.json'):
+        if old.parent.name != fingerprint:
+            old.unlink()
+            if not any(old.parent.iterdir()):
+                old.parent.rmdir()
     report['outputBytes'] = len(compressed)
     report['outputSha256'] = hashlib.sha256(compressed).hexdigest()
     report['seconds'] = round(time.time() - started, 1)
@@ -438,6 +489,7 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     payload.pop('waterfront', None)
     compile_waterfront(payload, osm, pbf, report)
     compile_talent_park(payload, osm, osm_source, report)
+    compile_waterfront_routes(payload, osm, pbf, report)
     payload.pop('urbanPaving', None)
     compile_urban_paving(payload, osm_source, report)
     compile_ground_walk(payload, osm, osm_source, report)
@@ -581,6 +633,8 @@ def main():
                       help='regenerate map regions from the verified city package and OSM snapshot')
     mode.add_argument('--rebuild-road-structures', type=Path, nargs='?', const=True, metavar='UNCUT_CITY_PACKAGE',
                       help='compile reviewed structures and cut portals into the verified city surface')
+    mode.add_argument('--rebuild-arterial-corridors', action='store_true',
+                      help='deduplicate reviewed connectors and generate median finishes on the verified package')
     mode.add_argument('--rebuild-air-cruises', action='store_true',
                       help='regenerate air cruises from the verified city road graph')
     mode.add_argument('--rebuild-ground', action='store_true',
@@ -597,12 +651,20 @@ def main():
                       help='apply the reviewed Shenzhen Golf Course site to the verified package')
     mode.add_argument('--rebuild-shenzhen-north', action='store_true',
                       help='compile only Shenzhen North rail on the verified city package')
+    mode.add_argument('--rebuild-landmark-sites', nargs='+', metavar='LANDMARK',
+                      help='refresh selected landmark locations and site outlines on the verified city package')
     mode.add_argument('--rebuild-iec', action='store_true',
                       help='add reviewed Xiangmi Lake paths and reflecting pool to the current verified snapshot')
     mode.add_argument('--rebuild-talent-park', action='store_true',
                       help='compile the reviewed Talent Park waterfront on the verified package')
+    mode.add_argument('--rebuild-regional-scene', action='store_true',
+                      help='refresh waterfront, metro and drone placements from the verified city package')
     mode.add_argument('--rebuild-waterfront', action='store_true',
                       help='compile the reviewed lake, bay and river samples on the verified package')
+    mode.add_argument('--restore-bay-paving', action='store_true',
+                      help='restore source paving on the existing Shenzhen Bay surface')
+    mode.add_argument('--extend-waterfront', action='store_true',
+                      help='compile reviewed waterfront routes on the verified city surface')
     mode.add_argument('--rebuild-urban-paving', action='store_true',
                       help='apply reviewed ground-cover sites to the verified package')
     mode.add_argument('--rebuild-ground-walk', action='store_true',
@@ -619,14 +681,18 @@ def main():
         export_road_preview(not args.no_cache)
         return
 
-    if args.rebuild_drive_rules or args.repack_existing or args.rebuild_map_regions or args.rebuild_air_cruises or args.rebuild_road_structures:
+    if args.rebuild_regional_scene or args.rebuild_drive_rules or args.repack_existing or args.rebuild_map_regions or args.rebuild_air_cruises or args.rebuild_road_structures:
         started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
         sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
         report = json.loads(VALIDATION_REPORT.read_text())
         require_matching_snapshot(raw, report, sources)
-        if args.rebuild_drive_rules:
+        if args.rebuild_regional_scene:
+            build_report = json.loads(REPORT.read_text())
+            write_regional_scene(payload, build_report)
+            write_payload(payload, build_report, sources, started)
+        elif args.rebuild_drive_rules:
             report = json.loads(REPORT.read_text())
             osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
             apply_drive_rules(ROOT / osm_source['file'], payload['roadGraph'], report)
@@ -646,12 +712,36 @@ def main():
             write_city_packages(payload, build_report, sources, started, structure_base=structure_base,
                                 refresh_regions=not args.rebuild_road_structures)
         else:
-            print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
+            build_report = json.loads(REPORT.read_text())
+            rules = build_report.get('regionalScene', {}).get('rules', {})
+            if not payload.get('regionalScene') or not rules or any(
+                    hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != digest
+                    for path, digest in rules.items()):
+                write_regional_scene(payload, build_report)
+                write_payload(payload, build_report, sources, started)
+            else:
+                print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
         return
 
     if args.rebuild_road_frontage:
         rebuild_road_frontage(args.rebuild_road_frontage, crossing_axis_ids=args.refresh_frontage_crossing_axes,
                               use_cache=not args.no_cache)
+        return
+
+    if args.rebuild_arterial_corridors:
+        started = time.time()
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        report = json.loads(REPORT.read_text())
+        manifest = json.loads(ARTERIAL_CORRIDORS.read_text())
+        source = next(row for row in sources if row['id'] == manifest['osmSnapshotId'])
+        osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=ROOT / source['file'],
+                       source_sha256=source['sha256'])
+        remap = omit_reviewed_duplicates(payload['roadGraph'], report, manifest)
+        remap_structure_indices(payload, report, remap)
+        write_city_packages(payload, report, sources, started, refresh_regions=False, arterial_osm=osm)
         return
 
     if args.rebuild_urban_paving:
@@ -695,6 +785,34 @@ def main():
                             refresh_regions=False, appearance_osm=osm)
         return
 
+    if args.rebuild_landmark_sites:
+        started = time.time()
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
+        pbf = ROOT / osm_source['file']
+        osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=pbf, source_sha256=osm_source['sha256'])
+        manifest = {row['id']: row for row in json.loads(LANDMARKS.read_text())['landmarks']}
+        selected = set(args.rebuild_landmark_sites)
+        if selected - manifest.keys():
+            raise ValueError(f'Unknown landmarks: {sorted(selected - manifest.keys())}')
+        report = json.loads(REPORT.read_text())
+        # 已有建筑表仍引用原地图序号。原位更新选中地标，新地图点追加。
+        rows = [row for key, row in manifest.items() if key in selected]
+        landmarks = {row['id']: row for row in payload['landmarks']}
+        landmarks.update((row['id'], row) for row in landmark_entries(rows))
+        payload['landmarks'] = list(landmarks.values())
+        scoped = {}
+        new_sites = build_landmark_sites(rows, scoped, pbf, area_entries=[*osm['buildings'], *osm['green']])
+        for identity in selected:
+            payload['sites']['sites'].pop(identity, None)
+        payload['sites']['sites'].update(new_sites['sites'])
+        report['landmarkSitesRefresh'] = {'ids': sorted(selected), **scoped['landmarkSites']}
+        write_city_packages(payload, report, sources, started, refresh_regions=False)
+        return
+
     if args.rebuild_shenzhen_north:
         started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
@@ -707,7 +825,18 @@ def main():
         write_city_packages(payload, report, sources, started)
         return
 
-    if args.rebuild_talent_park or args.rebuild_waterfront:
+    if args.restore_bay_paving:
+        started = time.time()
+        raw = gzip.decompress(OUT.read_bytes())
+        payload = json.loads(raw)
+        sources = verify_sources(source_ids=(*CORE_SOURCES, *payload['terrain']['sourceIds']))
+        require_matching_snapshot(raw, json.loads(VALIDATION_REPORT.read_text()), sources)
+        report = json.loads(REPORT.read_text())
+        restore_bay_paving(payload, report)
+        write_city_packages(payload, report, sources, started, refresh_regions=False)
+        return
+
+    if args.rebuild_talent_park or args.rebuild_waterfront or args.extend_waterfront:
         started = time.time()
         raw = gzip.decompress(OUT.read_bytes())
         payload = json.loads(raw)
@@ -717,7 +846,9 @@ def main():
         osm = read_osm(PHASE1_BBOX, use_cache=not args.no_cache, pbf=ROOT / osm_source['file'],
                        source_sha256=osm_source['sha256'])
         report = json.loads(REPORT.read_text())
-        if args.rebuild_waterfront:
+        if args.extend_waterfront:
+            compile_waterfront_routes(payload, osm, ROOT / osm_source['file'], report)
+        elif args.rebuild_waterfront:
             compile_waterfront(payload, osm, ROOT / osm_source['file'], report)
         else:
             compile_talent_park(payload, osm, osm_source, report)
@@ -783,7 +914,8 @@ def main():
     apply_beihuan_sections(road_graph, report)
     apply_drive_rules(pbf, road_graph, report)
     road_graph['turnRestrictions'] = build_turn_restrictions(pbf, road_graph, report)
-    sites = build_landmark_sites(landmark_manifest, report, pbf=pbf, area_entries=osm['buildings'])
+    omit_reviewed_duplicates(road_graph, report, json.loads(ARTERIAL_CORRIDORS.read_text()))
+    sites = build_landmark_sites(landmark_manifest, report, pbf=pbf, area_entries=[*osm['buildings'], *osm['green']])
     # 春茧两座封闭厅是已核实的地面裁除区：派生路面不得改写馆内格点，先按原始 DSM 求出并复用。
     exclusions = chunjian_exclusions(buildings, terrain, osm['roads'])
     terrain, terrain_surface = compile_ground(terrain, clip, land, water, green, wetland, exclusions,
@@ -876,9 +1008,10 @@ def main():
     payload.pop('waterfront', None)
     compile_waterfront(payload, osm, pbf, report)
     compile_talent_park(payload, osm, osm_source, report)
+    compile_waterfront_routes(payload, osm, pbf, report)
     compile_urban_paving(payload, osm_source, report)
     compile_ground_walk(payload, osm, osm_source, report)
-    write_city_packages(payload, report, sources, t0, appearance_osm=osm)
+    write_city_packages(payload, report, sources, t0, appearance_osm=osm, arterial_osm=osm)
 
 
 if __name__ == '__main__':

@@ -99,15 +99,22 @@ function wireMapInspection(map) {
 
   function travel() {
     if (!selected || map.isPlanningDrive) return;
-    const { x, z, landmarkId } = selected;
-    if (map.onTeleport?.(x, z, undefined, { landmarkId })) {
-      selected = null;
-      feedback = '';
-    } else {
-      feedback = STR.map.noArrival;
-    }
-    updateSelection();
-    map.renderFullMap();
+    const target = selected;
+    const { x, z, landmarkId } = target;
+    const finish = arrived => {
+      if (selected !== target) return;
+      if (arrived) {
+        selected = null;
+        feedback = '';
+      } else {
+        feedback = STR.map.noArrival;
+      }
+      updateSelection();
+      map.renderFullMap();
+    };
+    const arrived = map.onTeleport?.(x, z, undefined, { landmarkId, current: () => selected === target });
+    if (arrived?.then) arrived.then(finish);
+    else finish(arrived);
   }
 
   get('map-selection-clear').addEventListener('click', () => {
