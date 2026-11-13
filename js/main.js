@@ -36,6 +36,7 @@ import { buildIecGrounds } from './sz-landmarks/iec-grounds.js';
 import { buildSzMetroEntrances } from './sz-metro-entrances.js';
 import { buildFutianStation, buildXiliConstruction } from './sz-station-sites.js';
 import { buildSzLandmarks } from './sz-landmarks/index.js';
+import { buildSzDistricts } from './sz-districts/index.js';
 import { buildShenzhenBayBridge, buildYanjiangExpressway } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { buildSzElevatedRoads } from './sz-elevated-roads.js';
 import { BUILDING_RENDER_CHUNK_SIZE, buildCityBlocks } from './sz-buildings.js';
@@ -211,6 +212,11 @@ async function initApp() {
       frontage: GEO.roadFrontage, decks: elevatedRoads.links }));
   const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface, site.style);
   site.heightAt = (x, z) => roadFrontage.contactHeight(x, z) ?? publicWalk.heightAt(x, z) ?? ground.groundHeight(x, z);
+  const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
+  const districts = qa.measureBuild('districts', () => buildSzDistricts(scene, site,
+    { water: GEO.water, roads: roads.surfaces, carriagewayOccupied }));
+  const baseHeight = site.heightAt;
+  site.heightAt = (x, z) => districts.heightAt(x, z) ?? baseHeight(x, z);
   site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
   const bayPaths = createBayPathLookup(GEO.shenzhenBay?.paths);
   site.reserveBayWalk = (x, z, radius) => bayPaths(x, z, radius).length > 0;
@@ -227,7 +233,7 @@ async function initApp() {
   const yanjiang = buildYanjiangExpressway(scene, GEO.yanjiangExpressway);
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
-  const sceneSkipIds = new Set([...landmarks.skipIds, ...parkOmissions]);
+  const sceneSkipIds = new Set([...landmarks.skipIds, ...districts.skipIds, ...parkOmissions]);
   const cityBlocks = qa.stage('blocks', () =>
     buildCityBlocks(scene, { skipIds: sceneSkipIds, renderChunkSize: qa.chunkSize,
       programEmission: cbdProgram.emission, programParticipant: isCbdProgramBuilding,
@@ -245,7 +251,7 @@ async function initApp() {
   const buildingDetails = qa.stage('details', () =>
     buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds, roofPlans: cityBlocks.roofPlans }));
   markInit('blocks');
-  const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders];
+  const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders, ...districts.colliders];
   site.colliders = buildings;
   const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
   const talentPark = prepareTalentPark(qa, scene, GEO, site);
@@ -259,11 +265,11 @@ async function initApp() {
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
   // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
-  const carriagewayOccupied = createCarriagewayBarrier(site.roadGraph).contains;
   const trees = qa.stage('trees', () => buildSzTrees(scene, GEO.trees, {
     ...site, carriagewayOccupied, simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
-    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r),
-    observedTrees: streetscape.observedTrees, pilotTrees: [...publicWalk.trees, ...(waterfront?.pilotTrees ?? [])],
+    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r) || districts.reserves(x, z, r),
+    observedTrees: streetscape.observedTrees,
+    pilotTrees: [...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...districts.trees],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds)
   }));
   // 灯位从实际道路断面派生，已核实的中央分隔带参与选位。
@@ -352,14 +358,14 @@ async function initApp() {
   const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, GEO.roadGraph, {
     ...site,
     publicRoute: publicWalk.route(colliders),
-    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || waterfront?.reserves(x, z, 2),
+    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || waterfront?.reserves(x, z, 2) || districts.reserves(x, z),
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
     // 出生环下探到 8 m、上收 160 m，让玩家身边和眼前街区都有人；视锥保护仍会挡掉镜头内突然出现的人。
     localWalk: iec?.walk, blockGenericWalk: iec?.blockGenericWalk,
     spawnMinM: 8,
     spawnMaxM: 160,
-    publicRoutes: bayWaterfront.publicRoutes
+    publicRoutes: [...bayWaterfront.publicRoutes, ...districts.publicRoutes(colliders, { contains: carriagewayOccupied }, site.heightAt)]
   }));
   roadFrontage.update(0);
   traffic.update(0, loadingFocus, [controllerManager.getActiveEntity()], 0);
@@ -429,6 +435,7 @@ async function initApp() {
     pedestrians.dispose();
     talentPeople?.dispose();
     publicWalk.dispose();
+    districts.dispose();
     streetscape.dispose();
     trees.dispose?.();
     waterfront?.dispose();
@@ -518,7 +525,8 @@ async function initApp() {
   const streetscapeArrival = streetscape.findArrival(trees.colliders);
   const parkArrivals = createBayParkArrivals(bayPark, GEO.parks, bayWaterfront.arrival ?? streetscapeArrival,
     findGroundArrival, getLocationLabel);
-  const { entries: teleportEntries, buttons: teleportButtons, syncWalkApproach } = createTeleportMenu(TELEPORT_LOCATIONS, bayPark, getLocationLabel);
+  const { entries: teleportEntries, buttons: teleportButtons, syncWalkApproach } = createTeleportMenu(
+    TELEPORT_LOCATIONS, bayPark, getLocationLabel, districts.arrivals);
   const parkButton = teleportButtons.find(button => button.dataset.teleport === bayPark?.id);
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
   const placeModeIndicator = createModeIndicator(document.getElementById('mode-switch'));
@@ -530,7 +538,8 @@ async function initApp() {
   const elSpeedMeter = document.getElementById('hud-speed-meter');
   const elAltitude = document.getElementById('hud-altitude');
   const elLocation = document.getElementById('hud-location');
-  const landmarkViews = createLandmarkViews(SZ_LANDMARKS, landmarks.heights, site.heightAt, TELEPORT_LOCATIONS, anchors?.iecGate?.yaw);
+  const landmarkViews = createLandmarkViews(SZ_LANDMARKS, new Map([...landmarks.heights, ...districts.heights]),
+    site.heightAt, TELEPORT_LOCATIONS, anchors?.iecGate?.yaw);
   const elControlsHint = document.getElementById('hud-controls-hint');
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
     onCycleMode: (step) => {
@@ -946,6 +955,7 @@ async function initApp() {
     qa.applyCamera(cameraSystem.camera);
     streetLamps.update(cameraSystem.camera.position);
     trees.update(cameraSystem.camera.position);
+    districts.update(cameraSystem.camera.position);
     apecTheme.update(dt);
     apecCity.update(dt);
     showSession.update(rawDt);

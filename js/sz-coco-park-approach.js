@@ -9,15 +9,18 @@ const COCO_PARK_APPROACH = {
   stop: { x: -498.3, z: 1177.2 }
 };
 
-export function createTeleportMenu(locations, bayPark, locationLabel) {
+export function createTeleportMenu(locations, bayPark, locationLabel, walkEntries = {}) {
   const { id, start, stop } = COCO_PARK_APPROACH;
   const approach = { ...start, name: STR.teleport.cocoParkApproach,
     waypoint: { ...stop, name: STR.teleport.cocoParkEntrance } };
-  const entries = { ...locations, [id]: approach };
+  const entries = { ...locations, [id]: approach, ...walkEntries };
   if (bayPark) entries[bayPark.id] = bayPark;
   const buttons = populateTeleportMenu(entries, locationLabel);
   const walkButton = buttons.find(button => button.dataset.teleport === id);
   function syncWalkApproach(mode) {
+    for (const button of buttons) {
+      if (walkEntries[button.dataset.teleport]?.walkOnly) button.disabled = mode !== 'person';
+    }
     walkButton.disabled = mode !== 'person';
     walkButton.querySelector('.pop-sub').textContent = walkButton.disabled
       ? STR.teleport.walkOnly : STR.teleport.cocoParkApproachDetail;

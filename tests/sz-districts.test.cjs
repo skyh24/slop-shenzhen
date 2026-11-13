@@ -1,0 +1,122 @@
+const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const { registerHooks } = require('node:module');
+const { resolve } = require('node:path');
+const { pathToFileURL } = require('node:url');
+const { gunzipSync } = require('node:zlib');
+const test = require('node:test');
+
+const threeDir = process.env.SZ_THREE_PACKAGE_DIR ?? resolve(__dirname, '../.agents/three-0.187.0');
+registerHooks({ resolve(specifier, context, next) {
+  const name = { 'three/webgpu': 'three.webgpu.js', 'three/tsl': 'three.tsl.js' }[specifier];
+  return name ? { url: pathToFileURL(resolve(threeDir, 'build', name)).href, shortCircuit: true } : next(specifier, context);
+} });
+
+let fixture;
+function load() {
+  return fixture ??= (async () => {
+    const { Scene } = await import('three/webgpu');
+    const { decodeCityPayload } = await import('../js/sz-data-format.js');
+    const { createGroundSurfaceSampler } = await import('../js/sz-ground-surface.js');
+    const { createRoadSurfaceLayout } = await import('../js/sz-roads.js');
+    const { createCarriagewayBarrier } = await import('../js/sz-pedestrian-tracks.js');
+    const { buildingPlacement } = await import('../js/sz-building-layout.js');
+    const { buildSzDistricts } = await import('../js/sz-districts/index.js');
+    const { polygonBoxOverlaps } = await import('../js/building-collision.js');
+    const { buildings, geo } = decodeCityPayload(JSON.parse(gunzipSync(readFileSync(resolve(__dirname, '../js/sz-city.json.gz')))));
+    const groundHeight = createGroundSurfaceSampler(geo.terrainSurface);
+    const road = createCarriagewayBarrier(geo.roadGraph);
+    const { chunks } = createRoadSurfaceLayout(geo.roadGraph, geo.terrainSurface);
+    const site = { buildings, terrain: geo.terrain, terrainSurface: geo.terrainSurface, groundHeight, heightAt: groundHeight };
+    const scene = new Scene();
+    const districts = buildSzDistricts(scene, site, { water: geo.water, roads: chunks, carriagewayOccupied: road.contains });
+    const colliders = [...districts.colliders, ...buildings.filter(b => !districts.skipIds.has(b.id))
+      .flatMap(b => buildingPlacement(b, geo.terrain).colliders)];
+    const contact = (x, z) => districts.heightAt(x, z) ?? groundHeight(x, z);
+    const blocked = (x, z, y, r = 0.48) => colliders.some(b => b.minX < x + r && b.maxX > x - r
+      && b.minZ < z + r && b.maxZ > z - r && b.minY < y + 1.9 && b.maxY > y + 0.02
+      && polygonBoxOverlaps(b.polygon, x, z, r, r));
+    return { districts, buildings, colliders, road, groundHeight, contact, blocked, scene, site, chunks, buildSzDistricts };
+  })();
+}
+
+test('district replacements use reviewed OSM objects and retain sourced neighboring heights', async () => {
+  const { districts, buildings, buildSzDistricts, scene, site, chunks, road } = await load();
+  const manifest = require('../data/source/landmarks.json').landmarks;
+  for (const id of ['sea-world', 'oct-loft', 'nantou-ancient-city']) {
+    const { modelSource } = manifest.find(lm => lm.id === id).sceneReview;
+    assert.ok(districts.skipIds.has(modelSource));
+    assert.ok(districts.heights.get(id).roof > 14);
+  }
+  assert.ok(!districts.skipIds.has('way/493722121'), 'mapped 20-story waterfront tower remains');
+  const preserved = buildings.find(b => b.id === 'way/435827465');
+  const loft = districts.colliders.find(c => c.name === 'way/435827465:district:0');
+  assert.equal(loft.heightSource, preserved.heightSource);
+  assert.equal(loft.maxY, 8 + preserved.height);
+  const withoutBasin = buildSzDistricts(scene, { ...site, buildings: buildings.filter(b => b.id === 'way/105683429') },
+    { water: [], roads: chunks, carriagewayOccupied: road.contains });
+  assert.equal(withoutBasin.skipIds.size, 0);
+  withoutBasin.dispose();
+});
+
+test('the ring, creative court and old-city lanes provide supported pedestrian tracks and clear arrivals', async () => {
+  const { districts, blocked, road, colliders, contact, groundHeight } = await load();
+  const tracks = districts.publicRoutes(colliders, road, contact);
+  const sea = tracks.find(r => r.id === 'sea-world-quay:0');
+  assert.deepEqual(sea.points[0], sea.points.at(-1));
+  for (const id of ['sea-world-quay:0', 'sea-world-plaza:0', 'oct-loft-court:0', 'nantou-east-alley:0']) {
+    const route = tracks.find(r => r.id === id);
+    assert.ok(route, id);
+    for (const p of route.points) {
+      assert.ok(route.walkAt(p.x, p.z), id);
+      assert.ok(Math.abs(route.publicHeight(p.x, p.z) - groundHeight(p.x, p.z)) < 0.005, id);
+      assert.ok(!blocked(p.x, p.z, p.y), id);
+    }
+  }
+  assert.equal(Object.keys(districts.arrivals).length, 3);
+  for (const { x, z } of Object.values(districts.arrivals)) {
+    const y = contact(x, z);
+    assert.ok(Number.isFinite(y) && !road.contains(x, z, 0.58) && !blocked(x, z, y, 0.58));
+  }
+});
+
+test('the old gate stays open at walking height while the two new walls stand clear of roads', async () => {
+  const { districts, blocked, contact, road } = await load();
+  const wings = districts.colliders.filter(c => c.name.startsWith('nantou:design-wall:'));
+  assert.equal(wings.length, 2);
+  for (const wall of wings) {
+    assert.equal(wall.heightSource, 'estimate');
+    assert.ok(wall.polygon.outer.every(p => !road.contains(p.x, p.z, 0.05)));
+  }
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20, x = -14277.93 - 2.24 * t, z = 164.8 - 9.05 * t;
+    assert.ok(!blocked(x, z, contact(x, z)), `Gate blocked at ${i}`);
+  }
+  assert.ok(districts.colliders.some(c => c.name === 'minghua:closed-gate'));
+  assert.ok(districts.colliders.some(c => c.name === 'oct-loft:closed-stair-gate'));
+});
+
+test('open retail bays have clear terrain inside their source footprint and closed upper floors', async () => {
+  const { districts, buildings, blocked, contact } = await load();
+  const shops = districts.colliders.filter(c => c.name.endsWith(':open-shop'));
+  assert.ok(shops.some(c => c.sourceId === 'way/435827465'), 'OCT-LOFT has a clear public shop bay');
+  assert.ok(shops.some(c => c.sourceId === 'way/492141834'), 'Sea World has a clear public shop bay');
+  for (const { approach, mouth } of districts.shops) {
+    for (let i = 0; i <= 8; i++) {
+      const t = i / 8;
+      const x = mouth.x + (approach.x - mouth.x) * t, z = mouth.z + (approach.z - mouth.z) * t;
+      assert.ok(!blocked(x, z, contact(x, z)), 'street furniture must leave the shop approach clear');
+    }
+  }
+  for (const shop of shops) {
+    const original = buildings.find(b => b.id === shop.sourceId).polygons[0].outer;
+    const opening = shop.polygon.outer.filter(p => !original.some(q => q.x === p.x && q.z === p.z));
+    assert.equal(opening.length, 4);
+    const [a, b, c, d] = opening;
+    const x = (a.x + d.x) * 0.32 + (b.x + c.x) * 0.18;
+    const z = (a.z + d.z) * 0.32 + (b.z + c.z) * 0.18;
+    const y = contact(x, z);
+    assert.ok(Number.isFinite(y) && !blocked(x, z, y), shop.name);
+    assert.ok(blocked(x, z, y + 3.2), shop.name);
+  }
+});

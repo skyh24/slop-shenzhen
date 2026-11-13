@@ -242,6 +242,7 @@ class QaSession {
   // QA 专用传送与碰撞查询：只在本机回环地址的 ?qa=1 下暴露，便于固定机位复测和诊断。
   installDebug({ controllerManager, traffic, colliders, teleport }) {
     window.__szTeleport = (x, z, heading = 0) => controllerManager.teleportActiveTo(x, z, heading, null, { exact: true });
+    window.__szCamera = values => { this.camera = values === null ? null : parseCamera(values.join(',')); };
     // QA：列出某点附近的交通碰撞体，用于区分“被 NPC 车辆挡住”与“桥面/坡度问题”。
     window.__szNearTraffic = (x, z, radius = 12) => (traffic.nearColliders(x, z, radius) ?? []).map(item => ({
       x: Math.round(item.x ?? item.minX ?? 0), z: Math.round(item.z ?? item.minZ ?? 0), kind: item.kind ?? item.type ?? 'vehicle'

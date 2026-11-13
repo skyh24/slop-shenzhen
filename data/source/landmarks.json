@@ -159,6 +159,7 @@
     {
       "id": "oct-loft", "name": "华侨城创意文化园", "short": "华侨城", "phase": 1, "mapPriority": true,
       "center": [22.5412214, 113.9886215],
+      "sceneReview": {"modelSource": "way/435827468", "evidence": "heritage-districts-evidence.md", "verifiedAt": "2026-11-13"},
       "osm": { "site": "way/741581536" }, "status": "osm",
       "sources": ["https://www.sz.gov.cn/zfgb/2024/gb1349/content/post_11702444.html"]
     },
@@ -172,6 +173,7 @@
     {
       "id": "nantou-ancient-city", "name": "南头古城", "phase": 1, "mapPriority": true,
       "center": [22.5462391, 113.9158929],
+      "sceneReview": {"modelSource": "way/1183877518", "passage": "way/1436861800", "evidence": "heritage-districts-evidence.md", "verifiedAt": "2026-11-13"},
       "osm": { "site": "way/219961346" }, "status": "osm",
       "aliases": ["新安故城"],
       "sources": ["https://wtl.sz.gov.cn/xxgk/qt/lypc/content/post_11078058.html"]
@@ -186,6 +188,7 @@
     {
       "id": "sea-world", "name": "海上世界（明华轮）", "short": "海上世界", "phase": 1, "mapPriority": true,
       "center": [22.48634, 113.91193],
+      "sceneReview": {"modelSource": "way/105683429", "basin": "way/261597655", "evidence": "heritage-districts-evidence.md", "verifiedAt": "2026-11-13"},
       "osm": { "ship": "way/105683429", "plaza": "way/543176177", "artsCenter": "way/740022007", "nuwa": "node/5250978477", "nuwaPark": "way/733499600" },
       "status": "osm"
     },

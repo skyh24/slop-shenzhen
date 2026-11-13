@@ -140,6 +140,12 @@ export const STR = {
     stop: '退出环绕'
   },
   bayWaterfront: { destination: '中湾阅海广场', walk: '观海步道' },
+  districts: {
+    minghua: '明华轮', seaWorld: '海上世界', b10: 'OCAT · B10', octLoft: 'OCT-LOFT',
+    ningnan: '寧南', nantouGate: '嶺南重鎮', nantouPaifang: '城古頭南', closed: '暂不开放',
+    shops: { sea: ['海岸小食', '饮品补给', '港湾餐桌'], oct: ['独立出版', '工艺小铺', '厂房咖啡'] },
+    seaWalk: '海上世界 · 观船广场', octWalk: '华侨城创意园 · B10 步道', nantouWalk: '南头古城 · 南牌坊外'
+  },
   teleport: {
     cocoParkApproach: 'COCO Park 一期东南门前场',
     cocoParkApproachDetail: '福华三路北侧步行起点',

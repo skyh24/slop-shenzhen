@@ -92,7 +92,7 @@ test('the [init] stage log and its data labels stay in the entry', () => {
 
 test('the landmark site takeover now lives next to the landmark plans', () => {
   assert.ok(!main.includes('polygonContains'), 'the entry no longer imports the polygon test');
-  assert.match(main, /new Set\(\[\.\.\.landmarks\.skipIds, \.\.\.parkOmissions\]\)/);
+  assert.match(main, /new Set\(\[\.\.\.landmarks\.skipIds, \.\.\.districts\.skipIds, \.\.\.parkOmissions\]\)/);
   assert.match(main, /skipIds: sceneSkipIds/);
   assert.match(read('js/sz-landmarks/layout.js'), /export function siteTakeoverIds/);
 });
