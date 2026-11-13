@@ -825,7 +825,9 @@ export function validateCityPayload(raw) {
         && route?.ways?.includes(row.way) && (row.layer === undefined || Number.isFinite(row.layer))
         && Number.isFinite(row.widthM) && row.widthM > 0 && Number.isInteger(row.lanes) && row.lanes >= 0
         && Number.isFinite(row.stationOffsetM) && row.stationOffsetM >= 0
-        && Number.isFinite(row.maxGrade) && row.maxGrade >= 0 && row.maxGrade <= structures.maxGrade
+        && Number.isFinite(row.maxGrade) && row.maxGrade >= 0
+        && row.maxGrade <= (route?.junction?.tunnelMouth === true && row.kind === 'ramp'
+          ? Math.min(0.07, route.junction.maxGrade ?? structures.maxGrade) : structures.maxGrade)
         && Number.isFinite(row.openApronM) && row.openApronM >= 0
         && typeof row.sharedStart === 'boolean' && typeof row.sharedEnd === 'boolean'
         && (row.kind !== 'tunnel' ? row.coverM === null : row.coverM?.length === 2 && row.coverM.every(Number.isFinite))
@@ -844,6 +846,21 @@ export function validateCityPayload(raw) {
         return graph.links[outgoing][0] === node && graph.links[ramp].slice(0, 2).includes(node);
       }), 'road structure connections');
       validateIds(structures.connections.map(row => String(row.ramp)), 'ramp connection identity');
+    }
+    if (structures.roadCovers !== undefined) {
+      const records = new Map(structures.records.map(row => [row.index, row]));
+      requireData(Array.isArray(structures.roadCovers), 'road covers');
+      validateIds(structures.roadCovers.map(row => row?.osmId), 'road cover identity');
+      const buildingIds = new Set(raw.buildings.id);
+      for (const cover of structures.roadCovers) {
+        requireData(isOsmId(cover.osmId) && cover.kind === 'acoustic-enclosure' && !buildingIds.has(cover.osmId)
+          && ['clearanceM', 'roofM', 'wallM', 'beamSpacingM'].every(key => Number.isFinite(cover[key]) && cover[key] > 0)
+          && Array.isArray(cover.spans) && cover.spans.length > 0 && cover.spans.every(span => {
+            const row = records.get(span?.index);
+            return row?.kind === 'bridge' && Number.isFinite(span.startM) && Number.isFinite(span.endM)
+              && span.startM >= 0 && span.startM < span.endM && span.endM <= row.stations.at(-8) + 1e-5;
+          }), 'road cover spans');
+      }
     }
   }
   validateIds(roadEdges, 'road edge identity');

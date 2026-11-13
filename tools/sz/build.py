@@ -228,6 +228,47 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
     return terrain, apply_commercial_carriageway(surface, manifest, graph, report)
 
 
+def read_road_covers(manifest, osm_source, osm=None):
+    covers = {cover['osmId']: cover for cover in manifest.get('roadCovers', [])}
+    if not covers:
+        return {}
+    if osm is None:
+        osm = read_osm(PHASE1_BBOX, pbf=ROOT / osm_source['file'], source_sha256=osm_source['sha256'])
+    shapes = {}
+    for row in osm['buildings']:
+        cover = covers.get(row['id'])
+        if cover is None:
+            continue
+        if any(row['tags'].get(key) != value for key, value in cover['osmTags'].items()):
+            raise ValueError(f"Reviewed road cover source tags changed: {row['id']}")
+        shapes[row['id']] = _to_local(row['geom'])
+    if shapes.keys() != covers.keys():
+        raise ValueError('Missing reviewed road cover in locked OSM snapshot')
+    return shapes
+
+
+def exclude_packaged_road_covers(payload, report, shapes):
+    b = payload['buildings']
+    removed = [i for i, identity in enumerate(b['id']) if identity in shapes]
+    if not removed:
+        return
+    enums = payload['enums']
+    stats = report['buildingRecords']
+    for i in removed:
+        if b['lm'][i] >= 0 or b['name'][i] >= 0 or enums['upstreamFamily'][b['upstream'][i]] != 'osm':
+            raise ValueError(f"Reviewed road cover is not an anonymous OSM building: {b['id'][i]}")
+        report['heightSources'][enums['heightSource'][b['src'][i]]] -= 1
+        stats['upstreamFamilies'][enums['upstreamFamily'][b['upstream'][i]]] -= 1
+        stats['roles'][enums['buildingRole'][b['role'][i]]] -= 1
+        for aspect, column in [('footprint', 'fpConf'), ('height', 'hConf'), ('era', 'eraConf')]:
+            stats['confidence'][aspect][enums['confidence'][b[column][i]]] -= 1
+    keep = [i for i, identity in enumerate(b['id']) if identity not in shapes]
+    payload['buildings'] = {key: [column[i] for i in keep] for key, column in b.items()}
+    payload['retailBuildings'] = [row for row in payload.get('retailBuildings', []) if row[0] not in shapes]
+    report['buildings'] = len(keep)
+    report['osmBuildings'] -= len(removed)
+
+
 def write_city_packages(payload, report, sources, started, *, refresh_regions=True, appearance_osm=None, structure_base=None):
     payload.pop('roads', None)
     osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
@@ -236,7 +277,10 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
         payload['mapRegions'] = regions
         report['mapRegions'] = {key: regions[key] for key in ('version', 'source', 'pilot', 'coverage')}
         payload['airCruises'], report['airCruises'] = build_air_cruises(payload['roadGraph'], osm_source)
-    compile_road_structures(payload, json.loads(ROAD_STRUCTURES.read_text()), report, base=structure_base)
+    manifest = json.loads(ROAD_STRUCTURES.read_text())
+    cover_shapes = read_road_covers(manifest, osm_source, appearance_osm)
+    exclude_packaged_road_covers(payload, report, cover_shapes)
+    compile_road_structures(payload, manifest, report, base=structure_base, cover_shapes=cover_shapes or None)
     if appearance_osm is not None:
         apply_building_appearance(payload, appearance_osm, report)
     OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -592,7 +636,8 @@ def main():
             if args.rebuild_road_structures:
                 remove_reviewed_globfp_footprints(payload, build_report, phase1_clip_local(),
                                                 {row['id']: row for row in sources}, 'reviewed-nantou-open-viaduct')
-            write_city_packages(payload, build_report, sources, started, structure_base=structure_base)
+            write_city_packages(payload, build_report, sources, started, structure_base=structure_base,
+                                refresh_regions=not args.rebuild_road_structures)
         else:
             print(json.dumps(write_fast_package(payload, raw, report['sourceIntegrity']), indent=2))
         return
@@ -701,6 +746,7 @@ def main():
     datum_manifest = json.loads(URBAN_DATUM.read_text())
     civic = civic_paving(osm, datum_manifest['civicPaving'])
     buildings = build_buildings(osm, clip, report, reviewed_parent_uses=not args.without_building_use_review,
+                                road_cover_ids=read_road_covers(json.loads(ROAD_STRUCTURES.read_text()), osm_source, osm),
                                 include_remote_footprints=args.footprint_source == 'all',
                                 overture_path=ROOT / inputs['overture-buildings']['file'],
                                 globfp_path=ensure_globfp(inputs, use_cache=not args.no_cache))

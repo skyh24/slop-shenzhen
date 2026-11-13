@@ -659,7 +659,7 @@ def build_pending_review(buildings, road_lines, globfp_deferred, overture_deferr
 
 
 def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, height_overrides=None,
-                    include_remote_footprints=True, overture_path=None, globfp_path=None):
+                    include_remote_footprints=True, overture_path=None, globfp_path=None, road_cover_ids=()):
     bindings = load_landmark_bindings()
     overrides = load_height_overrides() if height_overrides is None else height_overrides
     report['remoteFootprints'] = {'enabled': include_remote_footprints}
@@ -673,6 +673,10 @@ def build_buildings(osm, clip_local, report, *, reviewed_parent_uses=True, heigh
         geom = _to_local(b['geom'])
         polygons = [p for p in _polygons(geom.intersection(clip_local)) if p.area >= MIN_AREA]
         if not polygons:
+            continue
+        if b['id'] in road_cover_ids:
+            # 留足迹去重，防止同一罩体被补充数据当成楼房重新填实。
+            withheld_footprints.extend(polygons)
             continue
         reason = _underground_reason(t)
         if reason:

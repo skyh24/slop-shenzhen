@@ -314,7 +314,8 @@ class CameraSystem {
         // 直接沿环绕角度定位，避免快速拖动时插值穿过玩家。视线始终横向经过玩家。
         desiredPos.set(
           entity.position.x - sinYaw * horizDist,
-          Math.max(0.65, this.followBaseY + height),
+          entity._support?.surfaceId?.startsWith('sz-road-structure:')
+            ? this.followBaseY + height : Math.max(0.65, this.followBaseY + height),
           entity.position.z - cosYaw * horizDist
         );
 
@@ -330,7 +331,7 @@ class CameraSystem {
 
         desiredPos.set(
           entity.position.x - Math.sin(entity.heading) * backDist + Math.cos(entity.heading) * sideOffset,
-          Math.max(0.55, lowY),
+          entity._support?.surfaceId?.startsWith('sz-road-structure:') ? lowY : Math.max(0.55, lowY),
           entity.position.z - Math.cos(entity.heading) * backDist - Math.sin(entity.heading) * sideOffset
         );
         desiredLook.set(
@@ -408,7 +409,7 @@ class CameraSystem {
       this.followLookOffset.lerp(desiredLook.sub(entity.position), k);
       this.currentPos.set(entity.position.x, this.followBaseY, entity.position.z).add(this.followOffset);
       this.currentLookAt.set(entity.position.x, this.followBaseY, entity.position.z).add(this.followLookOffset);
-      this.currentPos.y = Math.max(0.55, this.currentPos.y);
+      if (!entity._support?.surfaceId?.startsWith('sz-road-structure:')) this.currentPos.y = Math.max(0.55, this.currentPos.y);
     } else {
       this.followEntity = null;
       this.currentPos.lerp(desiredPos, k);

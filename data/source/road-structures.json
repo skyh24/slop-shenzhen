@@ -2104,6 +2104,305 @@
         46,
         5
       ]
+    },
+    {
+      "id": "yanjiang-dongbin-east",
+      "kind": "mixed",
+      "source": "https://szjj.sz.gov.cn/szsgajjtjcjwzgkml/szsgajjtjcjwzgkml/qt/tzgg/content/post_6858485.html",
+      "ways": [
+        "way/596950383",
+        "way/1212748038",
+        "way/360268071",
+        "way/1205104173",
+        "way/1205104173",
+        "way/1205104170",
+        "way/101316381",
+        "way/245048426",
+        "way/245048427",
+        "way/277041483",
+        "way/173087900"
+      ],
+      "pathNodes": [
+        "node/3166459153",
+        "node/1932772530",
+        "node/2643938895",
+        "node/11168527667",
+        "node/2319432246",
+        "node/1169617711",
+        "node/1839137039",
+        "node/2523067231",
+        "node/2523067230",
+        "node/1839137073",
+        "node/1839131177",
+        "node/4729092578"
+      ],
+      "portalNodes": [
+        "node/3166459153",
+        "node/4729092578"
+      ],
+      "boreWays": [
+        "way/101316381",
+        "way/245048427",
+        "way/277041483"
+      ],
+      "portalApproachWays": [
+        "way/245048426",
+        "way/173087900"
+      ],
+      "widthEstimates": {
+        "way/1205104173": [
+          13,
+          4
+        ],
+        "way/1205104170": [
+          11,
+          3
+        ],
+        "way/101316381": [
+          10,
+          3
+        ],
+        "way/245048426": [
+          10,
+          3
+        ],
+        "way/245048427": [
+          9.8,
+          3
+        ],
+        "way/277041483": [
+          7.6,
+          2
+        ],
+        "way/173087900": [
+          7.6,
+          2
+        ]
+      },
+      "profileM": [
+        [
+          0,
+          15
+        ],
+        [
+          1680,
+          15
+        ],
+        [
+          2410,
+          32
+        ],
+        [
+          2890,
+          32
+        ],
+        [
+          3320,
+          32
+        ],
+        [
+          3720,
+          18
+        ],
+        [
+          4110,
+          0
+        ],
+        [
+          6860,
+          0
+        ],
+        [
+          6986,
+          1.5
+        ],
+        [
+          7173.663415,
+          8
+        ]
+      ],
+      "verticalCurveM": 24,
+      "groundApronM": [
+        0,
+        12
+      ],
+      "heightSource": "project-design-estimate",
+      "playerDeckAccess": true,
+      "deckEnds": [
+        "start"
+      ],
+      "required": true,
+      "tunnelLighting": "continuous"
+    },
+    {
+      "id": "yanjiang-dongbin-west",
+      "kind": "mixed",
+      "source": "https://szjj.sz.gov.cn/szsgajjtjcjwzgkml/szsgajjtjcjwzgkml/qt/tzgg/content/post_6858485.html",
+      "ways": [
+        "way/587615717",
+        "way/765935267",
+        "way/765935266",
+        "way/182515727",
+        "way/277041480",
+        "way/245048422",
+        "way/245048424",
+        "way/1205104169",
+        "way/1205104171",
+        "way/1207759065",
+        "way/173087901",
+        "way/1212748039",
+        "way/360268074"
+      ],
+      "pathNodes": [
+        "node/5612922511",
+        "node/7153544108",
+        "node/5612923623",
+        "node/1928750275",
+        "node/1839131175",
+        "node/2523067259",
+        "node/2523067219",
+        "node/1839137079",
+        "node/1839137067",
+        "node/2541029144",
+        "node/11168527665",
+        "node/1839137084",
+        "node/1955048917",
+        "node/5219360227"
+      ],
+      "portalNodes": [
+        "node/5612922511",
+        "node/5219360227"
+      ],
+      "boreWays": [
+        "way/765935267",
+        "way/182515727",
+        "way/277041480",
+        "way/245048424"
+      ],
+      "portalApproachWays": [
+        "way/587615717",
+        "way/765935266",
+        "way/245048422"
+      ],
+      "widthEstimates": {
+        "way/587615717": [
+          6.5,
+          1
+        ],
+        "way/765935267": [
+          6.5,
+          1
+        ],
+        "way/765935266": [
+          6.5,
+          1
+        ],
+        "way/182515727": [
+          6.5,
+          1
+        ],
+        "way/277041480": [
+          9.8,
+          3
+        ],
+        "way/245048422": [
+          10,
+          3
+        ],
+        "way/245048424": [
+          10,
+          3
+        ],
+        "way/1205104169": [
+          11,
+          3
+        ],
+        "way/1205104171": [
+          13,
+          4
+        ]
+      },
+      "profileM": [
+        [
+          0,
+          8
+        ],
+        [
+          65,
+          8
+        ],
+        [
+          285,
+          0
+        ],
+        [
+          705,
+          0
+        ],
+        [
+          1000,
+          -6
+        ],
+        [
+          4010,
+          -6
+        ],
+        [
+          4480,
+          12
+        ],
+        [
+          5050,
+          32
+        ],
+        [
+          5700,
+          32
+        ],
+        [
+          6500,
+          15
+        ],
+        [
+          8272.134366,
+          15
+        ]
+      ],
+      "verticalCurveM": 24,
+      "groundApronM": [
+        65,
+        0
+      ],
+      "heightSource": "project-design-estimate",
+      "playerDeckAccess": true,
+      "deckEnds": [
+        "end"
+      ],
+      "stackedWith": "yanjiang-dongbin-east",
+      "required": true,
+      "tunnelLighting": "continuous"
+    },
+    {
+      "id": "yanjiang-dongbin-west-port-feeder",
+      "kind": "ramp",
+      "source": "https://szjj.sz.gov.cn/m/YD_ZWGK/YD_TZGG/YD_GGJG/content/post_11895705.html",
+      "ways": [
+        "way/182515657"
+      ],
+      "portalNodes": [
+        "node/7232488688",
+        "node/1928750275"
+      ],
+      "junction": {
+        "mainline": "yanjiang-dongbin-west",
+        "node": "node/1928750275",
+        "template": "side",
+        "mergeM": 58,
+        "verticalCurveM": 9,
+        "tunnelMouth": true,
+        "maxGrade": 0.07
+      },
+      "required": true
     }
   ],
   "minimumVehicleClearanceM": 3.7,
@@ -2183,5 +2482,27 @@
         ]
       ]
     }
-  }
+  },
+  "roadCovers": [
+    {
+      "osmId": "way/1212748044",
+      "kind": "acoustic-enclosure",
+      "osmTags": {
+        "building": "roof",
+        "layer": "2"
+      },
+      "carryingWays": [
+        "way/1205104173",
+        "way/1205104171",
+        "way/1207759065"
+      ],
+      "source": "yanjiang-qianhai-road-cover-imagery",
+      "geometrySource": "osm-guangdong",
+      "dimensionsSource": "project-design-estimate",
+      "clearanceM": 5.5,
+      "roofM": 0.24,
+      "wallM": 0.16,
+      "beamSpacingM": 6
+    }
+  ]
 }

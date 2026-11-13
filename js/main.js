@@ -256,7 +256,8 @@ async function initApp() {
   const districtHeightAt = site.heightAt;
   if (northStation) site.heightAt = (x, z) => northStation.heightAt(x, z) ?? districtHeightAt(x, z);
   const bridge = buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
-  const yanjiang = buildYanjiangExpressway(scene, GEO.yanjiangExpressway);
+  const yanjiang = buildYanjiangExpressway(scene, GEO.yanjiangExpressway,
+    new Set(roadStructures.links.map(link => Number(link.osmId.split('/')[1]))));
   const themeParks = qa.stage('themeParks', () => buildThemeParks(scene, { ...site, mapRegions: GEO.mapRegions }));
   markInit('landmarks');
   await showLoadingStage(STR.startup.blocks, 'blocks');
@@ -303,8 +304,11 @@ async function initApp() {
   const minorRoadBounds = (GEO.roadFrontage?.corridors ?? []).filter(row => row.id.startsWith('shennan-'))
     .map(row => row.bounds);
   const exposedStructures = new Set(roadStructures.links.filter(link => !link.tunnel).map(link => link.surfaceId));
+  const openTunnels = roadStructures.links.filter(link => link.exposedTriangles.length)
+    .map(link => ({ id: link.surfaceId, heightSource: 'estimate', triangles: link.exposedTriangles }));
   const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: [...elevatedRoads.surfaces,
-    ...roadStructures.surfaces.filter(surface => exposedStructures.has(surface.id))] });
+    ...roadStructures.surfaces.filter(surface => exposedStructures.has(surface.id)), ...openTunnels] });
+  for (const surface of openTunnels) exposedStructures.add(surface.id);
   const deckOccupied = (x, z, bottom, top) => deck.at(x, z).some(surface => surface.height + 4.5 > bottom
     && surface.height - (exposedStructures.has(surface.surfaceId) ? GEO.roadStructures.bridgeSlabM : 0.35) < top);
   // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。

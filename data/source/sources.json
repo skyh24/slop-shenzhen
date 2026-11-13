@@ -722,6 +722,39 @@
       "role": "Local dated imagery review only; not a building vector source or height measurement",
       "acquiredAt": "2026-01-25",
       "checkedAt": "2026-11-11"
+    },
+    {
+      "id": "yanjiang-qianhai-road-cover-imagery",
+      "file": "data/raw/qa/yanjiang/esri-west.png",
+      "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=113.8965,22.5088,113.9005,22.512&bboxSR=4326&imageSR=4326&size=1000,860&format=png&f=image",
+      "downloadedAt": "2026-11-13",
+      "bytes": 709496,
+      "sha256": "653c8db74ace10596a46c0916e84825068d3353570bede497401d61d6e1f61cb",
+      "license": "Esri World Imagery; visual reference only",
+      "captureDate": null,
+      "role": "Location and geometry interpretation only; no surveyed dimensions"
+    },
+    {
+      "id": "dongbin-west-portal-imagery",
+      "file": "data/raw/qa/yanjiang/portal-w.png",
+      "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=113.9058,22.5068,113.9126,22.5091&bboxSR=4326&imageSR=4326&size=1000,600&format=png&f=image",
+      "downloadedAt": "2026-11-13",
+      "bytes": 530849,
+      "sha256": "03b3a80d22e26160369016ce915337dba63045e2a74b43ef5688e60eba1557b8",
+      "license": "Esri World Imagery; visual reference only",
+      "captureDate": null,
+      "role": "Location and geometry interpretation only; no surveyed dimensions"
+    },
+    {
+      "id": "dongbin-east-portal-imagery",
+      "file": "data/raw/qa/yanjiang/portal-e.png",
+      "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=113.9378,22.5044,113.9444,22.5097&bboxSR=4326&imageSR=4326&size=1000,600&format=png&f=image",
+      "downloadedAt": "2026-11-13",
+      "bytes": 513218,
+      "sha256": "4aeeb531f6fabc6431ec8624833cfce8628fe545b3ee53c16b532e569856a623",
+      "license": "Esri World Imagery; visual reference only",
+      "captureDate": null,
+      "role": "Location and geometry interpretation only; no surveyed dimensions"
     }
   ]
 }

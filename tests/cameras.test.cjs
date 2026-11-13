@@ -225,6 +225,18 @@ test('a fast chase orbit keeps its radius and looks across the player throughout
   h.pointer(h.canvas, 'pointerup', 1, 0, 0, 'mouse');
 });
 
+test('chase and action cameras keep their height relative to a below-datum road deck', () => {
+  for (const preset of ['chase', 'action']) {
+    const { camera, entity } = cameraHarness();
+    entity.type = 'car';
+    entity.position.y = -6;
+    entity._support = { height: -6, surfaceId: 'sz-road-structure:6641' };
+    camera.setCameraPreset(preset, true);
+    camera.update(1 / 60, 0);
+    assert.ok(camera.camera.position.y > -6 && camera.camera.position.y < -2, preset);
+  }
+});
+
 test('selecting chase recenters on the player and ends the previous gesture', () => {
   const h = cameraHarness();
   h.entity.heading = -2.3;

@@ -270,8 +270,10 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
     for (const { edge, seg, x: laneX, z: laneZ, along } of nearby) {
       const { length } = roads.get(edge);
       // 停车时车身不能占用交叉口、匝道鼻端或边端；信号冲突区再按实际边界退让。
-      const first = Math.max(margin, ((neighbors.get(edge.from)?.size ?? 0) > 2 ? 9 + margin : margin) - along);
-      const last = Math.min(seg.length - margin,
+      // 结构的中心线折点不是路口；停车退距只从实际链路端点算。
+      const first = Math.max(edge.structureNeighbors ? 0 : margin,
+        ((neighbors.get(edge.from)?.size ?? 0) > 2 ? 9 + margin : margin) - along);
+      const last = Math.min(seg.length - (edge.structureNeighbors ? 0 : margin),
         length - ((neighbors.get(edge.to)?.size ?? 0) > 2 ? 9 + margin : margin) - along);
       if (last < first) continue;
       const projected = (x - laneX) * seg.dx + (z - laneZ) * seg.dz;

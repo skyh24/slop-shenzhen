@@ -19,7 +19,7 @@
   "remoteFootprints": {
     "enabled": true
   },
-  "osmBuildings": 29484,
+  "osmBuildings": 29483,
   "excludedUndergroundBuildings": [
     {
       "id": "way/412443234",
@@ -33103,7 +33103,7 @@
       ]
     }
   },
-  "buildings": 76022,
+  "buildings": 76021,
   "heightSources": {
     "landmark": 8,
     "osm-height": 1601,
@@ -33111,7 +33111,7 @@
     "overture-height": 2,
     "overture-floors": 3,
     "globfp": 28441,
-    "estimate": 37385,
+    "estimate": 37384,
     "published": 8
   },
   "buildingMinHeightCorrections": [
@@ -401883,12 +401883,12 @@
     "roles": {
       "main": 27873,
       "podium": 20,
-      "canopy": 320,
+      "canopy": 319,
       "bridge": 20,
       "unknown": 47789
     },
     "upstreamFamilies": {
-      "osm": 29225,
+      "osm": 29224,
       "overture-eastasia": 20369,
       "globfp-eastasia": 11328,
       "eastasia-shared": 15100,
@@ -401898,19 +401898,19 @@
       "footprint": {
         "unknown": 0,
         "low": 46797,
-        "medium": 29225,
+        "medium": 29224,
         "high": 0
       },
       "height": {
         "unknown": 0,
-        "low": 65826,
+        "low": 65825,
         "medium": 10188,
         "high": 8
       },
       "era": {
         "unknown": 35469,
         "low": 11328,
-        "medium": 29225,
+        "medium": 29224,
         "high": 0
       }
     }
@@ -415946,7 +415946,7 @@
     "roadSourceSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3"
   },
   "roadStructures": {
-    "portalCutM2": 111575.858,
+    "portalCutM2": 126711.623,
     "landscape": {
       "patches": [
         "beihuan-xinzhou:flower-bed",
@@ -418130,6 +418130,305 @@
           46,
           5
         ]
+      },
+      {
+        "id": "yanjiang-dongbin-east",
+        "kind": "mixed",
+        "source": "https://szjj.sz.gov.cn/szsgajjtjcjwzgkml/szsgajjtjcjwzgkml/qt/tzgg/content/post_6858485.html",
+        "ways": [
+          "way/596950383",
+          "way/1212748038",
+          "way/360268071",
+          "way/1205104173",
+          "way/1205104173",
+          "way/1205104170",
+          "way/101316381",
+          "way/245048426",
+          "way/245048427",
+          "way/277041483",
+          "way/173087900"
+        ],
+        "pathNodes": [
+          "node/3166459153",
+          "node/1932772530",
+          "node/2643938895",
+          "node/11168527667",
+          "node/2319432246",
+          "node/1169617711",
+          "node/1839137039",
+          "node/2523067231",
+          "node/2523067230",
+          "node/1839137073",
+          "node/1839131177",
+          "node/4729092578"
+        ],
+        "portalNodes": [
+          "node/3166459153",
+          "node/4729092578"
+        ],
+        "boreWays": [
+          "way/101316381",
+          "way/245048427",
+          "way/277041483"
+        ],
+        "portalApproachWays": [
+          "way/245048426",
+          "way/173087900"
+        ],
+        "widthEstimates": {
+          "way/1205104173": [
+            13,
+            4
+          ],
+          "way/1205104170": [
+            11,
+            3
+          ],
+          "way/101316381": [
+            10,
+            3
+          ],
+          "way/245048426": [
+            10,
+            3
+          ],
+          "way/245048427": [
+            9.8,
+            3
+          ],
+          "way/277041483": [
+            7.6,
+            2
+          ],
+          "way/173087900": [
+            7.6,
+            2
+          ]
+        },
+        "profileM": [
+          [
+            0,
+            15
+          ],
+          [
+            1680,
+            15
+          ],
+          [
+            2410,
+            32
+          ],
+          [
+            2890,
+            32
+          ],
+          [
+            3320,
+            32
+          ],
+          [
+            3720,
+            18
+          ],
+          [
+            4110,
+            0
+          ],
+          [
+            6860,
+            0
+          ],
+          [
+            6986,
+            1.5
+          ],
+          [
+            7173.663415,
+            8
+          ]
+        ],
+        "verticalCurveM": 24,
+        "groundApronM": [
+          0,
+          12
+        ],
+        "heightSource": "project-design-estimate",
+        "playerDeckAccess": true,
+        "deckEnds": [
+          "start"
+        ],
+        "required": true,
+        "tunnelLighting": "continuous"
+      },
+      {
+        "id": "yanjiang-dongbin-west",
+        "kind": "mixed",
+        "source": "https://szjj.sz.gov.cn/szsgajjtjcjwzgkml/szsgajjtjcjwzgkml/qt/tzgg/content/post_6858485.html",
+        "ways": [
+          "way/587615717",
+          "way/765935267",
+          "way/765935266",
+          "way/182515727",
+          "way/277041480",
+          "way/245048422",
+          "way/245048424",
+          "way/1205104169",
+          "way/1205104171",
+          "way/1207759065",
+          "way/173087901",
+          "way/1212748039",
+          "way/360268074"
+        ],
+        "pathNodes": [
+          "node/5612922511",
+          "node/7153544108",
+          "node/5612923623",
+          "node/1928750275",
+          "node/1839131175",
+          "node/2523067259",
+          "node/2523067219",
+          "node/1839137079",
+          "node/1839137067",
+          "node/2541029144",
+          "node/11168527665",
+          "node/1839137084",
+          "node/1955048917",
+          "node/5219360227"
+        ],
+        "portalNodes": [
+          "node/5612922511",
+          "node/5219360227"
+        ],
+        "boreWays": [
+          "way/765935267",
+          "way/182515727",
+          "way/277041480",
+          "way/245048424"
+        ],
+        "portalApproachWays": [
+          "way/587615717",
+          "way/765935266",
+          "way/245048422"
+        ],
+        "widthEstimates": {
+          "way/587615717": [
+            6.5,
+            1
+          ],
+          "way/765935267": [
+            6.5,
+            1
+          ],
+          "way/765935266": [
+            6.5,
+            1
+          ],
+          "way/182515727": [
+            6.5,
+            1
+          ],
+          "way/277041480": [
+            9.8,
+            3
+          ],
+          "way/245048422": [
+            10,
+            3
+          ],
+          "way/245048424": [
+            10,
+            3
+          ],
+          "way/1205104169": [
+            11,
+            3
+          ],
+          "way/1205104171": [
+            13,
+            4
+          ]
+        },
+        "profileM": [
+          [
+            0,
+            8
+          ],
+          [
+            65,
+            8
+          ],
+          [
+            285,
+            0
+          ],
+          [
+            705,
+            0
+          ],
+          [
+            1000,
+            -6
+          ],
+          [
+            4010,
+            -6
+          ],
+          [
+            4480,
+            12
+          ],
+          [
+            5050,
+            32
+          ],
+          [
+            5700,
+            32
+          ],
+          [
+            6500,
+            15
+          ],
+          [
+            8272.134366,
+            15
+          ]
+        ],
+        "verticalCurveM": 24,
+        "groundApronM": [
+          65,
+          0
+        ],
+        "heightSource": "project-design-estimate",
+        "playerDeckAccess": true,
+        "deckEnds": [
+          "end"
+        ],
+        "stackedWith": "yanjiang-dongbin-east",
+        "required": true,
+        "tunnelLighting": "continuous"
+      },
+      {
+        "id": "yanjiang-dongbin-west-port-feeder",
+        "kind": "ramp",
+        "source": "https://szjj.sz.gov.cn/m/YD_ZWGK/YD_TZGG/YD_GGJG/content/post_11895705.html",
+        "ways": [
+          "way/182515657"
+        ],
+        "portalNodes": [
+          "node/7232488688",
+          "node/1928750275"
+        ],
+        "junction": {
+          "mainline": "yanjiang-dongbin-west",
+          "node": "node/1928750275",
+          "template": "side",
+          "mergeM": 58,
+          "verticalCurveM": 9,
+          "tunnelMouth": true,
+          "maxGrade": 0.07
+        },
+        "required": true
       }
     ],
     "conflicts": [],
@@ -419668,6 +419967,212 @@
             "clearanceM": 6.2557
           }
         ]
+      },
+      {
+        "route": "yanjiang-dongbin-east",
+        "way": "way/596950383",
+        "minimumM": 6.35,
+        "crossingWays": [
+          {
+            "way": "way/556707368",
+            "clearanceM": 6.35
+          },
+          {
+            "way": "way/497390888",
+            "clearanceM": 6.35
+          },
+          {
+            "way": "way/773895087",
+            "clearanceM": 6.35
+          },
+          {
+            "way": "way/1299456309",
+            "clearanceM": 6.35
+          },
+          {
+            "way": "way/1299456281",
+            "clearanceM": 6.35
+          },
+          {
+            "way": "way/556707372",
+            "clearanceM": 6.35
+          },
+          {
+            "way": "way/636258633",
+            "clearanceM": 6.35
+          }
+        ]
+      },
+      {
+        "route": "yanjiang-dongbin-east",
+        "way": "way/1212748038",
+        "minimumM": 6.7746,
+        "crossingWays": [
+          {
+            "way": "way/591151413",
+            "clearanceM": 6.7746
+          },
+          {
+            "way": "way/1015410197",
+            "clearanceM": 7.9072
+          },
+          {
+            "way": "way/497390886",
+            "clearanceM": 7.9849
+          }
+        ]
+      },
+      {
+        "route": "yanjiang-dongbin-east",
+        "way": "way/360268071",
+        "minimumM": 18.6635,
+        "crossingWays": [
+          {
+            "way": "way/1207759064",
+            "clearanceM": 19.1574
+          },
+          {
+            "way": "way/329066213",
+            "clearanceM": 18.6635
+          },
+          {
+            "way": "way/259065204",
+            "clearanceM": 19.3169
+          },
+          {
+            "way": "way/259065202",
+            "clearanceM": 19.203
+          }
+        ]
+      },
+      {
+        "route": "yanjiang-dongbin-east",
+        "way": "way/1205104173",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "yanjiang-dongbin-east",
+        "way": "way/1205104173",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "yanjiang-dongbin-east",
+        "way": "way/1205104170",
+        "minimumM": 6.731,
+        "crossingWays": [
+          {
+            "way": "way/101316147",
+            "clearanceM": 6.731
+          }
+        ]
+      },
+      {
+        "route": "yanjiang-dongbin-west",
+        "way": "way/1205104169",
+        "minimumM": 8.6109,
+        "crossingWays": [
+          {
+            "way": "way/884266015",
+            "clearanceM": 10.7209
+          },
+          {
+            "way": "way/101316147",
+            "clearanceM": 8.6109
+          }
+        ]
+      },
+      {
+        "route": "yanjiang-dongbin-west",
+        "way": "way/1205104171",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "yanjiang-dongbin-west",
+        "way": "way/1207759065",
+        "minimumM": null,
+        "crossingWays": []
+      },
+      {
+        "route": "yanjiang-dongbin-west",
+        "way": "way/173087901",
+        "minimumM": 18.741,
+        "crossingWays": [
+          {
+            "way": "way/497390886",
+            "clearanceM": 18.741
+          },
+          {
+            "way": "way/1207759064",
+            "clearanceM": 20.2388
+          },
+          {
+            "way": "way/329066213",
+            "clearanceM": 19.7616
+          },
+          {
+            "way": "way/259065204",
+            "clearanceM": 20.3966
+          },
+          {
+            "way": "way/259065202",
+            "clearanceM": 20.0036
+          }
+        ]
+      },
+      {
+        "route": "yanjiang-dongbin-west",
+        "way": "way/1212748039",
+        "minimumM": 8.1163,
+        "crossingWays": [
+          {
+            "way": "way/591151413",
+            "clearanceM": 8.1163
+          }
+        ]
+      },
+      {
+        "route": "yanjiang-dongbin-west",
+        "way": "way/360268074",
+        "minimumM": 6.35,
+        "crossingWays": [
+          {
+            "way": "way/556707368",
+            "clearanceM": 6.35
+          },
+          {
+            "way": "way/497390888",
+            "clearanceM": 6.35
+          },
+          {
+            "way": "way/773895087",
+            "clearanceM": 6.35
+          },
+          {
+            "way": "way/1299456309",
+            "clearanceM": 6.35
+          },
+          {
+            "way": "way/1299456281",
+            "clearanceM": 6.35
+          },
+          {
+            "way": "way/556707372",
+            "clearanceM": 6.35
+          },
+          {
+            "way": "way/636258633",
+            "clearanceM": 6.35
+          }
+        ]
+      },
+      {
+        "route": "yanjiang-dongbin-west-port-feeder",
+        "way": "way/182515657",
+        "minimumM": null,
+        "crossingWays": []
       }
     ],
     "tunnelMinimumClearanceM": 4.38,
@@ -423674,6 +424179,442 @@
         "coverM": null,
         "openApronM": 5,
         "maxGrade": 0.041347
+      },
+      {
+        "index": 10477,
+        "way": "way/596950383",
+        "route": "yanjiang-dongbin-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 21116,
+        "way": "way/1212748038",
+        "route": "yanjiang-dongbin-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1675.36006,
+        "widthM": 16.2,
+        "lanes": 5,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.024303
+      },
+      {
+        "index": 7685,
+        "way": "way/360268071",
+        "route": "yanjiang-dongbin-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1913.944203,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.024208
+      },
+      {
+        "index": 20960,
+        "way": "way/1205104173",
+        "route": "yanjiang-dongbin-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2540.981027,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 20961,
+        "way": "way/1205104173",
+        "route": "yanjiang-dongbin-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2595.754904,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 20957,
+        "way": "way/1205104170",
+        "route": "yanjiang-dongbin-east",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 2863.44585,
+        "widthM": 11,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.03857
+      },
+      {
+        "index": 1970,
+        "way": "way/101316381",
+        "route": "yanjiang-dongbin-east",
+        "kind": "tunnel",
+        "layer": -1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 3641.682156,
+        "widthM": 10,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          335.297611235154
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.04918
+      },
+      {
+        "index": 5192,
+        "way": "way/245048426",
+        "route": "yanjiang-dongbin-east",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 3976.979767,
+        "widthM": 10,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.049181
+      },
+      {
+        "index": 5193,
+        "way": "way/245048427",
+        "route": "yanjiang-dongbin-east",
+        "kind": "tunnel",
+        "layer": -2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 4070.7666,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          2798.862335248126
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.04918
+      },
+      {
+        "index": 6642,
+        "way": "way/277041483",
+        "route": "yanjiang-dongbin-east",
+        "kind": "tunnel",
+        "layer": -1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 6869.628935,
+        "widthM": 7.6,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          116.33939977592502
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.015844
+      },
+      {
+        "index": 2710,
+        "way": "way/173087900",
+        "route": "yanjiang-dongbin-east",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 6985.968335,
+        "widthM": 7.6,
+        "lanes": 2,
+        "sharedStart": false,
+        "sharedEnd": true,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 12,
+        "maxGrade": 0.042491
+      },
+      {
+        "index": 10409,
+        "way": "way/587615717",
+        "route": "yanjiang-dongbin-west",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 6.5,
+        "lanes": 1,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 65,
+        "maxGrade": 0.040817
+      },
+      {
+        "index": 12872,
+        "way": "way/765935267",
+        "route": "yanjiang-dongbin-west",
+        "kind": "tunnel",
+        "layer": -1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 292.592984,
+        "widthM": 6.5,
+        "lanes": 1,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          279.4742287249027
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 12871,
+        "way": "way/765935266",
+        "route": "yanjiang-dongbin-west",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 572.067213,
+        "widthM": 6.5,
+        "lanes": 1,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.001555
+      },
+      {
+        "index": 2762,
+        "way": "way/182515727",
+        "route": "yanjiang-dongbin-west",
+        "kind": "tunnel",
+        "layer": -1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 708.37102,
+        "widthM": 6.5,
+        "lanes": 1,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          312.76304952321686
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.022303
+      },
+      {
+        "index": 6641,
+        "way": "way/277041480",
+        "route": "yanjiang-dongbin-west",
+        "kind": "tunnel",
+        "layer": -2.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 1021.134069,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          2996.446881739902
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.009561
+      },
+      {
+        "index": 5190,
+        "way": "way/245048422",
+        "route": "yanjiang-dongbin-west",
+        "kind": "tunnel",
+        "layer": 0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 4017.580951,
+        "widthM": 10,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          0
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.040359
+      },
+      {
+        "index": 5191,
+        "way": "way/245048424",
+        "route": "yanjiang-dongbin-west",
+        "kind": "tunnel",
+        "layer": -1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 4111.377777,
+        "widthM": 10,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": [
+          0,
+          336.2096139315476
+        ],
+        "openApronM": 0,
+        "maxGrade": 0.040359
+      },
+      {
+        "index": 20956,
+        "way": "way/1205104169",
+        "route": "yanjiang-dongbin-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 4447.587391,
+        "widthM": 11,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.040359
+      },
+      {
+        "index": 20958,
+        "way": "way/1205104171",
+        "route": "yanjiang-dongbin-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 5218.605985,
+        "widthM": 13,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 21073,
+        "way": "way/1207759065",
+        "route": "yanjiang-dongbin-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 5455.122506,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.0
+      },
+      {
+        "index": 2711,
+        "way": "way/173087901",
+        "route": "yanjiang-dongbin-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 5536.486002,
+        "widthM": 9.8,
+        "lanes": 3,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.021907
+      },
+      {
+        "index": 21117,
+        "way": "way/1212748039",
+        "route": "yanjiang-dongbin-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 6153.29927,
+        "widthM": 16.2,
+        "lanes": 5,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.021907
+      },
+      {
+        "index": 7686,
+        "way": "way/360268074",
+        "route": "yanjiang-dongbin-west",
+        "kind": "bridge",
+        "layer": 1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 6407.372655,
+        "widthM": 13.0,
+        "lanes": 4,
+        "sharedStart": false,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 0,
+        "maxGrade": 0.021907
+      },
+      {
+        "index": 2761,
+        "way": "way/182515657",
+        "route": "yanjiang-dongbin-west-port-feeder",
+        "kind": "ramp",
+        "layer": -1.0,
+        "heightSource": "project-design-estimate",
+        "stationOffsetM": 0,
+        "widthM": 3.2,
+        "lanes": 1,
+        "sharedStart": true,
+        "sharedEnd": false,
+        "coverM": null,
+        "openApronM": 8,
+        "maxGrade": 0.067401
       }
     ],
     "connections": [
@@ -423760,6 +424701,56 @@
         "incoming": 2617,
         "outgoing": 4084,
         "template": "side"
+      },
+      {
+        "ramp": 2761,
+        "incoming": 12871,
+        "outgoing": 2762,
+        "template": "side"
+      }
+    ],
+    "roadCovers": [
+      {
+        "osmId": "way/1212748044",
+        "kind": "acoustic-enclosure",
+        "osmTags": {
+          "building": "roof",
+          "layer": "2"
+        },
+        "carryingWays": [
+          "way/1205104173",
+          "way/1205104171",
+          "way/1207759065"
+        ],
+        "source": "yanjiang-qianhai-road-cover-imagery",
+        "geometrySource": "osm-guangdong",
+        "dimensionsSource": "project-design-estimate",
+        "clearanceM": 5.5,
+        "roofM": 0.24,
+        "wallM": 0.16,
+        "beamSpacingM": 6,
+        "spans": [
+          {
+            "index": 20960,
+            "startM": 0.0,
+            "endM": 54.773878
+          },
+          {
+            "index": 20961,
+            "startM": 0.0,
+            "endM": 267.685008
+          },
+          {
+            "index": 20958,
+            "startM": 0.000269,
+            "endM": 236.516521
+          },
+          {
+            "index": 21073,
+            "startM": 0.0,
+            "endM": 81.359416
+          }
+        ]
       }
     ]
   },
@@ -423770,15 +424761,15 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7888,
-    "metadataBytes": 17058260,
-    "numericBytes": 35860144,
-    "uncompressedBytes": 52918456,
+    "columns": 7913,
+    "metadataBytes": 17071883,
+    "numericBytes": 36157976,
+    "uncompressedBytes": 53229912,
     "lossless": true,
-    "compressedBytes": 13080228,
-    "compressedSha256": "4ba5cf753efe8e08627e2eea6b530d1a4f2f965de24db3e05a6c45b982e75269"
+    "compressedBytes": 13309709,
+    "compressedSha256": "b30bf14945ef228233c9b4c15f57b1f6eec40f157005efb3da9371b5f5a90551"
   },
-  "outputBytes": 12877314,
-  "outputSha256": "46c9cb918cf7523e6f19090e2808b15ab2dea2ef1b9c6b40dd677bbce205816d",
-  "seconds": 248.5
+  "outputBytes": 13075938,
+  "outputSha256": "c0a7c7feeee94c571572b0cd5f8e163830330edc519e7c92bf154ca3f74a23eb",
+  "seconds": 27.3
 }

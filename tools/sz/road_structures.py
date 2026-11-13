@@ -61,8 +61,11 @@ def compile_interchange_ramp(route, graph, grid, indices, config, accepted):
     mainline = next((parts for parent, parts, *_ in accepted if parent['id'] == junction['mainline']), [])
     incoming = next((part for part in mainline if graph['links'][part['index']][1] == anchor), None)
     outgoing = next((part for part in mainline if graph['links'][part['index']][0] == anchor), None)
-    if not incoming or not outgoing or any(part['kind'] == 'tunnel' for part in (incoming, outgoing)):
+    if not incoming or not outgoing or (not junction.get('tunnelMouth') and any(part['kind'] == 'tunnel' for part in (incoming, outgoing))):
         raise ValueError('Ramp must join a continuous compiled mainline at its source node')
+    if junction.get('tunnelMouth') and (not end_at_deck or incoming['coverM'] != [0, 0]
+                                       or outgoing['kind'] != 'tunnel' or outgoing['coverM'][0] != 0):
+        raise ValueError('Portal feeder must join the uncovered approach at the shared mouth')
     deck_y = outgoing['stations'][2]
     if abs(deck_y - incoming['stations'][-6]) > 0.005:
         raise ValueError('Ramp junction has incompatible mainline elevations')
@@ -75,8 +78,11 @@ def compile_interchange_ramp(route, graph, grid, indices, config, accepted):
     if not math.isfinite(merge) or merge <= 0:
         raise ValueError('Reviewed ramp merge length must be positive')
     run = length - merge - apron
-    curve = min(36, run / 3)
-    if run <= 0 or abs(deck_y - ground_y) / (run - curve) > config['maxGrade']:
+    curve = min(junction.get('verticalCurveM', 36), run / 3)
+    ramp_grade = junction.get('maxGrade', config['maxGrade'])
+    if not 0 < ramp_grade <= (0.07 if junction.get('tunnelMouth') else config['maxGrade']):
+        raise ValueError('Invalid interchange ramp grade cap')
+    if run <= 0 or abs(deck_y - ground_y) / (run - curve) > ramp_grade:
         raise ValueError('Insufficient source length for a gradual interchange ramp')
 
     def profile(s):
@@ -99,7 +105,7 @@ def compile_interchange_ramp(route, graph, grid, indices, config, accepted):
         frames = station_frames(path, [s for s in events if 0 < s < span], lambda s: profile(station + s), lambda _: width,
                                 tangent_span=3.0)
         grade = sampled_grade(frames)
-        if grade > config['maxGrade']:
+        if grade > ramp_grade:
             raise ValueError(f"Rendered interchange ramp grade exceeds cap: {grade:.5f}")
         shared_start = i == 0 and end_at_deck
         shared_end = i == len(links) - 1 and not end_at_deck
@@ -144,7 +150,7 @@ def station_frames(points, events, profile, width_at, *, tangent_span=0.005):
         norm = math.hypot(dx, dz)
         half = width_at(s) / 2
         nx, nz = dz / norm * half, -dx / norm * half
-        frames.append([round(value, 6) for value in (s, x, profile(s), z, x + nx, z + nz, x - nx, z - nz)])
+        frames.append([round(value, 6) or 0.0 for value in (s, x, profile(s), z, x + nx, z + nz, x - nx, z - nz)])
     return frames
 
 
@@ -186,12 +192,53 @@ def sampled_grade(frames):
                for a, b in zip(frames, frames[1:]) for x, z in ((1, 3), (4, 5), (6, 7)))
 
 
+def covered_faces(records, wall):
+    for row in records:
+        if row['kind'] != 'tunnel':
+            continue
+        stations, (start, end) = row['stations'], row['coverM']
+        frames = [stations[i:i + 8] for i in range(0, len(stations), 8)]
+        for a, b in zip(frames, frames[1:]):
+            if a[0] < start - 1e-5 or b[0] > end + 1e-5:
+                continue
+            points = []
+            for f, k in ((a, 4), (a, 6), (b, 6), (b, 4)):
+                dx, dz = f[k] - f[1], f[k + 1] - f[3]
+                scale = 1 + wall / math.hypot(dx, dz)
+                points.append((f[1] + dx * scale, f[2], f[3] + dz * scale))
+            for face in ((points[0], points[1], points[2]), (points[0], points[2], points[3])):
+                poly = Polygon([(x, z) for x, _, z in face])
+                if poly.area > 1e-8:
+                    yield poly, face
+
+
+def separated_bores(first, second, config):
+    """相交的投影必须在所有重叠三角面上保持顶板至另一洞车行面的净距。"""
+    required = config['tunnelClearanceM'] + config['tunnelRoofM'] + 0.25
+    other = list(covered_faces(second, config['tunnelWallM']))
+    tree = STRtree([poly for poly, _ in other])
+    for poly, face in covered_faces(first, config['tunnelWallM']):
+        for j in tree.query(poly, predicate='intersects'):
+            shape, second_face = other[j]
+            for overlap in _polygons(poly.intersection(shape)):
+                gaps = [_triangle_height(face, x, z) - _triangle_height(second_face, x, z)
+                        for x, z in overlap.exterior.coords]
+                if min(gaps) < required and max(gaps) > -required:
+                    return False
+    return True
+
+
 def compile_reviewed_profile(route, graph, grid, indices, config):
     links = [graph['links'][i] for i in indices]
     lines = [LineString(source_points(graph, link)) for link in links]
     total = sum(line.length for line in lines)
     station, heights = map(list, zip(*route['profileM']))
     shared = [not graph['nodeIds'][node].startswith('clip/') for node in (links[0][0], links[-1][1])]
+    for end in route.get('deckEnds', []):
+        i = {'start': 0, 'end': 1}[end]
+        if not graph['metadata'][indices[0 if i == 0 else -1]]['bridge']:
+            raise ValueError('Unconnected deck endpoint must be a source bridge')
+        shared[i] = False
     if station[0] != 0 or abs(station[-1] - total) > 0.05 or any(a >= b for a, b in zip(station, station[1:])):
         raise ValueError('Reviewed profile stations no longer match the source route')
     station[-1] = total
@@ -227,19 +274,25 @@ def compile_reviewed_profile(route, graph, grid, indices, config):
     portal_cover = route.get('portalCoverM', {})
     bridge_widths = route.get('bridgeWidthsM', {})
     section_widths = {**route.get('approachWidthsM', {}), **bridge_widths}
-    widths = [section_widths.get(graph['metadata'][index]['osmId'], link[3])
+    estimates = route.get('widthEstimates', {})
+    widths = [estimates.get(graph['metadata'][index]['osmId'], [section_widths.get(graph['metadata'][index]['osmId'], link[3])])[0]
               for index, link in zip(indices, links, strict=True)]
     for j, (index, link, line) in enumerate(zip(indices, links, lines, strict=True)):
         meta = graph['metadata'][index]
         tunnel = bool(meta['tunnel'])
         portal = meta['osmId'] in portal_ways
-        cover = [0, line.length] if tunnel else portal_cover.get(meta['osmId'], [0, 0]) if portal else None
+        cover = portal_cover.get(meta['osmId'], [0, line.length] if tunnel else [0, 0]) if tunnel or portal else None
         bridge = bool(meta['bridge'])
         if tunnel and meta['osmId'] not in route.get('boreWays', []):
             raise ValueError(f"Unreviewed tunnel in profile: {meta['osmId']}")
         if not (tunnel or bridge or (portal and meta['layer'] < 0) or meta['heightSource'] == 'terrain'):
             raise ValueError(f"Unknown elevation on reviewed route: {meta['osmId']}")
         width, lanes = widths[j], link[4]
+        if meta['osmId'] in estimates:
+            lanes = estimates[meta['osmId']][1]
+            if (not meta['widthSource'].startswith('estimate-') or not 3 <= width <= 30
+                    or not isinstance(lanes, int) or not 1 <= lanes <= 8):
+                raise ValueError(f"Invalid reviewed width estimate: {meta['osmId']}")
         if meta['osmId'] in section_widths:
             if (tunnel or bridge != (meta['osmId'] in bridge_widths)
                     or meta['widthSource'] != 'estimate-from-class' or not 6 <= width <= link[3]):
@@ -278,7 +331,7 @@ def compile_reviewed_profile(route, graph, grid, indices, config):
             if cover[1] > cover[0]:
                 envelope.append(strip([f for f in frames if cover[0] - 1e-5 <= f[0] <= cover[1] + 1e-5],
                                       config['tunnelWallM']))
-        if not tunnel:
+        if not tunnel or meta['osmId'] in portal_cover:
             # 挖方仅裁去路线实际低于地坪的断面。高出地坪的部分由实体路基承托。
             for a, b in zip(frames, frames[1:]):
                 if a[0] < start_apron or b[0] > frames[-1][0] - end_apron + 1e-5:
@@ -411,7 +464,7 @@ def bridge_crossing_clearance(record, graph, grid, lines, tree, slab, replaced=(
     return (round(minimum, 4) if math.isfinite(minimum) else None), crossing_ways
 
 
-def compile_road_structures(payload, manifest, report, *, base=None):
+def compile_road_structures(payload, manifest, report, *, base=None, cover_shapes=None):
     graph = payload['roadGraph']
     by_way = defaultdict(list)
     for i, meta in enumerate(graph['metadata']):
@@ -432,11 +485,13 @@ def compile_road_structures(payload, manifest, report, *, base=None):
                 if part['kind'] not in ('bridge', 'ramp'):
                     continue
                 clearance, crossings = bridge_crossing_clearance(part, graph, grid, road_lines, road_tree,
-                                                                 manifest['bridgeSlabM'], replaced if junction else ())
+                                                                 manifest['bridgeSlabM'], replaced if junction or route.get('deckEnds') else ())
                 if clearance is not None and clearance < manifest['minimumVehicleClearanceM']:
                     raise ValueError(f'Bridge underside clearance is insufficient: {clearance:.3f} m')
                 clearances.append({'route': route['id'], 'way': part['way'], 'minimumM': clearance, 'crossingWays': crossings})
-            if not envelope.is_empty and any(envelope.intersection(other).area > 0.01 for _, _, _, other, _ in accepted):
+            if not envelope.is_empty and any(envelope.intersection(other).area > 0.01
+                    and not (route.get('stackedWith') == other_route['id'] and separated_bores(parts, other_parts, manifest))
+                    for other_route, other_parts, _, other, _ in accepted):
                 raise ValueError('Adjacent bore envelopes overlap')
         except ValueError as error:
             conflicts.append({'route': route['id'], 'ways': route['ways'], 'reason': str(error)})
@@ -489,18 +544,36 @@ def compile_road_structures(payload, manifest, report, *, base=None):
     clearances = [row for _, _, _, _, clearances in accepted for row in clearances]
     mask = unary_union([opening for _, _, opening, _, _ in accepted])
     previous = payload.get('roadStructures')
-    configuration = {key: value for key, value in manifest.items() if key not in ('routes', 'landscape')}
+    configuration = {key: value for key, value in manifest.items() if key not in ('routes', 'landscape', 'roadCovers')}
     landscape = compile_landscape(payload, manifest.get('landscape'), graph, road_lines)
     plan = {**configuration, 'routes': routes, 'records': records, 'landscape': landscape}
     if connections:
         plan['connections'] = [connections[route['id']] for route in routes if route['id'] in connections]
+    required_routes = {route['id'] for route in manifest['routes'] if route.get('required')}
+    missing = required_routes - {route['id'] for route in routes}
+    if missing:
+        raise ValueError(f"Required structures were rejected: {[row for row in conflicts if row['route'] in missing]}")
+    if cover_shapes is not None:
+        plan['roadCovers'] = compile_road_covers(manifest.get('roadCovers', []), records, road_lines, cover_shapes)
+    elif previous and 'roadCovers' in previous:
+        plan['roadCovers'] = previous['roadCovers']
     if previous and previous != plan and base is None:
-        raise ValueError('Changed portal geometry requires rebuilding from uncut terrain')
-    if not previous or base is not None:
+        old_ids = {route['id'] for route in previous['routes']}
+        geometry_route = lambda route: {key: value for key, value in route.items() if key != 'tunnelLighting'}
+        if ([geometry_route(route) for route in routes if route['id'] in old_ids]
+                != [geometry_route(route) for route in previous['routes']]
+                or [row for row in records if row['route'] in old_ids] != previous['records']
+                or any(connection not in plan.get('connections', []) for connection in previous.get('connections', []))
+                or any(previous.get(key) != plan.get(key) for key in configuration)):
+            raise ValueError('Changed portal geometry requires rebuilding from uncut terrain')
+        old_mask = unary_union([opening for route, _, opening, _, _ in accepted if route['id'] in old_ids])
+        mask = mask.difference(old_mask)
+    if previous != plan or base is not None:
         surface, area = cut_ground_openings(base if base is not None else payload['terrainSurface'], mask)
         payload['terrainSurface'] = surface
-        payload['roadStructures'] = plan
-        report['roadStructures'] = {'portalCutM2': round(area, 3)}
+        prior_cut = report.get('roadStructures', {}).get('portalCutM2', 0) if previous and base is None else 0
+        report['roadStructures'] = {'portalCutM2': round(prior_cut + area, 3)}
+    payload['roadStructures'] = plan
     report['roadStructures'].update({'landscape': {
         'patches': [row['id'] for row in landscape['patches']],
         'estimatedTrees': len(landscape['trees']), 'sources': manifest.get('landscape')
@@ -508,3 +581,27 @@ def compile_road_structures(payload, manifest, report, *, base=None):
                                      'tunnelMinimumClearanceM': round(manifest['tunnelClearanceM'] - manifest['tunnelLightDepthM'], 3),
                                      'segments': [{k: v for k, v in row.items() if k != 'stations'} for row in records]})
     report['roadStructures']['connections'] = plan.get('connections', [])
+    if 'roadCovers' in plan:
+        report['roadStructures']['roadCovers'] = plan['roadCovers']
+
+
+def compile_road_covers(covers, records, lines, shapes):
+    result = []
+    for cover in covers:
+        identity = cover['osmId']
+        shape = shapes[identity]
+        spans = []
+        for row in records:
+            if row['kind'] != 'bridge' or row['way'] not in cover['carryingWays']:
+                continue
+            line = lines[row['index']]
+            overlap = line.intersection(shape)
+            for part in getattr(overlap, 'geoms', [overlap]):
+                if part.geom_type != 'LineString' or part.length < 1:
+                    continue
+                a, b = sorted(line.project(part.interpolate(s, normalized=True)) for s in (0, 1))
+                spans.append({'index': row['index'], 'startM': round(a, 6), 'endM': round(b, 6)})
+        if not spans or {row['way'] for row in records if any(s['index'] == row['index'] for s in spans)} != set(cover['carryingWays']):
+            raise ValueError(f'Reviewed road cover does not match all carrying bridge ways: {identity}')
+        result.append({**cover, 'spans': spans})
+    return result

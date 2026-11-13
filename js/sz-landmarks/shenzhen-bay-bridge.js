@@ -283,11 +283,12 @@ export function buildShenzhenBayBridge(scene, bridge) {
 }
 
 // 沿江主线按 OSM 双幅分别成形，跨海段只挂远景几何。
-export function buildYanjiangExpressway(scene, expressway) {
+export function buildYanjiangExpressway(scene, expressway, replacedWays = new Set()) {
   if (!expressway) return null;
   const concrete = new GeoBuilder();
   const pavement = new GeoBuilder();
-  for (const { stations, widthM } of expressway.segments) {
+  for (const { osmWayId, stations, widthM } of expressway.segments) {
+    if (replacedWays.has(osmWayId)) continue;
     const frames = bridgeFrames(stations, 'primary');
     deckGirder(concrete, frames, widthM, 2.35);
     addParapets(concrete, frames, widthM);

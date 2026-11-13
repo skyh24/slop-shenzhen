@@ -766,8 +766,52 @@ test('a source-connected tunnel route stays on its own floor across every seam a
   for (const { ramp, incoming, outgoing } of geo.roadStructures.connections) {
     const rows = [ramp, incoming, outgoing].map(index => built.links.find(link => link.index === index));
     assert.ok(rows[0].openings.size > 0);
-    assert.ok(rows[1].openings.size + rows[2].openings.size > 0);
+    if (!rows[1].tunnel && !rows[2].tunnel) assert.ok(rows[1].openings.size + rows[2].openings.size > 0);
     assert.equal(rows[0].structureNeighbors.includes('terrain'), rows[0].sharedStart || rows[0].sharedEnd);
+  }
+  const dongbin = ['east', 'west'].map(direction => {
+    const records = geo.roadStructures.records.filter(row => row.route === `yanjiang-dongbin-${direction}`);
+    assert.ok(records.length > 10, direction);
+    const edges = records.map(row => network.edges.find(edge => edge.sourceIndex === row.index));
+    for (let i = 1; i < edges.length; i++) assert.ok(edges[i - 1].next.includes(edges[i]), records[i].way);
+    const deck = built.links.find(link => link.index === records[direction === 'east' ? 2 : 9].index);
+    const a = deck.frames[Math.floor(deck.frames.length / 2)];
+    const pick = planner.snap(a.x, a.z);
+    assert.ok(pick?.levels.some(level => level.candidates.some(candidate => candidate.edge.surfaceId === deck.surfaceId)));
+    return { records, edges };
+  });
+  const eastBore = dongbin[0].records.find(row => row.way === 'way/245048427');
+  const westBore = dongbin[1].records.find(row => row.way === 'way/277041480');
+  assert.ok(!dongbin[0].edges.find(edge => edge.sourceIndex === eastBore.index).next
+    .some(edge => edge.sourceIndex === westBore.index));
+  const [east, west] = dongbin;
+  const movementsDongbin = [
+    [[-16300, 3790], [-11782, 4245], east.edges.slice(2), 'ground'],
+    [[-11040, 3800], [-16315, 3728], west.edges.slice(0, 11), 'elevated']
+  ];
+  for (const [from, to, requiredEdges, arrival] of movementsDongbin) {
+    const pick = planner.snap(...to)?.levels.find(level => level.level === arrival);
+    const drive = planner.route(planner.snap(...from), pick);
+    assert.ok(drive && requiredEdges.every(edge => drive.edges.includes(edge)), JSON.stringify([from, to]));
+  }
+  const westEntrance = built.links.find(link => link.osmId === 'way/587615717');
+  const westShaft = built.links.find(link => link.osmId === 'way/765935267');
+  assert.equal(westEntrance.exposedTriangles.length, westEntrance.topTriangles.length);
+  assert.equal(westShaft.exposedTriangles.length, 0);
+  const cover = geo.roadStructures.roadCovers.find(row => row.osmId === 'way/1212748044');
+  assert.equal(cover.spans.length, 4);
+  const coverSolids = built.colliders.filter(row => row.name === cover.osmId);
+  for (const type of ['roof', 'side', 'beam', 'column']) {
+    assert.ok(coverSolids.some(row => row.type === `road-cover-${type}` && row.roofPanel));
+  }
+  for (const { index, startM, endM } of cover.spans) {
+    const deck = built.links.find(link => link.index === index);
+    for (const frame of deck.frames.filter(frame => frame.d > startM && frame.d < endM)) {
+      for (const part of coverSolids) {
+        if (part.minY > frame.y + 2 || part.maxY <= frame.y + 0.3) continue;
+        assert.ok(!polygonModule.polygonContains(part.polygon, frame.x, frame.z), deck.osmId);
+      }
+    }
   }
   built.dispose();
 });
