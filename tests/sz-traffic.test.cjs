@@ -783,6 +783,25 @@ test('a source-connected tunnel route stays on its own floor across every seam a
     if (!rows[1].tunnel && !rows[2].tunnel) assert.ok(rows[1].openings.size + rows[2].openings.size > 0);
     assert.equal(rows[0].structureNeighbors.includes('terrain'), rows[0].sharedStart || rows[0].sharedEnd);
   }
+  const houhai = [
+    ['way/232498909', [-11027.9, 3837.8], [-10961.1, 3491.2]],
+    ['way/232498913', [-10977.5, 3488.8], [-11046.0, 3836.3]]
+  ];
+  for (const [way, from, to] of houhai) {
+    const road = built.links.find(link => link.osmId === way);
+    assert.ok(road && road.sharedStart && road.sharedEnd, way);
+    assert.equal(road.lanes, 3);
+    const edge = network.edges.find(row => row.sourceIndex === road.index);
+    assert.ok(network.edges.some(row => !row.elevated && row.next.includes(edge)), way);
+    assert.ok(edge.next.some(row => !row.elevated), way);
+    const drive = planner.route(planner.snap(...from), planner.snap(...to));
+    assert.ok(drive?.edges.includes(edge), way);
+    const middle = road.frames[Math.floor(road.frames.length / 2)];
+    assert.equal(ground(middle.x, middle.z), null);
+    assert.ok(Math.abs(built.heightAt(middle.x, middle.z, road.surfaceId) - middle.y) < 1e-5);
+    assert.ok(built.colliders.some(c => c.name === road.surfaceId && c.type === 'bridge-slab'));
+    assert.ok(built.colliders.some(c => c.name === road.surfaceId && c.type === 'elevated-barrier'));
+  }
   const dongbin = ['east', 'west'].map(direction => {
     const records = geo.roadStructures.records.filter(row => row.route === `yanjiang-dongbin-${direction}`);
     assert.ok(records.length > 10, direction);

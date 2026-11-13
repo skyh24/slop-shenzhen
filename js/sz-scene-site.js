@@ -67,8 +67,10 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   const bayPaths = createBayPathLookup(GEO.shenzhenBay?.paths);
   const roadStructures = qa.measureBuild('roadStructures', () => buildSzRoadStructures(scene, roadGraph, GEO.roadStructures, {
     groundHeight: (x, z) => terrainHeight(GEO.terrain, x, z),
-    pierAllowed: (x, z, radius) => !carriagewayOccupied(x, z, radius + 4)
-      && !bayPaths(x, z, radius + 4).length && isWater(x, z) === false
+    overWater: (x, z, radius) => [-radius, radius].every(dx => [-radius, radius]
+      .every(dz => isWater(x + dx, z + dz) === true)),
+    pierAllowed: (x, z, radius, inWater) => !carriagewayOccupied(x, z, radius + 4)
+      && !bayPaths(x, z, radius + 4).length && (inWater || isWater(x, z) === false)
   }));
   const roadLandscape = qa.measureBuild('roadLandscape', () =>
     buildRoadLandscape(scene, GEO.roadStructures?.landscape, GEO.terrainSurface, ground.groundHeight));

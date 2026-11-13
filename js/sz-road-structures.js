@@ -141,13 +141,15 @@ function buildRoadCover(cover, span, frames, batch, colliders, camera) {
   }
 }
 
-export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAllowed = () => false } = {}) {
+export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAllowed = () => false, overWater = () => false } = {}) {
   const group = new THREE.Group();
   group.name = 'shenzhen-reviewed-road-structures';
   const links = [], surfaces = [], colliders = [];
   const tunnelRoutes = new Map();
   if (!plan?.records.length) return { group, links, surfaces, colliders, heightAt: () => null, constrainCamera() {}, dispose() {} };
   const playerDecks = new Set(plan.routes?.filter(route => route.playerDeckAccess).map(route => route.id));
+  const waterBases = new Map(plan.routes.filter(route => Number.isFinite(route.waterPierBaseM))
+    .map(route => [route.id, route.waterPierBaseM]));
   const widthEstimates = new Map(plan.routes.map(route => [route.id, route.widthEstimates]));
   const materials = {
     asphalt: new THREE.MeshStandardNodeMaterial({ color: PALETTE.asphalt, roughness: 0.94, side: THREE.DoubleSide,
@@ -384,9 +386,12 @@ export function buildSzRoadStructures(scene, graph, plan, { groundHeight, pierAl
         solid(batch.concrete, colliders, 'bridge-slab', id, footprint, Array(4).fill(-plan.bridgeSlabM), [0, 0, 0, 0], entry || exit, false);
         if (nextPier < b.d) {
           const center = between(a, b, (nextPier - a.d) / (b.d - a.d));
-          const baseY = groundHeight?.(center.x, center.z);
+          const waterBase = waterBases.get(route);
+          const radius = 1.2;
+          const inWater = waterBase !== undefined && overWater(center.x, center.z, radius);
+          const baseY = inWater ? waterBase : groundHeight?.(center.x, center.z);
           const rise = center.y - plan.bridgeSlabM - baseY;
-          if (rise > 2 && pierAllowed(center.x, center.z, 1.2)) {
+          if (rise > 2 && pierAllowed(center.x, center.z, radius, inWater)) {
             const pier = [[-1.2, -1], [1.2, -1], [1.2, 1], [-1.2, 1]]
               .map(([x, z]) => ({ x: center.x + x, y: baseY, z: center.z + z }));
             solid(batch.concrete, colliders, 'elevated-pier', id, pier, [0, 0, 0, 0], Array(4).fill(rise));

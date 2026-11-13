@@ -821,6 +821,8 @@ export function validateCityPayload(raw) {
       'tunnelClearanceM', 'tunnelLightDepthM', 'tunnelWallM'].every(key => Number.isFinite(structures[key]) && structures[key] > 0)
       && Array.isArray(structures.routes) && Array.isArray(structures.records), 'road structures');
     validateIds(structures.routes.map(route => route?.id), 'structure route identity');
+    requireData(structures.routes.every(route => route.waterPierBaseM === undefined
+      || (route.kind === 'bridge' && Number.isFinite(route.waterPierBaseM))), 'bridge water pier base');
     const landscape = structures.landscape;
     if (landscape != null) {
       requireData(Array.isArray(landscape.patches) && Array.isArray(landscape.trees)

@@ -2601,6 +2601,28 @@
       ],
       "profileSource": "project-design-estimate-from-source-junction",
       "junctionContinuation": true
+    },
+    {
+      "id": "houhai-bridge-north",
+      "kind": "bridge",
+      "source": "https://www.szmedi.com.cn/gsxw/info_24.aspx?itemid=424",
+      "ways": ["way/232498909"],
+      "portalNodes": ["node/3894835783", "node/920047673"],
+      "profileSource": "project-design-estimate-from-both-ground-approaches",
+      "profileM": [[0, 8], [265.263, 8]],
+      "waterPierBaseM": -0.85,
+      "required": true
+    },
+    {
+      "id": "houhai-bridge-south",
+      "kind": "bridge",
+      "source": "https://www.szmedi.com.cn/gsxw/info_24.aspx?itemid=424",
+      "ways": ["way/232498913"],
+      "portalNodes": ["node/294966751", "node/2408443253"],
+      "profileSource": "project-design-estimate-from-both-ground-approaches",
+      "profileM": [[0, 8], [265.251, 8]],
+      "waterPierBaseM": -0.85,
+      "required": true
     }
   ],
   "minimumVehicleClearanceM": 3.7,
