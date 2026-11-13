@@ -34,19 +34,19 @@ export function build(sources, terrain) {
     for (const edgeX of [left, right]) {
       const post = ring(edgeX, edgeZ, 0.54, 8);
       parts.push(loftPart(`press-tower:post:${side}:${edgeX === left ? 'left' : 'right'}`,
-        crown, post, post, core, frameTop, 'djiSteel', { baseSourceId: tower.id }));
+        crown, post, post, core, frameTop, 'pressTowerSteel', { baseSourceId: tower.id }));
     }
     for (let i = 0; i < 4; i++) {
       const y0 = core + (frameTop - core) * i / 4, y1 = core + (frameTop - core) * (i + 1) / 4;
       const a = { x: left, y: y1, z: edgeZ }, b = { x: right, y: y1, z: edgeZ };
       parts.push(spanPart(`press-tower:truss:${side}:${i}`, crown, a, b, 0.65, 0.65, 0.65,
-        'djiSteel', { baseSourceId: tower.id }));
+        'pressTowerSteel', { baseSourceId: tower.id }));
       parts.push(spanPart(`press-tower:brace:${side}:${i}`, crown, { ...a, y: i % 2 ? y1 : y0 },
-        { ...b, y: i % 2 ? y0 : y1 }, 0.38, 0.38, 0.42, 'djiSteel', { baseSourceId: tower.id }));
+        { ...b, y: i % 2 ? y0 : y1 }, 0.38, 0.38, 0.42, 'pressTowerSteel', { baseSourceId: tower.id }));
     }
   }
   parts.push(loftPart('press-tower:spire', crown, ring(right, z, 0.82), ring(right, z, 0.14),
-    core, baseY + tipHeight, 'djiSteel', { heightSource: 'published', baseSourceId: tower.id, smoothSides: true }));
+    core, baseY + tipHeight, 'pressTowerSteel', { heightSource: 'published', baseSourceId: tower.id, smoothSides: true }));
 
   // 「新闻眼」由球形截面近似，与塔身南面相接，实体与碰撞共用截面。
   const eyeX = tower.minX + (tower.maxX - tower.minX) * 0.40;

@@ -33,8 +33,8 @@ const CORE_STYLE = 'djiGuard';
 const FIN_STYLE = 'djiBrace';
 const BRACE_STYLE = 'djiSteel';
 const TRUSS_STYLE = 'djiGuard';
-// 桥的吊索/护栏用既有 pingAnCrownEdge（带夜间自发光）复用为“桥体灯带”，不新增材质键。
-const NIGHT_STEEL = 'pingAnCrownEdge';
+// 吊索和护栏用同一种低亮度夜间轮廓材质。
+const NIGHT_STEEL = 'djiBridgeEdge';
 
 // 核心筒竖挺：外凸 0.45 米、宽 0.45 米、间距约 2.2 米（照片比例，估计值）。
 const FIN_PROUD = 0.45;

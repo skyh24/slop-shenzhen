@@ -9,6 +9,8 @@ import { createNonferrousMaterial } from './nonferrous-tower.js';
 import { createIecMaterial } from './iec-xiangmihu.js';
 import { createSuperHqMaterial } from './super-hq.js';
 
+const chunsunGlass = { metal: 0x7d8990, glass: 0x4c697b, roof: 0x7e919d, bay: 1.8, floor: 4.95, fin: 0.045, sill: 0.11, lit: 0.075, rough: 0.16, glow: 0xddefff, wash: 0.064 };
+
 const styles = {
   cultureDarkGlass: { metal: 0x56615e, glass: 0x344653, roof: 0x798381, bay: 2.7, floor: 5.3, fin: 0.07, sill: 0.105, lit: 0.15, rough: 0.24, glow: 0xffd6a9, wash: 0.105 },
   mocapeGlass: { metal: 0x82958e, glass: 0x526a68, roof: 0xa4a8a2, bay: 3.8, floor: 2.6, fin: 0.05, sill: 0.04, lit: 0.09, rough: 0.19, glow: 0xffd9ab, wash: 0.19 },
@@ -30,13 +32,14 @@ const styles = {
   shoppingParkBase: { metal: 0xb1a7a0, glass: 0x546779, roof: 0x9e9a96, bay: 5.4, floor: 4.4, fin: 0.2, sill: 0.29, lit: 0.14, rough: 0.35, glow: 0xffd6aa },
   shoppingParkGlass: { metal: 0x8d9ba6, glass: 0x345575, roof: 0x717d86, bay: 3.5, floor: 4.1, fin: 0.12, sill: 0.11, lit: 0.11, rough: 0.26, glow: 0xd5e9ff },
   djiCore: { metal: 0xadb5ba, glass: 0x5f6c75, roof: 0x8d959a, bay: 0.67, floor: 4.5, fin: 0.54, sill: 0.04, lit: 0.045, rough: 0.3, glow: 0xe9eff5 },
-  djiWing: { metal: 0x9faeb9, glass: 0x385666, roof: 0x828f89, bay: 1.54, floor: 4.5, fin: 0.052, sill: 0.065, lit: 0.14, rough: 0.125, glow: 0xe6f1ff },
+  djiWing: { ...chunsunGlass, bay: 1.54, floor: 4.5, fin: 0.052, sill: 0.065,
+    rough: 0.61, frameRoughness: 0.65, glassMetalness: 0.12, frameMetalness: 0.15, edgeTint: 0.17, wash: 0.085 },
   pingAnGlass: { metal: 0x7e929c, glass: 0x455b6d, roof: 0x67737c, bay: 1.56, floor: 4.45, fin: 0.09, sill: 0.11, lit: 0.075, rough: 0.19, glow: 0xd5e9fa, wash: 0.052 },
   pingAnObservation: { metal: 0xaebfc6, glass: 0x435a6d, roof: 0x66717e, bay: 1.07, floor: 5.8, fin: 0.28, sill: 0.082, lit: 0.075, rough: 0.24, glow: 0xd8eeff, wash: 0.31 },
   pingAnLobby: { metal: 0x657076, glass: 0x857359, roof: 0x6c7376, bay: 2.6, floor: 7.9, fin: 0.12, sill: 0.16, lit: 0.16, rough: 0.22, glow: 0xffd095, wash: 0.18 },
   pingAnMallBase: { metal: 0x706562, glass: 0x6d6462, roof: 0x6c7071, bay: 3.7, floor: 6.8, fin: 0.14, sill: 0.17, lit: 0.12, rough: 0.3, glow: 0xffd5a0, wash: 0.09 },
   pingAnMall: { metal: 0xa4a6a6, glass: 0x535a62, roof: 0x7f8586, bay: 1.8, floor: 2.35, fin: 0.045, sill: 0.26, lit: 0.08, rough: 0.28, glow: 0xeed1aa },
-  chunsunGlass: { metal: 0x7d8990, glass: 0x4c697b, roof: 0x7e919d, bay: 1.8, floor: 4.95, fin: 0.045, sill: 0.11, lit: 0.075, rough: 0.16, glow: 0xddefff, wash: 0.064 },
+  chunsunGlass,
   pressTowerGlass: { metal: 0x607f89, glass: 0x286178, roof: 0x67767b, bay: 1.64, floor: 3.94, fin: 0.08, sill: 0.045, lit: 0.13, rough: 0.21, glow: 0xe5f2f4 },
   chunsunLobby: { metal: 0x7b8387, glass: 0x6c858e, roof: 0x8b9597, bay: 2.12, floor: 7.0, fin: 0.06, sill: 0.06, lit: 0.085, rough: 0.22, glow: 0xf2d9ae, wash: 0.37 },
   chunsunCrown: { metal: 0xaebfc9, glass: 0x648599, roof: 0xa4b4bd, bay: 1.5, floor: 5.2, fin: 0.06, sill: 0.1, lit: 0.05, rough: 0.18, glow: 0xceeaff, wash: 0.66 },
@@ -68,10 +71,10 @@ function facadeMaterial(style, programEmission) {
   const view = cameraPosition.sub(positionWorld).normalize();
   const fresnel = abs(dot(view, normalWorldGeometry)).oneMinus().pow(2.4);
   const tint = uniform(new THREE.Color(style.glass)).mul(mix(float(0.945), noise.mul(0.21).add(0.84), detail));
-  const glazing = mix(tint, color(0xa1b9c9), fresnel.mul(sceneUniforms.night.oneMinus()).mul(0.32));
+  const glazing = mix(tint, color(0xa1b9c9), fresnel.mul(sceneUniforms.night.oneMinus()).mul(style.edgeTint ?? 0.32));
   material.colorNode = mix(uniform(new THREE.Color(style.roof)), mix(cladding, glazing, pane), wall);
-  material.metalnessNode = mix(float(0.12), mix(float(0.38), float(0.26), pane), wall);
-  material.roughnessNode = mix(float(0.75), mix(float(0.43), uniform(style.rough), pane), wall);
+  material.metalnessNode = mix(float(0.12), mix(float(style.frameMetalness ?? 0.38), float(style.glassMetalness ?? 0.26), pane), wall);
+  material.roughnessNode = mix(float(0.75), mix(float(style.frameRoughness ?? 0.43), uniform(style.rough), pane), wall);
   const office = mix(float(style.lit * 0.27), step(noise, uniform(style.lit)), detail).mul(0.46);
   const glass = pane.mul(wall);
   const glow = uniform(new THREE.Color(style.glow)).mul(office.add(style.wash ?? 0))
@@ -260,10 +263,12 @@ export function createLandmarkMaterial(name, programEmission = null) {
     case 'landmarkEdge': return crownMaterial(0xc0c6c7, 0.39, 0.29, 0.15);
     case 'libraryDeck': return new THREE.MeshStandardMaterial({ color: 0xadada1, roughness: 0.86 });
     case 'libraryShell': return libraryShellMaterial();
-    case 'djiBrace': return new THREE.MeshStandardMaterial({ color: 0xc4cbd0, metalness: 0.34, roughness: 0.37 });
-    case 'djiDeck': return new THREE.MeshStandardMaterial({ color: 0x596570, metalness: 0.36, roughness: 0.62 });
-    case 'djiGuard': return new THREE.MeshStandardMaterial({ color: 0x69828c, metalness: 0.48, roughness: 0.36 });
-    case 'djiSteel': return new THREE.MeshStandardMaterial({ color: 0x939da5, metalness: 0.48, roughness: 0.39 });
+    case 'djiBrace': return crownMaterial(0xbfcbd1, 0.64, 0.14, 0.18);
+    case 'djiDeck': return new THREE.MeshStandardMaterial({ color: 0x596570, metalness: 0.13, roughness: 0.7 });
+    case 'djiGuard': return crownMaterial(0x506575, 0.65, 0.15, 0.035);
+    case 'djiSteel': return crownMaterial(0x9faeb8, 0.62, 0.16, 0.14);
+    case 'djiBridgeEdge': return crownMaterial(0xbccad1, 0.62, 0.15, 0.23);
+    case 'pressTowerSteel': return new THREE.MeshStandardMaterial({ color: 0x939da5, metalness: 0.48, roughness: 0.39 });
     case 'pingAnSteel': return crownMaterial(0xb2bdc5, 0.28, 0.55, smoothstep(38, 575, positionWorld.y).mul(0.29).add(0.16));
     case 'pingAnCrownEdge': return crownMaterial(0xb4c3cc, 0.29, 0.57, 0.86);
     case 'pingAnCrown': return crownMaterial(0x647d91, 0.24, 0.34, 0.77);

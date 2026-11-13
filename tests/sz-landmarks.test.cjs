@@ -98,7 +98,7 @@ test('the Shenzhen press tower renders an open crown and a spire rather than a s
   assert.ok(Math.abs(mast.maxY - roof.minY - 260) < 1e-4);
   assert.ok(mast.maxX - mast.minX < 2);
   assert.ok(shell.some(item => item.id.startsWith('press-tower:news-eye:')));
-  assert.ok(shell.filter(item => item.maxY > roof.maxY).every(item => item.style === 'djiSteel'));
+  assert.ok(shell.filter(item => item.maxY > roof.maxY).every(item => item.style === 'pressTowerSteel'));
 });
 
 
