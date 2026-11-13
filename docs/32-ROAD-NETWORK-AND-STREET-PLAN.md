@@ -10,6 +10,8 @@
 
 ## 2. 纽约和武汉：借鉴具体机制
 
+2026-11-13 补充：[道路标线整洁度对照](research/newyork-wuhan-road-line-clarity.md)解释物理道路归组、按夹角退距、跨段接头/虚线相位及线型密度差异。深圳已共用断面，后续重点是路口布局和跨 link 连续性；本轮仅调研，未新增实施或画面验收。
+
 参考正式入口为 [纽约main](../ref/slop-newyork/js/main.js) 与 [武汉runtime/main](../ref/slop-wuhan/js/runtime/main.js)。武汉顶层旧main不是正式入口，但runtime仍复用部分顶层模块。
 
 | 方面 | 纽约实际做法 | 武汉实际做法 | 深圳取舍 |
