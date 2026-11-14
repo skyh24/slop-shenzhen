@@ -222,7 +222,8 @@ async function initApp() {
     surfaces: [...cityBlocks.surfaces, ...themeParks.surfaces, ...(northStation?.surfaces ?? []), ...landmarks.surfaces, ...elevatedRoads.surfaces, ...roadStructures.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
     nearTraffic: traffic.nearColliders, nearWalkers: nearTalentPeople, nearRegional: regional.colliders, flightSettings: GEO.airCruises?.flight,
     groundIdentity: waterfrontPaths.groundIdentity,
-    groundAccess: (mode, x, z, surface) => parkGroundAccess(mode, x, z, surface)
+    // 单车按实际地面承托与实体碰撞通行，不再被区域用途标签拦住。
+    groundAccess: (mode, x, z, surface) => mode === 'cyclist' || parkGroundAccess(mode, x, z, surface)
       && (surface?.heightSource !== 'terrain' && surface?.surfaceId !== 'terrain'
       || (bayWaterfront.allowsGroundMode(mode, x, z) && !roadFrontage.plantingAt(x, z)
         && (mode !== 'car' || !roadLandscape.walkAt(x, z).length)))

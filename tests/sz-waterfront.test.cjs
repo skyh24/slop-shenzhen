@@ -305,7 +305,7 @@ test('Dasha extends the waterfront from the estuary through both banks and into 
   assert.equal(createWaterfrontAccess(waterfront, network, weekend).allowsGroundMode('cyclist', px, pz, deck), true);
 });
 
-test('park lawns support bicycles, cars use road surfaces, and wetlands stay closed to vehicles', () => {
+test('bicycles use dry ground across park and wetland labels while cars use road surfaces', () => {
   const access = createParkGroundAccess({ inPark: x => x >= 0, inWetland: x => x === 5,
     onRoad: x => x === 10, roadDecks: new Set(['road-deck']) });
   const terrain = { surfaceId: 'terrain', heightSource: 'terrain' };
@@ -313,7 +313,8 @@ test('park lawns support bicycles, cars use road surfaces, and wetlands stay clo
   assert.equal(access('car', 1, 0, terrain), false);
   assert.equal(access('car', 10, 0, terrain), true);
   assert.equal(access('car', 10, 0, { surfaceId: 'park-deck' }), false);
-  assert.equal(access('cyclist', 5, 0, terrain), false);
+  assert.equal(access('cyclist', 5, 0, terrain), true);
+  assert.equal(access('car', 5, 0, terrain), false);
   assert.equal(access('car', 5, 0, { surfaceId: 'road-deck' }), true);
 });
 

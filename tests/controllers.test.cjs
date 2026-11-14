@@ -1027,6 +1027,38 @@ test('a flush deck supplies support where the ground is denied at a wetland port
   assert.ok(body.supportedSlabs?.has('deck'), 'the accepted deck is registered as support');
 });
 
+test('the scene bicycle entry crosses dry ground labels and still stops at solid walls and missing ground', () => {
+  const main = readFileSync(join(__dirname, '../js/main.js'), 'utf8');
+  const start = main.indexOf('    groundAccess: ');
+  const end = main.indexOf('\n  });', start);
+  assert.ok(start >= 0 && end > start);
+  const expression = main.slice(start, end).trim().replace(/^groundAccess: /, '');
+  const { permits } = loadModule(`export const permits = ${expression};`, {
+    globals: { parkGroundAccess: () => false }
+  });
+  assert.equal(permits('car', 0, 0, { surfaceId: 'terrain' }), false);
+  for (const wall of [false, true]) {
+    const { controller, ent } = teleportHarness('cyclist', wall ? [{
+      minX: -4, maxX: 4, minY: 0, maxY: 3, minZ: 4, maxZ: 4.3
+    }] : []);
+    controller.surfaceResolver = createSurfaceResolver({ groundHeight: (x, z) => z < 6 ? 0 : null });
+    delete controller.getGroundHeight;
+    controller.groundAccess = permits;
+    Object.assign(ent.position, { x: 0, y: 0, z: 0 });
+    ent._support = { height: 0, surfaceId: 'terrain' };
+    ent._safePosition = { x: 0, y: 0, z: 0 };
+    ent.heading = 0;
+    ent.speed = 4;
+    controller.keys.forward = true;
+    for (let i = 0; i < 10; i++) controller.updateCyclist(0.05);
+    assert.ok(ent.position.z > 2, 'the scene entry accepts supported dry ground even when the park policy denies it');
+    for (let i = 0; i < 40; i++) controller.updateCyclist(0.05);
+    assert.ok(ent.position.z > 3);
+    assert.ok(ent.position.z < (wall ? 3.36 : 5.36));
+    assert.ok(ent.speed < 0.05);
+  }
+});
+
 test('stationary player tires follow the four active contacts on a sloped deck and the road beneath', () => {
   const { controller } = keyboardHarness();
   const ground = (x, z) => 0.06 * x + 0.03 * z;

@@ -21,11 +21,11 @@ export function relocatedBayPathIds(network) {
 
 export function createParkGroundAccess({ inPark, inWetland, onRoad, roadDecks }) {
   return (mode, x, z, surface) => {
-    if (mode !== 'car' && mode !== 'cyclist') return true;
+    if (mode !== 'car') return true;
     const terrain = !surface?.surfaceId || surface.surfaceId === 'terrain' || surface.heightSource === 'terrain';
     if (roadDecks.has(surface?.surfaceId) && !terrain) return true;
     if (terrain && inWetland(x, z)) return false;
-    return mode !== 'car' || !inPark(x, z) || (terrain && onRoad(x, z));
+    return !inPark(x, z) || (terrain && onRoad(x, z));
   };
 }
 
