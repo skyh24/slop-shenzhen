@@ -1,0 +1,15 @@
+{
+  "name": "slop-shenzhen",
+  "compatibility_date": "2026-11-14",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./.cloudflare",
+    "not_found_handling": "404-page"
+  },
+  "build": {
+    "command": "python3 tools/sz/release.py export --out .cloudflare"
+  },
+  "routes": [
+    { "pattern": "slop.sztechsafari.com", "custom_domain": true }
+  ]
+}

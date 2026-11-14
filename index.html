@@ -130,8 +130,8 @@
         if (boot.state !== 'loading') return;
         const target = event.target;
         if (target && target !== window) {
-          // 资源加载失败没有 message；只有启动用的脚本算阻塞失败，字体、样式表等失败不拦启动。
-          if (target.tagName !== 'SCRIPT') return;
+          // 只让原生入口及其模块图阻塞启动，托管方注入的统计脚本失败不影响游戏。
+          if (target.tagName !== 'SCRIPT' || target.getAttribute('src') !== './js/main.js') return;
           fail('engine', new Error(`Startup script failed to load: ${target.src || 'module graph'}`));
           return;
         }

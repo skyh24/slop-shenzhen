@@ -31,6 +31,10 @@ VERSION = re.compile(r'[0-9a-f]{64}')
 MIME = {'.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.gz': 'application/gzip',
         '.json': 'application/json', '.md': 'text/plain', '': 'text/plain'}
 CACHE = 'public, max-age=31536000, immutable'
+SOURCE_MODULES = {
+    ('js/sz-lianhuashan.js', 'data/source/lianhuashan-summit.json'),
+    ('js/sz-vegetation-layout.js', 'data/source/vegetation-pilots.json'),
+}
 
 
 def json_bytes(value):
@@ -72,7 +76,7 @@ def module_path(name, spec):
     if spec.startswith(('./', '../')):
         child = posixpath.normpath(posixpath.join(posixpath.dirname(name), spec))
         # 应用模块不能跨到其它目录，Three 的相对导入也必须在引擎目录内。
-        if (name, child) == ('js/sz-lianhuashan.js', 'data/source/lianhuashan-summit.json'):
+        if (name, child) in SOURCE_MODULES:
             return child
         if child.split('/')[0] != name.split('/')[0]:
             raise ValueError(f'Module escapes its runtime directory: {name}: {spec}')
@@ -129,7 +133,7 @@ def release_files(source, engine):
         name = stack.pop()
         if name in files:
             continue
-        if name == 'data/source/lianhuashan-summit.json':
+        if name in {child for _, child in SOURCE_MODULES}:
             files[name] = checked_path(source, name).read_bytes()
             continue
         if not name.endswith('.js'):
@@ -145,6 +149,22 @@ def release_files(source, engine):
 
 def variant(data):
     return {'bytes': len(data), 'sha256': digest(data)}
+
+
+def export_static(store, version, destination):
+    verify_version(store, version)
+    directory, manifest, rows = version_manifest(store, version)
+    target = destination / 'v' / version
+    for name, row in rows.items():
+        path = checked_path(target, name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(read_variant(directory, name, 'identity', row['identity']))
+    (target / 'manifest.json').write_bytes(manifest)
+    # 不透明版本路径保留在输出目录，更新后旧页面仍可读取同版本资源。
+    (destination / '_redirects').write_text(f'/ /v/{version}/ 302\n')
+    (destination / '_headers').write_text(
+        f'/v/*\n  Cache-Control: {CACHE}\n  X-Content-Type-Options: nosniff\n')
+    (destination / '404.html').write_text('<!doctype html><title>404</title>Not Found\n')
 
 
 def store_version(store, files):
@@ -302,12 +322,18 @@ def main():
     stage = commands.add_parser('stage')
     stage.add_argument('--source', type=Path, default=ROOT)
     stage.add_argument('--three', type=Path, default=ROOT / f'.agents/three-{THREE}')
+    export = commands.add_parser('export')
+    export.add_argument('--out', type=Path, required=True)
     commands.add_parser('activate').add_argument('version')
     commands.add_parser('verify').add_argument('version')
     commands.add_parser('serve').add_argument('--port', type=int, default=8180)
     args = parser.parse_args()
     if args.command == 'stage':
         print(store_version(args.store, release_files(args.source, args.three)))
+    elif args.command == 'export':
+        version = store_version(args.store, release_files(ROOT, ROOT / f'.agents/three-{THREE}'))
+        export_static(args.store, version, args.out)
+        print(version)
     elif args.command == 'activate':
         activate_version(args.store, args.version)
     elif args.command == 'verify':

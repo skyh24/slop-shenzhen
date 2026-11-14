@@ -8,3 +8,5 @@ ref/
 .cursor/
 .commandcode/
 docs/qa/
+.cloudflare/
+.wrangler/

@@ -558534,25 +558534,25 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "d41d8abd010a078f323ac8498febe9d39ba53ff50a1bc275553ff61964c56dd2",
-    "bytes": 267040,
+    "fingerprint": "f2ae5b6f31c14068ad2360212f59433a40d9b3f90374f513cc13d2a98891a9ee",
+    "bytes": 267036,
     "decodedBytes": 1240101,
     "files": {
-      "js/sz-regional/d41d8abd010a078f323a/waterfront.json.gz": "f9a4f0887f7237b07d5ce7008d753a032402d12004a907f2fe007f6fd22e3af6",
-      "js/sz-regional/d41d8abd010a078f323a/metro.json.gz": "68a3d6ee7b3858795eaecdb161d091260f34883ed038a50066f27a5760c206bd",
-      "js/sz-regional/d41d8abd010a078f323a/drone.json.gz": "b4b5997736c8e0a3cb25352a37bda9f47e9067d6639a4c6ac4eba127341ebb83"
+      "js/sz-regional/f2ae5b6f31c14068ad23/waterfront.json.gz": "b1ed2a4c52ce9905d8e49608e1c043a11a2d92f76e5da04ef1813300c49519c1",
+      "js/sz-regional/f2ae5b6f31c14068ad23/metro.json.gz": "8f4d16ecec16229b135f9ca027703e9a5b75568b31bbbe284d9b5e44ec205544",
+      "js/sz-regional/f2ae5b6f31c14068ad23/drone.json.gz": "9ad2a6463140b7c15ce662f83949d026fd7edef34bb12a8627d28c3264913e4d"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
       "data/source/vegetation-pilots.json": "7ff0e9ddd896641f996cb582e1041d3b8ce8ecf8075781d69023d95aaae621e8",
-      "js/building-collision.js": "45e991d1ddf84dcb0907c101f68011695d9b18323e9f262a6877f14e39452397",
+      "js/building-collision.js": "571ab42a6284187d477a855645678aa165618725e7911d6c65e98a423631251d",
       "js/cars.js": "ff212291764b78173d3c42399f64991de1c5b77ece1c689908e8b9d9cb1798a5",
       "js/city-lighting-materials.js": "f75a1ff3c208bf3f979c7b78d62916534ee8246b7886386aa74623680f9e0de0",
       "js/pedestrians.js": "ba32139c5937c2f0e61cd927394aa41f6a99a6decbd9ad9bc0f891e9b8a49a40",
       "js/sz-apec-city.js": "2d31b4caeeb671cacebba7280c5d3532c4e2a589f8d1c8934b558855a3a56ec3",
       "js/sz-apec.js": "dab2f9e1d948c13ab8b0cff7a27bc9b64bc4594253630bc74fc05078c4ec9ff8",
       "js/sz-arterial-trees.js": "b242541f49635ff91a2b66d41d55529c3236f5ac4618960791ba20735c3cd614",
-      "js/sz-bay-waterfront.js": "0de6a84c8093a6df810dc6cc04521dbd163ec0f71caa098da802e46c67a38271",
+      "js/sz-bay-waterfront.js": "f5d1473e6e4481e055e95f768d88be60209ad1cf0a5e8a677bba7b774b8be826",
       "js/sz-building-details.js": "20ff4852ca963ed4ede4e1836a6c1e9e1d74f6ac501dfe2dd9a51b872c6ec418",
       "js/sz-building-envelope-relations.js": "009a0aae34d742a85e0593a5d5f42ecf8528f461152310f6ebe45b12820c5e0d",
       "js/sz-building-envelope.js": "a1276d285b2a572ef3cc8dc69a7be0b4b91b7b3ac630b4d5e4efd9a11b81e7f0",
@@ -558572,8 +558572,8 @@
       "js/sz-driving-motion.js": "cb8f1689ba6080137349866dca59654d5abb9b59dc30cd5e2a6c4de9d0f1cc77",
       "js/sz-drone-choreography.js": "4d6283f31889df2a6918d45072ca7548e665768802ebb35c752c4a3bb86b2b04",
       "js/sz-drone-formations.js": "b748ea4a6b94e7035940e7b4ebcef29fd6c6621b6a049da5dfb809060165accc",
-      "js/sz-drone-routes.js": "9399d5e68f4fbda62d6a1d0ed5a38ae646fcd96486991815109b0aa69e0b1da0",
-      "js/sz-elevated-roads.js": "afbd7ea1b41aade3598f6e20ff08a9e8cce50f7acc0164e3612dab7604966ad4",
+      "js/sz-drone-routes.js": "c90d72fde184c5b12ecd1879fe0a198a16679da4d81dbb4bee22dd7612b8bf6f",
+      "js/sz-elevated-roads.js": "b8ff9860c4530b9e5dacbea368ef8c0dfb5f4e2d85571317bd3a8a0b64c4a7ab",
       "js/sz-facade-profiles.js": "69bba93370dde7fa8a9e90fb9727b736cfca447c9a2ef849e329cc275e285c37",
       "js/sz-geodata.js": "bf4588164f4d975988ec49a2681e4b9d870fab46c6cf415b6a8b0d4dff9aa91e",
       "js/sz-geometry.js": "8823c7e3325e4787048055faf827fd546da537666252837dda440104ae095fbf",
@@ -558649,7 +558649,7 @@
       "js/sz-station-sites.js": "e00d8163e48cc5413cf2df083934c9273dbcedc96ed231c269b7a9513448e079",
       "js/sz-street-lamps.js": "cd3fd3dbf823ccae7f28eda2fd6047741b75ee5a137122594f957e79ded16c64",
       "js/sz-streetscape.js": "f0c9d749fca8f4a61d223780f5a9885f16504106d0ff44869d95a7dedef184b4",
-      "js/sz-strings.js": "633fdac1a44f8c1dd5a57951048a96eae75214e9fd01c0eff5cf06823b5edd60",
+      "js/sz-strings.js": "ced40e7eff8fd2db7c7ccd0750231a07fc4086d5cac6a3bcf7aa67ecb953b63f",
       "js/sz-talent-drone-show.js": "d8a80af676cc644479b78c101b0b85ef2df113c200967723834689bec8c054b9",
       "js/sz-talent-park.js": "17107fabd0f41c916bba84fc5169f6c668ce48b7486078eba52ee4f20bbdf283",
       "js/sz-talent-pedestrians.js": "c0972bced40a487f5d551829cef6dbd40600a5ea58a3de6d9edab57e9c88df5d",
@@ -558669,7 +558669,7 @@
       "js/sz-vegetation.js": "16cf3897a203552a6733a18cd6c00e54cb77801ddcec8efac78fe3974c98bdc9",
       "js/sz-vehicles.js": "fc021c6fe2e2fe2593fc73b9b70f55e14c2bdc44faadb5dceb81d435a17dcd48",
       "js/sz-water-material.js": "d14efce5d852f35c13a02b45833605836c2fba406498f13401f09564cfed2cab",
-      "js/sz-waterfront.js": "fe8995ef4c182861b47877bac436446e4e3cd2dbc389f2f7dafce2d753c2e57d",
+      "js/sz-waterfront.js": "9b467528295362ec09eda26aaa34ed255d307117d3d8f472dbdff900931c2f4c",
       "js/sz-woodlands.js": "b533d543479fde910b6a1bce6a09fc469dc2b22be85c291af81690b645ff8ed7",
       "js/sz-zhongxin-walk.js": "68f3d4bfc92de0a6da3556fcee001e63aac940db0085a53b2b45610f2db468a5",
       "js/vehicles.js": "715109b1f4743c21e8e8aa42474ca6d785093ede106627898a1a015be94edab0",
@@ -559228,10 +559228,10 @@
     "numericBytes": 40704232,
     "uncompressedBytes": 59993704,
     "lossless": true,
-    "compressedBytes": 16041290,
-    "compressedSha256": "462ceaa089d20d3da4baac1ce74c459828d95d60bf680b8a45f325629fb330a4"
+    "compressedBytes": 16041294,
+    "compressedSha256": "516b0a3457b4ece3b23d274bc55addbc843bcee6c17aca9b6219e54a5559092e"
   },
-  "outputBytes": 16139448,
-  "outputSha256": "a3140ac6958d2637a02a33bbfedfb2723a674afd312271e59836ec6d968e1d06",
-  "seconds": 375.4
+  "outputBytes": 16139444,
+  "outputSha256": "d7ecba1f0d4421e1596ac2d559b9fbf2853275167191124831d0de3d3bbdf2cf",
+  "seconds": 37.5
 }

@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const test = require('node:test');
+const { runInNewContext } = require('node:vm');
 
 const html = readFileSync(join(__dirname, '../index.html'), 'utf8');
 const importMap = html.match(/<script type="importmap">([^]*?)<\/script>/);
@@ -107,6 +108,27 @@ test('the inline boot fallback defines __szBoot before any module evaluates', ()
   assert.match(source, /boot-error-detail/);
   assert.match(source, /labels\s*:\s*BOOT_LABELS/);
   assert.match(source, /messages\s*:\s*BOOT_MESSAGES/);
+});
+
+test('third-party script failures do not block boot while the native entry failure stays fatal', () => {
+  const listeners = {};
+  const window = { addEventListener: (name, handler) => { listeners[name] = handler; } };
+  const document = {
+    getElementById: () => null,
+    createElement: () => ({}),
+    documentElement: { hasAttribute: () => true },
+    head: { append: () => {} },
+    addEventListener: () => {}
+  };
+  runInNewContext(inlineBoot[2], {
+    window, document, URLSearchParams,
+    location: { search: '', hostname: 'slop.sztechsafari.com' }
+  });
+  const script = src => ({ tagName: 'SCRIPT', src, getAttribute: () => src });
+  listeners.error({ target: script('https://static.cloudflareinsights.com/beacon.min.js') });
+  assert.equal(window.__szBoot.state, 'loading', 'optional analytics cannot fail game startup');
+  listeners.error({ target: script('./js/main.js') });
+  assert.equal(window.__szBoot.state, 'failed', 'native module graph failures still show retry');
 });
 
 test('the loading overlay ships the empty boot error markup the fallback fills in', () => {

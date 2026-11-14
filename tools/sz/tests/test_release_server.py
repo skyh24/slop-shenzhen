@@ -8,11 +8,33 @@ from threading import Thread
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from release import (CACHE, ReleaseHandler, activate_version, store_version, verify_version)
+from release import (CACHE, ReleaseHandler, activate_version, export_static, module_path,
+                     store_version, verify_version)
 from serve import LocalCityServer
 
 
 class LocalReleaseTests(unittest.TestCase):
+    def test_static_export_keeps_version_pairs_and_does_not_http_encode_gzip_files(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store, output = root / 'store', root / 'public'
+            city = gzip.compress(b'{"city":1}', mtime=0)
+            files = {'index.html': b'<html></html>', 'js/sz-city.json.gz': city}
+            a = store_version(store, files)
+            export_static(store, a, output)
+            b = store_version(store, {**files, 'index.html': b'<html>updated</html>'})
+            export_static(store, b, output)
+            for version in (a, b):
+                self.assertEqual((output / 'v' / version / 'js/sz-city.json.gz').read_bytes(), city)
+            self.assertEqual((output / '_redirects').read_text(), f'/ /v/{b}/ 302\n')
+            self.assertIn(CACHE, (output / '_headers').read_text())
+            self.assertNotIn('Content-Encoding', (output / '_headers').read_text())
+            self.assertFalse((output / 'v' / a / '.gzip').exists())
+            self.assertEqual(module_path('js/sz-vegetation-layout.js', '../data/source/vegetation-pilots.json'),
+                             'data/source/vegetation-pilots.json')
+            with self.assertRaises(ValueError):
+                module_path('js/main.js', '../data/raw/private.json')
+
     def test_complete_versions_are_immutable_and_rollback_keeps_each_code_data_pair(self):
         with TemporaryDirectory() as tmp:
             store = Path(tmp)
