@@ -73,7 +73,90 @@ const deckLink = (overrides = {}) => ({ index: 1, osmId: 'way/900', surfaceId: D
 const emptyGraph = () => ({ nodes: [], nodeIds: ['node/1', 'node/2'], names: [], links: [], metadata: [],
   turnRestrictions: { rules: [] } });
 
-test('car cruise follows a continuous bend at the set speed and keeps going straight at an ambiguous fork', () => {
+test('cruise settles onto a straight lane without weaving at 36 to 120 km/h across frame rates', t => {
+  for (const hz of [30, 60, 120]) for (const kmh of [36, 60, 80, 120]) {
+    const roadHeight = () => 0;
+    const graph = { nodes: [0, 0, 0, 2000], nodeIds: [], names: ['Straight'],
+      links: [[0, 1, 0, 10.5, 3, 1, []]], metadata: [groundRoad(1)] };
+    const planner = createDrivePlanner(traffic.createTrafficGraph(graph), graph, { model, roadHeight, isClear: () => true });
+    const { controller, car } = playerCarFixture(roadHeight);
+    Object.assign(car.position, { x: -3.5 + 0.6, y: 0, z: 20 });
+    car.heading = 0;
+    car.speed = kmh / 3.6;
+    const auto = createAutoDrive({ model, roadHeight, planCruise: planner.planCruise });
+    assert.ok(auto.startCruise(car, car.speed));
+    controller.cruiseSpeed = car.speed;
+    let crossings = 0, side = 1, lateError = 0;
+    for (let frame = 0; frame < hz * 15; frame++) {
+      const input = auto.update(car, { dt: 1 / hz, elapsed: frame / hz, mode: 'car', manual: false });
+      controller.updateCar(1 / hz, input);
+      const error = car.position.x + 3.5;
+      if (Math.abs(error) > 0.05 && Math.sign(error) !== side) { crossings++; side = Math.sign(error); }
+      if (frame > hz * 8) lateError = Math.max(lateError, Math.abs(error));
+      assert.ok(Math.abs(car.speed - kmh / 3.6) < 0.15, 'straight cruise retains the set speed');
+    }
+    const detail = JSON.stringify({ hz, kmh, crossings, lateError });
+    assert.ok(crossings <= 2, detail);
+    assert.ok(lateError < 0.05, detail);
+    t.diagnostic(detail);
+  }
+});
+
+test('cruise brakes before consecutive bends, tracks both directions and recovers its set speed', t => {
+  for (const hz of [30, 60, 120]) {
+    const points = [[0, 0], [0, 300]];
+    for (let u = 12; u <= 360; u += 12) points.push([(u <= 180 ? 24 : 12) * (1 - Math.cos(2 * Math.PI * u / 180)), 300 + u]);
+    points.push([0, 1460]);
+    const graph = { nodes: points.flat(), nodeIds: [], names: ['S bends'],
+      links: points.slice(1).map((_, i) => [i, i + 1, 0, 10.5, 3, 1, []]),
+      metadata: points.slice(1).map(() => groundRoad(1)) };
+    const roadHeight = () => 0;
+    const planner = createDrivePlanner(traffic.createTrafficGraph(graph), graph, { model, roadHeight, isClear: () => true });
+    const { controller, car } = playerCarFixture(roadHeight);
+    Object.assign(car.position, { x: -3.5, y: 0, z: 20 });
+    car.heading = 0;
+    car.speed = 120 / 3.6;
+    const reference = planner.planCruise(car);
+    assert.ok(reference && reference.length > 900);
+    const auto = createAutoDrive({ model, roadHeight, planCruise: planner.planCruise });
+    assert.ok(auto.startCruise(car, car.speed));
+    controller.cruiseSpeed = car.speed;
+    const bendSpeeds = [Infinity, Infinity];
+    let beforeBend = null, maxError = 0, minSpeed = Infinity, maxLateralAcceleration = 0, left = false, right = false;
+    for (let frame = 0; frame < hz * 100 && car.position.z < 1320; frame++) {
+      const input = auto.update(car, { dt: 1 / hz, elapsed: frame / hz, mode: 'car', manual: false });
+      controller.updateCar(1 / hz, input);
+      if (beforeBend === null && car.position.z > 285) beforeBend = car.speed;
+      if (car.position.z >= 300 && car.position.z <= 660) {
+        minSpeed = Math.min(minSpeed, car.speed);
+        maxLateralAcceleration = Math.max(maxLateralAcceleration, Math.abs(car.speed * car.angularVel));
+        left ||= car.heading > 0.15;
+        right ||= car.heading < -0.15;
+        if (car.position.z > 330 && car.position.z < 450) bendSpeeds[0] = Math.min(bendSpeeds[0], car.speed);
+        if (car.position.z > 510 && car.position.z < 630) bendSpeeds[1] = Math.min(bendSpeeds[1], car.speed);
+      }
+      let error = Infinity;
+      for (let i = 1; i < reference.samples.length; i++) {
+        const a = reference.samples[i - 1], b = reference.samples[i];
+        const dx = b.x - a.x, dz = b.z - a.z;
+        const t = Math.max(0, Math.min(1, ((car.position.x - a.x) * dx + (car.position.z - a.z) * dz) / (dx * dx + dz * dz)));
+        error = Math.min(error, Math.hypot(car.position.x - a.x - t * dx, car.position.z - a.z - t * dz));
+      }
+      maxError = Math.max(maxError, error);
+      assert.equal(controller.cruiseSpeed, 120 / 3.6);
+    }
+    const detail = JSON.stringify({ hz, beforeBend, maxError, minSpeed, bendSpeeds, maxLateralAcceleration, z: car.position.z, speed: car.speed });
+    assert.ok(beforeBend < 16, detail);
+    assert.ok(maxError < 0.65, detail);
+    assert.ok(left && right && minSpeed < 12 && minSpeed > 2, detail);
+    assert.ok(maxLateralAcceleration < 3.2, detail);
+    assert.ok(bendSpeeds[1] > bendSpeeds[0] + 1, detail);
+    assert.ok(car.position.z >= 1320 && car.speed > 33, detail);
+    t.diagnostic(detail);
+  }
+});
+
+test('car cruise follows a gentle bend at the set speed and keeps going straight at an ambiguous fork', () => {
   const graph = { nodes: [0, 0, 0, 72, 15, 130, 13, 160, 34, 160], nodeIds: [],
     names: ['Road', 'West fork', 'East fork'],
     links: [[0, 1, 0, 10.5, 3, 1, []], [1, 2, 0, 10.5, 3, 1, []],
@@ -96,7 +179,7 @@ test('car cruise follows a continuous bend at the set speed and keeps going stra
     const drive = auto.update(car, { dt, elapsed: i * dt, mode: 'car', manual: false });
     assert.ok(drive?.cruise);
     controller.updateCar(dt, drive);
-    assert.ok(Math.abs(car.speed - 10) < 0.15, 'cruise does not slow for the bend or route end');
+    assert.ok(Math.abs(car.speed - 10) < 0.15, 'cruise does not slow unnecessarily for a gentle bend or route end');
   }
   assert.ok(car.heading > 0.15 && car.heading < 0.35, JSON.stringify({heading: car.heading, position: car.position}));
   assert.ok(car.position.z > 146 && car.position.x > 13 && car.position.x < 21);

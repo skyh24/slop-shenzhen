@@ -150,12 +150,15 @@ function laneSegments({ path, start, end }, roads) {
 
 function validateSamples(samples, model, roadHeight, isClear, stops, roads) {
   const limits = samples.map(sample => roads.get(sample.edge).speed);
+  const curveLimits = samples.map(() => Infinity);
   for (let i = 1; i < samples.length; i++) {
     const a = samples[i - 1], b = samples[i];
     const turn = Math.atan2(a.dz * b.dx - a.dx * b.dz, a.dx * b.dx + a.dz * b.dz);
     const curvature = Math.abs(turn) / (b.s - a.s);
     if (curvature > CURVATURE_LIMIT) return { failedAt: (a.s + b.s) / 2 };
     const limit = Math.sqrt(2.25 / Math.max(curvature, 0.001));
+    curveLimits[i - 1] = Math.min(curveLimits[i - 1], limit);
+    curveLimits[i] = Math.min(curveLimits[i], limit);
     limits[i - 1] = Math.min(limits[i - 1], limit);
     limits[i] = Math.min(limits[i], limit);
   }
@@ -188,9 +191,12 @@ function validateSamples(samples, model, roadHeight, isClear, stops, roads) {
   }
   limits[limits.length - 1] = 0;
   for (let i = limits.length - 2; i >= 0; i--) {
-    limits[i] = Math.min(limits[i], Math.sqrt(limits[i + 1] ** 2 + 2 * PLANNING_BRAKE * (samples[i + 1].s - samples[i].s)));
+    const braking = 2 * PLANNING_BRAKE * (samples[i + 1].s - samples[i].s);
+    limits[i] = Math.min(limits[i], Math.sqrt(limits[i + 1] ** 2 + braking));
+    // 巡航复用曲率与提前制动，路线片段末端不作为停车点。
+    curveLimits[i] = Math.min(curveLimits[i], Math.sqrt(curveLimits[i + 1] ** 2 + braking));
   }
-  return { limits };
+  return { limits, curveLimits };
 }
 
 function excludeNearFailure(samples, s, edges, turns) {
@@ -425,8 +431,8 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
         }
         if (samples.length < 2) break;
         const length = samples.at(-1).s;
-        const { limits, failedAt } = validateSamples(samples, model, roadHeight, isClear, stops, selectedRoads);
-        if (limits) return { samples, stops, length,
+        const { limits, curveLimits, failedAt } = validateSamples(samples, model, roadHeight, isClear, stops, selectedRoads);
+        if (limits) return { samples, stops, length, curveLimits,
           continues: continues && attempt === 0 && !incomplete };
         samples = samples.filter(p => p.s <= failedAt - margin);
       }

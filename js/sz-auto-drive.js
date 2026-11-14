@@ -335,14 +335,16 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     if (requested) control.request(requested, ACTOR, elapsed, !exitBlocked);
     run.request = requested;
     const held = signal && !reservation && (exitBlocked || !control.canEnter(signal.approach, elapsed, ACTOR));
-    const target = sampleAhead(route.samples, run.index, Math.min(route.length, run.s + Math.min(9, 3.5 + speed * 0.43)));
+    // 高速时留足转向、偏航和轮胎响应时间，避免短前视反复过度纠偏。
+    const lookAhead = cruising ? Math.min(40, 3.5 + speed * 0.9) : Math.min(9, 3.5 + speed * 0.43);
+    const target = sampleAhead(route.samples, run.index, Math.min(route.length, run.s + lookAhead));
     const dx = target.x - car.position.x, dz = target.z - car.position.z;
     const lateral = dx * Math.cos(car.heading) - dz * Math.sin(car.heading);
     const desiredSteer = Math.atan2(4 * model.halfWheelbase * lateral, dx * dx + dz * dz);
     const lastStop = Math.min(run.cruiseSpeed == null ? route.length - 0.24 : Infinity, held ? stopAt : Infinity);
     const remaining = Math.max(0, lastStop - run.s);
     const speedIndex = sampleAhead(route.samples, run.index, Math.min(route.length, run.s + speed * dt)).i;
-    const limit = run.cruiseSpeed ?? route.limits[speedIndex];
+    const limit = cruising ? Math.min(run.cruiseSpeed, route.curveLimits?.[speedIndex] ?? Infinity) : route.limits[speedIndex];
     const laneWaiting = laneAssist?.update(car, run.s);
     const targetSpeed = run.paused || laneWaiting ? 0 : Math.min(limit, Math.sqrt(3.3 * remaining), leader.limit);
     let state = leader.limit < Math.min(2.8, limit) ? 'traffic' : 'driving';
