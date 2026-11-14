@@ -1,160 +1,164 @@
-# Slop Shenzhen · 在浏览器里漫游深圳
+# Slop Shenzhen · Explore Shenzhen in Your Browser
 
-**从深南大道的车流，到深圳湾的晚风，再到无人机点亮的夜空。**
+**English** · [简体中文](README.zh.md)
 
-Slop Shenzhen 是一个以真实地理数据为基础、按 **1:1 米制尺度**构建的深圳 3D 城市漫游项目。你可以步行穿过街区，驾驶汽车沿主干道前进，骑单车探索滨海公园，也可以坐上四旋翼飞行器，从空中观察深圳的楼群、山体、海岸与立交。
+**[Explore the live city · slop.sztechsafari.com](https://slop.sztechsafari.com/)**
 
-这里既有大疆天空之城、华润春笋和超级总部的科技天际线，也有南头古城、大学城、世界之窗和深圳北站；白天看城市结构，入夜看楼宇灯光、无人机编队与烟花。下面的图片均为项目场景截图。
+**From the traffic on Shennan Boulevard to the waterfront of Shenzhen Bay and a sky lit up by drones.**
 
-![四旋翼飞越人才公园，前方是华润春笋与后海天际线](assets/1-huarun.png)
+Slop Shenzhen is a browser-based 3D city exploration project built from geographic data at a **1:1 scale in meters**. Walk through neighborhoods, drive along major roads, cycle through coastal parks, or take a quadrotor into the sky to explore Shenzhen's towers, hills, coastline, and interchanges.
 
-> 项目持续开发中。1:1 指场景的空间尺度，不代表深圳行政全域、每栋建筑或所有道路均已完整复原。当前以南山、福田为核心，并扩展到罗湖、宝安、大学城、深圳北站等区域；具体覆盖与验收状态见 [HANDOFF](docs/HANDOFF.md)。
+Discover the technology skyline of DJI Sky City, China Resources Tower, and the Shenzhen Bay Super Headquarters district alongside Nantou Ancient City, University Town, Window of the World, and Shenzhen North Station. Explore the city's structure by day, then return for building lights, drone formations, and fireworks at night. All images below are screenshots from the project.
 
-## 一张可以走进去的深圳 3D 地图
+![Flying over Shenzhen Talent Park toward China Resources Tower and the Houhai skyline](assets/1-huarun.png)
 
-城市不是孤立的地标展台：建筑、道路、水域、公园、山地和交通设施放在同一套地理坐标中，可以从街面一路切换到高空，观察街区之间的关系。全图和小地图辅助定位，地点搜索与分类入口帮助你找到地标、商圈、公园和车站。
+> This project is under active development. “1:1” describes its spatial scale, not complete coverage of Shenzhen's administrative area, every building, or every road. The scene centers on Nanshan and Futian, with extensions into Luohu, Bao'an, University Town, and Shenzhen North Station. See [HANDOFF](docs/HANDOFF.md) for current coverage and verification status.
 
-- **全图与小地图**：查看当前位置、城市空间与交通图层，缩放、平移并选择地点；地图支持双击或双触前往可用落点。
-- **交通专题**：切换地铁线路、高铁站、无人机线路和自动驾驶面板，把“在哪里”和“怎样去”放在一起。
-- **地面与空中视角**：街面看立面、树木与路灯，高空看道路网、海岸线和楼群；支持日夜切换。
-- **统一坐标**：地理原点为 **东经 114.0545°、北纬 22.5463°**，场景中 **1 单位 = 1 米**，`x` 向东、`z` 向南、`y` 向上。扩展区域沿用同一原点，地标与路线可以放到同一个空间里比较。
+## A 3D Map You Can Step Into
 
-建筑轮廓主要来自 OSM / Overture，结合地形数据、已核实地标资料与楼高来源构建。估计高度、设计高度和实测数据分别记录；这是一座可探索的程序化城市，也是一份持续核对的城市模型。
+Buildings, roads, waterways, parks, hills, and transport infrastructure share one geographic coordinate system. Move from street level into the sky to understand how neighborhoods connect. The full map, minimap, place search, and category filters help you find landmarks, shopping districts, parks, and stations.
 
-## 深圳的科技天际线，360° 环绕看地标
+- **Full map and minimap:** locate yourself, explore city and transport layers, zoom and pan, and select places. Double-click or double-tap the map to travel to an available landing point.
+- **Transport layers:** switch between metro lines, railway stations, drone routes, and driving plans to explore both destinations and connections.
+- **Street and aerial views:** inspect facades, trees, and streetlights at ground level, or study the road network, coastline, and skyline from above. Switch between day and night.
+- **Shared coordinates:** the geographic origin is **114.0545° E, 22.5463° N**. **One scene unit equals one meter**, with `x` pointing east, `z` south, and `y` up. New areas retain the same origin, keeping landmarks and routes in a common spatial frame.
 
-飞近地标后，可以使用**地标环绕**从不同方向观察楼体与周边街区，也可以切换追尾、第一人称等视角。市民中心的中轴线、深南大道两侧草坪与楼群、后海的滨水天际线，各有不同的观看尺度。
+Building footprints primarily come from OSM / Overture, combined with terrain data, verified landmark references, and height sources. Estimated, designed, and measured heights are recorded separately. The result is both an explorable procedural city and a model being continually checked against its sources.
 
-| 大疆天空之城 | 深圳湾超级总部 |
+## Shenzhen's Technology Skyline, in 360°
+
+Use **landmark orbit** to view buildings and surrounding streets from different directions, or switch to chase and first-person cameras. Explore the Civic Center's central axis, the lawns and towers along Shennan Boulevard, and Houhai's waterfront skyline at different scales.
+
+| DJI Sky City | Shenzhen Bay Super Headquarters District |
 | --- | --- |
-| ![大疆天空之城的双塔、悬挑体量与空中连桥](assets/2-dajiang.png) | ![从深圳湾上空观察超级总部楼群与滨水绿地](assets/13-chaoji.png) |
-| 从空中观察塔楼、悬挑结构与连桥，感受深圳科技园区的建筑形态。 | 沿海岸观察高层建筑与总部街区，看看城市怎样向深圳湾展开。 |
+| ![DJI Sky City's twin towers, cantilevered volumes, and skybridges](assets/2-dajiang.png) | ![Headquarters towers and waterfront greenery viewed from Shenzhen Bay](assets/13-chaoji.png) |
+| Fly around the towers, cantilevered structures, and bridges to explore the architecture of Shenzhen's technology districts. | Follow the coastline past headquarters towers and see how the city opens onto Shenzhen Bay. |
 
-| 春茧与深圳湾体育中心 | 罗湖天际线 |
+| Spring Cocoon · Shenzhen Bay Sports Center | Luohu Skyline |
 | --- | --- |
-| ![四旋翼悬停于深圳湾体育中心春茧上空](assets/11-shenzhenwan.png) | ![地王大厦、京基100与罗湖密集街区](assets/16-luohu.png) |
-| 网壳体育场、内场和海岸同框，适合绕飞观察建筑轮廓。 | 从地王大厦、京基100到周边街区，看深圳不同时期的城市层次。 |
+| ![A quadrotor hovering above the Spring Cocoon at Shenzhen Bay Sports Center](assets/11-shenzhenwan.png) | ![Shun Hing Square, KK100, and the dense neighborhoods of Luohu](assets/16-luohu.png) |
+| Orbit the stadium's lattice shell, sports field, and coastal setting. | Discover layers of Shenzhen's development around Shun Hing Square and KK100. |
 
-还可以探索平安金融中心、腾讯滨海大厦、深圳证券交易所、深圳大学城图书馆，以及前海博物馆、深圳滨海艺术中心等场馆。地标以核实对象绑定，局部体量和细节采用程序化表达。
+Other landmarks include Ping An Finance Center, Tencent Seafront Towers, the Shenzhen Stock Exchange, University Town Library, Qianhai Museum, and Shenzhen Bay Culture Park. Landmark identities are tied to verified source objects, with local forms and details expressed procedurally.
 
-## APEC 主题城市氛围
+## APEC-Themed City Atmosphere
 
-场景加入 APEC 主题装饰，让道路、场馆和夜景串联起来：深南大道、滨河大道、滨海大道沿线的灯杆挂有主题道旗，场馆周边设置文字标识、主题花坛与示意设施。
+APEC-themed decorations connect roads, venues, and nighttime scenery. Streetlight poles along Shennan, Binhe, and Binhai Boulevards carry themed banners, while venue surroundings feature text signs, flower beds, and illustrative facilities.
 
-| 灯杆道旗与城市道路 | APEC 主题场馆 |
+| Street Banners | APEC-Themed Venue |
 | --- | --- |
-| ![汽车行驶在挂有红色 APEC 主题道旗的道路上](assets/8-apec.png) | ![步行视角观察 APEC 主题场馆的玻璃立面与前场](assets/14-APEC.png) |
-| 驾车穿过带有 APEC 文字标识的街道，观察灯杆、绿带和沿线建筑。 | 从街面观看深圳国际交流中心等场馆及主题布置，感受建筑尺度与前场空间。 |
+| ![Driving along a road lined with red APEC text banners](assets/8-apec.png) | ![A street-level view of an APEC-themed venue's glass facade and forecourt](assets/14-APEC.png) |
+| Drive past APEC text banners, streetlights, green strips, and nearby buildings. | Explore the scale and public-facing spaces of venues such as the Shenzhen International Exchange Center. |
 
-项目使用 **APEC 文字与主题配色，不使用官方会徽**。场馆标识和部分门前设施属于场景展示；灯光、无人机节目为项目原创模拟，不代表官方活动安排、实际演出内容或实时开放状态。
+The project uses **APEC text and themed colors, without the official emblem**. Venue signs and some forecourt facilities are scene illustrations. The light and drone shows are original simulations, not official event schedules, reproductions of actual performances, or live opening information.
 
-## 入夜之后：灯光秀、无人机表演与烟花
+## After Dark: Light Shows, Drone Formations, and Fireworks
 
-在莲花山看向市民中心和福田 CBD，楼宇成为灯光舞台；到人才公园的滨水观演区，抬头看无人机在后海天际线上编队。
+Look from Lianhua Hill toward the Civic Center and Futian CBD as buildings become a stage for light. At Shenzhen Talent Park, watch drone formations above the Houhai skyline from the waterfront viewing area.
 
-| 莲花山看灯光秀 | 人才公园看无人机表演 |
+| Light Show from Lianhua Hill | Drone Show at Shenzhen Talent Park |
 | --- | --- |
-| ![从莲花山方向观看福田 CBD 原创花卉灯光节目](assets/4-dengguang.png) | ![人才公园上空的无人机组成花朵图案，远处是华润春笋](assets/5-drone.png) |
-| 原创节目包含花卉、火箭与开放合作主题，支持暂停、继续和重播。 | “后海星潮”模拟节目包含花开后海、海豚、火箭、深圳天际线等编队段落。 |
+| ![An original floral light show across Futian CBD, viewed from Lianhua Hill](assets/4-dengguang.png) | ![Drones forming a flower above Talent Park, with China Resources Tower in the distance](assets/5-drone.png) |
+| Original sequences feature flowers, rockets, and themes of openness and cooperation, with pause, resume, and replay controls. | The original “Houhai Star Tide” simulation includes flowers, dolphins, rockets, and the Shenzhen skyline. |
 
-| 会展中心与平安金融中心 | 福田城市夜景 |
+| Convention Center and Ping An Finance Center | Futian at Night |
 | --- | --- |
-| ![从会展中心上空远望夜间的平安金融中心](assets/3-pingan.png) | ![飞行视角中的福田中轴线与平安金融中心夜景](assets/15-pingan.png) |
-| 从低空把场馆屋顶与高楼灯带一起收入画面。 | 换一个距离和角度，观察道路灯光、楼宇轮廓与城市纵深。 |
+| ![Looking toward Ping An Finance Center at night from above the Convention Center](assets/3-pingan.png) | ![An aerial night view of Futian's central axis and Ping An Finance Center](assets/15-pingan.png) |
+| Frame the venue roof and illuminated towers together from low altitude. | Change your distance and angle to explore streetlights, building outlines, and the depth of the city. |
 
-世界之窗还加入了**夜间模拟烟花**，与园区标志建筑、照明和周边夜景共同构成另一处观景场景。
+Window of the World also features **simulated nighttime fireworks**, complementing its landmark structures, park lighting, and surrounding cityscape.
 
-## 三条主干道自动空中巡游
+## Automatic Aerial Tours Along Three Major Roads
 
-选择**深南巡游、北环巡游、滨海巡游**，沿城市主干道自动飞行。巡游目标高度约为地面道路上方 80 米，可以暂停观看、调整观察角度，再继续前进。
+Choose the **Shennan, Beihuan, or Binhai tour** to fly automatically along a major urban corridor. Tours target roughly 80 meters above the ground-level road, with options to pause, adjust the view, and continue.
 
-![沿主干道空中巡游，观察多层立交与周边楼群](assets/7-xunyou.png)
+![An aerial road tour overlooking a multilevel interchange and surrounding towers](assets/7-xunyou.png)
 
-- **深南大道**：看城市中轴、道路两侧草坪、商务楼群与沿线地标。
-- **北环大道**：从空中观察快速路、立交和城市北侧的山地关系。
-- **滨海大道**：沿深圳湾方向观看后海、海岸与城市天际线。
+- **Shennan Boulevard:** the city's central corridor, roadside lawns, business districts, and landmarks.
+- **Beihuan Boulevard:** expressways, interchanges, and the relationship between the city and its northern hills.
+- **Binhai Boulevard:** Houhai, the coast, and the skyline along Shenzhen Bay.
 
-这三条是自动空中观景路线；地面的汽车自动驾驶使用独立的道路规划与控制。
+These are aerial sightseeing tours. Ground-level automatic driving uses a separate road planner and vehicle controller.
 
-## 自己开车，也可以交给自动驾驶
+## Drive Yourself, Plan a Route, or Set Cruise Control
 
-切到汽车模式，从街道尺度穿行深圳。项目提供手动驾驶、地图选点自动驾驶和定速巡航，三种方式适合不同的探索节奏。
+Switch to car mode to explore Shenzhen at street level. Manual driving, map-based automatic driving, and cruise control offer different ways to travel.
 
-![汽车沿深圳城市道路自动驾驶](assets/10-zidong.png)
+![A car following an automatic driving route through Shenzhen](assets/10-zidong.png)
 
-| 玩法 | 可以做什么 |
+| Mode | What You Can Do |
 | --- | --- |
-| 手动驾驶 | 加减速、转向、刹车，在已接入的道路、桥面和匝道间移动。 |
-| 地图自动驾驶 | 在地图选择可用起终点与道路层级，预览路线后发车；可暂停、继续、结束或手动接管。 |
-| 定速巡航 | 汽车行驶时按 `F` 开启，沿可用车道轨迹循道，弯前减速、出弯恢复设定速度；刹车可退出。 |
-| 高架与桥隧探索 | 观察立交的上下层关系，体验车公庙高架、南坪快速路，以及沿江高速—东滨隧道等已接入区段。 |
+| Manual driving | Accelerate, steer, and brake across connected roads, bridge decks, and ramps. |
+| Map-based automatic driving | Select available start and destination points and road levels, preview a route, then depart. Pause, resume, end the trip, or take over manually. |
+| Cruise control | Press `F` while driving to follow an available lane path. The car slows before curves and returns to its set speed afterward; braking exits cruise control. |
+| Elevated roads and tunnels | Explore layered interchanges and connected sections around Chegongmiao, Nanping Expressway, and the Yanjiang Expressway–Dongbin Tunnel route. |
 
-沿海还可以观赏**深圳湾大桥与沿江高速海上高架**。桥梁远景、可行驶桥面和完整互通是不同的完成范围：部分桥隧已有连续驾驶样段，其他路段仍在补齐，不能把地图上可见的每座桥都视为已经全程通车。
+Along the coast, you can also view **Shenzhen Bay Bridge and the offshore viaducts of Yanjiang Expressway**. Distant bridge scenery, drivable decks, and fully connected interchanges have different completion states. Some bridge and tunnel sections have continuous driving demonstrations; others remain incomplete, so a visible bridge does not necessarily provide an end-to-end driving route.
 
-## 低空深圳：四旋翼飞行与外卖无人机跟拍
+## Low-Altitude Shenzhen: Quadrotor Flight and Delivery Drone Following
 
-**玩家四旋翼**让你自由穿梭于楼群上空。可以升降、悬停、高速平飞，越过主干道和高架观察城市，再回到地面继续探索。飞行器支持定速巡航；高速飞行属于游戏参数，不对应现实载具性能。
+The **player-controlled quadrotor** lets you climb, descend, hover, and fly quickly above the city. Cross major roads and elevated highways, inspect the skyline, then return to the ground to keep exploring. Flight supports cruise control; high-speed flight settings are gameplay parameters, not claims about real aircraft performance.
 
-**配送无人机跟拍**则是一种观察玩法：在地图无人机面板中选择站点或线路，进入模拟跟飞，观察起飞、巡航与沿途景观。支持普通速度和 10 倍速、拖动环绕取景，停止后恢复玩家视角。
+**Delivery drone following** is an observation mode. Select a station or route in the map's drone panel to watch a simulated takeoff and flight through the city. Switch between normal and 10× speed, drag to orbit the camera, and stop to return to the player view.
 
-![跟随配送无人机飞过人才公园与深圳湾文化建筑群](assets/9-waimai.png)
+![Following a delivery drone over Talent Park and the Shenzhen Bay cultural buildings](assets/9-waimai.png)
 
-人才公园潮汐广场—海岸城方向已有模拟跟飞样段；航线、飞行高度与柜位含展示估计。这里呈现的是低空配送的城市视角，不是实时外卖订单或真实航迹回放。
+A simulated route is available in the Talent Park Tidal Plaza–Coastal City area. Routes, flight heights, and locker positions include illustrative estimates. This is a view of urban drone delivery, not a live order tracker or a replay of measured flight paths.
 
-## 深圳北站的高铁，以及城市里的地铁线路
+## High-Speed Trains and Shenzhen's Metro Network
 
-全图的交通面板把地铁与高铁分开呈现：可以按线路开启地铁图层，查看线路和出入口，也可以选择高铁站定位、前往附近可用落点或切换观景机位。
+The map's transport panel separates metro and railway views. Enable individual metro lines and inspect routes and entrances, or select a railway station to locate it, travel to an available nearby point, or use a viewing camera.
 
-| 深圳北站列车近景 | 深圳北站空中全景 |
+| Trains at Shenzhen North Station | Shenzhen North from Above |
 | --- | --- |
-| ![深圳北站模拟列车与站台近景](assets/19-beizhan.png) | ![从四旋翼视角观察深圳北站站房、股道和周边城区](assets/20-beizhan.png) |
-| 靠近观察高铁列车；站区已加入源股道与双向列车模拟。 | 从上空看站房、轨道走向和车站与城市之间的关系。 |
+| ![A simulated train and platform viewed up close at Shenzhen North Station](assets/19-beizhan.png) | ![A quadrotor view of Shenzhen North Station, its tracks, and surrounding neighborhoods](assets/20-beizhan.png) |
+| Inspect the trains up close. The station includes source-based tracks and simulated train movement in both directions. | See the station building, track layout, and its relationship to the surrounding city. |
 
-深圳北站、福田站、西丽站和深圳站（罗湖）均有地图定位与参观入口，表达方式随现有资料而不同：例如福田以地面设施为主，西丽保留工地外围示意。当前以交通地图和站区观景为主，不包含完整的乘车、站内换乘流程。
+Shenzhen North, Futian, Xili, and Shenzhen Railway Station in Luohu have map locations and visit entry points. Their representations vary with the available data: Futian focuses on surface facilities, while Xili retains an illustrative construction-site perimeter. The current experience covers transport maps and station sightseeing, rather than complete train journeys or indoor transfers.
 
-## 从滨海骑行到公园、古城与大学城
+## Coastal Cycling, Parks, Historic Streets, and University Town
 
-切换到单车，在**深圳湾公园沿海堤骑行**，经过滨水绿地、慢行桥和观景空间；也可以向大沙河绿道延伸，从河口观察两岸与城市内部的连接。人才公园、莲花山、荔枝公园、洪湖、四海公园和香蜜公园提供不同的绿地与环湖探索场景。
+Switch to a bicycle and **ride along the seawall at Shenzhen Bay Park**, passing waterfront greenery, pedestrian bridges, and viewing spaces. Explore toward the Dasha River Greenway to see how the estuary and riverbanks connect with the city. Talent Park, Lianhua Hill, Lizhi Park, Honghu Park, Sihai Park, and Xiangmi Park offer different green spaces and lakeside settings.
 
-| 世界之窗 | 南头古城 |
+| Window of the World | Nantou Ancient City |
 | --- | --- |
-| ![夜间飞越世界之窗，俯瞰埃菲尔铁塔和金字塔等标志建筑](assets/6-chaung.png) | ![步行抵达灯光照亮的南头古城城门](assets/6-nantou.png) |
-| 看园区内的标志建筑、夜间照明与模拟烟花，也能观察周边主干道。 | 从高空回到街面，看看城门、街巷与现代城区之间的尺度变化。 |
+| ![Flying over Window of the World at night, with the Eiffel Tower and pyramids below](assets/6-chaung.png) | ![Walking toward the illuminated gate of Nantou Ancient City](assets/6-nantou.png) |
+| Explore miniature landmarks, nighttime lighting, simulated fireworks, and nearby major roads. | Return to street level to see the contrast in scale between the gate, historic lanes, and modern neighborhoods. |
 
-| 海上世界 | 宝安滨海 |
+| Sea World | Bao'an Waterfront |
 | --- | --- |
-| ![飞行视角俯瞰海上世界的街区与广场](assets/12-haishang.png) | ![宝安滨海文化建筑、海面与远处跨海桥梁](assets/17-baoan.png) |
-| 在商业街区、广场和滨海城市空间之间切换观察位置。 | 看滨海文化建筑与海岸，远眺沿江方向的海上交通景观。 |
+| ![An aerial view of Sea World's streets and plazas](assets/12-haishang.png) | ![Bao'an's waterfront cultural buildings, sea, and distant bridges](assets/17-baoan.png) |
+| Move between commercial streets, plazas, and coastal urban spaces. | Explore waterfront cultural architecture and distant offshore transport infrastructure toward Yanjiang. |
 
-![大学城的校园建筑、绿地与山体背景](assets/18-daxuecheng.png)
+![University Town's campus buildings, green spaces, and surrounding hills](assets/18-daxuecheng.png)
 
-**大学城**提供另一种深圳印象：校园、公共建筑、体育场地、山体和绿地交织。骑行和步行以场景中的实际地面、桥面承托为基础；绿道全线、所有桥口和真实公共开放范围仍在逐段核对。
+**University Town** offers another side of Shenzhen, where campuses, public buildings, sports facilities, hills, and greenery meet. Walking and cycling use the scene's actual ground and bridge surfaces. Complete greenway journeys, every bridge approach, and real-world public access remain under review.
 
-## 第一次来，可以这样玩
+## A Suggested First Visit
 
-1. 打开地图，先找市民中心或平安金融中心，认识福田中轴线与周围道路。
-2. 切到飞行模式，绕地标一圈，再选深南、北环或滨海自动巡游。
-3. 回到地面，选择一段可用道路体验汽车自动驾驶或 `F` 定速巡航。
-4. 去深圳湾公园骑单车，到人才公园跟拍配送无人机。
-5. 入夜到莲花山看灯光秀、人才公园看无人机表演，再飞往世界之窗看夜景。
-6. 最后去深圳北站观察高铁，或飞到罗湖、宝安、大学城，换一种城市尺度。
+1. Open the map and find the Civic Center or Ping An Finance Center to get your bearings around Futian's central axis.
+2. Switch to flight, orbit a landmark, then try a Shennan, Beihuan, or Binhai aerial tour.
+3. Return to the ground and try automatic driving or `F` cruise control on an available road section.
+4. Cycle through Shenzhen Bay Park, then follow a delivery drone at Talent Park.
+5. After dark, watch the light show from Lianhua Hill and the drone show at Talent Park, then fly to Window of the World.
+6. Finish with the trains at Shenzhen North, or explore Luohu, Bao'an, and University Town from above.
 
-| 快捷键 | 操作 |
+| Key | Action |
 | --- | --- |
-| `1` / `2` / `3` / `4` | 步行 / 汽车 / 单车 / 飞行 |
-| `M` | 打开地图 |
-| `V` | 循环切换相机 |
-| `5` | 追尾视角回中 |
-| `F` | 汽车或飞行器定速巡航 |
-| `空格` | 汽车刹车 |
-| `H` | 隐藏界面，方便取景 |
-| `N` | 切换声音 |
+| `1` / `2` / `3` / `4` | Walk / Car / Bicycle / Flight |
+| `M` | Open the map |
+| `V` | Cycle cameras |
+| `5` | Recenter the chase camera |
+| `F` | Car or aircraft cruise control |
+| `Space` | Car brake |
+| `H` | Hide the interface for screenshots |
+| `N` | Toggle sound |
 
-模式切换会检查当前位置与可用落点；完整操作提示以场景界面为准。
+Mode changes check the current position and available landing surfaces. Refer to the in-scene interface for complete controls.
 
-## 本地运行
+## Run Locally
 
-使用支持 WebGPU 的浏览器，通过项目自带服务器启动：
+Use a browser with WebGPU support and start the project's built-in server:
 
 ```sh
 git clone https://github.com/skyh24/slop-shenzhen.git
@@ -162,17 +166,19 @@ cd slop-shenzhen
 python3 tools/sz/serve.py --port 8080
 ```
 
-打开 [http://127.0.0.1:8080/](http://127.0.0.1:8080/)，等待场景加载完成即可探索。
+Open [http://127.0.0.1:8080/](http://127.0.0.1:8080/) and wait for the scene to finish loading. You can also [explore the hosted version](https://slop.sztechsafari.com/).
 
-技术栈为 **three.js 0.187.0、WebGPU / TSL、原生 ES Modules**，无打包工具。建筑、载具与街景采用程序化建模；城市数据由离线管线生成，运行时不向地理数据服务请求地图数据。README 中的截图用于展示，不作为三维场景贴图。
+Built with **three.js 0.187.0, WebGPU / TSL, and native ES Modules**, with no bundler. Buildings, vehicles, and streetscape objects are modeled procedurally. City data is generated by an offline pipeline; the running scene does not request maps from geographic data services. README screenshots are presentation assets, not textures used by the 3D scene.
 
-## 数据、开发状态与致谢
+## Data, Development Status, and Credits
 
-本项目是城市漫游与可视化实验。楼高、场馆细节、道路纵断面、航线及演出中含有明确标记的估计或原创内容；局部可操作不等于全城通行验收通过，也不作为现实导航与开放信息。
+This is a city exploration and visualization experiment. Building heights, venue details, road profiles, flight routes, and performances include explicitly recorded estimates or original content. A working local route does not establish citywide traversability, and the scene is not a source of real-world navigation or opening information.
 
-- [当前覆盖、已验证功能与限制](docs/HANDOFF.md)
-- [组件与功能文档索引](docs/README.md)
-- [开发检查流程](docs/25-FAST-CHECKS.md) · [任务与验收缺口](docs/TASKS.md)
-- [数据署名与许可](data/source/ATTRIBUTION.md) · [数据来源与快照清单](data/source/sources.json)
+Project documentation is primarily in Chinese:
 
-派生自 [Slop New York](https://github.com/mrdoob/slop-newyork)，数据组织参考 [Slop Wuhan](https://github.com/LightYearZh/slop-wuhan)。感谢原作者与开放地理数据社区。代码保留 [MIT 许可](LICENSE) 与原作者署名；地理数据另遵守 OSM / Overture、GloBFP、Copernicus 和 FABDEM 等来源的各自许可与限制。
+- [Current coverage, verified features, and limitations](docs/HANDOFF.md)
+- [Component and feature documentation](docs/README.md)
+- [Development checks](docs/25-FAST-CHECKS.md) · [Tasks and verification gaps](docs/TASKS.md)
+- [Data attribution and licensing](data/source/ATTRIBUTION.md) · [Sources and snapshot inventory](data/source/sources.json)
+
+Derived from [Slop New York](https://github.com/mrdoob/slop-newyork), with data organization informed by [Slop Wuhan](https://github.com/LightYearZh/slop-wuhan). Thanks to the original authors and the open geographic data community. Code retains the [MIT license](LICENSE) and original author attribution. Geographic data remains subject to the respective licenses and restrictions of OSM / Overture, GloBFP, Copernicus, FABDEM, and other sources.
