@@ -172,6 +172,7 @@ export function createCbdProgram(origin, night) {
 
   let total = 0;
   let paused = false;
+  let playbackRate = 1;
   let lastFrame = -1;
   let visibleSince = null;
   document.addEventListener('visibilitychange', () => {
@@ -197,10 +198,13 @@ export function createCbdProgram(origin, night) {
     emission,
     get active() { return enabled.value === 1; },
     get paused() { return paused; },
+    get playbackRate() { return playbackRate; },
+    toggleSpeed() { playbackRate = playbackRate === 1 ? 2 : 1; },
+    next() { total = CBD_CUES[cbdCue(total).index + 1] ?? 0; render(true); },
     get time() { return total; },
     get cue() { return cbdCue(total).index; },
     get statistics() { return { textures: 1, width: WIDTH, height: HEIGHT, updateHz: SAMPLE_RATE }; },
-    start() { enabled.value = 1; this.replay(); },
+    start() { playbackRate = 1; enabled.value = 1; this.replay(); },
     replay() { total = 0; paused = false; render(true); },
     togglePause() { paused = !paused; },
     stop() { enabled.value = 0; paused = false; },
@@ -208,7 +212,7 @@ export function createCbdProgram(origin, night) {
       if (!this.active || paused || document.hidden) return;
       const visibleDt = visibleSince === null ? dt : (performance.now() - visibleSince) / 1000;
       visibleSince = null;
-      total += Math.max(0, Math.min(dt, visibleDt));
+      total += Math.max(0, Math.min(dt, visibleDt)) * playbackRate;
       if (night.value > 0.32) render();
     }
   };

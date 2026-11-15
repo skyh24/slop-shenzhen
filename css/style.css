@@ -1900,6 +1900,8 @@ body.hud-minimized .program-panel {
 }
 
 .program-actions {
+  flex-basis: 100%;
+  flex-wrap: wrap;
   display: flex;
   gap: 2px;
 }

@@ -110,6 +110,18 @@ test('the program clock loops continuously and honors pause, hidden tabs, replay
   assert.equal(program.time, 109);
   program.replay();
   assert.equal(program.time, 0);
+  program.toggleSpeed();
+  program.update(2);
+  assert.equal(program.time, 4);
+  program.togglePause();
+  for (const cue of [1, 2, 3, 0]) {
+    program.next();
+    assert.equal(program.cue, cue);
+    assert.equal(program.paused, true);
+  }
+  program.stop();
+  program.start();
+  assert.equal(program.playbackRate, 1);
   program.stop();
   program.update(10);
   assert.equal(program.time, 0);

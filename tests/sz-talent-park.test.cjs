@@ -160,6 +160,21 @@ test('show resources are allocated on entry and disposed across pause, replay, l
   const { scene, walk, source, lake, colliders } = await load();
   global.document = { hidden: false };
   const show = createTalentDroneShow(scene, { airspace: walk.airspace, lake, colliders, lakeHeight: source.simulation.lakeHeightM });
+  show.start();
+  show.toggleSpeed();
+  show.update(0.25);
+  assert.equal(show.time, 0.5);
+  show.togglePause();
+  for (const cue of [1, 2, 3, 4, 5, 6, 7, 8, 0]) {
+    show.next();
+    assert.equal(show.cue, cue);
+    assert.equal(show.paused, true);
+  }
+  show.stop();
+  show.start();
+  assert.equal(show.playbackRate, 1);
+  show.stop();
+
   assert.ok(show.available);
   const camera = walk.arrival;
   const frame = seconds => {

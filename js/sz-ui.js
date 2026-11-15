@@ -238,6 +238,7 @@ export function wireShowPrograms({ shows, controllerManager, cameraSystem, light
   const menuButton = document.getElementById('btn-program');
   const feedback = document.getElementById('program-feedback');
   const pause = document.getElementById('program-pause');
+  const speed = document.getElementById('program-speed');
   const cue = document.getElementById('program-cue');
   const credit = document.getElementById('program-credit');
   const status = document.getElementById('program-status');
@@ -308,6 +309,11 @@ export function wireShowPrograms({ shows, controllerManager, cameraSystem, light
     if (cue.textContent !== label) cue.textContent = label;
     if (status.textContent !== notice) status.textContent = notice;
     status.hidden = !notice;
+    const speedLabel = program.playbackRate === 2 ? STR.program.normalSpeed : STR.program.speed;
+    if (speed.textContent !== speedLabel) {
+      speed.textContent = speedLabel;
+      speed.setAttribute('aria-pressed', String(program.playbackRate === 2));
+    }
     const pauseLabel = program.paused ? STR.program.resume : STR.program.pause;
     if (pause.textContent !== pauseLabel) {
       pause.textContent = pauseLabel;
@@ -342,6 +348,11 @@ export function wireShowPrograms({ shows, controllerManager, cameraSystem, light
   }
 
   pause.addEventListener('click', () => { session.target?.show.program.togglePause(); syncControls(); });
+  speed.addEventListener('click', () => { session.target?.show.program.toggleSpeed(); syncControls(); });
+  document.getElementById('program-next').addEventListener('click', () => {
+    session.target?.show.program.next();
+    syncControls();
+  });
   document.getElementById('program-replay').addEventListener('click', () => {
     session.target?.show.program.replay();
     syncControls();

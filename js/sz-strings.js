@@ -365,6 +365,9 @@ export const STR = {
   program: {
     label: '节目',
     light: '灯光展',
+    speed: '加速 ×2',
+    normalSpeed: '恢复 ×1',
+    next: '下一个',
     location: '莲花山看灯光秀',
     original: '福田 CBD · 项目原创节目',
     noArrival: '暂时无法安全抵达山顶平台',

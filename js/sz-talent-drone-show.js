@@ -54,7 +54,7 @@ export function createTalentDroneShow(scene, { airspace, lake, colliders, lakeHe
   const cx = Math.sin(airspace.heading), cz = Math.cos(airspace.heading);
   let group = null, leds = null, bodies = null, total = 0, paused = false, cue = 0, loops = 0;
   let replayAt = null, retreat = null, retreatTime = 0, changing = false, stageId = null, updateMs = 0;
-  let nearCount = 0;
+  let nearCount = 0, playbackRate = 1;
 
   function createMeshes() {
     group = new THREE.Group();
@@ -110,6 +110,14 @@ export function createTalentDroneShow(scene, { airspace, lake, colliders, lakeHe
     available: Boolean(clear),
     get active() { return group !== null; },
     get paused() { return paused; },
+    get playbackRate() { return playbackRate; },
+    toggleSpeed() { playbackRate = playbackRate === 1 ? 2 : 1; },
+    next() {
+      if (!group) return;
+      total = plan.stages.find(stage => !stage.changing && stage.start > total && stage.cue !== cue)?.start ?? 0;
+      retreat = replayAt = null;
+      draw(null, plan, total);
+    },
     get time() { return total; },
     get cue() { return cue; },
     get replayPending() { return replayAt !== null || retreat !== null; },
@@ -121,6 +129,7 @@ export function createTalentDroneShow(scene, { airspace, lake, colliders, lakeHe
     start() {
       if (!clear || group) return false;
       total = cue = loops = 0;
+      playbackRate = 1;
       paused = false;
       createMeshes();
       draw(null, plan, 0);
@@ -147,7 +156,7 @@ export function createTalentDroneShow(scene, { airspace, lake, colliders, lakeHe
     },
     update(dt, camera) {
       if (!group || document.hidden) return;
-      const delta = paused || dt > 0.5 ? 0 : Math.max(0, dt);
+      const delta = paused || dt > 0.5 ? 0 : Math.max(0, dt) * playbackRate;
       if (retreat) {
         retreatTime += delta;
         if (retreatTime < retreat.duration) {
