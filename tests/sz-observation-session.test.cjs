@@ -117,7 +117,7 @@ test('failed program changes keep the active orbit or prior show and restore the
   assert.equal(document.getElementById('btn-program').focused, true);
 });
 
-test('air cruise enters flight, offers two speeds in one row and leaves the aircraft hovering', () => {
+test('air cruise enters flight and offers speed, pause, restart and exit in one row', () => {
   const { document } = dom();
   const { wireAirCruise } = loadModule(read('sz-air-cruise-ui.js'), {
     imports: { './sz-strings.js': strings, './sz-observation-session.js': sessionModule }, globals: { document }
@@ -131,9 +131,11 @@ test('air cruise enters flight, offers two speeds in one row and leaves the airc
     setSpeed(speedMps) { this.speedCalls.push(speedMps); return true; },
     get active() { return activeRoute !== null; },
     get route() { return activeRoute; },
-    status: 'aligning', distance: 0, altitude: 200, targetHeight: 200,
-    start(next) { if (accepted) activeRoute = next; return accepted; },
-    stop() { activeRoute = null; }
+    status: 'aligning', distance: 0, altitude: 200, targetHeight: 200, restartCalls: 0,
+    start(next) { if (accepted) { activeRoute = next; this.status = 'aligning'; this.distance = 0; } return accepted; },
+    stop() { activeRoute = null; this.status = 'idle'; },
+    togglePause() { this.status = this.status === 'paused' ? 'flying' : 'paused'; },
+    restart() { this.restartCalls += 1; this.distance = 0; this.status = 'aligning'; }
   };
   const cameraSystem = {
     activePresetId: 'action', orbitYawOffset: 0.7, orbitPitchOffset: 0.1, zoomMultiplier: 1.2, userOrbitTimer: 2,
@@ -168,26 +170,39 @@ test('air cruise enters flight, offers two speeds in one row and leaves the airc
   assert.deepEqual(modeCalls, ['helicopter', 'helicopter']);
   assert.equal(touchEnabled, false);
   assert.equal(cameraSystem.activePresetId, 'chase');
-  // 一行三个键：快速 ×2 / 游览 ×1 / 退出，初始按游览速度。
-  const fast = document.getElementById('air-cruise-fast');
-  const scenic = document.getElementById('air-cruise-scenic');
-  // 一行三个键，文案由 index.html 的 data-text 本地化写入。
+  // 第二行控制四个键：速度切换 / 暂停·继续 / 重启 / 退出，初始按游览速度。
+  const speedButton = document.getElementById('air-cruise-speed');
+  const pauseButton = document.getElementById('air-cruise-pause');
+  const replayButton = document.getElementById('air-cruise-replay');
   const html = readFileSync(join(__dirname, '../index.html'), 'utf8');
   const actions = html.split('<div class="cruise-actions">')[1].split('</div>')[0];
-  for (const id of ['air-cruise-fast', 'air-cruise-scenic', 'air-cruise-exit']) {
+  for (const id of ['air-cruise-speed', 'air-cruise-pause', 'air-cruise-replay', 'air-cruise-exit']) {
     assert.match(actions, new RegExp(`id="${id}"`));
   }
-  assert.doesNotMatch(actions, /air-cruise-boost|air-cruise-pause|air-cruise-replay/);
+  assert.doesNotMatch(actions, /air-cruise-fast|air-cruise-scenic|air-cruise-boost/);
   assert.equal(strings.STR.cruise.fast, '快速 ×2');
   assert.equal(strings.STR.cruise.scenic, '游览 ×1');
-  assert.equal(scenic.getAttribute('aria-pressed'), 'true');
-  assert.equal(fast.getAttribute('aria-pressed'), 'false');
-  scenic.click();
-  assert.deepEqual(cruise.speedCalls, [], '游览速度已是当前档，不重复下发');
-  fast.click();
-  assert.equal(fast.getAttribute('aria-pressed'), 'true');
-  assert.equal(scenic.getAttribute('aria-pressed'), 'false');
+  // 游览速度下速度键显示要切过去的「快速 ×2」，切过去以后改成「游览 ×1」。
+  assert.equal(speedButton.textContent, '快速 ×2');
+  assert.equal(speedButton.getAttribute('aria-pressed'), 'false');
+  speedButton.click();
   assert.deepEqual(cruise.speedCalls, [600 / 3.6]);
+  assert.equal(speedButton.textContent, '游览 ×1');
+  assert.equal(speedButton.getAttribute('aria-pressed'), 'true');
+  // 暂停键在暂停后变成继续，再按回到飞行状态。
+  cruise.status = 'flying';
+  pauseButton.click();
+  assert.equal(cruise.status, 'paused');
+  assert.equal(pauseButton.textContent, '继续');
+  pauseButton.click();
+  assert.equal(cruise.status, 'flying');
+  assert.equal(pauseButton.textContent, '暂停');
+  // 重启沿用当前航线，从起点重新对准。
+  cruise.distance = 400;
+  replayButton.click();
+  assert.equal(cruise.restartCalls, 1);
+  assert.equal(cruise.distance, 0);
+  assert.equal(cruise.status, 'aligning');
   // 巡游中可以换机位；退出时停在上空，不再恢复进入前的相机。
   cameraSystem.orbitYawOffset = 1.4;
   ui.close();
@@ -195,7 +210,8 @@ test('air cruise enters flight, offers two speeds in one row and leaves the airc
   assert.equal(cruise.active, false);
   // 退出时回到游览速度，下一次巡游从 300 km/h 起步。
   assert.deepEqual(cruise.speedCalls, [600 / 3.6, 300 / 3.6]);
-  assert.equal(scenic.getAttribute('aria-pressed'), 'true');
+  assert.equal(speedButton.getAttribute('aria-pressed'), 'false');
+  assert.equal(speedButton.textContent, '快速 ×2');
   assert.equal(touchEnabled, true);
   assert.equal(cameraSystem.activePresetId, 'chase');
   assert.equal(cameraSystem.orbitYawOffset, 0);

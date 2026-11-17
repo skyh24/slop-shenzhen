@@ -229,11 +229,13 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   }
 
   function requestLane(car, direction) {
-    if (!run || run.cruiseSpeed != null || run.paused || run.unsafe || reservation) return false;
+    // 定速巡航与自动行驶共用同一份路线：巡航时也能打灯换道，路线随之整体平移。
+    if (!run || !run.route || run.paused || run.unsafe || reservation) return false;
     const stop = run.route.stops[run.stopIndex];
     const route = laneAssist?.request(run.route, car, direction, run.index, stop?.s ?? run.route.length);
     if (!route) return false;
     run.route = route;
+    run.laneMerged = false;
     statistics.routeLength = route.length;
     return true;
   }
@@ -272,7 +274,10 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     if (mode !== 'car') { stop('manual'); return null; }
     const cruising = run.cruiseSpeed != null;
     if (cruising) {
-      if (steering || run.unsafe) run.route = null;
+      if (steering || run.unsafe) {
+        run.route = null;
+        laneAssist?.cancel();
+      }
       if (!steering && run.steering && !reservation && !run.request) tryCruiseRoute(car);
       run.steering = steering;
       run.unsafe = null;
@@ -306,10 +311,17 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
       return straightCruise(car, elapsed, clearsReservation);
     }
     if (!progress || progress.error > 2.6) { stop('blocked'); return null; }
+    run.progressError = progress.error;
     run.index = progress.i;
     const advance = progress.s - run.s;
     run.s = Math.max(run.s, progress.s);
     if (run.cruiseSpeed == null) statistics.travelled = run.s;
+    // 换道并入目标车道后按新车位重新规划，巡航留在新车道而不是自己回到原车道。
+    if (cruising && laneAssist?.active && !run.laneMerged && run.s >= laneAssist.mergedS) {
+      run.laneMerged = true;
+      laneAssist.cancel('complete');
+      tryCruiseRoute(car);
+    }
     if (run.cruiseSpeed == null && route.length - run.s < 0.7 && Math.abs(car.speed) < 0.05) {
       stop('arrived');
       return { throttle: 0, brake: 1, steerAngle: 0, permitMove: () => true };
@@ -336,7 +348,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     run.request = requested;
     const held = signal && !reservation && (exitBlocked || !control.canEnter(signal.approach, elapsed, ACTOR));
     // 高速时留足转向、偏航和轮胎响应时间，避免短前视反复过度纠偏。
-    const lookAhead = cruising ? Math.min(40, 3.5 + speed * 0.9) : Math.min(9, 3.5 + speed * 0.43);
+    const lookAhead = cruising ? Math.min(34, 3.5 + speed * 0.55) : Math.min(9, 3.5 + speed * 0.43);
     const target = sampleAhead(route.samples, run.index, Math.min(route.length, run.s + lookAhead));
     const dx = target.x - car.position.x, dz = target.z - car.position.z;
     const lateral = dx * Math.cos(car.heading) - dz * Math.sin(car.heading);
@@ -371,7 +383,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
       cruise: cruising,
       steerAngle: desiredSteer,
       avoidContact: true,
-      deflect() { run.route = null; },
+      deflect() { run.route = null; laneAssist?.cancel(); },
       rejectMove(kind) {
         if (kind === 'traffic') {
           run.stalled = 0;
@@ -411,6 +423,15 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
 
   return { start, queue, pause, resume, stop, update, canStart, requestLane, startCruise,
     get cruising() { return run?.cruiseSpeed != null; },
+    // QA：巡航路线是否已并入车道，以及规划长度；用于区分“直线兜底”和“已锁车道”。
+    get cruiseRouteLength() { return run?.route?.length ?? 0; },
+    // QA：巡航路线相对车位的横向误差与路线里程，用于区分“贴线行驶”和“锁了路线却偏出去”。
+    get cruiseError() { return run?.progressError ?? null; },
+    get cruiseS() { return run?.s ?? null; },
+    get cruiseSample() {
+      const point = run?.route?.samples?.[run.index];
+      return point ? { x: point.x, z: point.z, s: point.s, osmId: point.edge?.osmId ?? null, name: point.edge?.name ?? '' } : null;
+    },
     get active() { return Boolean(departure || (run && run.cruiseSpeed == null)); },
     get status() { return status; },
     get route() { return activeRoute; },

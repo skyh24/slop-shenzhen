@@ -8,6 +8,10 @@ const TURN_BEND = 9;
 const CURVATURE_LIMIT = 0.18;
 // 弯道最低限速：再急的弯也保持前进，直角弯不再把车速压到 4 m/s 以下。
 const CURVE_MIN_SPEED = 5.5;
+// 弯道横向加速度预算与车辆抓地一致；按舒适度算会在真实车道的缓弯里无故降速。
+const CURVE_LATERAL_ACCELERATION = 9.5;
+// 曲率测量窗口：折线离散化的定点转角不能当作真实弯道曲率。
+const CURVATURE_WINDOW = 6;
 const CRUISE = 80 / 3.6;
 const PLANNING_BRAKE = 2;
 const SNAP_CELL = 48;
@@ -153,15 +157,22 @@ function laneSegments({ path, start, end }, roads) {
 function validateSamples(samples, model, roadHeight, isClear, stops, roads) {
   const limits = samples.map(sample => roads.get(sample.edge).speed);
   const curveLimits = samples.map(() => Infinity);
-  for (let i = 1; i < samples.length; i++) {
-    const a = samples[i - 1], b = samples[i];
-    const turn = Math.atan2(a.dz * b.dx - a.dx * b.dz, a.dx * b.dx + a.dz * b.dz);
-    const curvature = Math.abs(turn) / (b.s - a.s);
-    if (curvature > CURVATURE_LIMIT) return { failedAt: (a.s + b.s) / 2 };
-    const limit = Math.max(CURVE_MIN_SPEED, Math.sqrt(2.25 / Math.max(curvature, 0.001)));
-    curveLimits[i - 1] = Math.min(curveLimits[i - 1], limit);
+  // 曲率取前后各约 6 米的弦：折线顶点、路段接缝的单点转角会被放大成尖峰曲率，
+  // 按段逐点计算会让明显可过的缓弯也触发减速和白刹车。
+  let before = 0;
+  for (let i = 1, after = 1; i < samples.length - 1; i++) {
+    while (before < i - 1 && samples[before + 1].s <= samples[i].s - CURVATURE_WINDOW) before++;
+    while (after < samples.length - 1 && samples[after].s < samples[i].s + CURVATURE_WINDOW) after++;
+    const a = samples[before], b = samples[i], c = samples[after];
+    const ab = Math.hypot(b.x - a.x, b.z - a.z), bc = Math.hypot(c.x - b.x, c.z - b.z);
+    const ca = Math.hypot(a.x - c.x, a.z - c.z);
+    if (Math.min(ab, bc, ca) < 1e-3) continue;
+    // 三点外接圆曲率：对圆弧精确，也不受采样步长影响。
+    const cross = (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
+    const curvature = 2 * Math.abs(cross) / (ab * bc * ca);
+    if (curvature > CURVATURE_LIMIT) return { failedAt: b.s };
+    const limit = Math.max(CURVE_MIN_SPEED, Math.sqrt(CURVE_LATERAL_ACCELERATION / Math.max(curvature, 0.001)));
     curveLimits[i] = Math.min(curveLimits[i], limit);
-    limits[i - 1] = Math.min(limits[i - 1], limit);
     limits[i] = Math.min(limits[i], limit);
   }
   // 即使当前是绿灯，进路口也先降速。预计用时另加平均等待。

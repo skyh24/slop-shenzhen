@@ -416,13 +416,13 @@ export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, on
         if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) onHonk();
         break;
       case 'KeyJ':
-      case 'KeyL':
+      case 'KeyK':
         if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) onLane?.(e.code === 'KeyJ' ? 1 : -1);
         break;
       case 'KeyF':
         if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) onSpeedCruise?.();
         break;
-      case 'KeyK':
+      case 'KeyL':
         if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) onToggleLane?.();
         break;
       case 'Escape':

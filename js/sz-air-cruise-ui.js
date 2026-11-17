@@ -11,8 +11,9 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
   const status = document.getElementById('air-cruise-state');
   const progress = document.getElementById('air-cruise-progress');
   const telemetry = document.getElementById('air-cruise-telemetry');
-  const fast = document.getElementById('air-cruise-fast');
-  const scenic = document.getElementById('air-cruise-scenic');
+  const speedButton = document.getElementById('air-cruise-speed');
+  const pauseButton = document.getElementById('air-cruise-pause');
+  const replayButton = document.getElementById('air-cruise-replay');
   const feedback = document.getElementById('air-cruise-feedback');
   // 游览 ×1 为 eVTOL 极速的一半（300 km/h），快速 ×2 为极速 600 km/h；路线按所选速度重算，弯道只按比例减速。
   const fastKmh = Math.round(cruise.fullSpeed * 3.6) || 600;
@@ -65,8 +66,16 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
   });
 
   labelSpeed();
-  fast.addEventListener('click', () => setSpeed(fastKmh));
-  scenic.addEventListener('click', () => setSpeed(scenicKmh));
+  // 速度键显示的是“下一步要切到的档位”：游览时显示快速 ×2，快速时显示游览 ×1。
+  speedButton.addEventListener('click', () => setSpeed(speed === fastKmh ? scenicKmh : fastKmh));
+  pauseButton.addEventListener('click', () => {
+    cruise.togglePause();
+    labelPause();
+  });
+  replayButton.addEventListener('click', () => {
+    cruise.restart();
+    labelPause();
+  });
 
   function selected(route) {
     if (!route || typeof route.atSpeed !== 'function') return route;
@@ -76,8 +85,18 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
   }
 
   function labelSpeed() {
-    fast.setAttribute('aria-pressed', String(speed === fastKmh));
-    scenic.setAttribute('aria-pressed', String(speed === scenicKmh));
+    // 文案写的是点下去会切到的档位：当前游览就显示快速 ×2，当前快速就显示游览 ×1。
+    const text = speed === fastKmh ? words.scenic : words.fast;
+    speedButton.textContent = text;
+    speedButton.setAttribute('aria-label', text);
+    speedButton.setAttribute('aria-pressed', String(speed === fastKmh));
+  }
+
+  function labelPause() {
+    const text = cruise.status === 'paused' ? words.resume : words.pause;
+    pauseButton.textContent = text;
+    pauseButton.setAttribute('aria-label', text);
+    pauseButton.disabled = cruise.status === 'complete';
   }
 
   function setSpeed(kmh) {
@@ -166,6 +185,7 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
     }
     if (now && now < lastTelemetry) return;
     lastTelemetry = now + 200;
+    labelPause();
     progress.value = cruise.distance / cruise.route.distance;
     telemetry.textContent = words.telemetry(cruise.distance, cruise.route.distance, cruise.altitude, cruise.targetHeight);
   }

@@ -1945,7 +1945,7 @@ body[data-cruising] #drive-hud {
 }
 
 .cruise-actions {
-  /* 快速 ×2 / 游览 ×1 / 退出 保持一行。 */
+  /* 速度切换（游览时显示快速 ×2）/ 暂停·继续 / 重启 / 退出 保持一行。 */
   display: flex;
   flex-wrap: nowrap;
   gap: 3px;

@@ -104,10 +104,10 @@ test('cruise settles onto a straight lane without weaving at 36 to 120 km/h acro
   }
 });
 
-test('cruise brakes before consecutive bends, tracks both directions and recovers its set speed', t => {
+test('cruise holds its set speed through lane bends instead of braking on curvature', t => {
   for (const hz of [30, 60, 120]) {
     const points = [[0, 0], [0, 300]];
-    for (let u = 12; u <= 360; u += 12) points.push([(u <= 180 ? 24 : 12) * (1 - Math.cos(2 * Math.PI * u / 180)), 300 + u]);
+    for (let u = 12; u <= 360; u += 12) points.push([(u <= 180 ? 6 : 3) * (1 - Math.cos(2 * Math.PI * u / 180)), 300 + u]);
     points.push([0, 1460]);
     const graph = { nodes: points.flat(), nodeIds: [], names: ['S bends'],
       links: points.slice(1).map((_, i) => [i, i + 1, 0, 10.5, 3, 1, []]),
@@ -123,19 +123,15 @@ test('cruise brakes before consecutive bends, tracks both directions and recover
     const auto = createAutoDrive({ model, roadHeight, planCruise: planner.planCruise });
     assert.ok(auto.startCruise(car, car.speed));
     controller.cruiseSpeed = car.speed;
-    const bendSpeeds = [Infinity, Infinity];
-    let beforeBend = null, maxError = 0, minSpeed = Infinity, maxLateralAcceleration = 0, left = false, right = false;
+    let maxError = 0, minSpeed = Infinity, maxLateralAcceleration = 0, left = false, right = false;
     for (let frame = 0; frame < hz * 100 && car.position.z < 1320; frame++) {
       const input = auto.update(car, { dt: 1 / hz, elapsed: frame / hz, mode: 'car', manual: false });
       controller.updateCar(1 / hz, input);
-      if (beforeBend === null && car.position.z > 285) beforeBend = car.speed;
       if (car.position.z >= 300 && car.position.z <= 660) {
         minSpeed = Math.min(minSpeed, car.speed);
         maxLateralAcceleration = Math.max(maxLateralAcceleration, Math.abs(car.speed * car.angularVel));
-        left ||= car.heading > 0.15;
-        right ||= car.heading < -0.15;
-        if (car.position.z > 330 && car.position.z < 450) bendSpeeds[0] = Math.min(bendSpeeds[0], car.speed);
-        if (car.position.z > 510 && car.position.z < 630) bendSpeeds[1] = Math.min(bendSpeeds[1], car.speed);
+        left ||= car.heading > 0.05;
+        right ||= car.heading < -0.05;
       }
       let error = Infinity;
       for (let i = 1; i < reference.samples.length; i++) {
@@ -147,20 +143,21 @@ test('cruise brakes before consecutive bends, tracks both directions and recover
       maxError = Math.max(maxError, error);
       assert.equal(controller.cruiseSpeed, 120 / 3.6);
     }
-    const detail = JSON.stringify({ hz, beforeBend, maxError, minSpeed, bendSpeeds, maxLateralAcceleration, z: car.position.z, speed: car.speed });
-    assert.ok(beforeBend < 16, detail);
-    assert.ok(maxError < 0.65, detail);
-    assert.ok(left && right && minSpeed < 12 && minSpeed > 2, detail);
-    assert.ok(maxLateralAcceleration < 3.2, detail);
-    assert.ok(bendSpeeds[1] > bendSpeeds[0] + 1, detail);
+    const detail = JSON.stringify({ hz, maxError, minSpeed, maxLateralAcceleration, z: car.position.z, speed: car.speed });
+    // 120 km/h 通过半径约 100 米的缓弯时贴线误差约 1 米，仍在 3.5 米车道内。
+    assert.ok(maxError < 1.1, detail);
+    assert.ok(left && right, detail);
+    // 缓弯的实际曲率低于车辆抓地预算，定速不再为曲率让速。
+    assert.ok(Math.abs(minSpeed - 120 / 3.6) < 0.3, detail);
+    assert.ok(maxLateralAcceleration < 9.5, detail);
     assert.ok(car.position.z >= 1320 && car.speed > 33, detail);
     t.diagnostic(detail);
   }
 });
 
 test('a tight corner keeps the planned speed above a moving floor', t => {
-  // 半径 12 m 的 90° 直角弯：曲率 1/12，按 2.25 m/s² 横向舒适度原本只能算出约 5.2 m/s，
-  // 现在由 CURVE_MIN_SPEED 抬到 5.5 m/s，过弯不再掉到爬行速度。
+  // 半径 12 m 的 90° 直角弯：曲率 1/12，按 9.5 m/s² 的抓地预算可到约 10.7 m/s，
+  // 远超 CURVE_MIN_SPEED 的 5.5 m/s 下限；只有真正超出抓地的弯才会让速。
   // 折线每段都不短于 6 m，否则 traffic 的 100 m 网格不会登记该段，巡航无法从车旁取到起点。
   const radius = 12;
   const points = [];
@@ -182,9 +179,11 @@ test('a tight corner keeps the planned speed above a moving floor', t => {
   assert.ok(route && route.samples.length > 30, 'the corner route plans');
   // 巡航用 curveLimits（曲率 + 提前制动），末点的 Infinity 表示终点由路线终点停车逻辑处理。
   const floor = Math.min(...route.curveLimits.slice(0, -1));
-  const detail = JSON.stringify({ floor, samples: route?.samples.length });
-  assert.ok(floor >= 5.4, detail);
-  assert.ok(floor < 6, detail);
+  const at = route.curveLimits.indexOf(floor);
+  const near = route.samples.slice(Math.max(0, at - 4), at + 4).map(p => [+p.s.toFixed(2), +Math.atan2(p.dx, p.dz).toFixed(3)]);
+  const detail = JSON.stringify({ floor, samples: route?.samples.length, at, near });
+  assert.ok(floor > 11.5, detail);
+  assert.ok(floor < 12.5, detail);
   t.diagnostic(detail);
 });
 
@@ -372,6 +371,45 @@ test('lane requests require an active route and keep the same destination after 
   assert.ok(Math.hypot(car.position.x - route.to.x, car.position.z - route.to.z) < 0.7);
   assert.equal(auto.requestLane(car, 1), false);
   assert.equal(laneAssist.active, false);
+});
+
+test('cruise changes lanes at its set speed instead of only on automatic routes', () => {
+  const roadHeight = () => 0;
+  const graph = { nodes: [0, 0, 0, 2000], nodeIds: [], names: ['Straight'],
+    links: [[0, 1, 0, 10.5, 3, 1, []]], metadata: [groundRoad(1)] };
+  const planner = createDrivePlanner(traffic.createTrafficGraph(graph), graph, { model, roadHeight, isClear: () => true });
+  const { controller, car } = playerCarFixture(roadHeight);
+  Object.assign(car.position, { x: -3.5, y: 0, z: 20 });
+  car.heading = 0;
+  car.speed = 120 / 3.6;
+  const laneAssist = createLaneAssist({ model, roadHeight, isClear: () => true, nearTraffic: () => [] });
+  const auto = createAutoDrive({ model, roadHeight, planCruise: planner.planCruise, nearTraffic: () => [], laneAssist });
+  assert.equal(auto.startCruise(car, car.speed), true);
+  controller.cruiseSpeed = car.speed;
+  const dt = 1 / 60;
+  let elapsed = 0;
+  const tick = () => {
+    const input = auto.update(car, { dt, elapsed, mode: 'car', manual: false });
+    controller.updateCar(dt, input);
+    elapsed += dt;
+  };
+  for (let i = 0; i < 240; i++) tick();
+  assert.equal(auto.cruising, true);
+  // 最右车道没有右侧邻道，换道请求应当被拒绝而不是改坏路线。
+  assert.equal(auto.requestLane(car, -1), false);
+  assert.equal(auto.requestLane(car, 1), true);
+  let minSpeed = car.speed, maxX = car.position.x;
+  for (let i = 0; i < 300; i++) {
+    tick();
+    minSpeed = Math.min(minSpeed, car.speed);
+    maxX = Math.max(maxX, car.position.x);
+  }
+  const detail = JSON.stringify({ minSpeed, maxX, x: car.position.x, status: laneAssist.status });
+  assert.ok(minSpeed > 120 / 3.6 - 0.3, `cruise keeps its set speed through a lane change: ${detail}`);
+  assert.ok(maxX > -1.1, `the car moves into the neighbouring lane: ${detail}`);
+  assert.ok(Math.abs(car.position.x) < 0.6, `the car settles on the next lane centre: ${detail}`);
+  assert.equal(auto.cruising, true, 'the lane change leaves the cruise running');
+  assert.equal(auto.requestLane(car, 1), true);
 });
 
 test('route planning respects directed links, actual pavement, and source turn restrictions', () => {
