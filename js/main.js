@@ -168,7 +168,7 @@ async function initApp() {
   markInit('lighting');
 
   await showLoadingStage(STR.startup.ground, 'ground');
-  const { site, sea, ground, roads, roadGraph, elevatedRoads, roadStructures, roadLandscape, roadFrontage, roadPaint,
+  const { site, sea, ground, roads, roadGraph, elevatedRoads, tunnels, roadLandscape, roadFrontage, roadPaint,
     publicWalk, districts, carriagewayOccupied, bayPaths, pilotBayPaths, parkBayPaths, waterfrontPaths, urbanPaving, summit, parkOmissions, cbdProgram,
     landmarks, iec, northStation, bridge, yanjiang, themeParks, cityBlocks, lightShow, buildingSigns, buildingDetails,
     streetscape, talentPark, waterfront, trees, vegetation, streetLamps, apecTheme, apecCity, futianStation, xiliConstruction, colliders } = await prepareSceneSite(scene, {
@@ -187,8 +187,8 @@ async function initApp() {
     ...site,
     // 车公庙高架车行链路：桥面顶面三角面来自 elevatedRoads，车流、自动规划和轮胎接触共用同一表面身份。
     elevated: {
-      links: [...elevatedRoads.drive.links, ...roadStructures.links],
-      heightAt: (x, z, id) => roadStructures.heightAt(x, z, id) ?? elevatedRoads.drive.heightAt(x, z, id)
+      links: [...elevatedRoads.drive.links, ...tunnels.drive.links],
+      heightAt: (x, z, id) => tunnels.drive.heightAt(x, z, id) ?? elevatedRoads.drive.heightAt(x, z, id)
     },
     nearRegional: regional.colliders, signals: roadFrontage.control, detailedRoadIds: roadFrontage.detailedRoadIds,
     canTurn: createTurnFilter(roadGraph)
@@ -205,7 +205,7 @@ async function initApp() {
     inWetland: createPolygonLookup(GEO.wetland),
     onRoad: (x, z) => Number.isFinite(roads.roadHeight(x, z)),
     roadDecks: new Set([...elevatedRoads.drive.surfaces.map(surface => surface.id),
-      ...roadStructures.links.map(link => link.surfaceId)])
+      ...tunnels.drive.links.map(link => link.surfaceId)])
   });
   let saved;
   try { saved = JSON.parse(localStorage.getItem(PLAYER_STATE_KEY)); }
@@ -219,7 +219,7 @@ async function initApp() {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
     cruiseCurbs: roadFrontage.curbColliders,
-    surfaces: [...cityBlocks.surfaces, ...themeParks.surfaces, ...(northStation?.surfaces ?? []), ...landmarks.surfaces, ...elevatedRoads.surfaces, ...roadStructures.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
+    surfaces: [...cityBlocks.surfaces, ...themeParks.surfaces, ...(northStation?.surfaces ?? []), ...landmarks.surfaces, ...elevatedRoads.surfaces, ...tunnels.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
     nearTraffic: traffic.nearColliders, nearWalkers: nearTalentPeople, nearRegional: regional.colliders, flightSettings: GEO.airCruises?.flight,
     groundIdentity: waterfrontPaths.groundIdentity,
     // 单车按实际地面承托与实体碰撞通行，不再被区域用途标签拦住。
@@ -304,7 +304,7 @@ async function initApp() {
     } catch { /* Storage may be disabled or full. */ }
   }
 
-  const cameraSystem = new CameraSystem(renderer.domElement, controllerManager, roadStructures.constrainCamera);
+  const cameraSystem = new CameraSystem(renderer.domElement, controllerManager, tunnels.constrainCamera);
   const trafficFrustum = new THREE.Frustum();
   const trafficViewProjection = new THREE.Matrix4();
   const trafficBounds = new THREE.Box3();
@@ -341,7 +341,7 @@ async function initApp() {
     audioSystem.dispose();
     pedestrians.dispose();
     publicWalk.dispose();
-    roadStructures.dispose();
+    tunnels.dispose();
     roadLandscape.dispose();
     districts.dispose();
     northStation?.dispose();
@@ -365,7 +365,7 @@ async function initApp() {
       else firstByMaterial.set(chunk.material, chunk);
     }
   }
-  setupSceneCulling(scene, [...cullingRoots, roadStructures.group, roadLandscape.group, landmarks.group, themeParks.group, summit.group, iec?.group, bridge.group, yanjiang, streetscape.group, publicWalk.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group,
+  setupSceneCulling(scene, [...cullingRoots, tunnels.group, roadLandscape.group, landmarks.group, themeParks.group, summit.group, iec?.group, bridge.group, yanjiang, streetscape.group, publicWalk.group, roadFrontage.group, roadPaint.group, streetLamps.group, trees.group, apecTheme.group,
     futianStation?.group, xiliConstruction?.group].filter(Boolean), lightingSystem.sunLight.shadow);
 
   const dynamicRoots = [
@@ -790,7 +790,7 @@ async function initApp() {
         lamps: streetLamps, trees, vegetation, themeParks, apec: apecTheme, apecCity, drones, lightShow,
         summit, cbdProgram, waterfront, regional, talentPark,
         get talentProgram() { return talentPark.program; }, get talentPeople() { return talentPark.people; }, programIds: cityBlocks.programIds ?? [], parkOmissions,
-        elevatedRoads, roadStructures, metroEntrances, futian: futianStation, xili: xiliConstruction, northStation
+        elevatedRoads, tunnels, metroEntrances, futian: futianStation, xili: xiliConstruction, northStation
       },
       teleport: teleportTo,
       getElapsed: () => elapsed,

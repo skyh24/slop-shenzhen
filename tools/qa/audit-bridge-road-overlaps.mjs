@@ -27,7 +27,7 @@ const hook = registerHooks({ resolve(specifier, context, next) {
 try {
   const { Group } = await import('three/webgpu');
   const { planElevatedRoads } = await import('../../js/sz-elevated-roads.js');
-  const { buildSzRoadStructures, graphWithRoadStructures } = await import('../../js/sz-road-structures.js');
+  const { buildSzRoadStructures, graphWithRoadStructures } = await import('./sz-road-structures.js');
   const { createGroundSurfaceSampler } = await import('../../js/sz-ground-surface.js');
   const { createCitySpatial } = await import('../../js/sz-spatial.js');
   const { isGroundRoad, roadLinkPoints } = await import('../../js/sz-roads.js');

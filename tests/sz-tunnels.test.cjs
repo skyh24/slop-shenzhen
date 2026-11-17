@@ -6,7 +6,7 @@ const { pathToFileURL } = require('node:url');
 const { loadModule } = require('./helpers/module.cjs');
 const { fixtureTerrainSurface } = require('./helpers/terrain-surface.cjs');
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
-const auditSource = readFileSync(join(__dirname, '../tools/qa/sz-tunnels.js'), 'utf8');
+const auditSource = readFileSync(join(__dirname, '../js/sz-tunnels.js'), 'utf8');
 
 const roads = loadModule(read('sz-roads.js'), { imports: {
   'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
@@ -40,10 +40,10 @@ const DEEP_INTERCHANGES = [{
 function loadTunnels(three = {}) {
   return loadModule(auditSource, { imports: {
     'three/webgpu': three,
-    '../../js/sz-roads.js': roads,
-    '../../js/sz-ground-surface.js': groundSurface,
-    '../../js/sz-polygon.js': polygonModule,
-    '../../js/sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
+    './sz-roads.js': roads,
+    './sz-ground-surface.js': groundSurface,
+    './sz-polygon.js': polygonModule,
+    './sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
   } });
 }
 
@@ -127,7 +127,9 @@ function polygonArea2D(ring) {
 test('tunnel planning is deterministic and selects only OSM tunnel links inside the interchange areas', () => {
   const first = plan();
   const second = plan();
-  assert.deepEqual(first, second);
+  // heightAt 是闭包，按函数比较；其余数据（含 Float32Array）必须逐字一致。
+  const stable = value => ({ ...value, drive: { ...value.drive, heightAt: typeof value.drive.heightAt } });
+  assert.deepEqual(stable(first), stable(second));
   assert.equal(first.version, 1);
   assert.equal(first.heightSource, 'estimate');
   assert.equal(tunnels.TUNNEL_LAYER_DEPTH_M, 6);
@@ -382,10 +384,10 @@ test('real THREE build raycasts the tunnel floor from inside the bore',
     } });
     const module = loadModule(auditSource, { imports: {
       'three/webgpu': THREE,
-      '../../js/sz-roads.js': realRoads,
-      '../../js/sz-ground-surface.js': groundSurface,
-      '../../js/sz-polygon.js': polygonModule,
-      '../../js/sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
+      './sz-roads.js': realRoads,
+      './sz-ground-surface.js': groundSurface,
+      './sz-polygon.js': polygonModule,
+      './sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
     } });
     const scene = new THREE.Scene();
     const built = module.buildSzTunnels(scene, { graph: fixture(), terrainSurface: SURFACE, interchanges: INTERCHANGES, buildings: buildings() });
@@ -450,4 +452,229 @@ test('real Shenzhen snapshot exposes sourced tunnels and the review list', () =>
   assert.equal(result.statistics.reviewItems, result.reviewList.length);
   assert.equal(result.statistics.heightSource, 'estimate');
   assert.ok(result.statistics.limitations.some(text => /估算/.test(text)));
+});
+
+
+// ---------------------------------------------------------------------------
+// 全城通用隧道（docs/36）：纵断面走 sink 口径（共享地面端 12 m 由地面压到洞底），
+// 只有地形覆盖高差 > 5.6 m 的洞身段才建几何。下面几条测例覆盖平地无洞身、中间山体、
+// 开敞段判定、洞口过渡与墙体碰撞。
+// ---------------------------------------------------------------------------
+
+// 夹具：一条 400 m 隧道接在两条地面道路之间；地形高程由测例直接注入函数。
+function wholeCityGraph(tunnelMetadata = {}, lengthM = 400) {
+  return {
+    nodes: [-100, 0, 0, 0, lengthM, 0, lengthM + 100, 0],
+    names: ['Ground West', 'Tunnel', 'Ground East'],
+    links: [
+      [0, 1, 0, 8, 2, 0, []],
+      [1, 2, 1, 8, 2, 0, []],
+      [2, 3, 2, 8, 2, 0, []]
+    ],
+    metadata: [
+      { osmId: 'way/101', heightSource: 'terrain', bridge: false, tunnel: false, layer: 0 },
+      { osmId: 'way/102', heightSource: 'unresolved', bridge: false, tunnel: true, layer: -1, ...tunnelMetadata },
+      { osmId: 'way/103', heightSource: 'terrain', bridge: false, tunnel: false, layer: 0 }
+    ]
+  };
+}
+
+function wholeCityPlan(groundHeight, tunnelMetadata = {}, lengthM = 400) {
+  return tunnels.planSzTunnels(wholeCityGraph(tunnelMetadata, lengthM), SURFACE,
+    { wholeCity: true, groundHeight });
+}
+
+// 2020 m 缓坡山体：地形从洞口 0 平滑升到中点 30 m，洞口开敞段能落在 4 m 采样站上。
+function hillGroundHeight(x) {
+  return 30 * Math.sin(Math.PI * Math.max(0, Math.min(1, x / 2020)));
+}
+
+test('whole-city tunnel on flat ground stays a pavement-only surface', () => {
+  // layer 0：路面与地形齐平，没有覆盖高差，也就没有洞身。
+  const result = wholeCityPlan(() => 10, { layer: 0 });
+  assert.equal(result.wholeCity, true);
+  assert.equal(result.links.length, 1);
+  assert.equal(result.surfaces.length, 1);
+  assert.equal(result.surfaces[0].id, 'sz-tunnel:1');
+  assert.equal(result.surfaces[0].heightSource, 'estimate');
+  assert.equal(result.surfaces[0].climbableFromGround, true);
+  // 地形不高于路面 → 没有洞身段，也就没有洞身几何、洞门和碰撞体。
+  assert.equal(result.chunks.length, 0);
+  assert.equal(result.portals.length, 0);
+  assert.equal(result.colliders.length, 0);
+  assert.equal(result.statistics.boreTunnels, 0);
+  assert.equal(result.statistics.boreLengthM, 0);
+  assert.equal(result.statistics.triangles, 0);
+  // 路面自身仍然要渲染（地面道路渲染器跳过 tunnel 边），只是不进洞身 chunks。
+  assert.ok(result.pavementChunks.length >= 1);
+  assert.ok(result.pavementChunks.every(chunk => chunk.id.includes(':pavement:')));
+  assert.ok(result.statistics.pavementTriangles > 0);
+  assert.equal(result.links[0].clearanceM, tunnels.TUNNEL_CLEARANCE_M);
+  assert.equal(result.links[0].portalSpans.length, 0);
+  // 路面三角面仍然登记为通行面，且纵坡为 0。
+  for (const frame of result.links[0].frames) {
+    assert.equal(frame.floorY, 10);
+    assert.ok(Number.isFinite(frame.x) && Number.isFinite(frame.z));
+  }
+  assert.equal(result.links[0].topTriangles.length, (result.links[0].frames.length - 1) * 2);
+  assert.equal(result.drive.links.length, 1);
+  assert.equal(result.drive.heightAt(200, 0, 'sz-tunnel:1'), 10);
+});
+
+test('whole-city tunnel under a hill builds bores, portals and 5.2 m clearance', () => {
+  const result = wholeCityPlan(hillGroundHeight, {}, 2020);
+  const link = result.links[0];
+  assert.ok(link.boreLengthM > 200, 'bore length ' + link.boreLengthM);
+  assert.equal(link.portalSpans.length, 1);
+  assert.equal(link.clearanceM, 5.2);
+  assert.ok(Math.abs(link.startDeckY - 0) < 1e-9);
+  assert.ok(Math.abs(link.endDeckY - 0) < 1e-9);
+  assert.ok(link.maxGrade <= 0.12);
+  assert.equal(link.drivable, true);
+  assert.equal(result.drive.links.length, 1);
+  // 两端洞门：洞顶与门楣相差 0.9 m，洞门高度是 5.2 + 0.9。
+  assert.equal(result.portals.length, 2);
+  for (const portal of result.portals) {
+    assert.ok(Math.abs(portal.ceilingY - portal.y - 5.2) < 1e-9);
+    assert.ok(Math.abs(portal.topY - portal.ceilingY - 0.9) < 1e-9);
+    assert.ok(Number.isFinite(portal.x) && Number.isFinite(portal.z));
+  }
+  assert.ok(result.chunks.length >= 1);
+  assert.ok(result.colliders.length > 0);
+  assert.ok(result.colliders.some(collider => collider.type === 'tunnel-wall'));
+  assert.ok(result.colliders.some(collider => collider.type === 'tunnel-slab'));
+  // 洞里净空 5.2 m，所有顶点坐标必须是有限值。
+  for (const chunk of result.chunks) {
+    assert.equal(chunk.positions.length % 9, 0);
+    assert.equal(chunk.positions.length, chunk.colors.length);
+    assert.ok(Array.from(chunk.positions).every(Number.isFinite));
+    assert.ok(chunk.triangles > 0);
+  }
+  for (const frame of link.frames) {
+    assert.ok(Math.abs(frame.ceilingY - frame.floorY - 5.2) < 1e-9);
+    assert.ok(Number.isFinite(frame.groundY) && Number.isFinite(frame.floorY));
+  }
+  assert.equal(result.statistics.boreTunnels, 1);
+  assert.equal(result.statistics.portalCount, 2);
+  assert.ok(result.statistics.lights > 100, 'lights ' + result.statistics.lights);
+});
+
+test('open stretches sit at both tunnel ends while the bore stays in the middle', () => {
+  const link = wholeCityPlan(hillGroundHeight, {}, 2020).links[0];
+  const span = link.portalSpans[0];
+  const inside = frame => frame.d >= span.fromM && frame.d <= span.toM;
+  const frames = link.frames;
+  const middle = frames.filter(frame => inside(frame) && frame.d > span.fromM + 20 && frame.d < span.toM - 20);
+  assert.ok(middle.length > 0);
+  for (const frame of middle) assert.ok(frame.sep > 0.6, 'bore frame sep ' + frame.sep);
+  // 开敞段：地形 - 路面 ∈ (0.05, 5.6) 的区段在洞身两端之外。
+  const open = frames.filter(frame => !inside(frame) && frame.sep > 0.05 && frame.sep < 5.6);
+  assert.ok(open.length > 0);
+  assert.ok(open.every(frame => frame.d < span.fromM || frame.d > span.toM));
+  // 洞口两端地形与路面齐平。
+  assert.ok(frames[0].sep < 0.05);
+  assert.ok(frames[frames.length - 1].sep < 0.05);
+});
+
+test('whole-city wall colliders match the bore height and stay thin', () => {
+  const result = wholeCityPlan(hillGroundHeight, {}, 2020);
+  const link = result.links[0];
+  const walls = result.colliders.filter(collider => collider.type === 'tunnel-wall');
+  assert.ok(walls.length > 0);
+  for (const wall of walls) {
+    assert.equal(wall.polygon.outer.length, 4);
+    // 每段墙跨两个采样站，高度 = 5.2 m 净空 + 一站纵坡高差（洞内坡 ≤ 0.12）。
+    assert.ok(wall.maxY - wall.minY <= 5.2 + link.maxGrade * 4 + 1e-6);
+    assert.ok(wall.maxY - wall.minY >= 5.2 - 1e-6);
+    assert.ok(Number.isFinite(wall.minX) && Number.isFinite(wall.maxZ));
+    // 沿墙轴线只占 0.35 m 厚，不把洞内空间填满。
+    assert.ok(polygonArea2D(wall.polygon.outer) < 5);
+  }
+  const minFloor = Math.min(...link.frames.map(frame => frame.floorY));
+  const maxCeiling = Math.max(...link.frames.map(frame => frame.ceilingY));
+  for (const slab of result.colliders.filter(collider => collider.type === 'tunnel-slab')) {
+    assert.ok(slab.minY >= minFloor + 5.2 - 1e-6);
+    assert.ok(slab.maxY <= maxCeiling + 0.4 + 1e-6);
+    assert.equal(slab.polygon.outer.length, 4);
+  }
+});
+
+test('sink profile keeps a mid-line depression closed where a linear profile would open it', () => {
+  // 两端 10 m、中点 0 m 的地形：线性路面会被拉成 10 m 直线，中段 sep = -10 m（凭空开洞）；
+  // sink 口径让路面跟随地形下压，中段仍然是覆盖 6 m 的洞身。
+  const dip = x => 10 - 10 * Math.sin(Math.PI * Math.max(0, Math.min(1, x / 400)));
+  const result = wholeCityPlan(dip, {}, 400);
+  const link = result.links[0];
+  assert.ok(link.frames.every(frame => frame.sep > -1e-6));
+  const dipFrames = link.frames.filter(frame => frame.d > 150 && frame.d < 250);
+  assert.ok(dipFrames.length > 0);
+  assert.ok(dipFrames.every(frame => frame.sep > 5.6));
+  assert.equal(link.portalSpans.length, 1);
+  assert.equal(result.portals.length, 2);
+  assert.ok(result.portals.every(portal => portal.x < 20 || portal.x > 380));
+});
+
+test('a 100 m layer -1 tunnel keeps only the middle 77.6 m as bore', () => {
+  const result = wholeCityPlan(() => 10, { layer: -1 }, 100);
+  const link = result.links[0];
+  assert.ok(Math.abs(link.boreLengthM - 77.6) <= 4, 'bore length ' + link.boreLengthM);
+  assert.equal(link.portalSpans.length, 1);
+  assert.equal(result.portals.length, 2);
+  assert.equal(link.frames[0].floorY, 10);
+  assert.ok(link.frames.every(frame => Math.abs(frame.ceilingY - frame.floorY - 5.2) < 1e-9));
+  assert.ok(link.maxGrade <= 0.12 + 1e-9, 'max grade ' + link.maxGrade);
+  assert.equal(link.drivable, true);
+  assert.equal(result.statistics.boreTunnels, 1);
+  assert.equal(result.drive.links.length, 1);
+});
+
+test('a tunnel split across two OSM ways stays connected through the shared node', () => {
+  const graph = {
+    nodes: [-100, 0, 0, 0, 200, 0, 400, 0, 500, 0],
+    names: ['Ground West', 'Bore West', 'Bore East', 'Ground East'],
+    links: [
+      [0, 1, 0, 8, 2, 0, []],
+      [1, 2, 1, 8, 2, 0, []],
+      [2, 3, 2, 8, 2, 0, []],
+      [3, 4, 3, 8, 2, 0, []]
+    ],
+    metadata: [
+      { osmId: 'way/301', heightSource: 'terrain', bridge: false, tunnel: false, layer: 0 },
+      { osmId: 'way/302', heightSource: 'unresolved', bridge: false, tunnel: true, layer: -2 },
+      { osmId: 'way/303', heightSource: 'unresolved', bridge: false, tunnel: true, layer: -2 },
+      { osmId: 'way/304', heightSource: 'terrain', bridge: false, tunnel: false, layer: 0 }
+    ]
+  };
+  const result = tunnels.planSzTunnels(graph, SURFACE, { wholeCity: true, groundHeight: () => 10 });
+  assert.equal(result.links.length, 2);
+  const [west, east] = result.links;
+  assert.ok(west.structureNeighbors.includes(east.surfaceId));
+  assert.ok(east.structureNeighbors.includes(west.surfaceId));
+  assert.ok(west.structureNeighbors.includes('terrain') && east.structureNeighbors.includes('terrain'));
+  assert.ok(Math.abs(west.endDeckY - east.startDeckY) <= 0.35);
+  assert.equal(result.drive.links.length, 2);
+  // 按 sz-traffic.js:186-192 的规则模拟：邻居包含对方 surfaceId，且同层洞底高差 ≤ 0.35 m。
+  const connectable = (edge, next) => edge.structureNeighbors.includes(next.surfaceId)
+    && Math.abs(edge.endDeckY - next.startDeckY) <= 0.35;
+  assert.equal(connectable(west, east), true);
+  assert.equal(connectable(east, west), true);
+});
+
+test('steep or isolated whole-city tunnels stay out of the drive graph', () => {
+  const steep = wholeCityPlan(x => x * 0.25, {}, 2020);
+  assert.ok(steep.links[0].maxGrade > 0.12);
+  assert.equal(steep.links[0].drivable, false);
+  assert.equal(steep.drive.links.length, 0);
+  assert.equal(steep.statistics.blockedTunnels, 1);
+
+  const isolated = tunnels.planSzTunnels({
+    nodes: [0, 0, 400, 0],
+    names: ['Lonely tunnel'],
+    links: [[0, 1, 0, 8, 2, 0, []]],
+    metadata: [{ osmId: 'way/201', heightSource: 'unresolved', bridge: false, tunnel: true, layer: -1 }]
+  }, SURFACE, { wholeCity: true, groundHeight: () => 10 });
+  assert.equal(isolated.links.length, 1);
+  assert.equal(isolated.links[0].drivable, false);
+  assert.equal(isolated.drive.links.length, 0);
+  assert.equal(isolated.statistics.drivableLinks, 0);
 });

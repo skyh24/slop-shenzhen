@@ -105,6 +105,8 @@
 
 **当前有 4 个正式构建入口，可以归为 3 个实现家族。** 这是实现路径数量，不是四种同样可以开的高架模板。
 
+> 2026-11-17 补注：`js/sz-road-structures.js` 已退居 `tools/qa/sz-road-structures.js`，运行时改由 [36 号通用道路结构面](../36-GENERIC-ROAD-STRUCTURES.md) 从路网图与地形派生。本节以下数字与判断是调研当时的记录。
+
 | 实现家族 | 构建入口 | 当前范围与数量 |
 | --- | --- | --- |
 | 旧高架/立交 | `buildSzElevatedRoads` | 按 main 参数规划 73 条车行桥面记录，其中 59 条进入 `driveLinks`；另 6 条步行桥，共 79 个 surface |
@@ -112,9 +114,9 @@
 | 远景桥梁 | `buildShenzhenBayBridge` | 深圳湾大桥 1 个模型；main 没有登记为驾驶 surface |
 | 同上 | `buildYanjiangExpressway` | 沿江海上高架 23 个源段，合成混凝土/路面两个网格；返回远景 Group |
 
-旧高架的 73 条按区域分为车公庙 37、深南广深 15、竹子林 7、大沙河白石 4、深圳北 10。前三处恰为旧文档的 59 条桥面；它和整个旧系统当前 59 条 `driveLinks` 是不同口径，不能混用。新系统的 126 条也不是 126 座独立桥梁，更不代表全部完成实车验收。[正式入口](../../js/main.js) · [旧高架](../../js/sz-elevated-roads.js) · [新桥隧](../../js/sz-road-structures.js) · [远景桥梁](../../js/sz-landmarks/shenzhen-bay-bridge.js)
+旧高架的 73 条按区域分为车公庙 37、深南广深 15、竹子林 7、大沙河白石 4、深圳北 10。前三处恰为旧文档的 59 条桥面；它和整个旧系统当前 59 条 `driveLinks` 是不同口径，不能混用。新系统的 126 条也不是 126 座独立桥梁，更不代表全部完成实车验收。[正式入口](../../js/main.js) · [旧高架](../../js/sz-elevated-roads.js) · [新桥隧](../../tools/qa/sz-road-structures.js) · [远景桥梁](../../js/sz-landmarks/shenzhen-bay-bridge.js)
 
-旧高架规划器遇到 tunnel 只统计、审核而不生成洞身，但新 `sz-road-structures` 的 24 条隧道记录已生成洞顶、侧壁、灯和车行 surface/link，main 已将其传入交通图。不能继续沿用“正式场景完全没有洞身”的旧描述，旧架构文档列出的 `sz-tunnels.js` 也不在当前源码中。本轮未验证各条端点可达性、连续驾驶或净空。[旧高架的隧道过滤](../../js/sz-elevated-roads.js) · [新隧道和连接](../../js/sz-road-structures.js) · [交通图](../../js/sz-traffic.js)
+旧高架规划器遇到 tunnel 只统计、审核而不生成洞身，但新 `sz-road-structures` 的 24 条隧道记录已生成洞顶、侧壁、灯和车行 surface/link，main 已将其传入交通图。不能继续沿用“正式场景完全没有洞身”的旧描述，旧架构文档列出的 `sz-tunnels.js` 也不在当前源码中。本轮未验证各条端点可达性、连续驾驶或净空。[旧高架的隧道过滤](../../js/sz-elevated-roads.js) · [新隧道和连接](../../tools/qa/sz-road-structures.js) · [交通图](../../js/sz-traffic.js)
 
 ### 能合并的部分
 
@@ -122,7 +124,7 @@
 - **桥板、护栏、桥墩构件**：两个可交互规划器给出一致的边界/标高输入，共用生成显示和碰撞的构件函数。先合构件，后评估迁移入口，不立即替换全部纵断面和连接策略。
 - **铺装节点与色板**：地表和独立铺装可共用拼缝等着色函数；不为统一材质而把现有地表拆成十二份网格。材质缓存使用完整参数键，兼顾分块释放。
 
-依据：[地面道路材质](../../js/sz-road-material.js)、[旧高架材质/构件](../../js/sz-elevated-roads.js)、[新结构材质/构件](../../js/sz-road-structures.js)、[桥梁专模](../../js/sz-landmarks/shenzhen-bay-bridge.js)。
+依据：[地面道路材质](../../js/sz-road-material.js)、[旧高架材质/构件](../../js/sz-elevated-roads.js)、[新结构材质/构件](../../tools/qa/sz-road-structures.js)、[桥梁专模](../../js/sz-landmarks/shenzhen-bay-bridge.js)。
 
 ### 必须保留的差别
 

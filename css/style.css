@@ -1648,6 +1648,7 @@ body[data-mode='helicopter'] .gauge-alt {
 
 .gps-swatch,
 .bridge-swatch,
+.tunnel-swatch,
 .waterfront-walk-swatch,
 .waterfront-cycle-swatch {
   width: 16px;
@@ -1657,6 +1658,7 @@ body[data-mode='helicopter'] .gauge-alt {
 
 .gps-swatch { background: var(--taxi); }
 .bridge-swatch { background: var(--highway); }
+.tunnel-swatch { background: repeating-linear-gradient(90deg, #8792a1 0 3px, transparent 3px 6px); }
 .waterfront-walk-swatch { background: #c1a67e; }
 .waterfront-cycle-swatch { background: #78c6ba; }
 

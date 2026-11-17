@@ -311,7 +311,7 @@ class QaSession {
     if (modules.drones?.statistics) console.info('[drone routes]', JSON.stringify(modules.drones.statistics));
     window.__szLightShow = modules.lightShow;
     window.__szElevatedRoads = modules.elevatedRoads;
-    window.__szRoadStructures = modules.roadStructures;
+    window.__szTunnels = modules.tunnels;
     window.__szMetroEntrances = modules.metroEntrances;
     window.__szFutian = modules.futian;
     window.__szXili = modules.xili;

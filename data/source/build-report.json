@@ -358558,11 +358558,11 @@
     ],
     "unresolvedLinks": [],
     "timing": {
-      "baselineSeconds": 0.047,
-      "stationSeconds": 0.297,
-      "profileSeconds": 1.996,
-      "vertexSeconds": 2.106,
-      "totalSeconds": 4.687
+      "baselineSeconds": 0.106,
+      "stationSeconds": 0.55,
+      "profileSeconds": 3.722,
+      "vertexSeconds": 3.649,
+      "totalSeconds": 8.417
     },
     "limitations": [
       "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
@@ -358729,11 +358729,11 @@
   },
   "terrainSurface": {
     "chunks": 1264,
-    "vertices": 706133,
-    "triangles": 1079176,
+    "vertices": 708851,
+    "triangles": 1081923,
     "areaKm2": 279.029742,
     "areaErrorM2": -2.86e-06,
-    "seconds": 4.78,
+    "seconds": 5.35,
     "waterLevelsGenerated": false,
     "heightSource": "urban-datum",
     "exclusions": [
@@ -359094,6 +359094,12 @@
     ],
     "stonePavingAreaM2": 206135.5,
     "groundCarriagewayRemovedPavingM2": 5175.133
+  },
+  "tunnelPortals": {
+    "links": 153,
+    "portalSpans": 233,
+    "cutM2": 28737.172,
+    "genericCutM2": 28734.933
   },
   "roadFrontage": {
     "corridors": [
@@ -376353,7 +376359,7 @@
     "roadSourceSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3"
   },
   "roadStructures": {
-    "portalCutM2": 128948.04,
+    "portalCutM2": 128942.565,
     "landscape": {
       "patches": [
         "beihuan-xinzhou:flower-bed",
@@ -558534,13 +558540,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "f2ae5b6f31c14068ad2360212f59433a40d9b3f90374f513cc13d2a98891a9ee",
-    "bytes": 267036,
-    "decodedBytes": 1240101,
+    "fingerprint": "2f18f358fbabf2b137af86385f993af5bf9f7ecf8bf70331e1af9e7f90ecb008",
+    "bytes": 266718,
+    "decodedBytes": 1238338,
     "files": {
-      "js/sz-regional/f2ae5b6f31c14068ad23/waterfront.json.gz": "b1ed2a4c52ce9905d8e49608e1c043a11a2d92f76e5da04ef1813300c49519c1",
-      "js/sz-regional/f2ae5b6f31c14068ad23/metro.json.gz": "8f4d16ecec16229b135f9ca027703e9a5b75568b31bbbe284d9b5e44ec205544",
-      "js/sz-regional/f2ae5b6f31c14068ad23/drone.json.gz": "9ad2a6463140b7c15ce662f83949d026fd7edef34bb12a8627d28c3264913e4d"
+      "js/sz-regional/2f18f358fbabf2b137af/waterfront.json.gz": "efcd254b1c2c284fc89880f2d5f4ad696436373aa4f464e12fac3965b3e3fab4",
+      "js/sz-regional/2f18f358fbabf2b137af/metro.json.gz": "f1afc531583ce182e591c638b87982b03a68e9052bca3b0aed71d23e73a198d7",
+      "js/sz-regional/2f18f358fbabf2b137af/drone.json.gz": "e960c639be4a1f876a1a4de52e33f9857aafd4fe563a04b7311b2a530da90546"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -558559,7 +558565,7 @@
       "js/sz-building-layout.js": "3a2b4c3fe9d87563e8eb05a95e96bdc34b37be3afc086425d1dae36c3c7e4dac",
       "js/sz-building-signs.js": "2a7e85c69669e691f8d8a6a5eb09f313c48486bee6b7bb9c6b9431e1222e33ad",
       "js/sz-buildings.js": "1dca46fa6f977903ab8a74665474b44a7b2748f914c4bd2a531e2ce0f186d241",
-      "js/sz-cbd-program.js": "b25603edda86e86eec10464efd636534e57f8bb940cbdb69b3bf9c8e0b871559",
+      "js/sz-cbd-program.js": "b918e0ef26669b3019e239a5118a352f6792fd4e0028944d4ce2836b564ac78d",
       "js/sz-city-config.js": "b1b4ec387c705b5830abb149aabfee1de028e8e0cd081101376ad6278cd60b5c",
       "js/sz-controller-surfaces.js": "0c3242d581331b7ca43826a0f080499629783c9fc410e116ab472a9fd1ae226e",
       "js/sz-data-format.js": "7eae9e1e2566976ee61f6151c6c1e5d657750d53d0c4492fac1bbaaf3f7ac731",
@@ -558573,7 +558579,7 @@
       "js/sz-drone-choreography.js": "4d6283f31889df2a6918d45072ca7548e665768802ebb35c752c4a3bb86b2b04",
       "js/sz-drone-formations.js": "b748ea4a6b94e7035940e7b4ebcef29fd6c6621b6a049da5dfb809060165accc",
       "js/sz-drone-routes.js": "c90d72fde184c5b12ecd1879fe0a198a16679da4d81dbb4bee22dd7612b8bf6f",
-      "js/sz-elevated-roads.js": "b8ff9860c4530b9e5dacbea368ef8c0dfb5f4e2d85571317bd3a8a0b64c4a7ab",
+      "js/sz-elevated-roads.js": "89255372f67f5d440722b465cf53c91e80b7761d1ddfe23ed141c082c3ad4f12",
       "js/sz-facade-profiles.js": "69bba93370dde7fa8a9e90fb9727b736cfca447c9a2ef849e329cc275e285c37",
       "js/sz-geodata.js": "bf4588164f4d975988ec49a2681e4b9d870fab46c6cf415b6a8b0d4dff9aa91e",
       "js/sz-geometry.js": "8823c7e3325e4787048055faf827fd546da537666252837dda440104ae095fbf",
@@ -558639,9 +558645,8 @@
       "js/sz-road-material.js": "2b87b12d8a643b397968a0e6ec0fd7a5c01c140e666e59ed070b2767ab4caf6d",
       "js/sz-road-paint.js": "599ba157263bbbd9cd6b9033abb8678ab4c4f42241de1ab4f9dc8d133e1e091b",
       "js/sz-road-section.js": "3866de6cb6fdb665462b2ae66d9c09f22d0e8e036c125479b0e91f74f788e687",
-      "js/sz-road-structures.js": "5b433624f5beabaf3b1120180b4981d17ad144b5384ec1b9eae3b030f32d18e3",
       "js/sz-roads.js": "45dc35fd549e3b5bae1aca5fad3ae3f27b22c33e4e886ae3d6375961363dd0bd",
-      "js/sz-scene-site.js": "c9f103a062e07af1cff41f3da44ef64cc006f3d3c75503ac7f808ea039161362",
+      "js/sz-scene-site.js": "c5037bbf273f68e7bcca79c28b5f48ad2a27a91b9fbf130d56a49304919dd819",
       "js/sz-scene-style.js": "fbc7b6cdb08a25dfb7f8ff773e3b4bddce309d2973bce2d256a45b06f1fef027",
       "js/sz-sea.js": "1c69243a4c3f9002bdde397b10bed63b840074df52df9118f88215680393d5a7",
       "js/sz-site-fixtures.js": "9f9dcfc6ce5d46f97cc4d25f581269429481dcf08b0068e37e1cb043f81e9798",
@@ -558649,8 +558654,8 @@
       "js/sz-station-sites.js": "e00d8163e48cc5413cf2df083934c9273dbcedc96ed231c269b7a9513448e079",
       "js/sz-street-lamps.js": "cd3fd3dbf823ccae7f28eda2fd6047741b75ee5a137122594f957e79ded16c64",
       "js/sz-streetscape.js": "f0c9d749fca8f4a61d223780f5a9885f16504106d0ff44869d95a7dedef184b4",
-      "js/sz-strings.js": "ced40e7eff8fd2db7c7ccd0750231a07fc4086d5cac6a3bcf7aa67ecb953b63f",
-      "js/sz-talent-drone-show.js": "d8a80af676cc644479b78c101b0b85ef2df113c200967723834689bec8c054b9",
+      "js/sz-strings.js": "c13c55d1d379c5bfd509ee99b805c6f34b82033fb6a681eef686603c6cbbba26",
+      "js/sz-talent-drone-show.js": "ed897e95b3506aa62e372eb9fd673bbb4379ae5a4602795a1d9f869bad7a52aa",
       "js/sz-talent-park.js": "17107fabd0f41c916bba84fc5169f6c668ce48b7486078eba52ee4f20bbdf283",
       "js/sz-talent-pedestrians.js": "c0972bced40a487f5d551829cef6dbd40600a5ea58a3de6d9edab57e9c88df5d",
       "js/sz-talent-waterfront.js": "febf480c4af28ff875fcccf6dca730fe013d7102f88e090885002e4b8b13a0a7",
@@ -558664,6 +558669,7 @@
       "js/sz-theme-parks/sites.js": "1de1f26ca47954345088529af856539d8356eb78ebd576b662606b35ff50f5f7",
       "js/sz-tree-crown.js": "fe307786aba22098be4a3b3d8e3e32aa1015b2ad67ba46c31cb5efe92282fb74",
       "js/sz-trees.js": "31cb9018cf6691be9537fad62c9b234fabeb98802087aa06a87414b0c9a81cd9",
+      "js/sz-tunnels.js": "33929d886ff807fc8291fb98aa4132b74b38a7b2d38f42e6d24cf034b9fb9610",
       "js/sz-urban-paving.js": "eb474e194c812de5ba2fe011b73664d79097674f179497ca2f17566b27906020",
       "js/sz-vegetation-layout.js": "732425135858fae7a294b4775cbafd2fc6742dd4e158f213f4e971b1d24241f0",
       "js/sz-vegetation.js": "16cf3897a203552a6733a18cd6c00e54cb77801ddcec8efac78fe3974c98bdc9",
@@ -559205,7 +559211,7 @@
     },
     "shore": {
       "walkRoutes": 120,
-      "colliders": 11480
+      "colliders": 11456
     },
     "drone": [
       {
@@ -559224,14 +559230,14 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7901,
-    "metadataBytes": 19289420,
-    "numericBytes": 40704232,
-    "uncompressedBytes": 59993704,
+    "metadataBytes": 19289426,
+    "numericBytes": 40791320,
+    "uncompressedBytes": 60080800,
     "lossless": true,
-    "compressedBytes": 16041294,
-    "compressedSha256": "516b0a3457b4ece3b23d274bc55addbc843bcee6c17aca9b6219e54a5559092e"
+    "compressedBytes": 16114753,
+    "compressedSha256": "303d7272ef574d89bbda92c01c6a13e8dac0a86bfbec5b6e990bfd4d442de785"
   },
-  "outputBytes": 16139444,
-  "outputSha256": "d7ecba1f0d4421e1596ac2d559b9fbf2853275167191124831d0de3d3bbdf2cf",
-  "seconds": 37.5
+  "outputBytes": 16245282,
+  "outputSha256": "159c5df4ff4b573a7992d26a2cff2c39ae6af63e016fac91fa06e0a3021ff58d",
+  "seconds": 738.0
 }
