@@ -248,35 +248,62 @@ function addMedianShrubs(group, foliage, sites, contactHeight, low = false) {
   return matrices.length;
 }
 
-function addShennanFlowerBeds(group, sites, medianHeight, material) {
-  const vertices = [];
-  const rows = [];
-  for (let i = 1; i < sites.length; i += 2) {
-    const [x, a] = sites[i - 1], [nextX, b] = sites[i];
-    if (x !== nextX || !Number.isFinite(medianHeight(x, (a + b) * 0.5))) continue;
-    rows.push({ x, z: (a + b) * 0.5, width: Math.abs(a - b) });
+// 沿绿带主方向每 2 米取一条断面，用边界环的穿越点配对得到可用绿带区间。
+function medianBedRows(feature) {
+  const rings = feature.outlines ?? [];
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const ring of rings) for (let i = 0; i < ring.length; i += 2) {
+    minX = Math.min(minX, ring[i]); maxX = Math.max(maxX, ring[i]);
+    minZ = Math.min(minZ, ring[i + 1]); maxZ = Math.max(maxZ, ring[i + 1]);
   }
+  const alongX = maxX - minX >= maxZ - minZ;
+  if ((alongX ? maxX - minX : maxZ - minZ) < 16) return [];
+  const from = alongX ? minX : minZ, to = alongX ? maxX : maxZ;
+  const rows = [];
+  for (let t = from + 2; t <= to - 2; t += 2) {
+    const hits = [];
+    for (const ring of rings) for (let i = 2; i < ring.length; i += 2) {
+      const ax = ring[i - 2], az = ring[i - 1], bx = ring[i], bz = ring[i + 1];
+      const a = alongX ? ax : az, b = alongX ? bx : bz;
+      if (a === b || (a > t) === (b > t)) continue;
+      const u = (t - a) / (b - a);
+      hits.push(alongX ? az + (bz - az) * u : ax + (bx - ax) * u);
+    }
+    hits.sort((a, b) => a - b);
+    for (let i = 0; i + 1 < hits.length; i += 2) {
+      const width = hits[i + 1] - hits[i];
+      if (width >= 4.5) rows.push({ t, x: alongX ? t : (hits[i] + hits[i + 1]) / 2,
+        z: alongX ? (hits[i] + hits[i + 1]) / 2 : t, width });
+    }
+  }
+  return rows;
+}
+
+function addShennanFlowerBeds(group, rows, medianHeight, material) {
   if (rows.length < 3) return 0;
   const origin = [rows[0].x, rows[0].z];
-  let count = 0, lastX = origin[0] - 18;
+  const vertices = [];
+  let count = 0, lastT = -Infinity;
   for (let i = 1; i < rows.length - 1; i++) {
-    const { x, z, width } = rows[i];
-    if (x - lastX < 32 + (count % 3) * 7 || width < 4) continue;
+    const { t, x, z, width } = rows[i];
+    // 花圃沿路每 42–63 米一块，宽度随绿带收敛，最宽 17 米。
+    if (t - lastT < 42 + (count % 4) * 7 || width < 4.5) continue;
     const dx = rows[i + 1].x - rows[i - 1].x, dz = rows[i + 1].z - rows[i - 1].z;
+    if (dx * dx + dz * dz < 1e-6) continue;
     const angle = Math.atan2(dz, dx);
     const ux = Math.cos(angle), uz = Math.sin(angle);
-    const halfLength = 6.8 + (count % 4) * 2.1;
-    const halfWidth = width * (0.25 + (count % 3) * 0.025);
+    const halfLength = 8.5 + (count % 4) * 2.5;
+    const halfWidth = Math.min(width * (0.24 + (count % 3) * 0.03), 8.5);
     const turn = count % 2 === 0 ? 1 : -1;
     const compact = count % 5 === 2;
     const bed = [];
-    // 逐排采样绿带顶面。靠近端头或开口放不下时跳过整块花带。
+    // 逐排采样绿带顶面。靠近端头或开口放不下时跳过整块花圃。
     for (let j = 0; j <= 14; j++) {
-      const t = j / 14;
-      const along = (2 * t - 1) * halfLength;
-      const bend = Math.sin((compact ? 1 : 2) * Math.PI * t) * halfWidth * 0.54 * turn;
-      const span = halfWidth * (0.04 + 0.96 * Math.sin(Math.PI * t) ** 0.8)
-        * (0.86 + 0.14 * Math.cos(t * Math.PI * 3 + count));
+      const u = j / 14;
+      const along = (2 * u - 1) * halfLength;
+      const bend = Math.sin((compact ? 1 : 2) * Math.PI * u) * halfWidth * 0.54 * turn;
+      const span = halfWidth * (0.04 + 0.96 * Math.sin(Math.PI * u) ** 0.8)
+        * (0.86 + 0.14 * Math.cos(u * Math.PI * 3 + count));
       for (const side of [-1, 1]) {
         const cross = bend + span * side;
         const px = x + ux * along - uz * cross, pz = z + uz * along + ux * cross;
@@ -289,7 +316,7 @@ function addShennanFlowerBeds(group, sites, medianHeight, material) {
       vertices.push(...bed[j - 2], ...bed[j - 1], ...bed[j], ...bed[j], ...bed[j - 1], ...bed[j + 1]);
     }
     count++;
-    lastX = x;
+    lastT = t;
   }
   if (count) group.add(pavingMesh(vertices, origin, material, 'shennan-median:flower-beds'));
   return count;
@@ -311,15 +338,16 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   // 外环和洞沿的源环方向可能相反，双面材料只用于薄路缘侧壁。
   walls.side = THREE.DoubleSide;
   const style = { paint: material(0xf1eee5, -3, 0.84), median: material(0x52673b),
-    'flower-band': plantedSurfaceMaterial(0xbb6658, -1) };
+    'flower-band': plantedSurfaceMaterial(0x8f3f4a, -3) };
   const separator = material(0x9b9e93, -2);
   const islandSoil = plantedSurfaceMaterial(0x626846, -1);
   const grass = plantedSurfaceMaterial(0x4f762b, -2);
-  const flowers = plantedSurfaceMaterial(0x864359);
+  const flowers = plantedSurfaceMaterial(0x864359, -4);
   const medians = new Map(source.corridors.filter(row =>
     row.medianSource?.positionSource === 'documented-median-between-osm-carriageways')
     .map(row => [`${row.id}:median`, row]));
   const medianSamplers = [];
+  const bedRows = [];
   const arterialSamplers = [];
   const samplers = [];
   const planting = [];
@@ -369,6 +397,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       samplers.push(sample);
       if (feature.solidPlanting) plantingSurfaces.push(sample);
       if (verifiedMedian) medianSamplers.push({ bounds: corridor.bounds, sample, planted });
+      if (planted) bedRows.push(...medianBedRows(feature));
       if (!useTreatment) {
         const triangles = addCurbWalls(group, feature, groundHeight, walls, feature.solidPlanting ? null : curbColliders);
         statistics.curbTriangles += triangles;
@@ -407,7 +436,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const foliage = createCompactFoliage();
   statistics.shrubs = addMedianShrubs(group, foliage, sites.filter(([x, z]) => shennanMedianHeight(x, z) === null), contactHeight);
   statistics.islandPlants = addMedianShrubs(group, foliage, source.features.flatMap(f => f.plantSites ?? []), contactHeight, true);
-  statistics.shennanFlowerBeds = addShennanFlowerBeds(group, sites, shennanMedianHeight, flowers);
+  statistics.shennanFlowerBeds = addShennanFlowerBeds(group, bedRows, shennanMedianHeight, flowers);
   scene.add(group);
   return { group, control, contactHeight, shennanMedianHeight, medianHeight, colliders: [...hardware.colliders, ...planting], curbColliders,
     arterialMedianAt: (x, z) => arterialSamplers.some(sample => sample(x, z) !== null),
