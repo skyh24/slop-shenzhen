@@ -512,7 +512,10 @@ class QaSession {
       })), clock: elapsed, control: roadFrontage.control.snapshot?.(elapsed) ?? [],
         crossSections: GEO.roadGraph.metadata.flatMap(({ crossSection, osmId }, i) => crossSection
           ? [{ id: crossSection.id, osmId, widthM: GEO.roadGraph.links[i][3], lanes: GEO.roadGraph.links[i][4], stations: crossSection.points.length / 3 }] : []) },
-      autoDrive: { status: autoDrive.status, ...autoDrive.statistics,
+      laneReason: laneAssist?.detail ?? null,
+      autoDrive: { status: autoDrive.status, cruising: autoDrive.cruising,
+        cruiseRouteLength: autoDrive.cruiseRouteLength, cruiseError: autoDrive.cruiseError,
+        cruiseS: autoDrive.cruiseS, cruiseSample: autoDrive.cruiseSample, ...autoDrive.statistics,
         route: mapSystem.driveRoute && { from: [mapSystem.driveRoute.from.x, mapSystem.driveRoute.from.z],
           to: [mapSystem.driveRoute.to.x, mapSystem.driveRoute.to.z], length: mapSystem.driveRoute.length,
           wayIds: [...new Set(mapSystem.driveRoute.edges.map(edge => edge.osmId))],

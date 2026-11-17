@@ -1476,10 +1476,11 @@ test('lane shortcuts request one direction and leave typing, modifiers and repea
   const calls = [];
   wireShortcuts({ onLane: direction => calls.push(direction), onLaneCancel: () => calls.push('cancel'),
     onToggleLane: () => calls.push('lane toggle'), onSpeedCruise: () => calls.push('speed cruise') });
-  for (const event of [{ code: 'KeyJ' }, { code: 'KeyL' }, { code: 'KeyJ', repeat: true },
-    { code: 'KeyL', ctrlKey: true }, { code: 'KeyJ', target: { tagName: 'INPUT' } }, { code: 'Escape' },
-    { code: 'KeyK' }, { code: 'KeyU' }, { code: 'KeyE' }, { code: 'KeyF' }, { code: 'KeyF', repeat: true },
-    { code: 'KeyF', target: { tagName: 'INPUT' } }, { code: 'KeyF', metaKey: true }, { code: 'KeyK', repeat: true }]) {
+  for (const event of [{ code: 'KeyJ' }, { code: 'KeyK' }, { code: 'KeyJ', repeat: true },
+    { code: 'KeyK', ctrlKey: true }, { code: 'KeyJ', target: { tagName: 'INPUT' } }, { code: 'Escape' },
+    { code: 'KeyL' }, { code: 'KeyL', repeat: true }, { code: 'KeyU' }, { code: 'KeyE' },
+    { code: 'KeyF' }, { code: 'KeyF', repeat: true }, { code: 'KeyF', target: { tagName: 'INPUT' } },
+    { code: 'KeyF', metaKey: true }]) {
     window.dispatch('keydown', event);
   }
   assert.deepEqual(calls, [1, -1, 'cancel', 'lane toggle', 'speed cruise']);

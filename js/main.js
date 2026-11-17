@@ -734,6 +734,8 @@ async function initApp() {
   const carControlsAvailable = () => !cruise.active && !droneWatch.active
     && controllerManager.activeMode === 'car' && !mapSystem.isFullMapOpen;
   const autoCarAvailable = () => carControlsAvailable() && autoDrive.active;
+  // 定速巡航同样能换道：J/K 打灯并入相邻车道，航向由换道后的路线继续给出。
+  const carLaneAvailable = () => carControlsAvailable() && (autoDrive.active || autoDrive.cruising);
   // 四种模式都提供定速：步行与骑行锁当前速度，汽车沿车道定速，飞行保持平飞速度。
   const cruiseAvailable = () => !cruise.active && !droneWatch.active && !mapSystem.isFullMapOpen && !autoDrive.active
     && ['person', 'cyclist', 'car', 'helicopter'].includes(controllerManager.activeMode);
@@ -758,16 +760,17 @@ async function initApp() {
     onToggleSound: () => audioSystem.setEnabled(!audioSystem.enabled),
     onHonk: () => { if (!mapSystem.isFullMapOpen) audioSystem.honk(controllerManager.getActiveEntity()); },
     onLane: direction => {
-      if (autoCarAvailable()) {
+      if (carLaneAvailable()) {
         autoDrive.requestLane(driveCar, direction);
         drivingAssists.render(true, true);
       }
     },
+    // 定速巡航的换道不因 Esc 中断：巡航只退出环视与巡游面板，路线继续向前。
     onLaneCancel: () => { if (autoCarAvailable() && laneAssist.active) autoDrive.stop('manual'); },
     onExitOrbit: landmarkOrbit.stop,
     onExitCruise: cruiseUi.close,
     onSpeedCruise: speedCruise.toggle,
-    onToggleLane: () => { if (autoCarAvailable()) drivingAssists.toggleLane(); }
+    onToggleLane: () => { if (carLaneAvailable()) drivingAssists.toggleLane(); }
   });
   window.addEventListener('resize', () => {
     cameraSystem.onResize(window.innerWidth, window.innerHeight);
@@ -932,9 +935,9 @@ async function initApp() {
       controllerManager.update(dt, elapsed, autoInput);
     }
     const prefetch = cruiseUi.update(now, rawDt);
-    drivingAssists.render(autoCarAvailable());
+    drivingAssists.render(carLaneAvailable());
     speedCruise.render();
-    const hintMode = autoCarAvailable() ? 'autoCar' : controllerManager.activeMode;
+    const hintMode = autoDrive.cruising ? 'cruiseCar' : autoCarAvailable() ? 'autoCar' : controllerManager.activeMode;
     if (elControlsHint?.dataset.mode !== hintMode) renderControlHints(elControlsHint, hintMode);
     landmarkOrbit.update(manual);
     drones.update(dt, cameraSystem.camera.position);
