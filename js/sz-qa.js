@@ -341,6 +341,8 @@ class QaSession {
       speed: item.speed, blocked: item.blocker?.kind ?? null, stalled: item.stalled,
       panic: item.panicAhead ?? null, alarm: item.alarm ?? 0
     }));
+    // QA：读取车流实例（含 vehicles 路线样本），用于诊断车辆在视野内长时间停滞。
+    window.__szTraffic = traffic;
     // QA：同一次场景加载可以切换固定机位；null 恢复游戏相机。
     window.__szSetCamera = (camera) => { this.camera = parseCamera(camera); };
     // QA：查询某点的接触候选面（地形/地标/高架），用于诊断载具卡住。

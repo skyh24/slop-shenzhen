@@ -1,4 +1,5 @@
 import { hasRoadFootprint } from './sz-auto-drive.js';
+import { laneOffsets } from './sz-road-section.js';
 import { bodyExtent, contactTime, sameTrafficLevel, writeEntityCollider } from './sz-driving-motion.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -8,9 +9,15 @@ const MIN_SPEED = 4;
 function laneCenters(edge, model) {
   if (edge.elevated || edge.highway === 'pedestrian' || edge.highway?.endsWith('_link')) return [];
   const { section, sign } = edge;
-  if (section.estimated || section.narrow || (section.twoWay && section.reviewed)) return [];
+  // 宽度估计与窄路仍不换道；已核实断面或 OSM 车道数才有可信的车道中心。
+  if (section.estimated || section.narrow) return [];
   const width = sign === 1 ? section.forwardLaneWidthM : section.backwardLaneWidthM;
   if (width < model.hx * 2 + 0.45) return [];
+  const offsets = laneOffsets(section);
+  // laneOffsets 以行驶方向右侧为正、末位最靠路缘；换回 laneFrame 的左侧为正，并保留原有次序。
+  if (offsets?.length) return offsets.map(offset => -offset).reverse();
+  // 无车道数据时沿用旧规则：双向已核实路不换道，其余退回断面中心数组。
+  if (section.twoWay && section.reviewed) return [];
   return sign === 1 ? section.forwardCentersM : section.backwardCentersM;
 }
 

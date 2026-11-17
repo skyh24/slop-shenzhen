@@ -1,5 +1,5 @@
 import { routeSignalStops } from './sz-intersection-control.js';
-import { usableWidth } from './sz-road-section.js';
+import { laneOffsets, usableWidth } from './sz-road-section.js';
 import { laneRoute, poseOnRoute } from './sz-traffic.js';
 
 const SNAP_RADIUS = 44;
@@ -242,11 +242,15 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
     }
     const rules = graph.metadata[edge.sourceIndex]?.drive;
     if (!usableWidth(edge, model.hx) || !allowsCar(edge, rules, model)) continue;
-    const offsets = edge.section.routeOffsetsM.filter(offset => Math.abs(offset) + model.hx + 0.12 <= edge.section.travelWidthM / 2);
-    const lane = edge.section.twoWay || detailed.has(edge.osmId) ? offsets.at(-1)
+    const { section } = edge;
+    // 双向路取本侧最靠路缘的车道，单向详细路沿用最右侧；无车道数据时退回默认偏移。
+    const offsets = (laneOffsets(section) ?? section.routeOffsetsM)
+      .filter(offset => Math.abs(offset) + model.hx + 0.12 <= section.travelWidthM / 2);
+    const lane = section.twoWay || detailed.has(edge.osmId) ? offsets.at(-1)
       : structureSeams.has(edge) ? 0
       : offsets.reduce((best, offset) => best === undefined || Math.abs(offset) < Math.abs(best) ? offset : best, undefined);
-    if (lane === undefined) continue;
+    // 兜底车道同样必须落在本侧半幅内，否则该边不参与规划。
+    if (lane === undefined || Math.abs(lane) > section.travelWidthM / 2) continue;
     const length = edge.segments.reduce((sum, seg) => sum + seg.length, 0);
     roads.set(edge, { offset: lane, length, speed: speedLimit(edge, rules) });
     let along = 0;
@@ -353,11 +357,15 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
     return null;
   }
 
+  // 巡航车道偏移与 planCruise 的 side、laneSegments 的 offset 同为“行驶方向右侧为正”。
+  // 双向路两个方向都取 laneOffsets（只含本侧半幅）；无车道数据时用同侧中心数组换算。
   function cruiseLanes(edge) {
     const { section } = edge;
     const width = edge.sign === 1 ? section.forwardLaneWidthM : section.backwardLaneWidthM;
-    const centers = edge.sign === 1 ? section.forwardCentersM : section.backwardCentersM;
     if (width < model.hx * 2 + 0.15) return section.defaultOffsetsM;
+    const lanes = laneOffsets(section);
+    if (lanes) return lanes;
+    const centers = section.twoWay || edge.sign === 1 ? section.forwardCentersM : section.backwardCentersM;
     return centers.map(center => -center).reverse();
   }
 

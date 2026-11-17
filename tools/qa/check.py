@@ -19,7 +19,7 @@ SCOPES = {
     'tooling': ('', 'tools/qa/tests/test_*.py tools/sz/tests/test_*server.py'),
     'controls': ('controllers vehicle-physics car-wheels vehicle-lights sz-vehicles sz-auto-drive '
                  'sz-controller-surfaces building-collision teleports touch-controls cameras', ''),
-    'roads': ('sz-roads sz-ground sz-terrain sz-road-frontage sz-road-markings sz-road-material sz-elevated-roads '
+    'roads': ('sz-roads sz-road-section sz-ground sz-terrain sz-road-frontage sz-road-markings sz-road-material sz-elevated-roads '
               'sz-traffic sz-auto-drive sz-intersection-control sz-controller-surfaces controllers',
               'tools/sz/tests/test_road*.py tools/sz/tests/test_*terrain*.py '
               'tools/sz/tests/test_copernicus.py tools/sz/tests/test_sea_surface.py'),

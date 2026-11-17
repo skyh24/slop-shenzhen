@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { routeSignalStops } from './sz-intersection-control.js';
 import { isGroundRoad, roadTravelPoints } from './sz-roads.js';
-import { getDeckSection, getRoadSection, usableWidth } from './sz-road-section.js';
+import { getDeckSection, getRoadSection, laneOffsets, usableWidth } from './sz-road-section.js';
 import {
   carStyleCode, createTrafficCarBody, createTrafficVehicleGeometry, createTrafficWheels, VEHICLE_SPECS
 } from './sz-vehicles.js';
@@ -17,12 +17,16 @@ const SPAWN_CELL = 100;
 const SEARCH_RADIUS = 360;
 const DESPAWN_RADIUS = 430;
 const NEAR_ROUTE_END_RADIUS = 160;
-const RECYCLE_CLEARANCE = 40;
 const BODY_CELL = 32;
 const SIGNAL_EXIT_BUFFER = 12;
 const RAMP_LANE_BLEND = 36;
 const ROUTE_RANGE = 560;
 const REVIEWED_MAINLINE_RANGE = 1500;
+// 路线不再有终点：剩余不足该距离时从当前位姿续接，车辆在视野内不会因路线用完而停住。
+const EXTEND_AHEAD = 140;
+// 换道用五次曲线整段完成；一次换道约 2 秒，跨段时收回到本车道。
+const LANE_CHANGE_SECONDS = 2;
+const LANE_CHANGE_MIN_EDGE = 45;
 const TURN = Math.PI * 2;
 const WHEEL_SPIN_STEP = 0.6;
 // 玩家车逼近时环境车的反应：先观察 0.3 s，再按撞击点在车头还是车尾决定急刹或加速逃开。
@@ -303,7 +307,7 @@ function guideReviewedRamps(segments) {
   return guided;
 }
 
-export function routeSegments(marker, model, random, detailedRoads, laneChoice) {
+export function routeSegments(marker, model, random, detailedRoads, laneChoice, preferred = null) {
   const segments = [];
   const used = new Set();
   let edge = marker.edge;
@@ -312,6 +316,9 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice) 
   let remaining = ROUTE_RANGE;
   let reviewed = false;
   let elevatedSeen = false;
+  // 跨路段时沿用离上一条车道最近的车道，避免在路口为了“同一比例车道”横甩 3 米。
+  let followOffset = preferred;
+  let forcedLane = false;
   while (edge && remaining > 0
     && segments.length < (elevatedSeen ? ELEVATED_ROUTE_SEGMENTS : reviewed ? 160 : 80)) {
     if (edge.section.reviewed && !reviewed) {
@@ -326,15 +333,21 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice) 
     }
     used.add(edge.sourceIndex);
     // 高架链路没有地面分幅横断面，统一走桥面中心线（方向 0 时取桥面半宽的居中车道）。
-    const useLanes = !edge.elevated && (edge.section.reviewed || detailedRoads.has(edge.osmId));
+    // 车道可信（已核实断面或 OSM 明确标注）才按车道取偏移；纯宽度估计沿用保守单偏移。
+    const useLanes = !edge.elevated && (laneOffsets(edge.section) !== null || detailedRoads.has(edge.osmId));
     const offsets = useLanes ? edge.section.routeOffsetsM : edge.section.defaultOffsetsM;
     const halfWidth = edge.section.travelWidthM / 2;
     const lanes = offsets.filter(offset => Math.abs(offset) + model.hx + 0.08 <= halfWidth);
-    const offset = lanes[Math.min(lanes.length - 1, Math.floor(laneChoice * lanes.length))] ?? 0;
+    let offset = lanes[Math.min(lanes.length - 1, Math.floor(laneChoice * lanes.length))] ?? 0;
+    if (followOffset !== null && !forcedLane && lanes.length) {
+      offset = lanes.reduce((best, lane) => Math.abs(lane - followOffset) < Math.abs(best - followOffset) ? lane : best, lanes[0]);
+    }
+    forcedLane = false;
+    followOffset = offset;
     for (; index < edge.segments.length && (remaining > 0 || edge.tunnel); index++) {
       const segment = edge.segments[index];
       const length = edge.tunnel ? segment.length - start : Math.min(segment.length - start, remaining);
-      if (length > 0) segments.push({ ...segment, length,
+      if (length > 0) segments.push({ ...segment, length, laneOffset: offset,
         x: segment.x + segment.dx * start - segment.dz * offset,
         z: segment.z + segment.dz * start + segment.dx * offset, edge });
       remaining -= length;
@@ -345,7 +358,7 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice) 
     const choices = edge.next.filter(next => !used.has(next.sourceIndex) && usableWidth(next, model.hx)
       && (!edge.section.reviewed || outerLane || !isTrunkRamp(next)));
     const next = choices[Math.floor(random() * choices.length)];
-    if (isTrunkRamp(edge) && next?.section.reviewed) laneChoice = 1;
+    if (isTrunkRamp(edge) && next?.section.reviewed) { laneChoice = 1; forcedLane = true; }
     if (edge.tunnel && next) remaining = Math.max(remaining, next.tunnel ? 1 : 55);
     edge = next;
     index = 0;
@@ -358,11 +371,11 @@ export function laneRoute(path, maxBend = 3.2) {
   const segments = ramps.some(segment => segment.edge?.groundFork) ? guideBridgeForks(ramps) : ramps;
   const samples = [];
   const bend = (a, b) => a && b ? Math.min(maxBend, a.length * 0.36, b.length * 0.36) : 0;
-  function add(x, z, dx, dz, edge) {
+  function add(x, z, dx, dz, edge, laneOffset) {
     const previous = samples.at(-1);
     const step = previous ? Math.hypot(x - previous.x, z - previous.z) : 0;
     if (previous && step <= 1e-6) return;
-    samples.push({ x, z, dx, dz, edge, s: (previous?.s ?? 0) + step });
+    samples.push({ x, z, dx, dz, edge, laneOffset, s: (previous?.s ?? 0) + step });
   }
   for (let i = 0; i < segments.length; i++) {
     const current = segments[i];
@@ -373,7 +386,8 @@ export function laneRoute(path, maxBend = 3.2) {
     const steps = Math.max(1, Math.ceil((end - start) / 2));
     for (let k = 0; k <= steps; k++) {
       const distance = interpolate(start, end, k / steps);
-      add(current.x + distance * current.dx, current.z + distance * current.dz, current.dx, current.dz, current.edge);
+      add(current.x + distance * current.dx, current.z + distance * current.dz, current.dx, current.dz,
+        current.edge, current.laneOffset);
     }
     if (!next) continue;
     // 过弯只在连接点的短范围内平滑，生成后按实际沥青网格逐步复核。
@@ -390,7 +404,8 @@ export function laneRoute(path, maxBend = 3.2) {
       const dx = u * u * (b.x - a.x) + 2 * u * t * (c.x - b.x) + t * t * (d.x - c.x);
       const dz = u * u * (b.z - a.z) + 2 * u * t * (c.z - b.z) + t * t * (d.z - c.z);
       const length = Math.hypot(dx, dz) || 1;
-      add(x, z, dx / length, dz / length, t < 0.5 ? current.edge : next.edge);
+      add(x, z, dx / length, dz / length, t < 0.5 ? current.edge : next.edge,
+        t < 0.5 ? current.laneOffset : next.laneOffset);
     }
   }
   return samples;
@@ -604,7 +619,10 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
   const transform = new THREE.Object3D();
   const wheelTransform = new THREE.Object3D();
   const statistics = { directedEdges: network.edges.length, active: 0, spawned: 0, signalEntries: 0, signalWaits: 0,
-    signalExitRejects: 0, nearEndRejects: 0, mainlineEndRejects: 0, offscreenRecycled: 0 };
+    signalExitRejects: 0, nearEndRejects: 0, mainlineEndRejects: 0, offscreenRecycled: 0,
+    stalledRecycled: 0, routeExtensions: 0, laneChanges: 0, laneChangeAborts: 0, laneChangeIneligible: 0,
+    spawnThrottled: 0,
+    stoppedOver8s: 0, maxQueue: 0 };
   let refill = 0;
   let spawnKey = null;
   let candidates = [];
@@ -697,6 +715,7 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
 
   function blockerOnRoute(actor, route, s, includeTraffic) {
     if (!poseOnRoute(route, s, actor.model, heightFor, scratch)) return { kind: 'road-contact', atS: s };
+    applyLaneShift(actor, scratch);
     const body = writeTrafficCollider(probe, actor.model, scratch);
     body.supportedSlabs = scratch.supportedSlabs;
     const blocker = blockedByBuilding(body) || (includeTraffic ? collides(body, actor) : null);
@@ -718,7 +737,246 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
     return blocker;
   }
 
-  function startRoute(actor, focus) {
+  // 车道偏移是相对路线中心线的横向量，正=行驶方向右侧；换道期间叠加在路线上，不改路线几何。
+function applyLaneShift(actor, pose) {
+  if (!actor.shift) return;
+  pose.x -= pose.cos * actor.shift;
+  pose.z += pose.sin * actor.shift;
+}
+
+// 把车体投影到本车路线上，返回沿线位置与相对本车道的横向偏移（正=右）。
+function projectOnRoute(samples, index, s, x, z, reach) {
+  let best = null;
+  for (let i = Math.max(0, index - 2); i < samples.length - 1 && samples[i].s <= s + reach; i++) {
+    const a = samples[i], b = samples[i + 1], length = b.s - a.s;
+    if (length <= 1e-6) continue;
+    const fx = (b.x - a.x) / length, fz = (b.z - a.z) / length;
+    const t = Math.max(0, Math.min(length, (x - a.x) * fx + (z - a.z) * fz));
+    const px = a.x + fx * t, pz = a.z + fz * t;
+    const along = a.s + t;
+    if (along < s - 14 || along > s + reach) continue;
+    const offset = (x - px) * -fz + (z - pz) * fx;
+    const error = Math.abs(offset);
+    if (!best || error < best.error) best = { s: along, offset, error };
+  }
+  return best;
+}
+
+// 目标车道在本车后方 8 米、前方 22 米内没有车才允许并过去；正在并线的车按实际位置参与判定。
+function laneGapOk(actor, delta, out = null) {
+  for (const body of frameBodies) {
+    if (body.id === actor.collider.id) continue;
+    // 路线投影对远离本车的主体没有意义：先按直线距离排除，避免已回收车辆的残留碰撞盒挡住并线。
+    if (Math.hypot(body.x - actor.pose.x, body.z - actor.pose.z) > 40) continue;
+    const hit = projectOnRoute(actor.route, actor.pose.index, actor.s, body.x, body.z, 30);
+    if (!hit || Math.abs(hit.offset - delta) > 2.4) continue;
+    if (hit.s > actor.s - 8 - body.halfL && hit.s < actor.s + 22 + body.halfL) {
+      if (out) out.push({ kind: body.type ?? 'vehicle', id: body.id ?? null,
+        ahead: +(hit.s - actor.s).toFixed(1), offset: +hit.offset.toFixed(2) });
+      return false;
+    }
+  }
+  return true;
+}
+
+function startLaneChange(actor) {
+  const sample = actor.route[actor.pose.index];
+  const edge = sample?.edge;
+  actor.laneTries = (actor.laneTries ?? 0) + 1;
+  // 路段没有可靠车道数据时不算并线失败，只记为不具备条件。
+  const reject = why => { actor.laneAbort = { reject: why }; statistics.laneChangeIneligible++; };
+  if (!edge) return reject('no-edge');
+  if (actor.reservation) return reject('reservation');
+  const lanes = laneOffsets(edge.section);
+  if (!lanes) return reject('no-lanes');
+  if (lanes.length < 2) return reject('single-lane');
+  const usable = lanes.filter(offset => Math.abs(offset) + actor.model.hx + 0.08 <= edge.section.travelWidthM / 2);
+  if (usable.length < 2) return reject('narrow');
+  const current = sample.laneOffset ?? 0;
+  let index = -1, best = 0.6;
+  for (let i = 0; i < usable.length; i++) {
+    const delta = Math.abs(usable[i] - current);
+    if (delta < best) { best = delta; index = i; }
+  }
+  if (index < 0) return reject('lane-mismatch');
+  // 只在当前路段还剩足够长度时换道；接近路口或匝道鼻端不并线。
+  for (let i = actor.pose.index; i < actor.route.length && actor.route[i].s <= actor.s + LANE_CHANGE_MIN_EDGE; i++) {
+    if (actor.route[i].edge !== edge) return reject('near-junction');
+  }
+  const tried = [];
+  const why = [];
+  for (const step of [-1, 1]) {
+    const target = usable[index + step];
+    if (target === undefined) { tried.push(['none', step]); continue; }
+    const delta = target - current;
+    const gap = Math.abs(delta) < 0.6 ? false : laneGapOk(actor, delta, why);
+    tried.push([gap ? 'ok' : 'blocked', +delta.toFixed(2)]);
+    if (!gap) continue;
+    actor.laneChange = { from: actor.shift, to: delta, t: 0, duration: LANE_CHANGE_SECONDS,
+      edge, lane: index + step, lanes: usable.length };
+    statistics.laneChanges++;
+    return;
+  }
+  actor.laneAbort = { current, usable: [...usable], tried, why };
+  statistics.laneChangeAborts++;
+}
+
+function updateLaneChange(actor, dt) {
+  const change = actor.laneChange;
+  if (change) {
+    if (change.edge !== actor.pose.edge) {
+      // 跨到下一路段时基准车道变了，把还没走完的横向偏移收回来。
+      change.from = actor.shift;
+      change.to = 0;
+      change.t = 0;
+      change.duration = 0.8;
+      change.edge = actor.pose.edge;
+    }
+    change.t = Math.min(1, change.t + dt / change.duration);
+    const t = change.t;
+    actor.shift = change.from + (change.to - change.from) * t * t * t * (10 - 15 * t + 6 * t * t);
+    if (t >= 1) {
+      actor.shift = change.to;
+      actor.laneChange = null;
+      if (change.to !== 0) actor.laneChoice = (change.lane + 0.5) / change.lanes;
+    }
+    return;
+  }
+  if (actor.shift) {
+    const decay = Math.min(Math.abs(actor.shift), dt * 4);
+    actor.shift -= Math.sign(actor.shift) * decay;
+  }
+  if (actor.speed > 2.5) { actor.blockedFor = 0; return; }
+  const leader = routeLeader({ samples: actor.route, index: actor.pose.index, s: actor.s, reach: 16,
+    ego: actor.collider, bodies: frameBodies, roadHeight: heightFor });
+  actor.blockedFor = leader.gap < 14 && leader.limit < 1.2 ? (actor.blockedFor ?? 0) + dt : 0;
+  if (actor.blockedFor > 2) { actor.blockedFor = 0; startLaneChange(actor); }
+}
+
+// 从当前位姿所在的路段反推 routeSegments 需要的 marker。
+function markerAt(actor) {
+  const edge = actor.pose.edge;
+  if (!edge?.segments?.length) return null;
+  let best = null;
+  for (let i = 0; i < edge.segments.length; i++) {
+    const segment = edge.segments[i];
+    const t = Math.max(0, Math.min(segment.length,
+      (actor.pose.x - segment.x) * segment.dx + (actor.pose.z - segment.z) * segment.dz));
+    const error = Math.hypot(actor.pose.x - (segment.x + segment.dx * t), actor.pose.z - (segment.z + segment.dz * t));
+    if (!best || error < best.error) best = { edge, segment: i, distance: t, error, x: actor.pose.x, z: actor.pose.z };
+  }
+  return best && best.error < edge.section.travelWidthM ? best : null;
+}
+
+// 剩余路线不足时从当前位置续接；先按出生同样的静态规则截断，避免续进建筑。
+function extendRoute(actor) {
+  const marker = markerAt(actor);
+  if (!marker) { actor.dead = true; return; }
+  // 续接时以车辆实际横向位置（路线车道 + 换道偏移）为准，避免换道完成后又被新路线拽回原车道。
+  const lane = (actor.route[actor.pose.index]?.laneOffset ?? 0) + (actor.shift ?? 0);
+  const samples = laneRoute(routeSegments(marker, actor.model, actor.random, detailedRoads, actor.laneChoice, lane));
+  if (samples.length < 2) { actor.dead = true; return; }
+  const start = Math.max(0, marker.distance - 16);
+  const s = marker.distance - start;
+  if (!poseOnRoute(samples, s, actor.model, heightFor, scratch)) { actor.dead = true; return; }
+  // 新路线接不上当前位姿时不要每帧静默重试：连续失败半秒就判死，交给远距回收。
+  if (Math.hypot(scratch.x - actor.pose.x, scratch.z - actor.pose.z) > 5) {
+    actor.extendFails = (actor.extendFails ?? 0) + 1;
+    if (actor.extendFails > 30) actor.dead = true;
+    return;
+  }
+  const reach = samples.at(-1).s;
+  const limit = Math.min(reach, s + 320);
+  let last = s;
+  while (last < limit) {
+    const next = Math.min(limit, last + 4);
+    if (blockerOnRoute(actor, samples, next, false)) break;
+    last = next;
+  }
+  if (last - s < 60) { actor.dead = true; return; }
+  const rearMargin = Math.hypot(actor.model.hx, actor.model.hz) + Math.abs(actor.model.z) + 0.5;
+  actor.route = samples;
+  actor.s = s;
+  actor.end = last;
+  // 续出来的路线不到一个预取距离，说明前方是断头路或静态阻挡：别再每帧续一次。
+  actor.extendShort = reach < s + EXTEND_AHEAD;
+  actor.stops = routeSignalStops(samples, signals, rearMargin).filter(stop => stop.clearS > s);
+  actor.stopIndex = 0;
+  actor.exitProbe = null;
+  actor.laneChange = null;
+  actor.shift = 0;
+  actor.dead = false;
+  actor.deadSince = 0;
+  actor.extendFails = 0;
+  statistics.routeExtensions++;
+}
+
+// 出生时挑一条 80 米内同路段车最少的车道，避免同一车道连排投放。
+function chooseLaneChoice(marker, model, random) {
+  const edge = marker.edge;
+  const lanes = laneOffsets(edge.section);
+  if (!lanes?.length) return detailedRoads.size ? random() : 0.5;
+  const usable = lanes.filter(offset => Math.abs(offset) + model.hx + 0.08 <= edge.section.travelWidthM / 2);
+  if (!usable.length) return 0.5;
+  const counts = usable.map(offset => {
+    let count = 0;
+    for (const actor of vehicles) {
+      if (!actor.route || actor.pose.edge !== edge) continue;
+      const sample = actor.route[actor.pose.index];
+      if (Math.abs((sample?.laneOffset ?? 0) - offset) > 1.8) continue;
+      if (squareDistance(actor.pose.x, actor.pose.z, marker) < 80 ** 2) count++;
+    }
+    return count;
+  });
+  const fewest = Math.min(...counts);
+  const options = counts.flatMap((count, index) => count === fewest ? [index] : []);
+  return (options[Math.floor(random() * options.length)] + 0.5) / usable.length;
+}
+
+// 沿路段累计的里程；路线续接后 actor.s 会从 16 米重新开始，不能直接用来量车间距。
+function edgeAlong(edge, x, z) {
+  let best = null;
+  let base = 0;
+  for (const segment of edge.segments) {
+    const t = Math.max(0, Math.min(segment.length, (x - segment.x) * segment.dx + (z - segment.z) * segment.dz));
+    const error = Math.hypot(x - (segment.x + segment.dx * t), z - (segment.z + segment.dz * t));
+    if (!best || error < best.error) best = { error, along: base + t };
+    base += segment.length;
+  }
+  return best ? best.along : 0;
+}
+
+// 拥堵统计：按“路段+车道”分组，连续车间距小于 12 米算排队。
+let queueTimer = 0;
+function sampleStatistics(dt) {
+  queueTimer += dt;
+  if (queueTimer < 0.5) return;
+  queueTimer = 0;
+  const groups = new Map();
+  let stopped = 0;
+  for (const actor of vehicles) {
+    if (!actor.route) continue;
+    if (!actor.dead && actor.stalled > 8 && !actor.waitingForSignal) stopped++;
+    const sample = actor.route[actor.pose.index];
+    const key = `${sample.edge.sourceIndex}:${Math.round((sample.laneOffset ?? 0) * 10)}`;
+    const list = groups.get(key) ?? [];
+    list.push(edgeAlong(sample.edge, actor.pose.x, actor.pose.z));
+    groups.set(key, list);
+  }
+  let longest = 0;
+  for (const list of groups.values()) {
+    list.sort((a, b) => a - b);
+    let run = 1;
+    for (let i = 1; i < list.length; i++) {
+      run = list[i] - list[i - 1] < 12 ? run + 1 : 1;
+      longest = Math.max(longest, run);
+    }
+  }
+  statistics.stoppedOver8s = stopped;
+  statistics.maxQueue = Math.max(statistics.maxQueue, longest);
+}
+
+function startRoute(actor, focus) {
     const { model, random } = actor;
     // 高架链路不在桥面中途凭空生成车辆：约一半环境车从已核实高架的落地引道出发，
     // 让桥面车流有真实的地面来源，其余仍按普通路网随机，避免车辆只在桥上概率性出现。
@@ -728,7 +986,7 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
       const marker = pool[Math.floor(random() * pool.length)];
       const distance = squareDistance(marker.x, marker.z, focus);
       if (distance < 44 ** 2 || distance > SEARCH_RADIUS ** 2 || !usableWidth(marker.edge, model.hx)) continue;
-      const laneChoice = detailedRoads.size ? random() : 0.5;
+      const laneChoice = chooseLaneChoice(marker, model, random);
       const samples = laneRoute(routeSegments(marker, model, random, detailedRoads, laneChoice));
       if (samples.at(-1)?.edge.section.reviewed || samples.at(-1)?.edge.surfaceId) {
         statistics.mainlineEndRejects++;
@@ -742,6 +1000,12 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
       actor.collider.surfaceId = actor.pose.edge?.surfaceId;
       actor.collider.supportedSlabs = actor.pose.supportedSlabs;
       if (blockedByBuilding(actor.collider) || collides(actor.collider, actor)) continue;
+      // 与既有车保持 25 米：同车道 2 秒内不重复投放，避免出生就连成一串。
+      if (vehicles.some(other => other.route && other !== actor
+        && squareDistance(other.pose.x, other.pose.z, actor.pose) < 25 ** 2)) {
+        statistics.spawnThrottled++;
+        continue;
+      }
       const rearMargin = Math.hypot(model.hx, model.hz) + Math.abs(model.z) + 0.5;
       const routeStops = routeSignalStops(samples, signals, rearMargin).filter(stop => stop.s >= first);
       let last = first;
@@ -778,6 +1042,14 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
       actor.waitingForSignal = false;
       actor.s = first;
       actor.end = last;
+      actor.laneChoice = laneChoice;
+      actor.shift = 0;
+      actor.laneChange = null;
+      actor.blockedFor = 0;
+      actor.dead = false;
+      actor.deadSince = 0;
+      actor.extendFails = 0;
+      actor.extendShort = false;
       actor.speed = Math.min(4, actor.desiredSpeed);
       actor.collider.vx = actor.pose.sin * actor.speed;
       actor.collider.vz = actor.pose.cos * actor.speed;
@@ -871,6 +1143,7 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
       }
       s = target;
       Object.assign(actor.pose, scratch);
+      applyLaneShift(actor, actor.pose);
       writeTrafficCollider(actor.collider, model, actor.pose);
     }
     if (actor.reservation && s >= stop.clearS) {
@@ -881,8 +1154,11 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
     const waiting = Boolean(held && remaining < 1.1);
     if (waiting && !actor.waitingForSignal) statistics.signalWaits++;
     actor.waitingForSignal = waiting;
-    if (s >= actor.end - 1e-6 && !actor.blocker) actor.blocker = { kind: 'route-end', atS: s };
     actor.stalled = s === actor.s && !waiting ? actor.stalled + dt : 0;
+    // 路面接触检查失败说明这条车道在当前位置真的过不去（弯道外缘/路口缺口），别让它永久杵在那里。
+    if (actor.stalled > 6 && actor.blocker?.kind === 'road-contact') actor.dead = true;
+    // 前面是断头路：开到头就判死，交给远距回收，不再无限续接。
+    if (actor.extendShort && actor.end - actor.s < 0.5) actor.dead = true;
     actor.speed = steps > 0 && s === next ? speed : 0;
     actor.s = s;
     actor.collider.vx = actor.pose.sin * actor.speed;
@@ -906,13 +1182,21 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
       const distance = squareDistance(actor.pose.x, actor.pose.z, focus);
       const inBore = actor.pose.edge?.tunnel === true;
       const outside = !inBore && distance > DESPAWN_RADIUS ** 2;
-      const terminal = actor.s >= actor.end - 1e-6 && distance > RECYCLE_CLEARANCE ** 2;
-      const blocked = actor.stalled > 5 && distance > 130 ** 2;
-      // 视锥内保留实体和碰撞；未提供视锥时只按远距上限回收。
-      if ((outside || terminal || blocked) && (isVisible ? !isVisible(actor.collider) : outside)) {
+      // 路线会续接：只有真卡死（8 秒不动或续接失败）且远离玩家时才回收，视野内保留。
+      const blocked = !inBore && actor.stalled > 8 && distance > 160 ** 2;
+      const dead = !inBore && actor.dead && distance > 120 ** 2;
+      if (actor.dead && !actor.deadSince) actor.deadSince = simulationTime;
+      // 视锥内保留实体和碰撞；判死且远离玩家的车最多再留 3 秒，避免视野边缘留下永久停驶的车。
+      const deadExpired = dead && simulationTime - actor.deadSince > 3;
+      if ((outside || blocked || dead) && (isVisible ? !isVisible(actor.collider) || deadExpired : outside)) {
         dropRoute(actor);
         statistics.offscreenRecycled++;
-      } else if (dt) advance(actor, dt, clock);
+        if (blocked || dead) statistics.stalledRecycled++;
+      } else if (dt) {
+        updateLaneChange(actor, dt);
+        if (!actor.extendShort && !actor.laneChange && !actor.reservation && actor.end - actor.s < EXTEND_AHEAD) extendRoute(actor);
+        advance(actor, dt, clock);
+      }
     }
     refill -= dt;
     if (refill <= 0 && vehicles.some(actor => !actor.route)) {
@@ -980,6 +1264,7 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
     wheelLeft.count = wheelCount;
     wheelRight.count = wheelCount;
     statistics.active = active;
+    sampleStatistics(dt);
   }
 
   function nearColliders(x, z, radius) {
