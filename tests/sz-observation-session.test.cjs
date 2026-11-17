@@ -117,16 +117,17 @@ test('failed program changes keep the active orbit or prior show and restore the
   assert.equal(document.getElementById('btn-program').focused, true);
 });
 
-test('air cruise updates camera and input only after route entry and restores them on exit', () => {
+test('air cruise enters flight, offers two speeds in one row and leaves the aircraft hovering', () => {
   const { document } = dom();
   const { wireAirCruise } = loadModule(read('sz-air-cruise-ui.js'), {
     imports: { './sz-strings.js': strings, './sz-observation-session.js': sessionModule }, globals: { document }
   });
   const route = { id: 'beihuan', start: { name: 'West' }, end: { name: 'East' }, distance: 1000, length3d: 1000,
     estimateSeconds: 100 };
-  let accepted = false, activeRoute = null, touchEnabled = true;
+  let accepted = false, activeRoute = null, touchEnabled = true, modeAccepted = true;
+  const modeCalls = [];
   const cruise = {
-    routes: [route], scenicSpeed: 15, fullSpeed: 600 / 3.6, speedCalls: [],
+    routes: [route], scenicSpeed: 300 / 3.6, fullSpeed: 600 / 3.6, speedCalls: [],
     setSpeed(speedMps) { this.speedCalls.push(speedMps); return true; },
     get active() { return activeRoute !== null; },
     get route() { return activeRoute; },
@@ -143,43 +144,62 @@ test('air cruise updates camera and input only after route entry and restores th
     cruise, cameraSystem, controllerManager: { resetInput() {}, getActiveEntity: () => ({ label: 'Walking' }) },
     mapSystem: { isFullMapOpen: false }, touchControls: { setEnabled: enabled => { touchEnabled = enabled; } },
     gamepadControls: { reset() {} }, laneAssist: { cancel() {} }, observationSessions: createObservationSessions(),
+    selectMode: id => { modeCalls.push(id); return modeAccepted; },
     selectCamera: id => { cameraSystem.activePresetId = id; }, closePopovers() {}, modeLabel, cameraLabel,
     buildingDetails: {}
   });
   const start = document.getElementById('air-cruise-routes').children[0].children.at(-1).children[0];
   start.click();
   assert.equal(cruise.active, false);
+  assert.deepEqual(modeCalls, []);
   assert.equal(touchEnabled, true);
   assert.equal(cameraSystem.activePresetId, 'action');
   assert.equal(document.getElementById('air-cruise-feedback').hidden, false);
+  // 起飞成功但切飞行失败时回滚，不留下无人控制的巡游。
   accepted = true;
+  modeAccepted = false;
+  start.click();
+  assert.equal(cruise.active, false);
+  assert.deepEqual(modeCalls, ['helicopter']);
+  assert.equal(cameraSystem.activePresetId, 'action');
+  modeAccepted = true;
   start.click();
   assert.equal(cruise.active, true);
-  // 常速 300、加速切到 eVTOL 极速 600，飞行中换速交给 cruise.setSpeed。
-  const boost = document.getElementById('air-cruise-boost');
-  assert.equal(boost.hidden, false);
-  assert.equal(boost.textContent, '加速 · 600 km/h');
-  boost.click();
-  assert.equal(boost.textContent, '常速 · 300 km/h');
-  assert.equal(boost.getAttribute('aria-pressed'), 'true');
-  assert.deepEqual(cruise.speedCalls, [600 / 3.6]);
+  assert.deepEqual(modeCalls, ['helicopter', 'helicopter']);
   assert.equal(touchEnabled, false);
   assert.equal(cameraSystem.activePresetId, 'chase');
+  // 一行三个键：快速 ×2 / 游览 ×1 / 退出，初始按游览速度。
+  const fast = document.getElementById('air-cruise-fast');
+  const scenic = document.getElementById('air-cruise-scenic');
+  // 一行三个键，文案由 index.html 的 data-text 本地化写入。
+  const html = readFileSync(join(__dirname, '../index.html'), 'utf8');
+  const actions = html.split('<div class="cruise-actions">')[1].split('</div>')[0];
+  for (const id of ['air-cruise-fast', 'air-cruise-scenic', 'air-cruise-exit']) {
+    assert.match(actions, new RegExp(`id="${id}"`));
+  }
+  assert.doesNotMatch(actions, /air-cruise-boost|air-cruise-pause|air-cruise-replay/);
+  assert.equal(strings.STR.cruise.fast, '快速 ×2');
+  assert.equal(strings.STR.cruise.scenic, '游览 ×1');
+  assert.equal(scenic.getAttribute('aria-pressed'), 'true');
+  assert.equal(fast.getAttribute('aria-pressed'), 'false');
+  scenic.click();
+  assert.deepEqual(cruise.speedCalls, [], '游览速度已是当前档，不重复下发');
+  fast.click();
+  assert.equal(fast.getAttribute('aria-pressed'), 'true');
+  assert.equal(scenic.getAttribute('aria-pressed'), 'false');
+  assert.deepEqual(cruise.speedCalls, [600 / 3.6]);
+  // 巡游中可以换机位；退出时停在上空，不再恢复进入前的相机。
   cameraSystem.orbitYawOffset = 1.4;
-  accepted = false;
-  start.click();
-  assert.equal(cruise.active, true);
-  assert.equal(cameraSystem.orbitYawOffset, 1.4);
   ui.close();
   ui.close();
   assert.equal(cruise.active, false);
-  // 退出后回到默认常速，下一次巡游仍以 300 km/h 起步。
-  assert.equal(boost.textContent, '加速 · 600 km/h');
+  // 退出时回到游览速度，下一次巡游从 300 km/h 起步。
   assert.deepEqual(cruise.speedCalls, [600 / 3.6, 300 / 3.6]);
+  assert.equal(scenic.getAttribute('aria-pressed'), 'true');
   assert.equal(touchEnabled, true);
-  assert.equal(cameraSystem.activePresetId, 'action');
-  assert.equal(cameraSystem.orbitYawOffset, 0.7);
-  assert.equal(cameraSystem.orbitPitchOffset, 0.1);
-  assert.equal(cameraSystem.zoomMultiplier, 1.2);
-  assert.equal(cameraSystem.userOrbitTimer, 2);
+  assert.equal(cameraSystem.activePresetId, 'chase');
+  assert.equal(cameraSystem.orbitYawOffset, 0);
+  assert.equal(cameraSystem.orbitPitchOffset, 0);
+  assert.equal(cameraSystem.zoomMultiplier, 1);
+  assert.equal(cameraSystem.userOrbitTimer, 0);
 });

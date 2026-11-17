@@ -1,8 +1,8 @@
 import { STR } from './sz-strings.js';
-import { captureCameraState, restoreCameraState, setObservationInputBlocked, setObservationPanel } from './sz-observation-session.js';
+import { setObservationInputBlocked, setObservationPanel } from './sz-observation-session.js';
 
 export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSystem, touchControls, gamepadControls,
-  observationSessions, selectCamera, closePopovers, modeLabel, cameraLabel, buildingDetails }) {
+  observationSessions, selectMode, selectCamera, closePopovers, modeLabel, cameraLabel, buildingDetails }) {
   const words = STR.cruise;
   const menu = document.getElementById('btn-air-cruise');
   const list = document.getElementById('air-cruise-routes');
@@ -11,27 +11,33 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
   const status = document.getElementById('air-cruise-state');
   const progress = document.getElementById('air-cruise-progress');
   const telemetry = document.getElementById('air-cruise-telemetry');
-  const pause = document.getElementById('air-cruise-pause');
-  const boost = document.getElementById('air-cruise-boost');
+  const fast = document.getElementById('air-cruise-fast');
+  const scenic = document.getElementById('air-cruise-scenic');
   const feedback = document.getElementById('air-cruise-feedback');
-  // 巡游常速 300 km/h，加速键切到 eVTOL 极速（600 km/h）；路线按所选速度重算，弯道只按比例减速。
-  const cruiseKmh = 300;
-  const boostKmh = Math.max(cruiseKmh, Math.round(cruise.fullSpeed * 3.6));
+  // 游览 ×1 为 eVTOL 极速的一半（300 km/h），快速 ×2 为极速 600 km/h；路线按所选速度重算，弯道只按比例减速。
+  const fastKmh = Math.round(cruise.fullSpeed * 3.6) || 600;
+  const scenicKmh = Math.max(1, Math.round(fastKmh / 2));
   const estimates = [];
   const plans = new Map();
   const inputs = { controllerManager, touchControls, gamepadControls };
-  let speed = cruiseKmh;
+  let speed = scenicKmh;
   let lastStatus = '';
   let lastTelemetry = 0;
   const session = observationSessions.bind('air-cruise', {
     restart: true,
     prepare: route => route && !route.unavailable && route,
-    capture: () => captureCameraState(cameraSystem),
-    commit: route => cruise.start(route),
+    // 巡游直接进入飞行状态：先接管航线，再切到飞行；切换失败时回滚，避免留下无人控制的巡游。
+    commit: (route) => {
+      if (!cruise.start(route)) return false;
+      if (selectMode('helicopter')) return true;
+      cruise.stop();
+      return false;
+    },
     enter(_route, previous) {
       if (!previous) {
         selectCamera('chase', true, true);
-        modeLabel.textContent = cameraLabel.textContent = words.label;
+        modeLabel.textContent = controllerManager.getActiveEntity().label;
+        cameraLabel.textContent = words.label;
         setObservationInputBlocked(inputs, true);
         document.body.dataset.cruising = '';
       }
@@ -46,20 +52,21 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
       render(now);
       return prefetch;
     },
-    exit(_route, previous) {
+    exit() {
       cruise.stop();
       delete document.body.dataset.cruising;
       setObservationInputBlocked(inputs, mapSystem.isFullMapOpen);
       modeLabel.textContent = controllerManager.getActiveEntity().label;
       cameraSystem.resetForTeleport();
-      restoreCameraState(cameraSystem, selectCamera, previous, true);
+      // 退出后直接停在当前上空，保持追尾视角，不恢复进入前的相机位置。
+      selectCamera('chase', true, true);
       render(0, true);
     }
   });
 
-  boost.hidden = boostKmh <= cruiseKmh;
-  labelBoost();
-  boost.addEventListener('click', () => setSpeed(speed === boostKmh ? cruiseKmh : boostKmh));
+  labelSpeed();
+  fast.addEventListener('click', () => setSpeed(fastKmh));
+  scenic.addEventListener('click', () => setSpeed(scenicKmh));
 
   function selected(route) {
     if (!route || typeof route.atSpeed !== 'function') return route;
@@ -68,16 +75,16 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
     return plans.get(key);
   }
 
-  function labelBoost() {
-    boost.textContent = speed === boostKmh ? words.normalSpeed(cruiseKmh) : words.boostSpeed(boostKmh);
-    boost.setAttribute('aria-pressed', String(speed === boostKmh));
+  function labelSpeed() {
+    fast.setAttribute('aria-pressed', String(speed === fastKmh));
+    scenic.setAttribute('aria-pressed', String(speed === scenicKmh));
   }
 
   function setSpeed(kmh) {
     const next = Math.max(1, Math.round(kmh));
     if (next === speed) return;
     speed = next;
-    labelBoost();
+    labelSpeed();
     for (const [route, estimate] of estimates) {
       if (!route.unavailable) estimate.textContent = describe(selected(route));
     }
@@ -85,7 +92,9 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
   }
 
   function describe(route) {
-    return words.estimate(route.length3d, route.estimateSeconds);
+    // 估算按当前选择的档位计划，切换速度时卡片上的时间同步更新。
+    const plan = selected(route);
+    return words.estimate(plan.length3d ?? route.length3d, plan.estimateSeconds ?? route.estimateSeconds);
   }
 
   function action(label, onClick) {
@@ -134,16 +143,12 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
   menu.hidden = cruise.routes.length === 0;
   menu.addEventListener('click', () => { feedback.hidden = true; });
 
-  pause.addEventListener('click', () => { cruise.togglePause(); render(); });
-  document.getElementById('air-cruise-replay').addEventListener('click', () => {
-    if (cruise.restart()) render();
-  });
   document.getElementById('air-cruise-exit').addEventListener('click', close);
 
-  // 退出后回到默认常速：下一次进入巡游仍以 300 km/h 起步，加速只在本次飞行中生效。
+  // 退出后回到默认游览速度：下一次进入巡游仍以 300 km/h 起步，快速只在本次飞行中生效。
   function close() {
     session.exit();
-    setSpeed(cruiseKmh);
+    setSpeed(scenicKmh);
   }
 
   function render(now = 0, restoreFocus = false) {
@@ -158,8 +163,6 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
       lastTelemetry = 0;
       title.textContent = words.names[cruise.route.id];
       status.textContent = words.statuses[cruise.status];
-      pause.disabled = cruise.status === 'complete';
-      pause.textContent = cruise.status === 'paused' ? words.resume : words.pause;
     }
     if (now && now < lastTelemetry) return;
     lastTelemetry = now + 200;

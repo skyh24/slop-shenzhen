@@ -233,7 +233,8 @@ async function initApp() {
       && (!northStation?.inRestricted(x, z, 0.58) || (surface?.surfaceId !== 'terrain' && surface?.heightSource !== 'terrain'))
   });
   site.nearObstacles = (x, z, r) => controllerManager.nearColliders(x, z, r, false, false);
-  const cruise = qa.measureBuild('airCruises', () => createSceneAirCruise(GEO.airCruises, controllerManager, site, PLAYER_SPEED_LIMITS.helicopter));
+  const cruise = qa.measureBuild('airCruises', () => createSceneAirCruise(GEO.airCruises, controllerManager, site,
+    PLAYER_SPEED_LIMITS.helicopter, controllerManager.entities.helicopter));
   let initialTime = 'golden';
   try {
     if ((saved?.version === 1 || saved?.version === 2) && Object.hasOwn(controllerManager.entities, saved.activeMode)) {
@@ -457,7 +458,7 @@ async function initApp() {
   const elControlsHint = document.getElementById('hud-controls-hint');
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
     onCycleMode: (step) => {
-      const modes = ['person', 'car', 'cyclist', 'helicopter'];
+      const modes = ['person', 'cyclist', 'car', 'helicopter'];
       selectMode(modes[(modes.indexOf(controllerManager.activeMode) + step + modes.length) % modes.length]);
     },
     onCycleCamera: cycleCamera,
@@ -467,7 +468,9 @@ async function initApp() {
   const modeFeedback = document.getElementById('mode-feedback');
   let modeFeedbackTimer;
   function selectMode(mode, destination = null) {
-    if (cruise.active || droneWatch?.active) return false;
+    if (droneWatch?.active) return false;
+    // 巡游已接管飞行器：只允许保持在飞行，退出后才恢复其它模式。
+    if (cruise.active && mode !== 'helicopter') return false;
     const changed = mode !== controllerManager.activeMode;
     clearTimeout(modeFeedbackTimer);
     if (!controllerManager.setMode(mode, destination)) {
@@ -509,12 +512,9 @@ async function initApp() {
     return true;
   }
 
-  function selectCamera(camId, snap = false, force = false) {
+  function selectCamera(camId, snap = false) {
     if (droneWatch?.active) return;
-    if (cruise.active && !force) {
-      if (camId === 'chase') cameraSystem.resetOrbit();
-      return;
-    }
+    // 巡游默认追尾，但允许在巡游中切到任意机位。
     cameraSystem.setCameraPreset(camId, snap);
     cameraButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-camera') === camId);
@@ -596,7 +596,8 @@ async function initApp() {
   });
   const hud = createHudTelemetry({
     els: { fps: elFps, speed: elSpeed, speedMeter: elSpeedMeter, altitude: elAltitude },
-    controllerManager, cameraSystem, topSpeed: PLAYER_SPEED_LIMITS, renderLocation, cruise
+    controllerManager, cameraSystem, topSpeed: PLAYER_SPEED_LIMITS, renderLocation, cruise,
+    groundHeight: (x, z, mode) => controllerManager.getGroundHeight(x, z, mode)
   });
   let travelRequest = 0;
   const prepareRegional = (x, z) => Number.isFinite(x) && Number.isFinite(z) && inBounds(x, z)
@@ -727,14 +728,15 @@ async function initApp() {
   if (openMapBtn) openMapBtn.addEventListener('click', () => mapSystem.toggleFullMap(true));
 
   const cruiseUi = wireAirCruise({ cruise, cameraSystem, controllerManager, mapSystem, touchControls, gamepadControls,
-    observationSessions, selectCamera, closePopovers, modeLabel: elMode, cameraLabel: elCamera, buildingDetails });
+    observationSessions, selectMode, selectCamera, closePopovers, modeLabel: elMode, cameraLabel: elCamera, buildingDetails });
   wireHudToggle(hudToggleBtn, closePopovers);
 
   const carControlsAvailable = () => !cruise.active && !droneWatch.active
     && controllerManager.activeMode === 'car' && !mapSystem.isFullMapOpen;
   const autoCarAvailable = () => carControlsAvailable() && autoDrive.active;
+  // 四种模式都提供定速：步行与骑行锁当前速度，汽车沿车道定速，飞行保持平飞速度。
   const cruiseAvailable = () => !cruise.active && !droneWatch.active && !mapSystem.isFullMapOpen && !autoDrive.active
-    && (controllerManager.activeMode === 'car' || controllerManager.activeMode === 'helicopter');
+    && ['person', 'cyclist', 'car', 'helicopter'].includes(controllerManager.activeMode);
   function toggleSpeedCruise() {
     if (!cruiseAvailable()) return;
     if (controllerManager.cruiseSpeed != null) {

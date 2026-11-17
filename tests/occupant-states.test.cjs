@@ -409,7 +409,8 @@ test('repeated mode switching keeps one pedestrian rig and never walks while sea
   assert.equal(h.controller.occupant.state, 'walking');
   h.controller.keys.forward = true;
   const from = h.person.position.clone();
-  h.advance(0.5);
+  // 步行从静止按 3 秒到 30 km/h 加速，0.8 秒约走 0.9 米。
+  h.advance(0.8);
   assert.ok(h.person.position.distanceTo(from) > 0.5, 'walking resumes without a second drifting clone');
   assert.equal(h.person.rig, h.rig);
   assert.equal(h.controller.entities.person.rig, h.rig);

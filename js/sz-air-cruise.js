@@ -202,7 +202,9 @@ export function planAirCruise(route, flight, { groundHeight, roadHeight, nearCol
   return { ...atSpeed(flight.speedMps), atSpeed };
 }
 
-export function createAirCruise(data, geometry, aircraft, fullSpeedMps = data?.flight.speedMps) {
+// keepVisible：巡游借用玩家自己的飞行器时，退出后保留机身原地悬停，不隐藏模型。
+export function createAirCruise(data, geometry, aircraft, fullSpeedMps = data?.flight.speedMps,
+  { keepVisible = false } = {}) {
   const routes = (data?.routes ?? []).map(route => {
     try {
       // 速度计划按需生成（route.atSpeed），不为每条路线预建全速计划。
@@ -306,7 +308,8 @@ export function createAirCruise(data, geometry, aircraft, fullSpeedMps = data?.f
     },
     stop() {
       if (!route) return;
-      aircraft.mesh.visible = false;
+      if (keepVisible) aircraft.speed = 0;
+      else aircraft.mesh.visible = false;
       route = null;
       status = 'idle';
     },
@@ -338,9 +341,11 @@ export function createAirCruise(data, geometry, aircraft, fullSpeedMps = data?.f
   };
 }
 
-export function createSceneAirCruise(data, controller, site, fullSpeedMps) {
-  const aircraft = data && controller.createHelicopterEntity('AirCruiseEvtol');
-  if (aircraft) aircraft.mesh.visible = false;
+export function createSceneAirCruise(data, controller, site, fullSpeedMps, playerAircraft = null) {
+  // 有玩家飞行器时直接接管它：进入巡游即切到飞行，退出后停在当前位置上空。
+  const ownsAircraft = !playerAircraft;
+  const aircraft = playerAircraft ?? (data && controller.createHelicopterEntity('AirCruiseEvtol'));
+  if (aircraft && ownsAircraft) aircraft.mesh.visible = false;
   const bounds = aircraft?.collisionBounds;
   return createAirCruise(data, {
     // 跨水面或地面裁切边界时使用同一派生地形格网，仍不取上层桥面。
@@ -349,5 +354,5 @@ export function createSceneAirCruise(data, controller, site, fullSpeedMps) {
     nearColliders: controller.nearColliders.bind(controller),
     bodyRadius: flightEnvelopeRadius(bounds) + 0.75,
     maxAltitude: controller.maxFlightAltitude
-  }, aircraft, fullSpeedMps);
+  }, aircraft, fullSpeedMps, { keepVisible: !ownsAircraft });
 }

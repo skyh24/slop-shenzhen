@@ -377,10 +377,10 @@ export function wireShortcuts({ onMode, onCamera, onCycleCamera, onToggleHud, on
         onMode('person');
         break;
       case 'Digit2':
-        onMode('car');
+        onMode('cyclist');
         break;
       case 'Digit3':
-        onMode('cyclist');
+        onMode('car');
         break;
       case 'Digit4':
         onMode('helicopter');
@@ -566,7 +566,7 @@ export function createLocationReadout({ el, nearestBuildingName }) {
 }
 
 // HUD 读数每 250 ms 更新一次；帧率按墙钟累计算，慢帧和高刷屏都显示实际值。
-export function createHudTelemetry({ els, controllerManager, cameraSystem, topSpeed, renderLocation, cruise }) {
+export function createHudTelemetry({ els, controllerManager, cameraSystem, topSpeed, renderLocation, cruise, groundHeight }) {
   let frameCount = 0;
   let fpsTimer = 0;
   return {
@@ -587,7 +587,10 @@ export function createHudTelemetry({ els, controllerManager, cameraSystem, topSp
       }
       if (els.speed) els.speed.textContent = String(Math.round(speed * 3.6));
       if (els.speedMeter) els.speedMeter.style.transform = `scaleX(${Math.min(1, speed / (viewing ? cruise.targetSpeed : topSpeed[mode]))})`;
-      if (els.altitude) els.altitude.textContent = Math.round(viewing ? cruise.altitude : activeEnt.position.y).toLocaleString('zh-CN');
+      // 所有模式都显示离地高度：巡游取计划航线的离地值，其余按当前承托面计算。
+      const altitude = viewing ? cruise.altitude
+        : Math.max(0, activeEnt.position.y - groundHeight(activeEnt.position.x, activeEnt.position.z, mode));
+      if (els.altitude) els.altitude.textContent = Math.round(altitude).toLocaleString('zh-CN');
       // 路牌和小地图一起跟随配送无人机；普通跟随相机显示玩家位置。
       const where = cameraSystem.droneFollow?.pose.position
         ?? (cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos);

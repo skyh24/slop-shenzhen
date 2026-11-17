@@ -1063,13 +1063,7 @@ body.touch-enabled .teleport-filters button { min-height: 44px; }
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--text-2);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-body[data-mode='car'] .gauge-alt { display: none; }
-
-body[data-mode='helicopter'] .gauge-alt {
+  /* 速度框在所有模式都显示离地高度。 */
   opacity: 1;
 }
 
@@ -1949,8 +1943,9 @@ body[data-cruising] #drive-hud {
 }
 
 .cruise-actions {
+  /* 快速 ×2 / 游览 ×1 / 退出 保持一行。 */
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 3px;
 }
 

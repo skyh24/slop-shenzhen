@@ -60,7 +60,7 @@ export const STR = {
     north: '北',
     modes: '移动方式',
     telemetry: '速度、高度和相机',
-    altitude: '高度',
+    altitude: '离地',
     metres: '米',
     speedUnit: 'km/h',
     previousCamera: '上一个机位',
@@ -240,6 +240,8 @@ export const STR = {
     names: { beihuan: '北环巡游', shennan: '深南巡游', binhai: '滨海巡游' },
     note: '深圳模拟巡游 · 目标高度为地面道路上方约 80 米',
     routes: '路线',
+    fast: '快速 ×2',
+    scenic: '游览 ×1',
     boostSpeed: speed => `加速 · ${speed} km/h`,
     normalSpeed: speed => `常速 · ${speed} km/h`,
     progress: '巡游进度',
@@ -318,7 +320,7 @@ export const STR = {
   speedCruise: {
     label: '定速巡航',
     set: kmh => `定速 ${kmh} km/h`,
-    capture: { car: '沿当前车道定速前进', helicopter: '保持当前平飞速度' },
+    capture: { person: '匀速行走', cyclist: '匀速骑行', car: '沿当前车道定速前进', helicopter: '保持当前平飞速度' },
     moving: '前进后可开启定速巡航',
     cancel: '取消定速巡航'
   },

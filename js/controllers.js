@@ -18,27 +18,29 @@ import { FLIGHT_ENTRY_SECONDS, FLIGHT_FORWARD_ACCELERATION, flightEntryYaw, flig
 // 出生候选来自真实源道路；构造时还要用显示地面和碰撞体复核。
 const groundCollider = { type: 'ground' };
 
+// 每个模式的极速都按 3 秒从静止到达来反推加速度；Shift 只抬高汽车的极速。
 const CAR_DRIVE = {
-  speed: 120 / 3.6, reverseSpeed: 10.5, acceleration: 4.5,
-  forwardAcceleration: 40 / 3.6,
+  speed: 80 / 3.6, reverseSpeed: 60 / 3.6, acceleration: 4.5,
+  forwardAcceleration: 80 / 3.6 / 3,
   powerSpeed: 14.5, // Above 52 km/h, engine power limits acceleration.
   rolling: 0.18, drag: 0.0012, coast: 0.6, brake: 9,
   wheelbase: VEHICLE_SPECS.taxi.wheelbase, grip: 9.5, cornering: 10.5
 };
-const CAR_BOOST_DRIVE = { ...CAR_DRIVE, forwardAcceleration: 60 / 3.6 };
+const CAR_BOOST_DRIVE = { ...CAR_DRIVE, speed: 120 / 3.6, forwardAcceleration: 120 / 3.6 / 3 };
 const BICYCLE_DRIVE = {
-  speed: 60 / 3.6, reverseSpeed: 4.5, acceleration: 6.5, forwardAcceleration: 60 / 3.6 / 4,
+  speed: 60 / 3.6, reverseSpeed: 30 / 3.6, acceleration: 60 / 3.6 / 3, forwardAcceleration: 60 / 3.6 / 3,
   powerSpeed: 10.5, // Above 38 km/h, rider power limits acceleration.
   rolling: 0.1, drag: 0.004, coast: 0.45, brake: 10.5
 };
-const CAR_AUTO_DRIVE = { ...CAR_DRIVE, forwardAcceleration: null };
+// 自动驾驶按路线限速行驶，可以跑到 120 km/h，不受普通前进档 80 km/h 的限制。
+const CAR_AUTO_DRIVE = { ...CAR_BOOST_DRIVE, forwardAcceleration: null };
 // 2026-11-11 用户指定升降上限 20 m/s、2 秒加速到位，因此垂直加速度取 10 m/s²。
 const EVTOL_DRIVE = {
-  speed: 600 / 3.6, reverseSpeed: 400 / 3.6, reverseAcceleration: 400 / 3.6 / 4, braking: 24,
+  speed: 600 / 3.6, reverseSpeed: 300 / 3.6, reverseAcceleration: 300 / 3.6 / 3, braking: 24,
   verticalSpeed: 20, verticalAcceleration: 10
 };
 export const PLAYER_SPEED_LIMITS = Object.freeze({
-  person: 8.2, car: CAR_DRIVE.speed, cyclist: BICYCLE_DRIVE.speed, helicopter: EVTOL_DRIVE.speed
+  person: 30 / 3.6, car: CAR_DRIVE.speed, cyclist: BICYCLE_DRIVE.speed, helicopter: EVTOL_DRIVE.speed
 });
 const PERSON_STEP_UP = 0.38;
 const CONTACT_EPSILON = 1e-5;
@@ -85,9 +87,11 @@ function driveSpeed(speed, throttle, dt, drive, serviceBrake = 0) {
   const coasting = Math.max(0, magnitude - deceleration * dt) / (1 + drive.drag * magnitude * dt);
   if (!throttle || brakeStrength) return Math.sign(speed) * coasting;
 
-  // 玩家正向全油门按净加速度在4秒达速；松键、制动和倒车仍使用原阻力。
+  // 玩家正向油门按 3 秒到极速的加速度推进，不再叠加阻力项，保证各帧率下的到达时间确定。
   if (throttle > 0 && drive.forwardAcceleration) {
-    return Math.min(Math.max(drive.speed, coasting), magnitude + throttle * drive.forwardAcceleration * dt);
+    // 超过本档极速（例如松开 Shift）按阻力回落，不回弹也不卡住。
+    if (magnitude > drive.speed) return Math.sign(speed) * Math.max(drive.speed, coasting);
+    return Math.min(drive.speed, magnitude + throttle * drive.forwardAcceleration * dt);
   }
   const limit = throttle < 0 ? drive.reverseSpeed : drive.speed;
   let acceleration = drive.acceleration;
@@ -298,6 +302,8 @@ class ThirdPersonControllerManager {
       for (const action of actions) {
         this._keyboardKeys[action] = bindings[action].some((code) => this._pressedCodes.has(code));
         this._blendInput(action);
+        // 新的前进/后退按键取消定速；按住不放的自动重复不算，否则按 F 定速会被正在按住的键立刻抵消。
+        if (isDown && !e.repeat && (action === 'forward' || action === 'backward')) this._cancelCruiseOnMoveInput();
       }
     };
 
@@ -307,6 +313,11 @@ class ThirdPersonControllerManager {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.resetInput();
     });
+  }
+
+  _cancelCruiseOnMoveInput() {
+    if (this.cruiseSpeed == null) return;
+    if (this.activeMode === 'person' || this.activeMode === 'cyclist') this.cruiseSpeed = null;
   }
 
   _blendInput(action) {
@@ -321,6 +332,10 @@ class ThirdPersonControllerManager {
   _setAnalogInput(source, action, value) {
     if (!Object.hasOwn(this.keys, action)) return;
     const strength = Number(value);
+    // 摇杆/触控同样只在前进/后退重新加力时取消定速（0 到正值），松开不会取消。
+    if ((action === 'forward' || action === 'backward') && strength > 0 && !(Number(source[action]) > 0)) {
+      this._cancelCruiseOnMoveInput();
+    }
     source[action] = typeof value === 'boolean' ? value : Number.isFinite(strength) ? Math.max(0, Math.min(1, strength)) : 0;
     this._blendInput(action);
   }
@@ -1306,14 +1321,19 @@ class ThirdPersonControllerManager {
 
     let targetSpeed = 0;
     if (this.keys.forward) targetSpeed = maxSpeed * this.keys.forward;
-    else if (this.keys.backward) targetSpeed = -maxSpeed * 0.65 * this.keys.backward;
+    else if (this.keys.backward) targetSpeed = -20 / 3.6 * this.keys.backward;
 
     if (this.keys.left) p.heading += turnRate * dt * this.keys.left;
     if (this.keys.right) p.heading -= turnRate * dt * this.keys.right;
 
-    const accelerating = Math.abs(targetSpeed) > Math.abs(p.speed) && p.speed * targetSpeed >= 0;
-    const acceleration = accelerating ? 5.5 * Math.abs(targetSpeed) / maxSpeed : 12;
-    p.speed += Math.max(-acceleration * dt, Math.min(acceleration * dt, targetSpeed - p.speed));
+    if (this.cruiseSpeed != null) {
+      // 匀速行走：只锁速度，转向和碰撞钳制照常生效。
+      p.speed = this.cruiseSpeed;
+    } else {
+      const accelerating = Math.abs(targetSpeed) > Math.abs(p.speed) && p.speed * targetSpeed >= 0;
+      const acceleration = accelerating ? Math.abs(targetSpeed) / 3 : 12;
+      p.speed += Math.max(-acceleration * dt, Math.min(acceleration * dt, targetSpeed - p.speed));
+    }
 
     const prevX = p.position.x;
     const prevZ = p.position.z;
@@ -1393,8 +1413,10 @@ class ThirdPersonControllerManager {
   }
 
   canSetCruise() {
-    if (this.occupant.state !== OCCUPANT_STATES.SEATED || !(this.getActiveEntity().speed >= 1 / 3.6)
-      || this.keys.backward) return false;
+    // 步行与骑行没有上下车状态，匀速行走/骑行在前进后即可开启。
+    if (!(this.getActiveEntity().speed >= 1 / 3.6) || this.keys.backward) return false;
+    if (this.activeMode === 'person' || this.activeMode === 'cyclist') return true;
+    if (this.occupant.state !== OCCUPANT_STATES.SEATED) return false;
     if (this.activeMode === 'helicopter') return true;
     return this.activeMode === 'car' && !this.keys.brake;
   }
@@ -1543,8 +1565,12 @@ class ThirdPersonControllerManager {
     else if (this.keys.forward) throttle = +this.keys.forward;
     else if (this.keys.backward) throttle = b.speed > 0 ? -this.keys.backward : -0.6 * this.keys.backward;
 
-    // Pause briefly at zero after braking from forward travel so holding S stops cleanly before backing up
-    if (b.speed > 0 && throttle < 0) {
+    if (this.cruiseSpeed != null) {
+      // 匀速骑行：保持速度，转向、压弯与碰撞钳制照常生效。
+      b.speed = this.cruiseSpeed;
+      b._brakeHold = 0;
+    } else if (b.speed > 0 && throttle < 0) {
+      // Pause briefly at zero after braking from forward travel so holding S stops cleanly before backing up
       b.speed = driveSpeed(b.speed, throttle, dt, BICYCLE_DRIVE);
       if (b.speed < 0.05) {
         b.speed = 0;
@@ -1562,7 +1588,8 @@ class ThirdPersonControllerManager {
     if (this.keys.left) turnInput = this.keys.left;
     if (this.keys.right) turnInput = -this.keys.right;
 
-    if (Math.abs(b.speed) > 0.15) {
+    // 极低速不再原地转向，但门槛要低于 3 秒到极速的模拟量起步速度。
+    if (Math.abs(b.speed) > 0.05) {
       const dirSign = b.speed >= 0 ? 1 : -1;
       b.heading += turnInput * 2.15 * dirSign * dt;
     }

@@ -497,10 +497,8 @@
       <progress id="air-cruise-progress" data-label="cruise.progress" max="1" value="0"></progress>
       <div id="air-cruise-telemetry" class="pop-sub"></div>
       <div class="cruise-actions">
-        <button id="air-cruise-routes-btn" class="tool-btn" type="button" popovertarget="air-cruise-popover" data-text="cruise.routes"></button>
-        <button id="air-cruise-boost" class="tool-btn" type="button" aria-pressed="false"></button>
-        <button id="air-cruise-pause" class="tool-btn" type="button" data-text="cruise.pause"></button>
-        <button id="air-cruise-replay" class="tool-btn" type="button" data-text="cruise.replay"></button>
+        <button id="air-cruise-fast" class="tool-btn" type="button" data-text="cruise.fast" aria-pressed="false"></button>
+        <button id="air-cruise-scenic" class="tool-btn" type="button" data-text="cruise.scenic" aria-pressed="true"></button>
         <button id="air-cruise-exit" class="tool-btn" type="button" data-text="cruise.exit" aria-keyshortcuts="Escape"></button>
       </div>
     </section>
@@ -592,11 +590,11 @@
       <button id="mode-person" class="mode-btn active" data-mode="person" type="button">
         <svg class="icon" aria-hidden="true"><use href="#i-walk"/></svg><span class="mode-label"></span><kbd>1</kbd>
       </button>
-      <button id="mode-car" class="mode-btn" data-mode="car" type="button">
-        <svg class="icon" aria-hidden="true"><use href="#i-car"/></svg><span class="mode-label"></span><kbd>2</kbd>
-      </button>
       <button id="mode-cyclist" class="mode-btn" data-mode="cyclist" type="button">
-        <svg class="icon" aria-hidden="true"><use href="#i-bike"/></svg><span class="mode-label"></span><kbd>3</kbd>
+        <svg class="icon" aria-hidden="true"><use href="#i-bike"/></svg><span class="mode-label"></span><kbd>2</kbd>
+      </button>
+      <button id="mode-car" class="mode-btn" data-mode="car" type="button">
+        <svg class="icon" aria-hidden="true"><use href="#i-car"/></svg><span class="mode-label"></span><kbd>3</kbd>
       </button>
       <button id="mode-helicopter" class="mode-btn" data-mode="helicopter" type="button">
         <svg class="icon" aria-hidden="true"><use href="#i-heli"/></svg><span class="mode-label"></span><kbd>4</kbd>

@@ -79,8 +79,8 @@ function keyboardHarness(nyc = {}) {
     PLAYER_SPEED_LIMITS,
     window,
     document,
-    key(type, code, tagName = 'BODY') {
-      window.dispatch(type, { code, target: { tagName } });
+    key(type, code, tagName = 'BODY', extra = {}) {
+      window.dispatch(type, { code, target: { tagName }, ...extra });
     }
   };
 }
@@ -277,18 +277,20 @@ test('car accelerates gradually to full speed and preserves coasting and braking
   const acceleration = carDynamicsHarness();
   acceleration.controller.keys.forward = true;
   acceleration.advance(1);
-  assert.ok(Math.abs(acceleration.car.speed * 3.6 - 40) < 0.01);
+  assert.ok(Math.abs(acceleration.car.speed * 3.6 - 80 / 3) < 0.01);
+  acceleration.advance(1);
+  assert.ok(Math.abs(acceleration.car.speed * 3.6 - 160 / 3) < 0.01);
   acceleration.advance(1);
   assert.ok(Math.abs(acceleration.car.speed * 3.6 - 80) < 0.01);
-  acceleration.advance(1);
-  assert.ok(Math.abs(acceleration.car.speed * 3.6 - 120) < 0.01);
   acceleration.advance(3);
-  assert.equal(acceleration.car.speed, 120 / 3.6);
+  assert.equal(acceleration.car.speed, 80 / 3.6);
 
   const boosted = carDynamicsHarness();
   boosted.controller.keys.forward = boosted.controller.keys.boost = true;
   boosted.advance(1);
-  assert.ok(Math.abs(boosted.car.speed * 3.6 - 60) < 0.01);
+  assert.ok(Math.abs(boosted.car.speed * 3.6 - 40) < 0.01);
+  boosted.advance(1);
+  assert.ok(Math.abs(boosted.car.speed * 3.6 - 80) < 0.01);
   boosted.advance(1);
   assert.ok(Math.abs(boosted.car.speed * 3.6 - 120) < 0.01);
 
@@ -1106,7 +1108,8 @@ function walkingHarness(platform, extraColliders = [], { x = 0, y = 0, z = 0, ju
 
 test('walking steps onto a low rendered platform and keeps its footing after stopping and switching modes', () => {
   const { controller, ent, walk } = walkingHarness(walkingPlatform('low', 0.24));
-  walk(128);
+  // 步行 0→30 km/h 用 3 秒；0.2 的模拟量按同比例加速，约 3.2 秒走到平台中段。
+  walk(190);
   assert.ok(ent.position.x > 2 && ent.position.x < 4);
   assert.equal(ent.position.y, 0.24);
   assert.equal(ent._support.surfaceId, 'low');
@@ -1151,7 +1154,7 @@ test('walking cannot climb a high platform or cross a side wall while stepping o
 test('bridge levels keep walking and jumping on their own supported surfaces', () => {
   const bridge = walkingPlatform('bridge', 4, 3.68);
   const below = walkingHarness(bridge);
-  below.walk(220);
+  below.walk(260);
   assert.ok(below.ent.position.x > 4);
   assert.equal(below.ent.position.y, 0);
   assert.equal(below.ent._support.surfaceId, 'terrain');
@@ -1264,7 +1267,7 @@ test('aircraft stops before terrain above its ceiling without compressing skids 
 
 test('player vehicles reach their configured speed limits across frame rates', () => {
   for (const hz of [30, 60, 120, null]) {
-    for (const [mode, target, seconds] of [['car', 120, 3], ['cyclist', 60, 4], ['helicopter', 600, 3], ['helicopter', -400, 4]]) {
+    for (const [mode, target, seconds] of [['car', 80, 3], ['cyclist', 60, 3], ['helicopter', 600, 3], ['helicopter', -300, 3]]) {
       const sim = mode === 'car' ? carDynamicsHarness() : teleportHarness(mode);
       const { controller } = sim;
       const entity = sim.car || sim.ent;
@@ -1322,13 +1325,14 @@ test('speed telemetry uses the physical maximum for each mode and reports speed 
   let location;
   const hud = createHudTelemetry({
     els, controllerManager, topSpeed: PLAYER_SPEED_LIMITS, cameraSystem,
+    groundHeight: () => 0,
     renderLocation: (x, z) => { location = [x, z]; }
   });
   for (const [mode, speedKmh, expectedFill] of [
-    ['person', 0, 0], ['person', 8.2 * 3.6 / 2, 0.5], ['person', 8.2 * 3.6, 1],
-    ['car', 80, 2 / 3], ['car', 120, 1], ['car', 130, 1],
+    ['person', 0, 0], ['person', 15, 0.5], ['person', 30, 1],
+    ['car', 40, 0.5], ['car', 80, 1], ['car', 130, 1],
     ['cyclist', 30, 0.5], ['cyclist', 60, 1],
-    ['helicopter', 300, 0.5], ['helicopter', 600, 1], ['helicopter', -400, 2 / 3]
+    ['helicopter', 300, 0.5], ['helicopter', 600, 1], ['helicopter', -300, 0.5]
   ]) {
     controllerManager.activeMode = mode;
     entity.speed = speedKmh / 3.6;
@@ -1439,6 +1443,27 @@ test('flight cruise holds horizontal speed through manual turning and climbing u
   controller.updateHelicopter(1 / 60);
   assert.equal(controller.cruiseSpeed, null);
   assert.ok(ent.speed < 45);
+});
+
+test('walking and cycling cruise survive the still-held move key and cancel on a fresh press', () => {
+  for (const mode of ['person', 'cyclist']) {
+    const { controller, ent, key } = teleportHarness(mode);
+    ent.speed = 6;
+    key('keydown', 'KeyW');
+    controller.cruiseSpeed = ent.speed;
+    const update = mode === 'person' ? dt => controller.updatePerson(dt) : dt => controller.updateCyclist(dt);
+    for (let i = 0; i < 30; i++) update(1 / 30);
+    assert.equal(controller.cruiseSpeed, 6, `${mode} cruise is not cancelled by the key that was already held`);
+    assert.ok(Math.abs(ent.speed - 6) < 1e-9, `${mode} holds the cruise speed`);
+    // 按住键的自动重复不算新的输入。
+    key('keydown', 'KeyW', 'BODY', { repeat: true });
+    update(1 / 30);
+    assert.equal(controller.cruiseSpeed, 6);
+    key('keyup', 'KeyW');
+    key('keydown', 'KeyW');
+    update(1 / 30);
+    assert.equal(controller.cruiseSpeed, null, `${mode} cruise cancels on a new forward press`);
+  }
 });
 
 test('lane shortcuts request one direction and leave typing, modifiers and repeated keydown alone', () => {
