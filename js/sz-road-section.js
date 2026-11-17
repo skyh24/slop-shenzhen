@@ -4,7 +4,7 @@ const groundSections = new WeakMap();
 const deckSections = new WeakMap();
 const centeredLanes = (count, laneWidthM, travelWidthM) => Object.freeze(
   Array.from({ length: count }, (_, i) => (i + 0.5) * laneWidthM - travelWidthM / 2));
-const offsetsFromRight = centers => Object.freeze(centers.map(center => -center).reverse());
+const offsetsFromRight = centers => Object.freeze(centers.map(center => center === 0 ? 0 : -center).reverse());
 
 function createSection(link, metadata, deck) {
   const [, , , sourceWidthM, taggedLanes, direction] = link;
@@ -25,11 +25,15 @@ function createSection(link, metadata, deck) {
   const splitM = twoWay ? deck ? travelWidthM * (forwardCount / laneCount - 0.5) : 0 : null;
   const forwardWidthM = twoWay ? travelWidthM / 2 + splitM : travelWidthM;
   const backwardWidthM = twoWay ? travelWidthM / 2 - splitM : travelWidthM;
-  // 路径的正偏距朝行驶方向左侧。两向道路各方向的车道从本侧路缘向分界线排列。
+  // 车道中心的断面坐标以本方向左侧为正；两向道路各方向的车道从本侧路缘向分界线排列。
   const forwardLaneWidthM = forwardCount ? forwardWidthM / forwardCount : null;
   const backwardLaneWidthM = backwardCount ? backwardWidthM / backwardCount : null;
   const forwardCentersM = centeredLanes(forwardCount, forwardLaneWidthM, travelWidthM);
-  const backwardCentersM = centeredLanes(backwardCount, backwardLaneWidthM, travelWidthM);
+  // 双向的反向车道位于分界线另一侧；若也按整幅居中会与正向车道重叠，这里按反向行驶方向从右路缘排起。
+  const backwardCentersM = twoWay
+    ? Object.freeze(Array.from({ length: backwardCount },
+      (_, i) => travelWidthM / 2 - (i + 0.5) * backwardLaneWidthM))
+    : centeredLanes(backwardCount, backwardLaneWidthM, travelWidthM);
   const dividerOffsetsM = [];
   const leftCount = twoWay ? forwardCount : laneCount;
   const leftLaneWidthM = direction === -1 ? backwardLaneWidthM : forwardLaneWidthM;
@@ -41,11 +45,11 @@ function createSection(link, metadata, deck) {
   const defaultRightOffsetM = twoWay ? Math.min(pavementWidthM / 4, 2.3) : 0;
   // 双向的普通路线沿用保守右偏距；未核单向车道数时不把标线估计用作自动驾驶车道。
   const defaultOffsetsM = Object.freeze([defaultRightOffsetM]);
-  // 超宽单向道路的标线有绘制上限，已知的车道仍完整供路线选择。
-  const routeCentersM = !twoWay && sourceLaneCount > laneCount
+  // 超宽单向道路的标线有绘制上限，已知的车道仍完整供路线选择；双向由 laneOffsets 只取正向半幅。
+  const routeCentersM = twoWay ? null : sourceLaneCount > laneCount
     ? centeredLanes(sourceLaneCount, travelWidthM / sourceLaneCount, travelWidthM)
     : direction === 1 ? forwardCentersM : backwardCentersM;
-  return Object.freeze({
+  const section = {
     sourceId: deck?.osmId ?? metadata.osmId ?? null,
     surfaceId: deck?.surfaceId ?? 'terrain',
     layer: deck?.layer ?? metadata.layer ?? 0,
@@ -56,9 +60,23 @@ function createSection(link, metadata, deck) {
     forwardLaneWidthM, backwardLaneWidthM, forwardCentersM, backwardCentersM,
     dividerOffsetsM: Object.freeze(dividerOffsetsM),
     defaultOffsetsM,
-    routeOffsetsM: twoWay || estimated ? defaultOffsetsM
-      : offsetsFromRight(routeCentersM)
-  });
+    routeCentersM
+  };
+  section.routeOffsetsM = laneOffsets(section) ?? defaultOffsetsM;
+  return Object.freeze(section);
+}
+
+// 已核实断面或 OSM 明确标注的车道才可信；纯宽度估计只画标线，不据此派车。
+function verifiedLanes(section) {
+  return Boolean(section.reviewed) || (section.laneSource === 'osm-lanes' && !section.estimated);
+}
+
+// 沿边行驶方向的车道中心偏移（米，正=行驶方向右侧）。数组按坐标升序：
+// 首位最靠分界线，末位最靠右侧路缘。双向只取正向半幅，反向车道在分界线另一侧。
+// 返回 null 表示断面车道不可信，调用方应回退到保守偏移。
+export function laneOffsets(section) {
+  if (!verifiedLanes(section)) return null;
+  return offsetsFromRight(section.twoWay ? section.forwardCentersM : section.routeCentersM);
 }
 
 // 路网与桥面计划在场景生命周期内固定，渲染和双向行车边读取同一个断面结果。

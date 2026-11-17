@@ -160,6 +160,25 @@ test('traffic connects a reviewed expressway ramp to the outside lane without cr
     .every(point => Math.abs(point.z - 4.25) < 0.7 && point.dx > 0.98));
 });
 
+test('traffic keeps the nearest lane when the road ahead changes lane count', () => {
+  const profile = (id, from, to) => ({ ...groundRoad(id), widthSource: 'reviewed-cross-section',
+    crossSection: { laneCountSource: 'municipal-design-and-relative-imagery', laneWidthM: 3.5,
+      points: [from, 0, 8, to, 0, 8] } });
+  const graph = {
+    nodes: [0, 0, 200, 0, 500, 0], names: ['Road'],
+    links: [[0, 1, 0, 10.5, 3, 1, []], [1, 2, 0, 17.5, 5, 1, []]],
+    metadata: [profile(1, 0, 200), profile(2, 200, 500)]
+  };
+  const [first, second] = createTrafficGraph(graph).edges;
+  assert.deepEqual(Array.from(first.section.routeOffsetsM), [-3.5, 0, 3.5]);
+  assert.deepEqual(Array.from(second.section.routeOffsetsM), [-7, -3.5, 0, 3.5, 7]);
+  const path = laneRoute(routeSegments({ edge: first, segment: 0, distance: 100 }, { hx: 1 }, () => 0, new Set(), 0));
+  const crossing = path.filter(point => point.edge === second);
+  assert.ok(crossing.length > 10);
+  // 按比例选道会从 -3.5 跳到 -7；沿用最近车道后整段应保持同一横向位置。
+  assert.ok(crossing.every(point => Math.abs(point.laneOffset + 3.5) < 1e-6));
+});
+
 test('traffic collision bounds are the same local model box with the rendered yaw', () => {
   const model = trafficModelBounds({ min: { x: -1, y: 0, z: -2 }, max: { x: 1, y: 2, z: 3 } }, vehicleSpecs.taxi);
   const body = writeTrafficCollider({}, model, { x: 8, y: 6, z: 11, sin: 1, cos: 0, pitch: 0, roll: 0 });
@@ -170,7 +189,7 @@ test('traffic collision bounds are the same local model box with the rendered ya
 
 test('traffic stops before a player and uses its drawn position for collision queries', () => {
   const graph = {
-    nodes: [0, 0, 900, 0], names: ['Road'], links: [[0, 1, 0, 8, 2, 1, []]], metadata: [groundRoad(1)]
+    nodes: [0, 0, 900, 0], names: ['Road'], links: [[0, 1, 0, 4, 1, 1, []]], metadata: [groundRoad(1)]
   };
   const scene = new Group();
   const roadHeight = (x, z) => x >= 0 && x <= 900 && Math.abs(z) <= 4 ? 6 : null;
@@ -249,26 +268,63 @@ test('traffic does not plan a stationary queue at a reviewed mainline endpoint',
   assert.ok(traffic.statistics.mainlineEndRejects > 0);
 });
 
-test('traffic keeps a visible terminal vehicle and its collider until the camera looks away', () => {
+test('traffic extends the planned route at a junction instead of stopping at its end', () => {
   const graph = {
-    nodes: [0, 0, 900, 0], names: ['Road'], links: [[0, 1, 0, 8, 2, 1, []]], metadata: [groundRoad(1)]
+    nodes: [0, 0, 900, 0, 1800, 0], names: ['Road', 'Road'],
+    links: [[0, 1, 0, 8, 2, 1, []], [1, 2, 0, 8, 2, 1, []]], metadata: [groundRoad(1), groundRoad(1)]
   };
   const traffic = createSzTraffic(new Group(), graph, { roadHeight: () => 6 });
   const focus = { x: 250, z: 0 };
   traffic.update(0, focus);
   const actor = traffic.vehicles.find(vehicle => vehicle.route);
-  const original = actor.route;
-  for (let frame = 0; frame < 1600 && actor.s < actor.end; frame++) {
-    traffic.update(0.05, focus, [], null, () => true);
+  assert.ok(actor);
+  for (let frame = 0; frame < 900; frame++) traffic.update(0.05, focus, [], null, () => true);
+  assert.ok(traffic.statistics.routeExtensions > 0);
+  assert.ok(actor.route);
+  assert.ok(actor.s < actor.end - 1);
+  assert.equal(actor.dead, false);
+});
+
+test('traffic spreads spawns across the forward lanes of a reviewed two-way road', () => {
+  const graph = {
+    nodes: [0, 0, 900, 0], names: ['Road'], links: [[0, 1, 0, 21, 6, 0, []]],
+    metadata: [groundRoad(0)]
+  };
+  const traffic = createSzTraffic(new Group(), graph, { roadHeight: () => 6 });
+  const focus = { x: 300, z: 0 };
+  for (let frame = 0; frame < 240; frame++) traffic.update(0.05, focus, [], null, () => true);
+  const active = traffic.vehicles.filter(actor => actor.route);
+  assert.ok(active.length >= 6);
+  const lanes = new Set(active.map(actor => Math.round(actor.route[actor.pose.index].laneOffset * 10)));
+  assert.ok(lanes.size >= 2, `expected at least two forward lanes, saw ${lanes.size}`);
+  assert.ok(active.every(actor => actor.route[actor.pose.index].laneOffset > 0));
+});
+
+test('traffic changes lanes when the leading lane is blocked by a standing player', () => {
+  const graph = {
+    nodes: [0, 0, 600, 0, 1600, 0], nodeIds: ['node/1', 'node/2', 'node/3'], names: ['Ring'],
+    links: [[0, 1, 0, 17, 4, 1, []], [1, 2, 0, 8, 2, 1, []]],
+    metadata: [{ ...groundRoad(1), widthSource: 'reviewed-cross-section', crossSection: {
+      laneCountSource: 'municipal-design-and-relative-imagery', laneWidthM: 3.5, points: [0, 0, 8, 600, 0, 8]
+    } }, groundRoad(2)]
+  };
+  const traffic = createSzTraffic(new Group(), graph, { roadHeight: (x, z) => x >= 0 && x <= 1600 && Math.abs(z) <= 8 ? 2 : null });
+  const focus = { x: 300, z: 0 };
+  traffic.update(0, focus);
+  for (let frame = 0; frame < 60; frame++) traffic.update(0.05, focus);
+  const active = () => traffic.vehicles.filter(vehicle => vehicle.route);
+  const actor = active().find(vehicle => vehicle.end - vehicle.s > 150 && vehicle.s > 10);
+  assert.ok(actor, 'expected a moving car');
+  const { x, z, sin, cos } = actor.pose;
+  const player = { type: 'person', position: { x: x + sin * 12, y: 2, z: z + cos * 12 }, heading: 0 };
+  let shifted = false, completed = false;
+  for (let frame = 0; frame < 500; frame++) {
+    traffic.update(0.05, focus, [player]);
+    if (Math.abs(actor.shift ?? 0) > 0.05) shifted = true;
+    if (!actor.laneChange && Math.abs(actor.shift ?? 0) > 2) completed = true;
   }
-  assert.equal(actor.s, actor.end);
-  for (let frame = 0; frame < 120; frame++) traffic.update(0.05, focus, [], null, () => true);
-  assert.equal(actor.route, original);
-  assert.ok(traffic.nearColliders(actor.pose.x, actor.pose.z, 0).includes(actor.collider));
-  assert.equal(traffic.statistics.offscreenRecycled, 0);
-  traffic.update(0.05, focus, [], null, body => body !== actor.collider);
-  assert.notEqual(actor.route, original);
-  assert.equal(traffic.statistics.offscreenRecycled, 1);
+  assert.ok(completed, 'the lane change should finish one full lane to the side');
+  assert.ok(traffic.statistics.laneChanges >= 1);
 });
 
 function signalRoad() {
@@ -315,9 +371,10 @@ test('traffic holds at a green stop line while a physical vehicle occupies the e
   const traffic = createSzTraffic(new Group(), graph, { signals: control,
     roadHeight: (x, z) => x >= 0 && x <= 900 && Math.abs(z) <= 5 ? 2 : null });
   const focus = { x: 196, z: 0 };
-  const parked = { type: 'car', position: { x: 278, y: 2, z: 0 }, heading: Math.PI / 2,
-    collisionBounds: { min: { x: -1.1, y: 0, z: -2.5 }, max: { x: 1.1, y: 1.8, z: 2.5 } } };
-  for (let i = 0; i < 550; i++) traffic.update(0.05, focus, [parked], 0.7);
+  // 三条车道各停一辆，才算“出口被占满”；只堵一条车道时其他车道应正常放行。
+  const parked = [-3.33, 0, 3.33].map(z => ({ type: 'car', position: { x: 278, y: 2, z }, heading: Math.PI / 2,
+    collisionBounds: { min: { x: -1.1, y: 0, z: -2.5 }, max: { x: 1.1, y: 1.8, z: 2.5 } } }));
+  for (let i = 0; i < 550; i++) traffic.update(0.05, focus, parked, 0.7);
   assert.equal(traffic.statistics.signalEntries, 0);
   assert.ok(traffic.vehicles.some(actor => actor.waitingForSignal && actor.blocker?.atExit));
   for (let i = 0; i < 80; i++) traffic.update(0.05, focus, [], 0.7);

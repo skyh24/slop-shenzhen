@@ -25,7 +25,7 @@ const { createAutoDrive, hasRoadFootprint } = load('sz-auto-drive.js', {
   './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic, ...driving
 });
 const { createLaneAssist } = load('sz-lane-assist.js', {
-  './sz-auto-drive.js': { hasRoadFootprint }, ...driving
+  './sz-auto-drive.js': { hasRoadFootprint }, './sz-road-section.js': sections, ...driving
 });
 const { createDrivePlanner, createTurnFilter } = load('sz-drive-route.js', {
   './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic, './sz-road-section.js': sections
