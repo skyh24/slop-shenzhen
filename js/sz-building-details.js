@@ -743,12 +743,31 @@ function estimatePlanTriangles(plan) {
 
 export function buildBuildingDetails(scene, options = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('Missing scene for building details');
-  const buildings = options.buildings ?? [];
-  const terrain = options.terrain;
-  const roofPlans = options.roofPlans;
+  // detailPlan 是 buildCityBlocks 产出的唯一近景输入包；旧字段保留给直接调用和测试。
+  const detailPlan = options.detailPlan;
+  if (detailPlan !== undefined && (!detailPlan || typeof detailPlan !== 'object')) {
+    throw new Error('Building detail plan must be an object');
+  }
+  if (detailPlan && options.buildings !== undefined && options.buildings !== detailPlan.buildings) {
+    throw new Error('Building details buildings do not match the detail plan');
+  }
+  if (detailPlan && options.terrain !== undefined && options.terrain !== detailPlan.terrain) {
+    throw new Error('Building details terrain does not match the detail plan');
+  }
+  for (const field of ['roofPlans', 'retailBuildingIds', 'envelopePlans']) {
+    if (detailPlan && options[field] !== undefined && options[field] !== detailPlan[field]) {
+      throw new Error(`Building details ${field} do not match the detail plan`);
+    }
+  }
+  const buildings = detailPlan?.buildings ?? options.buildings ?? [];
+  const terrain = detailPlan?.terrain ?? options.terrain;
+  const roofPlans = detailPlan?.roofPlans ?? options.roofPlans;
+  const retailBuildingIds = detailPlan?.retailBuildingIds ?? options.retailBuildingIds;
+  const envelopePlans = detailPlan?.envelopePlans ?? options.envelopePlans;
   if (!Array.isArray(buildings)) throw new Error('Building details require a building list');
   if (!terrain) throw new Error('Missing terrain for building details');
-  const skipIds = options.skipIds instanceof Set ? options.skipIds : new Set(options.skipIds ?? []);
+  const extraSkipIds = options.skipIds instanceof Set ? options.skipIds : options.skipIds ?? [];
+  const skipIds = new Set([...(detailPlan?.skipIds ?? []), ...extraSkipIds]);
   const chunkSize = options.chunkSize ?? DETAIL_CHUNK_SIZE;
   const generateRadius = options.generateRadius ?? GENERATE_RADIUS;
   const disposeRadius = options.disposeRadius ?? DISPOSE_RADIUS;
@@ -760,7 +779,6 @@ export function buildBuildingDetails(scene, options = {}) {
 
   const index = new NeighbourIndex(buildings, terrain);
   // 地标专模自己会建屋顶和设备，地标覆盖的普通楼一律不出细节，避免重叠。
-  const { retailBuildingIds, envelopePlans } = options;
   const shouldSkip = building => skipIds.has(building.id) || building.facade === 'landmark' || Boolean(building.landmark);
   const chunkIndex = new Map();
   for (const building of buildings) {

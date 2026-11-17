@@ -4,6 +4,7 @@ import { GeoBuilder, addWalls, addFlatPolygon, readTriangles } from './sz-geomet
 import { createBuildingMaterial } from './sz-materials.js';
 import { facadeIndex } from './sz-facade-profiles.js';
 import { createBuildingEnvelopePlan } from './sz-building-envelope.js';
+import { createBuildingDetailPlan, retailBuildingIdsFromRegions } from './sz-building-plan.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
 import { ringArea, ringContains, polygonContains, orientedBoxRing } from './sz-polygon.js';
@@ -415,23 +416,33 @@ function indexRetailFronts(buildings, retailIds, skipIds) {
 
 /** 解析：普通建筑总入口：按 2.4 km 分块合并墙体/屋顶/裙房/女儿墙/屋顶设备，返回碰撞体。
  *  输入：buildings（默认 REAL_BUILDINGS）、terrain、skipIds（地标/场地接管）、roadGraph、entrances、renderChunkSize。
- *  输出：{ group, colliders, surfaces, allBlocks, roofs, roofPlans, update, dispose }。
+ *  输出：{ group, colliders, surfaces, allBlocks, roofs, roofPlans, retailIds, detailPlan, update, dispose }。
  *  约束：所有体量都由共享包足迹+高度派生；heightSource 保留源数据，新增细节标 estimate。 */
 export function buildCityBlocks(scene, options = {}) {
-  const buildings = options.buildings ?? REAL_BUILDINGS;
-  const terrain = options.terrain ?? GEO?.terrain;
-  const skipIds = options.skipIds ?? new Set();
+  const buildings = options.buildings !== undefined ? options.buildings : REAL_BUILDINGS;
+  if (!Array.isArray(buildings)) throw new Error('City blocks require a building list');
+  // 注入局部建筑集合时，地形、路网、入口和商圈索引都不得再隐式回落到全城 GEO；
+  // 缺省生产调用（未传 buildings 或传入同一份 REAL_BUILDINGS）仍使用共享包。
+  const cityContext = options.buildings === undefined || buildings === REAL_BUILDINGS;
+  const terrain = options.terrain !== undefined ? options.terrain
+    : cityContext ? GEO?.terrain : undefined;
+  if (!terrain) throw new Error('Missing terrain for city blocks');
+  const skipIds = options.skipIds instanceof Set ? options.skipIds : new Set(options.skipIds ?? []);
   const renderChunkSize = options.renderChunkSize ?? BUILDING_RENDER_CHUNK_SIZE;
   const roadClearance = options.roadClearance;
   const { programEmission, programParticipant = () => false } = options;
   // 裙房净空输入：地形起伏的地面道路与真实入口点，缺省取共享包里的路侧入口和地铁出入口。
-  const roadGraph = options.roadGraph ?? GEO?.roadGraph ?? null;
-  const entrances = options.entrances ?? [
-    ...(GEO?.roadFrontage?.entrances ?? []), ...(GEO?.metro?.entrances ?? [])
-  ];
-  const retailRefs = (GEO?.mapRegions?.regions ?? []).filter(region => region.type === 'retail')
-    .flatMap(region => region.buildingRefs.map(index => REAL_BUILDINGS[index]?.id));
-  const retailIds = new Set(retailRefs);
+  const roadGraph = options.roadGraph !== undefined ? options.roadGraph
+    : cityContext ? GEO?.roadGraph ?? null : null;
+  const entrances = options.entrances !== undefined ? options.entrances
+    : cityContext ? [...(GEO?.roadFrontage?.entrances ?? []), ...(GEO?.metro?.entrances ?? [])] : [];
+  // 商圈归属与零售店面必须读同一份 regions 和同一批 buildings；局部 fixture 不再混入全城索引。
+  const retailRegions = options.retail?.regions !== undefined ? options.retail.regions
+    : cityContext ? GEO?.mapRegions?.regions : undefined;
+  if (options.retailIds !== undefined && !Array.isArray(options.retailIds)
+    && !(options.retailIds instanceof Set)) throw new Error('Retail ids must be an array or set');
+  const retailIds = options.retailIds !== undefined ? new Set(options.retailIds)
+    : retailBuildingIdsFromRegions(retailRegions, buildings);
   const retailFront = indexRetailFronts(buildings, retailIds, skipIds);
   const candidates = collectPodiumCandidates(buildings);
   const occupancy = candidates.length ? buildPodiumOccupancy(buildings, terrain, roadGraph, entrances, candidates) : [];
@@ -592,8 +603,13 @@ export function buildCityBlocks(scene, options = {}) {
   }
   const retailMaterial = frontage?.finish(group);
   scene.add(group);
+  const retailBuildingIds = frontage?.buildingsWithFrontage ?? new Set();
+  // 近景入口的完整输入：同一批原始对象、地形、排除身份和基础占用都在这里收口。
+  const detailPlan = createBuildingDetailPlan({
+    buildings, terrain, skipIds, duplicateIds, roadConflicts, roofPlans, retailBuildingIds, envelopePlans: envelopes
+  });
   return { group, colliders, surfaces, allBlocks, roadConflicts, roofPlans, envelopePlans: envelopes, duplicateIds, programIds,
-    retailDoors: frontage?.doors ?? [], retailBuildingIds: frontage?.buildingsWithFrontage ?? new Set(),
+    retailIds, detailPlan, retailDoors: frontage?.doors ?? [], retailBuildingIds,
     roofs: allBlocks.filter(block => !block.isPodium && block.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M).length,
     update() {},
     dispose() {

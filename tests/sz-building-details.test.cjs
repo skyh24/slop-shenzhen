@@ -9,6 +9,7 @@ const polygonModule = require('./helpers/polygon.cjs');
 const roads = require('./helpers/roads.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
+const buildingPlan = loadModule(read('sz-building-plan.js'));
 
 // 离线 stub：只实现细节模块用到的 THREE 能力，避免测试依赖 WebGPU。
 function stubThree() {
@@ -233,6 +234,7 @@ test('the rendered roof plan removes duplicate Shenzhen roof equipment while kee
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
     './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
+    './sz-building-plan.js': buildingPlan,
     './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
@@ -384,6 +386,100 @@ test('a shared tower plan leaves equipment on the lower podium roof and on other
     baseRoof: { ...baseRoof, polygon: podium.polygons[0] } }), lower);
   assert.deepEqual(details.planBuildingDetails(podium, podiumPlacement, { neighbours,
     baseRoof: { ...baseRoof, roofY: podiumPlacement.maxY } }), lower);
+});
+
+test('detail plan carries base exclusions, roof occupancy and source identity', () => {
+  const plan = loadModule(read('sz-building-plan.js'));
+  function blocksThree() {
+    class Group {
+      constructor() { this.children = []; this.name = ''; }
+      add(object) { this.children.push(object); }
+      traverse(visit) {
+        visit(this);
+        for (const child of this.children) {
+          if (child.traverse) child.traverse(visit); else visit(child);
+        }
+      }
+    }
+    class Mesh {
+      constructor(geometry) { this.geometry = geometry; this.isMesh = true; }
+    }
+    class BufferGeometry {
+      attributes = {};
+      setAttribute(name, attribute) { this.attributes[name] = attribute; }
+      setIndex(index) { this.index = index; }
+      computeBoundingSphere() {}
+      computeBoundingBox() {}
+      dispose() {}
+    }
+    class BufferAttribute {
+      constructor(array, itemSize) { this.array = array; this.itemSize = itemSize; }
+    }
+    class Vector2 {
+      constructor(x, y) { Object.assign(this, { x, y }); }
+    }
+    const ShapeUtils = { triangulateShape: outer => outer.length < 3 ? [] : [[0, 1, 2]] };
+    return { Group, Mesh, BufferGeometry, BufferAttribute, Vector2, ShapeUtils };
+  }
+  const relations = loadModule(read('sz-building-envelope-relations.js'));
+  const [ownerId, duplicateId] = relations.BUILDING_ENVELOPE_RELATIONS
+    .find(row => row.kind === 'duplicate-volume').sourceIds;
+  const owner = makeBuilding({ id: ownerId, x: 0, z: 0, half: 16, height: 80 });
+  const duplicate = makeBuilding({ id: duplicateId, x: 0, z: 0, half: 16, height: 80 });
+  const roadBlocked = makeBuilding({ id: 'globfp/road-conflict', x: 300, z: 0, half: 16, height: 80 });
+  const skipped = makeBuilding({ id: 'way/skip-me', x: 500, z: 0, half: 16, height: 80 });
+  const buildings = [owner, duplicate, roadBlocked, skipped];
+  const terrain = FLAT_GRID();
+  const THREE = blocksThree();
+  const geometry = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } });
+  const envelopes = loadModule(read('sz-building-envelope.js'), { imports: {
+    './sz-geometry.js': geometry, './sz-polygon.js': polygonModule,
+    './sz-building-envelope-relations.js': relations
+  } });
+  const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    './sz-building-envelope.js': envelopes, './sz-building-plan.js': plan,
+    './building-collision.js': collision, './sz-retail-frontage.js': {},
+    'three/webgpu': THREE, './sz-geodata.js': {}, './sz-geometry.js': geometry,
+    './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
+    './sz-materials.js': { createBuildingMaterial: () => ({ dispose() {} }) },
+    './sz-building-layout.js': layout, './sz-polygon.js': polygonModule, './sz-roads.js': roads
+  } });
+  const blocks = buildCityBlocks(makeScene(), { buildings, terrain, skipIds: new Set([skipped.id]),
+    roadClearance: polygon => polygon === roadBlocked.polygons[0] ? 'ground:test' : null,
+    renderChunkSize: 2000 });
+  const detailPlan = blocks.detailPlan;
+  assert.equal(detailPlan.buildings, buildings, 'detail plan keeps the original building objects');
+  assert.equal(detailPlan.terrain, terrain);
+  assert.equal(detailPlan.roofPlans, blocks.roofPlans);
+  assert.equal(detailPlan.envelopePlans, blocks.envelopePlans);
+  assert.equal(blocks.duplicateIds.get(duplicateId), ownerId);
+  assert.equal(blocks.roadConflicts[0].buildingId, roadBlocked.id);
+  for (const id of [duplicateId, roadBlocked.id, skipped.id]) assert.ok(detailPlan.skipIds.has(id), id);
+  assert.equal(detailPlan.skipIds.has(ownerId), false);
+  assert.equal(detailPlan.buildings[0].heightSource, 'osm-height');
+  assert.equal(blocks.allBlocks[0].heightSource, 'osm-height');
+  assert.ok(detailPlan.roofPlans.has(ownerId), 'the base roof occupancy travels with the plan');
+
+  const details = loadDetails(stubThree());
+  const stream = details.buildBuildingDetails(makeScene(), { detailPlan });
+  drain(stream, { x: 0, z: 0 });
+  assert.equal(stream.statistics.buildings, 1, 'excluded objects produce no isolated close-up geometry');
+  assert.throws(() => details.buildBuildingDetails(makeScene(), { detailPlan, buildings: [] }),
+    /do not match the detail plan/);
+  stream.dispose();
+
+  // 任务 4 的接线形式：保留 site 的 buildings/terrain，再展开 detailPlan 覆盖近景事实。
+  const wired = details.buildBuildingDetails(makeScene(), { buildings, terrain, ...detailPlan });
+  drain(wired, { x: 0, z: 0 });
+  assert.equal(wired.statistics.buildings, 1);
+  wired.dispose();
+
+  const control = details.buildBuildingDetails(makeScene(), { buildings, terrain, maxChunksPerUpdate: 8 });
+  drain(control, { x: 0, z: 0 });
+  assert.equal(control.statistics.buildings, buildings.length,
+    'without the plan the same objects would all receive close-up geometry');
+  control.dispose();
+  blocks.dispose();
 });
 
 test('balconies stay near, never at ground level, and AC units are nearer than balconies', () => {
