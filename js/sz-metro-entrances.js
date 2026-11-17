@@ -5,6 +5,7 @@ import { cameraPosition, distance, float, positionWorld, smoothstep } from 'thre
 import { polygonBoxOverlaps } from './building-collision.js';
 import { finitePoint } from './sz-polygon.js';
 import { canvasTexture, mergeParts } from './sz-mesh-utils.js';
+import { chunkKey, createStreetBatch } from './sz-street-batch.js';
 
 // 雨棚净尺寸按深圳地铁常见出入口量级取值；站名牌挂在雨棚前沿上方。
 export const ENTRANCE_SIZE_M = Object.freeze({ width: 4.5, depth: 2.8, height: 2.6 });
@@ -538,10 +539,12 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
   const glassMeshes = [];
   const chunkMap = new Map();
   for (const entrance of placed) {
-    const key = `${Math.floor(entrance.x / chunkSizeM)},${Math.floor(entrance.z / chunkSizeM)}`;
+    const key = chunkKey(entrance.x, entrance.z, chunkSizeM);
     if (!chunkMap.has(key)) chunkMap.set(key, []);
     chunkMap.get(key).push(entrance);
   }
+  // 结构块与玻璃块同一套距离判断，避免玻璃留在隐藏的结构块外面。
+  const culling = createStreetBatch({ enterM: STRUCTURE_MAX_DISTANCE_M });
   for (const [key, chunk] of chunkMap) {
     // 玻璃几何和材质全城共用一份，每块只多一个 InstancedMesh，不 clone。
     const mesh = new THREE.InstancedMesh(structure, structureMaterial, chunk.length);
@@ -567,6 +570,11 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
     group.add(mesh, glassChunkMesh);
     structureMeshes.push(mesh);
     glassMeshes.push(glassChunkMesh);
+    culling.add({ key, center: mesh.boundingSphere.center, apply: state => {
+      const visible = state !== 'hidden';
+      mesh.visible = visible;
+      glassChunkMesh.visible = visible;
+    } });
   }
 
   const nearSigns = new THREE.Mesh(signs.near, nearSignMaterial);
@@ -598,18 +606,7 @@ export function buildSzMetroEntrances(scene, metro, options = {}) {
     entrances: placed,
     update(cameraPositionValue) {
       if (!cameraPositionValue) return;
-      let anyVisible = false;
-      const limitSq = STRUCTURE_MAX_DISTANCE_M * STRUCTURE_MAX_DISTANCE_M;
-      for (let i = 0; i < structureMeshes.length; i++) {
-        // 玻璃块和同索引的结构块同一套距离判断，避免玻璃留在隐藏的结构块外面。
-        const center = structureMeshes[i].boundingSphere.center;
-        const dx = cameraPositionValue.x - center.x;
-        const dz = cameraPositionValue.z - center.z;
-        const visible = dx * dx + dz * dz < limitSq;
-        structureMeshes[i].visible = visible;
-        glassMeshes[i].visible = visible;
-        if (visible) anyVisible = true;
-      }
+      const anyVisible = culling.update(cameraPositionValue.x, cameraPositionValue.z).visible > 0;
       nearSigns.visible = anyVisible;
       farSigns.visible = anyVisible;
     },

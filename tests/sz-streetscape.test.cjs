@@ -8,6 +8,7 @@ const { loadModule } = require('./helpers/module.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
+const streetBatch = loadModule(read('sz-street-batch.js'));
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
 const format = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
 const { geo, buildings } = format.decodeCityPayload(raw);
@@ -34,7 +35,7 @@ const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 test('the selected promenade is coplanar and walkable and the modeled tree trunk blocks the same footprint', { skip: !threeDir }, async () => {
   const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));
   const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
-  const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
+  const imports = { 'three/webgpu': THREE, 'three/tsl': TSL, './sz-street-batch.js': streetBatch };
   const cityLighting = loadModule(read('city-lighting-materials.js'), { imports });
   const roadMaterial = loadModule(read('sz-road-material.js'), { imports: { ...imports,
     './city-lighting-materials.js': cityLighting } });

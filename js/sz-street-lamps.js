@@ -3,6 +3,7 @@ import { color, uniform } from 'three/tsl';
 import { isGroundRoad, roadSectionPoints } from './sz-roads.js';
 import { sceneUniforms } from './sz-materials.js';
 import { polygonBoxOverlaps } from './building-collision.js';
+import { chunkKey, createStreetBatch } from './sz-street-batch.js';
 
 // 灯位按源道路断面和道路等级派生，属外观估计。
 const SPACING_BY_CLASS = {
@@ -25,6 +26,7 @@ const POLE_SIDES = 6;
 const JUNCTION_MARGIN_M = 14; // 路口附近不放灯杆
 const POOL_RADIUS_M = 7.5;
 const CHUNK_SIZE_M = 1000;
+const CULL_DISTANCE_M = 1600; // 灯杆很细，超过这个距离只保留块的包围球开销没有意义
 
 function normalAt(a, b) {
   const dx = b.x - a.x;
@@ -202,7 +204,7 @@ export function planLampSites(roadGraph, options = {}) {
 export function groupLampSites(sites, chunkSize = CHUNK_SIZE_M) {
   const chunks = new Map();
   for (const site of sites) {
-    const key = `${Math.floor(site.x / chunkSize)},${Math.floor(site.z / chunkSize)}`;
+    const key = chunkKey(site.x, site.z, chunkSize);
     if (!chunks.has(key)) chunks.set(key, []);
     chunks.get(key).push(site);
   }
@@ -391,6 +393,8 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
   const chunks = groupLampSites(sites, chunkSize);
   const geometries = [];
   const chunkGroups = new Map();
+  // 可见性交给街具分块批，灯的 update 只推进一帧，再按块整体显隐。
+  const culling = createStreetBatch({ enterM: CULL_DISTANCE_M });
   for (const [key, chunk] of chunks) {
     const chunkGroup = {
       name: `lamps:${key}`,
@@ -410,6 +414,7 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
     chunkGroup.center.y = chunk.reduce((sum, site) => sum + site.y, 0) / chunk.length;
     group.add(chunkGroup.group);
     chunkGroups.set(key, chunkGroup);
+    culling.add({ key, center: chunkGroup.center, apply: state => { chunkGroup.group.visible = state !== 'hidden'; } });
   }
   scene.add(group);
   const statistics = {
@@ -440,12 +445,7 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
       glow.value = night;
       materials.pool.opacity = night * 0.72;
       materials.halo.opacity = night * 0.9;
-      if (cameraPosition) {
-        for (const chunk of chunkGroups.values()) {
-          const distance = Math.hypot(cameraPosition.x - chunk.center.x, cameraPosition.z - chunk.center.z);
-          chunk.group.visible = distance < 1600;
-        }
-      }
+      if (cameraPosition) culling.update(cameraPosition.x, cameraPosition.z);
     },
     dispose() {
       scene.remove(group);

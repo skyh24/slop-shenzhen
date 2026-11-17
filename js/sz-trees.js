@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { polygonContains } from './sz-polygon.js';
 import { COMPACT_CROWN_TRIANGLES, CROWN_SPECIES, createCompactFoliage, createCrownLibrary, createDetailedTreeBatch } from './sz-tree-crown.js';
+import { chunkKey, createStreetBatch } from './sz-street-batch.js';
 
 // 近景按树种实例化整棵树，远景的低模树干和树冠按同一子格切换。
 
@@ -527,7 +528,7 @@ export function buildSzTrees(scene, payload, options = {}) {
   // 按 1000 m 分块，树木按 250 m 子格切换细节档。
   const grouped = new Map();
   for (const record of placed) {
-    const key = `${Math.floor(record.x / CHUNK_SIZE_M)},${Math.floor(record.z / CHUNK_SIZE_M)}`;
+    const key = chunkKey(record.x, record.z, CHUNK_SIZE_M);
     let list = grouped.get(key);
     if (!list) grouped.set(key, (list = []));
     list.push(record);
@@ -540,6 +541,9 @@ export function buildSzTrees(scene, payload, options = {}) {
   const cardTriangles = crownLibrary ? crownLibrary.statistics.triangles : {};
   const chunks = [];
   const cardGeometries = [];
+  // 子格进出与近/远档位共用街具分块批：180 m 内高模，828 m 进入、900 m 退出，迟滞避免边界抖动。
+  const lodBatch = createStreetBatch({ enterM: FAR_ENTER_M, exitM: FAR_EXIT_M,
+    levels: [{ id: 'near', enterM: NEAR_ENTER_M, exitM: NEAR_EXIT_M }] });
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
   const scale = new THREE.Vector3();
@@ -609,7 +613,7 @@ export function buildSzTrees(scene, payload, options = {}) {
     const records = grouped.get(key);
     const cells = new Map();
     for (const record of records) {
-      const cellKey = `${Math.floor(record.x / LOD_CELL_M)},${Math.floor(record.z / LOD_CELL_M)}`;
+      const cellKey = chunkKey(record.x, record.z, LOD_CELL_M);
       let cell = cells.get(cellKey);
       if (!cell) cells.set(cellKey, (cell = { key: cellKey, records: [], box: { minX: Infinity, maxX: -Infinity,
         minZ: Infinity, maxZ: -Infinity } }));
@@ -652,8 +656,15 @@ export function buildSzTrees(scene, payload, options = {}) {
         cardTrees += groupRecords.length;
         cellCardTriangles += triangles;
       }
-      chunkCells.push({ key: cellKey, cards, far, grove, trees: cell.records.length, woodland: woodland.length,
-        cardTrees, cardTriangles: cellCardTriangles, box: cell.box, mode: 'far' });
+      const id = `${key}/${cellKey}`;
+      chunkCells.push({ id, key: cellKey, cards, far, grove, trees: cell.records.length, woodland: woodland.length,
+        cardTrees, cardTriangles: cellCardTriangles, box: cell.box });
+      lodBatch.add({ key: id, box: cell.box, apply: state => {
+        const near = state === 'near';
+        for (const card of cards) card.mesh.visible = near;
+        for (const mesh of far) mesh.visible = state === 'base';
+        for (const mesh of grove) mesh.visible = state !== 'hidden';
+      } });
     }
     chunks.push({ cells: chunkCells });
   }
@@ -680,13 +691,6 @@ export function buildSzTrees(scene, payload, options = {}) {
       nearTrees: 0, farTrees: 0, cardTrees: 0, triangles: 0 }
   };
 
-  // 相机到子格包围盒的水平距离；子格内可能有树，按最近边缘算比按质心更符合“近处高模”的意图。
-  function boxDistance(box, x, z) {
-    const dx = x < box.minX ? box.minX - x : x > box.maxX ? x - box.maxX : 0;
-    const dz = z < box.minZ ? box.minZ - z : z > box.maxZ ? z - box.maxZ : 0;
-    return Math.hypot(dx, dz);
-  }
-
   function update(cameraPosition) {
     if (!cameraPosition) return;
     let visibleChunks = 0;
@@ -700,26 +704,19 @@ export function buildSzTrees(scene, payload, options = {}) {
     let nearCardTriangles = 0;
     let nearWoodlandTrees = 0;
     let visibleWoodlandTrees = 0;
-    const x = cameraPosition.x;
-    const z = cameraPosition.z;
+    lodBatch.update(cameraPosition.x, cameraPosition.z);
     for (const chunk of chunks) {
       let chunkVisible = false;
       for (const cell of chunk.cells) {
-        const distance = boxDistance(cell.box, x, z);
-        const canBeNear = distance < (cell.mode === 'near' ? NEAR_EXIT_M : NEAR_ENTER_M);
-        const visible = cell.mode === 'hidden' ? distance <= FAR_ENTER_M : distance <= FAR_EXIT_M;
-        cell.mode = visible ? (canBeNear ? 'near' : 'far') : 'hidden';
-        for (const card of cell.cards) card.mesh.visible = cell.mode === 'near';
-        for (const mesh of cell.far) mesh.visible = cell.mode === 'far';
-        for (const mesh of cell.grove) mesh.visible = visible;
-        if (!visible) {
+        const state = lodBatch.state(cell.id);
+        if (state === 'hidden') {
           hiddenCells += 1;
           continue;
         }
         visibleCells += 1;
         visibleWoodlandTrees += cell.woodland;
         chunkVisible = true;
-        if (cell.mode === 'near') {
+        if (state === 'near') {
           nearCells += 1;
           nearTrees += cell.trees;
           cardTrees += cell.cardTrees;

@@ -10,6 +10,7 @@
 | --- | --- |
 | `sz-streetscape.js::buildSzStreetscape` | 受道路/建筑占用约束的步行铺装 |
 | `sz-trees.js::buildSzTrees`、`sz-tree-crown.js::createCrownLibrary` | 六种程序树、叶卡、风与透光、实例化和近远LOD |
+| `sz-street-batch.js::chunkKey/createStreetBatch` | 街具分块键、相机距离、迟滞与档位切换；树、路灯、地铁口共用一套进出规则 |
 | `sz-street-lamps.js::planLampSites/buildSzStreetLamps` | 按断面布置灯杆、双头/倒L外形与光晕 |
 | `sz-pedestrian-tracks.js::buildWalkTracks/buildSidewalkTracks` | 模拟路侧步行带、连接与排斥 |
 | `sz-pedestrians.js::createSzPedestrians/createSzDensityModel` | 地点密度、附近人群池与队列减速；人物骨架来自 `pedestrians.js` |
@@ -21,6 +22,8 @@
 来源由 `tools/sz/metro.py`、`parks.py`、`streetscape.py`、`trees.py` 处理；地铁按深圳地铁网络过滤。商圈地面见 [商圈与区域](REGIONS-PLACES.md)，楼宇夜景见 [灯光秀](LIGHT-SHOW.md)。
 
 深圳湾日出剧场的 17 株源树点交给 `sz-trees.js` 与城市树记录合并，保留精确 OSM 点位。同一树种资源用于街景与公园补植，碰撞由同一树干生成，分块退出释放实例。莲花山雕像旁的柏林保留专属冠形和平台位置。
+
+树木、路灯和地铁口的可见性共用 `sz-street-batch.js`：分块键、包围盒或中心点距离、迟滞进出与档位切换只有一份实现。树按 828 m 进入、900 m 退出，近景档在 180 m 进入、198 m 退出；路灯是 1600 m 硬阈值，地铁口是 1500 m 硬阈值。各模块仍在 `add()` 里声明某个状态显示哪几组网格，模块本身不碰 Three 对象。
 
 深圳湾与人才公园的栏杆横档、座椅和庭院灯共用 `sz-site-fixtures.js`。两处共用单位盒几何、钢件和木件材质，各自的灯头参数独立。释放一个场地的批次后，其他使用者持有的资源仍可用。挡墙、岸线、光斑、观看净空与座椅靠背由场地参数或已有独立几何表达。
 
