@@ -4,6 +4,7 @@ import {
   cameraPosition, positionWorld, normalWorldGeometry, normalize, dot
 } from 'three/tsl';
 import { cityUniforms } from './city-lighting-materials.js';
+import { shopNightNode } from './sz-facade-nodes.js';
 import { GeoBuilder } from './sz-geometry.js';
 import { buildingSeed } from './sz-building-layout.js';
 import { isGroundRoad } from './sz-roads.js';
@@ -299,7 +300,7 @@ export function createRetailMaterial() {
   const wallColor = mix(trim, mix(mix(surface, glazing, glass), color(0xb4bfc0), handle), wall);
   material.colorNode = mix(canopyBase, wallColor, wall);
   material.roughnessNode = mix(0.86, 0.27, glass);
-  const night = smoothstep(0.56, 1.45, cityUniforms.uInteriorGlow);
+  const night = shopNightNode(cityUniforms.uInteriorGlow);
   // 首层夜间亮度固定三档（0.35 / 0.65 / 1.0），按楼栋 seed 分布，冷暖再由另一路 seed 混合。
   const tierSeed = fract(seed.mul(43.17).add(0.21));
   const tierMid = step(0.30, tierSeed);

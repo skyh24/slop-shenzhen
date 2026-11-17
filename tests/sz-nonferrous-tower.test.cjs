@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { loadFacadeNodes } = require('./helpers/facade-nodes.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
@@ -18,6 +19,7 @@ const { geo, buildings } = decodeCityPayload(JSON.parse(gunzipSync(readFileSync(
 const source = new Map(buildings.map(row => [row.id, row]));
 const model = (three = {}, tsl = {}) => load('sz-landmarks/nonferrous-tower.js', {
   'three/webgpu': three, 'three/tsl': tsl, './parts.js': partsApi,
+  '../sz-facade-nodes.js': loadFacadeNodes(tsl),
   '../sz-materials.js': { sceneUniforms: tsl.uniform ? { night: tsl.uniform(0) } : {} }
 });
 const height = (b) => placement.buildingPlacement(b, geo.terrain).baseY;
@@ -78,6 +80,7 @@ test('real Three draws and collides with the same curved recess, slabs and suppo
       'three/webgpu': THREE, '../sz-geometry.js': load('sz-geometry.js', { 'three/webgpu': THREE })
     });
     const { createLandmarkMaterial } = load('sz-landmarks/materials.js', {
+      '../sz-facade-nodes.js': loadFacadeNodes(tsl),
       '../sz-rail/geometry.js': {}, 'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': { sceneUniforms: { night: tsl.uniform(0) } },
       './shenzhen-bay-culture-square.js': {}, './upperhills.js': {}, './nonferrous-tower.js': nonferrous, './press-tower.js': { sourceIds: [], build: () => [] },
       './iec-xiangmihu.js': {}, './super-hq.js': {}

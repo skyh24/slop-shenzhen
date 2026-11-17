@@ -23,7 +23,7 @@ SCOPES = {
               'sz-tunnels sz-traffic sz-auto-drive sz-intersection-control sz-controller-surfaces controllers',
               'tools/sz/tests/test_road*.py tools/sz/tests/test_*terrain*.py '
               'tools/sz/tests/test_copernicus.py tools/sz/tests/test_sea_surface.py'),
-    'buildings': ('sz-buildings sz-building-details sz-building-signs sz-roof-equipment '
+    'buildings': ('sz-facade-look sz-facade-nodes sz-buildings sz-building-details sz-building-signs sz-roof-equipment '
                   'sz-podium-clearance sz-landmarks sz-chunjian sz-civic-center sz-iec '
                   'sz-convention-center sz-superhq sz-upperhills sz-nonferrous-tower '
                   'sz-bay-bridge building-collision sz-light-show',

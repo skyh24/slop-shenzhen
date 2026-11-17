@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { abs, cameraPosition, color, dot, float, floor, fract, fwidth, length, max, mix, normalWorldGeometry,
   positionWorld, sin, smoothstep, step, uv, vec2 } from 'three/tsl';
 import { sceneUniforms } from '../sz-materials.js';
+import { cellNoiseNode, paneMaskAutoNode, paneSoftNode } from '../sz-facade-nodes.js';
 import { baseAt, blend, footprintParts, point } from './parts.js';
 
 export const sourceIds = ['way/1163682856', 'way/1163682857', 'way/1163682858'];
@@ -202,13 +203,10 @@ export function createNonferrousMaterial(name) {
   if (!style) throw new Error(`Unknown Nonferrous Tower material: ${name}`);
   const material = new THREE.MeshStandardNodeMaterial();
   const coord = uv(), u = coord.x.div(style.bay), v = coord.y.div(style.floor);
-  const soften = cell => max(fwidth(cell), 0.004);
-  const pane = (cell, edge) => smoothstep(float(edge).sub(soften(cell)), float(edge).add(soften(cell)),
-    abs(fract(cell).sub(0.5))).oneMinus();
-  const detail = smoothstep(0.18, 0.73, max(soften(u), soften(v))).oneMinus();
-  const glass = mix(float(0.79), pane(u, 0.455).mul(pane(v, style.sill)), detail);
+  const detail = smoothstep(0.18, 0.73, max(paneSoftNode(u), paneSoftNode(v))).oneMinus();
+  const glass = mix(float(0.79), paneMaskAutoNode(u, 0.455).mul(paneMaskAutoNode(v, style.sill)), detail);
   const wall = smoothstep(0.14, 0.57, abs(normalWorldGeometry.y)).oneMinus();
-  const cell = fract(sin(dot(vec2(floor(u), floor(v)), vec2(16.843, 57.193))).mul(43758.5453));
+  const cell = cellNoiseNode(u, v);
   const tint = color(style.tint).mul(mix(float(1), cell.mul(0.17).add(0.91), detail));
   const reflect = abs(dot(cameraPosition.sub(positionWorld).normalize(), normalWorldGeometry)).oneMinus().pow(2.4);
   let window = mix(tint, color(0xa2bbca), reflect.mul(sceneUniforms.night.oneMinus()).mul(0.34));

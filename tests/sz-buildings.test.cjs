@@ -4,6 +4,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { loadModule } = require('./helpers/module.cjs');
+const { loadFacadeNodes } = require('./helpers/facade-nodes.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 const roadsModule = require('./helpers/roads.cjs');
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
@@ -203,11 +204,12 @@ test('retail walls replace only street-facing lower geometry and retain the clos
       uSkyHorizonColor: TSL.color(0x8899aa), uSkyTopColor: TSL.color(0x667788), uInteriorGlow: TSL.float(1)
     } };
     const signs = loadModule(read('sz-retail-signs.js'), { imports: {
-      ...imports, './city-lighting-materials.js': cityUniforms, './sz-strings.js': loadModule(read('sz-strings.js'))
+      ...imports, './sz-facade-nodes.js': loadFacadeNodes(TSL),
+      './city-lighting-materials.js': cityUniforms, './sz-strings.js': loadModule(read('sz-strings.js'))
     } });
     const retail = loadModule(read('sz-retail-frontage.js'), { imports: {
       ...imports, './sz-geometry.js': geometry, './sz-building-layout.js': layout, './sz-roads.js': roadsModule,
-      './sz-polygon.js': polygonModule, './city-lighting-materials.js': cityUniforms,
+      './sz-facade-nodes.js': loadFacadeNodes(TSL), './sz-polygon.js': polygonModule, './city-lighting-materials.js': cityUniforms,
       './sz-spatial.js': { spatialIndex: items => () => items }, './sz-retail-signs.js': signs
     } });
     const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
@@ -368,6 +370,7 @@ test('a reviewed duplicate shares one solid only while its footprint, holes and 
 const signStubs = () => loadModule(read('sz-retail-signs.js'), { imports: {
   'three/webgpu': {},
   'three/tsl': { attribute: () => null, mix: () => null, smoothstep: () => null, texture: () => null },
+  './sz-facade-nodes.js': loadFacadeNodes({}),
   './city-lighting-materials.js': { cityUniforms: {} },
   './sz-strings.js': loadModule(read('sz-strings.js'))
 } });

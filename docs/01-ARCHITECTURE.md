@@ -47,6 +47,7 @@ index.html → sz-geodata（校验/解码）→ main 的 site 数据与共享表
 | 地标装配 | `sz-landmarks/index.js::buildSzLandmarks`、`layout.js::planSzLandmarks` | 按源ID注册、让位；返回碰撞、可站表面和跳过对象 |
 | 地标部件 | `sz-landmarks/parts.js`、`render.js::renderLandmark`、`materials.js` | loft、斜屋面、跨段实体转渲染/碰撞，专模清单见05号 |
 | 城市材质 | `sz-materials.js::createBuildingMaterial`、`sz-facade-profiles.js`、`city-lighting-materials.js::cityUniforms` | 局部墙面窗格、用途外观模板、共享日夜uniform |
+| 立面窗格 | `sz-facade-look.js::paneMask/cellNoise/shopNightGlow`、`sz-facade-nodes.js::paneMaskNode/cellNoiseNode/shopNightNode` | 窗格 SDF、格心噪声与店面夜间曲线，CPU 与 TSL 同参数 |
 | 路面材质 | `sz-road-material.js` | 沥青与标线材质，当前效果由参数/调用方决定 |
 | 玩家控制 | `controllers.js::ThirdPersonControllerManager` | 步行、汽车、单车、飞行、上下车状态、安全落点与同一角色绑定 |
 | 车身与物理 | `cars.js`、`vehicles.js`、`vehicle-physics.js`、`vehicle-lights.js` | loft车身、公共部件、轮接触/动量与车灯 |

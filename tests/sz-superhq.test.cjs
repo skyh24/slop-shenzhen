@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { loadFacadeNodes } = require('./helpers/facade-nodes.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
@@ -21,6 +22,7 @@ const source = new Map(buildings.map(row => [row.id, row]));
 
 const loadModel = (THREE = {}, tsl = {}, atmosphere = {}) => loadModule(read('sz-landmarks/super-hq.js'), {
   imports: { 'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': atmosphere,
+    '../sz-facade-nodes.js': loadFacadeNodes(tsl),
     '../sz-terrain.js': terrain, '../building-collision.js': collision, './parts.js': parts }
 });
 const model = loadModel();

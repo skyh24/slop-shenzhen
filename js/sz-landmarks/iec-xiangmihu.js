@@ -3,6 +3,7 @@ import * as THREE from 'three/webgpu';
 import { abs, cameraPosition, color, dot, float, floor, fract, fwidth, max, mix, normalWorldGeometry,
   positionWorld, sin, smoothstep, step, uv, vec2 } from 'three/tsl';
 import { sceneUniforms } from '../sz-materials.js';
+import { cellNoiseNode, paneMaskNode } from '../sz-facade-nodes.js';
 import { terrainHeight } from '../sz-terrain.js';
 import { footprintParts, loftPart, point } from './parts.js';
 
@@ -167,15 +168,14 @@ function facadeStyle(style) {
   const coord = uv();
   const bay = coord.x.div(style.bay);
   const level = coord.y.div(style.floor);
-  const x = abs(fract(bay).sub(0.5));
-  const y = abs(fract(level).sub(0.5));
   const wX = max(fwidth(bay), 0.004);
   const wY = max(fwidth(level), 0.004);
   const detail = smoothstep(0.2, 0.75, max(wX, wY)).oneMinus();
+  // 竖向层间挑板仍要离格心的归一化距离。
+  const y = abs(fract(level).sub(0.5));
   const pane = mix(float((1 - style.fin) * (1 - style.sill)),
-    smoothstep(float(0.5 - style.fin / 2).sub(wX), wX.add(0.5 - style.fin / 2), x).oneMinus()
-      .mul(smoothstep(float(0.5 - style.sill / 2).sub(wY), wY.add(0.5 - style.sill / 2), y).oneMinus()), detail);
-  const noise = fract(sin(dot(vec2(floor(bay), floor(level)), vec2(12.9898, 78.233))).mul(43758.5453));
+    paneMaskNode(bay, 0.5 - style.fin / 2, wX).mul(paneMaskNode(level, 0.5 - style.sill / 2, wY)), detail);
+  const noise = cellNoiseNode(bay, level);
   const wall = smoothstep(0.15, 0.65, abs(normalWorldGeometry.y)).oneMinus();
   const view = cameraPosition.sub(positionWorld).normalize();
   const fresnel = abs(dot(view, normalWorldGeometry)).oneMinus().pow(2.4);

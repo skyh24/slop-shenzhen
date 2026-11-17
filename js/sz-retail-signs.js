@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { attribute, mix, smoothstep, texture } from 'three/tsl';
 import { cityUniforms } from './city-lighting-materials.js';
+import { shopNightNode } from './sz-facade-nodes.js';
 import { STR } from './sz-strings.js';
 
 // 店招贴墙偏移、尺寸与图集容量：所有数值都是米或像素，保证同一街区每次生成一致。
@@ -167,7 +168,7 @@ export function createShopSignMaterial(map) {
   const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.54, metalness: 0.04 });
   const texel = texture(map);
   const glow = attribute('signGlow', 'float');
-  const night = smoothstep(0.56, 1.45, cityUniforms.uInteriorGlow);
+  const night = shopNightNode(cityUniforms.uInteriorGlow);
   material.colorNode = texel.rgb;
   material.roughnessNode = mix(0.74, 0.5, glow);
   // 只有被 seed 选中的店招夜里点亮，其余保持暗字，不再形成整条连续亮带。

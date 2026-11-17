@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { abs, cameraPosition, color, dot, float, floor, fract, fwidth, max, mix, normalWorldGeometry,
   positionWorld, sin, smoothstep, step, uv, vec2 } from 'three/tsl';
 import { sceneUniforms } from '../sz-materials.js';
+import { cellNoiseNode, paneMaskAutoNode, paneSoftNode } from '../sz-facade-nodes.js';
 import { terrainHeight } from '../sz-terrain.js';
 import { convexHull } from '../building-collision.js';
 import { baseAt, blend, footprintParts, point, roofPanelPart, spanPart } from './parts.js';
@@ -472,13 +473,10 @@ function wallMaterial(name) {
   const u = wing ? positionWorld.x.add(positionWorld.z.mul(0.73)) : uv().x;
   const v = wing ? positionWorld.y : uv().y;
   const bx = u.div(glass ? 3 : 3.8), by = v.div(hotel ? 4.2 : lobby ? 5.6 : glass ? 4.5 : 3.85);
-  const line = (cell, fraction) => {
-    const soft = max(fwidth(cell), 0.005);
-    return smoothstep(float(fraction).sub(soft), float(fraction).add(soft), abs(fract(cell).sub(0.5))).oneMinus();
-  };
-  const detail = smoothstep(0.18, 0.78, max(fwidth(bx), fwidth(by))).oneMinus();
-  const panes = mix(float(glass ? 0.82 : 0.27), line(bx, glass ? 0.47 : 0.29).mul(line(by, glass ? 0.44 : 0.30)), detail);
-  const noise = fract(sin(dot(vec2(floor(bx), floor(by)), vec2(9.278, 71.291))).mul(27385.42));
+  const detail = smoothstep(0.18, 0.78, max(paneSoftNode(bx), paneSoftNode(by))).oneMinus();
+  const panes = mix(float(glass ? 0.82 : 0.27),
+    paneMaskAutoNode(bx, glass ? 0.47 : 0.29).mul(paneMaskAutoNode(by, glass ? 0.44 : 0.30)), detail);
+  const noise = cellNoiseNode(bx, by);
   const skyEdge = abs(dot(cameraPosition.sub(positionWorld).normalize(), normalWorldGeometry)).oneMinus().pow(2.2);
   const tint = color(lobby ? 0x617478 : glass ? 0x779cac : 0x404b50).mul(mix(float(1), noise.mul(0.17).add(0.91), detail));
   const windowColor = mix(tint, color(0xb0c7d2), skyEdge.mul(glass ? 0.37 : 0.12).mul(sceneUniforms.night.oneMinus()));

@@ -3,6 +3,7 @@ import { abs, cameraPosition, color, dot, float, floor, fract, fwidth, max, mix,
   sin, smoothstep, step, texture, time, uniform, uv, vec2 } from 'three/tsl';
 import { NORTH_FRAME } from '../sz-rail/geometry.js';
 import { sceneUniforms } from '../sz-materials.js';
+import { cellNoiseNode, paneMaskNode } from '../sz-facade-nodes.js';
 import { createCulturePavingMask } from './shenzhen-bay-culture-square.js';
 import { createUpperhillsMaterial } from './upperhills.js';
 import { createNonferrousMaterial } from './nonferrous-tower.js';
@@ -55,17 +56,14 @@ function facadeMaterial(style, programEmission) {
   const level = uniform(style.floor);
   const bx = u.div(width);
   const by = v.div(level);
-  const x = abs(fract(bx).sub(0.5));
-  const y = abs(fract(by).sub(0.5));
   const borderX = uniform(0.5 - style.fin / 2);
   const borderY = uniform(0.5 - style.sill / 2);
   const wX = max(fwidth(bx), 0.003);
   const wY = max(fwidth(by), 0.003);
   const detail = smoothstep(0.22, 0.78, max(wX, wY)).oneMinus();
   const pane = mix(float((1 - style.fin) * (1 - style.sill)),
-    smoothstep(borderX.sub(wX), borderX.add(wX), x).oneMinus()
-      .mul(smoothstep(borderY.sub(wY), borderY.add(wY), y).oneMinus()), detail);
-  const noise = fract(sin(dot(vec2(floor(bx), floor(by)), vec2(12.9898, 78.233))).mul(43758.5453));
+    paneMaskNode(bx, borderX, wX).mul(paneMaskNode(by, borderY, wY)), detail);
+  const noise = cellNoiseNode(bx, by);
   const wall = smoothstep(0.15, 0.65, abs(normalWorldGeometry.y)).oneMinus();
   const cladding = uniform(new THREE.Color(style.metal));
   const view = cameraPosition.sub(positionWorld).normalize();

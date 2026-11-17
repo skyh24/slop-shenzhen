@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { loadFacadeNodes } = require('./helpers/facade-nodes.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
@@ -42,6 +43,7 @@ test('bridge surfaces use the actual render buffers and both navigation spans st
   const cityLighting = loadModule(read('city-lighting-materials.js'), { imports });
   const geometry = loadModule(read('sz-geometry.js'), { imports });
   const materials = loadModule(read('sz-materials.js'), { imports: { ...imports, './city-lighting-materials.js': cityLighting,
+    './sz-facade-nodes.js': loadFacadeNodes(TSL),
     './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')) } });
   const { buildShenzhenBayBridge } = loadModule(read('sz-landmarks/shenzhen-bay-bridge.js'), {
     imports: { ...imports, '../sz-geometry.js': geometry, '../sz-materials.js': materials }

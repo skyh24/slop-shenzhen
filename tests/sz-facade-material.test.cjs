@@ -4,6 +4,7 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { loadFacadeNodes } = require('./helpers/facade-nodes.cjs');
 
 const root = join(__dirname, '..');
 const read = (file) => readFileSync(join(root, 'js', file), 'utf8');
@@ -150,7 +151,8 @@ test('building material builds one MeshStandardNodeMaterial with day/night nodes
     const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
     // 和 tests/sz-road-material.test.cjs 一样加载真实模块：城市 uniform 必须是真实 TSL uniform 节点。
     const cityLighting = loadModule(cityLightingSource, { imports });
-    const materials = loadModule(materialsSource, { imports: { ...imports, './city-lighting-materials.js': cityLighting, './sz-facade-profiles.js': facadeProfiles } });
+    const materials = loadModule(materialsSource, { imports: { ...imports, './city-lighting-materials.js': cityLighting,
+      './sz-facade-nodes.js': loadFacadeNodes(TSL), './sz-facade-profiles.js': facadeProfiles } });
     const material = materials.createBuildingMaterial();
     assert.ok(material instanceof THREE.MeshStandardNodeMaterial);
     for (const node of ['colorNode', 'roughnessNode', 'metalnessNode', 'emissiveNode']) {
@@ -302,11 +304,13 @@ function createFacadeEvaluator() {
   const three = { MeshStandardNodeMaterial, Color, Vector3 };
   const cityLighting = loadModule(cityLightingSource, { imports: { 'three/webgpu': three, 'three/tsl': tsl } });
   const materials = loadModule(materialsSource, {
-    imports: { 'three/webgpu': three, 'three/tsl': tsl, './city-lighting-materials.js': cityLighting, './sz-facade-profiles.js': facadeProfiles }
+    imports: { 'three/webgpu': three, 'three/tsl': tsl, './city-lighting-materials.js': cityLighting,
+      './sz-facade-nodes.js': loadFacadeNodes(tsl), './sz-facade-profiles.js': facadeProfiles }
   });
   // 零售材质只用到店招模块的类型引用；这里用最小桩避免测试依赖 DOM 图集。
   const retail = loadModule(read('sz-retail-frontage.js'), { imports: {
     'three/webgpu': three, 'three/tsl': tsl, './city-lighting-materials.js': cityLighting,
+    './sz-facade-nodes.js': loadFacadeNodes(tsl),
     './sz-geometry.js': {}, './sz-building-layout.js': { buildingSeed: () => 0.5 },
     './sz-roads.js': {}, './sz-polygon.js': {}, './sz-spatial.js': {},
     './sz-retail-signs.js': {

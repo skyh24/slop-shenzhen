@@ -4,6 +4,7 @@ import {
   clamp, pow, normalize, uniform, positionWorld, normalWorldGeometry, cameraPosition, time, color, fwidth
 } from 'three/tsl';
 import { cityUniforms } from './city-lighting-materials.js';
+import { hash21Node } from './sz-facade-nodes.js';
 import { FACADE_PROFILES, FACADE_SAMPLE_PROFILES, HOUHAI_OFFICE, SHENZHEN_BAY_MANSION } from './sz-facade-profiles.js';
 
 // 全局氛围参数：night 0 白天 → 1 深夜；show 控制楼体灯光秀。
@@ -30,8 +31,6 @@ const num = (value) => {
 const ZERO = num(0);
 const ONE = num(1);
 const HALF = num(0.5);
-
-const hash21 = Fn(([p]) => fract(sin(dot(p, vec2(12.9898, 78.233))).mul(43758.5453)));
 
 // 不带 fwidth 的区间判断：只用于首层门洞、楼板带这类有明确几何边界的遮罩。
 const stepBand = (x, a, b) => step(a, x).mul(step(x, b));
@@ -101,7 +100,7 @@ export function createBuildingMaterial(programEmission = null) {
   const curtain = step(num(0.85), glazing);
   const suiteSpan = ONE.add(step(num(0.9), winW));
 
-  const tone = hash21(vec2(seed, seed.mul(num(1.7))));
+  const tone = hash21Node(vec2(seed, seed.mul(num(1.7))));
   const wallTint = TINT_A.reduce((acc, value, i) => acc.add(color(value).mul(matches[i])), vec3(0));
   const wallBase = mix(wallTint, color(residence.wallColor), residentialSample).mul(tone.mul(num(0.22)).add(num(0.86)));
   // 玻璃色由墙色推导：同类型楼的玻璃自然带一点墙色，省掉一次颜色查表。
@@ -130,7 +129,7 @@ export function createBuildingMaterial(programEmission = null) {
   const row = floor(gridV);
   const cellId = vec2(floor(gridU), row);
   const suite = vec2(floor(gridU.div(suiteSpan)), row);
-  const occupancy = hash21(suite.add(vec2(seed.mul(num(17.3)).add(num(32.1)), num(7.6))));
+  const occupancy = hash21Node(suite.add(vec2(seed.mul(num(17.3)).add(num(32.1)), num(7.6))));
   const fwV = max(fwidth(gridV), num(0.0008));
   const aaU = fwU.mul(num(AA_SCALE));
   const aaV = fwV.mul(num(AA_SCALE));

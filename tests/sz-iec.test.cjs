@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { loadFacadeNodes } = require('./helpers/facade-nodes.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
@@ -17,6 +18,7 @@ const partsApi = loadModule(read('sz-landmarks/parts.js'), { imports: {
 // 纯几何/布点测试不需要真实 THREE；材质构造函数只在 THREE 用例里触达。
 const iec = loadModule(read('sz-landmarks/iec-xiangmihu.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': {}, '../sz-materials.js': { sceneUniforms: {} },
+  '../sz-facade-nodes.js': loadFacadeNodes({}),
   '../sz-terrain.js': terrain, './parts.js': partsApi
 } });
 const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
@@ -143,6 +145,7 @@ test('real Three draws the IEC campus within part, triangle and material budgets
     const imports = { 'three/webgpu': THREE, 'three/tsl': tsl };
     const realIec = loadModule(read('sz-landmarks/iec-xiangmihu.js'), { imports: {
       ...imports, '../sz-materials.js': { sceneUniforms: { night: tsl.uniform(0) } },
+      '../sz-facade-nodes.js': loadFacadeNodes(tsl),
       '../sz-terrain.js': terrain, './parts.js': partsApi
     } });
     const geometry = loadModule(read('sz-geometry.js'), { imports });

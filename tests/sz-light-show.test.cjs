@@ -5,6 +5,7 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const { loadModule } = require('./helpers/module.cjs');
+const { loadFacadeNodes } = require('./helpers/facade-nodes.cjs');
 const { dayPhaseStub } = require('./helpers/day-phase.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
@@ -253,6 +254,7 @@ test('landmark materials keep a night emissive channel on every lit surface', { 
     '../sz-rail/geometry.js': { NORTH_FRAME: { center: [0, 0], axis: [1, 0] } },
     'three/webgpu': THREE,
     'three/tsl': tsl,
+    '../sz-facade-nodes.js': loadFacadeNodes(tsl),
     '../sz-materials.js': { sceneUniforms: { night, show: night, spec: night } },
     './shenzhen-bay-culture-square.js': { createCulturePavingMask: () => ({}) },
     './upperhills.js': { createUpperhillsMaterial: stub },

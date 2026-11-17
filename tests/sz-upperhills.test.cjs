@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { loadFacadeNodes } = require('./helpers/facade-nodes.cjs');
 const sectionFrame = require('./helpers/section-frame.cjs');
 const driving = require('./helpers/driving.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
@@ -22,6 +23,7 @@ const { buildings, geo } = decodeCityPayload(JSON.parse(gunzipSync(readFileSync(
 const sources = new Map(buildings.map(b => [b.id, b]));
 const loadUpperhills = (THREE, tsl, materials) => loadModule(read('sz-landmarks/upperhills.js'), { imports: {
   'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': materials, '../sz-terrain.js': terrain,
+  '../sz-facade-nodes.js': loadFacadeNodes(tsl),
   '../building-collision.js': collision, './parts.js': parts
 } });
 
@@ -51,7 +53,9 @@ test('UpperHills geometry renders its sourced towers and separated public levels
   const atmosphere = { sceneUniforms: { night: tsl.uniform(0) } };
   const upperhills = loadUpperhills(THREE, tsl, atmosphere);
   const { createLandmarkMaterial } = loadModule(read('sz-landmarks/materials.js'), { imports: {
+    '../sz-facade-nodes.js': loadFacadeNodes(tsl),
     '../sz-rail/geometry.js': {}, 'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': atmosphere,
+    '../sz-facade-nodes.js': loadFacadeNodes(tsl),
     './shenzhen-bay-culture-square.js': {}, './upperhills.js': upperhills, './nonferrous-tower.js': {}, './press-tower.js': { sourceIds: [], build: () => [] },
     './iec-xiangmihu.js': {}, './super-hq.js': {}
   } });

@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { loadFacadeNodes } = require('./helpers/facade-nodes.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
@@ -52,19 +53,19 @@ const loadCulture = THREE => loadModule(readLandmark('shenzhen-bay-culture-squar
   'three/webgpu': THREE, '../building-collision.js': collision, '../sz-terrain.js': terrain, './parts.js': parts
 } });
 const loadUpperhills = THREE => loadModule(readLandmark('upperhills.js'), { imports: {
-  'three/webgpu': THREE, 'three/tsl': {}, '../sz-materials.js': {}, '../sz-terrain.js': terrain,
+  'three/webgpu': THREE, 'three/tsl': {}, '../sz-materials.js': {}, '../sz-facade-nodes.js': loadFacadeNodes({}), '../sz-terrain.js': terrain,
   '../building-collision.js': collision, './parts.js': parts
 } });
 const nonferrous = loadModule(readLandmark('nonferrous-tower.js'), { imports: {
-  'three/webgpu': {}, 'three/tsl': {}, '../sz-materials.js': {}, './parts.js': parts
+  'three/webgpu': {}, 'three/tsl': {}, '../sz-materials.js': {}, '../sz-facade-nodes.js': loadFacadeNodes({}), './parts.js': parts
 } });
 const pressTower = loadModule(readLandmark('press-tower.js'), { imports: { './parts.js': parts } });
 const loadIec = (THREE, tsl = {}, materials = {}) => loadModule(readLandmark('iec-xiangmihu.js'), { imports: {
-  'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': materials, '../sz-terrain.js': terrain, './parts.js': parts
+  'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': materials, '../sz-facade-nodes.js': loadFacadeNodes(tsl), '../sz-terrain.js': terrain, './parts.js': parts
 } });
 const iec = loadIec({});
 const loadSuperHq = (THREE, tsl = {}, materials = {}) => loadModule(readLandmark('super-hq.js'), { imports: {
-  'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': materials, '../sz-terrain.js': terrain,
+  'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': materials, '../sz-facade-nodes.js': loadFacadeNodes(tsl), '../sz-terrain.js': terrain,
   '../building-collision.js': collision, './parts.js': parts
 } });
 const superHq = loadSuperHq({});
@@ -785,6 +786,7 @@ test('new site landmarks build and render through the shared material dispatcher
   const superModel = loadSuperHq(THREE, tsl, atmosphere);
   const materials = loadModule(readLandmark('materials.js'), { imports: {
     '../sz-rail/geometry.js': {}, 'three/webgpu': THREE, 'three/tsl': tsl, '../sz-materials.js': atmosphere,
+    '../sz-facade-nodes.js': loadFacadeNodes(tsl),
     './shenzhen-bay-culture-square.js': { createCulturePavingMask: () => ({}) },
     './upperhills.js': { createUpperhillsMaterial: () => new THREE.MeshBasicMaterial() },
     './nonferrous-tower.js': { createNonferrousMaterial: () => new THREE.MeshBasicMaterial() },
