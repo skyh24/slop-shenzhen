@@ -273,6 +273,7 @@ export function createLandmarkMaterial(name, programEmission = null) {
     case 'landmarkEdge': return crownMaterial(0xc0c6c7, 0.39, 0.29, 0.30);
     case 'tencentSpine': return nightSurface(0x2a4359, 0.32, 0.38, 0x486b8c, 0.02);
     case 'tencentRoof': return new THREE.MeshStandardMaterial({ color: 0x3e4b55, roughness: 0.84 });
+    case 'tencentCornice': return crownMaterial(0xc4ccd0, 0.34, 0.3, 0.25);
     case 'libraryDeck': return new THREE.MeshStandardMaterial({ color: 0xadada1, roughness: 0.86 });
     case 'libraryShell': return libraryShellMaterial();
     case 'djiBrace': return crownMaterial(0xbfcbd1, 0.64, 0.14, 0.18);

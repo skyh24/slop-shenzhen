@@ -256,14 +256,13 @@ test('priority landmarks keep distinct footprints, height provenance and open lo
   const first = old.find(part => part.id.startsWith('tencent-towers:shaft'));
   assert.equal(tip.heightSource, 'published');
   assert.ok(tip.maxY - first.minY > 184.7 && tip.maxY - first.minY < 184.9);
-  // 冠部不是平顶：上环每个顶点高度不同，两端起翘、中间下凹。
-  const crown = old.find(part => part.id === 'tencent-towers:shaft:crown');
-  assert.ok(crown?.crownLoft);
-  assert.equal(crown.heightSource, 'published');
-  const crownTops = crown.crownLoft.topYs;
-  assert.ok(crownTops.length > 20);
-  assert.ok(Math.max(...crownTops) - Math.min(...crownTops) > 11);
-  assert.equal(crown.maxY, Math.max(...crownTops));
+  // 平顶圆角矩形：顶部一圈薄檐口，不再有双尖或高出屋面的鳍。
+  const cornice = old.find(part => part.id === 'tencent-towers:cornice');
+  assert.ok(cornice?.crownLoft);
+  assert.equal(cornice.heightSource, 'published');
+  const corniceTops = cornice.crownLoft.topYs;
+  assert.ok(corniceTops.every(y => Math.abs(y - corniceTops[0]) < 1e-6));
+  assert.ok(cornice.maxY - cornice.minY > 1.1 && cornice.maxY - cornice.minY < 1.3);
   const spears = byLandmark.get('diwang').filter(part => part.id.startsWith('diwang:spire'));
   assert.equal(spears.length, 2);
   assert.ok(spears.every(part => part.heightSource === 'published' && part.maxY === 392));

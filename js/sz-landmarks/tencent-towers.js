@@ -9,33 +9,42 @@ function geometry(source) {
   return { at, halfWidth: length / 2 + 0.9, halfDepth: (source.maxZ - source.minZ) / 2 - 0.4 };
 }
 
+// 实景平面是直边圆角矩形，不是梭形：长边平直，两端用圆角收头，顶部一圈薄檐口像椭圆环绕侧面。
+function planRing(halfWidth, halfDepth) {
+  const radius = Math.min(9.5, halfDepth * 0.62);
+  const straight = Math.max(1, halfWidth - radius);
+  const inner = Math.max(0.5, halfDepth - radius);
+  const points = [];
+  const push = (x, z) => points.push([x, z]);
+  const arc = (cx, cz, from, to, steps, includeEnd = true) => {
+    const last = includeEnd ? steps : steps - 1;
+    for (let i = 1; i <= last; i++) {
+      const angle = from + (to - from) * i / steps;
+      push(cx + Math.cos(angle) * radius, cz + Math.sin(angle) * radius);
+    }
+  };
+  push(-straight, halfDepth);
+  push(straight, halfDepth);
+  arc(straight, inner, Math.PI / 2, 0, 4);
+  push(halfWidth, -inner);
+  arc(straight, -inner, 0, -Math.PI / 2, 4);
+  push(-straight, -halfDepth);
+  arc(-straight, -inner, -Math.PI / 2, -Math.PI, 4);
+  push(-halfWidth, inner);
+  arc(-straight, inner, Math.PI, Math.PI / 2, 4, false);
+  return points.reverse();
+}
+
 export function build(sources, terrain, { heightAt } = {}) {
   const [tower, annex, link] = sourceIds.map(id => sources.get(id));
   const { at, halfWidth, halfDepth } = geometry(tower);
   const door = at(0, halfDepth - 4);
   const base = heightAt?.(door.x, door.z) ?? baseAt(tower, terrain);
-  // 实景是两端起翘、中间下凹的梭形冠，不是平顶：主幕墙到 179.5m，顶部用非平面 loft 收成双尖冠。
-  const crownBase = 179.5;
-  const crownTop = 193;
-  const crownDrop = 12.5;
-  const profile = [[8.2, 0.972], [24, 1], [75, 1], [132, 0.986], [165, 0.958], [crownBase, 0.936]];
-  const lens = Array.from({ length: 32 }, (_, i) => {
-    const angle = i * Math.PI / 16;
-    // 平面是尖梭形：两端收成窄尖，长面略鼓，正面看得到竖向中缝。
-    return [Math.sign(Math.cos(angle)) * Math.abs(Math.cos(angle)) ** 0.92 * halfWidth,
-      Math.sign(Math.sin(angle)) * Math.abs(Math.sin(angle)) ** 0.62 * halfDepth];
-  });
-  const section = ([y, scale]) => ({ y, ring: lens.map(([u, v]) => at(u * scale, v * scale - 0.6 * y / 193)) });
+  const ring = planRing(halfWidth, halfDepth);
+  // 两侧接近垂直，顶部平；193m 处的薄檐口是照片里绕侧边的椭圆线。
+  const profile = [[8.2, 0.98], [24, 1], [75, 1], [132, 0.998], [165, 0.992], [193, 0.985]];
+  const section = ([y, scale]) => ({ y, ring: ring.map(([u, v]) => at(u * scale, v * scale - 0.6 * y / 193)) });
   const skin = profile.map(spec => ({ ...section(spec), style: 'tencentLegacyGlass' }));
-  const lowerCrown = section(profile.at(-1)).ring;
-  const crownUpper = lens.map(([u, v]) => {
-    const top = base + crownTop - crownDrop * (1 - Math.abs(u / halfWidth) ** 1.45);
-    return { ...at(u * 0.89, v * 0.89 - 0.6 * crownTop / 193), y: top };
-  });
-  const crown = crownLoftPart('tencent-towers:shaft:crown', tower, lowerCrown, crownUpper,
-    base + crownBase, crownUpper.map(p => p.y), 'tencentLegacyGlass',
-    { heightSource: 'published', uvOriginY: base, smoothSides: true });
-  const deck = lens.map(([u, v]) => at(u * 0.925, v * 0.925 - 0.6 * crownBase / 193));
   const scaleAt = y => {
     for (let i = 1; i < profile.length; i++) {
       if (y <= profile[i][0]) {
@@ -45,14 +54,21 @@ export function build(sources, terrain, { heightAt } = {}) {
     }
     return profile.at(-1)[1];
   };
-  // 正面中央的深色竖缝：分段跟随塔身收分，避免一根直条在顶部浮出幕墙。
-  const spine = Array.from({ length: 8 }, (_, i) => {
-    const y0 = 9.4 + (crownBase + 0.6 - 9.4) * i / 8;
-    const y1 = 9.4 + (crownBase + 0.6 - 9.4) * (i + 1) / 8;
+  // 中央竖缝：前后两面各做一条，分段跟随塔身收分，从首层一直延伸到檐口下。
+  const spine = [-1, 1].flatMap(side => Array.from({ length: 12 }, (_, i) => {
+    const y0 = 9.4 + (192.2 - 9.4) * i / 12;
+    const y1 = 9.4 + (192.2 - 9.4) * (i + 1) / 12;
     const scale = scaleAt((y0 + y1) / 2);
-    return volume(`tencent-towers:spine:${i}`, tower,
-      rect(at, 0, halfDepth * scale - 0.08, 1.05 * scale, 0.26), base + y0, base + y1, 'tencentSpine');
-  });
+    return volume(`tencent-towers:spine:${side}:${i}`, tower,
+      rect(at, 0, side * (halfDepth * scale - 0.04), 0.42 * scale, 0.22), base + y0, base + y1, 'tencentSpine');
+  }));
+  // 檐口：下环贴幕墙，上环外挑 0.8%，形成连续薄椭圆边；不封顶，屋顶另铺平板。
+  const corniceLow = section([191.8, 1]).ring;
+  const corniceHigh = section([193, 1.025]).ring;
+  const cornice = crownLoftPart('tencent-towers:cornice', tower, corniceLow, corniceHigh,
+    base + 191.8, corniceHigh.map(() => base + 193), 'tencentCornice',
+    { heightSource: 'published', uvOriginY: base, smoothSides: true });
+  const roof = section([193, 0.985]).ring;
   const canopy = (u, v) => ({ ...at(u, v), y: base + 7.9 });
   return [
     volume('tencent-towers:lobby', tower, rect(at, 0, -0.8, 39, halfDepth * 1.42), base - 0.45, base + 9.2, 'landmarkLobby'),
@@ -60,10 +76,9 @@ export function build(sources, terrain, { heightAt } = {}) {
     ...[-14.2, 14.2].map((u, i) => volume(`tencent-towers:column:${i}`, tower, ellipse(at, u, halfDepth - 2.2, 0.62, 0.62, 10),
       base - 0.45, base + 9.6, 'landmarkEdge')),
     ...stackedLofts('tencent-towers:shaft', tower, base, skin, { heightSource: 'published', smoothSides: true, topFace: false }),
-    crown,
+    cornice,
     ...spine,
-    volume('tencent-towers:roof-deck', tower, deck, base + crownBase, base + crownBase + 0.55, 'tencentRoof'),
-    volume('tencent-towers:roof-plant', tower, rect(at, 4.2, 0, 9, 3.4), base + crownBase, base + 180.2, 'tencentRoof'),
+    volume('tencent-towers:roof', tower, roof, base + 192.96, base + 193, 'tencentRoof'),
     ...footprintParts(annex, baseAt(annex, terrain), 'tencentPodium', { id: 'tencent-towers:conference' }),
     ...footprintParts(link, baseAt(link, terrain), 'tencentPodium', { id: 'tencent-towers:conference-link' })
   ];
