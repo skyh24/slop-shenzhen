@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "checkedOn": "2026-11-12",
+  "checkedOn": "2026-11-17",
   "roadSource": "osm-guangdong",
   "flight": {
     "heightReference": "surface-road-or-ground",
@@ -34,23 +34,24 @@
     },
     {
       "id": "shennan",
-      "roads": [{"name": "深南大道", "highway": "primary"}, {"name": "深南中路", "highway": "primary"}],
+      "roads": [{"name": "深南大道", "highway": "primary"}, {"name": "深南中路", "highway": "primary"}, {"name": "深南东路", "highway": "primary"}],
       "roadEvidence": ["https://pnr.sz.gov.cn/ywzy/ghzs/dlql/table03.html", "https://pnr.sz.gov.cn/attachment/1/1442/1442495/10537363.pdf"],
       "start": {
-        "name": "腾讯大厦 · 深南大道侧",
-        "landmarkId": "tencent-towers",
-        "osmIds": ["way/600815118"],
-        "evidence": ["https://www.tencent.com/index.php/zh-cn/articles/80116.html", "https://amap.com/place/B0FFG9KTNL"],
-        "anchorLonLat": [113.92966, 22.54325],
-        "mainWayId": "way/633620767",
-        "mainLonLat": [113.93064, 22.5424474]
+        "name": "南头古城 · 南门",
+        "landmarkId": "nantou-ancient-city",
+        "osmIds": ["way/219961346", "way/636236921"],
+        "evidence": ["https://wtl.sz.gov.cn/xxgk/qt/lypc/content/post_11078058.html"],
+        "anchorLonLat": [113.91625, 22.54425],
+        "mainWayId": "way/636236921",
+        "mainLonLat": [113.916199, 22.543186]
       },
       "end": {
-        "name": "华强北 · 深南中路路口",
-        "osmIds": ["way/627529512"],
-        "evidence": ["https://pnr.sz.gov.cn/attachment/0/392/392299/5835706.pdf"],
-        "mainWayId": "way/996762416",
-        "mainLonLat": [114.08162, 22.54309]
+        "name": "东门老街",
+        "osmIds": ["node/8630764178"],
+        "evidence": ["https://www.sz.gov.cn/zfgb/2024/gb1349/content/post_11702444.html"],
+        "anchorLonLat": [114.1153358, 22.5469725],
+        "mainWayId": "way/996309282",
+        "mainLonLat": [114.11559, 22.546153]
       }
     },
     {

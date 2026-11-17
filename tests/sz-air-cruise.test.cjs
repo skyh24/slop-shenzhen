@@ -36,7 +36,7 @@ test('published cruise routes retain connected directed main road links and expl
     }
   });
   assert.deepEqual(routes.map(route => [route.id, route.start.landmarkId, route.end.mainWayId]), [
-    ['beihuan', undefined, 'way/1055004298'], ['shennan', 'tencent-towers', 'way/996762416'],
+    ['beihuan', undefined, 'way/1055004298'], ['shennan', 'nantou-ancient-city', 'way/996309282'],
     ['binhai', 'tencent-binhai', 'way/1051282775']
   ]);
   for (const route of routes) {
