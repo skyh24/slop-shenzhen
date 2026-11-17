@@ -764,13 +764,31 @@ class NYCMapSystem {
       ctx.fillStyle = MAP.gardenPath;
       layers.gardenPaths.each(v, path => ctx.fill(path));
     }
+    // 两遍式：近距离先铺深色 casing，再按等级/结构面填色，避免立交处黄色糊成一片。
+    const structures = isMinimap || this.mapLayersVisible.interchanges;
+    const casing = v.s >= 0.3;
+    const visible = [];
     for (const road of layers.roads) {
-      if ((!isMinimap && !this.mapLayersVisible.interchanges && road.elevated)
-        || !v.sees(road.bounds) || (v.s < 0.06 && !road.highway && road.w < 15)) continue;
-      ctx.strokeStyle = road.elevated ? MAP.bridge : road.highway ? MAP.highway : MAP.streets;
-      ctx.lineWidth = Math.max(0.7 / v.s, road.w);
-      ctx.globalAlpha = road.tunnel ? 0.4 : 1;
+      if (!v.sees(road.bounds) || (v.s < 0.06 && road.style.rank > 2 && road.w < 15)) continue;
+      visible.push(road);
+    }
+    if (casing && visible.length) {
+      ctx.strokeStyle = MAP.roadCasing;
+      ctx.globalAlpha = 1;
+      for (const road of visible) {
+        ctx.lineWidth = Math.max(0.7 / v.s, Math.min(road.w, road.style.cap)) + 2.6 / v.s;
+        ctx.stroke(road.path);
+      }
+    }
+    for (const road of visible) {
+      const st = road.style;
+      const underground = st.surface === 'tunnel';
+      ctx.strokeStyle = st.surface === 'ground' || !structures ? st.groundColor : st.color;
+      ctx.lineWidth = Math.max(0.7 / v.s, Math.min(road.w, st.cap));
+      ctx.globalAlpha = underground ? 0.5 : 1;
+      if (underground && structures) ctx.setLineDash([3 / v.s, 3 / v.s]);
       ctx.stroke(road.path);
+      if (underground && structures) ctx.setLineDash([]);
     }
     ctx.globalAlpha = 1;
     if (v.s >= 0.035) {
@@ -888,8 +906,8 @@ class NYCMapSystem {
     for (const l of ROAD_LABELS) {
       if (l.maxX < minX || l.minX > maxX || l.maxZ < minZ || l.minZ > maxZ) continue;
       const hit = q.length > 0 && roadMatches(l, q);
-      if ((majorOnly && !l.major && !hit)
-        || (!this.mapLayersVisible.interchanges && !hit && l.elevated && !mini)) continue;
+      // 结构面只改变配色，不再隐藏桥隧本身，因此标签也不再随「立交」图层消失。
+      if (majorOnly && !l.major && !hit) continue;
       const width = this.textWidth(ctx, l.text);
       const need = (width + 14) / s;
       for (const a of l.anchors) {

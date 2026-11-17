@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
-import { roadLinkPoints } from './sz-roads.js';
-import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
+import { roadLinkPoints } from '../js/sz-roads.js';
+import { createSurfaceHeightAt } from '../js/sz-controller-surfaces.js';
 
 const STATION_SIZE = 8;
 const FORK_LEAD_M = 2;

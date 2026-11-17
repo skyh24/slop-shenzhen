@@ -20,7 +20,7 @@ const hook = registerHooks({
 });
 let planSzTunnels;
 try {
-  ({ planSzTunnels } = await import('./sz-tunnels.js'));
+  ({ planSzTunnels } = await import('../js/sz-tunnels.js'));
 } finally {
   hook.deregister();
 }

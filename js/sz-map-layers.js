@@ -31,6 +31,8 @@ const MAP = {
   mainRoads: '#3a434f',
   highway: '#b27a35',
   bridge: '#c08a3e',
+  tunnel: '#8792a1',
+  roadCasing: '#0b0f14',
   route: '#ffc21a',
   rail: '#6f93c9',
   droneRoute: '#7fd0ff',
@@ -196,7 +198,33 @@ function drawWaypoint(ctx, x, y, r) {
 
 const overlaps = (boxes, b) => boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
 
-const isElevated = road => !road.tunnel && (road.bridge || road.layer > 0);
+// 结构面分色与三维同源：地面 / 桥面 / 隧道三态，等级只决定线宽与基础色。
+const ROAD_CLASS_STYLE = {
+  motorway: { rank: 0, cap: 16, color: '#c08a3e' },
+  motorway_link: { rank: 1, cap: 9, color: '#a8762f' },
+  trunk: { rank: 0, cap: 15, color: '#c08a3e' },
+  trunk_link: { rank: 1, cap: 9, color: '#a8762f' },
+  primary: { rank: 2, cap: 13, color: '#8f99a5' },
+  primary_link: { rank: 3, cap: 8, color: '#818b97' },
+  secondary: { rank: 2, cap: 12, color: '#6d7784' },
+  secondary_link: { rank: 3, cap: 8, color: '#606a77' },
+  tertiary: { rank: 3, cap: 10, color: '#545d6a' },
+  tertiary_link: { rank: 4, cap: 7, color: '#4b545f' },
+  residential: { rank: 4, cap: 8, color: '#3d4652' },
+  unclassified: { rank: 4, cap: 8, color: '#3a434e' },
+  service: { rank: 5, cap: 6, color: '#333b45' }
+};
+const FALLBACK_ROAD_STYLE = { rank: 5, cap: 7, color: MAP.streets };
+const roadSurface = road => road.tunnel ? 'tunnel' : (!road.bridge && !(road.layer > 0)) ? 'ground'
+  : (road.layer === 0 ? 'lift' : 'deck');
+function roadStyle(road) {
+  const base = ROAD_CLASS_STYLE[road.highwayClass] ?? FALLBACK_ROAD_STYLE;
+  const surface = roadSurface(road);
+  return { rank: base.rank, cap: base.cap, surface,
+    color: surface === 'tunnel' ? MAP.tunnel : surface === 'ground' ? base.color : MAP.bridge,
+    groundColor: base.color };
+}
+const isElevated = road => roadSurface(road) === 'deck' || roadSurface(road) === 'lift';
 const ROAD_LABELS = [];
 for (const r of ROADS) {
   const text = r.name;
@@ -268,7 +296,7 @@ function mapLayers() {
   layers.roads = ROADS.map(road => {
     const path = new Path2D();
     addLine(path, road.pts);
-    return { ...road, elevated: isElevated(road), path, bounds: boundsOf(road.pts) };
+    return { ...road, elevated: isElevated(road), style: roadStyle(road), path, bounds: boundsOf(road.pts) };
   });
   layers.gardenPaths = new TiledLayer();
   for (const { trianglesXZ } of GEO.golfCourse?.surfaces ?? []) {

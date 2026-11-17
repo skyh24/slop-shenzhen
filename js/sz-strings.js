@@ -88,6 +88,7 @@ export const STR = {
     mapLandmark: '地标',
     mapWaypoint: '传送点',
     mapHighway: '桥梁 / 快速路',
+    mapTunnel: '隧道',
     mapWaterfrontWalk: '滨水步道',
     mapWaterfrontCycle: '滨水骑行 / 共享路（按时段开放）'
   },
