@@ -17,7 +17,8 @@ function dom() {
       classList: { toggle() {} },
       append(...children) { this.children = children; },
       addEventListener(type, handler) { this[type] = handler; },
-      setAttribute() {},
+      setAttribute(name, value) { (this.attributes ??= {})[name] = String(value); },
+      getAttribute(name) { return this.attributes?.[name] ?? null; },
       closest() { return null; },
       focus() { this.focused = true; }
     };
@@ -125,7 +126,8 @@ test('air cruise updates camera and input only after route entry and restores th
     estimateSeconds: 100 };
   let accepted = false, activeRoute = null, touchEnabled = true;
   const cruise = {
-    routes: [route], scenicSpeed: 15, fullSpeed: 30,
+    routes: [route], scenicSpeed: 15, fullSpeed: 600 / 3.6, speedCalls: [],
+    setSpeed(speedMps) { this.speedCalls.push(speedMps); return true; },
     get active() { return activeRoute !== null; },
     get route() { return activeRoute; },
     status: 'aligning', distance: 0, altitude: 200, targetHeight: 200,
@@ -153,6 +155,14 @@ test('air cruise updates camera and input only after route entry and restores th
   accepted = true;
   start.click();
   assert.equal(cruise.active, true);
+  // 常速 300、加速切到 eVTOL 极速 600，飞行中换速交给 cruise.setSpeed。
+  const boost = document.getElementById('air-cruise-boost');
+  assert.equal(boost.hidden, false);
+  assert.equal(boost.textContent, '加速 · 600 km/h');
+  boost.click();
+  assert.equal(boost.textContent, '常速 · 300 km/h');
+  assert.equal(boost.getAttribute('aria-pressed'), 'true');
+  assert.deepEqual(cruise.speedCalls, [600 / 3.6]);
   assert.equal(touchEnabled, false);
   assert.equal(cameraSystem.activePresetId, 'chase');
   cameraSystem.orbitYawOffset = 1.4;
@@ -163,6 +173,9 @@ test('air cruise updates camera and input only after route entry and restores th
   ui.close();
   ui.close();
   assert.equal(cruise.active, false);
+  // 退出后回到默认常速，下一次巡游仍以 300 km/h 起步。
+  assert.equal(boost.textContent, '加速 · 600 km/h');
+  assert.deepEqual(cruise.speedCalls, [600 / 3.6, 300 / 3.6]);
   assert.equal(touchEnabled, true);
   assert.equal(cameraSystem.activePresetId, 'action');
   assert.equal(cameraSystem.orbitYawOffset, 0.7);

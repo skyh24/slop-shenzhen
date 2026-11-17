@@ -380,7 +380,8 @@ class QaSession {
       plans.id = 'qa-cruise-plans';
       plans.type = 'application/json';
       plans.textContent = JSON.stringify(runtime.cruise.routes.map(route => ({
-        id: route.id, unavailable: route.unavailable, duration: route.estimateSeconds, fullDuration: route.full?.estimateSeconds, distance: route.distance,
+        id: route.id, unavailable: route.unavailable, duration: route.estimateSeconds,
+        fullDuration: route.atSpeed?.(runtime.cruise.fullSpeed)?.estimateSeconds, distance: route.distance,
         length3d: route.length3d, ...route.audit
       })));
       document.body.append(plans);

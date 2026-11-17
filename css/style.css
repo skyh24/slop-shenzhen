@@ -1970,27 +1970,6 @@ body[data-cruising] #drive-hud {
   line-height: 1.45;
 }
 
-.cruise-speed {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 6px;
-}
-
-.cruise-speed input {
-  width: 72px;
-  margin-left: auto;
-  color: inherit;
-  background: #172832;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 5px;
-  padding: 4px;
-}
-
-.cruise-presets {
-  padding: 0 6px;
-}
-
 #drone-follow-hud {
   position: fixed;
   z-index: 8;

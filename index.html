@@ -497,9 +497,10 @@
       <progress id="air-cruise-progress" data-label="cruise.progress" max="1" value="0"></progress>
       <div id="air-cruise-telemetry" class="pop-sub"></div>
       <div class="cruise-actions">
+        <button id="air-cruise-routes-btn" class="tool-btn" type="button" popovertarget="air-cruise-popover" data-text="cruise.routes"></button>
+        <button id="air-cruise-boost" class="tool-btn" type="button" aria-pressed="false"></button>
         <button id="air-cruise-pause" class="tool-btn" type="button" data-text="cruise.pause"></button>
         <button id="air-cruise-replay" class="tool-btn" type="button" data-text="cruise.replay"></button>
-        <button id="air-cruise-map" class="tool-btn" type="button" data-text="cruise.map"></button>
         <button id="air-cruise-exit" class="tool-btn" type="button" data-text="cruise.exit" aria-keyshortcuts="Escape"></button>
       </div>
     </section>
@@ -507,15 +508,6 @@
 
   <div id="air-cruise-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" data-label="cruise.label">
     <div class="pop-title" data-text="cruise.label"></div>
-    <label class="cruise-speed">
-      <span data-text="cruise.speed"></span>
-      <input id="air-cruise-speed" type="number" min="1" step="1" inputmode="numeric">
-      <span class="pop-sub" data-text="ui.speedUnit"></span>
-    </label>
-    <div class="cruise-actions cruise-presets">
-      <button id="air-cruise-scenic" class="tool-btn" type="button"></button>
-      <button id="air-cruise-full" class="tool-btn" type="button"></button>
-    </div>
     <div id="air-cruise-routes"></div>
     <p class="pop-sub cruise-note" data-text="cruise.note"></p>
     <p id="air-cruise-feedback" class="pop-title" role="status" data-text="cruise.busy" hidden></p>

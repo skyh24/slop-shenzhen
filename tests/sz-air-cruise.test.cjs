@@ -132,3 +132,52 @@ test('cruise waits for resources, pauses, reaches a full stop and can restart wi
   assert.equal(aircraft.mesh.visible, false);
   assert.equal(cruise.entity, null);
 });
+test('a right-angle corner keeps at least half the commanded cruise speed', t => {
+  // 直角拐角：顶点前后各 100 m 都是直线，曲率窗口只看 ±12 m，急弯不再把航速压到爬行。
+  const points = [];
+  for (let x = 0; x <= 1000; x += 5) points.push([x, 0]);
+  for (let z = 5; z <= 1000; z += 5) points.push([1000, z]);
+  const plan = planAirCruise({ id: 'corner', points }, flight, geometry);
+  const pose = {};
+  const sweep = route => {
+    let min = Infinity;
+    for (let i = 0; i <= 2000; i++) {
+      route.flightAt(route.duration * i / 2000, pose);
+      if (pose.distance >= 950 && pose.distance <= 1050) min = Math.min(min, pose.speed);
+    }
+    return min;
+  };
+  const scenic = sweep(plan);
+  const detail = JSON.stringify({ scenic, floor: flight.speedMps * 0.5 });
+  assert.ok(Math.abs(scenic - flight.speedMps * 0.5) < 0.5, detail);
+  const boost = plan.atSpeed(600 / 3.6);
+  const boosted = sweep(boost);
+  assert.ok(Math.abs(boosted - 600 / 3.6 * 0.5) < 1, JSON.stringify({ boosted }));
+  t.diagnostic(detail);
+});
+
+test('switching to the boost speed mid-flight keeps the travelled distance continuous', () => {
+  const vector = { set(x, y, z) { Object.assign(this, { x, y, z }); }, copy(v) { this.set(v.x, v.y, v.z); } };
+  const aircraft = {
+    position: Object.create(vector),
+    mesh: { visible: false, position: Object.create(vector), rotation: {}, updateMatrixWorld() {} },
+    updateRotors() {}
+  };
+  const cruise = createAirCruise({ routes: [line()], flight }, geometry, aircraft);
+  assert.equal(cruise.start(cruise.routes[0]), true);
+  for (let i = 0; i < 200; i++) cruise.update(0.05, true);
+  const distance = cruise.distance;
+  const { x, z } = aircraft.position;
+  const before = aircraft.speed;
+  assert.ok(distance > 40 && before > 30, JSON.stringify({ distance, before }));
+  assert.equal(cruise.setSpeed(600 / 3.6), true);
+  assert.ok(Math.abs(cruise.speedMps - 600 / 3.6) < 1e-9);
+  // 换速只重算后续速度曲线，飞机在路线上原地不动。
+  assert.ok(Math.abs(cruise.distance - distance) < 1e-6, 'the switch does not jump along the route');
+  assert.ok(Math.abs(aircraft.position.x - x) < 1e-6 && Math.abs(aircraft.position.z - z) < 1e-6);
+  for (let i = 0; i < 20; i++) cruise.update(0.05, true);
+  assert.ok(cruise.distance > distance, 'the boosted cruise keeps advancing');
+  assert.ok(aircraft.speed > before * 1.5, JSON.stringify({ before, after: aircraft.speed }));
+  assert.equal(cruise.setSpeed(300 / 3.6), true);
+  assert.ok(Math.abs(cruise.speedMps - 300 / 3.6) < 1e-9);
+});

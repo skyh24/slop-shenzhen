@@ -6,6 +6,8 @@ const SNAP_RADIUS = 44;
 const SNAP_ALTERNATIVES = 7;
 const TURN_BEND = 9;
 const CURVATURE_LIMIT = 0.18;
+// 弯道最低限速：再急的弯也保持前进，直角弯不再把车速压到 4 m/s 以下。
+const CURVE_MIN_SPEED = 5.5;
 const CRUISE = 80 / 3.6;
 const PLANNING_BRAKE = 2;
 const SNAP_CELL = 48;
@@ -156,7 +158,7 @@ function validateSamples(samples, model, roadHeight, isClear, stops, roads) {
     const turn = Math.atan2(a.dz * b.dx - a.dx * b.dz, a.dx * b.dx + a.dz * b.dz);
     const curvature = Math.abs(turn) / (b.s - a.s);
     if (curvature > CURVATURE_LIMIT) return { failedAt: (a.s + b.s) / 2 };
-    const limit = Math.sqrt(2.25 / Math.max(curvature, 0.001));
+    const limit = Math.max(CURVE_MIN_SPEED, Math.sqrt(2.25 / Math.max(curvature, 0.001)));
     curveLimits[i - 1] = Math.min(curveLimits[i - 1], limit);
     curveLimits[i] = Math.min(curveLimits[i], limit);
     limits[i - 1] = Math.min(limits[i - 1], limit);

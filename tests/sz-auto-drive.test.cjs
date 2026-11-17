@@ -156,6 +156,36 @@ test('cruise brakes before consecutive bends, tracks both directions and recover
   }
 });
 
+test('a tight corner keeps the planned speed above a moving floor', t => {
+  // 半径 12 m 的 90° 直角弯：曲率 1/12，按 2.25 m/s² 横向舒适度原本只能算出约 5.2 m/s，
+  // 现在由 CURVE_MIN_SPEED 抬到 5.5 m/s，过弯不再掉到爬行速度。
+  // 折线每段都不短于 6 m，否则 traffic 的 100 m 网格不会登记该段，巡航无法从车旁取到起点。
+  const radius = 12;
+  const points = [];
+  for (let z = 0; z <= 100; z += 10) points.push([0, z]);
+  for (let i = 1; i <= 3; i++) {
+    const a = Math.PI / 2 * i / 3;
+    points.push([radius - radius * Math.cos(a), 100 + radius * Math.sin(a)]);
+  }
+  for (let x = 22; x <= 112; x += 10) points.push([x, 100 + radius]);
+  const graph = { nodes: points.flat(), nodeIds: [], names: ['Tight corner'],
+    links: points.slice(1).map((_, i) => [i, i + 1, 0, 10.5, 3, 1, []]),
+    metadata: points.slice(1).map(() => groundRoad(1)) };
+  const roadHeight = () => 0;
+  const planner = createDrivePlanner(traffic.createTrafficGraph(graph), graph, { model, roadHeight, isClear: () => true });
+  const { car } = playerCarFixture(roadHeight);
+  Object.assign(car.position, { x: -3.5, y: 0, z: 20 });
+  car.heading = 0;
+  const route = planner.planCruise(car);
+  assert.ok(route && route.samples.length > 30, 'the corner route plans');
+  // 巡航用 curveLimits（曲率 + 提前制动），末点的 Infinity 表示终点由路线终点停车逻辑处理。
+  const floor = Math.min(...route.curveLimits.slice(0, -1));
+  const detail = JSON.stringify({ floor, samples: route?.samples.length });
+  assert.ok(floor >= 5.4, detail);
+  assert.ok(floor < 6, detail);
+  t.diagnostic(detail);
+});
+
 test('car cruise follows a gentle bend at the set speed and keeps going straight at an ambiguous fork', () => {
   const graph = { nodes: [0, 0, 0, 72, 15, 130, 13, 160, 34, 160], nodeIds: [],
     names: ['Road', 'West fork', 'East fork'],

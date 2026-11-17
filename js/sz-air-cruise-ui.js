@@ -12,16 +12,15 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
   const progress = document.getElementById('air-cruise-progress');
   const telemetry = document.getElementById('air-cruise-telemetry');
   const pause = document.getElementById('air-cruise-pause');
+  const boost = document.getElementById('air-cruise-boost');
   const feedback = document.getElementById('air-cruise-feedback');
-  const speedChoice = document.getElementById('air-cruise-speed');
-  const scenicButton = document.getElementById('air-cruise-scenic');
-  const fullButton = document.getElementById('air-cruise-full');
-  const scenicKmh = Math.round(cruise.scenicSpeed * 3.6);
-  const fullKmh = Math.round(cruise.fullSpeed * 3.6);
+  // 巡游常速 300 km/h，加速键切到 eVTOL 极速（600 km/h）；路线按所选速度重算，弯道只按比例减速。
+  const cruiseKmh = 300;
+  const boostKmh = Math.max(cruiseKmh, Math.round(cruise.fullSpeed * 3.6));
   const estimates = [];
   const plans = new Map();
   const inputs = { controllerManager, touchControls, gamepadControls };
-  let speed = scenicKmh;
+  let speed = cruiseKmh;
   let lastStatus = '';
   let lastTelemetry = 0;
   const session = observationSessions.bind('air-cruise', {
@@ -58,28 +57,31 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
     }
   });
 
-  speedChoice.max = fullKmh;
-  speedChoice.value = scenicKmh;
-  scenicButton.textContent = words.scenicSpeed(scenicKmh);
-  fullButton.textContent = words.fullSpeed(fullKmh);
-  scenicButton.addEventListener('click', () => applySpeed(scenicKmh));
-  fullButton.addEventListener('click', () => applySpeed(fullKmh));
-  speedChoice.addEventListener('change', () => applySpeed(speedChoice.valueAsNumber));
+  boost.hidden = boostKmh <= cruiseKmh;
+  labelBoost();
+  boost.addEventListener('click', () => setSpeed(speed === boostKmh ? cruiseKmh : boostKmh));
 
   function selected(route) {
-    if (speed === scenicKmh) return route;
-    if (speed === fullKmh) return route.full;
-    if (!plans.has(route.id)) plans.set(route.id, route.atSpeed(speed / 3.6));
-    return plans.get(route.id);
+    if (!route || typeof route.atSpeed !== 'function') return route;
+    const key = `${route.id}@${speed}`;
+    if (!plans.has(key)) plans.set(key, route.atSpeed(speed / 3.6));
+    return plans.get(key);
   }
 
-  function applySpeed(value) {
-    const requested = Number.isFinite(value) ? Math.min(fullKmh, Math.max(1, Math.round(value))) : speed;
-    speedChoice.value = requested;
-    if (requested === speed) return;
-    speed = requested;
-    plans.clear();
-    for (const [route, estimate] of estimates) estimate.textContent = describe(selected(route));
+  function labelBoost() {
+    boost.textContent = speed === boostKmh ? words.normalSpeed(cruiseKmh) : words.boostSpeed(boostKmh);
+    boost.setAttribute('aria-pressed', String(speed === boostKmh));
+  }
+
+  function setSpeed(kmh) {
+    const next = Math.max(1, Math.round(kmh));
+    if (next === speed) return;
+    speed = next;
+    labelBoost();
+    for (const [route, estimate] of estimates) {
+      if (!route.unavailable) estimate.textContent = describe(selected(route));
+    }
+    cruise.setSpeed?.(speed / 3.6);
   }
 
   function describe(route) {
@@ -111,7 +113,6 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
       const actions = document.createElement('div');
       actions.className = 'cruise-actions';
       const start = action(words.start, () => {
-        applySpeed(speedChoice.valueAsNumber);
         if (!session.enter(selected(route)).ok) {
           feedback.hidden = false;
           return;
@@ -137,13 +138,12 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
   document.getElementById('air-cruise-replay').addEventListener('click', () => {
     if (cruise.restart()) render();
   });
-  document.getElementById('air-cruise-map').addEventListener('click', () => {
-    if (cruise.route) mapSystem.showCruiseRoute(cruise.route);
-  });
   document.getElementById('air-cruise-exit').addEventListener('click', close);
 
+  // 退出后回到默认常速：下一次进入巡游仍以 300 km/h 起步，加速只在本次飞行中生效。
   function close() {
     session.exit();
+    setSpeed(cruiseKmh);
   }
 
   function render(now = 0, restoreFocus = false) {

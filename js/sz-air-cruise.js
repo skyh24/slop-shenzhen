@@ -7,6 +7,9 @@ const TERRAIN_CLEARANCE_M = 18;
 const STRUCTURE_CLEARANCE_M = 14;
 const MAX_CLEARANCE_LIFT_M = 45;
 const HEADING_WINDOW_M = 12;
+const TURN_SPEED_FLOOR = 0.5;
+// 常速巡航能原速通过的转弯半径：半径不小于它时常速飞过，更急的弯按 sqrt(半径/该值) 减速。
+const FULL_SPEED_TURN_RADIUS_M = 200;
 
 function bracket(values, value) {
   let low = 0;
@@ -74,12 +77,16 @@ function sweptTop(a, b, bodyRadius, nearColliders) {
 }
 
 function planFlightSpeed(points, distances, flight, headingAt) {
+  // 观景航拍按“保持常速的最小转弯半径”反推横向加速度：常规弯原速通过，急弯按比例减速但不低于一半，
+  // 巡航不会因为每个缓弯都把速度压到横向过载极限。
+  const turnAcceleration = Math.max(flight.lateralAccelerationMps2, flight.speedMps ** 2 / FULL_SPEED_TURN_RADIUS_M);
   const speeds = distances.map(distance => {
     const from = Math.max(0, distance - 15);
     const to = Math.min(distances.at(-1), distance + 15);
     const angle = headingAt(to) - headingAt(from);
     const curvature = Math.abs(Math.atan2(Math.sin(angle), Math.cos(angle))) / (to - from);
-    return Math.min(flight.speedMps, Math.sqrt(flight.lateralAccelerationMps2 / Math.max(1e-6, curvature)));
+    const limit = Math.sqrt(turnAcceleration / Math.max(1e-6, curvature));
+    return Math.min(flight.speedMps, Math.max(limit, flight.speedMps * TURN_SPEED_FLOOR));
   });
   speeds[0] = speeds[speeds.length - 1] = 0;
   for (let i = 1; i < speeds.length; i++) {
@@ -188,8 +195,9 @@ export function planAirCruise(route, flight, { groundHeight, roadHeight, nearCol
       output.heading = headingAt(distance);
       output.speed = complete ? 0 : Math.max(0, speeds[i] + acceleration * dt);
     }
+    // 换速结果保留 atSpeed：界面在常速与加速之间来回切换时，后续换速仍能重新规划。
     return { ...route, points, poseAt, flightAt, duration, estimateSeconds: duration + flight.initialTurnSeconds,
-      length3d, distance: total, audit, speedMps };
+      length3d, distance: total, audit, speedMps, atSpeed };
   }
   return { ...atSpeed(flight.speedMps), atSpeed };
 }
@@ -197,14 +205,14 @@ export function planAirCruise(route, flight, { groundHeight, roadHeight, nearCol
 export function createAirCruise(data, geometry, aircraft, fullSpeedMps = data?.flight.speedMps) {
   const routes = (data?.routes ?? []).map(route => {
     try {
-      const plan = planAirCruise(route, data.flight, geometry);
-      return { ...plan, full: plan.atSpeed(fullSpeedMps) };
+      // 速度计划按需生成（route.atSpeed），不为每条路线预建全速计划。
+      return planAirCruise(route, data.flight, geometry);
     } catch (error) {
       console.warn(`[air cruise] ${route.id}:`, error);
       return { ...route, unavailable: true };
     }
   });
-  const pose = {}, lookAhead = {};
+  const pose = {}, lookAhead = {}, probe = {};
   let route = null;
   let clock = 0;
   let pace = 0;
@@ -243,6 +251,17 @@ export function createAirCruise(data, geometry, aircraft, fullSpeedMps = data?.f
     aircraft.mesh.updateMatrixWorld(true);
   }
 
+  // 换速按里程反解时钟：飞机位置连续，只改变后续速度曲线。
+  function clockAt(plan, distance) {
+    let low = 0, high = plan.duration;
+    for (let i = 0; i < 40; i++) {
+      const mid = (low + high) / 2;
+      plan.flightAt(mid, probe);
+      if (probe.distance < distance) low = mid; else high = mid;
+    }
+    return (low + high) / 2;
+  }
+
   function start(next) {
     if (!next || next.unavailable) return false;
     route = next;
@@ -266,7 +285,18 @@ export function createAirCruise(data, geometry, aircraft, fullSpeedMps = data?.f
     get scenicSpeed() { return data?.flight.speedMps ?? 0; },
     get fullSpeed() { return fullSpeedMps ?? 0; },
     get targetHeight() { return data?.flight.targetHeightM ?? 0; },
+    get speedMps() { return route?.speedMps ?? 0; },
     start,
+    setSpeed(speedMps) {
+      if (!route || typeof route.atSpeed !== 'function' || !(speedMps > 0)) return false;
+      if (Math.abs(route.speedMps - speedMps) < 1e-6) return true;
+      const next = route.atSpeed(speedMps);
+      if (!next) return false;
+      clock = clockAt(next, pose.distance);
+      route = next;
+      syncPose();
+      return true;
+    },
     restart() { return start(route); },
     togglePause() {
       if (!route || status === 'complete') return;
