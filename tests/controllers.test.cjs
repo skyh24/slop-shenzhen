@@ -5,6 +5,7 @@ const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
 const driving = require('./helpers/driving.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
+const { dayPhaseStub } = require('./helpers/day-phase.cjs');
 
 const source = readFileSync(join(__dirname, '../js/controllers.js'), 'utf8');
 const polygonCollision = loadModule(readFileSync(join(__dirname, '../js/building-collision.js'), 'utf8'),
@@ -54,6 +55,7 @@ function keyboardHarness(nyc = {}) {
       './sz-park-arrivals.js': {},
       './sz-strings.js': { STR: {} },
       './city-lighting-materials.js': {},
+      './sz-day-phase.js': dayPhaseStub(0.86, () => 1.55),
       './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } },
       './pedestrians.js': {},
       './vehicle-lights.js': {},

@@ -3,6 +3,7 @@
 import * as THREE from 'three/webgpu';
 import { clamp, color, mix, positionWorld, sin, smoothstep, time } from 'three/tsl';
 import { sceneUniforms } from './sz-materials.js';
+import { dayPhase } from './sz-day-phase.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
 import { ringArea } from './sz-polygon.js';
 
@@ -261,7 +262,7 @@ export function buildSzLightShow(scene, { buildings = [], terrain = null, exclud
     visible: false, colorSource: 'display-estimate', heightSource: 'estimate' };
   // 夜景显隐由本模块按全局日夜 uniform 自己判断，入口只调用 update()，不再逐帧改 group.visible。
   const updateVisibility = () => {
-    group.visible = sceneUniforms.night.value > 0.25 && !isProgramActive();
+    group.visible = dayPhase.channel('show') > 0 && !isProgramActive();
     statistics.visible = group.visible;
   };
   if (plan.towers.length === 0 && bandRows.length === 0) {

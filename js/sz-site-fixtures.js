@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { color, smoothstep, uv } from 'three/tsl';
 import { sceneUniforms } from './sz-materials.js';
+import { dayPhase } from './sz-day-phase.js';
 
 const palette = {
   bay: {
@@ -127,7 +128,7 @@ export function buildGreenwayLightPool(batch, material, name) {
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(batch.poolUvs, 2));
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = name;
-  mesh.visible = sceneUniforms.night.value > 0.025;
+  mesh.visible = dayPhase.channel('lamps') > 0;
   return mesh;
 }
 

@@ -67,7 +67,7 @@ index.html → sz-geodata（校验/解码）→ main 的 site 数据与共享表
 | 地图/UI | `sz-map.js::SZMapSystem`、`sz-map-layers.js`、`sz-ui.js` | 全图/小地图、搜索/传送、地铁/高铁/无人机图层、驾车选点、HUD与菜单 |
 | 观察会话 | `sz-observation-session.js::createObservationSessions` | 节目、地标环绕、配送跟拍和巡游的进入、退出及恢复 |
 | 相机/输入 | `cameras.js::CameraSystem`、`sz-camera-presets.js`、`touch-controls.js`、`gamepad-controls.js` | 追尾/环绕/景点机位，触屏和手柄适配 |
-| 光照/渲染 | `lighting.js::LightingSystem`、`post-processing.js`、`scene-culling.js` | 四时段、天空/阴影、后处理、空间剔除 |
+| 光照/渲染 | `lighting.js::LightingSystem`、`sz-day-phase.js::dayPhase`、`post-processing.js`、`scene-culling.js` | 四时段、昼夜通道、天空/阴影、后处理、空间剔除 |
 | 音频 | `audio-system.js::CityAudioSystem`、`audio-events.js`、`audio-sources.js`、`audio-synthesis.js`、`audio-acoustics.js` | 总装、事件、环境源、程序合成和建筑遮挡近似 |
 
 ## 离线组件

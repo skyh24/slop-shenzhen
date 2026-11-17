@@ -3,7 +3,8 @@ import { ISLAND_BOUNDS, isTypingInField, SPAWN_POINT, terrainHeight, findGroundA
 import { createSurfaceResolver } from './sz-controller-surfaces.js';
 import { findParkArrival } from './sz-park-arrivals.js';
 import { STR } from './sz-strings.js';
-import { cityUniforms, createContactShadowMaterial } from './city-lighting-materials.js';
+import { createContactShadowMaterial } from './city-lighting-materials.js';
+import { dayPhase, HEADLIGHTS_FULL } from './sz-day-phase.js';
 import { VEHICLE_SPECS, createShenzhenCarMesh, createSharedCycleMesh, createEvtolMesh } from './sz-vehicles.js';
 import { PersonCrowd, PersonRig, PERSON_BONES } from './pedestrians.js';
 import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
@@ -1305,9 +1306,8 @@ class ThirdPersonControllerManager {
     // 载具世界矩阵更新后再把同一角色写到座位上，坐姿因此跟着车身/座舱一起平移、转向和俯仰。
     this._syncOccupant();
 
-    // Modulate clustered vehicle & bike lights by time of day (off during Midday & Golden Hour; fade in at Dusk & Night)
-    const glow = cityUniforms && cityUniforms.uInteriorGlow ? cityUniforms.uInteriorGlow.value : 0.48;
-    const beamScale = Math.min(1.28, Math.max(0.0, (glow - 0.60) * 1.45));
+    // 车灯强度走昼夜通道：正午与金色时刻全灭，黄昏、午夜按同一曲线渐亮。
+    const beamScale = HEADLIGHTS_FULL * dayPhase.channel('headlights');
     const car = this.entities.car;
     if (car?.headLights) {
       for (const spot of car.headLights) {

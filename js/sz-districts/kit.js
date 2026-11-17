@@ -3,6 +3,7 @@ import { color, floor, fract, fwidth, max, min, mix, smoothstep, uv, vec2 } from
 import { GeoBuilder } from '../sz-geometry.js';
 import { canvasTexture } from '../sz-mesh-utils.js';
 import { sceneUniforms } from '../sz-materials.js';
+import { dayPhase } from '../sz-day-phase.js';
 import { addLandmarkPart } from '../sz-landmarks/render.js';
 import { partCollider } from '../sz-landmarks/parts.js';
 import { orientedBoxRing } from '../sz-polygon.js';
@@ -185,8 +186,8 @@ export function createDistrictKit(root) {
       const distance = Math.hypot(camera.x - focus.x, camera.y - (focus.y ?? 8), camera.z - focus.z);
       near.visible = distance < (near.visible ? 375 : 345);
     }
-    const night = sceneUniforms.night.value;
-    const lit = night >= 0.05;
+    const night = dayPhase.channel('night');
+    const lit = dayPhase.channel('lamps') > 0;
     if (lightingFocus && lightingFocus.lit === lit && Math.abs(night - lightingFocus.night) < 0.025
       && Math.hypot(camera.x - lightingFocus.x, camera.y - lightingFocus.y, camera.z - lightingFocus.z) < 5) return;
     lightingFocus = { x: camera.x, y: camera.y, z: camera.z, night, lit };

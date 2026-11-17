@@ -7,6 +7,7 @@ const { loadModule } = require('./helpers/module.cjs');
 const driving = require('./helpers/driving.cjs');
 const { runInNewContext } = require('node:vm');
 const polygonModule = require('./helpers/polygon.cjs');
+const { dayPhaseStub } = require('./helpers/day-phase.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const load = (file, imports = {}) => loadModule(read(file), { imports });
@@ -490,6 +491,7 @@ function playerCarFixture(groundHeight, { surfaces = [], colliders = [], carBoun
   const { ThirdPersonControllerManager } = load('controllers.js', { 'three/webgpu': {}, './sz-city-config.js': {
     ISLAND_BOUNDS: { minX: -16000, minZ: -16000, maxX: 16000, maxZ: 16000 }
   }, './sz-controller-surfaces.js': surface, './sz-park-arrivals.js': {}, './sz-strings.js': {}, './city-lighting-materials.js': {},
+  './sz-day-phase.js': dayPhaseStub(0.86, () => 1.55),
   './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } }, './pedestrians.js': {},
   './vehicle-lights.js': {}, './building-collision.js': collision, ...driving });
   const car = { type: 'car', collisionBounds: carBounds, chassisPivot: { rotation: { x: 0, z: 0 }, position: { y: 0 } }, wheels: [],

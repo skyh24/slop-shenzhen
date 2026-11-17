@@ -7,6 +7,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { dayPhaseStub } = require('./helpers/day-phase.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 const meshUtils = require('./helpers/mesh-utils.cjs');
 
@@ -17,9 +18,10 @@ const terrain = loadModule(read('sz-terrain.js'));
 // 纯函数测试不需要 THREE：空对象证明模块顶层没有解引用 three。
 const nightUniform = { value: 0 };
 const materialsStub = { sceneUniforms: { night: nightUniform } };
+const dayPhase = dayPhaseStub(() => nightUniform.value, () => 1.25);
 const pure = loadModule(read('sz-apec-city.js'), {
   imports: { 'three/webgpu': {}, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
-    './sz-mesh-utils.js': meshUtils({}), './sz-materials.js': materialsStub }
+    './sz-mesh-utils.js': meshUtils({}), './sz-materials.js': materialsStub, './sz-day-phase.js': dayPhase }
 });
 
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
@@ -265,7 +267,7 @@ test('runtime builds screens robots and hoarding panels on the real data, then d
   const { document, drawCalls } = fakeCanvasGlobals();
   const module = loadModule(read('sz-apec-city.js'), {
     imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
-      './sz-mesh-utils.js': meshUtils(THREE, { document }), './sz-materials.js': materialsStub },
+      './sz-mesh-utils.js': meshUtils(THREE, { document }), './sz-materials.js': materialsStub, './sz-day-phase.js': dayPhase },
     globals: { document }
   });
   const scene = new THREE.Scene();
@@ -357,7 +359,7 @@ test('runtime builds with a 1x1 fallback texture when canvas is unavailable', { 
   // 不注入 document：模块必须走 DataTexture 降级路径，构建/销毁都不抛错。
   const module = loadModule(read('sz-apec-city.js'), {
     imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
-      './sz-mesh-utils.js': meshUtils(THREE), './sz-materials.js': materialsStub }
+      './sz-mesh-utils.js': meshUtils(THREE), './sz-materials.js': materialsStub, './sz-day-phase.js': dayPhase }
   });
   const scene = new THREE.Scene();
   const model = module.buildApecCityElements(scene, {
@@ -380,7 +382,7 @@ test('runtime with no data builds an empty group instead of throwing', { skip: !
   const [THREE] = await Promise.all([loadThree('three.webgpu.js')]);
   const module = loadModule(read('sz-apec-city.js'), {
     imports: { 'three/webgpu': THREE, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
-      './sz-mesh-utils.js': meshUtils(THREE), './sz-materials.js': materialsStub }
+      './sz-mesh-utils.js': meshUtils(THREE), './sz-materials.js': materialsStub, './sz-day-phase.js': dayPhase }
   });
   const scene = new THREE.Scene();
   const model = module.buildApecCityElements(scene, {});

@@ -7,6 +7,7 @@ const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
 const driving = require('./helpers/driving.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
+const { dayPhaseStub } = require('./helpers/day-phase.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const terrain = loadModule(read('sz-terrain.js'));
@@ -151,7 +152,8 @@ test('UpperHills geometry renders its sourced towers and separated public levels
       'three/webgpu': THREE, './sz-city-config.js': { ISLAND_BOUNDS: { minX: 1100, maxX: 1150, minZ: -1440, maxZ: -1330 } },
       './sz-controller-surfaces.js': { createSurfaceResolver }, './sz-park-arrivals.js': {}, './sz-strings.js': {},
       './city-lighting-materials.js': {}, './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8 } } },
-      './pedestrians.js': {}, './vehicle-lights.js': {}, './building-collision.js': collision
+      './pedestrians.js': {}, './vehicle-lights.js': {}, './building-collision.js': collision,
+      './sz-day-phase.js': dayPhaseStub(0.86, () => 1.55)
     } });
     const retained = buildings.filter(b => !upperhills.sourceIds.includes(b.id)
       && b.minX < 1150 && b.maxX > 1100 && b.minZ < -1330 && b.maxZ > -1430);
@@ -289,7 +291,8 @@ test('UpperHills geometry renders its sourced towers and separated public levels
       'three/webgpu': THREE, './sz-city-config.js': { ISLAND_BOUNDS: { minX: 600, maxX: 960, minZ: -1455, maxZ: -1390 } },
       './sz-controller-surfaces.js': { createSurfaceResolver }, './sz-park-arrivals.js': {}, './sz-strings.js': {},
       './city-lighting-materials.js': {}, './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8 } } },
-      './pedestrians.js': {}, './vehicle-lights.js': {}, './building-collision.js': collision
+      './pedestrians.js': {}, './vehicle-lights.js': {}, './building-collision.js': collision,
+      './sz-day-phase.js': dayPhaseStub(0.86, () => 1.55)
     } });
     const retained = buildings.filter(b => !upperhills.sourceIds.includes(b.id)
       && b.minX < 960 && b.maxX > 600 && b.minZ < -1390 && b.maxZ > -1455);

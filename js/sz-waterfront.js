@@ -4,7 +4,7 @@ import { createBayPathLookup } from './sz-bay-waterfront.js';
 import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
 import { addGreenwayLightPool, buildGreenwayLightPool, createFixtureBatches, createGreenwayLightMaterial,
   GREENWAY_LAMP, GREENWAY_RAIL, planLantern, planRail } from './sz-site-fixtures.js';
-import { sceneUniforms } from './sz-materials.js';
+import { dayPhase } from './sz-day-phase.js';
 import { spatialIndex } from './sz-spatial.js';
 import { buildSzSea } from './sz-sea.js';
 
@@ -286,7 +286,7 @@ export function mountWaterfrontBatch(group, batch, poolMaterial) {
   const pool = poolMaterial && batch.poolPositions?.length
     ? buildGreenwayLightPool(batch, poolMaterial, `waterfront-path-light:${batch.key}`) : null;
   if (pool) group.add(pool);
-  return { update() { if (pool) pool.visible = sceneUniforms.night.value > 0.025; }, dispose() {
+  return { update() { if (pool) pool.visible = dayPhase.channel('lamps') > 0; }, dispose() {
     fixtures.dispose();
     pool?.removeFromParent();
     pool?.geometry.dispose();

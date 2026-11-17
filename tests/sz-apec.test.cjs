@@ -5,6 +5,7 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { dayPhaseStub } = require('./helpers/day-phase.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
@@ -15,9 +16,10 @@ const terrain = loadModule(read('sz-terrain.js'));
 // 纯函数测试不需要 THREE；空对象证明模块顶层没有解引用 three
 const nightUniform = { value: 1 };
 const materialsStub = { sceneUniforms: { night: nightUniform } };
+const dayPhase = dayPhaseStub(() => nightUniform.value, () => 1.25);
 const apec = loadModule(read('sz-apec.js'), {
   imports: { 'three/webgpu': {}, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
-    './sz-materials.js': materialsStub }
+    './sz-materials.js': materialsStub, './sz-day-phase.js': dayPhase }
 });
 
 function lampSite(roadName, x, z = 0, y = 8.4, yaw = Math.PI / 2) {
@@ -157,7 +159,7 @@ test('the runtime builds instanced banners signs and flower beds under the theme
   const fakeDocument = { createElement: () => ({ width: 0, height: 0, getContext: () => context }) };
   const module = loadModule(read('sz-apec.js'), {
     imports: { 'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
-      './sz-materials.js': materialsStub },
+      './sz-materials.js': materialsStub, './sz-day-phase.js': dayPhase },
     globals: { document: fakeDocument }
   });
   const scene = new THREE.Scene();
@@ -237,7 +239,7 @@ test('a non-APEC date starts with the theme hidden', { skip: !threeDir }, async 
   const THREE = await import(toUrl(join(threeDir, 'build', 'three.webgpu.js')));
   const module = loadModule(read('sz-apec.js'), {
     imports: { 'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
-      './sz-materials.js': materialsStub }
+      './sz-materials.js': materialsStub, './sz-day-phase.js': dayPhase }
   });
   const scene = new THREE.Scene();
   const model = module.buildApecTheme(scene, { now: new Date(2026, 10, 9) });

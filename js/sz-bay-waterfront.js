@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { polygonBoxOverlaps } from './building-collision.js';
-import { sceneUniforms } from './sz-materials.js';
+import { dayPhase } from './sz-day-phase.js';
 import { addGreenwayLightPool, createFixtureBatches, createGreenwayLightMaterial,
   GREENWAY_LAMP, GREENWAY_RAIL, planBench, planLantern, planRail } from './sz-site-fixtures.js';
 import { STR } from './sz-strings.js';
@@ -433,7 +433,7 @@ export function mountBayWaterfrontBatch(group, batch, shared, scheduleDetail = b
   return {
     get detailActive() { return Boolean(details); },
     update({ x, z }) {
-      if (batch.pool) batch.pool.visible = sceneUniforms.night.value > 0.025;
+      if (batch.pool) batch.pool.visible = dayPhase.channel('lamps') > 0;
       if (!batch.rockSites.length) return;
       const d2 = (x - batch.x) ** 2 + (z - batch.z) ** 2;
       wantsDetails = d2 < 210 ** 2;

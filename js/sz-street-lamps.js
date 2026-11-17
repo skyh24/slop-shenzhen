@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { color, uniform } from 'three/tsl';
 import { isGroundRoad, roadSectionPoints } from './sz-roads.js';
-import { sceneUniforms } from './sz-materials.js';
+import { dayPhase } from './sz-day-phase.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { chunkKey, createStreetBatch } from './sz-street-batch.js';
 
@@ -439,9 +439,8 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
     statistics,
     chunkVisible(key) { return chunkGroups.get(key)?.group.visible ?? false; },
     update(cameraPosition) {
-      // 日夜系数直接读全局 uniform，入口不再逐个模块转抄。
-      const nightValue = sceneUniforms.night.value;
-      const night = Number.isFinite(nightValue) ? Math.min(1, Math.max(0, nightValue)) : 0;
+      // 黑夜强度走昼夜通道，路灯不再自己给 uniform 定阈值。
+      const night = dayPhase.channel('night');
       glow.value = night;
       materials.pool.opacity = night * 0.72;
       materials.halo.opacity = night * 0.9;

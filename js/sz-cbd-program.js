@@ -1,6 +1,7 @@
 // 原创节目以山顶视线为取样基准。纹理颜色只由参与楼宇的真实玻璃片元读取。
 import * as THREE from 'three/webgpu';
 import { clamp, float, Fn, If, positionWorld, texture, uniform, vec2, vec3 } from 'three/tsl';
+import { dayPhase } from './sz-day-phase.js';
 
 export const CBD_PROGRAM_DURATION = 108;
 export const CBD_CUES = Object.freeze([0, 36, 69, 100]);
@@ -213,7 +214,7 @@ export function createCbdProgram(origin, night) {
       const visibleDt = visibleSince === null ? dt : (performance.now() - visibleSince) / 1000;
       visibleSince = null;
       total += Math.max(0, Math.min(dt, visibleDt)) * playbackRate;
-      if (night.value > 0.32) render();
+      if (dayPhase.channel('deepNight') > 0) render();
     }
   };
 }

@@ -16,6 +16,9 @@ registerHooks({ resolve(specifier, context, next) {
 test('the production pack fits all three parks and preserves ground access', async () => {
   const { Scene, Vector3 } = await import('three/webgpu');
   const { sceneUniforms } = await import('../js/sz-materials.js');
+  // 真实 ESM 路径拿到的是单例，按入口 main.js 的方式接上光照参数。
+  const { dayPhase } = await import('../js/sz-day-phase.js');
+  dayPhase.wire({ night: () => sceneUniforms.night.value, glow: () => 1.25 });
   const { createCarriagewayBarrier } = await import('../js/sz-pedestrian-tracks.js');
   const { EDGE_OPENINGS } = await import('../js/sz-theme-parks/sites.js');
   const { decodeCityPayload } = await import('../js/sz-data-format.js');

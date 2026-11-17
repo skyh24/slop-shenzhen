@@ -4,7 +4,7 @@ import * as THREE from 'three/webgpu';
 import { STR } from './sz-strings.js';
 import { terrainHeight } from './sz-terrain.js';
 import { landmarkCenter } from './sz-polygon.js';
-import { sceneUniforms } from './sz-materials.js';
+import { dayPhase } from './sz-day-phase.js';
 
 export { landmarkCenter };
 
@@ -605,9 +605,8 @@ export function buildApecTheme(scene, {
         mesh.visible = lampChunkVisible(key);
         if (mesh.visible) layer.update(elapsed);
       }
-      // 日夜系数直接读全局 uniform，入口不再逐个模块转抄。
-      const nightValue = sceneUniforms.night.value;
-      const night = Number.isFinite(nightValue) ? Math.min(Math.max(nightValue, 0), 1) : 0;
+      // 黑夜强度走昼夜通道，模块不再自己给 uniform 定阈值。
+      const night = dayPhase.channel('night');
       for (const [material, day, nightIntensity] of lit) {
         material.emissiveIntensity = day + night * nightIntensity;
       }

@@ -5,15 +5,18 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const { loadModule } = require('./helpers/module.cjs');
+const { dayPhaseStub } = require('./helpers/day-phase.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const readLandmark = file => readFileSync(join(__dirname, '../js/sz-landmarks', file), 'utf8');
 const terrain = loadModule(read('sz-terrain.js'));
 const placement = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
+const nightStub = { value: 0 };
+const dayPhase = dayPhaseStub(() => nightStub.value, () => 1.25);
 const lightShow = loadModule(read('sz-light-show.js'), { imports: {
-  'three/webgpu': {}, 'three/tsl': {}, './sz-materials.js': { sceneUniforms: { night: { value: 0 } } },
-  './sz-building-layout.js': placement, './sz-polygon.js': polygonModule
+  'three/webgpu': {}, 'three/tsl': {}, './sz-materials.js': { sceneUniforms: { night: nightStub } },
+  './sz-building-layout.js': placement, './sz-polygon.js': polygonModule, './sz-day-phase.js': dayPhase
 } });
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
 const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
@@ -212,7 +215,8 @@ test('real Three builds instanced light-show meshes without touching building co
   const nightUniform = tsl.uniform(0);
   const showModule = loadModule(read('sz-light-show.js'), { imports: {
     'three/webgpu': THREE, 'three/tsl': tsl, './sz-materials.js': { sceneUniforms: { night: nightUniform } },
-    './sz-building-layout.js': placement, './sz-polygon.js': polygonModule
+    './sz-building-layout.js': placement, './sz-polygon.js': polygonModule,
+    './sz-day-phase.js': dayPhaseStub(() => nightUniform.value, () => 1.25)
   } });
   const scene = new THREE.Scene();
   const ring = (x, z) => [{ x: x - 1, z: z - 1 }, { x: x + 1, z: z - 1 }, { x: x + 1, z: z + 1 }, { x: x - 1, z: z + 1 }];

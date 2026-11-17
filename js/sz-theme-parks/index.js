@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { color } from 'three/tsl';
-import { sceneUniforms } from '../sz-materials.js';
+import { dayPhase } from '../sz-day-phase.js';
 import { buildFenceMetal, buildPathPools, createParkPoolMaterial, parkNight, planPathLamps, planPerimeter } from './ambience.js';
 import { buildingPlacement } from '../sz-building-layout.js';
 import { partCollider } from '../sz-landmarks/parts.js';
@@ -258,7 +258,7 @@ export function buildThemeParks(scene, site) {
     pathAt: (x, z) => onPath(x, z) ? ['theme-park-path'] : [],
     update(now, night, camera) {
       for (const detail of details) detail.group.visible = camera.distanceToSquared(detail.center) < 500 ** 2;
-      for (const pool of pools) pool.visible = sceneUniforms.night.value > 0.10;
+      for (const pool of pools) pool.visible = dayPhase.channel('lamps') > 0;
       fireworks?.update(now, night, camera);
     },
     snapshot: () => ({ rejected, flowerBeds: flowerBeds.map(bed => bed.id), omittedSmallBuildings: sceneryOmissions.size, parks: parks.map(p => ({ id: p.id, models: p.plans.map(plan => plan.id),

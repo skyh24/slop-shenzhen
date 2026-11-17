@@ -28,12 +28,14 @@ import { createAutoDrive } from './sz-auto-drive.js';
 import { createLaneAssist } from './sz-lane-assist.js';
 import { VEHICLE_SPECS } from './sz-vehicles.js';
 import { sceneUniforms } from './sz-materials.js';
+import { cityUniforms } from './city-lighting-materials.js';
+import { dayPhase } from './sz-day-phase.js';
 import { ThirdPersonControllerManager, FLIGHT_START_ALTITUDE, PLAYER_SPEED_LIMITS } from './controllers.js';
 import { TouchControls } from './touch-controls.js';
 import { GamepadControls } from './gamepad-controls.js';
 import { CameraSystem, CAMERA_PRESETS } from './cameras.js';
 import { createLandmarkViews, wireLandmarkOrbit } from './sz-landmark-views.js';
-import { LightingSystem } from './lighting.js';
+import { LightingSystem, TIME_PRESET_IDS } from './lighting.js';
 import { SZMapSystem } from './sz-map.js';
 import { createTeleportActions } from './sz-teleport.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
@@ -422,6 +424,14 @@ async function initApp() {
   const reflectionMask = scenePassMetalRough.r.greaterThan(0).select(smoothstep(maxSSRRoughness, 0.55, scenePassMetalRough.g), 0);
   const reflections = ssrPass.mul(reflectionMask);
   const colorGrade = createPostProcessing(renderer, scenePassColor, reflections);
+  // 时段切换只走这一条通道：先写光照（通道读它写入的 night / interiorGlow），再写调色。
+  dayPhase.wire({
+    phases: TIME_PRESET_IDS,
+    applyLighting: (id) => lightingSystem.applyPreset(id),
+    applyLook: (id) => colorGrade.applyPreset(id),
+    night: () => sceneUniforms.night.value,
+    glow: () => cityUniforms.uInteriorGlow.value
+  });
   const renderPipeline = new THREE.RenderPipeline(renderer, colorGrade.outputNode);
 
   const modeButtons = document.querySelectorAll('[data-mode]');
@@ -531,8 +541,7 @@ async function initApp() {
   }
 
   function selectTime(timeId) {
-    lightingSystem.applyPreset(timeId);
-    colorGrade.applyPreset(lightingSystem.activePresetId);
+    if (!dayPhase.apply(timeId)) return;
     timeButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-time') === timeId);
     });
@@ -948,7 +957,7 @@ async function initApp() {
     apecCity.update(dt);
     showSession.update(rawDt);
     lightShow.update();
-    themeParks.update(now * 0.001, sceneUniforms.night.value >= 0.5, cameraSystem.camera.position);
+    themeParks.update(now * 0.001, dayPhase.isDeepNight, cameraSystem.camera.position);
     regional.update(active.position, cameraSystem.camera.position);
     northStation?.update(document.hidden || railResuming ? 0 : rawDt, cameraSystem.camera.position, audioSystem);
     railResuming = false;
@@ -965,7 +974,7 @@ async function initApp() {
     }
     lightingSystem.update(cameraSystem.camera.position);
     mapSystem.update();
-    audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
+    audioSystem.update(dt, elapsed, cameraSystem.camera, dayPhase.isDeepNight);
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
     for (const root of dynamicRoots) root.updateMatrixWorld();
     qa.markRender(profile);

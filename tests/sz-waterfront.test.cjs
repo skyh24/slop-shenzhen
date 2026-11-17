@@ -4,6 +4,7 @@ const { join } = require('node:path');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { dayPhaseStub } = require('./helpers/day-phase.cjs');
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const polygon = loadModule(read('sz-polygon.js'));
 const ground = loadModule(read('sz-ground-surface.js'));
@@ -26,12 +27,14 @@ const plan = elevated.planElevatedRoads(roadGraph, terrainSurface, { waterfront,
 const resolve = contact.createSurfaceResolver({ groundHeight: heightAt, surfaces: plan.surfaces });
 const bayModule = loadModule(read('sz-bay-waterfront.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': {}, './building-collision.js': {}, './sz-materials.js': {},
+  './sz-day-phase.js': dayPhaseStub(0, () => 0.48),
   './sz-site-fixtures.js': { GREENWAY_RAIL: [[0.55, 0.068, 0.068], [1.07, 0.077, 0.077]], planRail: (a, b, heights) => heights.map(([y, width, height]) =>
     ({ a: { ...a, y: a.y + y }, b: { ...b, y: b.y + y }, width, height })) }, './sz-strings.js': {}
 } });
 const { createParkGroundAccess, createWaterfrontPaths, createWaterfrontAccess, findWaterfrontWalkPoint, planLakeLamps } = loadModule(read('sz-waterfront.js'), { imports: {
   'three/webgpu': {}, './building-collision.js': {}, './sz-bay-waterfront.js': bayModule,
-  './sz-controller-surfaces.js': contact, './sz-site-fixtures.js': {}, './sz-sea.js': {}, './sz-spatial.js': {}, './sz-materials.js': {}
+  './sz-controller-surfaces.js': contact, './sz-site-fixtures.js': {}, './sz-sea.js': {}, './sz-spatial.js': {}, './sz-materials.js': {},
+  './sz-day-phase.js': dayPhaseStub(0, () => 0.48)
 } });
 
 test('reviewed bridge profiles are owned by a single elevated plan and connect to both land portals', () => {
@@ -207,6 +210,7 @@ test('a bicycle rides the coastal bridge from either bank on the rendered deck',
     }, './sz-controller-surfaces.js': contact, './sz-park-arrivals.js': {}, './sz-strings.js': {},
     './city-lighting-materials.js': {}, './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } },
     './pedestrians.js': {}, './vehicle-lights.js': {}, './building-collision.js': collision,
+    './sz-day-phase.js': dayPhaseStub(0.86, () => 1.55),
     ...require('./helpers/driving.cjs')
   } });
   const bridge = waterfront.footbridges.find(row => row.id === 'way/357765497');

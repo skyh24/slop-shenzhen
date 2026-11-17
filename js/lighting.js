@@ -124,6 +124,9 @@ const TIME_PRESETS = {
   }
 };
 
+// 时段的唯一清单：入口按它接线昼夜通道；按钮文案仍读 sz-strings.js 的 timeNames。
+export const TIME_PRESET_IDS = Object.freeze(Object.keys(TIME_PRESETS));
+
 class LightingSystem {
   constructor(scene, renderer = null) {
     this.scene = scene;
