@@ -88,7 +88,8 @@ const trafficVehicles = {
   }
 };
 const sections = load('sz-road-section.js');
-const { createTrafficGraph, createSzTraffic, laneRoute, poseOnRoute, routeSegments, trafficModelBounds, writeTrafficCollider } = load('sz-traffic.js', {
+const { createTrafficGraph, createSzTraffic, laneRoute, playerImpact, poseOnRoute, routeSegments,
+  trafficModelBounds, writeTrafficCollider } = load('sz-traffic.js', {
   'three/webgpu': three,
   './sz-intersection-control.js': signalModule,
   './sz-roads.js': roads,
@@ -207,6 +208,40 @@ test('traffic stops before a player and uses its drawn position for collision qu
   assert.ok(Math.abs(front[1] - (car.pose.y + 0.345 * scale)) < 1e-9, 'wheels sit on the road surface');
   assert.ok(Math.abs(Math.abs(front[0] - rear[0]) - spec.wheelbase) < 1e-9, 'front and rear axles are one wheelbase apart');
   assert.ok(traffic.nearColliders(actor.pose.x, actor.pose.z, 0).includes(actor.collider));
+});
+
+test('traffic floors it when a faster player closes from behind', () => {
+  const graph = { nodes: [0, 0, 900, 0], names: ['Road'], links: [[0, 1, 0, 8, 2, 1, []]], metadata: [groundRoad(1)] };
+  const traffic = createSzTraffic(new Group(), graph, { roadHeight: () => 6 });
+  const focus = { x: 250, z: 0 };
+  traffic.update(0, focus);
+  const actor = traffic.vehicles.find(vehicle => vehicle.route);
+  actor.speed = 10;
+  const player = { type: 'car', heading: Math.PI / 2, speed: 25,
+    collisionBounds: { min: { x: -1, y: 0, z: -2.3 }, max: { x: 1, y: 1.8, z: 2.3 } },
+    position: { x: actor.pose.x - 26, y: 6, z: 0 } };
+  let panicked = false, escaped = false;
+  for (let frame = 0; frame < 70; frame++) {
+    player.position.x += 25 * 0.05;
+    traffic.update(0.05, focus, [player]);
+    if (actor.panicUntil > 0) panicked = true;
+    if (actor.speed > actor.desiredSpeed + 0.3) escaped = true;
+  }
+  assert.ok(panicked, 'the car notices the player closing from behind');
+  assert.ok(escaped, 'the car accelerates past its cruise speed to clear the rear');
+});
+
+test('a closing player is judged as a nose hit or a tail hit by the impact point', () => {
+  const { writeEntityCollider } = driving['./sz-driving-motion.js'];
+  const ego = writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: 0 }, heading: 0, speed: 12 });
+  const oncoming = writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: 9 }, heading: Math.PI, speed: 8 });
+  const front = playerImpact(ego, oncoming);
+  assert.ok(front && front.ahead > 0, 'an oncoming player reaches the nose first');
+  const chaser = writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: -9 }, heading: 0, speed: 20 });
+  const rear = playerImpact(ego, chaser);
+  assert.ok(rear && rear.ahead < 0, 'a faster car behind reaches the tail first');
+  const pacing = writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: -30 }, heading: 0, speed: 12 });
+  assert.equal(playerImpact(ego, pacing), null, 'a car pacing behind is not a threat');
 });
 
 test('traffic writes each car wheel style to both front and rear slots', () => {

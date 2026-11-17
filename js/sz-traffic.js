@@ -8,7 +8,8 @@ import {
 import { polygonBoxOverlaps, roofPanelContactPolygon, spanContactPolygon,
   SURFACE_CONTACT_EPSILON_M } from './building-collision.js';
 import { vehicleContact } from './vehicle-physics.js';
-import { boxDimensions, followingReach, routeLeader, writeEntityCollider, writeTrafficCollider } from './sz-driving-motion.js';
+import { boxDimensions, contactTime, followingReach, routeLeader, sameTrafficLevel, writeEntityCollider,
+  writeTrafficCollider } from './sz-driving-motion.js';
 
 export { writeTrafficCollider };
 
@@ -24,6 +25,10 @@ const ROUTE_RANGE = 560;
 const REVIEWED_MAINLINE_RANGE = 1500;
 const TURN = Math.PI * 2;
 const WHEEL_SPIN_STEP = 0.6;
+// 玩家车逼近时环境车的反应：先观察 0.3 s，再按撞击点在车头还是车尾决定急刹或加速逃开。
+const PLAYER_NOTICE_S = 1.1;
+const PLAYER_REACTION_S = 0.3;
+const PLAYER_HOLD_S = 0.9;
 // 高架链路进入车流后多给一段续行预算，让“地面→匝道→桥面→地面”能在一段路线内走完。
 const ELEVATED_ROUTE_RANGE = 1200;
 const ELEVATED_ROUTE_SEGMENTS = 260;
@@ -510,6 +515,17 @@ function makeObstacleIndex(colliders) {
   };
 }
 
+// 玩家车与本车按当前速度是否即将接触；time 为首次接触秒数，ahead 为撞击点在本车纵轴上的位置（车头为正）。
+// 环境车据此决定让行方式：撞击点在车尾就加速让开，在车头就急刹。
+export function playerImpact(car, player, seconds = PLAYER_NOTICE_S) {
+  if (!player || !sameTrafficLevel(player, car)) return null;
+  const time = contactTime(player, car, seconds);
+  if (!Number.isFinite(time)) return null;
+  const along = (player.x - car.x) * car.sin + (player.z - car.z) * car.cos;
+  const closing = (player.vx - car.vx) * car.sin + (player.vz - car.vz) * car.cos;
+  return { time, ahead: along + closing * time };
+}
+
 export function createSzTraffic(scene, graph, { roadHeight, elevated = null, colliders = [], nearRegional, signals = null, detailedRoadIds = [], canTurn } = {}) {
   if (typeof roadHeight !== 'function') throw new Error('Traffic requires rendered road height');
   const network = createTrafficGraph(graph, { canTurn, elevated });
@@ -809,9 +825,29 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
     for (let i = actor.pose.index; i < route.length && route[i].s <= actor.s + 22; i++) {
       rampSpeed = Math.min(rampSpeed, route[i].edge.rampSpeed ?? Infinity);
     }
-    const desired = Math.min(actor.desiredSpeed, leader.limit, rampSpeed);
-    const deceleration = leader.gap < 4 ? 7.5 : 3.6;
-    const speed = Math.min(brakingSpeed, actor.speed + Math.max(-deceleration * dt, Math.min(2.2 * dt, desired - actor.speed)));
+    let desired = Math.min(actor.desiredSpeed, leader.limit, rampSpeed);
+    let deceleration = leader.gap < 4 ? 7.5 : 3.6;
+    let acceleration = 2.2;
+    // 玩家从后方追上来时不要只会亮刹车灯：撞击点在本车后半段就地板油让开，在车头则全力刹停。
+    const player = players.find(body => body.type === 'player');
+    const impact = playerImpact(actor.collider, player);
+    actor.alarm = impact ? (actor.alarm ?? 0) + dt : Math.max(0, (actor.alarm ?? 0) - dt);
+    if (actor.alarm >= PLAYER_REACTION_S) {
+      actor.panicUntil = clock + PLAYER_HOLD_S;
+      actor.panicAhead = impact?.ahead ?? 0;
+    }
+    if (clock < (actor.panicUntil ?? 0)) {
+      if ((actor.panicAhead ?? 0) >= 0) {
+        desired = 0;
+        deceleration = 9;
+        actor.blocker ??= { kind: 'player', id: 'player' };
+      } else {
+        const escape = Math.min(actor.desiredSpeed * 1.4, actor.speed + 9);
+        desired = Math.min(Math.max(desired, escape), leader.limit, rampSpeed);
+        acceleration = 6;
+      }
+    }
+    const speed = Math.min(brakingSpeed, actor.speed + Math.max(-deceleration * dt, Math.min(acceleration * dt, desired - actor.speed)));
     const next = Math.min(actor.end, actor.s + speed * dt, held ? Math.max(actor.s, stoppingAt) : Infinity);
     const steps = Math.ceil((next - actor.s) / 0.25);
     let s = actor.s;

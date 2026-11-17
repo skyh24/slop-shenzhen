@@ -335,6 +335,12 @@ class QaSession {
     window.__szNearTraffic = (x, z, radius = 12) => (traffic.nearColliders(x, z, radius) ?? []).map(item => ({
       x: Math.round(item.x ?? item.minX ?? 0), z: Math.round(item.z ?? item.minZ ?? 0), kind: item.kind ?? item.type ?? 'vehicle'
     }));
+    // QA：导出活动车流的位姿、速度与让行反应，用于复测玩家前后车辆是否减速或让开。
+    window.__szTrafficState = () => traffic.vehicles.filter(item => item.route).map(item => ({
+      id: item.id, type: item.type, x: item.pose.x, z: item.pose.z, heading: item.pose.heading,
+      speed: item.speed, blocked: item.blocker?.kind ?? null, stalled: item.stalled,
+      panic: item.panicAhead ?? null, alarm: item.alarm ?? 0
+    }));
     // QA：同一次场景加载可以切换固定机位；null 恢复游戏相机。
     window.__szSetCamera = (camera) => { this.camera = parseCamera(camera); };
     // QA：查询某点的接触候选面（地形/地标/高架），用于诊断载具卡住。

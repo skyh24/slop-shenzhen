@@ -976,21 +976,32 @@ class ThirdPersonControllerManager {
   nearColliders(x, z, r, includeTraffic = true, includePending = true, includeCurbs = false) {
     const CELL = 48;
     const key = (ix, iz) => (ix + 4096) * 8192 + (iz + 4096);
+    const index = (c, i) => {
+      c._order = i;
+      for (let ix = Math.floor(c.minX / CELL); ix <= Math.floor(c.maxX / CELL); ix++) {
+        for (let iz = Math.floor(c.minZ / CELL); iz <= Math.floor(c.maxZ / CELL); iz++) {
+          const k = key(ix, iz);
+          let list = this._colliderCells.get(k);
+          if (!list) this._colliderCells.set(k, (list = []));
+          list.push(c);
+        }
+      }
+    };
+    const curbCount = this.cruiseCurbs?.length ?? 0;
     if (!this._colliderCells) {
       this._colliderCells = new Map();
-      [...this.colliders, ...(this.cruiseCurbs ?? [])].forEach((c, i) => {
-        c._order = i;
-        for (let ix = Math.floor(c.minX / CELL); ix <= Math.floor(c.maxX / CELL); ix++) {
-          for (let iz = Math.floor(c.minZ / CELL); iz <= Math.floor(c.maxZ / CELL); iz++) {
-            const k = key(ix, iz);
-            let list = this._colliderCells.get(k);
-            if (!list) this._colliderCells.set(k, (list = []));
-            list.push(c);
-          }
-        }
-      });
+      this.colliders.forEach(index);
+      for (let i = 0; i < curbCount; i++) index(this.cruiseCurbs[i], this.colliders.length + i);
+      this._indexedColliders = this.colliders.length;
+      this._indexedCurbs = curbCount;
       this._nearList = [];
       this._nearStamp = 0;
+    } else if (this.colliders.length !== this._indexedColliders || curbCount !== this._indexedCurbs) {
+      // 路线/巡航路缘可能在首次查询之后才补进数组；新碰撞体必须继续入网格，否则整段路都不挡车。
+      for (let i = this._indexedColliders; i < this.colliders.length; i++) index(this.colliders[i], i);
+      for (let i = this._indexedCurbs; i < curbCount; i++) index(this.cruiseCurbs[i], this.colliders.length + i);
+      this._indexedColliders = this.colliders.length;
+      this._indexedCurbs = curbCount;
     }
     const out = this._nearList;
     out.length = 0;

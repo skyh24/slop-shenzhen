@@ -499,6 +499,16 @@ function playerCarFixture(groundHeight, { surfaces = [], colliders = [], carBoun
   return { controller, car };
 }
 
+test('a static collider appended after the first query still joins the near-collider index', () => {
+  const lamp = { type: 'street-lamp', minX: -0.2, maxX: 0.2, minZ: -0.2, maxZ: 0.2, minY: 0, maxY: 5 };
+  const { controller } = playerCarFixture(() => 0, { colliders: [lamp] });
+  assert.ok(controller.nearColliders(0, 0, 2, false).includes(lamp));
+  // 巡航路缘/后补设施在网格建立后才进入数组时也要能挡住车。
+  const late = { type: 'tree', minX: 47.8, maxX: 48.2, minZ: -0.2, maxZ: 0.2, minY: 0, maxY: 6 };
+  controller.colliders.push(late);
+  assert.ok(controller.nearColliders(48, 0, 2, false).includes(late));
+});
+
 function placeAtStart(car, route, roadHeight) {
   const { x, z, dx, dz, edge } = route.from;
   const y = roadHeight(x, z, edge);
