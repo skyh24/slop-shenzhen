@@ -375,3 +375,23 @@ test('the real Shenzhen snapshot derives the whole-city deck network without any
   assert.ok(plan.statistics.deckLengthM > 250000);
   assert.ok(plan.statistics.triangles > 1000000);
 });
+
+test('piers stay off the carriageway of the ground road below', () => {
+  const graph = {
+    nodes: [0, 500, 1000, 500, 500, 300, 500, 700],
+    names: ['ground', 'over'],
+    links: [[0, 1, 0, 20, 2, 0, []], [2, 3, 0, 8, 1, 0, []]],
+    metadata: [
+      { osmId: 'way/ground', heightSource: 'terrain', bridge: false, tunnel: false, layer: 0 },
+      { osmId: 'way/over', heightSource: 'unresolved', bridge: true, tunnel: false, layer: 1 }
+    ]
+  };
+  const plan = elevated.planElevatedRoads(graph, surface, { interchanges: [] });
+  const bridge = plan.links.find(link => link.osmId === 'way/over');
+  assert.ok(bridge.piers.length > 0, 'the overpass still gets piers away from the carriageway');
+  const roadHalf = 20 / 2;
+  for (const pier of bridge.piers) {
+    assert.ok(Math.abs(pier.z - 500) > roadHalf + pier.half + 0.5 - 1e-6,
+      `pier at z=${pier.z} sits on the ground carriageway`);
+  }
+});
