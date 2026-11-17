@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { abs, cameraPosition, color, dot, float, floor, fract, fwidth, length, max, mix, normalWorldGeometry, positionWorld,
+import { abs, cameraPosition, color, dot, float, floor, fract, fwidth, max, mix, normalWorldGeometry, positionWorld,
   sin, smoothstep, step, texture, time, uniform, uv, vec2 } from 'three/tsl';
 import { NORTH_FRAME } from '../sz-rail/geometry.js';
 import { sceneUniforms } from '../sz-materials.js';
@@ -18,9 +18,7 @@ const styles = {
   tencentTower: { metal: 0xc9d0d5, glass: 0x60819c, roof: 0x879096, bay: 1.58, floor: 4.87, fin: 0.22, sill: 0.092, lit: 0.15, rough: 0.16, glow: 0xeeeaf2 },
   tencentPodium: { metal: 0xaab2af, glass: 0x556d79, roof: 0x697371, bay: 3.1, floor: 6.9, fin: 0.12, sill: 0.065, lit: 0.1, rough: 0.24, glow: 0xffca97 },
   tencentCopper: { metal: 0xb87543, glass: 0x93603f, roof: 0x776454, bay: 1.38, floor: 5.4, fin: 0.24, sill: 0.095, lit: 0.21, rough: 0.26, glow: 0xffb179 },
-  tencentLegacyGlass: { metal: 0xb3c0c4, glass: 0x496f73, roof: 0x718083, bay: 2.22, floor: 4.72, fin: 0.06, sill: 0.26, lit: 0.11, rough: 0.23, glow: 0xcde4ff, wash: 0.04,
-    // 南立面顶部左侧的腾讯四色标；位置来自该塔固定源足迹，尺寸按实景约 5 米。
-    logo: { x: -12862.5, y: 181.0, size: 2.9 } },
+  tencentLegacyGlass: { metal: 0xbec8ce, glass: 0x2f465c, roof: 0x4c5a66, bay: 2.22, floor: 4.72, fin: 0.075, sill: 0.2, lit: 0.09, rough: 0.21, glow: 0xd6e6ff, wash: 0.035 },
   landmarkLobby: { metal: 0x839095, glass: 0x3e545a, roof: 0x8a8b82, bay: 2.7, floor: 7.8, fin: 0.09, sill: 0.1, lit: 0.22, rough: 0.31, glow: 0xffdfb7, wash: 0.15 },
   libraryRibbon: { metal: 0xb7c1be, glass: 0x51696c, roof: 0xa7adab, bay: 1.75, floor: 3.4, fin: 0.11, sill: 0.14, lit: 0.12, rough: 0.31, glow: 0xffdfbc, wash: 0.12 },
   diwangShaft: { metal: 0x9b9987, glass: 0x2c6863, roof: 0x728477, bay: 4.4, floor: 4.35, fin: 0.20, sill: 0.10, lit: 0.12, rough: 0.21, glow: 0xc8f2de, wash: 0.047 },
@@ -49,27 +47,6 @@ const styles = {
   conventionGlass: { metal: 0x839ba2, glass: 0x455f6c, roof: 0x7b888b, bay: 2.5, floor: 5.8, fin: 0.085, sill: 0.085, lit: 0.1, rough: 0.24, glow: 0xeedfc5, wash: 0.055 }
 };
 
-let tencentWordmark = null;
-function tencentWordmarkTexture() {
-  if (tencentWordmark || typeof document === 'undefined') return tencentWordmark;
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#155bb5';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '700 168px "Helvetica Neue", Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('Tencent', canvas.width / 2, canvas.height / 2);
-  tencentWordmark = new THREE.CanvasTexture(canvas);
-  tencentWordmark.colorSpace = THREE.SRGBColorSpace;
-  tencentWordmark.anisotropy = 4;
-  return tencentWordmark;
-}
-
 function facadeMaterial(style, programEmission) {
   const material = new THREE.MeshStandardNodeMaterial();
   const u = uv().x;
@@ -95,51 +72,14 @@ function facadeMaterial(style, programEmission) {
   const fresnel = abs(dot(view, normalWorldGeometry)).oneMinus().pow(2.4);
   const tint = uniform(new THREE.Color(style.glass)).mul(mix(float(0.945), noise.mul(0.21).add(0.84), detail));
   const glazing = mix(tint, color(0xa1b9c9), fresnel.mul(sceneUniforms.night.oneMinus()).mul(style.edgeTint ?? 0.32));
-  let logoColor = null;
-  let logoMask = null;
-  let wordMask = null;
-  let wordColor = null;
-  if (style.logo) {
-    // 四色标画在玻璃上而不是贴片：曲面转角处仍跟随幕墙，且不会产生共面深度冲突。
-    const dx = positionWorld.x.sub(uniform(style.logo.x));
-    const dy = positionWorld.y.sub(uniform(style.logo.y));
-    const radius = length(vec2(dx, dy)).div(uniform(style.logo.size));
-    const band = smoothstep(0.58, 0.69, radius).mul(smoothstep(1.02, 0.9, radius));
-    const front = step(0, normalWorldGeometry.z);
-    const top = step(0, dy), left = step(dx, 0);
-    logoColor = mix(
-      mix(color(0x35b234), color(0x2e6bd6), left),
-      mix(color(0xffc400), color(0xe1252b), left), top);
-    logoMask = band.mul(front);
-    const wordmark = tencentWordmarkTexture();
-    if (wordmark) {
-      const wx = positionWorld.x.sub(uniform(-12858.5)).div(14);
-      const wy = positionWorld.y.sub(uniform(179.1)).div(2.4);
-      const sample = texture(wordmark, vec2(wx, wy));
-      wordMask = sample.a.mul(front).mul(step(0, wx)).mul(step(wx, 1)).mul(step(0, wy)).mul(step(wy, 1));
-      wordColor = sample.rgb;
-    }
-  }
-  const surface = mix(cladding, glazing, pane);
-  let base = mix(uniform(new THREE.Color(style.roof)), surface, wall);
-  if (logoMask) {
-    const core = smoothstep(0.5, 0.38, length(vec2(positionWorld.x.sub(uniform(style.logo.x)),
-      positionWorld.y.sub(uniform(style.logo.y)))).div(uniform(style.logo.size))).mul(0.35);
-    base = mix(base, color(0x9fc9f2), core);
-    base = mix(base, logoColor, logoMask);
-  }
-  if (wordMask) base = mix(base, wordColor, wordMask);
-  material.colorNode = base;
+  material.colorNode = mix(uniform(new THREE.Color(style.roof)), mix(cladding, glazing, pane), wall);
   material.metalnessNode = mix(float(0.12), mix(float(style.frameMetalness ?? 0.38), float(style.glassMetalness ?? 0.26), pane), wall);
   material.roughnessNode = mix(float(0.75), mix(float(style.frameRoughness ?? 0.43), uniform(style.rough), pane), wall);
   const office = mix(float(style.lit * 0.27), step(noise, uniform(style.lit)), detail).mul(0.46);
   const glass = pane.mul(wall);
   const glow = uniform(new THREE.Color(style.glow)).mul(office.add(style.wash ?? 0))
     .mul(glass).mul(sceneUniforms.night);
-  const panelCover = wordMask ?? float(0);
-  let lit = logoMask ? glow.mul(float(1).sub(panelCover)).add(logoColor.mul(logoMask).mul(sceneUniforms.night).mul(0.9)) : glow.mul(float(1).sub(panelCover));
-  if (wordMask) lit = lit.add(wordColor.mul(wordMask).mul(sceneUniforms.night).mul(0.55));
-  material.emissiveNode = programEmission ? programEmission(lit, glass) : lit;
+  material.emissiveNode = programEmission ? programEmission(glow, glass) : glow;
   return material;
 }
 
@@ -331,9 +271,8 @@ export function createLandmarkMaterial(name, programEmission = null) {
     case 'cultureSkylight': return crownMaterial(0x6686a0, 0.24, 0.27, 0.33);
     case 'operaCopper': return new THREE.MeshStandardMaterial({ color: 0x975d4f, roughness: 0.65, metalness: 0.21 });
     case 'landmarkEdge': return crownMaterial(0xc0c6c7, 0.39, 0.29, 0.30);
-    case 'tencentCrown': return nightSurface(0x5f7076, 0.32, 0.35, 0xdbe8f2, 0.12);
-    case 'tencentParapet': return crownMaterial(0xb9c4c9, 0.36, 0.42, 0.28);
-    case 'tencentRoof': return new THREE.MeshStandardMaterial({ color: 0x4e5b60, roughness: 0.82 });
+    case 'tencentSpine': return nightSurface(0x2a4359, 0.32, 0.38, 0x486b8c, 0.02);
+    case 'tencentRoof': return new THREE.MeshStandardMaterial({ color: 0x3e4b55, roughness: 0.84 });
     case 'libraryDeck': return new THREE.MeshStandardMaterial({ color: 0xadada1, roughness: 0.86 });
     case 'libraryShell': return libraryShellMaterial();
     case 'djiBrace': return crownMaterial(0xbfcbd1, 0.64, 0.14, 0.18);

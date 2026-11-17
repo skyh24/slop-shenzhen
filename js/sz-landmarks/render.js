@@ -84,6 +84,31 @@ function addLoft(batch, part) {
   return part.roofContact ? readTriangles(batch, firstIndex) : null;
 }
 
+function addCrownLoft(batch, part) {
+  const { lower, upper, topYs, bottom } = part.crownLoft;
+  const y0 = bottom - part.uvOriginY;
+  const sides = lower.map((p, i) => {
+    const j = (i + 1) % lower.length;
+    return [{ ...p, y: bottom }, { ...upper[i], y: topYs[i] },
+      { ...upper[j], y: topYs[j] }, { ...lower[j], y: bottom }];
+  });
+  const faceNormals = sides.map(faceNormal);
+  const smooth = part.smoothSides
+    ? faceNormals.map((n, i) => n.clone().add(faceNormals[(i - 1 + lower.length) % lower.length]).normalize())
+    : null;
+  let u0 = 0, u1 = 0;
+  for (let i = 0; i < lower.length; i++) {
+    const j = (i + 1) % lower.length;
+    const lowWidth = Math.hypot(lower[j].x - lower[i].x, lower[j].z - lower[i].z);
+    const highWidth = Math.hypot(upper[j].x - upper[i].x, upper[j].z - upper[i].z);
+    addFace(batch, sides[i], [[u0, y0], [u1, topYs[i] - part.uvOriginY],
+      [u1 + highWidth, topYs[j] - part.uvOriginY], [u0 + lowWidth, y0]],
+    smooth && [smooth[i], smooth[i], smooth[j], smooth[j]]);
+    u0 += lowWidth;
+    u1 += highWidth;
+  }
+}
+
 function addRoofPanel(batch, part) {
   const { outer, bottom, top } = part.roofPanel;
   const skin = part.roofSkin;
@@ -105,6 +130,7 @@ function addRoofPanel(batch, part) {
 
 export function addLandmarkPart(batch, part) {
   if (part.loft) return addLoft(batch, part);
+  if (part.crownLoft) return addCrownLoft(batch, part);
   if (part.roofPanel) return addRoofPanel(batch, part);
   if (Array.isArray(part.top)) return addSpan(batch, part);
   const rings = [part.polygon.outer, ...part.polygon.holes].map(flatten);

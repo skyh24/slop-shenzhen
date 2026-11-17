@@ -38,12 +38,12 @@ export function column(id, source, center, radius, bottom, top, style) {
 }
 
 // 连续截面共享边界，不提交藏在体块内部的重叠顶/底面。
-export function stackedLofts(id, source, base, sections, { heightSource, smoothSides = false } = {}) {
+export function stackedLofts(id, source, base, sections, { heightSource, smoothSides = false, topFace = true } = {}) {
   return sections.slice(0, -1).map(({ y, ring, style }, i) => {
     const next = sections[i + 1];
     const last = i === sections.length - 2;
     return loftPart(`${id}:${i}`, source, ring, next.ring, base + y, base + next.y, style, {
-      heightSource: last ? heightSource : 'estimate', uvOriginY: base, smoothSides, bottomFace: i === 0, topFace: last
+      heightSource: last ? heightSource : 'estimate', uvOriginY: base, smoothSides, bottomFace: i === 0, topFace: last && topFace
     });
   });
 }

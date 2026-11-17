@@ -74,6 +74,20 @@ export function loftPart(id, source, lower, upper, bottom, top, style, {
   return { ...volume, loft: { ...rings, minY: volume.minY, maxY: volume.maxY }, uvOriginY, smoothSides, topFace, bottomFace };
 }
 
+// 顶缘不是平面的收分壳：上环每个顶点有独立高度，用于腾讯大厦顶部的双尖冠。
+export function crownLoftPart(id, source, lower, upper, bottom, topYs, style, {
+  heightSource = 'estimate', baseSourceId = source.id, uvOriginY = bottom, smoothSides = true
+} = {}) {
+  if (lower.length < 3 || upper.length !== lower.length || topYs.length !== lower.length
+    || !topYs.every(y => Number.isFinite(y) && y > bottom)) {
+    throw new Error(`Invalid landmark crown loft: ${id}`);
+  }
+  const polygon = { outer: convexHull([...lower, ...upper]), holes: [] };
+  const volume = part({ id, source, polygon, bottom, top: Math.max(...topYs), style, derived: true,
+    heightSource, baseSourceId });
+  return { ...volume, crownLoft: { lower, upper, topYs, bottom }, uvOriginY, smoothSides };
+}
+
 export function roofPanelPart(id, source, triangle, depth, style, {
   roofContact = false, heightSource = 'estimate', baseSource, baseSourceId = source.id
 } = {}) {
