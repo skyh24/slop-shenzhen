@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { createPavingMaterial } from './sz-paving.js';
-import { polygonBoxOverlaps } from './building-collision.js';
+import { nearbyObstacle } from './sz-site-probe.js';
 import { buildSzRoads } from './sz-roads.js';
 import { buildSzGolfCourse } from './sz-golf-course.js';
 
@@ -45,8 +45,7 @@ function buildPaving(group, kind, paths, terrain) {
 }
 
 function nearbyBuilding(colliders, x, y, z, reach, height) {
-  return colliders.some(c => c.minY < y + height && c.maxY > y && c.minX < x + reach && c.maxX > x - reach
-    && c.minZ < z + reach && c.maxZ > z - reach && (!c.polygon || polygonBoxOverlaps(c.polygon, x, z, reach, reach)));
+  return nearbyObstacle(colliders, { x, y, z, halfX: reach, halfZ: reach, height });
 }
 
 function findPathArrival(paths, sourceId, layer, obstacles) {

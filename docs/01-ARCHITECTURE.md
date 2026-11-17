@@ -35,6 +35,7 @@ index.html → sz-geodata（校验/解码）→ main 的 site 数据与共享表
 | 道路净空 | `sz-road-building-clearance.js::createRoadBuildingClearance` | 建筑与道路/高架交叠审核，供渲染与碰撞消费 |
 | 道路断面 | `sz-road-section.js::getRoadSection/getDeckSection` | 按路网边和桥面对象缓存断面，标线、环境车、自动驾驶、换道和建筑净空共用 |
 | 断面横位 | `sz-section-frame.js::sectionSpine/sectionAtStation/sectionMiteredLine` | 距左路缘一个横位坐标，左法向与斜接/斜切策略只此一份；路缘、灯杆、人行道、标线共用 |
+| 街具落位 | `sz-site-probe.js::probeSite/createPlacementTally/nearbyObstacle` | 一套探针表、归因顺序与计数口径；树、路灯、地铁口、街景附件与步道扫掠共用 |
 | 标线 | `sz-road-markings.js::createMarkingLayout`、`sz-road-paint.js::buildSzRoadPaint` | 布局与绘制分离，复核断面优先，桥面标线贴活动表面 |
 | 路侧与信号 | `sz-road-frontage.js::buildSzRoadFrontage`、`sz-intersection-control.js::createIntersectionControl` | 路缘、人行道、信号实体；车流/自动驾驶共享两方向组模拟相位 |
 | 高架/隧道 | `sz-elevated-roads.js::planElevatedRoads/buildSzElevatedRoads`、`sz-tunnels.js::planSzTunnels/buildSzTunnels` | 高架实体与drive表面；正式入口的隧道仅做reviewList，不生成可通行洞身 |

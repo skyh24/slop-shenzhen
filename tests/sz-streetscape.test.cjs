@@ -10,6 +10,7 @@ const polygonModule = require('./helpers/polygon.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const streetBatch = loadModule(read('sz-street-batch.js'));
+const siteProbe = require('./helpers/site-probe.cjs');
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
 const format = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
 const { geo, buildings } = format.decodeCityPayload(raw);
@@ -36,7 +37,8 @@ const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 test('the selected promenade is coplanar and walkable and the modeled tree trunk blocks the same footprint', { skip: !threeDir }, async () => {
   const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));
   const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
-  const imports = { 'three/webgpu': THREE, 'three/tsl': TSL, './sz-street-batch.js': streetBatch };
+  const imports = { 'three/webgpu': THREE, 'three/tsl': TSL, './sz-street-batch.js': streetBatch,
+    './sz-site-probe.js': siteProbe };
   const cityLighting = loadModule(read('city-lighting-materials.js'), { imports });
   const roadMaterial = loadModule(read('sz-road-material.js'), { imports: { ...imports,
     './city-lighting-materials.js': cityLighting } });
@@ -61,7 +63,7 @@ test('the selected promenade is coplanar and walkable and the modeled tree trunk
   const model = buildSzStreetscape(scene, geo.streetscape, geo.terrainSurface, { colliders });
   const crown = loadModule(read('sz-tree-crown.js'), { imports });
   const { buildSzTrees } = loadModule(read('sz-trees.js'), { imports: { ...imports,
-    './sz-polygon.js': polygonModule, './sz-tree-crown.js': crown } });
+    './sz-polygon.js': polygonModule, './sz-tree-crown.js': crown, './sz-site-probe.js': siteProbe } });
   const trees = buildSzTrees(scene, geo.trees, { groundHeight, roadHeight: pavedRoads.roadHeight,
     colliders, pathAt: model.pathAt, observedTrees: model.observedTrees });
   scene.updateMatrixWorld(true);

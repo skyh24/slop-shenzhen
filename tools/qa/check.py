@@ -28,7 +28,7 @@ SCOPES = {
                   'sz-convention-center sz-superhq sz-upperhills sz-nonferrous-tower '
                   'sz-bay-bridge building-collision sz-light-show',
                   'tools/sz/tests/test_building*.py tools/sz/tests/test_landmark_sites.py'),
-    'street': ('sz-street-batch sz-section-frame sz-trees sz-tree-crown sz-streetscape sz-street-lamps sz-pedestrians pedestrians '
+    'street': ('sz-street-batch sz-site-probe sz-section-frame sz-trees sz-tree-crown sz-streetscape sz-street-lamps sz-pedestrians pedestrians '
                'sz-metro-entrances sz-station-sites sz-bay-waterfront sz-talent-park sz-drone-routes sz-air-evidence sz-apec sz-apec-city',
                'tools/sz/tests/test_trees.py tools/sz/tests/test_metro.py'),
     'ui': ('boot sz-day-phase sz-geodata-boot sz-main-startup runtime-reachability sz-qa sz-map sz-map-regions '

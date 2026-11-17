@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { createRoadHeightSampler, createRoadPolygonLayout } from './sz-roads.js';
 import { createPavingMaterial, pavingMesh } from './sz-paving.js';
 import { distanceToRing, polygonContainsInclusive } from './sz-polygon.js';
-import { polygonBoxOverlaps } from './building-collision.js';
+import { nearbyObstacle } from './sz-site-probe.js';
 
 const SWEEP_STEP_M = 0.2;
 const PERSON_HEIGHT_M = 1.9;
@@ -114,8 +114,7 @@ export function createWalkSweep(walk, network, colliders, barrier, bounds) {
       const y = walk.heightAt(x, z);
       if (previousY !== null && Math.abs(y - previousY) > step * MAX_GRADE + 0.025) return false;
       const bottom = y - step * MAX_GRADE, top = y + PERSON_HEIGHT_M + step * MAX_GRADE;
-      if (obstacles.some(item => item.maxY > bottom && item.minY < top && inBounds(item, x, z, reach)
-        && polygonBoxOverlaps(item.polygon, x, z, reach, reach))) return false;
+      if (nearbyObstacle(obstacles, { x, y: bottom, z, halfX: reach, halfZ: reach, height: top - bottom })) return false;
       previousY = y;
     }
     return true;

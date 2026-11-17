@@ -2,10 +2,10 @@
 // 雨棚形状、朝向和贴图为外观估计，点位沿用 OSM。
 import * as THREE from 'three/webgpu';
 import { cameraPosition, distance, float, positionWorld, smoothstep } from 'three/tsl';
-import { polygonBoxOverlaps } from './building-collision.js';
 import { finitePoint } from './sz-polygon.js';
 import { canvasTexture, mergeParts } from './sz-mesh-utils.js';
 import { chunkKey, createStreetBatch } from './sz-street-batch.js';
+import { createPlacementTally, nearbyObstacle, probeSite, rotatePoint, SQUARE_PROBES } from './sz-site-probe.js';
 
 // 雨棚净尺寸按深圳地铁常见出入口量级取值；站名牌挂在雨棚前沿上方。
 export const ENTRANCE_SIZE_M = Object.freeze({ width: 4.5, depth: 2.8, height: 2.6 });
@@ -387,23 +387,6 @@ function buildSignMeshGeometry(target) {
   return geometry;
 }
 
-function nearbyCollider(colliders, x, y, z, halfX, halfZ, height) {
-  for (const collider of colliders) {
-    if (!Number.isFinite(collider?.minX) || !Number.isFinite(collider?.maxX)
-      || !Number.isFinite(collider?.minZ) || !Number.isFinite(collider?.maxZ)) continue;
-    if (!(collider.minY < y + height && collider.maxY > y)) continue;
-    if (!(collider.minX < x + halfX && collider.maxX > x - halfX
-      && collider.minZ < z + halfZ && collider.maxZ > z - halfZ)) continue;
-    if (!collider.polygon || polygonBoxOverlaps(collider.polygon, x, z, halfX, halfZ)) return true;
-  }
-  return false;
-}
-
-function rotatePoint(x, z, yaw, lx, lz) {
-  const sin = Math.sin(yaw), cos = Math.cos(yaw);
-  return { x: x + lx * cos + lz * sin, z: z - lx * sin + lz * cos };
-}
-
 /** 解析：建全城地铁出入口：石基座 + 玻璃雨棚 + 顶置站名牌，按 500/1000 m 分块实例化。
  *  输入：groundHeight/roadHeight/pathAt/colliders/isWater 用于落点校验；chunkSizeM 可调。
  *  输出：{ group, colliders, statistics, entrances, update(camera), dispose }；
@@ -413,7 +396,9 @@ export function planMetroPlacement(metro, options = {}) {
   if (typeof groundHeight !== 'function') throw new Error('Metro entrances require a ground height sampler');
   const plan = planMetroEntrances(metro, options);
   const stationById = new Map((metro?.stations ?? []).map(station => [station.id, station]));
-  const skipped = { unsupportedGround: 0, roadConflict: 0, pathConflict: 0, waterConflict: 0, buildingConflict: 0, duplicate: 0 };
+  // 跳过原因按落点计数；类别只用于跨街景比较，skipped 仍是同一份对象。
+  const tally = createPlacementTally(['unsupportedGround', 'roadConflict', 'pathConflict', 'waterConflict', 'buildingConflict', 'duplicate']);
+  const skipped = tally.skipped;
   const skippedEntrances = [];
   const placed = [];
   const seen = new Set();
@@ -424,28 +409,30 @@ export function planMetroPlacement(metro, options = {}) {
       : hashAngle(entrance.id);
     const facingSource = entrance.associationSource === 'stop-area-route-membership'
       ? 'associated-station-estimate' : station ? 'nearest-station-estimate' : 'id-hash-estimate';
-    const probes = [[0, 0], [PROBE_HALF_X_M, PROBE_HALF_Z_M], [-PROBE_HALF_X_M, PROBE_HALF_Z_M],
-      [PROBE_HALF_X_M, -PROBE_HALF_Z_M], [-PROBE_HALF_X_M, -PROBE_HALF_Z_M]]
-      .map(([lx, lz]) => rotatePoint(entrance.x, entrance.z, yaw, lx, lz));
-    const heights = probes.map(probe => groundHeight(probe.x, probe.z));
-    let reason = null;
-    if (!heights.every(Number.isFinite)) reason = 'unsupportedGround';
-    else if (typeof roadHeight === 'function' && probes.some(probe => roadHeight(probe.x, probe.z) != null)) reason = 'roadConflict';
-    else if (probes.some(probe => pathAt(probe.x, probe.z).length > 0)) reason = 'pathConflict';
-    else if (typeof isWater === 'function' && probes.some(probe => isWater(probe.x, probe.z))) reason = 'waterConflict';
-    else {
-      const key = `${Math.round(entrance.x * 2)},${Math.round(entrance.z * 2)}`;
-      if (seen.has(key)) reason = 'duplicate';
-      else if (nearbyCollider(nearObstacles(entrance.x, entrance.z, 3), entrance.x, Math.min(...heights), entrance.z,
-        COLLIDER_HALF_X_M, COLLIDER_HALF_Z_M, 3.4)) reason = 'buildingConflict';
-      else seen.add(key);
-    }
-    if (reason) {
-      skipped[reason]++;
-      skippedEntrances.push({ id: entrance.id, reason });
+    const key = `${Math.round(entrance.x * 2)},${Math.round(entrance.z * 2)}`;
+    const site = probeSite({
+      x: entrance.x, z: entrance.z, yaw, probes: SQUARE_PROBES,
+      radius: PROBE_HALF_X_M, radiusZ: PROBE_HALF_Z_M, ground: groundHeight,
+      noGroundReason: 'unsupportedGround',
+      rules: [
+        { reason: 'roadConflict', category: 'road',
+          test: point => typeof roadHeight === 'function' && roadHeight(point.x, point.z) != null },
+        { reason: 'pathConflict', category: 'path', test: point => pathAt(point.x, point.z).length > 0 },
+        { reason: 'waterConflict', category: 'water',
+          test: point => typeof isWater === 'function' && Boolean(isWater(point.x, point.z)) },
+        { reason: 'duplicate', category: 'duplicate', at: 'site', test: () => seen.has(key) },
+        { reason: 'buildingConflict', category: 'building', at: 'site', test: ({ y }) => nearbyObstacle(
+          nearObstacles(entrance.x, entrance.z, 3), { x: entrance.x, y, z: entrance.z,
+            halfX: COLLIDER_HALF_X_M, halfZ: COLLIDER_HALF_Z_M, height: 3.4 }) }
+      ]
+    });
+    if (site.reason) {
+      tally.skip(site.reason, site.category);
+      skippedEntrances.push({ id: entrance.id, reason: site.reason });
       continue;
     }
-    placed.push({ ...entrance, y: Math.min(...heights), yaw, facingSource });
+    seen.add(key);
+    placed.push({ ...entrance, y: site.y, yaw, facingSource });
   }
   const skippedTotal = Object.values(skipped).reduce((sum, value) => sum + value, 0);
   const baseStatistics = {
@@ -453,6 +440,7 @@ export function planMetroPlacement(metro, options = {}) {
     planned: plan.entrances.length,
     placed: placed.length,
     skipped,
+    categories: tally.categories,
     skippedTotal,
     unresolved: plan.unresolved.length,
     unresolvedReasons: plan.unresolved.reduce((counts, entry) => {

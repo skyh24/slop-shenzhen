@@ -10,6 +10,7 @@ const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const streetBatch = loadModule(read('sz-street-batch.js'));
+const siteProbe = require('./helpers/site-probe.cjs');
 const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 const roads = loadModule(read('sz-roads.js'), { imports: {
   'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame
@@ -19,7 +20,7 @@ const materialsStub = { sceneUniforms: { night: nightUniform } };
 const lamps = loadModule(read('sz-street-lamps.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': { color: () => ({}), uniform: () => ({ value: 0 }) },
   './sz-roads.js': roads, './sz-polygon.js': polygonModule, './sz-materials.js': materialsStub,
-  './building-collision.js': collision, './sz-street-batch.js': streetBatch, './sz-section-frame.js': sectionFrame,
+  './building-collision.js': collision, './sz-street-batch.js': streetBatch, './sz-site-probe.js': siteProbe, './sz-section-frame.js': sectionFrame,
   './sz-day-phase.js': dayPhaseStub(() => nightUniform.value, () => 1.25)
 } });
 
@@ -135,7 +136,7 @@ test('real Three street lamps cull halo points per chunk and dispose their group
   ]);
   const runtime = loadModule(read('sz-street-lamps.js'), { imports: {
     'three/webgpu': THREE, 'three/tsl': tsl, './sz-roads.js': roads, './sz-materials.js': materialsStub,
-    './building-collision.js': collision, './sz-street-batch.js': streetBatch, './sz-section-frame.js': sectionFrame,
+    './building-collision.js': collision, './sz-street-batch.js': streetBatch, './sz-site-probe.js': siteProbe, './sz-section-frame.js': sectionFrame,
     './sz-day-phase.js': dayPhaseStub(() => nightUniform.value, () => 1.25)
   } });
   const scene = new THREE.Scene();

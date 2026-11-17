@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { polygonContains } from './sz-polygon.js';
 import { COMPACT_CROWN_TRIANGLES, CROWN_SPECIES, createCompactFoliage, createCrownLibrary, createDetailedTreeBatch } from './sz-tree-crown.js';
 import { chunkKey, createStreetBatch } from './sz-street-batch.js';
+import { createPlacementTally, probeSite } from './sz-site-probe.js';
 
 // 近景按树种实例化整棵树，远景的低模树干和树冠按同一子格切换。
 
@@ -373,7 +374,9 @@ export function buildSzTrees(scene, payload, options = {}) {
   const group = new THREE.Group();
   group.name = 'shenzhen-trees';
   const countsBySource = {};
-  const { skipped } = empty.statistics;
+  // 跳过原因按落点计数；类别只用于跨街景比较，skipped 仍是同一份对象。
+  const tally = createPlacementTally(Object.keys(empty.statistics.skipped));
+  const skipped = tally.skipped;
   const hitsCollider = createColliderIndex(colliders);
   const frontage = createTreeFrontageClearance(roadFrontage);
   const probes = [[0, 0], [PROBE_RADIUS_M, 0], [-PROBE_RADIUS_M, 0], [0, PROBE_RADIUS_M], [0, -PROBE_RADIUS_M]];
@@ -399,58 +402,51 @@ export function buildSzTrees(scene, payload, options = {}) {
     const sourceId = extra?.id ? id : legacyId;
     const clearance = woodland ? crown * 0.57 + 0.35 : crown / 2;
     if (options.excludedSite?.(x, z, clearance)) {
-      skipped.reservedWalk++;
+      tally.skip('reservedWalk', 'reserved');
       continue;
     }
     if (woodland && options.isWater && options.isWater(x, z) !== false) {
-      skipped.unsupportedGround++;
+      tally.skip('unsupportedGround', 'no-ground');
       continue;
     }
     if (sourceName.startsWith('simulated-') && Number.isFinite(shennanMedianHeight(x, z))) {
-      skipped.openMedian++;
+      tally.skip('openMedian', 'median');
       continue;
     }
     if (options.arterialTreeAllowed && !options.arterialTreeAllowed(x, z, sourceName)) {
-      skipped.arterialLayout++;
+      tally.skip('arterialLayout', 'layout');
       continue;
     }
     if (sourceName === 'simulated-street' && !streetTreeSideAllowed(x, z)) {
-      skipped.roadside++;
+      tally.skip('roadside', 'layout');
       continue;
     }
-    let baseY = Infinity;
-    let reason = null;
     const scale = woodland ? crown * 0.03 / PROBE_RADIUS_M : 1;
-    for (const [dx, dz] of probes) {
-      const sample = groundHeight(x + dx * scale, z + dz * scale);
-      if (sample === null || sample === undefined || !Number.isFinite(sample)) {
-        reason = 'unsupportedGround';
-        break;
-      }
-      if (sample < baseY) baseY = sample;
-    }
-    if (!reason) {
-      for (const [dx, dz] of probes) {
-        if (roadHeight && roadHeight(x + dx, z + dz) !== null) {
-          reason = 'roadConflict';
-          break;
-        }
-        const paths = pathAt(x + dx, z + dz);
-        if (paths?.length || (sourceName.startsWith('simulated-') && simulatedPathAt?.(x + dx, z + dz))) {
-          reason = 'pathConflict';
-          break;
-        }
-      }
-    }
-    if (sourceName === 'simulated-street') baseY = heightAt(x, z) ?? baseY;
-    if (!reason && hitsCollider(x, z, clearance, baseY, baseY + height)) reason = 'buildingConflict';
-    if (reason) {
-      skipped[reason] += 1;
+    const site = probeSite({
+      x, z, radius: PROBE_RADIUS_M * scale, ground: groundHeight,
+      noGroundReason: 'unsupportedGround',
+      // 模拟行道树落在铺装面上，落位高度改用铺装高程；其余树仍用地面最低点。
+      resolveY: (px, pz, y) => sourceName === 'simulated-street' ? heightAt(px, pz) ?? y : y,
+      rules: [
+        { reason: 'roadConflict', category: 'road',
+          test: point => Boolean(roadHeight) && roadHeight(point.x, point.z) !== null },
+        { reason: 'pathConflict', category: 'path', test: point => {
+          const paths = pathAt(point.x, point.z);
+          return Boolean(paths?.length)
+            || Boolean(sourceName.startsWith('simulated-') && simulatedPathAt?.(point.x, point.z));
+        } },
+        { reason: 'buildingConflict', category: 'building', at: 'site',
+          test: ({ y }) => hitsCollider(x, z, clearance, y, y + height) }
+      ]
+    });
+    if (site.reason) {
+      tally.skip(site.reason, site.category);
       continue;
     }
+    const baseY = site.y;
     // 在创建树干、树冠和碰撞体前统一退让，计入远近树冠和摆动。
     if (options.reserveView?.(x, z, crown * 0.75 + 0.35, baseY + height + 0.5)) {
-      skipped.reservedWalk++;
+      tally.skip('reservedWalk', 'reserved');
       continue;
     }
     const speciesName = extra?.speciesName ?? trees.speciesNames[trees.species[index]] ?? 'ficus';
@@ -462,17 +458,17 @@ export function buildSzTrees(scene, payload, options = {}) {
     const trunkRadius = crown * habit.trunkRadiusRatio;
     if (options.carriagewayOccupied?.(x, z, woodland ? clearance : trunkRadius) || (sourceName.startsWith('simulated-')
       && probes.some(([dx, dz]) => options.deckOccupied?.(x + dx * trunkRadius, z + dz * trunkRadius, baseY, baseY + height)))) {
-      skipped.roadConflict++;
+      tally.skip('roadConflict', 'road');
       continue;
     }
     const checkFrontage = sourceName === 'simulated-street' && frontage?.inScope(x, z);
     if (checkFrontage && frontage.hits(x, z, trunkRadius)) {
-      skipped.frontageTrunkConflict++;
+      tally.skip('frontageTrunkConflict', 'frontage');
       continue;
     }
     if (sourceName.startsWith('simulated-') && (reserveWalk(x, z, trunkRadius + 0.3)
       || options.reserveBayWalk?.(x, z, trunkRadius + 0.3))) {
-      skipped.reservedWalk++;
+      tally.skip('reservedWalk', 'reserved');
       continue;
     }
     if (!woodland) crownTemplates.add(crownTemplate);
@@ -497,7 +493,7 @@ export function buildSzTrees(scene, payload, options = {}) {
     const { id, sourceId, x, z, y, trunkHeight, trunkRadius, sourceName, appearanceSource, checkFrontage, crownTemplate,
       woodland } = record;
     if (checkFrontage && crownBlocksFrontage(record, crownLibrary.geometryFor(crownTemplate), frontage, heightAt)) {
-      skipped.frontageCrownConflict++;
+      tally.skip('frontageCrownConflict', 'frontage');
       continue;
     }
     if (occupied.size) {
@@ -509,7 +505,7 @@ export function buildSzTrees(scene, payload, options = {}) {
             (other.x - x) ** 2 + (other.z - z) ** 2 < WOODLAND_CLEAR_M ** 2);
         }
         if (overlaps) {
-          skipped.woodlandOverlap = (skipped.woodlandOverlap ?? 0) + 1;
+          tally.skip('woodlandOverlap', 'overlap');
           continue;
         }
       }
@@ -679,6 +675,7 @@ export function buildSzTrees(scene, payload, options = {}) {
     lodCells,
     countsBySource,
     skipped,
+    categories: tally.categories,
     cardCrownSpecies: crownLibrary ? crownLibrary.statistics.species.map(item => item.name) : [],
     instances: { trunks: placed.length, cards: placed.length - (countsBySource[WOODLAND_SOURCE] ?? 0), farCrowns: placed.length },
     triangles: {

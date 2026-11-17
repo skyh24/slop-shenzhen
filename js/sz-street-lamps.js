@@ -5,6 +5,7 @@ import { dayPhase } from './sz-day-phase.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { chunkKey, createStreetBatch } from './sz-street-batch.js';
 import { sectionAtStation } from './sz-section-frame.js';
+import { createPlacementTally, probeSite } from './sz-site-probe.js';
 
 // 灯位按源道路断面和道路等级派生，属外观估计。
 const SPACING_BY_CLASS = {
@@ -316,7 +317,9 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
     pool: null,
     halo: null
   };
-  const skipped = { unsupportedGround: 0, roadSurface: 0, deck: 0, reservedWalk: 0 };
+  // 跳过原因按落点计数；类别只用于跨街景比较，skipped 仍是同一份对象。
+  const tally = createPlacementTally(['unsupportedGround', 'roadSurface', 'deck', 'reservedWalk']);
+  const skipped = tally.skipped;
   const sites = [];
   const placementRadius = 0.34;
   const edgeProbes = [[0, 0], [placementRadius, 0], [-placementRadius, 0], [0, placementRadius], [0, -placementRadius]];
@@ -327,27 +330,29 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
     const site = options.relocateSite ? options.relocateSite(candidate) : candidate;
     if (!site) continue;
     if (options.reserveCrossing?.(site.x, site.z, placementRadius)) {
-      skipped.reservedWalk++;
+      tally.skip('reservedWalk', 'reserved');
       continue;
     }
     if (!site.median && Number.isFinite(medianHeight?.(site.x, site.z))) continue;
-    if (options.carriagewayOccupied?.(site.x, site.z, placementRadius)
-      || (roadHeight && edgeProbes.some(([dx, dz]) => Number.isFinite(roadHeight(site.x + dx, site.z + dz))))) {
-      skipped.roadSurface++;
+    const siteHeight = probeSite({
+      x: site.x, z: site.z, radius: placementRadius, probes: edgeProbes,
+      groundProbes: [[0, 0]], ground: heightAt, noGroundReason: 'unsupportedGround',
+      rules: [{ reason: 'roadSurface', category: 'road', at: 'site', test: ({ x, z, probes }) =>
+        Boolean(options.carriagewayOccupied?.(x, z, placementRadius))
+        || Boolean(roadHeight && probes.some(point => Number.isFinite(roadHeight(point.x, point.z)))) }]
+    });
+    if (siteHeight.reason) {
+      tally.skip(siteHeight.reason, siteHeight.category);
       continue;
     }
-    const y = heightAt(site.x, site.z);
-    if (!Number.isFinite(y)) {
-      skipped.unsupportedGround++;
-      continue;
-    }
+    const y = siteHeight.y;
     if (options.reserveWalk?.(site.x, site.z, placementRadius) || (walkPlacement?.inPilot(site.x, site.z) && (
       walkPlacement.reserves(site.x, site.z, placementRadius)
       || obstacles.some(item => item.polygon && item.maxY > y && item.minY < y + HEAD_HEIGHT_M
         && item.minX - placementRadius < site.x && item.maxX + placementRadius > site.x
         && item.minZ - placementRadius < site.z && item.maxZ + placementRadius > site.z
         && polygonBoxOverlaps(item.polygon, site.x, site.z, placementRadius, placementRadius))))) {
-      skipped.reservedWalk++;
+      tally.skip('reservedWalk', 'reserved');
       continue;
     }
     if (deckOccupied) {
@@ -356,7 +361,7 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
       if (deckOccupied(site.x, site.z, y, head)
         || deckOccupied(site.x + dx, site.z + dz, head - 0.25, head)
         || (site.style === 'T' && deckOccupied(site.x - dx, site.z - dz, head - 0.25, head))) {
-        skipped.deck++;
+        tally.skip('deck', 'deck');
         continue;
       }
     }
@@ -408,6 +413,7 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
     medianPoles: sites.filter(site => site.median).length,
     chunks: chunkGroups.size,
     skipped,
+    categories: tally.categories,
     rejected: plan.rejected,
     headHeightM: HEAD_HEIGHT_M,
     limitations: ['lamp positions are appearance parameters derived from source road centrelines, not surveyed pole locations',

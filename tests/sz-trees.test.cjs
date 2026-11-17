@@ -8,6 +8,7 @@ const polygonModule = require('./helpers/polygon.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const streetBatch = loadModule(read('sz-street-batch.js'));
+const siteProbe = require('./helpers/site-probe.cjs');
 const THREE_STUB = {};
 // 解码/LOD 纯函数测试用不到树冠库；真实 Three 用例里再加载 sz-tree-crown.js。
 const crownStub = {
@@ -17,7 +18,7 @@ const crownStub = {
 };
 const trees = loadModule(read('sz-trees.js'), {
   imports: { 'three/webgpu': THREE_STUB, './sz-polygon.js': polygonModule,
-    './sz-tree-crown.js': crownStub, './sz-street-batch.js': streetBatch }
+    './sz-site-probe.js': siteProbe, './sz-tree-crown.js': crownStub, './sz-street-batch.js': streetBatch }
 });
 const { createArterialTreeFilter } = loadModule(read('sz-arterial-trees.js'));
 
@@ -150,7 +151,7 @@ test('summit lookout clears crown and collision together while retaining side an
     .map(file => import(pathToFileURL(join(threeDir, 'build', file)))));
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
-    './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch } });
+    './sz-site-probe.js': siteProbe, './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch } });
   const { summitViewObstructed, SUMMIT_ARRIVAL: view } = loadModule(read('sz-lianhuashan.js')
     .replace(/^import source.*\n/m, ''), {
     imports: { 'three/webgpu': {}, 'three/tsl': {}, './sz-paving.js': {}, './sz-polygon.js': {},
@@ -183,7 +184,7 @@ test('woodland batches stay lightweight and preserve existing trees and circulat
   const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), { imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
-    './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch } });
+    './sz-site-probe.js': siteProbe, './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch } });
   const treeAt = x => ({ id: `woodland:${x}`, x, z: 0, height: 10, crown: 9, speciesName: 'camphor' });
   const payload = makePayload([{ x: 0, z: 0, source: 'osm-node', osm: 'node/1' }]);
   const scene = new THREE.Scene();
@@ -218,7 +219,7 @@ test('instanced tree chunks place trunks on the lowest probe height and switch L
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
     imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
-      './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch }
+      './sz-site-probe.js': siteProbe, './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch }
   });
   const payload = makePayload([
     { x: 0, z: 0, height: 120, crown: 100, osm: 'node/1', source: 'osm-node', appearance: 'osm-tags' },
@@ -321,7 +322,7 @@ test('Chegongmiao frontage clears only simulated street trunks and their collide
   const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
-    imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule, './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch }
+    imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule, './sz-site-probe.js': siteProbe, './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch }
   });
   const roadFrontage = {
     corridors: [{ id: 'shennan-chegongmiao', bounds: [-3754, 686, -3137, 930],
@@ -356,7 +357,7 @@ test('missing or empty tree payload leaves scene untouched apart from an empty g
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
     imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
-      './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch }
+      './sz-site-probe.js': siteProbe, './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch }
   });
   const scene = new THREE.Scene();
   const built = model.buildSzTrees(scene, undefined, {});
@@ -375,7 +376,7 @@ test('a legacy site-only tree uses shared tree resources and duplicate observati
   const imports = { 'three/webgpu': THREE, 'three/tsl': TSL, './sz-street-batch.js': streetBatch };
   const crown = loadModule(read('sz-tree-crown.js'), { imports });
   const model = loadModule(read('sz-trees.js'), { imports: { ...imports,
-    './sz-polygon.js': polygonModule, './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch } });
+    './sz-polygon.js': polygonModule, './sz-site-probe.js': siteProbe, './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch } });
   const observedTree = { id: 'node/1', x: 0.041, z: -0.024, positionSource: 'osm-node', appearanceSource: 'visual-estimate' };
   const options = { groundHeight: () => 5, observedTrees: [observedTree] };
   const scene = new THREE.Scene();
@@ -405,7 +406,7 @@ test('every species gets its own card-crown mesh in the near LOD', { skip: !thre
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
     imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
-      './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch }
+      './sz-site-probe.js': siteProbe, './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch }
   });
   const scene = new THREE.Scene();
   const built = model.buildSzTrees(scene, makePayload([
@@ -430,7 +431,7 @@ test('near LOD hysteresis keeps crowns steady across the 180–198 m band', { sk
   const crown = loadModule(read('sz-tree-crown.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL } });
   const model = loadModule(read('sz-trees.js'), {
     imports: { 'three/webgpu': THREE, './sz-polygon.js': polygonModule,
-      './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch }
+      './sz-site-probe.js': siteProbe, './sz-tree-crown.js': crown, './sz-street-batch.js': streetBatch }
   });
   const scene = new THREE.Scene();
   const built = model.buildSzTrees(scene, makePayload([

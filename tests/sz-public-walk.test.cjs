@@ -26,7 +26,7 @@ const setup = async () => {
   } });
   const walk = loadModule(read('sz-public-walk.js'), { imports: {
     'three/webgpu': THREE, './sz-roads.js': roads, './sz-polygon.js': polygon, './building-collision.js': collision,
-    './sz-paving.js': paving
+    './sz-paving.js': paving, './sz-site-probe.js': require('./helpers/site-probe.cjs')
   } });
   const pilot = loadModule(read('sz-zhongxin-walk.js'), { imports: {
     'three/webgpu': THREE, './building-collision.js': collision,
