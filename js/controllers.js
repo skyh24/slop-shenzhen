@@ -130,6 +130,9 @@ function buildingContact(c, x, y, z, body, contact) {
   if (body.mode === 'car' && c.type === 'bridge-slab'
     && ((body.supportedSlabs?.size && y + body.bottom >= c.maxY - 0.02)
       || (c.roadAccess && y >= c.maxY - 0.28))) return false;
+  // 桥墩顶面在梁底（桥面下约 0.35 m）。引道上按桥心高度摊平的车身底面会低于前方墩顶几厘米，
+  // 这一段按梁底净空放行，避免上坡时撞到视觉上仍在路面以下的桥墩；地面车辆够不到这一高度。
+  if (c.type === 'elevated-pier' && c.topClearance && y + body.bottom >= c.maxY - c.topClearance) return false;
   // 顶面按每块碰撞体的局部上界判断；支撑面与顶面齐平时只差浮点尾差，不能算侧撞。
   // 斜面仍交给 span/roof 裁切按所在位置的高度逐段判断。
   if (y + body.bottom >= c.maxY - SURFACE_CONTACT_EPSILON_M

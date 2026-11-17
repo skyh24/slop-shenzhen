@@ -32,6 +32,8 @@ const BARRIER_HEIGHT_M = 0.95;
 const ELEVATED_BARRIER_WIDTH_M = 0.35;
 // 桥面离开地面超过这个高度才加护栏；匝道落地段两侧留开口给车辆进出。
 const BARRIER_MIN_SEPARATION_M = 0.75;
+// 中段抬升超过这个高度即按真实跨路桥处理：登记接触面、可驶入并画标线。
+const DECK_CONTACT_RISE_M = 1.0;
 // 已核实的同向合流、分流。共同桥段与两支道均须在源路网节点和估算桥高上相接。
 const CHEGONGMIAO_SPLIT = ['node/8020094690', 'startNode', ['way/854919713', 'way/1524817657'], 'way/854919717'];
 const CHEGONGMIAO_JUNCTIONS = [
@@ -448,8 +450,9 @@ function pierSpacing(record) {
 }
 
 /** 解析：单条高架/匝道链路 → 桥面缎带、护栏、桥墩、可站立三角面。
- *  高度：与地面道路共享的端点落地为地形；其余端点按 `layer×4.8 m` 估计，既有立交沿线线性插值，
- *        内部再用中心+两侧地形采样做下限，避免桥面埋入地面。
+ *  高度：主体保持 `layer×4.8 m` 全高；只有与地面共享的落地端在 12% 坡度引道内降到地形，
+ *        避免把坡度摊到整条链路、导致中段跨路净空不足。内部再用中心+两侧地形采样做下限。
+ *        既有立交（reviewed）仍按核实的纵断面。
  *  显示和接触同源：桥面顶面三角面给控制器当可站立面，护栏与桥墩的接触体从同一批顶点生成。
  *  输出：{ frames, geometry, topTriangles, barriers, BarrierColliders, PierColliders, surfaceId, ... }。 */
 function planLink(graph, link, index, metadata, groundHeight, groundNodes, reviewed = null, crossing = null, liftOverride = null, groundIndex = null) {
@@ -483,7 +486,23 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
       const endWeight = Math.max(0, 1 - (length - d) / run(b - reviewed.heightM));
       return reviewed.heightM + (a - reviewed.heightM) * startWeight + (b - reviewed.heightM) * endWeight;
     })
-    : distance => startY + (endY - startY) * Math.min(1, distance / length));
+    // 非核实链路：桥面主体保持全高，只在真正落地的一端用引道坡度过渡。旧实现从
+    // ground+4.8 线性降到另一端 ground，坡度摊满整条链路（最长近 2 km），跨路点落在
+    // 中低段时净空只有 0.5 m（round 46 审计）。引道长度按 12% 上限取 lift/0.12，
+    // 4.8 m 层高即 40 m，与 buildApron 的引道坡度口径一致。
+    : distance => {
+      const fullY = (startGround + lift) + ((endGround + lift) - (startGround + lift))
+        * Math.min(1, distance / length);
+      const rampLen = lift > 0 ? lift / ELEVATED_DRIVE_MAX_GRADE : 0;
+      let allowed = fullY;
+      if (sharedStart && rampLen > 0) {
+        allowed = Math.min(allowed, startGround + lift * Math.min(1, distance / rampLen));
+      }
+      if (sharedEnd && rampLen > 0) {
+        allowed = Math.min(allowed, endGround + lift * Math.min(1, (length - distance) / rampLen));
+      }
+      return allowed;
+    });
   const girderDepth = reviewed?.girderDepthM ?? GIRDER_DEPTH_M;
   const half = Math.max(0.7, Math.min(1.4, width * 0.08));
   const geometry = [];
@@ -496,10 +515,6 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   let areaM2 = 0;
   let maxClearanceM = 0;
   let maxGrade = 0;
-  // 两端都落在共享地面节点的 layer>0 链路，实际是贴着地形的匝道；若仍登记独立接触面，
-  // 会在同一位置叠出一层假桥面，把桥下行人和自行车吸上去。此类链路只保留显示几何。
-  const contactSurface = Boolean(reviewed || crossing || layer <= 0 || !sharedStart || !sharedEnd);
-
   for (const frame of frames) {
     // 端点之间按直线坡度插值；地形在 link 中部抬升时以地面为下限，避免桥面埋入地下。
     const linearY = deckHeightAt(frame.d);
@@ -507,11 +522,24 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
     const edgeGrounds = [frame.left, frame.right]
       .map(point => groundHeight(point.x, point.z))
       .filter(Number.isFinite);
-    const floor = Math.max(centerGround ?? -Infinity, ...edgeGrounds);
+    // 桥面在开放段要跟地形抬升保持层高；只有落地引道内允许贴地，否则地形隆起会把
+    // 线性插值的桥面顶到只剩 0.5 m 净空（round 46 审计的第二类问题）。
+    const rampLen = lift > 0 ? lift / ELEVATED_DRIVE_MAX_GRADE : 0;
+    const rampFactor = (sharedStart || sharedEnd) && rampLen > 0
+      ? Math.min(sharedStart ? Math.min(1, frame.d / rampLen) : 1,
+        sharedEnd ? Math.min(1, (length - frame.d) / rampLen) : 1)
+      : 1;
+    const clearanceFloor = lift * rampFactor;
+    const floor = Math.max(centerGround ?? -Infinity, ...edgeGrounds) + clearanceFloor;
     const proposed = Math.max(linearY, Number.isFinite(floor) ? floor : linearY);
     frame.y = crossing ? crossing.height(frame, proposed) : reviewed ? linearY : proposed;
     if (Number.isFinite(centerGround)) maxClearanceM = Math.max(maxClearanceM, frame.y - centerGround);
   }
+  // 接触面只按真实跨越判定：两端都接地面、但中段抬升超过 1 m 的链路是真正的跨路桥，
+  // 必须能驶入并画标线；贴着地形的落地匝道（中段不抬升）仍只保留显示几何，
+  // 否则会在同一位置叠出假桥面，把桥下行人和自行车吸上去。
+  const contactSurface = Boolean(reviewed || crossing || layer <= 0 || !sharedStart || !sharedEnd
+    || maxClearanceM > DECK_CONTACT_RISE_M);
   if (parkBridge) {
     // 桥头用实际岸路横坡接地，向桥内逐渐收平。
     for (const [portal, sign] of [[frames[0], 1], [frames.at(-1), -1]]) {
@@ -545,11 +573,9 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
     const topB = { ...b.left, y: b.left.y ?? b.y };
     const topC = { ...b.right, y: b.right.y ?? b.y };
     const topD = { ...a.right, y: a.right.y ?? a.y };
-    if (contactSurface) pushTopQuad(geometry, topTriangles, topA, topD, topC, topB);
-    else {
-      pushTriangle(geometry, topA, topD, topC);
-      pushTriangle(geometry, topA, topC, topB);
-    }
+    // 顶面三角面无论是否登记接触面都进同一批顶点：接触面只决定可站立与可驶入，
+    // 显示、标线和面积统计共用这一份几何，避免出现“有桥面却没有标线”的孤立缎带。
+    pushTopQuad(geometry, topTriangles, topA, topD, topC, topB);
     areaM2 += triangleArea2D(topA, topB, topC) + triangleArea2D(topA, topC, topD);
     pushVerticalWall(geometry, topA, topB, topA.y - girderDepth, topB.y - girderDepth);
     pushVerticalWall(geometry, topC, topD, topC.y - girderDepth, topD.y - girderDepth);
@@ -605,6 +631,8 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
       maxZ: pier.z + half,
       minY: terrainY,
       maxY: topY,
+      // 墩顶固定在梁底。引道上车身底面按桥心高度摊平，会低于前方墩顶几厘米，接触检测按这段梁底净空放行。
+      topClearance: girderDepth,
       polygon: {
         outer: [{ x: pier.x - half, z: pier.z - half }, { x: pier.x + half, z: pier.z - half },
           { x: pier.x + half, z: pier.z + half }, { x: pier.x - half, z: pier.z + half }],
@@ -678,6 +706,58 @@ function reviewedJunctionNeighbors(graph, driveLinks) {
   return neighbors;
 }
 
+// 非核实的同高合流：两条桥面在同一节点以相同高度相接、且在交汇前横向错开（不是同一条缎带续接），
+// 说明各自是独立车道/匝道。交汇重叠段的护栏必须让位，否则会立进相邻桥面的车道里。
+const MERGE_LATERAL_M = 1;
+const MERGE_APPROACH_M = 20;
+function mergeNeighbors(records) {
+  const byNode = new Map();
+  for (const record of records) {
+    if (record.reviewed) continue;
+    for (const [node, side, y] of [[record.startNode, 'start', record.startDeckY],
+      [record.endNode, 'end', record.endDeckY]]) {
+      if (!byNode.has(node)) byNode.set(node, []);
+      byNode.get(node).push({ record, side, y });
+    }
+  }
+  const approachPoint = (record, side, distance) => {
+    const points = side === 'start' ? record.points : [...record.points].reverse();
+    let travelled = 0;
+    for (let i = 1; i < points.length; i++) {
+      const run = Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
+      if (travelled + run >= distance) {
+        const t = (distance - travelled) / run;
+        return { x: points[i - 1].x + (points[i].x - points[i - 1].x) * t,
+          z: points[i - 1].z + (points[i].z - points[i - 1].z) * t };
+      }
+      travelled += run;
+    }
+    return points[points.length - 1];
+  };
+  const neighbors = new Map();
+  for (const peers of byNode.values()) {
+    for (let i = 0; i < peers.length; i++) {
+      for (let j = i + 1; j < peers.length; j++) {
+        const a = peers[i], b = peers[j];
+        if (a.record === b.record || Math.abs(a.y - b.y) > ELEVATED_JOIN_TOLERANCE_M) continue;
+        const end = a.side === 'start' ? a.record.points[0] : a.record.points[a.record.points.length - 1];
+        const pa = approachPoint(a.record, a.side, MERGE_APPROACH_M);
+        const pb = approachPoint(b.record, b.side, MERGE_APPROACH_M);
+        const ux = end.x - pa.x, uz = end.z - pa.z;
+        const run = Math.hypot(ux, uz) || 1;
+        const dx = pb.x - pa.x, dz = pb.z - pa.z;
+        const along = (dx * ux + dz * uz) / run;
+        if (Math.hypot(dx - ux * along / run, dz - uz * along / run) <= MERGE_LATERAL_M) continue;
+        for (const [from, to] of [[a.record, b.record], [b.record, a.record]]) {
+          if (!neighbors.has(from)) neighbors.set(from, new Set());
+          neighbors.get(from).add(to);
+        }
+      }
+    }
+  }
+  return neighbors;
+}
+
 function addPiers(record, groundHeight, neighbors = [], groundIndex = null) {
   const { frames, geometry, osmId, surfaceId, piers, pierColliders, width } = record;
   const half = Math.max(0.7, Math.min(1.4, width * 0.08));
@@ -723,6 +803,7 @@ function addPiers(record, groundHeight, neighbors = [], groundIndex = null) {
       maxZ: pier.z + half,
       minY: terrainY,
       maxY: topY,
+      topClearance: GIRDER_DEPTH_M,
       polygon: {
         outer: [{ x: pier.x - half, z: pier.z - half }, { x: pier.x + half, z: pier.z - half },
           { x: pier.x + half, z: pier.z + half }, { x: pier.x - half, z: pier.z + half }],
@@ -845,7 +926,7 @@ function buildApron(record, side, groundHeight) {
   const groundEnd = groundHeight(ox, oz);
   if (!Number.isFinite(groundEnd)) return null;
   const drop = end.y - groundEnd;
-  if (drop <= 0.05) return { side, lengthM: 0, grade: 0, atGrade: true, endY: end.y };
+  if (drop <= 0.05) return { side, lengthM: 0, grade: 0, atGrade: true, endY: end.y, frames: [], triangleStart: record.topTriangles.length };
   const required = drop / APRON_MAX_GRADE;
   if (required > APRON_MAX_M + 1e-6) return null;
   const length = Math.max(APRON_MIN_M, Math.min(APRON_MAX_M, required));
@@ -890,6 +971,8 @@ function buildApron(record, side, groundHeight) {
   if (maxGrade > APRON_MAX_GRADE + 1e-6) return null;
   const girderDepth = GIRDER_DEPTH_M;
   let apronLengthM = 0;
+  // 引道顶面三角面排在桥面之后，记下起点供标线按段回取（见 sz-road-paint 的 deckSegments）。
+  const triangleStart = record.topTriangles.length;
   for (let i = 1; i < apronFrames.length; i++) {
     const a = apronFrames[i - 1];
     const b = apronFrames[i];
@@ -906,7 +989,7 @@ function buildApron(record, side, groundHeight) {
   const tip = apronFrames[apronFrames.length - 1];
   pushEndCap(record.geometry, { ...tip.left, y: tip.left.y }, { ...tip.right, y: tip.right.y },
     Math.min(tip.left.y, tip.right.y) - girderDepth, side === 'end');
-  return { side, lengthM: apronLengthM, grade: maxGrade, endY: tip.y };
+  return { side, lengthM: apronLengthM, grade: maxGrade, endY: tip.y, frames: apronFrames, triangleStart };
 }
 
 /** 端部搭接段：沿端头切向外推 DECK_OVERLAP_M，与节点处相邻桥面/地面路的接触面重叠，
@@ -1170,6 +1253,11 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     && !record.dangling && record.connectedStart && record.connectedEnd
     && record.maxGrade <= (record.reviewed ? 0.05 : ELEVATED_DRIVE_MAX_GRADE) + 1e-6);
   const junctionNeighbors = reviewedJunctionNeighbors(graph, driveLinks);
+  for (const [record, peers] of mergeNeighbors(records)) {
+    const merged = junctionNeighbors.get(record) ?? new Set();
+    for (const peer of peers) merged.add(peer);
+    junctionNeighbors.set(record, merged);
+  }
   for (const record of [...records, ...walking]) {
     // 慢行与车行在同桥并行时保留车道边界，步行桥靠车道的一侧也保留护栏。
     const sameBridge = record.reviewed && [...records, ...walking].filter(other => other !== record && other.reviewed
@@ -1307,7 +1395,7 @@ export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, inter
   // 没有纹理，沥青观感只靠颜色和粗糙度；polygonOffset 只处理与地面共面处的绘制顺序。
   // 双面渲染让护栏的内外侧面都可见，桥面和墩身的三角面不受影响。
   const material = new THREE.MeshStandardNodeMaterial({
-    color: 0x303436,
+    color: 0x3b3d41,
     roughness: 0.95,
     metalness: 0,
     side: THREE.DoubleSide,

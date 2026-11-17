@@ -45,21 +45,42 @@ function buildChunks(strips, roadHeight) {
   return cells;
 }
 
+// 桥面标线段：桥面本身的段按 frames 与顶面三角面一一对应；引道顶面三角面排在桥面之后，
+// 用 apron.triangleStart 回取，否则引道只有显示几何、没有标线。
+function deckSegments(deck) {
+  const segments = [];
+  for (let i = 1; i < deck.frames.length; i++) {
+    const triangle = (i - 1 + (deck.leadingOverlapFrames ?? 0)) * 2;
+    const [leftA, rightA, rightB] = deck.topTriangles[triangle];
+    const [, , leftB] = deck.topTriangles[triangle + 1];
+    segments.push({ leftA, rightA, leftB, rightB, aD: deck.frames[i - 1].d, bD: deck.frames[i].d,
+      opening: deck.openings?.get(i - 1) ?? null, apron: false });
+  }
+  for (const apron of deck.aprons ?? []) {
+    const frames = apron.frames ?? [];
+    for (let i = 1; i < frames.length; i++) {
+      const triangle = apron.triangleStart + (i - 1) * 2;
+      const [leftA, rightA, rightB] = deck.topTriangles[triangle];
+      const [, , leftB] = deck.topTriangles[triangle + 1];
+      segments.push({ leftA, rightA, leftB, rightB, aD: frames[i - 1].d, bD: frames[i].d, opening: null, apron: true });
+    }
+  }
+  return segments;
+}
+
 function addDeckPaint(cells, graph, decks) {
-  const statistics = { links: 0, laneCounts: {}, dashedLines: 0 };
+  const statistics = { links: 0, laneCounts: {}, dashedLines: 0, apronSegments: 0 };
   for (const deck of decks) {
     const section = getDeckSection(graph, deck);
     const lines = deckPaintLines(section);
     statistics.links++;
     statistics.laneCounts[section.laneCount] = (statistics.laneCounts[section.laneCount] ?? 0) + 1;
     statistics.dashedLines += section.laneCount - 1;
-    for (let i = 1; i < deck.frames.length; i++) {
-      const a = deck.frames[i - 1], b = deck.frames[i];
-      const cell = paintCell(cells, (a.x + b.x) / 2, (a.z + b.z) / 2);
+    for (const segment of deckSegments(deck)) {
+      const { leftA, rightA, leftB, rightB, aD, bD, opening, apron } = segment;
+      const cell = paintCell(cells, (leftA.x + rightB.x) / 2, (leftA.z + rightB.z) / 2);
       // 桥面分成两个三角面。标线在同一条对角线处切开，弯坡上也贴着实际桥面。
-      const triangle = (i - 1 + (deck.leadingOverlapFrames ?? 0)) * 2;
-      const [leftA, rightA, rightB] = deck.topTriangles[triangle];
-      const [, , leftB] = deck.topTriangles[triangle + 1];
+      if (apron) statistics.apronSegments++;
       const phase = deck.stationOffsetM ?? 0;
       const widthA = Math.hypot(leftA.x - rightA.x, leftA.z - rightA.z);
       const widthB = Math.hypot(leftB.x - rightB.x, leftB.z - rightB.z);
@@ -70,19 +91,19 @@ function addDeckPaint(cells, graph, decks) {
       };
       for (const line of lines) {
         const side = line.offset < 0 ? 'left' : 'right';
-        const duty = line.duty === 1 && deck.openings?.get(i - 1)?.has(side) ? 0.32 : line.duty;
+        const duty = line.duty === 1 && opening?.has(side) ? 0.32 : line.duty;
         const color = colorFor(line.color);
         const center = 0.5 + line.offset / section.pavementWidthM;
         const loA = center - 0.09 / widthA, loB = center - 0.09 / widthB;
         const hiA = center + 0.09 / widthA, hiB = center + 0.09 / widthB;
         const lo = loA / (1 + loA - loB), hi = hiA / (1 + hiA - hiB);
         const base = cell.position.length / 3;
-        vertex(leftA, rightA, loA, a.d, color, duty);
-        vertex(leftA, rightA, hiA, a.d, color, duty);
-        vertex(leftA, rightB, hi, a.d + (b.d - a.d) * hi, color, duty);
-        vertex(leftA, rightB, lo, a.d + (b.d - a.d) * lo, color, duty);
-        vertex(leftB, rightB, hiB, b.d, color, duty);
-        vertex(leftB, rightB, loB, b.d, color, duty);
+        vertex(leftA, rightA, loA, aD, color, duty);
+        vertex(leftA, rightA, hiA, aD, color, duty);
+        vertex(leftA, rightB, hi, aD + (bD - aD) * hi, color, duty);
+        vertex(leftA, rightB, lo, aD + (bD - aD) * lo, color, duty);
+        vertex(leftB, rightB, hiB, bD, color, duty);
+        vertex(leftB, rightB, loB, bD, color, duty);
         cell.index.push(base, base + 1, base + 2, base, base + 2, base + 3,
           base + 3, base + 2, base + 4, base + 3, base + 4, base + 5);
       }
