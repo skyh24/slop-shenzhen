@@ -199,13 +199,16 @@ test('retail walls replace only street-facing lower geometry and retain the clos
     const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
     const geometry = loadModule(read('sz-geometry.js'), { imports });
     const layout = { buildingPlacement, buildingSeed };
+    const cityUniforms = { cityUniforms: {
+      uSkyHorizonColor: TSL.color(0x8899aa), uSkyTopColor: TSL.color(0x667788), uInteriorGlow: TSL.float(1)
+    } };
+    const signs = loadModule(read('sz-retail-signs.js'), { imports: {
+      ...imports, './city-lighting-materials.js': cityUniforms, './sz-strings.js': loadModule(read('sz-strings.js'))
+    } });
     const retail = loadModule(read('sz-retail-frontage.js'), { imports: {
       ...imports, './sz-geometry.js': geometry, './sz-building-layout.js': layout, './sz-roads.js': roadsModule,
-      './sz-polygon.js': polygonModule,
-      './city-lighting-materials.js': { cityUniforms: {
-        uSkyHorizonColor: TSL.color(0x8899aa), uSkyTopColor: TSL.color(0x667788), uInteriorGlow: TSL.float(1)
-      } },
-      './sz-spatial.js': { spatialIndex: items => () => items }
+      './sz-polygon.js': polygonModule, './city-lighting-materials.js': cityUniforms,
+      './sz-spatial.js': { spatialIndex: items => () => items }, './sz-retail-signs.js': signs
     } });
     const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
       './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
@@ -233,6 +236,56 @@ test('retail walls replace only street-facing lower geometry and retain the clos
     assert.equal(collision.polygonContains(blocks.colliders[0].polygon, door.x, door.z + 0.5), true);
     assert.equal(collision.polygonContains(blocks.colliders[0].polygon, door.x, door.z - 0.5), false);
     assert.equal(blocks.colliders[0].maxY, blocks.surfaces[0].triangles[0][0].y);
+
+    // 雨棚是悬空构件：任何雨棚顶点都不低于人行净空，也不越过首层顶。
+    const retailMesh = blocks.group.children.find(child => /^ShenzhenRetail:/.test(child.name));
+    const meta = retailMesh.geometry.attributes.bmeta;
+    const position = retailMesh.geometry.attributes.position;
+    const canopyHeights = [];
+    for (let i = 0; i < meta.count; i++) if (meta.getX(i) < 0) canopyHeights.push(position.getY(i));
+    assert.ok(canopyHeights.length > 0, 'street frontage generates at least one suspended canopy');
+    assert.ok(Math.min(...canopyHeights) >= 10 + 3.05 - 1e-6, 'canopy soffit keeps 3.05m clearance');
+    assert.ok(Math.max(...canopyHeights) <= 10 + 4.1 * 0.958 + 1e-6, 'canopy stays below the first-floor top');
+    assert.ok(retailMesh.geometry.attributes.bground, 'first-floor height feeds the stone plinth band');
+
+    // 预算账：店招每块 2 三角形、雨棚每段 4 三角形（顶板 + 楔形底板）。
+    // 从索引与顶点数反推，确保几何没有隐藏加面，整城规模才能守住 8k 预算。
+    let canopyVertices = 0;
+    for (let i = 0; i < meta.count; i++) if (meta.getX(i) < 0) canopyVertices++;
+    assert.equal(canopyVertices % 8, 0, 'each canopy contributes exactly two quads');
+    const canopySegments = canopyVertices / 8;
+    assert.equal(retailMesh.geometry.index.count,
+      (position.count - canopyVertices) / 4 * 6 + canopySegments * 12,
+      'retail index count equals two triangles per wall bay plus four per canopy');
+    for (const mesh of blocks.group.children.filter(child => /^ShenzhenRetailSigns:/.test(child.name))) {
+      const vertices = mesh.geometry.attributes.position.count;
+      assert.equal(vertices % 4, 0, 'each shop sign contributes exactly four vertices');
+      assert.equal(mesh.geometry.index.count, vertices / 4 * 6, 'each shop sign contributes two triangles');
+      assert.equal(mesh.geometry.attributes.signGlow.count, vertices, 'every shop sign vertex carries its glow flag');
+    }
+
+    // 零售材质节点预算：首层三档夜灯与雨棚不能把 TSL 图撑到冷编译超时。
+    const countNodes = roots => {
+      const seen = new Set(), stack = [...roots];
+      while (stack.length) {
+        const node = stack.pop();
+        if (!node || seen.has(node)) continue;
+        seen.add(node);
+        for (const child of node.getChildren ? node.getChildren() : []) stack.push(child);
+      }
+      return seen.size;
+    };
+    const retailMaterial = retail.createRetailMaterial();
+    const colorNodes = countNodes([retailMaterial.colorNode]);
+    assert.ok(colorNodes <= 600, `retail colorNode must stay within 600 nodes (got ${colorNodes})`);
+    const totalNodes = countNodes([retailMaterial.colorNode, retailMaterial.roughnessNode, retailMaterial.emissiveNode]);
+    assert.ok(totalNodes <= 700, `retail material graph must stay within 700 nodes (got ${totalNodes})`);
+    const map = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    map.needsUpdate = true;
+    const signMaterial = signs.createShopSignMaterial(map);
+    assert.ok(signMaterial.emissiveNode, 'shop signs keep an independent emissive node');
+    assert.ok(countNodes([signMaterial.colorNode, signMaterial.emissiveNode]) <= 120);
+
     blocks.dispose();
   });
 
@@ -309,4 +362,84 @@ test('a reviewed duplicate shares one solid only while its footprint, holes and 
   assert.equal(plan({ ...alias, minHeight: alias.minHeight + 1 }).duplicateIds.size, 0);
   assert.equal(plan({ ...alias, polygons: [{ outer, holes: [] }] }).duplicateIds.size, 0);
   assert.equal(plan(alias, new Set([ownerId])).duplicateIds.size, 0);
+});
+
+// 店招是纯规划 + 纯几何：不依赖 DOM 就能验证图集单元格、uv 越界和名字确定性。
+const signStubs = () => loadModule(read('sz-retail-signs.js'), { imports: {
+  'three/webgpu': {},
+  'three/tsl': { attribute: () => null, mix: () => null, smoothstep: () => null, texture: () => null },
+  './city-lighting-materials.js': { cityUniforms: {} },
+  './sz-strings.js': loadModule(read('sz-strings.js'))
+} });
+
+test('shop sign atlas keeps every panel inside its own cell with deterministic positions', () => {
+  const signs = signStubs();
+  const seed = 0.371;
+  assert.equal(signs.shopSignName(seed), signs.shopSignName(seed), 'names repeat for the same seed');
+  assert.notEqual(signs.shopSignName(seed), signs.shopSignName(seed + 0.02), 'different seeds pick different counters');
+  const words = loadModule(read('sz-strings.js')).STR.retailShops;
+  for (const word of words) assert.ok(word.length >= 2 && word.length <= 4, `${word} must be 2-4 characters`);
+
+  const entries = Array.from({ length: 9 }, (_, i) => {
+    const entrySeed = seed + i * 0.071;
+    return { width: 2.4 + (i % 4) * 0.2, height: 0.6, seed: entrySeed, name: signs.shopSignName(entrySeed) };
+  });
+  const plan = signs.planShopSignAtlas(entries);
+  assert.ok(plan, 'nine signs fit in one 2048x1024 atlas');
+  assert.ok(plan.width <= 2048 && plan.height <= 1024);
+  for (const tile of plan.tiles) {
+    assert.ok(tile.x >= 0 && tile.y >= 0 && tile.width > 0 && tile.height > 0);
+    assert.ok(tile.x + tile.width <= plan.width && tile.y + tile.height <= plan.height, 'cell stays inside the atlas');
+  }
+  for (let i = 0; i < plan.tiles.length; i++) {
+    for (let j = i + 1; j < plan.tiles.length; j++) {
+      const a = plan.tiles[i], b = plan.tiles[j];
+      const apart = a.x + a.width <= b.x || b.x + b.width <= a.x
+        || a.y + a.height <= b.y || b.y + b.height <= a.y;
+      assert.ok(apart, `sign cells ${i} and ${j} must not overlap`);
+    }
+  }
+
+  const built = signs.buildShopSignGeometry(plan, entries);
+  assert.equal(built.positions.length, entries.length * 12);
+  assert.equal(built.uvs.length, entries.length * 8);
+  for (const value of built.uvs) assert.ok(value >= 0 && value <= 1, 'sign uv stays inside [0,1]');
+  const uvRects = [];
+  for (let i = 0; i < entries.length; i++) {
+    const uv = built.uvs.slice(i * 8, i * 8 + 8);
+    uvRects.push({ u0: Math.min(uv[0], uv[2], uv[4], uv[6]), u1: Math.max(uv[0], uv[2], uv[4], uv[6]),
+      v0: Math.min(uv[1], uv[3], uv[5], uv[7]), v1: Math.max(uv[1], uv[3], uv[5], uv[7]) });
+  }
+  for (let i = 0; i < uvRects.length; i++) {
+    assert.ok(uvRects[i].u1 > uvRects[i].u0 && uvRects[i].v1 > uvRects[i].v0);
+    for (let j = i + 1; j < uvRects.length; j++) {
+      const a = uvRects[i], b = uvRects[j];
+      const apart = a.u1 <= b.u0 || b.u1 <= a.u0 || a.v1 <= b.v0 || b.v1 <= a.v0;
+      assert.ok(apart, `sign uv ${i} and ${j} must not overlap`);
+    }
+  }
+  for (const glow of built.glows) assert.ok(glow === 0 || glow === 1);
+
+  const again = signs.planShopSignAtlas(entries);
+  assert.deepEqual(again.tiles.map(tile => [tile.x, tile.y, tile.width, tile.height, tile.name]),
+    plan.tiles.map(tile => [tile.x, tile.y, tile.width, tile.height, tile.name]));
+});
+
+test('shop signs stay above 2.9m and lit share stays inside the 55-75% night band', () => {
+  const signs = signStubs();
+  for (const height of [3.6, 4.1, 4.8, 5.2]) {
+    const rect = signs.shopSignRect(0, height, 7.2);
+    assert.ok(rect, `storefront ${height}m carries a sign`);
+    assert.ok(rect.bottom >= 2.9 - 1e-9, 'sign bottom clears 2.9m');
+    assert.ok(rect.height >= 0.5 - 1e-9 && rect.height <= 0.72 + 1e-9);
+    assert.ok(rect.top <= height * 0.958 + 1e-9, 'sign top stays inside the fascia band');
+    assert.ok(rect.width >= 2.0 - 1e-9 && rect.width <= 3.2 + 1e-9);
+  }
+  for (const seed of [0.13, 0.37, 0.62, 0.88]) {
+    const share = signs.shopSignLitShare(seed);
+    assert.ok(share >= 0.55 - 1e-9 && share <= 0.75 + 1e-9, 'lit share stays within 55-75%');
+    let lit = 0;
+    for (let bay = 0; bay < 240; bay++) lit += signs.shopSignLit(seed, bay) ? 1 : 0;
+    assert.ok(lit > 0 && lit < 240, 'a sign run mixes lit and dark panels');
+  }
 });

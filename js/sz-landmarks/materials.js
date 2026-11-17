@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { abs, cameraPosition, color, dot, float, floor, fract, fwidth, max, mix, normalWorldGeometry, positionWorld,
-  sin, smoothstep, step, texture, uniform, uv, vec2 } from 'three/tsl';
+  sin, smoothstep, step, texture, time, uniform, uv, vec2 } from 'three/tsl';
 import { NORTH_FRAME } from '../sz-rail/geometry.js';
 import { sceneUniforms } from '../sz-materials.js';
 import { createCulturePavingMask } from './shenzhen-bay-culture-square.js';
@@ -26,11 +26,11 @@ const styles = {
   diwangPodium: { metal: 0xb6a390, glass: 0x544941, roof: 0x87766b, bay: 3.7, floor: 3.35, fin: 0.24, sill: 0.23, lit: 0.19, rough: 0.33, glow: 0xffd6aa },
   kkGlass: { metal: 0x9faeb8, glass: 0x456886, roof: 0x718492, bay: 3.15, floor: 4.3, fin: 0.135, sill: 0.085, lit: 0.105, rough: 0.2, glow: 0xe3efff, wash: 0.036 },
   kkCrown: { metal: 0xb7c7d0, glass: 0x54768e, roof: 0x9daab2, bay: 2.7, floor: 6.1, fin: 0.1, sill: 0.12, lit: 0.16, rough: 0.24, glow: 0xdceeff, wash: 0.19 },
-  stockExchangeTower: { metal: 0xc0c7c9, glass: 0x738795, roof: 0x8f999d, bay: 5.54, floor: 8.1, fin: 0.19, sill: 0.15, lit: 0.11, rough: 0.25, glow: 0xd6e4ee },
+  stockExchangeTower: { metal: 0xc0c7c9, glass: 0x738795, roof: 0x8f999d, bay: 5.54, floor: 8.1, fin: 0.19, sill: 0.15, lit: 0.11, rough: 0.25, glow: 0xd6e4ee, wash: 0.12 },
   stockExchangePodium: { metal: 0xa7b0b4, glass: 0x5c7179, roof: 0x818b90, bay: 2.55, floor: 8.8, fin: 0.23, sill: 0.13, lit: 0.18, rough: 0.27, glow: 0xe9e6d1, wash: 0.11 },
   stockExchangeLobby: { metal: 0xadb5b5, glass: 0x5b6b76, roof: 0x9ea6a7, bay: 4.15, floor: 7.0, fin: 0.12, sill: 0.14, lit: 0.14, rough: 0.29, glow: 0xffdfb7 },
-  shoppingParkBase: { metal: 0xb1a7a0, glass: 0x546779, roof: 0x9e9a96, bay: 5.4, floor: 4.4, fin: 0.2, sill: 0.29, lit: 0.14, rough: 0.35, glow: 0xffd6aa },
-  shoppingParkGlass: { metal: 0x8d9ba6, glass: 0x345575, roof: 0x717d86, bay: 3.5, floor: 4.1, fin: 0.12, sill: 0.11, lit: 0.11, rough: 0.26, glow: 0xd5e9ff },
+  shoppingParkBase: { metal: 0xb1a7a0, glass: 0x546779, roof: 0x9e9a96, bay: 5.4, floor: 4.4, fin: 0.2, sill: 0.29, lit: 0.14, rough: 0.35, glow: 0xffd6aa, wash: 0.16 },
+  shoppingParkGlass: { metal: 0x8d9ba6, glass: 0x345575, roof: 0x717d86, bay: 3.5, floor: 4.1, fin: 0.12, sill: 0.11, lit: 0.11, rough: 0.26, glow: 0xd5e9ff, wash: 0.20 },
   djiCore: { metal: 0xadb5ba, glass: 0x5f6c75, roof: 0x8d959a, bay: 0.67, floor: 4.5, fin: 0.54, sill: 0.04, lit: 0.045, rough: 0.3, glow: 0xe9eff5 },
   djiWing: { ...chunsunGlass, bay: 1.54, floor: 4.5, fin: 0.052, sill: 0.065,
     rough: 0.61, frameRoughness: 0.65, glassMetalness: 0.12, frameMetalness: 0.15, edgeTint: 0.17, wash: 0.085 },
@@ -99,7 +99,9 @@ function cultureCladding(tint, jointColor, spacing, glowColor, glow) {
 
 function crownMaterial(tint, roughness, metalness, strength) {
   const material = new THREE.MeshStandardNodeMaterial({ color: tint, roughness, metalness });
-  material.emissiveNode = color(0xc0def7).mul(sceneUniforms.night).mul(strength);
+  // 夜冠低频呼吸：0.94–1.0 的 sin 系数只压夜间自发光，白天仍由 sceneUniforms.night 归零。
+  const breathe = sin(time.mul(0.33)).mul(0.03).add(0.97);
+  material.emissiveNode = color(0xc0def7).mul(sceneUniforms.night).mul(strength).mul(breathe);
   return material;
 }
 
@@ -208,6 +210,13 @@ function northStationRoof(canopy) {
   return material;
 }
 
+// 夜间通道：给静态材质补一层低强度自发光，白天由 sceneUniforms.night 归零，不改颜色主调。
+function nightSurface(colorHex, roughness, metalness, glowColor, glowStrength) {
+  const material = new THREE.MeshStandardNodeMaterial({ color: colorHex, roughness, metalness });
+  material.emissiveNode = color(glowColor).mul(sceneUniforms.night).mul(glowStrength);
+  return material;
+}
+
 function conventionCover(glazed) {
   const material = new THREE.MeshStandardNodeMaterial({ roughness: glazed ? 0.27 : 0.51, metalness: glazed ? 0.16 : 0.26 });
   const upper = smoothstep(0.12, 0.48, normalWorldGeometry.y);
@@ -217,7 +226,8 @@ function conventionCover(glazed) {
   const face = glazed ? mix(color(0x788b94), color(0x465964), groove.mul(0.58))
     : mix(color(0xa9b2b5), color(0x899598), groove.mul(0.5));
   material.colorNode = mix(color(glazed ? 0x647983 : 0x899396), face, upper);
-  if (glazed) material.emissiveNode = color(0xa8c9df).mul(sceneUniforms.night).mul(upper).mul(0.14);
+  // 玻璃顶 0.14、金属屋面 0.10 的夜间上表面 wash，白天归零。
+  material.emissiveNode = color(0xa8c9df).mul(sceneUniforms.night).mul(upper).mul(glazed ? 0.14 : 0.10);
   return material;
 }
 
@@ -254,13 +264,13 @@ export function createLandmarkMaterial(name, programEmission = null) {
   if (name.startsWith('superHq')) return createSuperHqMaterial(name);
   switch (name) {
     case 'qianhaiTiles': return cultureCladding(0xbec3c1, 0x788482, 1.75, 0xa9c4dd, 0.11);
-    case 'operaPearl': return cultureCladding(0xcfd1ce, 0x94a09c, 1.25, 0xb6d5e5, 0.045);
+    case 'operaPearl': return cultureCladding(0xcfd1ce, 0x94a09c, 1.25, 0xb6d5e5, 0.20);
     case 'mocapeMetal': return cultureCladding(0xa4aaa8, 0x707c7b, 2.6, 0xb2c8dc, 0.064);
     case 'cultureStone': return new THREE.MeshStandardMaterial({ color: 0xada99d, roughness: 0.86 });
     case 'cultureRoofGarden': return new THREE.MeshStandardMaterial({ color: 0x617448, roughness: 0.91 });
     case 'cultureSkylight': return crownMaterial(0x6686a0, 0.24, 0.27, 0.33);
     case 'operaCopper': return new THREE.MeshStandardMaterial({ color: 0x975d4f, roughness: 0.65, metalness: 0.21 });
-    case 'landmarkEdge': return crownMaterial(0xc0c6c7, 0.39, 0.29, 0.15);
+    case 'landmarkEdge': return crownMaterial(0xc0c6c7, 0.39, 0.29, 0.30);
     case 'libraryDeck': return new THREE.MeshStandardMaterial({ color: 0xadada1, roughness: 0.86 });
     case 'libraryShell': return libraryShellMaterial();
     case 'djiBrace': return crownMaterial(0xbfcbd1, 0.64, 0.14, 0.18);
@@ -268,7 +278,7 @@ export function createLandmarkMaterial(name, programEmission = null) {
     case 'djiGuard': return crownMaterial(0x506575, 0.65, 0.15, 0.035);
     case 'djiSteel': return crownMaterial(0x9faeb8, 0.62, 0.16, 0.14);
     case 'djiBridgeEdge': return crownMaterial(0xbccad1, 0.62, 0.15, 0.23);
-    case 'pressTowerSteel': return new THREE.MeshStandardMaterial({ color: 0x939da5, metalness: 0.48, roughness: 0.39 });
+    case 'pressTowerSteel': return nightSurface(0x939da5, 0.39, 0.48, 0xd6e4ee, 0.12);
     case 'pingAnSteel': return crownMaterial(0xb2bdc5, 0.28, 0.55, smoothstep(38, 575, positionWorld.y).mul(0.29).add(0.16));
     case 'pingAnCrownEdge': return crownMaterial(0xb4c3cc, 0.29, 0.57, 0.86);
     case 'pingAnCrown': return crownMaterial(0x647d91, 0.24, 0.34, 0.77);
@@ -282,13 +292,13 @@ export function createLandmarkMaterial(name, programEmission = null) {
     case 'civicRoofBlue': return roofMaterial(0x507f9c, 0xb6bec1, 0.39, 0.1);
     case 'civicTrim': return crownMaterial(0xd0d9dc, 0.31, 0.34, 0.55);
     case 'civicPillar': return new THREE.MeshStandardMaterial({ color: 0xd2d3cf, metalness: 0.14, roughness: 0.52 });
-    case 'civicTowerRed': return new THREE.MeshStandardMaterial({ color: 0xb83425, metalness: 0.09, roughness: 0.53 });
-    case 'civicTowerYellow': return new THREE.MeshStandardMaterial({ color: 0xe3a622, metalness: 0.09, roughness: 0.53 });
-    case 'civicStone': return new THREE.MeshStandardMaterial({ color: 0xb5b6b5, roughness: 0.76 });
+    case 'civicTowerRed': return nightSurface(0xb83425, 0.53, 0.09, 0xffdcb8, 0.09);
+    case 'civicTowerYellow': return nightSurface(0xe3a622, 0.53, 0.09, 0xffe6bd, 0.10);
+    case 'civicStone': return nightSurface(0xb5b6b5, 0.76, 0, 0xe8d9bf, 0.08);
     case 'pressEye': return roofMaterial(0x1e5364, 0x25454e, 0.21);
     case 'stadiumRib': return roofMaterial(0xd3dde0, 0xbac4c7, 0.69, 0.05, 0.06);
     case 'stadiumGlazing': return roofMaterial(0x5d7889, 0x4c697b, 0.61, 0, 0.10);
-    case 'stadiumRoof': return new THREE.MeshStandardMaterial({ color: 0xa9b9c2, metalness: 0.06, roughness: 0.72 });
+    case 'stadiumRoof': return nightSurface(0xa9b9c2, 0.72, 0.06, 0xcfe4f2, 0.10);
     case 'stadiumSeats': return new THREE.MeshStandardMaterial({ color: 0x738b98, roughness: 0.64 });
     case 'stadiumDeck': return new THREE.MeshStandardMaterial({ color: 0x9fa5a5, roughness: 0.73 });
     case 'stadiumPaving': return stadiumPavingMaterial();
