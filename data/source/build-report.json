@@ -376974,7 +376974,7 @@
     "roadSourceSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3"
   },
   "roadStructures": {
-    "portalCutM2": 128942.565,
+    "portalCutM2": 0.0,
     "landscape": {
       "patches": [
         "beihuan-xinzhou:flower-bed",
@@ -559155,13 +559155,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "8f74555fab11711c565db5ec1a782aaaddcf8174b105a3d0266c02ab1cf0e94f",
-    "bytes": 266711,
-    "decodedBytes": 1238338,
+    "fingerprint": "139f1700850f47d6f809307f464e70897e0d74af844bb0a3920729e7a63f1638",
+    "bytes": 268944,
+    "decodedBytes": 1253410,
     "files": {
-      "js/sz-regional/8f74555fab11711c565d/waterfront.json.gz": "7395f9d60b143970ee4f6f722d19ceaecedec840b784ec6c89bc7c4d4b4e6e19",
-      "js/sz-regional/8f74555fab11711c565d/metro.json.gz": "4923c0165129dcac2926c9d99facd5e5ec7f89b339f1e7bc7ff8b0ccf9ec7864",
-      "js/sz-regional/8f74555fab11711c565d/drone.json.gz": "ea7c9f85baf55c4147c29224d0a9021c8401ecf460b727b300f6fb8ec42735a2"
+      "js/sz-regional/139f1700850f47d6f809/waterfront.json.gz": "b2ab42fef4709157e1fafce554fd906c682d391fbf42c175cb8ef26cc463db18",
+      "js/sz-regional/139f1700850f47d6f809/metro.json.gz": "4e27962c3f08d4d3267a26ed448394f725f01db6d7775e98e98b8d5f2e2c2447",
+      "js/sz-regional/139f1700850f47d6f809/drone.json.gz": "1abe35333cd4b6ddb12cf192f2964098c6312ae70c2e582f5f1fbaf2e2b0e6c2"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -559170,31 +559170,34 @@
       "js/cars.js": "ff212291764b78173d3c42399f64991de1c5b77ece1c689908e8b9d9cb1798a5",
       "js/city-lighting-materials.js": "f75a1ff3c208bf3f979c7b78d62916534ee8246b7886386aa74623680f9e0de0",
       "js/pedestrians.js": "ba32139c5937c2f0e61cd927394aa41f6a99a6decbd9ad9bc0f891e9b8a49a40",
-      "js/sz-apec-city.js": "2d31b4caeeb671cacebba7280c5d3532c4e2a589f8d1c8934b558855a3a56ec3",
-      "js/sz-apec.js": "dab2f9e1d948c13ab8b0cff7a27bc9b64bc4594253630bc74fc05078c4ec9ff8",
+      "js/sz-apec-city.js": "055db449d7e4b3d146399331ddf0ff5c24555061e1924b0f719a6512d6676fc3",
+      "js/sz-apec.js": "2212ddf564fdf9d60daeafffa248222d9fc77166928527686088a4b293792c88",
       "js/sz-arterial-trees.js": "b242541f49635ff91a2b66d41d55529c3236f5ac4618960791ba20735c3cd614",
-      "js/sz-bay-waterfront.js": "f5d1473e6e4481e055e95f768d88be60209ad1cf0a5e8a677bba7b774b8be826",
+      "js/sz-bay-waterfront.js": "d8cfe202d3fb715809a828414def2e74e0624b0f0f2445ae1af18d0925b34fba",
       "js/sz-building-details.js": "20ff4852ca963ed4ede4e1836a6c1e9e1d74f6ac501dfe2dd9a51b872c6ec418",
       "js/sz-building-envelope-relations.js": "009a0aae34d742a85e0593a5d5f42ecf8528f461152310f6ebe45b12820c5e0d",
       "js/sz-building-envelope.js": "a1276d285b2a572ef3cc8dc69a7be0b4b91b7b3ac630b4d5e4efd9a11b81e7f0",
       "js/sz-building-layout.js": "3a2b4c3fe9d87563e8eb05a95e96bdc34b37be3afc086425d1dae36c3c7e4dac",
       "js/sz-building-signs.js": "2a7e85c69669e691f8d8a6a5eb09f313c48486bee6b7bb9c6b9431e1222e33ad",
       "js/sz-buildings.js": "1dca46fa6f977903ab8a74665474b44a7b2748f914c4bd2a531e2ce0f186d241",
-      "js/sz-cbd-program.js": "b918e0ef26669b3019e239a5118a352f6792fd4e0028944d4ce2836b564ac78d",
+      "js/sz-cbd-program.js": "2e5012cab3c79ec50e9ae8b9a80bb3b2b20f928c567034d6798351a05c0a6344",
       "js/sz-city-config.js": "b1b4ec387c705b5830abb149aabfee1de028e8e0cd081101376ad6278cd60b5c",
       "js/sz-controller-surfaces.js": "0c3242d581331b7ca43826a0f080499629783c9fc410e116ab472a9fd1ae226e",
       "js/sz-data-format.js": "7eae9e1e2566976ee61f6151c6c1e5d657750d53d0c4492fac1bbaaf3f7ac731",
+      "js/sz-day-phase.js": "17a931b66b9245af93425affe46978a1e1493bf5c697b8fe6f0a6da2b21dd581",
       "js/sz-districts/facades.js": "37676ab40250be7d9bec33d47470b38171874170fa24932448aa7330400d0383",
       "js/sz-districts/ground.js": "1bfe746dbebbbd9c322af8a72cd1c986d5734f7b2141db9d551b8f80956575b9",
       "js/sz-districts/index.js": "cb6847bd69de75f04ff093b1abd208bb1a794494566891fd6ae0026b1702d871",
-      "js/sz-districts/kit.js": "4ad4fa521309a781bec230686df8169bf192f1a68f50cd2ec8ffc469e62d7eac",
+      "js/sz-districts/kit.js": "1fcc9d861a5db1166453fc677ee21a9c879eb2307a4af630b8004cb1b3716b8d",
       "js/sz-districts/minghua.js": "e1120e5e532b2de8f23a4f0e5f116f780b602afa5cf9a6b9f971e836b7dfe0a8",
       "js/sz-districts/nantou.js": "7a71cc842aed720fc571adf114c8fb3b02adc0113d2e59c2e3bd798545d7a3f8",
       "js/sz-driving-motion.js": "cb8f1689ba6080137349866dca59654d5abb9b59dc30cd5e2a6c4de9d0f1cc77",
       "js/sz-drone-choreography.js": "4d6283f31889df2a6918d45072ca7548e665768802ebb35c752c4a3bb86b2b04",
       "js/sz-drone-formations.js": "b748ea4a6b94e7035940e7b4ebcef29fd6c6621b6a049da5dfb809060165accc",
       "js/sz-drone-routes.js": "c90d72fde184c5b12ecd1879fe0a198a16679da4d81dbb4bee22dd7612b8bf6f",
-      "js/sz-elevated-roads.js": "4e95679cb25b3c13d5a5c8d7325f219a279f586b9fa01e9cacc78baae8876bb5",
+      "js/sz-elevated-roads.js": "d559315011ebbc79da48187696dd250fd8a4c75f2de9991554e4092f22788fc2",
+      "js/sz-facade-look.js": "0ca6eb053a653f2ebb5c021ffb5545194c028909c3863e6659e409c762bfbdc6",
+      "js/sz-facade-nodes.js": "75157aec5399cea05ded5dae953bd049c3d84e490eee239f163dfaa9e9223872",
       "js/sz-facade-profiles.js": "69bba93370dde7fa8a9e90fb9727b736cfca447c9a2ef849e329cc275e285c37",
       "js/sz-geodata.js": "bf4588164f4d975988ec49a2681e4b9d870fab46c6cf415b6a8b0d4dff9aa91e",
       "js/sz-geometry.js": "8823c7e3325e4787048055faf827fd546da537666252837dda440104ae095fbf",
@@ -559211,14 +559214,14 @@
       "js/sz-landmarks/diwang.js": "a8be39d6d8fc39699bcad8ce0f5fea306ae3e9c35aab8d75be1d31a025f76740",
       "js/sz-landmarks/dji-sky-city.js": "1bd874e5062e01ec9fd99c5b8b4a4bfdcee8031e792a10558de6cbf7474b1493",
       "js/sz-landmarks/iec-grounds.js": "35b31adbae72b8b4615caec7f8ac8c78a65886d40e6de117261020f64c9069a5",
-      "js/sz-landmarks/iec-xiangmihu.js": "7ce6d80e46168698a8b8f78e501b14c0014f04763e9b59849aee4c8fe003ee8c",
+      "js/sz-landmarks/iec-xiangmihu.js": "fa2dff0f14337c8cdc624abf382efe99c7f00ccb3b3562c8a02b74c07a46d751",
       "js/sz-landmarks/index.js": "9c903d7cd2f96c1262de14d0832a4c3083ecf23c2260a4d54ddc3a0de6db0355",
       "js/sz-landmarks/kk100.js": "f6c0d2a486d74b8d59931be2433e0ff82c97ce1f53bf01feff988a1afa9ced48",
       "js/sz-landmarks/layout.js": "3c092d7addcc5d85a0280919896a6c4ee6a185c93361b5f32b2affcb50235444",
-      "js/sz-landmarks/materials.js": "5218f2a99fd2b16f47366870a433da3abc2ac54d897e78e821a85b4435944134",
+      "js/sz-landmarks/materials.js": "9747b7e70986391742beae87c58e89366e76a2497ac2d6e26f6fb4ee9c9d5d11",
       "js/sz-landmarks/mocape.js": "24431c239a88e5ef8acb32b616bc1c3adc6be9302b4d3a5f842f5ffbcc8d9872",
       "js/sz-landmarks/model-profile.js": "c63433919f5dfae723cb9ffaa350fced61e1318398ffc3f92a5bd077d5eb75d6",
-      "js/sz-landmarks/nonferrous-tower.js": "99510448377c5db8690e4524b43762f890d347ccb25f67d435b6dc686bf8e1c7",
+      "js/sz-landmarks/nonferrous-tower.js": "643bbed49997ad02d79abd84142561bceca3c8c47b5539e87d39f3d44642ba73",
       "js/sz-landmarks/parts.js": "657aec0025755c7bed58f66a7f3e0ef5a7d81ba38231e5f7e2ce39d957d55dee",
       "js/sz-landmarks/ping-an.js": "5df29a01a68fa80f1958f40689ec321293f40b4496dbeaff0703dd504c7204f2",
       "js/sz-landmarks/press-tower.js": "a7f69cb0a890bd2c91fb2a6e26596c8eaa98915c4facad99f01546411a04353d",
@@ -559231,46 +559234,50 @@
       "js/sz-landmarks/sports-ground.js": "d9cc29a342067ff8a406e03e416a10b4953ed380e0264df17e44bf683cb34b99",
       "js/sz-landmarks/sports-venues.js": "2ce2c9a14d9adbba6ecbd9d976ee3ebd0c9c7f61f0073560813881bb48b2a42e",
       "js/sz-landmarks/stock-exchange.js": "3e49d59c5e8d56941fcb4200a908e921db140cd875e950bd82cc3cfaa15c1a7d",
-      "js/sz-landmarks/super-hq.js": "6e1ecff598bba784f2fb261fb8922c5199296d330ab062b07f741547bd32f304",
+      "js/sz-landmarks/super-hq.js": "55a92e7bc0e0190ed68f9bfff44cd2077fee568a540b9e391f080a82f412b51b",
       "js/sz-landmarks/tencent-binhai.js": "d70d0350cb894ce595299676018276dad5fcedd21bb59bc923b4090eb605ae5b",
       "js/sz-landmarks/tencent-towers.js": "2de24e94ac7925e5de645f3eeb543cce10f69f0973ccf00e01ddaa64d94ec0da",
       "js/sz-landmarks/university-town-library.js": "758c79e76d544d03fc1c69701cae36bdc5a1f080c53e0cad1fa6f3c9fdedd7f0",
-      "js/sz-landmarks/upperhills.js": "66198656927b2170d2dde5139747ca3b80f56d2e5a87b47f0d2860e52a223f2d",
+      "js/sz-landmarks/upperhills.js": "343687a288af323eebf7bce76bc8161e8fa5e459da723b1de6102bca9f116aa3",
       "js/sz-lianhuashan.js": "573f5d8b802b3e491778e538514244457d2c9c141059d78b3a71489f76409981",
-      "js/sz-light-show.js": "9b88791bb58396672976a49a106ed4aebc5d58b9d5592ef6d58f14c147a6d07b",
-      "js/sz-materials.js": "d2d52f8a60b56e59e4d2dfdffa6b8d903284f8c32119288b959fbbad872555a9",
+      "js/sz-light-show.js": "31867ce01ae48719e4d35f7322edd08ebd45ba01b084aef2451d85d857084966",
+      "js/sz-materials.js": "7f269251b7f799b0f9fcc84c36329594d40480fd378e909c84c8849a92747c52",
       "js/sz-mesh-utils.js": "0c2f1db5673ab122cf69c8652e1580a70f1d4375d356dd45d746e26c82180dc9",
-      "js/sz-metro-entrances.js": "6d4b1951bb8a3def0c5481acfad9a683dc73f3b069f37c8fbea6bc1264e49275",
+      "js/sz-metro-entrances.js": "f42f558be501a6ce6f548fc796c1f246fdd6b0d4f6ff082dfce548b79648c77c",
       "js/sz-park-fireworks.js": "451f9e54f24bef8f562f18e48b735a021d25961d96a06f7a5a72c98a6a02a6d1",
       "js/sz-paving.js": "dff9aead95f7b9add6412395ce7ba13dc7b3b25563894fa39e78f10cc34851da",
-      "js/sz-pedestrian-tracks.js": "85cffd762750ac79508b73396aed760a8d3d3b73db612aa338263c65ce1fe657",
+      "js/sz-pedestrian-tracks.js": "260fd61b90bdff7e3a5519280fa4ddf54483a34602c1a1d9b1ee7af6f3b919c3",
       "js/sz-polygon.js": "43ee6014cb9a36585777ea9d7a81bc2d2d0ee784683ba25c21efe922f23c2651",
-      "js/sz-public-walk.js": "ad03a9834c55defb693d1b8acd0f2cfdd1b1a399c97476e69668f9674437e3d6",
+      "js/sz-public-walk.js": "c46a82e1d6f06720fb28ebca5503cf855ea52acaceb97a29af0ab0b18aeefe80",
       "js/sz-rail/dispatch.js": "a026332a8703277c14e6930724523dd3932473e2fd01ca14922fecdcaa9400ad",
       "js/sz-rail/geometry.js": "3ab86a9bd326a80f1e56cd37836300c23de26a7d5024a35fdce4df7aa6f43929",
       "js/sz-rail/station.js": "a4b07126916d0d8f7be7caecd4c7fc5a10b02559911c5fb84e8c6fd8fa9820b0",
       "js/sz-rail/track-mesh.js": "faf9d51bc6f11df378df537a8866fcd65eca21becd873e150eec0eaf7fc39e80",
       "js/sz-rail/train-mesh.js": "ff2a878fa95718e78f938d824c0bd36b4c441e5b9e3dbce1911b5b36f7954b59",
       "js/sz-regional-format.js": "7eb94bc3caccb6de094e36332d0eec0ec3abaa6e78c34cfb574da7c783f2a916",
-      "js/sz-retail-frontage.js": "8f5c7fd066987dea8503aebbbc8b9ec80c5e70a2799290a2f3cd40367d569053",
-      "js/sz-retail-signs.js": "fb60afff52f07fe31aba505534d7cc6197f9d242c690d2906906786ffdec68ef",
+      "js/sz-retail-frontage.js": "ce03ed06093b9a558574d7eb75d38f4d26f7b0190054c64585b5d49873f8709b",
+      "js/sz-retail-signs.js": "4cd54c1bbb7bc0583d25c811159ffcfa3f072d7cefaf014ce8ced39f4ecee71e",
       "js/sz-road-building-clearance.js": "00b3c907dbcd210c288e9780e33d9ef8adf9058b84239c84ddbaada7135da63d",
       "js/sz-road-frontage.js": "58ca58ddc88e39df9611368b70bb4aefd59c81ce6a2089c0d224a07abba96f42",
       "js/sz-road-landscape.js": "4b15c0754e25f88efab814112b93e9195bcb7d872ba97d32da406b346bd81110",
-      "js/sz-road-markings.js": "57a31c14bcd5224fbd8e9e849ffe6efa2571c7a73a5737477a364784ff1a0b62",
+      "js/sz-road-markings.js": "2fd84938e78c54b3cb2d0386da6a051844eaaf259aab83a9b2b287be6da40d6a",
       "js/sz-road-material.js": "2b87b12d8a643b397968a0e6ec0fd7a5c01c140e666e59ed070b2767ab4caf6d",
-      "js/sz-road-paint.js": "599ba157263bbbd9cd6b9033abb8678ab4c4f42241de1ab4f9dc8d133e1e091b",
+      "js/sz-road-paint.js": "82b19a0dba19edc49963332de158842d39b9fe204b8eee2a0be3449acdadf198",
       "js/sz-road-section.js": "36d543f313253d9bf32ab17779e2a0bdc19359936d0bbab1299b926ad5afef69",
-      "js/sz-roads.js": "45dc35fd549e3b5bae1aca5fad3ae3f27b22c33e4e886ae3d6375961363dd0bd",
-      "js/sz-scene-site.js": "03b5f1691901e20b3a80b59c1c4de96aa641b2bbd0dbe58a144c4e1f5bb76e7d",
+      "js/sz-roads.js": "71be4485f1373576c58264fd731bd3fb6fc98bf64737e1fe8fe544fc2973e8e9",
+      "js/sz-scene-site.js": "c516a8b23da43d20ef764098817296ca69217bfa9826b5999e4572c22f8bb854",
       "js/sz-scene-style.js": "fbc7b6cdb08a25dfb7f8ff773e3b4bddce309d2973bce2d256a45b06f1fef027",
       "js/sz-sea.js": "1c69243a4c3f9002bdde397b10bed63b840074df52df9118f88215680393d5a7",
-      "js/sz-site-fixtures.js": "9f9dcfc6ce5d46f97cc4d25f581269429481dcf08b0068e37e1cb043f81e9798",
+      "js/sz-section-frame.js": "94ed096ace331504e2870cc07033d61b07b6340380a46299d268bcf68c0a9968",
+      "js/sz-site-fixtures.js": "a8172edcb75725148f3ac72da6cc849ed46517967fbefb4654ad207baa1068cd",
+      "js/sz-site-probe.js": "2f78e2cdd891db1465635590aa175d300a73985ec74b3725238517cf5a16ebd9",
       "js/sz-spatial.js": "882629445c15f555ebb3b8f253266b8f6464900a92d7232d48dd111a2078b8da",
       "js/sz-station-sites.js": "e00d8163e48cc5413cf2df083934c9273dbcedc96ed231c269b7a9513448e079",
-      "js/sz-street-lamps.js": "cd3fd3dbf823ccae7f28eda2fd6047741b75ee5a137122594f957e79ded16c64",
-      "js/sz-streetscape.js": "f0c9d749fca8f4a61d223780f5a9885f16504106d0ff44869d95a7dedef184b4",
+      "js/sz-street-batch.js": "f886b6c5aac2591675f0ce1b25a1558d52ce4a451bc0a59932f8051cedade18d",
+      "js/sz-street-lamps.js": "06d3e21a604531f9d5ada232745935e56a8a09747815ce0190ff0387faf5c9e0",
+      "js/sz-streetscape.js": "3d879abcc0efe090b47596faa51003a41820271bdaa8fc150dc5634fc00fcce9",
       "js/sz-strings.js": "dc56ad329cc6acf5accfa5c162ebde1456b304091d3c2db0a1642ab1c75cf45b",
+      "js/sz-surface-atlas.js": "8f64f2f2d493cebbe5be8c997cce95db8abf0bfbcdc5a3bada1d7d7c27b63ae0",
       "js/sz-talent-drone-show.js": "ed897e95b3506aa62e372eb9fd673bbb4379ae5a4602795a1d9f869bad7a52aa",
       "js/sz-talent-park.js": "17107fabd0f41c916bba84fc5169f6c668ce48b7486078eba52ee4f20bbdf283",
       "js/sz-talent-pedestrians.js": "c0972bced40a487f5d551829cef6dbd40600a5ea58a3de6d9edab57e9c88df5d",
@@ -559278,20 +559285,20 @@
       "js/sz-terrain.js": "2ab65d390413441a4649ca7693981d14c50f997fa760d0548b682015b5761b4f",
       "js/sz-theme-parks/ambience.js": "b6429f5a694a78ab5f481b4c559f882576cd5ff0a2edecadcd8e08be81cc9fa2",
       "js/sz-theme-parks/flowers.js": "6b90f5f0a6000530e1c3282654c149ccfc709e7f866525262021924a7fe9a479",
-      "js/sz-theme-parks/index.js": "d6a77d877ab581a72f449bdc2fc334599af5d2fc683026b91b4b3eb3c933febe",
+      "js/sz-theme-parks/index.js": "70cf5f1d3853c68e695e550f200ec1ba5909d5c441d91485451a985f861dccd4",
       "js/sz-theme-parks/miniatures.js": "263f24b9d8bd291399d65f82901d8dd551043b6ae7c79a79535cde17a8f01898",
       "js/sz-theme-parks/parts.js": "7d54c45fe8e447ed24767a427eb09969349119787d4b0b17aa8f7a40f386160e",
       "js/sz-theme-parks/rides.js": "67a6836d4d380a9d83bffb8922df75c4b80f85c5de2456c1a26bc117635f2e66",
       "js/sz-theme-parks/sites.js": "1de1f26ca47954345088529af856539d8356eb78ebd576b662606b35ff50f5f7",
       "js/sz-tree-crown.js": "fe307786aba22098be4a3b3d8e3e32aa1015b2ad67ba46c31cb5efe92282fb74",
-      "js/sz-trees.js": "31cb9018cf6691be9537fad62c9b234fabeb98802087aa06a87414b0c9a81cd9",
+      "js/sz-trees.js": "948e9a8abcc7598cee84bf0d086b6eed52e52de39c5366eda52b6cf457dfabf2",
       "js/sz-tunnels.js": "f63762f9ec6de0a7d0dd0355812678ca62433ca1537fce6a58a41b4a7bed418c",
       "js/sz-urban-paving.js": "eb474e194c812de5ba2fe011b73664d79097674f179497ca2f17566b27906020",
       "js/sz-vegetation-layout.js": "732425135858fae7a294b4775cbafd2fc6742dd4e158f213f4e971b1d24241f0",
       "js/sz-vegetation.js": "16cf3897a203552a6733a18cd6c00e54cb77801ddcec8efac78fe3974c98bdc9",
       "js/sz-vehicles.js": "fc021c6fe2e2fe2593fc73b9b70f55e14c2bdc44faadb5dceb81d435a17dcd48",
       "js/sz-water-material.js": "d14efce5d852f35c13a02b45833605836c2fba406498f13401f09564cfed2cab",
-      "js/sz-waterfront.js": "9b467528295362ec09eda26aaa34ed255d307117d3d8f472dbdff900931c2f4c",
+      "js/sz-waterfront.js": "b38bdf18a1de5998bc9e100e496a5763bc0c8335e772ed5cd4f09808239bc291",
       "js/sz-woodlands.js": "b533d543479fde910b6a1bce6a09fc469dc2b22be85c291af81690b645ff8ed7",
       "js/sz-zhongxin-walk.js": "68f3d4bfc92de0a6da3556fcee001e63aac940db0085a53b2b45610f2db468a5",
       "js/vehicles.js": "715109b1f4743c21e8e8aa42474ca6d785093ede106627898a1a015be94edab0",
@@ -559300,16 +559307,19 @@
     "metro": {
       "sourceEntrances": 788,
       "planned": 759,
-      "placed": 637,
+      "placed": 707,
       "skipped": {
         "unsupportedGround": 0,
         "roadConflict": 52,
         "pathConflict": 0,
         "waterConflict": 0,
-        "buildingConflict": 70,
+        "buildingConflict": 0,
         "duplicate": 0
       },
-      "skippedTotal": 122,
+      "categories": {
+        "road": 52
+      },
+      "skippedTotal": 52,
       "unresolved": 29,
       "unresolvedReasons": {
         "no-station-name": 29
@@ -559327,28 +559337,12 @@
       ],
       "rejected": [
         {
-          "id": "node/11046800262",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/11061469203",
           "reason": "roadConflict"
         },
         {
           "id": "node/11061514109",
           "reason": "roadConflict"
-        },
-        {
-          "id": "node/11090778417",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/11475793748",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/11878354004",
-          "reason": "buildingConflict"
         },
         {
           "id": "node/11907279696",
@@ -559367,20 +559361,12 @@
           "reason": "roadConflict"
         },
         {
-          "id": "node/12000798633",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/12000798635",
           "reason": "roadConflict"
         },
         {
           "id": "node/12000830574",
           "reason": "roadConflict"
-        },
-        {
-          "id": "node/12045069235",
-          "reason": "buildingConflict"
         },
         {
           "id": "node/12050719018",
@@ -559399,14 +559385,6 @@
           "reason": "roadConflict"
         },
         {
-          "id": "node/12071810106",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/12076930942",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/12090201984",
           "reason": "roadConflict"
         },
@@ -559417,18 +559395,6 @@
         {
           "id": "node/12090202040",
           "reason": "roadConflict"
-        },
-        {
-          "id": "node/12124783311",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/12127875079",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/12137911205",
-          "reason": "buildingConflict"
         },
         {
           "id": "node/12137911208",
@@ -559443,20 +559409,8 @@
           "reason": "roadConflict"
         },
         {
-          "id": "node/12381889150",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/12381889151",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/12383615375",
           "reason": "roadConflict"
-        },
-        {
-          "id": "node/12383615377",
-          "reason": "buildingConflict"
         },
         {
           "id": "node/12395423295",
@@ -559491,10 +559445,6 @@
           "reason": "roadConflict"
         },
         {
-          "id": "node/12456016661",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/12988474158",
           "reason": "roadConflict"
         },
@@ -559503,144 +559453,36 @@
           "reason": "roadConflict"
         },
         {
-          "id": "node/13381300350",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/13381300352",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/13384562507",
           "reason": "roadConflict"
-        },
-        {
-          "id": "node/13413194602",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/13413194603",
-          "reason": "buildingConflict"
         },
         {
           "id": "node/14275516192",
           "reason": "roadConflict"
         },
         {
-          "id": "node/1491790879",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/2286486764",
           "reason": "roadConflict"
-        },
-        {
-          "id": "node/2458810970",
-          "reason": "buildingConflict"
         },
         {
           "id": "node/2458967900",
           "reason": "roadConflict"
         },
         {
-          "id": "node/2458967904",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/2458967920",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/2458967921",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/2458974255",
           "reason": "roadConflict"
-        },
-        {
-          "id": "node/2548149942",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/2548150020",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/2698410776",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/2700729765",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/2700730345",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/3424499353",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/3923080844",
-          "reason": "buildingConflict"
         },
         {
           "id": "node/3923080846",
           "reason": "roadConflict"
         },
         {
-          "id": "node/3923080847",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/3924653895",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/3924653898",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/3924653900",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/3924653901",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/3924653910",
           "reason": "roadConflict"
         },
         {
-          "id": "node/3924653911",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/3924653913",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/3924653914",
           "reason": "roadConflict"
-        },
-        {
-          "id": "node/3924653915",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/4845594421",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/4845599622",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/4856213773",
-          "reason": "buildingConflict"
         },
         {
           "id": "node/5100429312",
@@ -559651,46 +559493,6 @@
           "reason": "roadConflict"
         },
         {
-          "id": "node/5164226682",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/5170102285",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/5170102286",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/5170102287",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/5170102288",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/5185217928",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/5185217933",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/5187456109",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/5187456111",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/5187456112",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/5187498605",
           "reason": "roadConflict"
         },
@@ -559699,28 +559501,12 @@
           "reason": "roadConflict"
         },
         {
-          "id": "node/5187499066",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/5187499083",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/5187499092",
           "reason": "roadConflict"
         },
         {
           "id": "node/5187516405",
           "reason": "roadConflict"
-        },
-        {
-          "id": "node/5189735903",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/5189736122",
-          "reason": "buildingConflict"
         },
         {
           "id": "node/5192381649",
@@ -559735,10 +559521,6 @@
           "reason": "roadConflict"
         },
         {
-          "id": "node/5194055698",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/5294988765",
           "reason": "roadConflict"
         },
@@ -559751,32 +559533,8 @@
           "reason": "roadConflict"
         },
         {
-          "id": "node/6520453282",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/6603938756",
-          "reason": "buildingConflict"
-        },
-        {
           "id": "node/7051847792",
           "reason": "roadConflict"
-        },
-        {
-          "id": "node/7141008778",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/7311745416",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/7311745435",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/7625872900",
-          "reason": "buildingConflict"
         },
         {
           "id": "node/7625872901",
@@ -559785,34 +559543,6 @@
         {
           "id": "node/8557628808",
           "reason": "roadConflict"
-        },
-        {
-          "id": "node/8557628813",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/9364996805",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/9881084660",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/9881084664",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/9881084668",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/9881084751",
-          "reason": "buildingConflict"
-        },
-        {
-          "id": "node/9881084764",
-          "reason": "buildingConflict"
         }
       ]
     },
@@ -559827,7 +559557,7 @@
     },
     "shore": {
       "walkRoutes": 120,
-      "colliders": 11456
+      "colliders": 11432
     },
     "drone": [
       {
@@ -559845,15 +559575,22 @@
   "fastPackage": {
     "format": "SZC1",
     "version": 1,
-    "columns": 7901,
-    "metadataBytes": 19322085,
-    "numericBytes": 40791320,
-    "uncompressedBytes": 60113456,
+    "columns": 7902,
+    "metadataBytes": 19324521,
+    "numericBytes": 40993952,
+    "uncompressedBytes": 60318528,
     "lossless": true,
-    "compressedBytes": 16118717,
-    "compressedSha256": "126f13e434c7d15c8ac62ec30cb8853e2cd4bfc294bf36ca5cbe6aa613dc92c8"
+    "compressedBytes": 16200532,
+    "compressedSha256": "bd490e370c76b3de3a32809f9c1b9d60407eb6936c1d1b28f145bd7b5c941843"
   },
-  "outputBytes": 16255166,
-  "outputSha256": "107be35f9359f22ad4638f0c5708958e3189959a8c21970bd7dac960fd43d2de",
-  "seconds": 395.7
+  "outputBytes": 16343335,
+  "outputSha256": "3f48198be0cb0a4b1923301146ae8cc295cfbb6addb7784e7be8ea643eeccfec",
+  "seconds": 65.2,
+  "elevatedCut": {
+    "links": 16,
+    "spans": 17,
+    "cutM2": 33267.95,
+    "removedM2": 33267.95,
+    "wallTriangles": 2054
+  }
 }

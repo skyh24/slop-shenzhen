@@ -3,8 +3,11 @@ const { join } = require('node:path');
 const { loadModule } = require('../../tests/helpers/module.cjs');
 
 // 与运行时沥青复用断面、弯道、路口补面和上下层过滤。
+// 断面横位是纯计算模块，直接加载真实实现，避免道路断面在离线铺装里退化成空桩。
+const sectionFrame = loadModule(readFileSync(join(__dirname, '../../js/sz-section-frame.js'), 'utf8'),
+  { filename: 'sz-section-frame.js' });
 const { visitGroundRoadFootprints } = loadModule(readFileSync(join(__dirname, '../../js/sz-roads.js'), 'utf8'), {
-  imports: { 'three/webgpu': {}, './sz-road-material.js': {} }
+  imports: { 'three/webgpu': {}, './sz-road-material.js': {}, './sz-section-frame.js': sectionFrame }
 });
 const graph = JSON.parse(readFileSync(0, 'utf8'));
 const [minX, minZ, maxX, maxZ] = JSON.parse(process.argv[2]);

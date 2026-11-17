@@ -45,6 +45,7 @@ from terrain_exclusions import chunjian_exclusions
 from terrain_surface import apply_city_datum, apply_urban_datum, build_terrain_surface
 from road_surface import build_road_surface
 from road_structures import compile_road_structures
+from elevated_cut import apply_elevated_cut
 from tunnel_portals import apply_tunnel_portal_cut
 from trees import build_trees
 from metro import build_metro
@@ -1061,6 +1062,8 @@ def main():
                                               road_graph, sites, osm, osm_source, report, datum_manifest, civic)
     # 通用洞口按路网图与运行时洞底纵断面裁开；审核 route 的 portalCutM2 仍由 road_structures 单独统计。
     terrain_surface = apply_tunnel_portal_cut(terrain_surface, road_graph, report)
+    # 高架桥面固定 layer×4.8 m 标高，地形更高的位置按'截断山体'裁开，桥面不再被山体顶成波浪。
+    terrain_surface = apply_elevated_cut(terrain_surface, road_graph, report)
     road_frontage = build_road_frontage(pbf, osm, road_graph, buildings, report)
     metro = build_metro(clip, report, use_cache=not args.no_cache, pbf=pbf, verified_source=osm_source)
 

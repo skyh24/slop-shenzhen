@@ -34,6 +34,9 @@ const ELEVATED_BARRIER_WIDTH_M = 0.35;
 const BARRIER_MIN_SEPARATION_M = 0.75;
 // 中段抬升超过这个高度即按真实跨路桥处理：登记接触面、可驶入并画标线。
 const DECK_CONTACT_RISE_M = 1.0;
+// 桥面标高固定为端点地面 + layer×4.8 m，地形更高的断面由构建期（tools/sz/elevated_cut.py）
+// 在山体上按走廊竖直截断，并把岩壁顶点烘进 terrainSurface.cutWalls；运行时只还原这份几何，
+// 不再逐帧采样地形，避免崖顶在相邻断面之间跳动成锯齿。
 // 已核实的同向合流、分流。共同桥段与两支道均须在源路网节点和估算桥高上相接。
 const CHEGONGMIAO_SPLIT = ['node/8020094690', 'startNode', ['way/854919713', 'way/1524817657'], 'way/854919717'];
 const CHEGONGMIAO_JUNCTIONS = [
@@ -486,22 +489,18 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
       const endWeight = Math.max(0, 1 - (length - d) / run(b - reviewed.heightM));
       return reviewed.heightM + (a - reviewed.heightM) * startWeight + (b - reviewed.heightM) * endWeight;
     })
-    // 非核实链路：桥面主体保持全高，只在真正落地的一端用引道坡度过渡。旧实现从
-    // ground+4.8 线性降到另一端 ground，坡度摊满整条链路（最长近 2 km），跨路点落在
-    // 中低段时净空只有 0.5 m（round 46 审计）。引道长度按 12% 上限取 lift/0.12，
-    // 4.8 m 层高即 40 m，与 buildApron 的引道坡度口径一致。
+    // 非核实链路：主体按 layer×4.8 m 抬高，落地端在 12% 引道内降到地形。旧实现把
+    // 两个落地端的引道上限一起取 min，两端都接地面时整条桥会被压成"低端地面+4.8 m"
+    // 的水平面（香梅路跨山下降段因此埋进山坡）；改成按权重过渡：只有落在各自引道长度
+    // 内的断面才往本端地面收，桥中段仍保持全高。
     : distance => {
       const fullY = (startGround + lift) + ((endGround + lift) - (startGround + lift))
         * Math.min(1, distance / length);
       const rampLen = lift > 0 ? lift / ELEVATED_DRIVE_MAX_GRADE : 0;
-      let allowed = fullY;
-      if (sharedStart && rampLen > 0) {
-        allowed = Math.min(allowed, startGround + lift * Math.min(1, distance / rampLen));
-      }
-      if (sharedEnd && rampLen > 0) {
-        allowed = Math.min(allowed, endGround + lift * Math.min(1, (length - distance) / rampLen));
-      }
-      return allowed;
+      const rampWeight = value => (rampLen > 0 ? Math.max(0, Math.min(1, value / rampLen)) : 1);
+      const weight = Math.min(sharedStart ? rampWeight(distance) : 1,
+        sharedEnd ? rampWeight(length - distance) : 1);
+      return fullY - (1 - weight) * lift;
     });
   const girderDepth = reviewed?.girderDepthM ?? GIRDER_DEPTH_M;
   const half = Math.max(0.7, Math.min(1.4, width * 0.08));
@@ -516,23 +515,13 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   let maxClearanceM = 0;
   let maxGrade = 0;
   for (const frame of frames) {
-    // 端点之间按直线坡度插值；地形在 link 中部抬升时以地面为下限，避免桥面埋入地下。
+    // 桥面统一按端点标高 + layer×4.8 m 的直线纵断面，不再逐帧跟随地形：旧实现每帧取
+    // max(线性, 中心/两侧地形+层高)，地形 4–6 m 的起伏被原样搬到桥面，形成“坑坑洼洼”的
+    // 波浪（round 55 京港澳反馈）。地形高于该标高的位置按“截断山体”处理，不抬桥面；
+    // 只有落地端在 12% 引道内贴地，起坡/落坡才是平缓过渡。
     const linearY = deckHeightAt(frame.d);
     const centerGround = groundHeight(frame.x, frame.z);
-    const edgeGrounds = [frame.left, frame.right]
-      .map(point => groundHeight(point.x, point.z))
-      .filter(Number.isFinite);
-    // 桥面在开放段要跟地形抬升保持层高；只有落地引道内允许贴地，否则地形隆起会把
-    // 线性插值的桥面顶到只剩 0.5 m 净空（round 46 审计的第二类问题）。
-    const rampLen = lift > 0 ? lift / ELEVATED_DRIVE_MAX_GRADE : 0;
-    const rampFactor = (sharedStart || sharedEnd) && rampLen > 0
-      ? Math.min(sharedStart ? Math.min(1, frame.d / rampLen) : 1,
-        sharedEnd ? Math.min(1, (length - frame.d) / rampLen) : 1)
-      : 1;
-    const clearanceFloor = lift * rampFactor;
-    const floor = Math.max(centerGround ?? -Infinity, ...edgeGrounds) + clearanceFloor;
-    const proposed = Math.max(linearY, Number.isFinite(floor) ? floor : linearY);
-    frame.y = crossing ? crossing.height(frame, proposed) : reviewed ? linearY : proposed;
+    frame.y = crossing ? crossing.height(frame, linearY) : linearY;
     if (Number.isFinite(centerGround)) maxClearanceM = Math.max(maxClearanceM, frame.y - centerGround);
   }
   // 接触面只按真实跨越判定：两端都接地面、但中段抬升超过 1 m 的链路是真正的跨路桥，
@@ -1026,6 +1015,8 @@ function pushDeckExtension(record, side) {
 }
 
 // 约 2 km 网格分桶：同一桶的桥面放一个 chunk，减少 draw call；桶数超过上限时网格逐级加粗。
+
+
 function buildChunks(records) {
   if (records.length === 0) return [];
   const keysFor = cell => {
@@ -1302,6 +1293,8 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     driveSuccessors: successors.get(record.surfaceId) ?? []
   }));
   const chunks = [...buildChunks(records), ...buildChunks(walking).map(c => ({ ...c, id: `walk:${c.id}` }))];
+  // 构建期竖直截断山体的岩壁几何按走廊边界烘好，运行时直接还原，不再采样地形。
+  const cutWalls = terrainSurface?.cutWalls ?? { positions: [], triangles: 0 };
   // 护栏和桥墩的接触体都来自显示几何同一批顶点；桥面本身仍只登记顶面三角面。
   const colliders = [...records, ...walking].flatMap(record => [...record.barrierColliders, ...record.pierColliders, ...record.slabColliders]);
   const interchangeSummaries = interchanges.map(entry => {
@@ -1352,6 +1345,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     nonDrivable: records.length - driveLinks.length,
     layerZero: records.filter(record => record.layer === 0).length,
     layerZeroCrossings: records.filter(record => record.raisedForCrossing).length,
+    cutWallTriangles: Math.round(cutWalls.triangles ?? 0),
     sunkLinks: records.filter(record => record.layer < 0).length,
     groundDuplicates,
     skippedLinks,
@@ -1376,7 +1370,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     }, { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity });
 
   return { version: 1, heightSource: 'estimate', area, interchanges: interchangeSummaries,
-    links: records, driveLinks, surfaces, colliders, chunks, statistics, walking };
+    links: records, driveLinks, surfaces, colliders, chunks, cutWalls, statistics, walking };
 }
 
 /** 解析：把高架计划建成场景：≤64 个约 2 km 空间分块网格 + 可站立表面 + 侧向接触体。
@@ -1421,6 +1415,20 @@ export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, inter
     group.add(mesh);
     meshes.push(mesh);
   }
+  // 山体裁切段的沟底与崖壁用土石色，与桥面沥青分开，避免读成可驶入的路面。
+  let cutMaterial = null;
+  if (plan.cutWalls.positions.length) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(plan.cutWalls.positions, 3));
+    geometry.computeVertexNormals();
+    geometry.computeBoundingSphere();
+    cutMaterial = new THREE.MeshStandardNodeMaterial({ color: 0x6b6152, roughness: 1, metalness: 0, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geometry, cutMaterial);
+    mesh.name = 'shenzhen-elevated-roads:cut-walls';
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    meshes.push(mesh);
+  }
   scene.add(group);
   return {
     group,
@@ -1447,6 +1455,7 @@ export function buildSzElevatedRoads(scene, { graph, terrainSurface, area, inter
       if (group.parent) group.parent.remove(group);
       for (const mesh of meshes) mesh.geometry.dispose();
       material.dispose();
+      cutMaterial?.dispose();
     }
   };
 }

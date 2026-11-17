@@ -10,6 +10,7 @@ from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
 from commercial_paving import cut_ground_openings, ground_carriageway_mask
+from elevated_cut import apply_elevated_cut
 from package_validation import ring_points
 from road_landscape import compile_landscape
 from terrain_surface import _polygons, _triangle_height
@@ -614,6 +615,8 @@ def compile_road_structures(payload, manifest, report, *, base=None, cover_shape
         payload['terrainSurface'] = surface
         prior_cut = report.get('roadStructures', {}).get('portalCutM2', 0) if previous and base is None else 0
         report['roadStructures'] = {'portalCutM2': round(prior_cut + area, 3)}
+    # 桥面标高固定 layer×4.8 m；地形更高的位置在这里一并截断山体，重建链路同样适用。
+    payload['terrainSurface'] = apply_elevated_cut(payload['terrainSurface'], graph, report)
     payload['roadStructures'] = plan
     report['roadStructures'].update({'landscape': {
         'patches': [row['id'] for row in landscape['patches']],
