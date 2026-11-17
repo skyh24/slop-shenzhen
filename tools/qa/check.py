@@ -19,7 +19,7 @@ SCOPES = {
     'tooling': ('', 'tools/qa/tests/test_*.py tools/sz/tests/test_*server.py'),
     'controls': ('controllers vehicle-physics car-wheels vehicle-lights sz-vehicles sz-auto-drive '
                  'sz-controller-surfaces building-collision teleports touch-controls cameras', ''),
-    'roads': ('sz-roads sz-road-section sz-ground sz-terrain sz-road-frontage sz-road-markings sz-road-material sz-elevated-roads '
+    'roads': ('sz-roads sz-road-section sz-ground sz-terrain sz-surface-atlas sz-road-frontage sz-road-markings sz-road-material sz-elevated-roads '
               'sz-tunnels sz-traffic sz-auto-drive sz-intersection-control sz-controller-surfaces controllers',
               'tools/sz/tests/test_road*.py tools/sz/tests/test_*terrain*.py '
               'tools/sz/tests/test_copernicus.py tools/sz/tests/test_sea_surface.py'),
@@ -33,7 +33,7 @@ SCOPES = {
                'tools/sz/tests/test_trees.py tools/sz/tests/test_metro.py'),
     'ui': ('boot sz-geodata-boot sz-main-startup runtime-reachability sz-qa sz-map sz-map-regions '
            'sz-city-config teleports cameras touch-controls sz-observation-session', ''),
-    'data': ('sz-data sz-scene-style sz-fastpack sz-geodata-boot sz-ground sz-terrain sz-spatial '
+    'data': ('sz-data sz-scene-style sz-fastpack sz-geodata-boot sz-ground sz-terrain sz-surface-atlas sz-spatial '
              'sz-city-config sz-buildings sz-elevated-roads sz-tunnels sz-auto-drive', 'tools/sz/tests/test_*.py'),
     'full': ('*', 'tools/sz/tests/test_*.py tools/qa/tests/test_*.py'),
 }

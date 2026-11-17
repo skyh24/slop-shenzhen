@@ -13,6 +13,8 @@ T13 已接入共同格式、区域参数、建筑立面、道路断面、铺装�
 
 ## 当前事实
 
+地面高度改为活动表面图集统一装配：`sz-surface-atlas.js::createSurfaceAtlas` 按注册顺序叠加地面、步行面、路侧、场地与北站层，后注册的层覆盖先注册的层，一次查询同时返回高度与 `surfaceId`/`heightSource`。`sz-scene-site.js` 的 `site.heightAt` 不再被原地改写三次，零售铺装高度用同一模块的三层栈表达。旧 `??` 链的优先级由 `tests/sz-surface-atlas.test.cjs` 逐点对照锁定；`roads`+`ui` 306 Node / 52 Python 通过，浏览器首帧正常、步行离地 0 米，`__szSurfaceAt` 抽样 7 点高度均为有限值。顺带补上 `js/sz-retail-signs.js` 缺失的 modulepreload（该缺口在本轮前已使 boot 测试失败）。半径内取最高面的 `footing` 与控制器接触面收口留给 siteProbe 候选，本轮未改 `createSurfaceResolver`。
+
 环境车流改为车道级：按复核断面/OSM 车道偏移分道投放与跟车，被挡 2 秒后按 8/22 米车距规则被动换道，路线在剩余 140 米时续接而不是停在终点，判死和停滞车辆只在远离玩家且不可见时回收。`stoppedOver8s`、`maxQueue`、`laneChanges` 等指标已接入 `__szQA()`；浏览器 90 秒观测中 `stoppedOver8s` 为 0（仅玩家站在车道上时按预期停车）、`maxQueue` ≤ 2、无 road-contact 永久停驶。`roads` 189/189（Node）+52/52（Python）、`controls` 179/179 通过；全城长时 soak、双向完整信号周期和正式固定路段验收仍待补。操作与机制见 [载具](07-VEHICLES.md#车道级环境车流)。
 普通零售首层新增程序化店招、挑出雨棚、石材基座与夜间三档橱窗。店招按 7 个开间成对布置 2 块，2.0–3.2 米宽、0.5–0.72 米高、外挑 4.2 厘米，每 600 米区块共用一张 2048×1024 CanvasTexture 图集；雨棚每栋 1–3 段、深 0.95–1.5 米；基座为 0.42 米暖灰石材加压顶收边，均在既有材质内完成，不新增碰撞。区域抽样 1780 块店招、345 段雨棚、4940 个三角，含街面共 2465/561/7174，低于 8000 预算；发光店招 64.1%。限制是 7 个开间仅 2 块有牌、部分楼无雨棚，真实门槛与室内仍缺。`tests/sz-buildings.test.cjs`、`tests/sz-facade-material.test.cjs` 25/25。
 

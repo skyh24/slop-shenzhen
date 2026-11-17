@@ -30,6 +30,7 @@ index.html → sz-geodata（校验/解码）→ main 的 site 数据与共享表
 | 地形采样 | `sz-terrain.js::terrainHeight/terrainCellTriangles` | 规则格点三角插值；与双线性高度有区别 |
 | 活动地面 | `sz-ground-surface.js::createGroundSurfaceSampler`、`sz-ground.js::buildSzGround` | 解包三角面、索引查询、地面网格同源 |
 | 多层接触 | `sz-controller-surfaces.js::createSurfaceResolver` | 地形、铺装、桥面、屋顶的身份与高度解析 |
+| 活动表面图集 | `sz-surface-atlas.js::createSurfaceAtlas` | 地面/步行面/路侧/场地/站房按注册顺序叠加，落位高度与出处同返；装配见 `sz-scene-site.js` |
 | 道路边界 | `sz-roads.js::visitGroundRoadFootprints/createRoadSurfaceLayout/buildSzRoads` | 断面、弯道与路口共同车行范围；沥青、人行避让、裙房退让复用 |
 | 道路净空 | `sz-road-building-clearance.js::createRoadBuildingClearance` | 建筑与道路/高架交叠审核，供渲染与碰撞消费 |
 | 道路断面 | `sz-road-section.js::getRoadSection/getDeckSection` | 按路网边和桥面对象缓存断面，标线、环境车、自动驾驶、换道和建筑净空共用 |

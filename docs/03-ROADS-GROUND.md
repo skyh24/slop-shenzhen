@@ -13,6 +13,7 @@
 | `sz-terrain.js::terrainHeight/terrainCellTriangles` | 格点三角插值，提供地形高度 |
 | `sz-ground-surface.js::createGroundSurfaceSampler`、`sz-ground.js::buildSzGround` | 同一三角面数据用于查询与绘制 |
 | `sz-controller-surfaces.js::createSurfaceResolver` | 区分地面、桥面、屋顶等活动表面的身份与高度 |
+| `sz-surface-atlas.js::createSurfaceAtlas` | 按注册顺序叠加地面/步行面/路侧/场地层，一次查询同时给出高度与出处 |
 | `sz-roads.js::visitGroundRoadFootprints/createRoadSurfaceLayout/buildSzRoads` | 断面、弯道、路口范围与网格 |
 | `sz-road-section.js::getRoadSection/getDeckSection` | 共用有效宽、方向、估计车道数、偏距、分界与表面身份 |
 | `sz-road-markings.js::createMarkingLayout`、`sz-road-paint.js::buildSzRoadPaint` | 标线布局与绘制，贴对应活动表面 |

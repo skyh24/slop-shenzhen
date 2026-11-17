@@ -11,6 +11,7 @@ import { buildSzRoadFrontage } from './sz-road-frontage.js';
 import { buildSzRoadPaint } from './sz-road-paint.js';
 import { createRoadBuildingClearance } from './sz-road-building-clearance.js';
 import { createSurfaceResolver } from './sz-controller-surfaces.js';
+import { createSurfaceAtlas } from './sz-surface-atlas.js';
 import { buildSzStreetscape } from './sz-streetscape.js';
 import { prepareTalentPark } from './sz-talent-park.js';
 import { createUrbanPavingWalk } from './sz-urban-paving.js';
@@ -80,11 +81,18 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
       // contactSurface=false 的链路两端都接地面，不生成顶面三角面，也没有可画标线的桥面。
       decks: [...elevatedRoads.links, ...tunnels.links].filter(link => (link.topTriangles?.length ?? 0) > 0) }));
   const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface, site.style);
-  site.heightAt = (x, z) => roadLandscape.pathHeight(x, z) ?? roadFrontage.contactHeight(x, z) ?? publicWalk.heightAt(x, z) ?? ground.groundHeight(x, z);
+  // 活动表面图集：地面、步行面、路侧与场地按注册顺序叠加，后注册的覆盖先注册的。
+  // 落位、接触与测试都读同一份装配，不再靠就地改写 site.heightAt 决定谁权威。
+  const surfaceAtlas = createSurfaceAtlas({ groundHeight: ground.groundHeight });
+  surfaceAtlas
+    .add({ id: 'public-walk', heightSource: 'rendered-terrain', sample: publicWalk.heightAt })
+    .add({ id: 'road-frontage', heightSource: 'rendered-terrain', sample: roadFrontage.contactHeight })
+    .add({ id: 'road-landscape', heightSource: 'rendered-terrain', sample: roadLandscape.pathHeight });
+  site.surfaceAtlas = surfaceAtlas;
+  site.heightAt = (x, z) => surfaceAtlas.heightAt(x, z);
   const districts = qa.measureBuild('districts', () => buildSzDistricts(scene, site,
     { water: GEO.water, roads: roads.surfaces, carriagewayOccupied }));
-  const baseHeight = site.heightAt;
-  site.heightAt = (x, z) => districts.heightAt(x, z) ?? baseHeight(x, z);
+  surfaceAtlas.add({ id: 'districts', heightSource: 'rendered-terrain', sample: districts.heightAt });
   site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
   const waterfrontPaths = createWaterfrontPaths(GEO.waterfront);
   const urbanPaving = createUrbanPavingWalk(GEO.urbanPaving, site.heightAt);
@@ -100,8 +108,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     ? buildIecGrounds(scene, { ...site, roadSurfaces: roads.surfaces, water: GEO.water, paths: GEO.iecPaths }) : null;
   const northStation = landmarks.heights?.has('shenzhen-north')
     ? qa.measureBuild('northStation', () => buildNorthStation(scene, GEO.shenzhenNorthRail, site)) : null;
-  const districtHeightAt = site.heightAt;
-  if (northStation) site.heightAt = (x, z) => northStation.heightAt(x, z) ?? districtHeightAt(x, z);
+  if (northStation) surfaceAtlas.add({ id: 'north-station', heightSource: 'rendered-terrain', sample: northStation.heightAt });
   const bridge = !offline && buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
   const yanjiang = !offline && buildYanjiangExpressway(scene, GEO.yanjiangExpressway,
     new Set([...elevatedRoads.links, ...tunnels.links].map(link => Number(link.osmId.split('/')[1]))));
@@ -111,10 +118,16 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   const sceneSkipIds = new Set([...landmarks.skipIds, ...districts.skipIds, ...themeParks.skipIds, ...parkOmissions]);
   // 门槛接入现有铺装三角面、专项人行道或路侧步行面。
   const pavedHeight = createGroundSurfaceSampler(site.terrainSurface, kind => kind === 3 || kind === 4 || kind === 7);
+  // 店招与雨棚只认铺装面：同一套图集，换成铺装的三层即可，不再手写一遍 ??。
+  const pavementAtlas = createSurfaceAtlas({ layers: [
+    { id: 'paved-terrain', heightSource: 'terrain', sample: pavedHeight },
+    { id: 'road-frontage', heightSource: 'rendered-terrain', sample: roadFrontage.contactHeight },
+    { id: 'public-walk', heightSource: 'rendered-terrain', sample: publicWalk.heightAt }
+  ] });
   const retail = {
     regions: GEO.mapRegions?.regions, nearRoads: nearRoadsForFrontage, carriageway: carriagewayOccupied,
     entrance: publicWalk.entrance,
-    pavementAt: (x, z) => publicWalk.heightAt(x, z) ?? roadFrontage.contactHeight(x, z) ?? pavedHeight(x, z)
+    pavementAt: (x, z) => pavementAtlas.heightAt(x, z)
   };
   const cityBlocks = qa.stage('blocks', () =>
     buildCityBlocks(scene, { skipIds: sceneSkipIds, renderChunkSize: qa.chunkSize, retail,
