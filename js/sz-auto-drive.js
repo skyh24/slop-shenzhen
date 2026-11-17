@@ -1,4 +1,5 @@
 import { insideSignalBounds } from './sz-intersection-control.js';
+import { createJunctionParticipant } from './sz-junction-participant.js';
 import { vehicleContact } from './vehicle-physics.js';
 import { emergencyBrake, followingReach, routeLeader, sameTrafficLevel, writeEntityCollider, writeTrafficCollider } from './sz-driving-motion.js';
 
@@ -56,12 +57,12 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   let departure = null;
   let activeRoute = null;
   let speedMps = 0;
-  let reservation = null;
+  const junction = createJunctionParticipant(control, ACTOR);
   let status = 'idle';
   const statistics = { routeLength: 0, travelled: 0, signalWaits: 0, intersectionWaits: 0, signalEntries: 0 };
   const intersectionMargin = Math.hypot(model.hx, model.hz) + 0.35;
   const candidate = {}, contact = {}, ego = {};
-  const signalApproaches = control?.intersections?.flatMap(junction => junction.approaches) ?? [];
+  const signalApproaches = control?.intersections?.flatMap(item => item.approaches) ?? [];
 
   // 取当前进度前后 ±8 m 内的路段表面，与 poseOnRoute 在衔接处的取边窗口一致；
   // 地面与高架端头各自只覆盖到自己的端头，四角需要能回退到相邻段的表面。
@@ -79,11 +80,6 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     const edge = route.samples[index]?.edge;
     if (list.includes(edge)) list.unshift(list.splice(list.indexOf(edge), 1)[0]);
     return list;
-  }
-
-  function release() {
-    if (reservation) control.release(reservation, ACTOR);
-    reservation = null;
   }
 
   function canStart(route, car, mode) {
@@ -104,7 +100,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
 
   function start(route, car, mode) {
     if (!canStart(route, car, mode)) return false;
-    release();
+    junction.abandon();
     const startS = project(route.samples ?? [], car.position.x, car.position.z, 0, 3)?.s ?? 0;
     run = { route, index: 0, stopIndex: 0, s: startS, stalled: 0, unsafe: null, paused: false, replanned: false };
     activeRoute = route;
@@ -124,7 +120,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   }
 
   function startCruise(car, speed) {
-    if (run || departure || reservation || !planCruise || !(speed > 0)) return false;
+    if (run || departure || junction.reservation || !planCruise || !(speed > 0)) return false;
     run = { cruiseSpeed: speed, route: null };
     tryCruiseRoute(car);
     return true;
@@ -148,14 +144,14 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   }
 
   function straightCruise(car, elapsed, clearsReservation) {
-    if (reservation && clearsReservation) release();
+    junction.release(clearsReservation);
     const { x, z } = car.position;
     const speed = Math.max(0, car.speed);
     const reach = followingReach(speed);
     const bodies = nearTraffic(x, z, reach);
     const dx = Math.sin(car.heading), dz = Math.cos(car.heading);
     let signal = null, remaining = Infinity;
-    if (!reservation && (car._support?.surfaceId ?? 'terrain') === 'terrain') {
+    if (!junction.reservation && (car._support?.surfaceId ?? 'terrain') === 'terrain') {
       for (const approach of signalApproaches) {
         const along = (approach.stopX - x) * dx + (approach.stopZ - z) * dz;
         if (along < 0 || along >= Math.min(remaining, reach) || approach.dx * dx + approach.dz * dz < 0.95) continue;
@@ -166,19 +162,14 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
       }
     }
     const distance = signal ? -frontDistance(signal, model, x, z, car.heading) - 0.65 : Infinity;
-    const request = distance < 4 ? signal : null;
-    if (run.request && run.request !== request) control.cancelRequest(run.request, ACTOR);
-    if (request) control.request(request, ACTOR, elapsed);
-    run.request = request;
-    const held = signal && !control.canEnter(signal, elapsed, ACTOR);
+    const gate = junction.wait(signal, elapsed, { distance });
+    const held = gate.held;
     const target = Math.min(run.cruiseSpeed, held ? Math.sqrt(3.3 * Math.max(0, distance)) : Infinity);
     return {
       ...speedInput(car, target, bodies), cruise: true, steerAngle: 0, avoidContact: true,
       permitMove(px, pz, heading) {
-        if (!signal || reservation || frontDistance(signal, model, px, pz, heading) < -ROAD_MARGIN) return true;
-        if (!control.enter(signal, elapsed, ACTOR)) return false;
-        reservation = signal;
-        return true;
+        if (!signal || junction.reservation || frontDistance(signal, model, px, pz, heading) < -ROAD_MARGIN) return true;
+        return junction.enter(elapsed).ok;
       }
     };
   }
@@ -197,7 +188,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   }
 
   function stop(reason = 'idle') {
-    if (run?.request) control.cancelRequest(run.request, ACTOR);
+    junction.suspend();
     if ((run && run.cruiseSpeed == null) || departure || reason === 'idle') status = reason;
     run = null;
     departure = null;
@@ -217,8 +208,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   function pause() {
     if (!run || run.cruiseSpeed != null || run.paused || run.unsafe) return;
     run.paused = true;
-    if (run.request) control.cancelRequest(run.request, ACTOR);
-    run.request = null;
+    junction.suspend();
     status = 'pausing';
   }
 
@@ -230,7 +220,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
 
   function requestLane(car, direction) {
     // 定速巡航与自动行驶共用同一份路线：巡航时也能打灯换道，路线随之整体平移。
-    if (!run || !run.route || run.paused || run.unsafe || reservation) return false;
+    if (!run || !run.route || run.paused || run.unsafe || junction.reservation) return false;
     const stop = run.route.stops[run.stopIndex];
     const route = laneAssist?.request(run.route, car, direction, run.index, stop?.s ?? run.route.length);
     if (!route) return false;
@@ -250,9 +240,12 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
   }
 
   function update(car, { dt, elapsed, mode, manual, steering = false }) {
-    const clearsReservation = reservation && !insideSignalBounds(reservation.bounds, car.position.x, car.position.z, intersectionMargin);
+    const reservation = junction.reservation;
+    const clearsReservation = Boolean(reservation)
+      && !insideSignalBounds(reservation.bounds, car.position.x, car.position.z, intersectionMargin);
+    // 停车或人工接管后不再有路线，占用的释放仍以车尾离开冲突区为准。
     if (reservation && !run && (clearsReservation
-      || frontDistance(reservation, model, car.position.x, car.position.z, car.heading) < -0.4)) release();
+      || frontDistance(reservation, model, car.position.x, car.position.z, car.heading) < -0.4)) junction.release(true);
     speedMps = mode === 'car' ? Math.abs(car.speed) : 0;
     if (manual && (run || departure)) { stop('manual'); return null; }
     if (departure) {
@@ -278,13 +271,13 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
         run.route = null;
         laneAssist?.cancel();
       }
-      if (!steering && run.steering && !reservation && !run.request) tryCruiseRoute(car);
+      if (!steering && run.steering && !junction.reservation && !junction.requesting) tryCruiseRoute(car);
       run.steering = steering;
       run.unsafe = null;
     }
     if (run.unsafe) {
       // 静态净空或承托失败时已由扫掠拒绝移动；不把临时车流等待计作失效。
-      const next = !reservation && !run.replanned && replan(run.route, car, run.route.samples[run.index]?.edge, run.unsafe);
+      const next = !junction.reservation && !run.replanned && replan(run.route, car, run.route.samples[run.index]?.edge, run.unsafe);
       if (next && canReplace(next, car, mode)) {
         run.replanned = true;
         return update(car, { dt, elapsed, mode, manual: false });
@@ -294,7 +287,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     }
     if (!run.route) return straightCruise(car, elapsed, clearsReservation);
     // 巡航分段向前续接；在已预约或即将停车的路口保留原轨迹。
-    if (run.cruiseSpeed != null && run.route.continues && !reservation && !run.request
+    if (run.cruiseSpeed != null && run.route.continues && !junction.reservation && !junction.requesting
       && !run.extended && run.route.length - run.s < Math.max(70, car.speed ** 2 / 3.5 + 20)) {
       run.extended = true;
       const next = planCruise(car, run.route.samples[run.index]?.edge);
@@ -328,25 +321,22 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     }
 
     let signal = route.stops[run.stopIndex];
-    if (signal && run.s >= signal.clearS && (!reservation || clearsReservation)) {
-      release();
+    if (signal && run.s >= signal.clearS && junction.release(clearsReservation)) {
       signal = route.stops[++run.stopIndex];
     }
     const stopAt = signal ? signal.s - model.hz - model.z - 0.65 : Infinity;
     const speed = Math.max(0, car.speed);
     // 在仍可停车的位置先检查到冲突区出口，给已经在路口内的车留出驶离空间。
-    const nearStop = signal && !reservation && stopAt - run.s < Math.max(18, speed ** 2 / 3.3 + 4);
+    const nearStop = signal && !junction.reservation && stopAt - run.s < Math.max(18, speed ** 2 / 3.3 + 4);
     const reach = Math.max(followingReach(speed), nearStop ? signal.clearS - run.s + 8 : 0);
     const bodies = nearTraffic(car.position.x, car.position.z, reach);
     const egoBody = writeEntityCollider(ego, car);
     const leader = routeLeader({ samples: route.samples, index: run.index, s: run.s, reach,
       ego: egoBody, bodies, roadHeight });
     const exitBlocked = nearStop && leader.gap + run.s < signal.clearS + 2;
-    const requested = signal && !run.paused && !reservation && stopAt - run.s <= 4 ? signal.approach : null;
-    if (run.request && run.request !== requested) control.cancelRequest(run.request, ACTOR);
-    if (requested) control.request(requested, ACTOR, elapsed, !exitBlocked);
-    run.request = requested;
-    const held = signal && !reservation && (exitBlocked || !control.canEnter(signal.approach, elapsed, ACTOR));
+    const gate = junction.wait(signal?.approach ?? null, elapsed,
+      { distance: signal ? stopAt - run.s : Infinity, paused: Boolean(run.paused), exitBlocked });
+    const held = gate.held;
     // 高速时留足转向、偏航和轮胎响应时间，避免短前视反复过度纠偏。
     const lookAhead = cruising ? Math.min(34, 3.5 + speed * 0.55) : Math.min(9, 3.5 + speed * 0.43);
     const target = sampleAhead(route.samples, run.index, Math.min(route.length, run.s + lookAhead));
@@ -361,10 +351,7 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
     const targetSpeed = run.paused || laneWaiting ? 0 : Math.min(limit, Math.sqrt(3.3 * remaining), leader.limit);
     let state = leader.limit < Math.min(2.8, limit) ? 'traffic' : 'driving';
     if (laneWaiting) state = 'traffic';
-    if (held && stopAt - run.s < 4) {
-      const { sourceIndex, to } = signal.approach;
-      state = control.approachState(sourceIndex, to, elapsed).phase === 'green' ? 'intersection' : 'signal';
-    }
+    if (held && stopAt - run.s < 4) state = gate.phase === 'green' ? 'intersection' : 'signal';
     if (run.paused) state = speed < 0.05 ? 'paused' : 'pausing';
     if (run.cruiseSpeed == null) {
       if (state === 'signal' && status !== 'signal') statistics.signalWaits++;
@@ -411,11 +398,11 @@ export function createAutoDrive({ model, roadHeight, control, nearTraffic = () =
             return false;
           }
         }
-        if (!signal || reservation || signal.s - run.s > 20
+        if (!signal || junction.reservation || signal.s - run.s > 20
           || frontDistance(signal.approach, model, x, z, heading) < -ROAD_MARGIN) return true;
-        if (exitBlocked || !control.enter(signal.approach, elapsed, ACTOR)) return false;
-        reservation = signal.approach;
-        if (run.cruiseSpeed == null) statistics.signalEntries++;
+        const entered = junction.enter(elapsed, exitBlocked);
+        if (!entered.ok) return false;
+        if (entered.entered && run.cruiseSpeed == null) statistics.signalEntries++;
         return true;
       }
     };

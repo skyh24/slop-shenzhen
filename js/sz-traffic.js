@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { routeSignalStops } from './sz-intersection-control.js';
+import { createJunctionParticipant } from './sz-junction-participant.js';
 import { isGroundRoad, roadTravelPoints } from './sz-roads.js';
 import { getDeckSection, getRoadSection, laneOffsets, usableWidth } from './sz-road-section.js';
 import {
@@ -589,6 +590,9 @@ export function createSzTraffic(scene, graph, { roadHeight, elevated = null, col
         route: null, pose: {}, collider: { type: 'vehicle', id: `traffic:${id}` }, speed: 0, stalled: 0,
         paint: palette ? new THREE.Color(palette.color) : null, style: palette ? palette.style : 0,
         wheelSpin: 0, steer: 0, blinkPhase: (id * 0.37) % 0.8, prevX: 0, prevZ: 0, prevHeading: 0 };
+      actor.junction = createJunctionParticipant(signals, id);
+      // reservation 继续作为车辆对外状态发布：换道判断和 QA 读同一份占用，不另存副本。
+      Object.defineProperty(actor, 'reservation', { get: () => actor.junction.reservation, enumerable: true });
       vehicles.push(actor);
       return actor;
     });
@@ -786,7 +790,7 @@ function startLaneChange(actor) {
   // 路段没有可靠车道数据时不算并线失败，只记为不具备条件。
   const reject = why => { actor.laneAbort = { reject: why }; statistics.laneChangeIneligible++; };
   if (!edge) return reject('no-edge');
-  if (actor.reservation) return reject('reservation');
+  if (actor.junction.reservation) return reject('reservation');
   const lanes = laneOffsets(edge.section);
   if (!lanes) return reject('no-lanes');
   if (lanes.length < 2) return reject('single-lane');
@@ -902,6 +906,7 @@ function extendRoute(actor) {
   actor.extendShort = reach < s + EXTEND_AHEAD;
   actor.stops = routeSignalStops(samples, signals, rearMargin).filter(stop => stop.clearS > s);
   actor.stopIndex = 0;
+  actor.junction.suspend();
   actor.exitProbe = null;
   actor.laneChange = null;
   actor.shift = 0;
@@ -1033,10 +1038,10 @@ function startRoute(actor, focus) {
         statistics.nearEndRejects++;
         continue;
       }
+      actor.junction.abandon();
       actor.route = samples;
       actor.stops = stops;
       actor.stopIndex = 0;
-      actor.reservation = null;
       actor.exitProbe = null;
       actor.blocker = null;
       actor.waitingForSignal = false;
@@ -1065,9 +1070,7 @@ function startRoute(actor, focus) {
   }
 
   function dropRoute(actor) {
-    if (actor.reservation) signals.release(actor.reservation, actor.id);
-    signals?.cancelRequest(actor.stops?.[actor.stopIndex]?.approach, actor.id);
-    actor.reservation = null;
+    actor.junction.abandon();
     actor.route = null;
   }
 
@@ -1076,14 +1079,16 @@ function startRoute(actor, focus) {
     const stop = actor.stops[actor.stopIndex];
     const stoppingAt = stop ? stop.s - (model.hz + model.z) - 0.16 : Infinity;
     const remaining = Math.max(0, stoppingAt - actor.s);
-    const awaiting = stop && !actor.reservation;
+    const awaiting = Boolean(stop) && actor.junction.reservation === null;
     const atQueue = awaiting && remaining <= 4;
     const queueBlocker = atQueue ? junctionExitBlocker(actor, stop) : null;
-    if (atQueue) signals.request(stop.approach, actor.id, elapsedSeconds, !queueBlocker);
-    const phaseHeld = awaiting && !signals.canEnter(stop.approach, elapsedSeconds, actor.id);
+    // 4 米内排队请求随出口状态刷新；绿灯但出口未清空时同样停在停止线前。
+    const gate = actor.junction.wait(stop?.approach ?? null, elapsedSeconds,
+      { distance: stop ? stoppingAt - actor.s : Infinity, exitBlocked: Boolean(queueBlocker) });
+    const phaseHeld = gate.phaseHeld;
     const checkingExit = awaiting && !phaseHeld && remaining <= Math.max(12, actor.speed ** 2 / 7.2 + 2);
     const exitBlocker = queueBlocker ?? (checkingExit ? junctionExitBlocker(actor, stop) : null);
-    const held = phaseHeld || exitBlocker;
+    const held = gate.held || Boolean(exitBlocker);
     actor.blocker = exitBlocker ? { ...exitBlocker, atExit: true }
       : phaseHeld ? { kind: 'signal-or-owner', id: stop.approach.id } : null;
     const brakingSpeed = held ? Math.sqrt(2 * 3.6 * remaining) : Infinity;
@@ -1125,11 +1130,12 @@ function startRoute(actor, focus) {
     let s = actor.s;
     for (let step = 1; step <= steps; step++) {
       const target = interpolate(actor.s, next, step / steps);
-      const entering = stop && !actor.reservation && target > stoppingAt;
+      const entering = stop && actor.junction.reservation === null && target > stoppingAt;
       if (entering) {
         const blocker = junctionExitBlocker(actor, stop, true);
         if (blocker) {
-          signals.request(stop.approach, actor.id, elapsedSeconds, false);
+          // 越过停止线前出口仍被占：请求保持未就绪，车辆不占用冲突区。
+          actor.junction.enter(elapsedSeconds, true);
           actor.blocker = { ...blocker, atExit: true };
           break;
         }
@@ -1137,18 +1143,17 @@ function startRoute(actor, focus) {
       const movementBlocker = blockerOnRoute(actor, route, target, true);
       if (movementBlocker) { actor.blocker = movementBlocker; break; }
       if (entering) {
-        if (!signals.enter(stop.approach, elapsedSeconds, actor.id)) break;
-        actor.reservation = stop.approach;
-        statistics.signalEntries++;
+        const entered = actor.junction.enter(elapsedSeconds);
+        if (!entered.ok) break;
+        if (entered.entered) statistics.signalEntries++;
       }
       s = target;
       Object.assign(actor.pose, scratch);
       applyLaneShift(actor, actor.pose);
       writeTrafficCollider(actor.collider, model, actor.pose);
     }
-    if (actor.reservation && s >= stop.clearS) {
-      signals.release(actor.reservation, actor.id);
-      actor.reservation = null;
+    if (actor.junction.reservation && s >= stop.clearS) {
+      actor.junction.release(true);
       actor.stopIndex++;
     }
     const waiting = Boolean(held && remaining < 1.1);
@@ -1194,7 +1199,7 @@ function startRoute(actor, focus) {
         if (blocked || dead) statistics.stalledRecycled++;
       } else if (dt) {
         updateLaneChange(actor, dt);
-        if (!actor.extendShort && !actor.laneChange && !actor.reservation && actor.end - actor.s < EXTEND_AHEAD) extendRoute(actor);
+        if (!actor.extendShort && !actor.laneChange && !actor.junction.reservation && actor.end - actor.s < EXTEND_AHEAD) extendRoute(actor);
         advance(actor, dt, clock);
       }
     }
