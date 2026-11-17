@@ -36,7 +36,9 @@ const hash21 = Fn(([p]) => fract(sin(dot(p, vec2(12.9898, 78.233))).mul(43758.54
 // 不带 fwidth 的区间判断：只用于首层门洞、楼板带这类有明确几何边界的遮罩。
 const stepBand = (x, a, b) => step(a, x).mul(step(x, b));
 
-// 带一像素抗锯齿的窗框。边缘过渡用 [0, fw]，比居中 smoothstep 省两个加减节点。
+// 立面走样控制：1x 下 shader 画出的窗框/竖挺只有 2–3px，单像素过渡仍会阶梯化。
+// AA_SCALE 把边缘过渡放宽到约 1.35px；detail 提前收敛，避免细线在移动时闪烁。
+const AA_SCALE = 1.35;
 const aaBand = (x, a, b, fw) => smoothstep(ZERO, fw, x.sub(a)).mul(smoothstep(ZERO, fw, b.sub(x)));
 
 // 零售开间：左侧橱窗、右侧落地玻璃门，上方气窗；远景平均玻璃比例，陈列仅近看显示。
@@ -130,7 +132,9 @@ export function createBuildingMaterial(programEmission = null) {
   const suite = vec2(floor(gridU.div(suiteSpan)), row);
   const occupancy = hash21(suite.add(vec2(seed.mul(num(17.3)).add(num(32.1)), num(7.6))));
   const fwV = max(fwidth(gridV), num(0.0008));
-  const detail = ONE.sub(smoothstep(num(0.2), num(0.7), max(fwU, fwV)));
+  const aaU = fwU.mul(num(AA_SCALE));
+  const aaV = fwV.mul(num(AA_SCALE));
+  const detail = ONE.sub(smoothstep(num(0.18), num(0.6), max(fwU, fwV)));
 
   // 楼高切到窗台以上时整排窗改实墙，压顶/女儿墙带用 meta.w（楼高）定位。
   const windowTop = groundHeight.add(row.mul(floorHeight)).add(sill.add(winH).mul(floorHeight));
@@ -146,15 +150,15 @@ export function createBuildingMaterial(programEmission = null) {
   const glassB = HALF.add(halfWin);
   const openA = glassA.sub(frameW);
   const openB = glassB.add(frameW);
-  const glassX = aaBand(cellU, glassA, glassB, fwU);
-  const openX = aaBand(cellU, openA, openB, fwU);
-  const glassY = aaBand(cellV, sill, sill.add(winH), fwV);
-  const openY = aaBand(cellV, sill.sub(frameW), sill.add(winH).add(frameW), fwV);
+  const glassX = aaBand(cellU, glassA, glassB, aaU);
+  const openX = aaBand(cellU, openA, openB, aaU);
+  const glassY = aaBand(cellV, sill, sill.add(winH), aaV);
+  const openY = aaBand(cellV, sill.sub(frameW), sill.add(winH).add(frameW), aaV);
   const windowGlass = glassX.mul(glassY);
   const windowFrame = max(openX.mul(openY).sub(windowGlass), ZERO);
 
   // 成组窗/幕墙竖挺：一格窗中间一道竖挺，不再画第二道横挺。
-  const mullion = ONE.sub(smoothstep(ZERO, fwU, abs(cellU.sub(HALF))));
+  const mullion = ONE.sub(smoothstep(ZERO, aaU, abs(cellU.sub(HALF))));
   const mullionMask = mullion.mul(grouped).mul(inBay).mul(upperMask).mul(detail);
 
   // 阳台门：住宅宽窗右侧下延到楼面，做成落地玻璃门，不再单独画栏杆。
