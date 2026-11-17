@@ -4,6 +4,7 @@ const { join } = require('node:path');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 const driving = require('./helpers/driving.cjs');
 const { runInNewContext } = require('node:vm');
 const polygonModule = require('./helpers/polygon.cjs');
@@ -14,7 +15,7 @@ const load = (file, imports = {}) => loadModule(read(file), { imports });
 const signalApi = load('sz-intersection-control.js');
 const sections = load('sz-road-section.js');
 const surface = load('sz-controller-surfaces.js');
-const roads = load('sz-roads.js', { 'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) } });
+const roads = load('sz-roads.js', { 'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame });
 const collision = load('building-collision.js', { './sz-polygon.js': polygonModule });
 const traffic = load('sz-traffic.js', { 'three/webgpu': {}, './sz-intersection-control.js': signalApi,
   './sz-roads.js': roads, './sz-road-section.js': sections,

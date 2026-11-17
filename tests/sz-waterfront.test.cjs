@@ -5,12 +5,13 @@ const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
 const { dayPhaseStub } = require('./helpers/day-phase.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const polygon = loadModule(read('sz-polygon.js'));
 const ground = loadModule(read('sz-ground-surface.js'));
 const contact = loadModule(read('sz-controller-surfaces.js'));
 const roads = loadModule(read('sz-roads.js'), { imports: {
-  'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
+  'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame
 } });
 const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': {}, './sz-roads.js': roads, './sz-ground-surface.js': ground,

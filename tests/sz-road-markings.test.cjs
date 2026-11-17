@@ -3,13 +3,14 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 const roads = require('./helpers/roads.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const sections = loadModule(read('sz-road-section.js'));
 const { getDeckSection, getRoadSection } = sections;
 const { deckPaintLines, createMarkingLayout } = loadModule(read('sz-road-markings.js'), {
-  imports: { './sz-roads.js': roads, './sz-road-section.js': sections }
+  imports: { './sz-roads.js': roads, './sz-road-section.js': sections, './sz-section-frame.js': sectionFrame }
 });
 
 const GROUND = { osmId: 'way/1', highway: 'primary', widthSource: 'estimate-from-class',

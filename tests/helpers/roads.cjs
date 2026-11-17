@@ -3,5 +3,5 @@ const { join } = require('node:path');
 const { loadModule } = require('./module.cjs');
 
 module.exports = loadModule(readFileSync(join(__dirname, '../../js/sz-roads.js'), 'utf8'), {
-  imports: { 'three/webgpu': {}, './sz-road-material.js': {} }
+  imports: { 'three/webgpu': {}, './sz-road-material.js': {}, './sz-section-frame.js': require('./section-frame.cjs') }
 });

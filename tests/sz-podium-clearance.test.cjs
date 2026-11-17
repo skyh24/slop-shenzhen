@@ -5,6 +5,7 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 const roadsModule = require('./helpers/roads.cjs');
 
@@ -18,7 +19,7 @@ const SAMPLE_ROAD_OSM_ID = 'way/270044912';
 const terrain = loadModule(read('sz-terrain.js'));
 const layout = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
 const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
-const roads = loadModule(read('sz-roads.js'), { imports: { 'three/webgpu': {}, './sz-road-material.js': {} } });
+const roads = loadModule(read('sz-roads.js'), { imports: { 'three/webgpu': {}, './sz-road-material.js': {}, './sz-section-frame.js': sectionFrame } });
 const { createRoadBuildingClearance } = loadModule(read('sz-road-building-clearance.js'), { imports: {
   './sz-roads.js': roads, './building-collision.js': collision, './sz-road-section.js': loadModule(read('sz-road-section.js'))
 } });

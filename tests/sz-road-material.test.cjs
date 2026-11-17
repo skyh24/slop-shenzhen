@@ -4,6 +4,7 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
@@ -67,7 +68,7 @@ test('buildSzRoads draws its chunks with the shared material and the marking dep
   const [THREE, TSL] = await Promise.all([loadThree('three.webgpu.js'), loadThree('three.tsl.js')]);
   const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
   const material = loadModule(read('sz-road-material.js'), { imports });
-  const roads = loadModule(read('sz-roads.js'), { imports: { ...imports, './sz-road-material.js': material } });
+  const roads = loadModule(read('sz-roads.js'), { imports: { ...imports, './sz-road-material.js': material, './sz-section-frame.js': sectionFrame } });
 
   const grid = { x0: 0, z0: 0, step: 20, nx: 2, nz: 2 };
   const terrain = { version: 1, grid, chunks: [{ id: 'a', origin: [0, 0], indices: [0, 2, 1, 1, 2, 3],

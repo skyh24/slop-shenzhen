@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 const { fixtureTerrainSurface } = require('./helpers/terrain-surface.cjs');
 const polygon = require('./helpers/polygon.cjs');
 
@@ -18,10 +19,10 @@ const setup = async () => {
   const paving = loadModule(read('sz-paving.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL,
     './sz-materials.js': { sceneUniforms: { night: TSL.uniform(0) } }, './sz-scene-style.js': style } });
   const roads = loadModule(read('sz-roads.js'), { imports: {
-    'three/webgpu': THREE, './sz-road-material.js': {}
+    'three/webgpu': THREE, './sz-road-material.js': {}, './sz-section-frame.js': sectionFrame
   } });
   const tracks = loadModule(read('sz-pedestrian-tracks.js'), { imports: {
-    './sz-roads.js': roads, './building-collision.js': collision
+    './sz-roads.js': roads, './building-collision.js': collision, './sz-section-frame.js': sectionFrame
   } });
   const walk = loadModule(read('sz-public-walk.js'), { imports: {
     'three/webgpu': THREE, './sz-roads.js': roads, './sz-polygon.js': polygon, './building-collision.js': collision,

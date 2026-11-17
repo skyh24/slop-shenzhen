@@ -1,5 +1,6 @@
 import { visitGroundRoadFootprints, isGroundRoad, roadSectionPoints } from './sz-roads.js';
 import { polygonBoxOverlaps } from './building-collision.js';
+import { sectionSideLine } from './sz-section-frame.js';
 
 // 深圳没有全城实测的人行道网格：本模块沿地面道路中心线两侧偏移出“模拟步行带”（walk track），
 // 再用地形接触高度、建筑碰撞和车行道范围把不可走的部分筛掉。轨道和铺装都是模拟，
@@ -138,24 +139,6 @@ export function resamplePolyline(points, stepM) {
       const t = k / steps;
       result.push({ x: a.x + dx * t, z: a.z + dz * t });
     }
-  }
-  return result;
-}
-
-// 左侧法向 (dz, -dx)：side = +1 是该侧，side = -1 是对侧。
-function sidewalkPolyline(points, side, widthM, marginM) {
-  const result = [];
-  for (let i = 0; i < points.length; i++) {
-    const previous = points[Math.max(0, i - 1)];
-    const next = points[Math.min(points.length - 1, i + 1)];
-    let dx = next.x - previous.x;
-    let dz = next.z - previous.z;
-    const length = Math.hypot(dx, dz) || 1;
-    dx /= length;
-    dz /= length;
-    const { x, z, leftM = widthM / 2 } = points[i];
-    const offset = side * ((side === 1 ? leftM : widthM - leftM) + marginM);
-    result.push({ x: x + dz * offset, z: z - dx * offset });
   }
   return result;
 }
@@ -449,7 +432,7 @@ export function buildSidewalkTracks(graph, options = {}) {
     const centerline = roadSectionPoints(graph, link, metadata);
     if (centerline.length < 2) continue;
     for (const side of [1, -1]) {
-      const sidewalk = sidewalkPolyline(centerline, side, widthM, cfg.walkMarginM);
+      const sidewalk = sectionSideLine(centerline, { widthM, side, marginM: cfg.walkMarginM });
       const runs = bounds ? clipPolyline(sidewalk, bounds) : [sidewalk];
       statistics.clippedRuns += runs.length;
       for (const run of runs) {

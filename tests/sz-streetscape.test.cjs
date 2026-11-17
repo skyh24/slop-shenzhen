@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
@@ -42,7 +43,7 @@ test('the selected promenade is coplanar and walkable and the modeled tree trunk
   const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
   const terrain = loadModule(read('sz-terrain.js'));
   const layout = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
-  const roads = loadModule(read('sz-roads.js'), { imports: { ...imports, './sz-road-material.js': roadMaterial } });
+  const roads = loadModule(read('sz-roads.js'), { imports: { ...imports, './sz-road-material.js': roadMaterial, './sz-section-frame.js': sectionFrame } });
   const geometry = loadModule(read('sz-geometry.js'), { imports });
   const style = loadModule(read('sz-scene-style.js'), { imports: { './sz-polygon.js': polygonModule } });
   const paving = loadModule(read('sz-paving.js'), { imports: { ...imports,

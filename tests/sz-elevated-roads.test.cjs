@@ -4,9 +4,10 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { gunzipSync } = require('node:zlib');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const roads = loadModule(read('sz-roads.js'), { imports: {
-  'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
+  'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame
 } });
 const groundSurface = loadModule(read('sz-ground-surface.js'));
 const controllerSurfaces = loadModule(read('sz-controller-surfaces.js'));

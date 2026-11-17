@@ -4,6 +4,7 @@ import { isGroundRoad, roadSectionPoints } from './sz-roads.js';
 import { dayPhase } from './sz-day-phase.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { chunkKey, createStreetBatch } from './sz-street-batch.js';
+import { sectionAtStation } from './sz-section-frame.js';
 
 // 灯位按源道路断面和道路等级派生，属外观估计。
 const SPACING_BY_CLASS = {
@@ -36,26 +37,6 @@ function normalAt(a, b) {
   return { dx: dx / length, dz: dz / length };
 }
 
-function interpolate(points, distance, width) {
-  let travelled = 0;
-  for (let i = 1; i < points.length; i++) {
-    const a = points[i - 1];
-    const b = points[i];
-    const segment = Math.hypot(b.x - a.x, b.z - a.z);
-    if (travelled + segment >= distance) {
-      const t = segment > 1e-6 ? (distance - travelled) / segment : 0;
-      const n = normalAt(a, b);
-      if (!n) return null;
-      const aLeft = a.leftM ?? width / 2;
-      const bLeft = b.leftM ?? width / 2;
-      return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t,
-        left: aLeft + (bLeft - aLeft) * t, ...n };
-    }
-    travelled += segment;
-  }
-  return null;
-}
-
 function indexCarriageways(graph) {
   const cells = new Map();
   for (const [index, link] of graph.links.entries()) {
@@ -82,10 +63,10 @@ function indexCarriageways(graph) {
 }
 
 function oppositeCarriageway(cells, link, index, at, side, medianHeight) {
-  const [, , name, width, , direction] = link;
+  const [, , name, , , direction] = link;
   if (!direction) return null;
-  const nx = at.dz * side, nz = -at.dx * side;
-  const edge = side === 1 ? at.left : width - at.left;
+  const nx = at.nx * side, nz = at.nz * side;
+  const edge = side === 1 ? at.leftM : at.rightM;
   const x0 = at.x + nx * edge, z0 = at.z + nz * edge;
   const reach = MAX_MEDIAN_M + 24;
   const ix = Math.floor(x0 / MEDIAN_CELL_M), iz = Math.floor(z0 / MEDIAN_CELL_M);
@@ -162,16 +143,16 @@ export function planLampSites(roadGraph, options = {}) {
       // 两侧灯杆错开半个间距，避免正对。
       const phase = side === 1 ? spacing * 0.5 : spacing * 0.25;
       for (let distance = junctionMargin + phase; distance <= total - junctionMargin; distance += spacing) {
-        const at = interpolate(points, distance, width);
+        const at = sectionAtStation(points, distance, { widthM: width });
         if (!at) continue;
         const median = width >= 6 && MAJOR_LAMP_CLASSES.has(kind)
           ? oppositeCarriageway(carriageways, link, index, at, side, options.medianHeight) : null;
         const shared = median && median.gap <= SHARED_POLE_MEDIAN_M;
         const oppositeEnabled = median && options.roadStyle?.(roadGraph.metadata[median.index].osmId)?.lampsEnabled !== false;
         if (shared && oppositeEnabled && index > median.index) continue;
-        const offset = Math.max(0.4, (side === 1 ? at.left : width - at.left) + (shared ? median.gap / 2 : curbOffset));
-        const x = at.x + at.dz * offset * side;
-        const z = at.z - at.dx * offset * side;
+        const offset = Math.max(0.4, (side === 1 ? at.leftM : at.rightM) + (shared ? median.gap / 2 : curbOffset));
+        const x = at.x + at.nx * offset * side;
+        const z = at.z + at.nz * offset * side;
         if (!Number.isFinite(x) || !Number.isFinite(z)) {
           rejected.noGroundPoint++;
           continue;
@@ -184,8 +165,8 @@ export function planLampSites(roadGraph, options = {}) {
         }
         seen.add(key);
         // 灯臂朝路中心；局部 +X 经绕 Y 旋转后得到世界方向 (cosθ, -sinθ)。
-        const inwardXDir = -at.dz * side;
-        const inwardZDir = at.dx * side;
+        const inwardXDir = -at.nx * side;
+        const inwardZDir = -at.nz * side;
         const yaw = Math.atan2(-inwardZDir, inwardXDir);
         sites.push({
           x, z, yaw, class: kind, side, linkIndex: index, stationM: distance,

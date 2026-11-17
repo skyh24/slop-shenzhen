@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 const driving = require('./helpers/driving.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 const { dayPhaseStub } = require('./helpers/day-phase.cjs');
@@ -263,7 +264,7 @@ test('UpperHills geometry renders its sourced towers and separated public levels
 
   await t.test('the west bridge leaves the rendered layer-zero ramp below its deck and piers', () => {
     const { createRoadHeightSampler, createRoadSurfaceLayout } = loadModule(read('sz-roads.js'), { imports: {
-      'three/webgpu': THREE, './sz-road-material.js': {}
+      'three/webgpu': THREE, './sz-road-material.js': {}, './sz-section-frame.js': sectionFrame
     } });
     const source = geo.roadGraph;
     const indexes = source.metadata.map((row, i) => row.osmId === 'way/44380085' && row.layer === 0 ? i : -1).filter(i => i >= 0);

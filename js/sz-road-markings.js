@@ -1,5 +1,6 @@
 import { isGroundRoad, roadSectionPoints } from './sz-roads.js';
 import { getRoadSection } from './sz-road-section.js';
+import { sectionMiteredLine, sectionNormal } from './sz-section-frame.js';
 
 // 深圳地面道路标线：按 [23 号文档](../../docs/23-BUILDING-AND-STREET-PLAN.md) 第 7 节收束线型。
 // 车道数只用来推断线型，不冒充实测；估算车道数与 OSM lanes 分开标记（laneSource）。
@@ -14,9 +15,6 @@ const CROSSWALK_SETBACK = 0.7;
 const STOP_BAR_GAP = 0.35;
 const LINE_STOP_GAP = 0.6;
 const STOP_CLEARANCE = CROSSWALK_SETBACK + CROSSWALK_DEPTH + STOP_BAR_GAP + STOP_WIDTH + LINE_STOP_GAP;
-// 斜接长度上限：超过后改用斜切，急弯处宁可切角也不让偏移线伸出路面或自交。
-const MAX_MITER_SCALE = 4;
-const PAVEMENT_TOLERANCE = 0.02;
 const SAMPLE_STEP = 20;
 
 export function deckPaintLines(section) {
@@ -28,69 +26,6 @@ export function deckPaintLines(section) {
   return lines;
 }
 
-function distanceToSegment(point, a, b) {
-  const dx = b.x - a.x, dz = b.z - a.z;
-  const length = Math.hypot(dx, dz);
-  if (length < 1e-9) return Math.hypot(point.x - a.x, point.z - a.z);
-  const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.z - a.z) * dz) / (length * length)));
-  return Math.hypot(point.x - (a.x + dx * t), point.z - (a.z + dz * t));
-}
-
-// 逐段求偏移点：每个顶点用相邻两段的法线平分线做斜接，整段不再共用首尾弦方向。
-// 斜接点会伸出斜切路缘时改用斜切（两段各自法线偏移），保证线在路面内。
-function offsetPoints(points, offset, halfWidth) {
-  const count = points.length;
-  if (count < 2 || !Number.isFinite(offset)) return [];
-  const segments = [];
-  for (let i = 0; i < count - 1; i++) {
-    const dx = points[i + 1].x - points[i].x;
-    const dz = points[i + 1].z - points[i].z;
-    const length = Math.hypot(dx, dz);
-    segments.push(length < 1e-6 ? null : { ux: dx / length, uz: dz / length });
-  }
-  const out = [];
-  for (let i = 0; i < count; i++) {
-    const previous = segments[i - 1] ?? null;
-    const next = segments[i] ?? null;
-    if (!previous && !next) continue;
-    // 断面点到左路缘的距离可能逐点变化；标线偏移先换算到这条断面的坐标。
-    const leftWidth = points[i].leftM ?? halfWidth;
-    const across = offset + (halfWidth - leftWidth);
-    if (!previous || !next) {
-      const only = previous ?? next;
-      out.push({ x: points[i].x - only.uz * across, z: points[i].z + only.ux * across });
-      continue;
-    }
-    let bx = -previous.uz - next.uz;
-    let bz = previous.ux + next.ux;
-    let length = Math.hypot(bx, bz);
-    if (length < 1e-6) {
-      // 180° 折返没有唯一平分线，退回本段法线。
-      out.push({ x: points[i].x - next.uz * across, z: points[i].z + next.ux * across });
-      continue;
-    }
-    bx /= length; bz /= length;
-    const cosine = bx * -next.uz + bz * next.ux;
-    const scale = cosine < 1 / MAX_MITER_SCALE ? MAX_MITER_SCALE : 1 / cosine;
-    const miter = { x: points[i].x + bx * across * scale, z: points[i].z + bz * across * scale };
-    let bevel = false;
-    if (Math.abs(across) > 1e-6 && scale > 1.0001) {
-      // 凸侧斜接点的垂足落到路段之外：只有斜接长度不超过斜切路缘（到平分线与路缘交点）时才算在路面内。
-      const distance = Math.min(distanceToSegment(miter, points[i - 1], points[i]), distanceToSegment(miter, points[i], points[i + 1]));
-      const inside = distance <= Math.abs(across) + 1e-6;
-      const sideWidth = across < 0 ? leftWidth : 2 * halfWidth - leftWidth;
-      const limit = sideWidth * cosine / Math.abs(across);
-      bevel = !inside && scale > limit - PAVEMENT_TOLERANCE;
-    }
-    if (bevel) {
-      // 斜接会伸出斜切路缘，改画斜切：两段法线偏移点连一条斜线。
-      out.push({ x: points[i].x - previous.uz * across, z: points[i].z + previous.ux * across });
-      out.push({ x: points[i].x - next.uz * across, z: points[i].z + next.ux * across });
-    } else out.push(miter);
-  }
-  return out;
-}
-
 function properlyCrosses(a, b, c, d) {
   const cross = (p, q, r) => (q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x);
   const d1 = cross(c, d, a), d2 = cross(c, d, b), d3 = cross(a, b, c), d4 = cross(a, b, d);
@@ -100,7 +35,7 @@ function properlyCrosses(a, b, c, d) {
 
 // 偏移折线：丢掉塌缩点，再按非相邻段交叉切分，弯道内侧形成的回环不画。
 function offsetRuns(points, offset, halfWidth) {
-  const raw = offsetPoints(points, offset, halfWidth);
+  const raw = sectionMiteredLine(points, { widthM: 2 * halfWidth, offsetM: offset });
   const line = [];
   for (const point of raw) {
     const last = line.at(-1);
@@ -199,7 +134,9 @@ function stopLine(approach, strips) {
   const { stopX, stopZ, dx, dz, widthM } = approach;
   if (![stopX, stopZ, dx, dz, widthM].every(Number.isFinite) || widthM < 3) return null;
   const length = Math.hypot(dx, dz) || 1;
-  const ux = dx / length, uz = dz / length, rx = -uz, rz = ux, half = widthM / 2 - 0.15;
+  const ux = dx / length, uz = dz / length, half = widthM / 2 - 0.15;
+  const { nx, nz } = sectionNormal(ux, uz) ?? { nx: 0, nz: 0 };
+  const rx = -nx, rz = -nz;
   const up = CROSSWALK_SETBACK + CROSSWALK_DEPTH + STOP_BAR_GAP + STOP_WIDTH / 2;
   const cx = stopX - ux * up, cz = stopZ - uz * up;
   strips.push({ ax: cx + rx * half, az: cz + rz * half, bx: cx - rx * half, bz: cz - rz * half,
@@ -211,7 +148,9 @@ function crosswalk(approach, strips) {
   const { stopX, stopZ, dx, dz, widthM } = approach;
   if (![stopX, stopZ, dx, dz, widthM].every(Number.isFinite) || widthM < 3) return null;
   const length = Math.hypot(dx, dz) || 1;
-  const ux = dx / length, uz = dz / length, rx = -uz, rz = ux, half = widthM / 2 - 0.15;
+  const ux = dx / length, uz = dz / length, half = widthM / 2 - 0.15;
+  const { nx, nz } = sectionNormal(ux, uz) ?? { nx: 0, nz: 0 };
+  const rx = -nx, rz = -nz;
   for (let lateral = -half; lateral <= half + 1e-6; lateral += CROSSWALK_PITCH) {
     strips.push({ ax: stopX - ux * (CROSSWALK_SETBACK + CROSSWALK_DEPTH) + rx * lateral,
       az: stopZ - uz * (CROSSWALK_SETBACK + CROSSWALK_DEPTH) + rz * lateral,

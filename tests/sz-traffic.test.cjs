@@ -4,6 +4,7 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 const driving = require('./helpers/driving.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
@@ -53,7 +54,7 @@ const three = {
   MeshStandardNodeMaterial: class {}, DynamicDrawUsage: 35048
 };
 const load = (name, imports) => loadModule(readFileSync(join(__dirname, '../js', name), 'utf8'), { imports });
-const roads = load('sz-roads.js', { 'three/webgpu': three, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) } });
+const roads = load('sz-roads.js', { 'three/webgpu': three, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame });
 const signalModule = load('sz-intersection-control.js');
 const vehicleSpecs = {
   taxi: { track: 1.6, wheelbase: 2.8, radius: 0.35 }, sedan: { track: 1.6, wheelbase: 2.8, radius: 0.35 },
@@ -116,7 +117,7 @@ test('traffic follows the OSM source directions and never connects geometric cro
 });
 
 test('traffic follows reviewed travel lanes and leaves the outer shoulder unoccupied', () => {
-  const { createMarkingLayout } = load('sz-road-markings.js', { './sz-roads.js': roads, './sz-road-section.js': sections });
+  const { createMarkingLayout } = load('sz-road-markings.js', { './sz-roads.js': roads, './sz-road-section.js': sections, './sz-section-frame.js': sectionFrame });
   const graph = {
     nodes: [0, 0, 80, 0], names: ['North Ring'], links: [[0, 1, 0, 17, 4, 1, []]],
     metadata: [{ ...groundRoad(1), widthSource: 'reviewed-cross-section', crossSection: {

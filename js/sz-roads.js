@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { createSzRoadSurfaceMaterial } from './sz-road-material.js';
+import { sectionEdges, sectionTravelLine } from './sz-section-frame.js';
 
 // 静态地表按 2.4 km 超块合并（与 sz-ground.js 同款逻辑）：页面只需给每个分块一份带位置/法线/颜色/索引的
 // BufferGeometry 和世界原点，合并时把原点烘焙进顶点位置。三角形不变，只牺牲更粗的视锥剔除。
@@ -123,14 +124,7 @@ export function planStreetTreeSides(graph, bounds) {
 
 export function roadTravelPoints(graph, link, metadata, travelWidthM) {
   if (!metadata.crossSection) return roadLinkPoints(graph, link);
-  const points = roadSectionPoints(graph, link, metadata);
-  const halfTravel = travelWidthM / 2;
-  return points.map((p, i) => {
-    const a = points[Math.max(0, i - 1)], b = points[Math.min(points.length - 1, i + 1)];
-    const length = Math.hypot(b.x - a.x, b.z - a.z);
-    const offset = (halfTravel - p.leftM) / length;
-    return { x: p.x - (b.z - a.z) * offset, z: p.z + (b.x - a.x) * offset };
-  });
+  return sectionTravelLine(roadSectionPoints(graph, link, metadata), { travelWidthM });
 }
 
 export function convexHull(points) {
@@ -238,28 +232,24 @@ export function visitGroundRoadFootprints(graph, visit, includeLink = null) {
       const dz = b.z - a.z;
       const length = Math.hypot(dx, dz);
       if (length < EPSILON) continue;
-      const section = p => {
-        const left = (p.leftM ?? width / 2) / length;
-        const right = width / length - left;
-        return [{ x: p.x + dz * left, z: p.z - dx * left }, { x: p.x - dz * right, z: p.z + dx * right }];
-      };
-      const startSection = section(a);
-      const endSection = section(b);
-      if (emit) visit([startSection[0], endSection[0], endSection[1], startSection[1]], linkIndices);
+      const startSection = sectionEdges(a, { widthM: width, dx, dz });
+      const endSection = sectionEdges(b, { widthM: width, dx, dz });
+      if (!startSection || !endSection) continue;
+      if (emit) visit([startSection.left, endSection.left, endSection.right, startSection.right], linkIndices);
       if (previous) {
         // 按外侧路缘补斜接，避免急弯处的直角切口和无界延长。
         const change = previous.dx * dz - previous.dz * dx;
         const side = change > 0 ? 0 : 1;
-        const before = previous.endSection[side];
-        const after = startSection[side];
+        const before = side === 0 ? previous.left : previous.right;
+        const after = side === 0 ? startSection.left : startSection.right;
         if (emit && Math.abs(turn(a, before, after)) > EPSILON) {
           visit(change > 0 ? [a, before, after] : [a, after, before], linkIndices);
         }
       } else {
-        addArm(start, startSection, index);
+        addArm(start, [startSection.left, startSection.right], index);
       }
-      if (i === points.length - 1) addArm(end, endSection, index);
-      previous = { dx, dz, endSection };
+      if (i === points.length - 1) addArm(end, [endSection.left, endSection.right], index);
+      previous = { dx, dz, left: endSection.left, right: endSection.right };
     }
   }
 

@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
@@ -70,7 +71,7 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const paving = loadModule(read('sz-paving.js'), { imports: { 'three/webgpu': THREE, 'three/tsl': TSL,
     './sz-materials.js': { sceneUniforms: { night: TSL.uniform(0) } }, './sz-scene-style.js': style } });
   const roads = loadModule(read('sz-roads.js'), { imports: { ...imports,
-    './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) } } });
+    './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame } });
   const ground = loadModule(read('sz-ground-surface.js'));
   const crown = loadModule(read('sz-tree-crown.js'), { imports });
   const { buildSzRoadFrontage } = loadModule(read('sz-road-frontage.js'), {

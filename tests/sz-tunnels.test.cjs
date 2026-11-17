@@ -4,12 +4,13 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 const { fixtureTerrainSurface } = require('./helpers/terrain-surface.cjs');
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const auditSource = readFileSync(join(__dirname, '../js/sz-tunnels.js'), 'utf8');
 
 const roads = loadModule(read('sz-roads.js'), { imports: {
-  'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
+  'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame
 } });
 const groundSurface = loadModule(read('sz-ground-surface.js'));
 const polygonModule = loadModule(read('sz-polygon.js'));
@@ -380,7 +381,7 @@ test('real THREE build raycasts the tunnel floor from inside the bore',
   { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
     const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
     const realRoads = loadModule(read('sz-roads.js'), { imports: {
-      'three/webgpu': THREE, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
+      'three/webgpu': THREE, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame
     } });
     const module = loadModule(auditSource, { imports: {
       'three/webgpu': THREE,

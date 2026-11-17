@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const { dayPhaseStub } = require('./helpers/day-phase.cjs');
 
 const root = join(__dirname, '..');
 const read = name => readFileSync(join(root, 'js', name), 'utf8');
@@ -92,11 +93,11 @@ test('waterfront keeps mode permissions local and releases riprap detail after l
   const [THREE, TSL] = await Promise.all([load('three.webgpu.js'), load('three.tsl.js')]);
   const materials = { sceneUniforms: { night: TSL.uniform(0) } };
   const fixtures = loadModule(read('sz-site-fixtures.js'), { imports: {
-    'three/webgpu': THREE, 'three/tsl': TSL, './sz-materials.js': materials
+    'three/webgpu': THREE, 'three/tsl': TSL, './sz-materials.js': materials, './sz-day-phase.js': dayPhaseStub()
   } });
   const { buildSzBayWaterfront, createBayPathLookup } = loadModule(read('sz-bay-waterfront.js'), { imports: {
     'three/webgpu': THREE, 'three/tsl': TSL, './building-collision.js': { polygonBoxOverlaps: () => false },
-    './sz-materials.js': materials, './sz-site-fixtures.js': fixtures,
+    './sz-materials.js': materials, './sz-site-fixtures.js': fixtures, './sz-day-phase.js': dayPhaseStub(),
     './sz-strings.js': loadModule(read('sz-strings.js'))
   } });
   const scene = new THREE.Scene();
@@ -137,11 +138,11 @@ test('compact rails keep openings, slope, collider types and terrain-following l
   const TSL = await import(pathToFileURL(join(dir, 'build/three.tsl.js')));
   const materials = { sceneUniforms: { night: TSL.uniform(0) } };
   const fixtures = loadModule(read('sz-site-fixtures.js'), { imports: {
-    'three/webgpu': THREE, 'three/tsl': TSL, './sz-materials.js': materials
+    'three/webgpu': THREE, 'three/tsl': TSL, './sz-materials.js': materials, './sz-day-phase.js': dayPhaseStub()
   } });
   const bayModule = loadModule(read('sz-bay-waterfront.js'), { imports: {
     'three/webgpu': THREE, './building-collision.js': {}, './sz-materials.js': materials,
-    './sz-site-fixtures.js': fixtures, './sz-strings.js': {}
+    './sz-site-fixtures.js': fixtures, './sz-strings.js': {}, './sz-day-phase.js': dayPhaseStub()
   } });
   const a = { x: 0, y: 8, z: 0 }, b = { x: 3, y: 8.12, z: 4 };
   const rail = (p, q) => fixtures.planRail(p, q, fixtures.GREENWAY_RAIL)

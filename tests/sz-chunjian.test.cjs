@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { gunzipSync } = require('node:zlib');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
@@ -174,7 +175,7 @@ test('Chunjian interior cuts remove ground and road support while keeping the pu
     './sz-ground-surface.js': groundSurface, './sz-polygon.js': polygonModule
   } }).createCitySpatial(geo);
   const { createRoadSurfaceLayout, createRoadHeightSampler } = loadModule(read('sz-roads.js'), { imports: {
-    'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
+    'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame
   } });
   const gridHeight = ({ x, z }) => terrain.terrainHeight(geo.terrain, x, z);
   const checkGround = ({ x, z }) => assert.ok(Math.abs(groundHeight(x, z) - gridHeight({ x, z })) < 1e-4

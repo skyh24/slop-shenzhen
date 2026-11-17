@@ -4,6 +4,7 @@ const zlib = require('node:zlib');
 const { join } = require('node:path');
 const test = require('node:test');
 const { loadModule } = require('./helpers/module.cjs');
+const sectionFrame = require('./helpers/section-frame.cjs');
 const driving = require('./helpers/driving.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 
@@ -83,11 +84,11 @@ function createPedestrianStub() {
 
 const read = (name) => readFileSync(join(__dirname, '..', 'js', name), 'utf8');
 const roads = loadModule(read('sz-roads.js'), { imports: {
-  'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }
+  'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame
 } });
 const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygonModule } });
 const tracks = loadModule(read('sz-pedestrian-tracks.js'), {
-  imports: { './sz-roads.js': roads, './building-collision.js': collision }
+  imports: { './sz-roads.js': roads, './building-collision.js': collision, './sz-section-frame.js': sectionFrame }
 });
 const pedestrianStub = createPedestrianStub();
 const pedestrians = loadModule(read('sz-pedestrians.js'), {
