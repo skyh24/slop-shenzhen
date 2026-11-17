@@ -170,7 +170,7 @@ async function initApp() {
   markInit('lighting');
 
   await showLoadingStage(STR.startup.ground, 'ground');
-  const { site, sea, ground, roads, roadGraph, elevatedRoads, tunnels, roadLandscape, roadFrontage, roadPaint,
+  const { site, places, sea, ground, roads, roadGraph, elevatedRoads, tunnels, roadLandscape, roadFrontage, roadPaint,
     publicWalk, districts, carriagewayOccupied, bayPaths, pilotBayPaths, parkBayPaths, waterfrontPaths, urbanPaving, summit, parkOmissions, cbdProgram,
     landmarks, iec, northStation, bridge, yanjiang, themeParks, cityBlocks, lightShow, buildingSigns, buildingDetails,
     streetscape, talentPark, waterfront, trees, vegetation, streetLamps, apecTheme, apecCity, futianStation, xiliConstruction, colliders } = await prepareSceneSite(scene, {
@@ -221,7 +221,8 @@ async function initApp() {
     groundHeight: site.heightAt,
     roadHeight: roads.roadHeight,
     cruiseCurbs: roadFrontage.curbColliders,
-    surfaces: [...cityBlocks.surfaces, ...themeParks.surfaces, ...(northStation?.surfaces ?? []), ...landmarks.surfaces, ...elevatedRoads.surfaces, ...tunnels.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
+    // 场所公开上跨面按登记顺序并入接触候选；其余结构面各自的入口不变。
+    surfaces: [...cityBlocks.surfaces, ...themeParks.surfaces, ...places.standable, ...landmarks.surfaces, ...elevatedRoads.surfaces, ...tunnels.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
     nearTraffic: traffic.nearColliders, nearWalkers: nearTalentPeople, nearRegional: regional.colliders, flightSettings: GEO.airCruises?.flight,
     groundIdentity: waterfrontPaths.groundIdentity,
     // 单车按实际地面承托与实体碰撞通行，不再被区域用途标签拦住。
@@ -232,7 +233,8 @@ async function initApp() {
       && shoreSamples.allowsGroundMode(mode, x, z, surface)
       && (mode !== 'car' || !surface?.surfaceId?.startsWith('talent-park:waterfront')
         && (surface?.heightSource !== 'terrain' || !waterfront?.pathAt(x, z).length))
-      && (!northStation?.inRestricted(x, z, 0.58) || (surface?.surfaceId !== 'terrain' && surface?.heightSource !== 'terrain'))
+      // 围合场地的模式限制只来自场所登记，不再在这里写站场名字。
+      && places.allowsGroundMode(mode, x, z, surface)
   });
   site.nearObstacles = (x, z, r) => controllerManager.nearColliders(x, z, r, false, false);
   const cruise = qa.measureBuild('airCruises', () => createSceneAirCruise(GEO.airCruises, controllerManager, site,
@@ -261,8 +263,9 @@ async function initApp() {
     ...site,
     publicRoute: publicWalk.route(colliders),
     publicWalkSurface: publicWalk.pedestrianSurface,
-    excludeWalkAt: (x, z) => publicWalk.reserves(x, z, 2) || urbanPaving.reserves(x, z, 2) || waterfront?.reserves(x, z, 2)
-      || northStation?.inRestricted(x, z, 2) || districts.reserves(x, z) || roadFrontage.reserveWalk(x, z) || roadFrontage.plantingAt(x, z),
+    // 场所行人排除从登记表取；其余场地/路侧排除仍沿用各自入口。
+    excludeWalkAt: (x, z) => places.excludesWalker(x, z, 2) || urbanPaving.reserves(x, z, 2) || waterfront?.reserves(x, z, 2)
+      || districts.reserves(x, z) || roadFrontage.reserveWalk(x, z) || roadFrontage.plantingAt(x, z),
     crossingLegs: roadFrontage.walkLegs, crossingControl: roadFrontage.control,
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],
@@ -273,7 +276,7 @@ async function initApp() {
     nearRegional: regional.colliders,
     regionalRoutes: regional.routes,
     publicRoutes: [...roadLandscape.routes, ...urbanPaving.connect(colliders, { contains: carriagewayOccupied }),
-      ...(northStation?.publicRoutes(colliders, carriagewayOccupied) ?? []),
+      ...places.publicRoutes({ colliders, carriageway: carriagewayOccupied }),
       ...districts.publicRoutes(colliders, { contains: carriagewayOccupied }, site.heightAt)]
   }));
   roadFrontage.update(0);
@@ -613,7 +616,7 @@ async function initApp() {
     ? regional.prepare({ x, z }, 260, true) : null;
   const { teleportTo, teleportFromMap } = createTeleportActions({ controllerManager, landmarkViews, parks: GEO.parks,
     inBounds, isWater, carriagewayOccupied, findGroundArrival, roadHeight: roads.roadHeight, flightStartAltitude: FLIGHT_START_ALTITUDE,
-    selectMode, prepareRegional, excludeGround: northStation?.inRestricted,
+    selectMode, prepareRegional, excludeGround: places.restricted,
     waterfrontArrival: (x, z, heading) => findWaterfrontWalkPoint([
       ...waterfrontPaths.paths, ...pilotBayPaths, ...parkBayPaths,
       ...[...(GEO.talentPark?.route ?? []), ...(GEO.talentPark?.entrances ?? [])].map(path => ({ ...path, mode: 'walk' }))
