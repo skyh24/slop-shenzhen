@@ -11,9 +11,11 @@ const roads = loadModule(read('sz-roads.js'), { imports: {
 const groundSurface = loadModule(read('sz-ground-surface.js'));
 const controllerSurfaces = loadModule(read('sz-controller-surfaces.js'));
 const tslStub = { normalWorld: { mul: () => ({}) }, positionWorld: { add: () => ({}) } };
+const roadSection = loadModule(read('sz-road-section.js'));
 const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': tslStub,
   './sz-roads.js': roads,
+  './sz-road-section.js': roadSection,
   './sz-ground-surface.js': groundSurface,
   './sz-polygon.js': loadModule(read('sz-polygon.js')),
   './sz-controller-surfaces.js': controllerSurfaces
@@ -96,9 +98,10 @@ test('layer-zero bridges rise one layer only when they cross a ground road', () 
   const crossRoad = links.get('way/cross-road');
   const crossWater = links.get('way/cross-water');
   assert.equal(crossRoad.raisedForCrossing, true);
-  assert.equal(crossRoad.effectiveLiftM, 4.8);
-  assert.ok(Math.abs(crossRoad.startDeckY - (FLAT_TERRAIN + 4.8)) < 1e-9);
-  assert.ok(Math.abs(crossRoad.endDeckY - (FLAT_TERRAIN + 4.8)) < 1e-9);
+  // 4.8 m 是梁底净空，桥面顶再加 0.35 m 梁高。
+  assert.ok(Math.abs(crossRoad.effectiveLiftM - 5.15) < 1e-9);
+  assert.ok(Math.abs(crossRoad.startDeckY - (FLAT_TERRAIN + 5.15)) < 1e-9);
+  assert.ok(Math.abs(crossRoad.endDeckY - (FLAT_TERRAIN + 5.15)) < 1e-9);
   // 跨水/涵洞桥没有地面道路相交，保持贴地。
   assert.equal(crossWater.raisedForCrossing, false);
   assert.equal(crossWater.effectiveLiftM, 0);
@@ -130,19 +133,21 @@ test('hanging ends get an adaptive apron, or are marked dangling without throwin
   const links = byOsm(plan);
   const ramp = links.get('way/ramp-b');
   assert.deepEqual(Array.from(ramp.aprons, apron => apron.side), ['end']);
-  assert.equal(ramp.aprons[0].lengthM, 40);
+  const rampLength = 5.15 / MAX_GRADE;
+  assert.ok(Math.abs(ramp.aprons[0].lengthM - rampLength) < 1e-6);
   assert.ok(ramp.aprons[0].grade <= MAX_GRADE + 1e-9);
   assert.ok(Math.abs(ramp.aprons[0].endY - FLAT_TERRAIN) < 1e-9);
   const crossing = links.get('way/cross-road');
   assert.deepEqual(Array.from(crossing.aprons, apron => apron.side), ['start', 'end']);
   for (const apron of crossing.aprons) {
-    assert.equal(apron.lengthM, 40);
+    assert.ok(Math.abs(apron.lengthM - rampLength) < 1e-6);
     assert.ok(Math.abs(apron.endY - FLAT_TERRAIN) < 1e-9);
   }
   assert.equal(plan.statistics.aprons, 3);
-  assert.ok(Math.abs(plan.statistics.apronLengthM - 120) < 1e-9);
+  assert.ok(Math.abs(plan.statistics.apronLengthM - 3 * rampLength) < 1e-6);
   assert.equal(plan.statistics.dangling, 0);
-  for (const link of plan.links) assert.ok(link.topTriangles.length > 0);
+  // contactSurface=false 的贴地结构边没有接触面，但必须有独立的顶面标线三角面。
+  for (const link of plan.links) assert.ok((link.topPaintTriangles?.length ?? 0) > 0);
 
   // 9.6 m 的落差在 40 m 限长内接不回地面：两端保持悬空，但不抛错、不接入车行。
   const steep = {
@@ -310,6 +315,7 @@ test('built elevated roads expose meshes, contact surfaces and the same drivable
   const module = loadModule(read('sz-elevated-roads.js'), { imports: {
     'three/webgpu': fake, 'three/tsl': tslStub,
     './sz-roads.js': roads,
+    './sz-road-section.js': roadSection,
     './sz-ground-surface.js': groundSurface,
     './sz-polygon.js': loadModule(read('sz-polygon.js')),
     './sz-controller-surfaces.js': controllerSurfaces
@@ -359,8 +365,30 @@ test('the real Shenzhen snapshot derives the whole-city deck network without any
   assert.equal(plan.statistics.layerZero, 20);
   assert.equal(plan.statistics.layerZeroCrossings, 8);
   assert.equal(plan.statistics.sunkLinks, 28);
-  assert.ok(plan.statistics.aprons >= 90, `aprons ${plan.statistics.aprons}`);
-  assert.ok(plan.statistics.dangling >= 80, `dangling ${plan.statistics.dangling}`);
+  // 同节点错层衔接（OSM layer 写错）把大部分悬空端接回下层桥面，不再补落地引道。
+  assert.equal(plan.statistics.aprons, 38);
+  assert.equal(plan.statistics.dangling, 33);
+  assert.equal(plan.links.reduce((count, link) => count + (link.danglingEnds?.length ?? 0), 0), 35);
+  assert.equal(plan.statistics.driveLinks, 684);
+  const splitLinks = plan.links.filter(link => link.splitStart || link.splitEnd);
+  // 64 条上层链路共 69 个错层端（部分链路两端都接）。
+  assert.equal(splitLinks.length, 64);
+  const byIndex = new Map(plan.links.map(link => [link.index, link]));
+  for (const link of splitLinks) {
+    assert.ok(link.maxGrade <= MAX_GRADE + 1e-9, `${link.osmId} split grade ${link.maxGrade}`);
+    for (const side of ['splitStart', 'splitEnd']) {
+      const split = link[side];
+      if (!split) continue;
+      const peer = byIndex.get(split.joinIndex);
+      assert.ok(peer, `${link.osmId} split peer ${split.joinIndex}`);
+      const deck = link.frames[side === 'splitStart' ? 0 : link.frames.length - 1];
+      const peerDeck = peer.frames[split.joinSide === 'start' ? 0 : peer.frames.length - 1];
+      assert.ok(Math.hypot(deck.x - peerDeck.x, deck.z - peerDeck.z) <= 0.05, `${link.osmId} split xz`);
+      assert.ok(Math.abs(deck.y - peerDeck.y) <= 0.05, `${link.osmId} split y`);
+      assert.equal(split.joinSide === 'start' ? peer.connectedStart : peer.connectedEnd, true);
+      assert.equal(split.joinSide === 'start' ? peer.noStartExtension : peer.noEndExtension, true);
+    }
+  }
   assert.ok(plan.chunks.length > 1 && plan.chunks.length <= 64);
   assert.equal(plan.statistics.surfaces, plan.surfaces.length);
   assert.ok(plan.surfaces.length >= 800 && plan.surfaces.length < plan.links.length);

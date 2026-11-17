@@ -45,47 +45,69 @@ function buildChunks(strips, roadHeight) {
   return cells;
 }
 
+function addDeckStrip(cells, deck, section, frames, triangles, openings, statistics, count = true) {
+  if (!frames || frames.length < 2 || !triangles) return;
+  for (let i = 1; i < frames.length; i++) {
+    // 桥面分成两个三角面。标线在同一条对角线处切开，弯坡上也贴着实际桥面。
+    const triangle = (i - 1) * 2;
+    const first = triangles[triangle], second = triangles[triangle + 1];
+    if (!first || !second) break;
+    const [leftA, rightA, rightB] = first;
+    const [, , leftB] = second;
+    const a = frames[i - 1], b = frames[i];
+    const cell = paintCell(cells, (a.x + b.x) / 2, (a.z + b.z) / 2);
+    const phase = deck.stationOffsetM ?? 0;
+    const widthA = Math.hypot(leftA.x - rightA.x, leftA.z - rightA.z);
+    const widthB = Math.hypot(leftB.x - rightB.x, leftB.z - rightB.z);
+    // 同一根标线在两端各自的铺装宽度下换算比例；不能用较窄一端同时算两端，否则宽端整排线会向中心错位。
+    const linesA = deckPaintLines(section, widthA);
+    const linesB = new Map(deckPaintLines(section, widthB).map(line => [line.id, line]));
+    const vertex = (p, q, t, station, color, duty) => {
+      cell.position.push(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t + HEIGHT, p.z + (q.z - p.z) * t);
+      cell.paint.push(station + phase, 10, duty);
+      cell.color.push(color.r, color.g, color.b);
+    };
+    const ids = new Set([...linesA.map(line => line.id), ...linesB.keys()]);
+    for (const id of ids) {
+      // 渐变段窄端放不下的车道线随该条车道一起结束，不能折到边线处叠成一条粗白带。
+      const aLine = linesA.find(line => line.id === id);
+      const bLine = linesB.get(id);
+      if (!aLine || !bLine) continue;
+      const source = aLine;
+      const offsetA = aLine.offset;
+      const offsetB = bLine.offset;
+      const side = offsetA < 0 ? 'left' : 'right';
+      const duty = source.duty === 1 && openings?.get(i - 1)?.has(side) ? 0.32 : source.duty;
+      const color = colorFor(source.color);
+      const centerA = 0.5 + offsetA / widthA;
+      const centerB = 0.5 + offsetB / widthB;
+      const loA = centerA - 0.09 / widthA, hiA = centerA + 0.09 / widthA;
+      const loB = centerB - 0.09 / widthB, hiB = centerB + 0.09 / widthB;
+      const base = cell.position.length / 3;
+      vertex(leftA, rightA, loA, a.d, color, duty);
+      vertex(leftA, rightA, hiA, a.d, color, duty);
+      vertex(leftB, rightB, hiB, b.d, color, duty);
+      vertex(leftB, rightB, loB, b.d, color, duty);
+      cell.index.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  }
+  if (!count) return;
+  statistics.links++;
+  statistics.laneCounts[section.laneCount] = (statistics.laneCounts[section.laneCount] ?? 0) + 1;
+  statistics.dashedLines += section.laneCount - 1;
+}
+
 function addDeckPaint(cells, graph, decks) {
-  const statistics = { links: 0, laneCounts: {}, dashedLines: 0 };
+  const statistics = { links: 0, aprons: 0, laneCounts: {}, dashedLines: 0 };
   for (const deck of decks) {
     const section = getDeckSection(graph, deck);
-    const lines = deckPaintLines(section);
-    statistics.links++;
-    statistics.laneCounts[section.laneCount] = (statistics.laneCounts[section.laneCount] ?? 0) + 1;
-    statistics.dashedLines += section.laneCount - 1;
-    for (let i = 1; i < deck.frames.length; i++) {
-      const a = deck.frames[i - 1], b = deck.frames[i];
-      const cell = paintCell(cells, (a.x + b.x) / 2, (a.z + b.z) / 2);
-      // 桥面分成两个三角面。标线在同一条对角线处切开，弯坡上也贴着实际桥面。
-      const triangle = (i - 1 + (deck.leadingOverlapFrames ?? 0)) * 2;
-      const [leftA, rightA, rightB] = deck.topTriangles[triangle];
-      const [, , leftB] = deck.topTriangles[triangle + 1];
-      const phase = deck.stationOffsetM ?? 0;
-      const widthA = Math.hypot(leftA.x - rightA.x, leftA.z - rightA.z);
-      const widthB = Math.hypot(leftB.x - rightB.x, leftB.z - rightB.z);
-      const vertex = (p, q, t, station, color, duty) => {
-        cell.position.push(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t + HEIGHT, p.z + (q.z - p.z) * t);
-        cell.paint.push(station + phase, 10, duty);
-        cell.color.push(color.r, color.g, color.b);
-      };
-      for (const line of lines) {
-        const side = line.offset < 0 ? 'left' : 'right';
-        const duty = line.duty === 1 && deck.openings?.get(i - 1)?.has(side) ? 0.32 : line.duty;
-        const color = colorFor(line.color);
-        const center = 0.5 + line.offset / section.pavementWidthM;
-        const loA = center - 0.09 / widthA, loB = center - 0.09 / widthB;
-        const hiA = center + 0.09 / widthA, hiB = center + 0.09 / widthB;
-        const lo = loA / (1 + loA - loB), hi = hiA / (1 + hiA - hiB);
-        const base = cell.position.length / 3;
-        vertex(leftA, rightA, loA, a.d, color, duty);
-        vertex(leftA, rightA, hiA, a.d, color, duty);
-        vertex(leftA, rightB, hi, a.d + (b.d - a.d) * hi, color, duty);
-        vertex(leftA, rightB, lo, a.d + (b.d - a.d) * lo, color, duty);
-        vertex(leftB, rightB, hiB, b.d, color, duty);
-        vertex(leftB, rightB, loB, b.d, color, duty);
-        cell.index.push(base, base + 1, base + 2, base, base + 2, base + 3,
-          base + 3, base + 2, base + 4, base + 3, base + 4, base + 5);
-      }
+    // contactSurface=false 的贴地结构边没有接触面，但有独立的顶面标线三角面。
+    addDeckStrip(cells, deck, section, deck.frames, deck.topPaintTriangles ?? deck.topTriangles, deck.openings, statistics);
+    // 悬空端引道不属于主桥面帧序列，单独按同一标线模板补画，避免引道留白。
+    for (const apron of deck.aprons ?? []) {
+      if (!apron.frames?.length || !apron.topTriangles?.length) continue;
+      addDeckStrip(cells, deck, section, apron.frames, apron.topTriangles, null, statistics, false);
+      statistics.aprons++;
     }
   }
   return statistics;

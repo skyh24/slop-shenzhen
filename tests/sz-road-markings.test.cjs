@@ -7,7 +7,7 @@ const roads = require('./helpers/roads.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const sections = loadModule(read('sz-road-section.js'));
-const { getDeckSection, getRoadSection } = sections;
+const { deckLaneProfile, getDeckSection, getRoadSection } = sections;
 const { deckPaintLines, createMarkingLayout } = loadModule(read('sz-road-markings.js'), {
   imports: { './sz-roads.js': roads, './sz-road-section.js': sections }
 });
@@ -19,20 +19,35 @@ const LONGITUDINAL = new Set(['edge-left', 'edge-right', 'center-left', 'center-
 test('deck paint distinguishes single ramps, measured wide ramps and tagged carriageways', () => {
   const ramp = { highway: 'primary_link', widthSource: 'estimate-from-class' };
   const plan = (width, lanes, direction, metadata = ramp) => {
-    const graph = { links: [[0, 1, 0, width, lanes, direction, []]], metadata: [metadata] };
-    const section = getDeckSection(graph, { index: 0, width: Math.max(width, 6.5), barrierWidthM: 0.35 });
+    const link = [0, 1, 0, width, lanes, direction, []];
+    const graph = { links: [link], metadata: [metadata] };
+    const profile = deckLaneProfile(link);
+    const section = getDeckSection(graph, { ...profile, index: 0, width: profile.widthM, barrierWidthM: 0.35 });
     return { ...section, lines: deckPaintLines(section) };
   };
-  assert.equal(plan(6.5, 0, 1).laneCount, 1);
+  // 6.5 m 匝道不再被统一最小宽度撑成单车道空白带，按 3.25 m 车道读成 2 车道。
+  assert.equal(plan(6.5, 0, 1).laneCount, 2);
   assert.equal(plan(4, 0, 1, { ...ramp, widthSource: 'osm-width' }).lines.length, 2);
   const two = plan(7, 0, 1, { ...ramp, widthSource: 'osm-width' });
   assert.equal(two.laneCount, 2);
   assert.equal(two.laneSource, 'width-estimate');
-  assert.deepEqual(JSON.parse(JSON.stringify(two.lines[2])), { offset: 0, duty: 0.32, color: 'white' });
+  assert.deepEqual(JSON.parse(JSON.stringify(two.lines[2])),
+    { id: 'lane-left-1', offset: 0, duty: 0.32, color: 'white', kind: 'lane' });
   const three = plan(9.8, 3, 1);
   assert.equal(three.laneSource, 'osm-lanes');
   assert.equal(three.lines.filter(line => line.duty < 1).length, 2);
+  // 4 车道桥面收窄到 8.2 m：只保留 2 条整车道，分隔线不会挤在边线上。
+  const compressed = plan(8.2, 4, 1);
+  assert.equal(compressed.laneCount, 4);
+  assert.equal(deckPaintLines(compressed, 8.2).filter(line => line.duty < 1).length, 1);
   assert.equal(plan(7, 2, 0).lines[2].color, 'yellow');
+  // 源宽只增不减：宽桥面不能被车道数压窄；双向的两排中心必须分居中心线两侧。
+  assert.equal(plan(16, 0, 1).pavementWidthM, 16);
+  assert.equal(plan(61.8, 19, 1).pavementWidthM, 61.8);
+  const opposing = plan(16, 0, 0);
+  assert.equal(opposing.travelWidthM, opposing.laneCount * 3.25);
+  assert.ok(opposing.forwardCentersM.every(center => center < 0));
+  assert.ok(opposing.backwardCentersM.every(center => center > 0));
 });
 
 function graphFor(points, { width = 12, lanes = 0, direction = 0, metadata = {} } = {}) {
