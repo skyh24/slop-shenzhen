@@ -30,7 +30,8 @@ export function buildSzLandmarks(scene, { buildings, terrain, terrainSurface, si
     }
     for (const [style, items] of trimStyles) result.group.add(renderLandmarkTrim(items, materialFor(style)));
     addSportsGround(result.group, plan.patches, terrainSurface, materialFor);
-    for (const part of plan.parts) colliders.push(partCollider(part));
+    // 碰撞体仍是显示同源的 partCollider，只多带一个 landmarkId，供夜景灯带按专模分组。
+    for (const part of plan.parts) colliders.push({ ...partCollider(part), landmarkId: plan.id });
     surfaces.push(...result.surfaces);
     heights.set(plan.id, {
       base: Math.min(...plan.parts.map(part => part.minY)),

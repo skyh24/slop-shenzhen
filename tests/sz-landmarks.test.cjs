@@ -31,7 +31,7 @@ const diwang = loadProfile('diwang.js');
 const kk100 = loadProfile('kk100.js');
 const exchange = loadProfile('stock-exchange.js');
 const shopping = loadModule(readLandmark('shopping-park-shell.js'), { imports: {
-  './parts.js': parts,
+  './parts.js': parts, '../building-collision.js': collision,
   '../sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map() }) }
 } });
 const newModels = [tencentTowers, library, diwang, kk100, exchange, shopping];
@@ -166,11 +166,84 @@ test('the cultural landmarks preserve the verified sites, roof profiles and entr
   assert.equal(geo.landmarks.find(row => row.id === 'bay-opera').height, 50);
 });
 
-test('the shopping park curved wall has a single shell at street level', () => {
-  const [podium, upper] = byLandmark.get('shopping-park-shell');
-  assert.equal(podium.maxY, upper.minY);
-  assert.equal(upper.bottomFace, false);
+test('the shopping park podium grows a southeast colonnade and a round upper shell', () => {
+  const shell = byLandmark.get('shopping-park-shell');
+  assert.ok(shell.length > 30, 'shell parts: ' + shell.length);
   assert.ok(shopping.sourceIds.every(id => plan.skipIds.has(id)));
+  const podium = shell.find(part => part.id === 'way/238825588:0');
+  assert.ok(podium);
+  const base = podium.minY;
+
+  // 圆筒：三段收分的内切椭圆，只有首段封底，段间不封顶。
+  const tower = shell.filter(part => part.loft && part.id.startsWith('way/539435437:tower:'));
+  assert.equal(tower.length, 3);
+  assert.equal(podium.maxY, tower[0].minY);
+  assert.equal(tower[0].bottomFace, true);
+  for (const part of tower) assert.equal(part.topFace, false);
+  for (const part of tower.slice(1)) assert.equal(part.bottomFace, false);
+  const top = tower.at(-1).maxY;
+  const upperFootprint = byId.get('way/539435437').polygons[0];
+  for (const part of tower) {
+    assert.equal(part.smoothSides, true);
+    for (const ring of [part.loft.lower, part.loft.upper]) {
+      for (const p of ring) {
+        assert.ok(collision.polygonContains(upperFootprint, p.x, p.z), part.id + ' leaves the upper footprint');
+      }
+    }
+  }
+
+  const crown = shell.find(part => part.id === 'way/539435437:crown');
+  assert.equal(crown.style, 'landmarkEdge');
+  assert.equal(crown.maxY, top);
+  assert.ok(crown.maxY - crown.minY >= 0.5 && crown.maxY - crown.minY <= 0.7);
+  assert.equal(shell.filter(part => part.maxY === top && part.topFace !== false).length, 1);
+
+  // 东南柱廊：12 根 0.7 米方柱，全部有碰撞、四角都在原裙房轮廓之外。
+  const columns = shell.filter(part => part.id.includes(':colonnade:column:'));
+  assert.ok(columns.length >= 8 && columns.length <= 20, 'columns: ' + columns.length);
+  for (const column of columns) {
+    assert.equal(column.style, 'shoppingParkBase');
+    assert.equal(column.minY, base);
+    assert.ok(Math.abs(column.maxY - (base + 5.4)) < 1e-4);
+    assert.equal(parts.partCollider(column).polygon.outer.length, 4);
+    for (const p of column.polygon.outer) {
+      assert.equal(collision.polygonContains(podium.polygon, p.x, p.z), false, column.id + ' enters the podium');
+    }
+  }
+  const centers = columns.map(part => ({ x: (part.minX + part.maxX) / 2, z: (part.minZ + part.maxZ) / 2 }));
+  for (let i = 1; i < centers.length; i++) {
+    const spacing = Math.hypot(centers[i].x - centers[i - 1].x, centers[i].z - centers[i - 1].z);
+    assert.ok(spacing >= 7.5 && spacing <= 9, 'column spacing: ' + spacing);
+  }
+
+  // 首层玻璃带贴墙外 0.10 米，位于柱列与墙面之间。
+  const glass = shell.filter(part => part.id.includes(':colonnade:glass:'));
+  assert.ok(glass.length >= 8);
+  for (const part of glass) {
+    assert.equal(part.style, 'shoppingParkGlass');
+    assert.ok(Math.abs(part.minY - (base + 0.15)) < 1e-4);
+    assert.ok(Math.abs(part.maxY - (base + 5.2)) < 1e-4);
+    for (const p of part.polygon.outer) {
+      assert.equal(collision.polygonContains(podium.polygon, p.x, p.z), false, part.id + ' crosses the podium wall');
+    }
+  }
+
+  const beams = shell.filter(part => part.id.includes(':colonnade:beam:'));
+  assert.ok(beams.length >= 8);
+  for (const beam of beams) {
+    assert.equal(beam.style, 'landmarkEdge');
+    assert.ok(Math.abs(beam.minY - (base + 5.4)) < 1e-4);
+    assert.ok(Math.abs(beam.maxY - (base + 5.85)) < 1e-4);
+  }
+  // 雨棚只存在于 trim，不进入实体部件，因此不生成碰撞与可站面。
+  assert.equal(shell.filter(part => part.style === 'landmarkEdge'
+    && part.minY > base + 5 && part.maxY < base + 5.5).length, 0);
+
+  const shoppingPlan = plan.plans.find(landmark => landmark.id === 'shopping-park-shell');
+  const canopy = shoppingPlan.trim.filter(item => item.size[2] === 4.0);
+  assert.equal(canopy.length, beams.length);
+  for (const item of canopy) assert.ok(item.y - item.size[1] / 2 >= 5, 'canopy clears the street');
+
   const fallback = planSzLandmarks(fixture.filter(building => building.id !== shopping.sourceIds[1]), geo.terrain);
   assert.ok(!fallback.skipIds.has(shopping.sourceIds[0]));
 });
@@ -183,6 +256,14 @@ test('priority landmarks keep distinct footprints, height provenance and open lo
   const first = old.find(part => part.id.startsWith('tencent-towers:shaft'));
   assert.equal(tip.heightSource, 'published');
   assert.ok(tip.maxY - first.minY > 184.7 && tip.maxY - first.minY < 184.9);
+  // 冠部不是平顶：上环每个顶点高度不同，两端起翘、中间下凹。
+  const crown = old.find(part => part.id === 'tencent-towers:shaft:crown');
+  assert.ok(crown?.crownLoft);
+  assert.equal(crown.heightSource, 'published');
+  const crownTops = crown.crownLoft.topYs;
+  assert.ok(crownTops.length > 20);
+  assert.ok(Math.max(...crownTops) - Math.min(...crownTops) > 11);
+  assert.equal(crown.maxY, Math.max(...crownTops));
   const spears = byLandmark.get('diwang').filter(part => part.id.startsWith('diwang:spire'));
   assert.equal(spears.length, 2);
   assert.ok(spears.every(part => part.heightSource === 'published' && part.maxY === 392));
@@ -744,15 +825,19 @@ test('the shopping park podium contact omits the roof under its upper shell',
       './sz-building-envelope-relations.js': loadModule(read('sz-building-envelope-relations.js'))
     } });
     const { build, sourceIds } = loadModule(readLandmark('shopping-park-shell.js'), { imports: {
-      './parts.js': parts, '../sz-building-envelope.js': envelopes
+      './parts.js': parts, '../building-collision.js': collision, '../sz-building-envelope.js': envelopes
     } });
     const { renderLandmark } = loadModule(readLandmark('render.js'), { imports: {
       ...imports, '../sz-geometry.js': geometry
     } });
     const sources = new Map(fixture.filter(row => sourceIds.includes(row.id)).map(row => [row.id, row]));
-    const [podium, upper] = build(sources, geo.terrain);
+    const model = build(sources, geo.terrain);
+    const modelParts = model.parts;
+    const podium = modelParts.find(part => part.id === 'way/238825588:0');
+    const upper = sources.get('way/539435437').polygons[0];
+    assert.ok(podium.roofPieces && podium.roofPieces.length > 0);
     const material = new THREE.MeshBasicMaterial();
-    const rendered = renderLandmark({ id: 'shopping-park-shell', parts: [podium, upper] }, () => material);
+    const rendered = renderLandmark({ id: 'shopping-park-shell', parts: modelParts }, () => material);
     const { createSurfaceResolver } = loadModule(read('sz-controller-surfaces.js'));
     const resolver = createSurfaceResolver({ groundHeight: () => 8, surfaces: rendered.surfaces });
     let exposed = 0, covered = 0;
@@ -760,7 +845,7 @@ test('the shopping park podium contact omits the roof under its upper shell',
       for (let z = podium.minZ + 0.5; z < podium.maxZ; z += 3) {
         if (!collision.polygonContains(podium.polygon, x, z)) continue;
         const sameRoof = resolver.at(x, z).some(row => row.surfaceId === podium.id);
-        if (collision.polygonContains(upper.polygon, x, z)) {
+        if (collision.polygonContains(upper, x, z)) {
           covered++;
           assert.equal(sameRoof, false);
         } else {

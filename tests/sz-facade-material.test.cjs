@@ -192,6 +192,7 @@ function createFacadeEvaluator() {
     sub(value) { return binary(this, value, (a, b) => a - b); }
     mul(value) { return binary(this, value, (a, b) => a * b); }
     div(value) { return binary(this, value, (a, b) => b === 0 ? 0 : a / b); }
+    oneMinus() { return this.mul(-1).add(1); }
     toVar() { return this; }
   }
   class Input extends Node { constructor(values) { super(null); this.current = values; } get values() { return this.current; } }
@@ -221,6 +222,7 @@ function createFacadeEvaluator() {
   };
   const state = {
     meta: new Input([0, 0, 10, 30]),
+    bground: new Input([4.1]),
     uv: new Input([0, 0]),
     normal: new Input([0, 0, 1]),
     position: new Input([0, 0, 0]),
@@ -234,7 +236,7 @@ function createFacadeEvaluator() {
       call.setLayout = () => call;
       return call;
     },
-    attribute: () => state.meta,
+    attribute: (name) => name === 'bground' ? state.bground : state.meta,
     uv: () => state.uv,
     vec2: (...args) => vector(args, 2),
     vec3: (...args) => vector(args, 3),
@@ -302,7 +304,19 @@ function createFacadeEvaluator() {
   const materials = loadModule(materialsSource, {
     imports: { 'three/webgpu': three, 'three/tsl': tsl, './city-lighting-materials.js': cityLighting, './sz-facade-profiles.js': facadeProfiles }
   });
-  return { materials, cityUniforms: cityLighting.cityUniforms, state, uniforms, bump };
+  // 零售材质只用到店招模块的类型引用；这里用最小桩避免测试依赖 DOM 图集。
+  const retail = loadModule(read('sz-retail-frontage.js'), { imports: {
+    'three/webgpu': three, 'three/tsl': tsl, './city-lighting-materials.js': cityLighting,
+    './sz-geometry.js': {}, './sz-building-layout.js': { buildingSeed: () => 0.5 },
+    './sz-roads.js': {}, './sz-polygon.js': {}, './sz-spatial.js': {},
+    './sz-retail-signs.js': {
+      buildShopSignGeometry: () => ({ positions: [], normals: [], uvs: [], glows: [], indices: [] }),
+      createShopSignMaterial: () => null, createShopSignTexture: () => null,
+      planShopSignAtlas: () => null, shopSignLit: () => false, shopSignName: () => '',
+      shopSignRect: () => null, SHOP_SIGN_OFFSET_M: 0.042
+    }
+  } });
+  return { materials, retail, cityUniforms: cityLighting.cityUniforms, state, uniforms, bump };
 }
 
 test('the Houhai lobby affects only the named tower and its north wall', () => {
@@ -351,6 +365,49 @@ test('retail bays repeat a glass door and display window, with an unlit solid fr
     assert.ok(sample(true, bay, 0.36, 1.6, 0.24)[1] === 0);
     assert.deepEqual(sample(true, bay, 0.36, 8, 1.5), sample(false, bay, 0.36, 8, 1.5));
   }
+});
+
+test('retail ground floor splits night light into three deterministic tiers with warm and cool shops', () => {
+  const { retail, state, bump, cityUniforms } = createFacadeEvaluator();
+  const material = retail.createRetailMaterial();
+  cityUniforms.uInteriorGlow.value = 1.5;
+  const sample = (seedValue) => {
+    state.meta.current = [3, 1.5, 1.2, seedValue];
+    state.bground.current = [4.1];
+    state.uv.current = [0.85, 0.55];
+    state.normal.current = [0, 0, 1];
+    state.position.current = [0, 1, 0];
+    state.camera.current = [0, 1, 3];
+    bump();
+    const emissive = Array.from(material.emissiveNode.values);
+    const luminance = emissive[0] * 0.2126 + emissive[1] * 0.7152 + emissive[2] * 0.0722;
+    return { emissive, luminance, tier: retail.retailGroundTier(seedValue), warm: retail.retailGroundWarm(seedValue) };
+  };
+  const groups = new Map([[0.35, []], [0.65, []], [1, []]]);
+  const colors = [];
+  for (let step = 0; step < 100; step++) {
+    const result = sample(step * 0.01 + 0.002);
+    groups.get(result.tier).push(result.luminance);
+    colors.push(result.emissive[0] > result.emissive[2]);
+  }
+  for (const [tier, values] of groups) assert.ok(values.length > 0, `seed range must contain the ${tier} tier`);
+  const brightest = Math.max(...groups.get(1));
+  for (const [tier, values] of groups) {
+    const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+    assert.ok(Math.abs(average / brightest - tier) < 0.06, `tier ${tier} stays near its fixed brightness (got ${average / brightest})`);
+  }
+  assert.ok(colors.includes(true) && colors.includes(false), 'ground floor mixes warm and cool shopfronts');
+  assert.equal(groups.size, 3, 'three discrete tiers replace one continuous glow band');
+  // 同一档位、同一冷暖的楼栋亮度完全一致，不是逐像素随机噪声。
+  const same = [0.002, 0.022].map(sample).filter(result => result.tier === sample(0.002).tier);
+  if (same.length === 2) assert.equal(same[0].luminance, same[1].luminance);
+  // 关闭夜间时段后首层不再发光。
+  cityUniforms.uInteriorGlow.value = 0.24;
+  state.meta.current = [3, 1.5, 1.2, 0.002];
+  state.uv.current = [0.85, 0.55];
+  bump();
+  const dayEmissive = Array.from(material.emissiveNode.values);
+  assert.ok(dayEmissive.every(value => value === 0), 'daytime retail facade stays unlit');
 });
 const hash21 = (x, y) => {
   const value = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
