@@ -13,9 +13,10 @@ const contact = loadModule(read('sz-controller-surfaces.js'));
 const roads = loadModule(read('sz-roads.js'), { imports: {
   'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame
 } });
+const roadSection = loadModule(read('sz-road-section.js'));
 const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': {}, './sz-roads.js': roads, './sz-ground-surface.js': ground,
-  './sz-controller-surfaces.js': contact, './sz-polygon.js': polygon
+  './sz-controller-surfaces.js': contact, './sz-polygon.js': polygon, './sz-road-section.js': roadSection
 } });
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
 const { geo } = loadModule(read('sz-data-format.js')).decodeCityPayload(raw);

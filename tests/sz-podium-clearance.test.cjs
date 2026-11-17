@@ -265,7 +265,7 @@ const sampleRoads = groundRoadCentrelines(geo.roadGraph).filter(road => road.osm
 test('rendered Chegongmiao ramp clearance removes the phantom footprint and its collider', () => {
   const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
     'three/webgpu': {}, 'three/tsl': {}, './sz-roads.js': roads, './sz-ground-surface.js': loadModule(read('sz-ground-surface.js')),
-    './sz-polygon.js': loadModule(read('sz-polygon.js')),
+    './sz-polygon.js': loadModule(read('sz-polygon.js')), './sz-road-section.js': loadModule(read('sz-road-section.js')),
     './sz-controller-surfaces.js': loadModule(read('sz-controller-surfaces.js'))
   } });
   // 退包前的固定几何仍可验证桥面净空，不依赖正式包重新引入该源对象。

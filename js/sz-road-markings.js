@@ -17,11 +17,38 @@ const LINE_STOP_GAP = 0.6;
 const STOP_CLEARANCE = CROSSWALK_SETBACK + CROSSWALK_DEPTH + STOP_BAR_GAP + STOP_WIDTH + LINE_STOP_GAP;
 const SAMPLE_STEP = 20;
 
-export function deckPaintLines(section) {
-  const half = section.travelWidthM / 2;
-  const lines = [{ offset: -half + 0.24, duty: 1 }, { offset: half - 0.24, duty: 1 }];
-  const dividers = section.dividerOffsetsM.map(offset => ({ offset, duty: 0.32, color: 'white' }));
-  if (section.twoWay && section.backwardCentersM.length) dividers.push({ offset: section.splitM, duty: 0.32, color: 'yellow' });
+const DECK_LANE_WIDTH_M = 3.25;
+
+export function deckPaintLines(section, widthM = section.pavementWidthM) {
+  // 桥面在节点处会收窄。按当前宽度能容纳的整车道数重排标线：4 车道收到 8.2 m 时
+  // 只保留 2 车道和中心线，而不是把四条车道压成四条 1.8 m 的细缝。
+  const barrier = section.barrierWidthM ?? 0.35;
+  const half = Math.max(0, widthM - 2 * barrier) / 2;
+  const minimum = section.twoWay ? 2 : 1;
+  const visible = Math.min(section.laneCount,
+    Math.max(minimum, Math.floor((half * 2 + 0.25) / DECK_LANE_WIDTH_M)));
+  const travel = Math.min(half * 2, visible * DECK_LANE_WIDTH_M);
+  const forward = section.twoWay ? Math.ceil(visible / 2) : visible;
+  const backward = section.twoWay ? visible - forward : 0;
+  const split = section.twoWay ? travel * (forward / visible - 0.5) : 0;
+  const forwardWidth = section.twoWay ? travel / 2 + split : travel;
+  const backwardWidth = section.twoWay ? travel / 2 - split : travel;
+  const forwardLane = forward ? forwardWidth / forward : 0;
+  const backwardLane = backward ? backwardWidth / backward : 0;
+  const lines = [{ id: 'edge-left', offset: -half + 0.24, duty: 1, color: 'white', kind: 'edge' },
+    { id: 'edge-right', offset: half - 0.24, duty: 1, color: 'white', kind: 'edge' }];
+  const dividers = [];
+  for (let i = 1; i < forward; i++) {
+    dividers.push({ id: `lane-left-${i}`, offset: -travel / 2 + i * forwardLane,
+      duty: 0.32, color: 'white', kind: 'lane' });
+  }
+  for (let i = 1; i < backward; i++) {
+    dividers.push({ id: `lane-right-${i}`, offset: travel / 2 - i * backwardLane,
+      duty: 0.32, color: 'white', kind: 'lane' });
+  }
+  if (section.twoWay && backward > 0) {
+    dividers.push({ id: 'center', offset: split, duty: 0.32, color: 'yellow', kind: 'center' });
+  }
   lines.push(...dividers.sort((a, b) => a.offset - b.offset));
   return lines;
 }
@@ -216,7 +243,9 @@ function junctionGap(arms, index, length) {
     const ownHalf = sin > 0 ? arm.right : arm.left;
     clearance = Math.max(clearance, (otherHalf + Math.max(0, cos) * ownHalf) / Math.max(0.25, Math.abs(sin)));
   }
-  return Math.min(clearance + 0.75, 28, length * 0.5);
+  // 旧上限 28 m 在斜交分流口会留下整段无标线沥青，读起来像断头路；但压到 8 m
+  // 又会让支路车道线穿过 30 m 宽的主路。18 m 只收紧斜交，不越过正交主路的边缘。
+  return Math.min(clearance + 0.75, 18, length * 0.5);
 }
 
 export function createMarkingLayout(graph, { intersections = [], frontage } = {}) {

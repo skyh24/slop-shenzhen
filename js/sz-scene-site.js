@@ -78,8 +78,9 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   const roadPaint = !offline && qa.stage('paint', () =>
     buildSzRoadPaint(scene, roadGraph, { ...site, intersections: roadFrontage.control.intersections,
       frontage: GEO.roadFrontage,
-      // contactSurface=false 的链路两端都接地面，不生成顶面三角面，也没有可画标线的桥面。
-      decks: [...elevatedRoads.links, ...tunnels.links].filter(link => (link.topTriangles?.length ?? 0) > 0) }));
+      // contactSurface=false 的贴地结构边没有接触面，但仍保留 topPaintTriangles 供标线使用。
+      decks: [...elevatedRoads.links, ...tunnels.links]
+        .filter(link => (link.topPaintTriangles?.length ?? link.topTriangles?.length ?? 0) > 0) }));
   const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface, site.style);
   // 活动表面图集：地面、步行面、路侧与场地按注册顺序叠加，后注册的覆盖先注册的。
   // 落位、接触与测试都读同一份装配，不再靠就地改写 site.heightAt 决定谁权威。
