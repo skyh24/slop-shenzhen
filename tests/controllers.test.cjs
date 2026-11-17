@@ -1579,3 +1579,68 @@ test('landing across a graded bridge seam permits walking and driving on the sam
     mode: 'person', previousY: 8, previousSurfaceId: 'terrain'
   }).surfaceId, 'terrain');
 });
+
+// 车辆支撑对照样段：同一组几何分别走玩家、自动驾驶和环境车三条流程，各模式保留自己的阈值。
+function carFootprintBody(heading = 0, { hx = 0.95, hz = 2.4 } = {}) {
+  return { car: true, mode: 'car', hx, hz, sin: Math.sin(heading), cos: Math.cos(heading),
+    radius: 1.35, extX: hx, extZ: hz, bottom: 0, top: 1.8 };
+}
+
+function supportSurface(id, height, { x0 = -6, x1 = 6, z0 = -12, z1 = 12, successor = null } = {}) {
+  const corners = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]].map(([x, z]) => ({ x, z, y: height(x, z) }));
+  return { id, heightSource: 'estimate', structured: true, modes: ['car'],
+    driveSuccessors: successor ? [successor] : [],
+    triangles: [[corners[0], corners[1], corners[2]], [corners[0], corners[2], corners[3]]] };
+}
+
+test('player support case flush seam: one pose spans both slabs and records both identities', () => {
+  const { controller } = teleportHarness('car');
+  const first = supportSurface('first', () => 5, { z0: -12, z1: 0, successor: 'second' });
+  const second = supportSurface('second', () => 5, { z0: 0, z1: 12, successor: 'first' });
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => 0, surfaces: [first, second] });
+  const body = carFootprintBody(0);
+  const support = controller.supportedFootprint(0, -1, body, { _support: { height: 5, surfaceId: 'first' } });
+  assert.equal(support.height, 5);
+  assert.equal(support.surfaceId, 'first');
+  assert.deepEqual([...body.supportedSlabs].sort(), ['first', 'second']);
+});
+
+test('player support case stacked levels: the active surface keeps its own height', () => {
+  const { controller } = teleportHarness('car');
+  const deck = supportSurface('deck', () => 8);
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => 0, surfaces: [deck] });
+  const body = carFootprintBody(0);
+  const onDeck = controller.supportedFootprint(0, 0, body, { _support: { height: 8, surfaceId: 'deck' } });
+  assert.deepEqual([onDeck.height, onDeck.surfaceId], [8, 'deck']);
+  const under = controller.supportedFootprint(0, 0, body, { _support: { height: 0, surfaceId: 'terrain' } });
+  assert.deepEqual([under.height, under.surfaceId], [0, 'terrain'], 'a car below the deck is not pulled up');
+});
+
+test('player support cases: half footprint and narrow strip fail as a whole', () => {
+  const { controller } = teleportHarness('car');
+  const edge = supportSurface('deck', () => 5, { z0: -10, z1: -0.5 });
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => 0, surfaces: [edge] });
+  const body = carFootprintBody(0);
+  assert.equal(controller.supportedFootprint(0, -1.5, body, { _support: { height: 5, surfaceId: 'deck' } }), null,
+    'front corners beyond the deck end leave no support');
+  const strip = supportSurface('strip', () => 5, { x0: -0.8, x1: 0.8 });
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => 0, surfaces: [strip] });
+  const narrow = carFootprintBody(0);
+  assert.equal(controller.supportedFootprint(0, 0, narrow, { _support: { height: 5, surfaceId: 'strip' } }), null,
+    'a strip narrower than the body does not support the car');
+});
+
+test('player support case slopes: a shallow grade is held, a two metre step is not', () => {
+  const { controller } = teleportHarness('car');
+  const slope = supportSurface('slope', x => 5 + 0.2 * x, { x0: -6, x1: 6 });
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => 0, surfaces: [slope] });
+  const body = carFootprintBody(0);
+  const support = controller.supportedFootprint(0, 0, body, { _support: { height: 5, surfaceId: 'slope' } });
+  assert.equal(support.height, 5);
+  assert.deepEqual([...body.supportedSlabs], ['slope']);
+  const low = supportSurface('low', () => 5, { z0: -12, z1: 0.5, successor: 'high' });
+  const high = supportSurface('high', () => 7, { z0: 0.5, z1: 12, successor: 'low' });
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => 0, surfaces: [low, high] });
+  const stepped = carFootprintBody(0);
+  assert.equal(controller.supportedFootprint(0, 0, stepped, { _support: { height: 5, surfaceId: 'low' } }), null);
+});

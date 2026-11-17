@@ -1,6 +1,7 @@
 import { insideSignalBounds } from './sz-intersection-control.js';
 import { vehicleContact } from './vehicle-physics.js';
-import { emergencyBrake, followingReach, routeLeader, sameTrafficLevel, writeEntityCollider, writeTrafficCollider } from './sz-driving-motion.js';
+import { emergencyBrake, followingReach, routeLeader, sameTrafficLevel, sampleFootprint,
+  writeEntityCollider, writeTrafficCollider } from './sz-driving-motion.js';
 
 const ACTOR = 'player-autodrive';
 const ROAD_MARGIN = 0.05;
@@ -22,7 +23,7 @@ export function hasRoadFootprint(roadHeight, model, x, z, heading, edges = null,
   const height = heightAt(x, z);
   if (!Number.isFinite(height) || (centerY !== null && !(Math.abs(height - centerY) <= START_HEIGHT_TOLERANCE))) return false;
   const sin = Math.sin(heading), cos = Math.cos(heading);
-  return model.corners.every(([px, pz]) => Number.isFinite(heightAt(x + px * cos + pz * sin, z - px * sin + pz * cos)));
+  return sampleFootprint(x, z, sin, cos, model.corners, heightAt);
 }
 
 function project(samples, x, z, from, to) {

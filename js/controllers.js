@@ -11,7 +11,8 @@ import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './veh
 import { loftContactPolygon, polygonContact, roofPanelContactPolygon, spanContactPolygon,
   SURFACE_CONTACT_EPSILON_M } from './building-collision.js';
 import { vehicleContact } from './vehicle-physics.js';
-import { constrainContactVelocity, contactTime, emergencyBrake, writeEntityCollider } from './sz-driving-motion.js';
+import { constrainContactVelocity, contactTime, emergencyBrake, footprintPoint, sampleFootprint,
+  writeEntityCollider } from './sz-driving-motion.js';
 import { FLIGHT_ENTRY_SECONDS, FLIGHT_FORWARD_ACCELERATION, flightEntryYaw, flightEnvelopeRadius } from './sz-flight-motion.js';
 
 // Player models, animation and movement for walking, driving, cycling and flying.
@@ -950,22 +951,26 @@ class ThirdPersonControllerManager {
       || this.surfaceResolver.isSolidDeck?.(id);
     let supportedSlabs = keepSlab(center.surfaceId) ? new Set([center.surfaceId]) : null;
     if (surfaceId !== null) Object.assign(options, { previousY: center.height, previousSurfaceId: center.surfaceId });
+    const probes = [];
     for (const dx of [-halfX, 0, halfX]) {
       for (const dz of [-halfZ, 0, halfZ]) {
         if (dx === 0 && dz === 0) continue;
         // 圆形脚印的对角采样沿圆周，矩形车身仍检查四角。
         const scale = !body.car && dx !== 0 && dz !== 0 ? Math.SQRT1_2 : 1;
-        const offsetX = dx * scale, offsetZ = dz * scale;
-        const sampleX = x + offsetX * cos + offsetZ * sin;
-        const sampleZ = z - offsetX * sin + offsetZ * cos;
-        const support = this.surfaceResolver.resolve(sampleX, sampleZ, options);
-        if (!support) return null;
-        const maxRise = landingOnRoad ? Math.hypot(offsetX, offsetZ) * FLIGHT_LANDING_MAX_GRADE : 1.5;
-        if (Math.abs(support.height - center.height) > maxRise) return null;
-        if (landingOnRoad && !this.isRoadContact(sampleX, sampleZ, support.height)) return null;
-        if (keepSlab(support.surfaceId)) (supportedSlabs ??= new Set()).add(support.surfaceId);
+        probes.push([dx * scale, dz * scale]);
       }
     }
+    // 逐点仍按本模式的承托解析与抬脚/落地阈值判定；共用的只是探针坐标与“缺点即整体不成立”。
+    const grounded = sampleFootprint(x, z, sin, cos, probes, (sampleX, sampleZ, px, pz) => {
+      const support = this.surfaceResolver.resolve(sampleX, sampleZ, options);
+      if (!support) return null;
+      const maxRise = landingOnRoad ? Math.hypot(px, pz) * FLIGHT_LANDING_MAX_GRADE : 1.5;
+      if (Math.abs(support.height - center.height) > maxRise) return null;
+      if (landingOnRoad && !this.isRoadContact(sampleX, sampleZ, support.height)) return null;
+      if (keepSlab(support.surfaceId)) (supportedSlabs ??= new Set()).add(support.surfaceId);
+      return support.height;
+    });
+    if (!grounded) return null;
     body.supportedSlabs = supportedSlabs;
     return center;
   }
@@ -1417,11 +1422,12 @@ class ThirdPersonControllerManager {
     if (!center || !car.wheels?.length) return;
     const sin = Math.sin(car.heading), cos = Math.cos(car.heading);
     const previous = { previousY: center.height, previousSurfaceId: center.surfaceId, mode: 'car' };
+    const point = (this._wheelProbe ??= { x: 0, z: 0 });
     for (const { steerPivot, restY } of car.wheels) {
       const { x, z } = steerPivot.position;
       // 与车身承托使用同一面解析；坡面和桥头不能用车心的单一高度画四个轮胎。
-      const support = this.surfaceResolver.resolve(car.position.x + x * cos + z * sin,
-        car.position.z - x * sin + z * cos, previous);
+      const world = footprintPoint(car.position.x, car.position.z, sin, cos, x, z, point);
+      const support = this.surfaceResolver.resolve(world.x, world.z, previous);
       steerPivot.position.y = restY + (support ? support.height - car.position.y : 0);
     }
   }
