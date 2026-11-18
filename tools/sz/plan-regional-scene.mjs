@@ -47,8 +47,10 @@ const { REGIONAL_SCENE_VERSION } = await import('../../js/sz-regional-format.js'
 const { packFixtureRows, packGreenwayLightPools } = await import('../../js/sz-site-fixtures.js');
 const run = (_, build) => build();
 const scene = new Scene();
+let expoLayout;
 const { site, bayPaths, waterfrontPaths, talentPark, elevatedRoads, trees, vegetation, colliders, deckOccupied, carriagewayOccupied } = await prepareSceneSite(scene, {
-  qa: { stage: run, measureBuild: run }, showLoadingStage: noop, markInit: noop, startup: {}, offline: true
+  qa: { stage: run, measureBuild: run }, showLoadingStage: noop, markInit: noop, startup: {}, offline: true,
+  captureExpoLayout: layout => { expoLayout = layout; }
 });
 
 const corners = ({ minX, minZ, maxX, maxZ }) => [{ x: minX, z: minZ }, { x: maxX, z: maxZ }];
@@ -166,7 +168,7 @@ for (const station of flight.stations) {
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const rules = Object.fromEntries([...dependencies].sort().map(path => [relative(root, path), sha(readFileSync(path))]));
 const fingerprint = sha(JSON.stringify({ inputs: sha(raw), rules, version: REGIONAL_SCENE_VERSION }));
-const manifest = { version: REGIONAL_SCENE_VERSION, fingerprint, talent, drone: { stations: flight.stations, routes }, cells };
+const manifest = { version: REGIONAL_SCENE_VERSION, fingerprint, talent, expoLayout, drone: { stations: flight.stations, routes }, cells };
 writeFileSync(process.argv[3], JSON.stringify({ manifest, data, rules,
   audit: { metro: { ...metro.baseStatistics, rejected: metro.skippedEntrances }, bay: bay.statistics,
     shore: { walkRoutes: shore.publicRoutes.length, colliders: shore.colliders.length },

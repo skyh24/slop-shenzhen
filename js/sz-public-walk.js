@@ -65,20 +65,33 @@ export function buildPublicWalk(scene, terrain, areas, style) {
     }
   }
 
-  const areaAt = (x, z) => surfaces.find(area => inBounds(area.bounds, x, z)
-    && polygonContainsInclusive(area.polygon, x, z)) ?? null;
+  let lastX, lastZ, lastArea = null, lastHeight, clearRadius = -Infinity;
+  function areaAt(x, z) {
+    if (x !== lastX || z !== lastZ) {
+      lastX = x; lastZ = z;
+      lastArea = surfaces.find(area => inBounds(area.bounds, x, z)
+        && polygonContainsInclusive(area.polygon, x, z)) ?? null;
+      lastHeight = undefined;
+      clearRadius = -Infinity;
+    }
+    return lastArea;
+  }
 
   function heightAt(x, z) {
-    return areaAt(x, z)?.heightAt(x, z) ?? null;
+    const area = areaAt(x, z);
+    if (lastHeight === undefined) lastHeight = area?.heightAt(x, z) ?? null;
+    return lastHeight;
   }
 
   function allows(x, z, radius, network) {
     const area = areaAt(x, z);
     if (!network || area?.access !== 'public' || area.network !== network
-      || !Number.isFinite(area.heightAt(x, z))) return false;
+      || !Number.isFinite(heightAt(x, z))) return false;
+    if (radius <= clearRadius) return true;
     for (const edge of boundaryByNetwork.get(network).values()) {
       if (distanceToRing(edge, x, z) < radius) return false;
     }
+    clearRadius = radius;
     return true;
   }
 

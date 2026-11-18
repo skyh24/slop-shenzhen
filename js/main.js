@@ -266,7 +266,7 @@ async function initApp() {
   // 环境人群复用纽约 PersonRig；行走位置是沿路侧模拟步行带，非全城实测人行道。
   const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, roadGraph, {
     ...site,
-    publicRoute: publicWalk.route(colliders),
+    publicRoute: qa.measureBuild('pedestrianPublicWalk', () => publicWalk.route(colliders)),
     publicWalkSurface: publicWalk.pedestrianSurface,
     // 场所行人排除从登记表取；其余场地/路侧排除仍沿用各自入口。
     excludeWalkAt: (x, z) => places.excludesWalker(x, z, 2) || urbanPaving.reserves(x, z, 2) || waterfront?.reserves(x, z, 2)
@@ -281,9 +281,9 @@ async function initApp() {
     spawnMaxM: 160,
     nearRegional: regional.colliders,
     regionalRoutes: regional.routes,
-    publicRoutes: [...roadLandscape.routes, ...urbanPaving.connect(colliders, { contains: carriagewayOccupied }),
+    publicRoutes: qa.measureBuild('pedestrianPublicRoutes', () => [...roadLandscape.routes, ...urbanPaving.connect(colliders, { contains: carriagewayOccupied }),
       ...places.publicRoutes({ colliders, carriageway: carriagewayOccupied }),
-      ...districts.publicRoutes(colliders, { contains: carriagewayOccupied }, site.heightAt)]
+      ...districts.publicRoutes(colliders, { contains: carriagewayOccupied }, site.heightAt)])
   }));
   roadFrontage.update(0);
   traffic.update(0, loadingFocus, [controllerManager.getActiveEntity()], 0);

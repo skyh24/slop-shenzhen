@@ -41,14 +41,20 @@ const APEC = [
 
 function planter(id, ground) {
   const p = parkParts(id, ground);
-  const blooms = [];
-  const flower = (x, z, y, tint, size) => {
-    const i = blooms.length;
-    const jitter = n => Math.sin(i * n + 0.7);
-    blooms.push({ x: x + jitter(8.79) * size * 0.16, z: z + jitter(2.89) * size * 0.16,
-      y, tint, size: size * (1 + jitter(4.67) * 0.19), angle: i * 2.39996 });
+  const patterns = [];
+  const sampleBlooms = () => {
+    const blooms = [];
+    const flower = (x, z, y, tint, size) => {
+      const i = blooms.length;
+      const jitter = n => Math.sin(i * n + 0.7);
+      blooms.push({ x: x + jitter(8.79) * size * 0.16, z: z + jitter(2.89) * size * 0.16,
+        y, tint, size: size * (1 + jitter(4.67) * 0.19), angle: i * 2.39996 });
+    };
+    for (const draw of patterns) draw(flower);
+    return blooms;
   };
-  const patch = (ring, y, spacing, tintAt) => {
+  const pattern = draw => patterns.push(draw);
+  const patch = (ring, y, spacing, tintAt) => pattern(flower => {
     const minX = Math.min(...ring.map(q => q.x)), maxX = Math.max(...ring.map(q => q.x));
     const minZ = Math.min(...ring.map(q => q.z)), maxZ = Math.max(...ring.map(q => q.z));
     const polygon = { outer: ring, holes: [] };
@@ -59,8 +65,8 @@ function planter(id, ground) {
         if (tint !== null) flower(x, z, typeof y === 'function' ? y(z) : y, tint, spacing * 0.76);
       }
     }
-  };
-  return { ...p, id, blooms, flower, patch };
+  });
+  return { ...p, id, sampleBlooms, pattern, patch };
 }
 
 function ellipse(x, z, rx, rz, angle = 0) {
@@ -139,6 +145,11 @@ function roadsideBed(id, ground, side, lettering) {
         { baseSource: 'rendered-terrain' }));
     }
   }
+  p.pattern(flower => scatterRoadsideFlowers(inner, outer, lengths, lettering, flower));
+  return { ...p, footprint: { outer: [...inner, ...outer.slice().reverse()], holes: [] } };
+}
+
+function scatterRoadsideFlowers(inner, outer, lengths, lettering, flower) {
   const total = lengths.at(-1);
   let segment = 1;
   for (let s = 0.68; s < total - 0.65; s += 1.15) {
@@ -157,10 +168,9 @@ function roadsideBed(id, ground, side, lettering) {
       const letter = lettering && col >= 0 && col < 23 && APEC[Math.floor(col / 6)][row]?.[col % 6] === '1';
       const tint = lettering ? (letter ? CREAM : u < 0.14 || u > 0.86 ? CORAL : VIOLET)
         : Math.sin(u * 14 + s * 0.20) > 0 ? CORAL : YELLOW;
-      p.flower(x, z, y, tint, letter ? 1.05 : 0.9);
+      flower(x, z, y, tint, letter ? 1.05 : 0.9);
     }
   }
-  return { ...p, footprint: { outer: [...inner, ...outer.slice().reverse()], holes: [] } };
 }
 
 export const chinaFlowerBed = ground => rosette('china-flower-peony', ground, -6985, 1434, 1.58);
@@ -192,10 +202,11 @@ export function createFlowerCrown() {
 }
 
 export function addFlowerCrowns(group, bed, geometry, material) {
-  const mesh = new THREE.InstancedMesh(geometry, material, bed.blooms.length);
+  const blooms = bed.sampleBlooms();
+  const mesh = new THREE.InstancedMesh(geometry, material, blooms.length);
   mesh.name = `${bed.id}:blooms`;
   const dummy = new THREE.Object3D(), tint = new THREE.Color();
-  for (const [i, bloom] of bed.blooms.entries()) {
+  for (const [i, bloom] of blooms.entries()) {
     dummy.position.set(bloom.x, bloom.y + bloom.size * 0.18, bloom.z);
     dummy.scale.set(bloom.size, bloom.size * 0.45, bloom.size);
     dummy.rotation.y = bloom.angle;

@@ -24,13 +24,21 @@ test('the production pack fits all three parks and preserves ground access', asy
   const { decodeCityPayload } = await import('../js/sz-data-format.js');
   const { createGroundSurfaceSampler } = await import('../js/sz-ground-surface.js');
   const { distanceToRing, polygonContainsInclusive, ringArea } = await import('../js/sz-polygon.js');
-  const { buildThemeParks } = await import('../js/sz-theme-parks/index.js');
+  const { buildThemeParks, planThemeParks } = await import('../js/sz-theme-parks/index.js');
   const raw = JSON.parse(gunzipSync(readFileSync(resolve(__dirname, '../js/sz-city.json.gz'))));
   const { geo, buildings } = decodeCityPayload(raw);
   const scene = new Scene();
   const groundHeight = createGroundSurfaceSampler(geo.terrainSurface);
   const isWater = (x, z) => geo.water.some(p => polygonContainsInclusive(p, x, z));
-  const parks = buildThemeParks(scene, { ...geo, buildings, groundHeight, isWater });
+  const site = { ...geo, buildings, groundHeight, isWater };
+  const layout = geo.regionalScene.expoLayout;
+  const live = planThemeParks(site).parks.find(park => park.key === 'expo');
+  assert.deepEqual(layout.perimeter, live.perimeter.sites);
+  assert.deepEqual(layout.beds, live.plans.map(plan => plan.id));
+  for (const field of ['walks', 'lawns', 'trees', 'lanterns']) {
+    assert.deepEqual(layout[field], JSON.parse(JSON.stringify(live[field])));
+  }
+  const parks = buildThemeParks(scene, { ...site, expoLayout: layout });
   const summary = parks.snapshot();
   assert.deepEqual(summary.rejected, []);
   assert.deepEqual(summary.parks.map(p => p.models.length), [6, 6, 3, 4]);
@@ -56,7 +64,11 @@ test('the production pack fits all three parks and preserves ground access', asy
   assert.equal(parks.pathAt(-6922, 1448).length, 1);
   assert.equal(summary.flowerBeds.length, 5);
   assert.ok(summary.flowerBeds.includes('expo-flower-apec'));
-  assert.ok(summary.flowerBeds.every(id => parks.group.getObjectByName(`${id}:blooms`)?.count > 100));
+  assert.equal(summary.expoDecor.baked, true);
+  assert.equal(summary.expoDecor.builds, 0);
+  const visibleBlooms = id => parks.group.getObjectByName(`${id}:blooms`)?.count ?? 0;
+  assert.ok(visibleBlooms('china-flower-peony') > 100);
+  assert.ok(summary.flowerBeds.filter(id => id.startsWith('expo-')).every(id => !visibleBlooms(id)));
   const footprints = id => parks.colliders.filter(c => c.sourceId === id);
   const bedArea = id => ringArea(footprints(id)[0].polygon.outer);
   assert.ok(bedArea('expo-flower-rosette') > 1300 && bedArea('expo-flower-terraces') > 1800);
@@ -76,7 +88,7 @@ test('the production pack fits all three parks and preserves ground access', asy
     const lamps = parks.colliders.filter(c => c.sourceId === `theme-${key}-path-lamps`);
     assert.ok(summary.parks[i].wallLengthM > (key === 'expo' ? 5000 : 1400));
     assert.ok(summary.parks[i].lamps >= 6);
-    assert.ok(parks.group.children.some(m => m.isInstancedMesh && m.name.startsWith(`theme-${key}-perimeter:iron:`)));
+    assert.equal(parks.group.children.some(m => m.isInstancedMesh && m.name.startsWith(`theme-${key}-perimeter:iron:`)), key !== 'expo');
     assert.ok(walls.some(w => Math.abs(w.maxY - groundHeight((w.minX + w.maxX) / 2, (w.minZ + w.maxZ) / 2) - 3) < 0.05));
     for (const wall of walls) {
       for (const [x, z, radius] of EDGE_OPENINGS[key]) {
@@ -111,6 +123,22 @@ test('the production pack fits all three parks and preserves ground access', asy
   assert.ok(parks.colliders.every(p => p.heightSource && p.minY < p.maxY));
   assert.ok(!parks.colliders.some(p => p.minY < 9.9 && p.maxY > 8
     && polygonContainsInclusive(p.polygon, -8750, 1025)));
+  const nearExpo = new Vector3(-5950, 10, 1090), farExpo = new Vector3(0, 10, 0);
+  const solidCount = parks.colliders.length, supportCount = parks.surfaces.length;
+  for (let frame = 0; frame < 120; frame++) {
+    const before = parks.snapshot().expoDecor.builds;
+    parks.update(frame, false, nearExpo);
+    assert.ok(parks.snapshot().expoDecor.builds - before <= 1);
+  }
+  assert.ok(summary.flowerBeds.every(id => visibleBlooms(id) > 100));
+  assert.ok(parks.group.getObjectsByProperty('isInstancedMesh', true).some(mesh => mesh.name.startsWith('theme-expo-perimeter:iron:')));
+  parks.update(121, false, farExpo);
+  assert.equal(parks.snapshot().expoDecor.active, 0);
+  assert.equal(visibleBlooms('expo-flower-apec'), 0);
+  assert.ok(parks.reserved(-5957, 1118, 1));
+  assert.equal(parks.pathAt(-5945.3, 1118.3).length, 1);
+  assert.equal(parks.colliders.length, solidCount);
+  assert.equal(parks.surfaces.length, supportCount);
   assert.ok(parks.reserved(-8660, 1045, 0));
   assert.equal(parks.pathAt(-8660, 1045).length, 0);
   parks.dispose();

@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu';
 import { color } from 'three/tsl';
 import { dayPhase } from '../sz-day-phase.js';
-import { buildFenceMetal, buildPathPools, createParkPoolMaterial, parkNight, planPathLamps, planPerimeter } from './ambience.js';
+import { buildFenceMetal, buildPathPools, createParkPoolMaterial, fenceResourcesFor, parkNight, planPathLamps, planPerimeter } from './ambience.js';
+import { createExpoDecor } from './expo-decor.js';
 import { buildingPlacement } from '../sz-building-layout.js';
 import { partCollider } from '../sz-landmarks/parts.js';
 import { renderLandmark } from '../sz-landmarks/render.js';
@@ -52,7 +53,7 @@ function strip(line, halfWidth) {
   return [...rows.map(row => row[0]), ...rows.reverse().map(row => row[1])];
 }
 
-export function planThemeParks(site) {
+export function planThemeParks(site, expoLayout = null) {
   const { buildings, terrain, mapRegions, groundHeight, roadGraph, isWater } = site;
   const barrier = createCarriagewayBarrier(roadGraph, { bounds: SCENE_BOUNDS });
   const sourceIds = new Set([EIFFEL, COLOSSEUM, ...PYRAMIDS.map(([id]) => id)]);
@@ -69,6 +70,16 @@ export function planThemeParks(site) {
       ?? (key === 'valley' ? { outer: VALLEY_BOUNDARY, holes: [] } : null);
     if (!boundary) continue;
     const park = { key, id, boundary, plans: [], walks: [], lawns: [], trees: [], launch: null, omittedSmallBuildings: 0 };
+    if (key === 'expo' && expoLayout) {
+      if (expoLayout.version !== 1 || expoLayout.id !== id) throw new Error('Invalid expo park layout');
+      park.plans = expoFlowerBeds(groundHeight).filter(bed => expoLayout.beds.includes(bed.id));
+      park.perimeter = planPerimeter(key, boundary, groundHeight, null, null, expoLayout.perimeter);
+      Object.assign(park, { walks: expoLayout.walks, lawns: expoLayout.lawns, trees: expoLayout.trees, lanterns: expoLayout.lanterns });
+      rejected.push(...expoLayout.rejected);
+      parks.push(park);
+      continue;
+    }
+    const rejectionStart = rejected.length;
     // 只隐藏完全在园内的小型无名预测体块；保留 OSM 楼、具名场馆、近边界和入口对象。
     for (const b of key === 'expo' ? [] : localBuildings) {
       if (sourceIds.has(b.id) || b.name || b.height > 18 || !/^(globfp|overture)\//.test(b.id)
@@ -174,15 +185,26 @@ export function planThemeParks(site) {
       if (!walkAt(x, z, 12) && canPlace(disk(x, z, 10), y, y + 80, false, [...skipIds])) park.launch = { x, y, z };
       else rejected.push('world:fireworks');
     }
+    if (key === 'expo') park.rejected = rejected.slice(rejectionStart);
     parks.push(park);
   }
   return { parks, skipIds, rejected, sceneryOmissions };
 }
 
-export function buildThemeParks(scene, site) {
-  const { parks, skipIds, rejected, sceneryOmissions } = planThemeParks(site);
+export function buildThemeParks(scene, site, { captureLayout, measure = (_name, run) => run() } = {}) {
+  const { parks, skipIds, rejected, sceneryOmissions } = measure('themeParkPlan', () => planThemeParks(site, site.expoLayout));
+  if (captureLayout) {
+    const park = parks.find(entry => entry.key === 'expo');
+    if (park) captureLayout({ version: 1, id: park.id, beds: park.plans.map(plan => plan.id), perimeter: park.perimeter.sites,
+      walks: park.walks, lawns: park.lawns, trees: park.trees, lanterns: park.lanterns, rejected: park.rejected });
+  }
+  return measure('themeParkMeshes', () => assembleThemeParks(scene, site, { parks, skipIds, rejected, sceneryOmissions }));
+}
+
+function assembleThemeParks(scene, site, { parks, skipIds, rejected, sceneryOmissions }) {
   const group = new THREE.Group();
   group.name = 'ShenzhenThemeParks';
+  const expoDecor = createExpoDecor(group);
   const surfaces = [], colliders = [], paths = [], trees = [], details = [];
   const materials = new Map();
   const poolMaterial = createParkPoolMaterial();
@@ -203,13 +225,17 @@ export function buildThemeParks(scene, site) {
   const flowerGeometry = createFlowerCrown();
   const flowerMaterial = new THREE.MeshStandardNodeMaterial({ color: 0xffffff, roughness: 0.9,
     emissiveNode: color(0xffddbd).mul(0.035) });
-  const flowerBeds = parks.flatMap(park => park.plans.filter(plan => plan.blooms));
-  for (const bed of flowerBeds) addFlowerCrowns(group, bed, flowerGeometry, flowerMaterial);
-  const flowerFootprints = flowerBeds.map(({ parts: [base], footprint }) => {
-    if (!footprint) return base;
-    const xs = footprint.outer.map(p => p.x), zs = footprint.outer.map(p => p.z);
-    return { polygon: footprint, minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) };
-  });
+  const flowerBeds = [], flowerFootprints = [];
+  for (const park of parks) for (const bed of park.plans.filter(plan => plan.sampleBlooms)) {
+    const polygon = bed.footprint ?? bed.parts[0].polygon;
+    const xs = polygon.outer.map(point => point.x), zs = polygon.outer.map(point => point.z);
+    const bounds = { polygon, minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) };
+    flowerBeds.push(bed);
+    flowerFootprints.push(bounds);
+    const build = target => addFlowerCrowns(target, bed, flowerGeometry, flowerMaterial);
+    if (park.key !== 'expo') build(group);
+    else expoDecor.add(bounds, build);
+  }
   let fireworks;
   for (const park of parks) {
     for (const plan of [...park.plans, park.perimeter, park.lanterns]) {
@@ -235,7 +261,23 @@ export function buildThemeParks(scene, site) {
       for (const chunk of chunks) group.add(pavingMesh(chunk.positions, chunk.origin, isWalk ? pathMat : lawnMat, area.id));
       if (isWalk && chunks.length) paths.push({ outer: area.ring, holes: [] });
     }
-    fenceResources.push(buildFenceMetal(group, park));
+    if (park.key !== 'expo') fenceResources.push(buildFenceMetal(group, park));
+    else {
+      const resources = fenceResourcesFor(park.key);
+      fenceResources.push(resources);
+      const batches = new Map();
+      for (const bay of park.perimeter.bays) {
+        const key = `${Math.floor(bay.a.x / 130)},${Math.floor(bay.a.z / 130)}`;
+        if (!batches.has(key)) batches.set(key, []);
+        batches.get(key).push(bay);
+      }
+      for (const bays of batches.values()) {
+        const points = bays.flatMap(bay => [bay.a, bay.b]);
+        const xs = points.map(point => point.x), zs = points.map(point => point.z);
+        expoDecor.add({ minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) },
+          target => buildFenceMetal(target, park, bays, resources));
+      }
+    }
     const pool = buildPathPools(park, site.terrainSurface, poolMaterial);
     if (pool) {
       pool.visible = false;
@@ -257,15 +299,17 @@ export function buildThemeParks(scene, site) {
     group, skipIds, colliders, surfaces, trees, reserved,
     pathAt: (x, z) => onPath(x, z) ? ['theme-park-path'] : [],
     update(now, night, camera) {
+      expoDecor.update(camera);
       for (const detail of details) detail.group.visible = camera.distanceToSquared(detail.center) < 500 ** 2;
       for (const pool of pools) pool.visible = dayPhase.channel('lamps') > 0;
       fireworks?.update(now, night, camera);
     },
-    snapshot: () => ({ rejected, flowerBeds: flowerBeds.map(bed => bed.id), omittedSmallBuildings: sceneryOmissions.size, parks: parks.map(p => ({ id: p.id, models: p.plans.map(plan => plan.id),
+    snapshot: () => ({ rejected, expoDecor: { ...expoDecor.statistics, baked: Boolean(site.expoLayout) }, flowerBeds: flowerBeds.map(bed => bed.id), omittedSmallBuildings: sceneryOmissions.size, parks: parks.map(p => ({ id: p.id, models: p.plans.map(plan => plan.id),
       walks: p.walks.length, trees: p.trees.length, lamps: p.lanterns.lamps.length,
       omittedSmallBuildings: p.omittedSmallBuildings, wallSegments: p.perimeter.segments, wallLengthM: Math.round(p.perimeter.lengthM) })),
     lightPoolsVisible: pools.some(pool => pool.visible), fireworks: fireworks?.snapshot() }),
     dispose() {
+      expoDecor.dispose();
       fireworks?.dispose();
       const geometries = new Set([flowerGeometry, ...fenceResources.map(r => r.geometry)]);
       group.traverse(o => {

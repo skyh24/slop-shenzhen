@@ -19,9 +19,18 @@ await page.cdp('Emulation.setDeviceMetricsOverride', { width, height, deviceScal
 await page.goto(url);
 for (let i = 0; i < 120; i++) {
   await page.waitForTimeout(2000);
-  if (await page.evaluate(() => typeof window.__szQA === 'function').catch(() => false)) break;
+  if (await page.evaluate(() => window.__szQA?.().ready).catch(() => false)) break;
 }
 await page.waitForTimeout(3000);
+const startup = await page.evaluate(() => {
+  const readyMs = window.__szQA?.().profile.startupAtMs.ready;
+  if (!Number.isFinite(readyMs)) throw new Error('Startup did not reach ready');
+  const entries = [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+    .filter(entry => entry.startTime <= readyMs);
+  const observedBytes = entries.reduce((sum, entry) => sum + entry.transferSize, 0);
+  return { readyMs, observedBytes, budgetBytes: 20_000_000, observedOverBudget: observedBytes >= 20_000_000,
+    entries: entries.length, zeroSizeEntries: entries.filter(entry => !entry.transferSize).length };
+});
 if (camera) {
   await page.evaluate(id => document.getElementById(id)?.click(), camera);
   await page.waitForTimeout(2500);
@@ -56,6 +65,7 @@ const result = await page.evaluate(() => {
   };
 });
 result.seconds = seconds;
+result.startup = startup;
 result.renderSize = [width, height];
 await page.cdp('Emulation.clearDeviceMetricsOverride');
 console.log(JSON.stringify(result, null, 1));

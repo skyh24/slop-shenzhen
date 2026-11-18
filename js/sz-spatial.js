@@ -42,16 +42,46 @@ export function createPolygonLookup(polygons) {
   };
 }
 
+function staticPolygonMask(polygons) {
+  const exact = createPolygonLookup(polygons);
+  const edges = new Set();
+  const uniform = new Map();
+  for (const polygon of polygons) for (const ring of [polygon.outer, ...(polygon.holes ?? [])]) {
+    for (let index = 0; index < ring.length; index++) {
+      const start = ring[index], end = ring[(index + 1) % ring.length];
+      const left = Math.floor(Math.min(start.x, end.x) / CELL), right = Math.floor(Math.max(start.x, end.x) / CELL);
+      const top = Math.floor(Math.min(start.z, end.z) / CELL), bottom = Math.floor(Math.max(start.z, end.z) / CELL);
+      for (let col = left; col <= right; col++) for (let row = top; row <= bottom; row++) edges.add(key(col, row));
+    }
+  }
+  return (x, z) => {
+    const cell = key(Math.floor(x / CELL), Math.floor(z / CELL));
+    if (edges.has(cell)) return exact(x, z);
+    let inside = uniform.get(cell);
+    if (inside === undefined) {
+      inside = exact(x, z);
+      uniform.set(cell, inside);
+    }
+    return inside;
+  };
+}
+
 export function createCitySpatial(geo) {
   const surfaceHeight = createGroundSurfaceSampler(geo.terrainSurface);
-  const coverage = spatialIndex(geo.coverage, p => p.outer);
-  const land = spatialIndex(geo.land, p => p.outer);
-  const water = spatialIndex(geo.water, p => p.outer);
-  const contains = (index, x, z) => [...index(x, z)].some(p => polygonContainsInclusive(p, x, z));
+  const coverage = staticPolygonMask(geo.coverage);
+  const land = staticPolygonMask(geo.land);
+  const water = staticPolygonMask(geo.water);
   const inBounds = (x, z) => Number.isFinite(x) && Number.isFinite(z)
     && x >= geo.bounds[0] && x <= geo.bounds[2] && z >= geo.bounds[1] && z <= geo.bounds[3]
-    && contains(coverage, x, z);
-  const isOnLand = (x, z) => inBounds(x, z) && contains(land, x, z) && !contains(water, x, z);
+    && coverage(x, z);
+  let lastX, lastZ, lastWater;
+  const isWater = (x, z) => {
+    if (x === lastX && z === lastZ && lastWater !== undefined) return lastWater;
+    lastX = x; lastZ = z;
+    lastWater = inBounds(x, z) ? !land(x, z) || water(x, z) : null;
+    return lastWater;
+  };
+  const isOnLand = (x, z) => isWater(x, z) === false;
   const graph = geo.roadGraph;
   const roads = graph.links.map(([a, b, name, width, lanes, direction, inner], i) => {
     const pts = [{ x: graph.nodes[a * 2], z: graph.nodes[a * 2 + 1] }];
@@ -83,7 +113,7 @@ export function createCitySpatial(geo) {
   }
   return { roads, inBounds, isOnLand,
     // 范围外没有海岸数据，返回未知；桥面高度也不能从 layer 或地面高程猜测。
-    isWater: (x, z) => inBounds(x, z) ? !isOnLand(x, z) : null,
+    isWater,
     groundHeight: (x, z) => isOnLand(x, z) ? surfaceHeight(x, z) : null,
     nearestRoads };
 }

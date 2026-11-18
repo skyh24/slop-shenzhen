@@ -46,7 +46,7 @@ import { buildZhongxinWalk, COCO_PARK_ENTRANCE } from './sz-zhongxin-walk.js';
 import { sceneUniforms } from './sz-materials.js';
 
 // 离线规划与正式场景共用地面、建筑、桥梁及树冠的生成顺序和接触面。
-export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, startup, offline = false }) {
+export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, startup, offline = false, captureExpoLayout }) {
   const frontageLight = { ...COCO_PARK_ENTRANCE, night: sceneUniforms.night };
   const ground = qa.measureBuild('ground', () => buildSzGround(scene, GEO.terrainSurface, { frontageLight }));
   const sea = !offline && qa.measureBuild('sea', () => buildSzSea(scene, GEO.seaSurface));
@@ -148,7 +148,10 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   const bridge = !offline && buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
   const yanjiang = !offline && buildYanjiangExpressway(scene, GEO.yanjiangExpressway,
     new Set([...elevatedRoads.links, ...tunnels.links].map(link => Number(link.osmId.split('/')[1]))));
-  const themeParks = qa.stage('themeParks', () => buildThemeParks(scene, { ...site, mapRegions: GEO.mapRegions }));
+  const themeParks = qa.stage('themeParks', () => buildThemeParks(scene, { ...site, mapRegions: GEO.mapRegions,
+    expoLayout: offline ? null : GEO.regionalScene?.expoLayout }, {
+    captureLayout: captureExpoLayout, measure: (name, build) => qa.measureBuild(name, build)
+  }));
   markInit('landmarks');
   await showLoadingStage(startup.blocks, 'blocks');
   const sceneSkipIds = new Set([...landmarks.skipIds, ...districts.skipIds, ...themeParks.skipIds, ...parkOmissions]);

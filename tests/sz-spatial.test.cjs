@@ -48,6 +48,25 @@ test('nearest road queries use polyline distance and retain unresolved elevated 
   assert.equal(city.nearestRoads(0,29,0).length,0);
 });
 
+test('reused cells match exact polygons across shorelines, holes and coverage edges', async () => {
+  const {createCitySpatial} = await modulePromise;
+  const {polygonContainsInclusive} = await import(polygonURL);
+  const fixture = { ...geo, bounds: [-1300,-1300,1300,1300],
+    coverage: [{outer:ring(-1250,-1250,1250,1250),holes:[ring(-800,-720,-770,-700)]}],
+    land: [{outer:ring(-1000,-1000,1000,1000),holes:[ring(29,29,31,31)]}],
+    water: [{outer:[{x:-500,z:-500},{x:500,z:500},{x:500,z:515}],holes:[]}] };
+  const city = createCitySpatial(fixture);
+  const contains = (polys,x,z) => polys.some(poly => polygonContainsInclusive(poly,x,z));
+  for (const offset of [0,1,-1,0]) for (const coord of [-1251,-1250,-1000,-770,-500,-250,0,29,30,31,32,249,250,500,900,1001,1250]) {
+    const x = coord + offset;
+    for (const z of [coord,coord+5,-710,30,750,1250,1251]) {
+      const expected = contains(fixture.coverage,x,z) ? !contains(fixture.land,x,z) || contains(fixture.water,x,z) : null;
+      assert.equal(city.isOnLand(x,z),expected === false);
+      assert.equal(city.isWater(x,z),expected);
+    }
+  }
+});
+
 test('removed ground remains unknown even when the original DSM still has a height', async () => {
   const { createCitySpatial } = await modulePromise;
   const terrainSurface = structuredClone(geo.terrainSurface);

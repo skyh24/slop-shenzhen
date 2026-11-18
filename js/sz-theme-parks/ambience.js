@@ -15,12 +15,13 @@ const WALLS = {
 
 export const parkNight = smoothstep(0.10, 0.82, sceneUniforms.night);
 
-export function planPerimeter(key, boundary, ground, canPlace, walkAt) {
+export function planPerimeter(key, boundary, ground, canPlace, walkAt, layout = null) {
   const id = `theme-${key}-perimeter`;
   const p = parkParts(id, ground);
   const { width, finish } = WALLS[key];
   const height = 3;
   const bays = [];
+  const sites = layout ?? [];
   const { outer } = boundary;
   const side = Math.sign(signedRingArea(outer));
   const normal = (a, b) => {
@@ -49,13 +50,20 @@ export function planPerimeter(key, boundary, ground, canPlace, walkAt) {
     for (let j = 0; j < count; j++) {
       const c = at(j / count), d = at((j + 1) / count), mid = at((j + 0.5) / count);
       const span = length / count;
-      if (blocked(mid.x, mid.z, span / 2 + width)) continue;
-      const cy = ground(c.x, c.z), dy = ground(d.x, d.z);
-      if (!Number.isFinite(cy) || !Number.isFinite(dy)) continue;
-      const ring = rectangle(mid.x, mid.z, span + 0.07, width + 0.16, angle);
-      const low = Math.min(cy, dy) - 0.25;
-      if (!canPlace(ring, low, Math.max(cy, dy) + height, 0.35, 1.15)) continue;
-      const bottom = p.limits(ring)[0] - 0.22;
+      let cy, dy, bottom;
+      if (layout) {
+        const site = layout[segments];
+        if (!site || site[0] !== i || site[1] !== j) continue;
+        [, , cy, dy, bottom] = site;
+      } else {
+        if (blocked(mid.x, mid.z, span / 2 + width)) continue;
+        cy = ground(c.x, c.z); dy = ground(d.x, d.z);
+        if (!Number.isFinite(cy) || !Number.isFinite(dy)) continue;
+        const ring = rectangle(mid.x, mid.z, span + 0.07, width + 0.16, angle);
+        if (!canPlace(ring, Math.min(cy, dy) - 0.25, Math.max(cy, dy) + height, 0.35, 1.15)) continue;
+        bottom = p.limits(ring)[0] - 0.22;
+        if (key === 'expo') sites.push([i, j, cy, dy, bottom]);
+      }
       const expand = 0.035 / length;
       const start = { ...at(j / count - expand), y: cy + height };
       const end = { ...at((j + 1) / count + expand), y: dy + height };
@@ -70,7 +78,8 @@ export function planPerimeter(key, boundary, ground, canPlace, walkAt) {
       lengthM += span;
     }
   }
-  return { id, parts: p.parts, segments, lengthM, bays };
+  if (layout && segments !== layout.length) throw new Error('Invalid expo perimeter layout');
+  return { id, parts: p.parts, segments, lengthM, bays, sites };
 }
 
 export function planPathLamps(key, walks, ground, canPlace, walkAt) {
@@ -142,14 +151,18 @@ export function buildPathPools(park, terrain, material) {
 }
 
 // 同一钢材实例批次画横档、栅条、门柱和尖饰，按空间分块剔除。
-export function buildFenceMetal(group, park) {
-  const geometry = new THREE.BoxGeometry(1, 1, 1);
-  const material = new THREE.MeshStandardNodeMaterial({ color: WALLS[park.key].metal, metalness: 0.22, roughness: 0.64 });
+export function fenceResourcesFor(key) {
+  return { geometry: new THREE.BoxGeometry(1, 1, 1), material: new THREE.MeshStandardNodeMaterial({
+    color: WALLS[key].metal, metalness: 0.22, roughness: 0.64 }) };
+}
+
+export function buildFenceMetal(group, park, bays = park.perimeter.bays, resources = fenceResourcesFor(park.key)) {
+  const { geometry, material } = resources;
   const batches = new Map();
   const position = new THREE.Vector3(), scale = new THREE.Vector3(), direction = new THREE.Vector3();
   const quaternion = new THREE.Quaternion(), matrix = new THREE.Matrix4();
   const axis = new THREE.Vector3(1, 0, 0);
-  for (const { a, b, cy, dy, length, angle } of park.perimeter.bays) {
+  for (const { a, b, cy, dy, length, angle } of bays) {
     const key = `${Math.floor(a.x / 130)},${Math.floor(a.z / 130)}`;
     let matrices = batches.get(key);
     if (!matrices) batches.set(key, matrices = []);
@@ -185,5 +198,5 @@ export function buildFenceMetal(group, park) {
     mesh.computeBoundingSphere();
     group.add(mesh);
   }
-  return { geometry, material };
+  return resources;
 }

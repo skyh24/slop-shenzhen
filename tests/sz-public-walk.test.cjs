@@ -51,6 +51,14 @@ test('public walk clips paving to terrain, honours holes and joins only its attr
       polygon: { outer: rect(20, 2, 29, 14), holes: [] } }
   ];
   const walk = buildPublicWalk(scene, terrain, areas);
+  let samples = 0;
+  const area = walk.areaAt(19.8, 10), originalHeight = area.heightAt;
+  area.heightAt = (x, z) => { samples++; return originalHeight(x, z); };
+  assert.ok(walk.allows(19.8, 10, 0.1, 'west'));
+  assert.ok(Number.isFinite(walk.heightAt(19.8, 10)));
+  assert.equal(walk.allows(19.8, 10, 0.6, 'west'), false);
+  assert.equal(walk.allows(19.8, 10, 0.05, 'east'), false);
+  assert.equal(samples, 1);
   assert.ok(walk.allows(10, 10, 0.6, 'west'));
   assert.ok(!walk.allows(6, 7, 0.1, 'west'));
   assert.ok(!walk.allows(19.8, 10, 0.6, 'west'));
