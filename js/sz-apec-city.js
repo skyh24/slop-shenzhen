@@ -28,6 +28,58 @@ export const APEC_CITY_SLOGANS = Object.freeze({
   footer: 'APEC CHINA 2026 · SHENZHEN'
 });
 
+const LAWN_MARK = { x: 6, z: 408, width: 58, depth: 30 };
+
+export function reserveApecCivicLawn(x, z) {
+  return Math.abs(x - LAWN_MARK.x) <= LAWN_MARK.width / 2 + 5
+    && Math.abs(z - LAWN_MARK.z) <= LAWN_MARK.depth / 2 + 5;
+}
+
+function drawLawnMark(ctx, width, height) {
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '900 320px sans-serif';
+  ctx.lineWidth = 16;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#fff7e4';
+  const colors = ['#e52548', '#ffb629', '#5cd5f1', '#a88afa'];
+  for (const [index, letter] of [...'APEC'].entries()) {
+    const x = width * (0.17 + 0.22 * index);
+    ctx.fillStyle = colors[index];
+    ctx.strokeText(letter, x, height * 0.35);
+    ctx.fillText(letter, x, height * 0.35);
+    for (const offset of [-20, 0, 20]) {
+      ctx.beginPath();
+      ctx.arc(x + offset, height * 0.93 - (offset === 0 ? 7 : 0), offset === 0 ? 7 : 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.font = '800 116px sans-serif';
+  ctx.lineWidth = 12;
+  ctx.strokeStyle = '#263724';
+  ctx.fillStyle = '#fff7e4';
+  ctx.strokeText('CHINA 2026', width / 2, height * 0.76);
+  ctx.fillText('CHINA 2026', width / 2, height * 0.76);
+}
+
+function lawnMarkGeometry(sample) {
+  if (!sample) return null;
+  const { x, z, width, depth } = LAWN_MARK;
+  const geometry = new THREE.PlaneGeometry(width, depth, 29, 15);
+  geometry.rotateX(-Math.PI / 2);
+  const positions = geometry.attributes.position;
+  for (let index = 0; index < positions.count; index++) {
+    const height = sample(x + positions.getX(index), z + positions.getZ(index));
+    if (!Number.isFinite(height)) {
+      geometry.dispose();
+      return null;
+    }
+    positions.setY(index, height + 0.09);
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 // 三处路侧大屏：位置 = 已核实地标中心 + 固定示意偏移（米，x 向东、z 向南）。
 // 偏移量按 2026-11-09 OSM 路网人工检查选取：civic-center 屏幕落在深南大道南侧人行道边，
 // convention-center 屏幕落在滨河大道北侧，super-hq 屏幕落在白石四道北侧；朝向也按同一次检查固定，
@@ -372,7 +424,7 @@ function triangleCount(geometry) {
  *  输出：{ group, statistics, screens, robots, hoardings, update, dispose }；
  *        update 做机器人确定性巡逻与夜间灯条亮度，不含碰撞体。 */
 export function buildApecCityElements(scene, {
-  terrain = null, landmarks = [], sites = null, anchors = null, groundHeight = null
+  terrain = null, landmarks = [], sites = null, anchors = null, groundHeight = null, shennanMedianHeight = null
 } = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('APEC city elements require a scene');
   const plan = planApecCityElements({ landmarks, sites, anchors });
@@ -387,6 +439,17 @@ export function buildApecCityElements(scene, {
   const keepGeometry = (geometry) => { geometries.add(geometry); return geometry; };
   const keepMaterial = (material) => { materials.add(material); return material; };
   const keepTexture = (texture) => { textures.add(texture); return texture; };
+
+  const lawnGeometry = lawnMarkGeometry(shennanMedianHeight);
+  if (lawnGeometry) {
+    const map = keepTexture(canvasTexture(1024, 512, drawLawnMark, { fallback: [0, 0, 0, 0] }));
+    const lawnMark = new THREE.Mesh(keepGeometry(lawnGeometry), keepMaterial(new THREE.MeshStandardNodeMaterial({
+      map, alphaTest: 0.35, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4
+    })));
+    lawnMark.name = 'apec-civic-lawn-mark';
+    lawnMark.position.set(LAWN_MARK.x, 0, LAWN_MARK.z);
+    group.add(lawnMark);
+  }
 
   const groundY = (x, z) => {
     const height = terrain ? terrainHeight(terrain, x, z) : null;

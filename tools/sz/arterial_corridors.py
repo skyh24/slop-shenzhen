@@ -6,13 +6,14 @@ import math
 from pathlib import Path
 
 from shapely import make_valid
+from shapely.affinity import rotate
 from shapely.geometry import LineString, Polygon
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
 from commercial_paving import ground_carriageway_mask
 from package_validation import ring_points
-from road_frontage import _encode_surface, _ground, _way_line
+from road_frontage import _encode_surface, _ground, _lines, _polys, _way_line
 from roadgraph import graph_components
 
 MANIFEST = Path(__file__).resolve().parents[2] / 'data/source/arterial-corridors.json'
@@ -121,10 +122,44 @@ def _paired_strip(first, second, max_gap, same_direction=False):
     return Polygon([(a[0] + s * dx, a[1] + s * dz) for s in (start, end)] + [q, p])
 
 
-def _flower_axis(strip):
-    a, b, q, p, _ = strip.exterior.coords
-    return LineString([((a[0] + p[0]) / 2, (a[1] + p[1]) / 2),
-                       ((b[0] + q[0]) / 2, (b[1] + q[1]) / 2)])
+def _flower_beds(grass):
+    for lawn in _polys(grass.buffer(-1.0)):
+        if lawn.area < 60:
+            continue
+        box = list(lawn.minimum_rotated_rectangle.exterior.coords)
+        a, b = max(zip(box, box[1:]), key=lambda edge: math.dist(*edge))
+        angle = (math.atan2(b[1] - a[1], b[0] - a[0]) + math.pi / 2) % math.pi - math.pi / 2
+        origin = lawn.centroid.coords[0]
+        aligned = rotate(lawn, -angle, origin=origin, use_radians=True)
+        min_x, min_z, max_x, max_z = aligned.bounds
+        last_end = min_x - 8
+        count = 0
+        for station in range(math.ceil(min_x + 10), math.floor(max_x - 9), 4):
+            half_length = 9 + 2 * (count % 3)
+            if station - half_length < last_end + 8:
+                continue
+            sections = aligned.intersection(LineString([(station, min_z - 1), (station, max_z + 1)]))
+            section = max(_lines(sections), key=lambda line: line.length, default=None)
+            if section is None or section.length < 2.6:
+                continue
+            center = section.centroid.y
+            width = min(8.5, section.length * 0.41)
+            turn = (-1) ** count
+            for scale in (1.0, 0.72):
+                sides = [[], []]
+                for step in range(19):
+                    u = step / 18
+                    x = station + (2 * u - 1) * half_length * scale
+                    bend = math.sin(2 * math.pi * u) * width * 0.95 * turn
+                    span = width * (0.055 + 0.57 * math.sin(math.pi * u) ** 0.8)
+                    for points, side in zip(sides, (-1, 1)):
+                        points.append((x, center + scale * (bend + side * span)))
+                bed = Polygon(sides[0] + sides[1][::-1])
+                if aligned.covers(bed):
+                    yield rotate(bed, angle, origin=origin, use_radians=True)
+                    last_end = station + half_length * scale
+                    count += 1
+                    break
 
 
 def compile_arterial_medians(payload, osm, manifest, report):
@@ -167,7 +202,7 @@ def compile_arterial_medians(payload, osm, manifest, report):
                             if part[2] not in primary_ids)
         lines = [part[0] for part in segments]
         index = STRtree(lines)
-        strips, axes, ids = [], [], set()
+        strips, planting_strips, ids = [], [], set()
         for i, first in enumerate(segments):
             for j in sorted(index.query(lines[i], predicate='dwithin', distance=85)):
                 if j <= i:
@@ -181,7 +216,7 @@ def compile_arterial_medians(payload, osm, manifest, report):
                     strips.append(strip)
                     ids.update((first[2], second[2]))
                     if shennan and not auxiliary:
-                        axes.append(_flower_axis(strip))
+                        planting_strips.append(strip)
         if not strips:
             continue
         area = make_valid(unary_union(strips))
@@ -195,12 +230,13 @@ def compile_arterial_medians(payload, osm, manifest, report):
         if feature['trianglesXZ']:
             frontage['features'].append({**feature, 'id': name + suffix, 'arterialStyle': style})
             row = {'road': name, 'style': style, 'areaM2': round(island.area, 2), 'sourceWayIds': sorted(ids)}
-            if axes:
-                flowers = unary_union(axes).buffer(1.6).intersection(island.buffer(-1.2))
+            if planting_strips:
+                beds = list(_flower_beds(island.intersection(unary_union(planting_strips))))
+                flowers = unary_union(beds)
                 band = _encode_surface('flower-band', ids, flowers)
                 if band['trianglesXZ']:
                     frontage['features'].append({**band, 'id': flower_id})
-                    row['flowerAreaM2'] = round(flowers.area, 2)
+                    row.update(flowerAreaM2=round(flowers.area, 2), flowerBeds=len(beds))
             rows.append(row)
     report['arterialMedianDesign'] = {'placementSource': 'estimated-between-existing-osm-carriageways',
                                      'evidence': manifest['evidence'], 'roads': rows}

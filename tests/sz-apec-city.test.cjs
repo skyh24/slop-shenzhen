@@ -271,9 +271,17 @@ test('runtime builds screens robots and hoarding panels on the real data, then d
     globals: { document }
   });
   const scene = new THREE.Scene();
+  const lawnHeight = (x, z) => module.reserveApecCivicLawn(x, z) ? 12 + z / 100 : null;
   const model = module.buildApecCityElements(scene, {
-    terrain: geo.terrain, landmarks: geo.landmarks, sites: geo.sites, anchors: ANCHORS
+    terrain: geo.terrain, landmarks: geo.landmarks, sites: geo.sites, anchors: ANCHORS, shennanMedianHeight: lawnHeight
   });
+  const lawnMark = model.group.getObjectByName('apec-civic-lawn-mark');
+  assert.equal(lawnMark.parent, model.group);
+  const positions = lawnMark.geometry.attributes.position;
+  for (let index = 0; index < positions.count; index++) {
+    const x = lawnMark.position.x + positions.getX(index), z = lawnMark.position.z + positions.getZ(index);
+    assert.ok(Math.abs(positions.getY(index) - lawnHeight(x, z) - 0.09) < 0.00001);
+  }
   assert.equal(scene.children.length, 1);
   assert.equal(scene.children[0], model.group);
   assert.equal(model.group.name, 'shenzhen-apec-city-elements');
@@ -309,7 +317,8 @@ test('runtime builds screens robots and hoarding panels on the real data, then d
 
   // canvas 2D 真的画了两条中文标语、英文页脚和红色底；不加载外部图片。
   const filledText = drawCalls.filter(([method]) => method === 'fillText').map(([, text]) => text);
-  for (const text of [module.APEC_CITY_SLOGANS.line1, module.APEC_CITY_SLOGANS.line2, module.APEC_CITY_SLOGANS.footer]) {
+  for (const text of [module.APEC_CITY_SLOGANS.line1, module.APEC_CITY_SLOGANS.line2, module.APEC_CITY_SLOGANS.footer,
+    'A', 'P', 'E', 'C', 'CHINA 2026']) {
     assert.ok(filledText.includes(text), `canvas missing text: ${text}`);
   }
   assert.ok(drawCalls.some(([method]) => method === 'fillRect'));

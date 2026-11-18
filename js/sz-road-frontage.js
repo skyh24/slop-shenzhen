@@ -279,7 +279,7 @@ function medianBedRows(feature) {
   return rows;
 }
 
-function addShennanFlowerBeds(group, rows, medianHeight, material) {
+function addShennanFlowerBeds(group, rows, medianHeight, material, reserveFlowerBed) {
   if (rows.length < 3) return 0;
   const origin = [rows[0].x, rows[0].z];
   const vertices = [];
@@ -295,20 +295,19 @@ function addShennanFlowerBeds(group, rows, medianHeight, material) {
     const halfLength = 8.5 + (count % 4) * 2.5;
     const halfWidth = Math.min(width * (0.24 + (count % 3) * 0.03), 8.5);
     const turn = count % 2 === 0 ? 1 : -1;
-    const compact = count % 5 === 2;
     const bed = [];
     // 逐排采样绿带顶面。靠近端头或开口放不下时跳过整块花圃。
     for (let j = 0; j <= 14; j++) {
       const u = j / 14;
       const along = (2 * u - 1) * halfLength;
-      const bend = Math.sin((compact ? 1 : 2) * Math.PI * u) * halfWidth * 0.54 * turn;
-      const span = halfWidth * (0.04 + 0.96 * Math.sin(Math.PI * u) ** 0.8)
+      const bend = Math.sin(2 * Math.PI * u) * halfWidth * 0.95 * turn;
+      const span = halfWidth * (0.055 + 0.57 * Math.sin(Math.PI * u) ** 0.8)
         * (0.86 + 0.14 * Math.cos(u * Math.PI * 3 + count));
       for (const side of [-1, 1]) {
         const cross = bend + span * side;
         const px = x + ux * along - uz * cross, pz = z + uz * along + ux * cross;
         const y = medianHeight(px, pz);
-        if (Number.isFinite(y)) bed.push([px - origin[0], y + 0.07, pz - origin[1]]);
+        if (Number.isFinite(y) && !reserveFlowerBed?.(px, pz)) bed.push([px - origin[0], y + 0.07, pz - origin[1]]);
       }
     }
     if (bed.length !== 30) continue;
@@ -322,7 +321,7 @@ function addShennanFlowerBeds(group, rows, medianHeight, material) {
   return count;
 }
 
-export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeight, roadHeight, style: sceneStyle } = {}) {
+export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeight, roadHeight, style: sceneStyle, reserveFlowerBed } = {}) {
   const control = createIntersectionControl(source, graph);
   const statistics = { triangleCount: 0, curbTriangles: 0, curbSegments: 0, signals: 0, shrubs: 0, shennanFlowerBeds: 0 };
   const empty = { group: null, control, contactHeight: () => null, shennanMedianHeight: () => null,
@@ -342,7 +341,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const separator = material(0x9b9e93, -2);
   const islandSoil = plantedSurfaceMaterial(0x626846, -1);
   const grass = plantedSurfaceMaterial(0x4f762b, -2);
-  const flowers = plantedSurfaceMaterial(0x864359, -4);
+  const flowers = plantedSurfaceMaterial(0xa51640, -4);
   const medians = new Map(source.corridors.filter(row =>
     row.medianSource?.positionSource === 'documented-median-between-osm-carriageways')
     .map(row => [`${row.id}:median`, row]));
@@ -357,6 +356,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const paint = source.features.filter(feature => feature.kind === 'paint');
   const treatment = roadside.length || paint.length ? createRoadsideSurfaceTreatment(graph, terrain.grid, roadside, paint) : null;
   for (const feature of source.features) {
+    if (feature.id === 'shennan-civic-center:flower-band') continue;
     const corridor = medians.get(feature.id);
     const verifiedMedian = corridor && feature.kind === 'median'
       && feature.sourceIds.length >= 2 && feature.sourceIds.every(id => /^way\/\d+$/.test(id));
@@ -367,7 +367,8 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       : null;
     if (preset && !paving.has(preset)) paving.set(preset, createPavingMaterial(preset, { depthBias: -2 }));
     const arterial = feature.arterialStyle === 'grass' ? grass : feature.arterialStyle === 'separator' ? separator : null;
-    const mat = arterial ?? (preset ? paving.get(preset) : feature.plantSites ? islandSoil : planted ? grass : style[feature.kind]);
+    const mat = arterial ?? (feature.id === '深南大道-arterial-flowers' ? flowers
+      : preset ? paving.get(preset) : feature.plantSites ? islandSoil : planted ? grass : style[feature.kind]);
     if (!mat) throw new Error(`Unknown frontage surface: ${feature.kind}`);
     const useTreatment = feature.clipToRoadComplement ? treatment : null;
     const layout = createRoadPolygonLayout(feature, terrain, useTreatment, null,
@@ -436,7 +437,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const foliage = createCompactFoliage();
   statistics.shrubs = addMedianShrubs(group, foliage, sites.filter(([x, z]) => shennanMedianHeight(x, z) === null), contactHeight);
   statistics.islandPlants = addMedianShrubs(group, foliage, source.features.flatMap(f => f.plantSites ?? []), contactHeight, true);
-  statistics.shennanFlowerBeds = addShennanFlowerBeds(group, bedRows, shennanMedianHeight, flowers);
+  statistics.shennanFlowerBeds = addShennanFlowerBeds(group, bedRows, shennanMedianHeight, flowers, reserveFlowerBed);
   scene.add(group);
   return { group, control, contactHeight, shennanMedianHeight, medianHeight, colliders: [...hardware.colliders, ...planting], curbColliders,
     arterialMedianAt: (x, z) => arterialSamplers.some(sample => sample(x, z) !== null),

@@ -360114,7 +360114,7 @@
       }
     ],
     "features": 29,
-    "planarTriangles": 29276,
+    "planarTriangles": 42488,
     "medianShrubsEstimated": 276,
     "signalApproaches": 4,
     "signalTimingSource": "user-defined-game-simulation"
@@ -387042,7 +387042,8 @@
           "way/996657789",
           "way/996762393"
         ],
-        "flowerAreaM2": 40776.82
+        "flowerAreaM2": 22763.7,
+        "flowerBeds": 418
       },
       {
         "road": "滨海大道",
@@ -559195,13 +559196,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "4eec2ba6b2934611b6ae77f1cad5e517a23cc67a12018e1af8af8b55c8652200",
-    "bytes": 269120,
+    "fingerprint": "f80eafbbdcda5e0c6da49935007870b118174fd6c9ed0d54628ca06108140492",
+    "bytes": 269122,
     "decodedBytes": 1256180,
     "files": {
-      "js/sz-regional/4eec2ba6b2934611b6ae/waterfront.json.gz": "682cd88748b12e97f48d566ab0d214b4c66b1b010420f10c7e29b5cbffe81d74",
-      "js/sz-regional/4eec2ba6b2934611b6ae/metro.json.gz": "1ee84edfaa360d38a8640918b62c9282bbd87d1393daf068d37727bb0a8a3c36",
-      "js/sz-regional/4eec2ba6b2934611b6ae/drone.json.gz": "712122f067ee1fd6d9ed3238a4c741d23c3ac46ee5ad2508626d017bc885e5be"
+      "js/sz-regional/f80eafbbdcda5e0c6da4/waterfront.json.gz": "d25cfee6cfb25210ff67b8f9541e08f6fb0532570fe1572a5f6c49ecb7280272",
+      "js/sz-regional/f80eafbbdcda5e0c6da4/metro.json.gz": "395acbcf912e7b9089c252020a98294296198f1264c049e222bce118d110afe5",
+      "js/sz-regional/f80eafbbdcda5e0c6da4/drone.json.gz": "4674fb0b177bc5237e95fb2cca568f18f0042166e9042156f5f035b9fa5e410f"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -559210,7 +559211,7 @@
       "js/cars.js": "ff212291764b78173d3c42399f64991de1c5b77ece1c689908e8b9d9cb1798a5",
       "js/city-lighting-materials.js": "f75a1ff3c208bf3f979c7b78d62916534ee8246b7886386aa74623680f9e0de0",
       "js/pedestrians.js": "ba32139c5937c2f0e61cd927394aa41f6a99a6decbd9ad9bc0f891e9b8a49a40",
-      "js/sz-apec-city.js": "055db449d7e4b3d146399331ddf0ff5c24555061e1924b0f719a6512d6676fc3",
+      "js/sz-apec-city.js": "b73ac9ba636ebfa7c8f37593089a42cd04899e7a8c8b594a746ec0f1ccec1a08",
       "js/sz-apec.js": "2212ddf564fdf9d60daeafffa248222d9fc77166928527686088a4b293792c88",
       "js/sz-arterial-trees.js": "b242541f49635ff91a2b66d41d55529c3236f5ac4618960791ba20735c3cd614",
       "js/sz-bay-waterfront.js": "223feef7c8bccca13e89029f84ae0f45548cbce06194e956f40d53df588bbb73",
@@ -559304,7 +559305,7 @@
       "js/sz-retail-frontage.js": "b69d189d41bf7eeaeeb599d057b18908cf9fda02d45c1f6b19438e3e21bd729e",
       "js/sz-retail-signs.js": "4cd54c1bbb7bc0583d25c811159ffcfa3f072d7cefaf014ce8ced39f4ecee71e",
       "js/sz-road-building-clearance.js": "00b3c907dbcd210c288e9780e33d9ef8adf9058b84239c84ddbaada7135da63d",
-      "js/sz-road-frontage.js": "58ca58ddc88e39df9611368b70bb4aefd59c81ce6a2089c0d224a07abba96f42",
+      "js/sz-road-frontage.js": "02839e56ba86f7cbe4712cc4c9f41acb7bb78280b883ae67f20671efb6f7128c",
       "js/sz-road-landscape.js": "4b15c0754e25f88efab814112b93e9195bcb7d872ba97d32da406b346bd81110",
       "js/sz-road-markings.js": "da2ca29f8043c6a44870d1e959505678255762f268c096417074899cbd485530",
       "js/sz-road-material.js": "2b87b12d8a643b397968a0e6ec0fd7a5c01c140e666e59ed070b2767ab4caf6d",
@@ -559312,7 +559313,7 @@
       "js/sz-road-profile.js": "f9f52d1d1ea9bd3fe66330602d87862b7656c8c1dce1838f30f2908a8759d9c7",
       "js/sz-road-section.js": "3e8403fb160960a4c26964e3d37b9b758b2cebf31bf2d6a4b4147c8ec6bf6bf8",
       "js/sz-roads.js": "71be4485f1373576c58264fd731bd3fb6fc98bf64737e1fe8fe544fc2973e8e9",
-      "js/sz-scene-site.js": "d0faecfac5a56d60721a6dab755b01d5576e70a60eee681b12de264f31f13453",
+      "js/sz-scene-site.js": "853a5275e40e5fc0c42de77b36e19cd75d44676810c20b84354b913d6c23913b",
       "js/sz-scene-style.js": "fbc7b6cdb08a25dfb7f8ff773e3b4bddce309d2973bce2d256a45b06f1fef027",
       "js/sz-sea.js": "1c69243a4c3f9002bdde397b10bed63b840074df52df9118f88215680393d5a7",
       "js/sz-section-frame.js": "94ed096ace331504e2870cc07033d61b07b6340380a46299d268bcf68c0a9968",
@@ -559623,16 +559624,16 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7906,
-    "metadataBytes": 19328846,
-    "numericBytes": 46798528,
-    "uncompressedBytes": 66127424,
+    "metadataBytes": 19328847,
+    "numericBytes": 47432704,
+    "uncompressedBytes": 66761600,
     "lossless": true,
-    "compressedBytes": 17886360,
-    "compressedSha256": "65b41e8d897645e79a957bf9f7d6064f950815abb33493e16a4f54aacf765057"
+    "compressedBytes": 18044227,
+    "compressedSha256": "aac82a74c3caf22dad4f015751cd0fd40293a6d50d2158c0d3cfd03dc8abd000"
   },
-  "outputBytes": 17971284,
-  "outputSha256": "6b59dad13ec9bc947a8f6ce0c343eca00a2968916cffa9529c228f7169eaaa20",
-  "seconds": 67.1,
+  "outputBytes": 18122962,
+  "outputSha256": "0a57f22d023114c6eaf33a2a8cd52aac60980eb99d8e8e217db3ab86d906e26e",
+  "seconds": 59.9,
   "elevatedCut": {
     "version": 3,
     "links": 45,

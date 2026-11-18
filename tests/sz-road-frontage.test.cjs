@@ -83,7 +83,8 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const { chunks } = roads.createRoadSurfaceLayout(raw.roadGraph, terrain);
   const roadHeight = roads.createRoadHeightSampler(chunks, terrain.grid);
   const scene = new THREE.Scene();
-  const model = buildSzRoadFrontage(scene, raw.roadFrontage, raw.roadGraph, terrain, { groundHeight, roadHeight });
+  const reserveFlowerBed = (x, z) => Math.abs(x - 6) <= 34 && Math.abs(z - 408) <= 20;
+  const model = buildSzRoadFrontage(scene, raw.roadFrontage, raw.roadGraph, terrain, { groundHeight, roadHeight, reserveFlowerBed });
   for (const [x, z] of [[-1403.57, 420.36], [-1408.58, 440.30], [-1274.23, 432.31], [-1223.73, 436.38]]) {
     assert.equal(model.arterialMedianAt(x, z), true);
     assert.equal(roadHeight(x, z), null);
@@ -153,20 +154,11 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   }
   const civic = raw.roadFrontage.corridors.find(row => row.id === 'shennan-civic-center');
   assert.equal(civic.medianSource.imageryReview.captureDate, '2026-01-25');
-  const band = raw.roadFrontage.features.filter(feature => feature.id === 'shennan-civic-center:flower-band');
-  assert.equal(band.length, 1);
-  assert.equal(band[0].id, 'shennan-civic-center:flower-band');
-  assert.equal(band[0].riseM, 0);
-  assert.deepEqual(band[0].outlines, []);
-  const bandMeshes = model.group.children.filter(mesh => mesh.name.startsWith(`${band[0].id}:`));
-  assert.ok(bandMeshes.length > 0 && bandMeshes.every(mesh => mesh.material.polygonOffset));
-  for (const mesh of bandMeshes) {
-    const positions = mesh.geometry.attributes.position;
-    for (let i = 0; i < positions.count; i++) {
-      const x = positions.getX(i) + mesh.position.x;
-      const z = positions.getZ(i) + mesh.position.z;
+  assert.ok(!model.group.children.some(mesh => mesh.name.startsWith('shennan-civic-center:flower-band:')));
+  for (let x = -23; x <= 35; x += 2) {
+    for (let z = 393; z <= 423; z += 2) {
       assert.equal(roadHeight(x, z), null);
-      assert.ok(Math.abs(model.shennanMedianHeight(x, z) - positions.getY(i)) < 0.00001);
+      assert.ok(Number.isFinite(model.shennanMedianHeight(x, z)));
     }
   }
   const { links, metadata, nodes } = raw.roadGraph;
@@ -199,6 +191,7 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
     const x = flowers.getX(i) + flowerBeds.position.x;
     const z = flowers.getZ(i) + flowerBeds.position.z;
     assert.equal(roadHeight(x, z), null);
+    assert.ok(!reserveFlowerBed(x, z));
     assert.ok(Math.abs(flowers.getY(i) - model.shennanMedianHeight(x, z) - 0.07) < 0.0002);
   }
   assert.ok(model.signalOrigins.every(p => p.minClearanceM >= 5.5));

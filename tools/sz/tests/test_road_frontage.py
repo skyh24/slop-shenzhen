@@ -8,6 +8,22 @@ from shapely import LineString, Point, Polygon, box, unary_union
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from road_frontage import _buffer, _junction_walk_surfaces
+from arterial_corridors import _flower_beds
+
+
+class ShennanFlowerBedsTest(unittest.TestCase):
+    def test_repeats_s_beds_with_turf_gaps_and_leaves_crossings_open(self):
+        lawn = box(0, -10, 190, 10).difference(box(81, -11, 99, 11))
+        beds = sorted(_flower_beds(lawn), key=lambda bed: bed.bounds[0])
+        self.assertGreaterEqual(len(beds), 5)
+        self.assertTrue(all(lawn.buffer(-0.99).covers(bed) for bed in beds))
+        self.assertTrue(all(a.distance(b) >= 7.99 for a, b in zip(beds, beds[1:])))
+        start, _, end, _ = beds[0].bounds
+        quarters = [start + fraction * (end - start) for fraction in (0.25, 0.75)]
+        centers = [beds[0].intersection(LineString([(x, -10), (x, 10)])).centroid.y for x in quarters]
+        self.assertGreater(centers[0], 3)
+        self.assertLess(centers[1], -3)
+        self.assertEqual(list(_flower_beds(box(0, -1.5, 190, 1.5))), [])
 
 
 class HongshulinWalkSurfaceTest(unittest.TestCase):
