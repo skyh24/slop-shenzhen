@@ -28,7 +28,8 @@ try {
   const raw = await readCityPayload(packagePath, path => new Response(readFileSync(path)));
   const { geo } = decodeCityPayload(raw);
   // 与运行时同源：源图不再并入审核结构，桥面由通用剖面派生，隧道由全城洞身派生。
-  const graph = geo.roadGraph;
+  const { applyInterchangeLevels } = await import('../../js/sz-interchange-levels.js');
+  const graph = applyInterchangeLevels(geo.roadGraph, geo.terrainSurface.interchangeLevels);
   const isWater = createCitySpatial(geo).isWater;
   const elevated = planElevatedRoads(graph, geo.terrainSurface, { waterfront: geo.waterfront,
     extraCrossing: northBridgeProfile(geo.shenzhenNorthRail), parkFootbridges: geo.talentPark?.footbridges,

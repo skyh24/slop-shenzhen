@@ -47,6 +47,7 @@ from road_surface import build_road_surface
 from road_structures import compile_road_structures
 from elevated_cut import apply_elevated_cut
 from tunnel_portals import apply_tunnel_portal_cut
+from interchange_levels import apply_interchange_levels
 from keyuan_underpass import apply_keyuan_underpass
 from trees import build_trees
 from metro import build_metro
@@ -366,6 +367,7 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
     if 'waterfront' in payload:
         apply_baishi_underpass(payload, report, waterfront_plan)
     apply_keyuan_underpass(payload, report)
+    apply_interchange_levels(payload, report)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     write_regional_scene(payload, report)
     write_payload(payload, report, sources, started)
@@ -830,6 +832,7 @@ def main():
             build_report = json.loads(REPORT.read_text())
             apply_baishi_underpass(payload, build_report, json.loads(WATERFRONT_SAMPLES.read_text()))
             apply_keyuan_underpass(payload, build_report)
+            apply_interchange_levels(payload, build_report)
             write_regional_scene(payload, build_report)
             write_payload(payload, build_report, sources, started)
         elif args.rebuild_drive_rules:
