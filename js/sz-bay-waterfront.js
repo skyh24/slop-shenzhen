@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { polygonBoxOverlaps } from './building-collision.js';
+import { createDetailResidency } from './sz-detail-residency.js';
 import { dayPhase } from './sz-day-phase.js';
 import { addGreenwayLightPool, createFixtureBatches, createGreenwayLightMaterial,
   GREENWAY_LAMP, GREENWAY_RAIL, planBench, planLantern, planRail } from './sz-site-fixtures.js';
@@ -429,20 +430,15 @@ export function mountBayWaterfrontBatch(group, batch, shared, scheduleDetail = b
     add(batch.pool);
   }
 
-  let details = null, wantsDetails = false;
+  // 抛石近景与岸线实例缓冲共用同一套驻留规则：进入 210 m、离开 265 m，
+  // 实例网格随离开释放；石头材质和几何体由区域场景共用，不跟着单个块释放。
+  const residency = createDetailResidency({ enterM: 210, exitM: 265, schedule: scheduleDetail });
   return {
-    get detailActive() { return Boolean(details); },
+    get detailActive() { return residency.active; },
     update({ x, z }) {
       if (batch.pool) batch.pool.visible = dayPhase.channel('lamps') > 0;
       if (!batch.rockSites.length) return;
-      const d2 = (x - batch.x) ** 2 + (z - batch.z) ** 2;
-      wantsDetails = d2 < 210 ** 2;
-      if (details && d2 > 265 ** 2) {
-        details.removeFromParent();
-        details.dispose();
-        details = null;
-      } else if (!details && wantsDetails) scheduleDetail(() => {
-        if (details || !wantsDetails) return;
+      residency.update(Math.hypot(x - batch.x, z - batch.z), () => {
         const mesh = new THREE.InstancedMesh(rockGeometry, stone, batch.rockSites.length);
         mesh.name = `shenzhen-bay-riprap:${batch.id}`;
         const matrix = new THREE.Matrix4();
@@ -454,13 +450,12 @@ export function mountBayWaterfrontBatch(group, batch, shared, scheduleDetail = b
         mesh.computeBoundingSphere();
         mesh.receiveShadow = true;
         group.add(mesh);
-        details = mesh;
+        return { dispose() { mesh.removeFromParent(); mesh.dispose(); } };
       });
     },
     dispose() {
+      residency.dispose();
       fixtureBatches.dispose();
-      details?.removeFromParent();
-      details?.dispose();
       for (const mesh of owned) {
         mesh.removeFromParent();
         mesh.geometry.dispose();

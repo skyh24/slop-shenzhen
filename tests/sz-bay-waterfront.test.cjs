@@ -9,6 +9,7 @@ const { dayPhaseStub } = require('./helpers/day-phase.cjs');
 
 const root = join(__dirname, '..');
 const read = name => readFileSync(join(root, 'js', name), 'utf8');
+const residency = loadModule(read('sz-detail-residency.js'));
 const dir = process.env.SZ_THREE_PACKAGE_DIR;
 const payload = JSON.parse(gunzipSync(readFileSync(join(root, 'js/sz-city.json.gz'))));
 const { decodeCityPayload } = loadModule(read('sz-data-format.js'));
@@ -98,7 +99,7 @@ test('waterfront keeps mode permissions local and releases riprap detail after l
   const { buildSzBayWaterfront, createBayPathLookup } = loadModule(read('sz-bay-waterfront.js'), { imports: {
     'three/webgpu': THREE, 'three/tsl': TSL, './building-collision.js': { polygonBoxOverlaps: () => false },
     './sz-materials.js': materials, './sz-site-fixtures.js': fixtures, './sz-day-phase.js': dayPhaseStub(),
-    './sz-strings.js': loadModule(read('sz-strings.js'))
+    './sz-strings.js': loadModule(read('sz-strings.js')), './sz-detail-residency.js': residency
   } });
   const scene = new THREE.Scene();
   const pathsNear = createBayPathLookup(bay.paths);
@@ -142,7 +143,8 @@ test('compact rails keep openings, slope, collider types and terrain-following l
   } });
   const bayModule = loadModule(read('sz-bay-waterfront.js'), { imports: {
     'three/webgpu': THREE, './building-collision.js': {}, './sz-materials.js': materials,
-    './sz-site-fixtures.js': fixtures, './sz-strings.js': {}, './sz-day-phase.js': dayPhaseStub()
+    './sz-site-fixtures.js': fixtures, './sz-strings.js': {}, './sz-day-phase.js': dayPhaseStub(),
+    './sz-detail-residency.js': residency
   } });
   const a = { x: 0, y: 8, z: 0 }, b = { x: 3, y: 8.12, z: 4 };
   const rail = (p, q) => fixtures.planRail(p, q, fixtures.GREENWAY_RAIL)
@@ -168,4 +170,65 @@ test('compact rails keep openings, slope, collider types and terrain-following l
   assert.equal(restored.poolPositions.length, pool.poolPositions.length);
   assert.ok(Math.max(...pool.poolPositions.map((v, i) => Math.abs(v - restored.poolPositions[i]))) < 0.0011);
   assert.deepEqual(Array.from(restored.poolUvs), Array.from(pool.poolUvs));
+});
+
+test('riprap residency drops stale queued builds and releases only its own instances', { skip: !dir }, async () => {
+  const load = file => import(pathToFileURL(join(dir, 'build', file)));
+  const [THREE, TSL] = await Promise.all([load('three.webgpu.js'), load('three.tsl.js')]);
+  const materials = { sceneUniforms: { night: TSL.uniform(0) } };
+  const fixtures = loadModule(read('sz-site-fixtures.js'), { imports: {
+    'three/webgpu': THREE, 'three/tsl': TSL, './sz-materials.js': materials, './sz-day-phase.js': dayPhaseStub()
+  } });
+  const bayModule = loadModule(read('sz-bay-waterfront.js'), { imports: {
+    'three/webgpu': THREE, 'three/tsl': TSL, './building-collision.js': { polygonBoxOverlaps: () => false },
+    './sz-materials.js': materials, './sz-site-fixtures.js': fixtures,
+    './sz-strings.js': loadModule(read('sz-strings.js')), './sz-day-phase.js': dayPhaseStub(),
+    './sz-detail-residency.js': residency
+  } });
+  const resources = bayModule.createBayWaterfrontResources();
+  let sharedDisposed = 0;
+  resources.stone.addEventListener('dispose', () => sharedDisposed++);
+  resources.rockGeometry.addEventListener('dispose', () => sharedDisposed++);
+  const group = new THREE.Group();
+  const tasks = [];
+  const batch = { id: 'residency', x: 0, z: 0, positions: [], colors: [], metal: [], wood: [], light: [],
+    poolPositions: [], rockSites: [{ x: 0, y: 6, z: 0, size: 1.4, phase: 0.3 },
+      { x: 3, y: 6.1, z: 1, size: 1.1, phase: 1.7 }] };
+  const live = bayModule.mountBayWaterfrontBatch(group, batch, resources, build => tasks.push(build));
+
+  // 进入 210 m 内只排一次创建。
+  live.update({ x: 100, z: 0 });
+  live.update({ x: 101, z: 0 });
+  assert.equal(tasks.length, 1);
+
+  // 离开后排队结果作废。
+  live.update({ x: 500, z: 0 });
+  tasks.shift()();
+  assert.equal(group.children.length, 0);
+  assert.equal(live.detailActive, false);
+
+  // 重新进入只创建一次。
+  live.update({ x: 200, z: 0 });
+  assert.equal(tasks.length, 1);
+  tasks.shift()();
+  assert.equal(group.children.length, 1);
+  assert.equal(live.detailActive, true);
+  assert.match(group.children[0].name, /shenzhen-bay-riprap:residency/);
+
+  // 210-265 m 迟滞带内保持，超过 265 m 释放。
+  live.update({ x: 264, z: 0 });
+  assert.equal(group.children.length, 1);
+  live.update({ x: 266, z: 0 });
+  assert.equal(group.children.length, 0);
+  assert.equal(sharedDisposed, 0, 'releasing one batch keeps shared riprap resources alive');
+
+  // 释放后重进再建一次，仍不碰共享资源。
+  live.update({ x: 200, z: 0 });
+  tasks.shift()();
+  assert.equal(group.children.length, 1);
+  live.dispose();
+  assert.equal(group.children.length, 0);
+  assert.equal(sharedDisposed, 0);
+  resources.dispose();
+  assert.equal(sharedDisposed, 2);
 });
