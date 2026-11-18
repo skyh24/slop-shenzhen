@@ -337,3 +337,18 @@ test('the narrow-road boundary follows the 7 m rule and the estimated lane count
   assert.equal(plan(7, 3).dividerOffsetsM.length, 1);
   assert.equal(plan(10, 0).narrow, false);
 });
+
+test('a side ramp stops at the main roadway without interrupting the through lane line', () => {
+  const graph = {
+    nodes: [-80, 0, 0, 0, 80, 0, 65, 22], names: ['Main road', 'Side ramp'],
+    links: [[0, 1, 0, 13, 4, 1, []], [1, 2, 0, 13, 4, 1, []], [1, 3, 1, 4, 1, 1, []]],
+    metadata: [GROUND, { ...GROUND, osmId: 'way/2' }, { ...GROUND, osmId: 'way/3', highway: 'primary_link' }]
+  };
+  const { strips } = createMarkingLayout(graph);
+  const center = strips.filter(strip => strip.kind === 'lane' && strip.offset === 0);
+  assert.ok(center.some(strip => strip.bx === 0 && strip.bz === 0));
+  assert.ok(center.some(strip => strip.ax === 0 && strip.az === 0));
+  const rampLines = strips.filter(strip => strip.az !== strip.bz);
+  assert.ok(rampLines.length > 0);
+  assert.ok(rampLines.every(strip => Math.min(strip.az, strip.bz) > 6.5));
+});

@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { normalWorld, positionWorld } from 'three/tsl';
 import { isGroundRoad, roadLinkPoints } from './sz-roads.js';
 import { createGroundSurfaceSampler } from './sz-ground-surface.js';
-import { deckLaneProfile } from './sz-road-section.js';
+import { deckLaneProfile, throughRoadArms } from './sz-road-section.js';
 import {
   centerGradeBudget, createRoadProfile, measureRoadProfile, recordRoadProfileSeam, roadProfileHeight
 } from './sz-road-profile.js';
@@ -423,17 +423,18 @@ function findJunctionTapers(graph, groundNodes, skip) {
       if (groundNodes.has(end.node)) continue;
       const key = `${end.node}:${layer}`;
       if (!endsByNode.has(key)) endsByNode.set(key, []);
-      endsByNode.get(key).push({ index, ...end, layer, width, length, name: graph.names[link[2]],
+      endsByNode.get(key).push({ index, ...end, dx: end.ux, dz: end.uz, layer, width, length, name: graph.names[link[2]],
         kind: metadata.highway, direction: link[5] });
     }
   }
   const tapers = new Map();
   for (const list of endsByNode.values()) {
     const exclusive = list.length === 2;
+    const primary = list.length > 2 ? throughRoadArms(list) : null;
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
         const a = list[i], b = list[j];
-        if (a.index === b.index) continue;
+        if (a.index === b.index || (primary && !(primary.includes(a) && primary.includes(b)))) continue;
         const dot = a.ux * b.ux + a.uz * b.uz;
         const sameRoad = exclusive && a.name && a.name === b.name && a.kind && a.kind === b.kind
           && a.direction === b.direction && (a.direction === 0 || a.side !== b.side);
@@ -626,6 +627,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   const length = polylineLength(points);
   if (length <= EPSILON) return null;
   const [start, end] = [link[0], link[1]];
+  const highway = metadata.highwayProfile;
   const startGround = alignment?.startGround ?? groundHeight(points[0].x, points[0].z);
   const endGround = alignment?.endGround ?? groundHeight(points.at(-1).x, points.at(-1).z);
   if (!reviewed && (!Number.isFinite(startGround) || !Number.isFinite(endGround))) return null;
@@ -635,8 +637,8 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   const urban = metadata.interchangeApproach;
   const startLift = urban ? interchangeRise(urban.start) : alignment?.startLift ?? lift;
   const endLift = urban ? interchangeRise(urban.end) : alignment?.endLift ?? lift;
-  const sharedStart = groundNodes.has(start);
-  const sharedEnd = groundNodes.has(end);
+  const sharedStart = !highway?.[2] && groundNodes.has(start);
+  const sharedEnd = !highway?.[3] && groundNodes.has(end);
   const fullStart = startGround + startLift;
   const fullEnd = endGround + endLift;
   const startY = sharedStart ? startGround : fullStart;
@@ -680,7 +682,8 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
     urban.start + Math.max(0, distance - urban.delayStart),
     urban.end + Math.max(0, length - distance - urban.delayEnd)
   ));
-  let deckHeightAt = urban
+  let deckHeightAt = highway ? distance => highway[0] + (highway[1] - highway[0]) * distance / length
+    : urban
     ? distance => startGround + (endGround - startGround) * distance / length + riseAt(distance)
     : reviewed?.heightAt ?? (reviewed
     ? (d => {
@@ -705,7 +708,8 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
     const resolve = (side, baseY, groundY) => {
       const info = split[side];
       if (!info) return null;
-      const targetY = groundY + info.toLift;
+      const peer = graph.metadata[info.joinIndex]?.highwayProfile;
+      const targetY = peer?.[info.joinSide === 'start' ? 0 : 1] ?? groundY + info.toLift;
       const drop = baseY - targetY;
       if (drop <= 0.05) return null;
       const rampM = drop / ELEVATED_DRIVE_MAX_GRADE;
@@ -752,7 +756,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   // 必须能驶入并画标线；贴着地形的落地匝道（中段不抬升）仍只保留显示几何，
   // 否则会在同一位置叠出假桥面，把桥下行人和自行车吸上去。
   const contactSurface = Boolean(reviewed || crossing || layer <= 0 || !sharedStart || !sharedEnd
-    || maxClearanceM > DECK_CONTACT_RISE_M);
+    || highway || maxClearanceM > DECK_CONTACT_RISE_M);
   // 错层衔接端必须精确落在下层桥面高程，不能因为地形下限抬回去；坡度已在 12% 内，这里只锁端点。
   if (splitStart) frames[0].y = splitStart.targetY;
   if (splitEnd) frames.at(-1).y = splitEnd.targetY;
@@ -782,7 +786,8 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
     }
   }
   const isApproach = (a, b) => urban ? Math.min(riseAt(a.d), riseAt(b.d)) < lift - EPSILON : !reviewed && !crossing && (
-    (sharedStart && a.d * startRampGrade < startLift - EPSILON)
+    (highway && (!highway[2] || !highway[3]))
+    || (sharedStart && a.d * startRampGrade < startLift - EPSILON)
     || (sharedEnd && (length - b.d) * endRampGrade < endLift - EPSILON)
     || (splitStart && a.d < splitStart.rampM - EPSILON)
     || (splitEnd && length - b.d < splitEnd.rampM - EPSILON)
@@ -878,7 +883,8 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
     tunnel: metadata.tunnel === true,
     layer,
     effectiveLiftM: lift,
-    urbanApproach: Boolean(urban),
+    urbanApproach: Boolean(urban || highway),
+    highwayMainline: Boolean(highway && metadata.highway === 'motorway'),
     startNode: start,
     endNode: end,
     sharedStart,
@@ -892,7 +898,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
     maxClearanceM,
     gradeProfile,
     // 既有导航筛选不批量改判；最终断面的实测口径另由 gradeProfile 明示。
-    maxGrade: calibrated ? gradeProfile.maxGrade : reviewed || crossing || alignment?.g4 ? maxGrade
+    maxGrade: highway ? Math.abs(highway[1] - highway[0]) / length : calibrated ? gradeProfile.maxGrade : reviewed || crossing || alignment?.g4 ? maxGrade
       : Math.max(Math.abs(endY - startY) / length, splitStart?.grade ?? 0, splitEnd?.grade ?? 0),
     splitStart: splitStart && {
       joinIndex: splitStart.joinIndex, joinSide: splitStart.joinSide,
@@ -1454,15 +1460,17 @@ export function planElevatedRoads(graph, terrainSurface, options) {
   const groundIndex = createGroundRoadIndex();
   const g4Bridges = new Set();
   const g4LayersAt = new Map();
+  const g4DeckAt = new Map();
 
   for (let index = 0; index < graph.links.length; index++) {
     const metadata = graph.metadata[index];
     const link = graph.links[index];
     // 与 tools/sz/elevated_cut.py 一致。按快照的高速主线名称和桥梁标签选段。
     if (metadata?.bridge === true && !metadata.tunnel && metadata.layer > 0
-      && metadata.highway === 'motorway' && graph.names[link[2]] === '京港澳高速') {
+      && metadata.highway === 'motorway' && (metadata.highwayProfile || graph.names[link[2]] === '京港澳高速')) {
       g4Bridges.add(index);
-      for (const node of [link[0], link[1]]) {
+      for (const [side, node] of [link[0], link[1]].entries()) {
+        if (metadata.highwayProfile) g4DeckAt.set(node, metadata.highwayProfile[side]);
         if (!g4LayersAt.has(node)) g4LayersAt.set(node, new Set());
         g4LayersAt.get(node).add(metadata.layer);
       }
@@ -1530,15 +1538,21 @@ export function planElevatedRoads(graph, terrainSurface, options) {
       liftOverride = raisedForCrossing ? LAYER_HEIGHT_M : 0;
     }
     // 同层支线共用京港澳接点的高度基准和层高；跨层缓降仍用邻段的目标高度。
-    const alignment = g4LayersAt.has(link[0]) || g4LayersAt.has(link[1]) ? {
+    const highway = metadata.highwayProfile;
+    const alignment = highway ? { g4: true,
+      startGround: highway[0] - (highway[2] ? LAYER_CLEARANCE_M : 0),
+      endGround: highway[1] - (highway[3] ? LAYER_CLEARANCE_M : 0)
+    } : g4LayersAt.has(link[0]) || g4LayersAt.has(link[1]) ? {
       g4,
-      startGround: g4LayersAt.has(link[0]) ? terrainHeight(points[0].x, points[0].z) : null,
-      endGround: g4LayersAt.has(link[1]) ? terrainHeight(points.at(-1).x, points.at(-1).z) : null,
+      startGround: g4DeckAt.has(link[0]) ? g4DeckAt.get(link[0]) - LAYER_CLEARANCE_M
+        : g4LayersAt.has(link[0]) ? terrainHeight(points[0].x, points[0].z) : null,
+      endGround: g4DeckAt.has(link[1]) ? g4DeckAt.get(link[1]) - LAYER_CLEARANCE_M
+        : g4LayersAt.has(link[1]) ? terrainHeight(points.at(-1).x, points.at(-1).z) : null,
       startLift: g4LayersAt.get(link[0])?.has(layer) ? layer * LAYER_CLEARANCE_M : null,
       endLift: g4LayersAt.get(link[1])?.has(layer) ? layer * LAYER_CLEARANCE_M : null
     } : null;
     const record = planLink(graph, link, index, metadata, profile || crossing || urban ? terrainHeight : groundHeight,
-      groundNodes, profile, crossing, liftOverride, groundIndex, urban ? null : layerSplits.get(index), junctionTapers.get(index), alignment);
+      groundNodes, profile, crossing, liftOverride, groundIndex, urban || highway ? null : layerSplits.get(index), junctionTapers.get(index), alignment);
     if (record === null) {
       skippedLinks++;
       continue;
@@ -1596,8 +1610,9 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     record.danglingEnds = [];
     record.dangling = false;
     const anchored = Boolean(record.reviewed || record.crossing);
-    record.connectedStart = record.sharedStart || record.effectiveLiftM <= 0.05 || anchored;
-    record.connectedEnd = record.sharedEnd || record.effectiveLiftM <= 0.05 || anchored;
+    const clipped = node => record.highwayMainline && graph.nodeIds?.[node]?.startsWith('clip/');
+    record.connectedStart = record.sharedStart || record.effectiveLiftM <= 0.05 || anchored || clipped(record.startNode);
+    record.connectedEnd = record.sharedEnd || record.effectiveLiftM <= 0.05 || anchored || clipped(record.endNode);
     for (const [node, side, y] of [[record.startNode, 'start', record.startDeckY],
       [record.endNode, 'end', record.endDeckY]]) {
       if (!endingsByNode.has(node)) endingsByNode.set(node, []);

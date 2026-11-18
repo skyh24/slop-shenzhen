@@ -760,3 +760,22 @@ test('a vehicle near the player can recover from a short end or an unsupported t
     assert.equal(actor.dead, false);
   }
 });
+
+test('an elevated expressway entrance joins the right lane of a marked mainline', () => {
+  const graph = {
+    nodes: [-120, 22, 0, 0, 240, 0], names: ['Ramp', 'Main road'],
+    links: [[0, 1, 0, 4, 1, 1, []], [1, 2, 1, 9.8, 3, 1, []]],
+    metadata: [{ ...groundRoad(1), bridge: true, layer: 1, highway: 'motorway_link' },
+      { ...groundRoad(2), bridge: true, layer: 1, highway: 'motorway' }]
+  };
+  const [ramp, main] = createTrafficGraph(graph, { elevated: { links: [
+    { ...elevatedEdgeRecord({ osmId: 'way/1', index: 0, surfaceId: 'ramp', startNode: 0, endNode: 1,
+      points: [[-120, 22], [0, 0]] }), width: 4.95, lanes: 1, laneCount: 1 },
+    { ...elevatedEdgeRecord({ osmId: 'way/2', index: 1, surfaceId: 'main', startNode: 1, endNode: 2,
+      points: [[0, 0], [240, 0]] }), width: 11.45, lanes: 3, laneCount: 3 }
+  ] } }).edges;
+  const pieces = routeSegments({ edge: ramp, segment: 0, distance: 20 }, { hx: 1 }, () => 0, new Set(), 0.1);
+  const entered = pieces.find(piece => piece.edge === main);
+  assert.ok(entered);
+  assert.equal(entered.laneOffset, 3.25);
+});

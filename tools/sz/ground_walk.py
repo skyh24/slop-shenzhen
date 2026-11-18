@@ -30,12 +30,12 @@ def _candidate(identity, surface, kind, base):
 
 
 def _cover_candidates(roadside, asphalt, buildings, parcels, protected):
-    # 先在源地块内补面向道路的建筑前场，再给剩余近路空间铺草。
     free = roadside.difference(protected.union(buildings).union(asphalt))
     fronts = union_all([parcel for parcel, _ in parcels.values()])
     near_front = buildings.buffer(8).intersection(asphalt.buffer(24))
-    stone = free.intersection(fronts).intersection(near_front)
-    lawn = free.intersection(asphalt.buffer(9)).difference(near_front.union(fronts))
+    aprons = buildings.buffer(4).intersection(asphalt.buffer(16))
+    stone = free.intersection(fronts.intersection(near_front).union(aprons))
+    lawn = free.intersection(asphalt.buffer(9)).difference(near_front.union(fronts).union(stone))
 
     def usable(shape, area, radius):
         return union_all([p for p in parts(shape) if p.area >= area and not p.buffer(-radius).is_empty])
@@ -112,7 +112,7 @@ def compile_ground_walk(payload, osm, source, report):
             park_lengths[park_id] += path.length
 
     stone, lawn = _cover_candidates(streets.intersection(dry), road, buildings, parcels,
-                                    union_all([wet, green, known, lines, reserved]))
+                                    union_all([wet, green, known, lines, reserved, union_all(excluded)]))
     candidates += [_candidate('street-stone', stone, STONE, (0,)), _candidate('street-lawn', lawn, LAWN, (0,))]
 
     # 旧包迁移只重标滨水生成器覆盖的三角面；新包已保留中湾材质。

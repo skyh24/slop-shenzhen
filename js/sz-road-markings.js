@@ -1,5 +1,5 @@
 import { isGroundRoad, roadSectionPoints } from './sz-roads.js';
-import { getRoadSection } from './sz-road-section.js';
+import { getRoadSection, throughRoadArms } from './sz-road-section.js';
 import { sectionMiteredLine, sectionNormal } from './sz-section-frame.js';
 
 // 深圳地面道路标线：按 [23 号文档](../../docs/23-BUILDING-AND-STREET-PLAN.md) 第 7 节收束线型。
@@ -222,19 +222,21 @@ function junctionArms(graph) {
       if (length < 1e-6) return;
       const arms = nodes.get(link[end]) ?? [];
       const left = point.leftM ?? link[3] / 2, right = link[3] - left;
-      arms.push({ index, dx: dx / length, dz: dz / length, left: end ? right : left, right: end ? left : right });
+      arms.push({ index, width: link[3], kind: graph.metadata[index].highway, name: graph.names[link[2]], dx: dx / length, dz: dz / length, left: end ? right : left, right: end ? left : right });
       nodes.set(link[end], arms);
     });
   });
   return nodes;
 }
 
-function junctionGap(arms, index, length) {
+export function junctionGap(arms, index, length) {
   if (!arms || arms.length < 3) return 0;
   const arm = arms.find(item => item.index === index);
   if (!arm) return 0;
+  const main = throughRoadArms(arms);
+  if (main?.includes(arm)) return 0;
   let clearance = 0;
-  for (const other of arms) {
+  for (const other of main ?? arms) {
     if (other === arm) continue;
     const cos = arm.dx * other.dx + arm.dz * other.dz;
     if (cos < -0.96) continue;
@@ -242,11 +244,11 @@ function junctionGap(arms, index, length) {
     // 从共享节点沿本进向退到两幅沥青边缘分离处。小角度分流给标线留渐开距离。
     const otherHalf = sin > 0 ? other.left : other.right;
     const ownHalf = sin > 0 ? arm.right : arm.left;
-    clearance = Math.max(clearance, (otherHalf + Math.max(0, cos) * ownHalf) / Math.max(0.25, Math.abs(sin)));
+    clearance = Math.max(clearance, (otherHalf + Math.max(0, cos) * ownHalf) / Math.max(main ? 0.08 : 0.25, Math.abs(sin)));
   }
   // 旧上限 28 m 在斜交分流口会留下整段无标线沥青，读起来像断头路；但压到 8 m
   // 又会让支路车道线穿过 30 m 宽的主路。18 m 只收紧斜交，不越过正交主路的边缘。
-  return Math.min(clearance + 0.75, 18, length * 0.5);
+  return main ? Math.min(clearance + 0.75, length) : Math.min(clearance + 0.75, 18, length * 0.5);
 }
 
 export function createMarkingLayout(graph, { intersections = [], frontage } = {}) {

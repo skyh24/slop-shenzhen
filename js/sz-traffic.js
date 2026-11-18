@@ -155,7 +155,7 @@ export function createTrafficGraph(graph, { canTurn = () => true, elevated = nul
       const from = sign === 1 ? record.startNode : record.endNode;
       const to = sign === 1 ? record.endNode : record.startNode;
       const edge = { from, to, sign, section, groundFork: record.groundFork,
-        name: record.name ?? '', osmId: record.osmId, highway: null, sourceIndex: record.index,
+        name: record.name ?? '', osmId: record.osmId, highway: graph.metadata[record.index]?.highway ?? null, sourceIndex: record.index,
         structureNeighbors: record.structureNeighbors, tunnel: record.tunnel === true, rampSpeed: record.ramp ? 6.5 : undefined,
         segments: [], next: [], surfaceId: section.surfaceId, elevated: true,
         startDeckY: sign === 1 ? record.startDeckY : record.endDeckY,
@@ -245,9 +245,9 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice, 
       elevatedSeen = true;
     }
     used.add(edge.sourceIndex);
-    // 高架链路没有地面分幅横断面，统一走桥面中心线（方向 0 时取桥面半宽的居中车道）。
-    // 车道可信（已核实断面或 OSM 明确标注）才按车道取偏移；纯宽度估计沿用保守单偏移。
-    const useLanes = !edge.elevated && (laneOffsets(edge.section) !== null || detailedRoads.has(edge.osmId));
+    // 高速主线沿有标注的车道行驶，入口优先接右侧车道。
+    const useLanes = (!edge.elevated || edge.highway === 'motorway')
+      && (laneOffsets(edge.section) !== null || detailedRoads.has(edge.osmId));
     const offsets = useLanes ? edge.section.routeOffsetsM : edge.section.defaultOffsetsM;
     const halfWidth = edge.section.travelWidthM / 2;
     const lanes = offsets.filter(offset => Math.abs(offset) + model.hx + 0.08 <= halfWidth);
@@ -271,7 +271,8 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice, 
     const choices = edge.next.filter(next => !used.has(next.sourceIndex) && usableWidth(next, model.hx)
       && (!edge.section.reviewed || outerLane || !isTrunkRamp(next)));
     const next = choices[Math.floor(random() * choices.length)];
-    if (isTrunkRamp(edge) && next?.section.reviewed) { laneChoice = 1; forcedLane = true; }
+    if ((isTrunkRamp(edge) && next?.section.reviewed)
+      || (edge.highway === 'motorway_link' && next?.highway === 'motorway')) { laneChoice = 1; forcedLane = true; }
     if (edge.tunnel && next) remaining = Math.max(remaining, next.tunnel ? 1 : 55);
     edge = next;
     index = 0;

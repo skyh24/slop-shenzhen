@@ -70,7 +70,7 @@ function createSection(link, metadata, deck) {
   // 双向的普通路线沿用保守右偏距；未核单向车道数时不把标线估计用作自动驾驶车道。
   const defaultOffsetsM = Object.freeze([defaultRightOffsetM]);
   // 超宽单向道路的标线有绘制上限，已知的车道仍完整供路线选择；双向由 laneOffsets 只取正向半幅。
-  const routeCentersM = twoWay ? null : sourceLaneCount > laneCount
+  const routeCentersM = twoWay ? null : !deck && sourceLaneCount > laneCount
     ? centeredLanes(sourceLaneCount, travelWidthM / sourceLaneCount, travelWidthM)
     : direction === 1 ? forwardCentersM : backwardCentersM;
   const section = {
@@ -120,4 +120,26 @@ export function getDeckSection(graph, deck) {
 
 export function usableWidth({ section }, halfWidth) {
   return section.travelWidthM >= (section.twoWay ? 4 : 2) * halfWidth + 0.16;
+}
+
+// 道路三岔口优先选同名、近直线的主线双臂；附属匝道不参与主线收宽。
+export function throughRoadArms(arms) {
+  if (arms.length < 3) return null;
+  let pair = null;
+  let best = -Infinity;
+  for (let i = 0; i < arms.length; i++) {
+    const a = arms[i];
+    for (let j = i + 1; j < arms.length; j++) {
+      const b = arms[j];
+      if (a.kind?.endsWith('_link') || a.kind !== b.kind) continue;
+      const straight = -(a.dx * b.dx + a.dz * b.dz);
+      const named = a.name && a.name === b.name;
+      if (straight < 0.94 || (!named && !['motorway', 'trunk', 'primary'].includes(a.kind))) continue;
+      const width = Math.min(a.width, b.width);
+      if (!arms.some(c => c !== a && c !== b && (c.kind?.endsWith('_link') || c.width < width * 0.82))) continue;
+      const score = (named ? 20 : 0) + 10 * straight + width;
+      if (score > best) { best = score; pair = [a, b]; }
+    }
+  }
+  return pair;
 }

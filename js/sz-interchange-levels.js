@@ -114,3 +114,21 @@ export function applyInterchangeLevels(graph, areas) {
   }
   return { ...graph, metadata: result };
 }
+
+export function applyCorridorRoadProfiles(graph, terrain) {
+  const mapped = applyInterchangeLevels(graph, terrain?.interchangeLevels);
+  const { g4Profiles, hongliUnderpass } = terrain ?? {};
+  if (!g4Profiles && !hongliUnderpass) return mapped;
+  const feeders = new Set(hongliUnderpass?.feeders);
+  const tunnelWays = new Set(hongliUnderpass?.tunnels);
+  const portals = new Set(mapped.links.flatMap((link, index) =>
+    tunnelWays.has(mapped.metadata[index].osmId) ? link.slice(0, 2) : []));
+  return { ...mapped, metadata: mapped.metadata.map((meta, index) => {
+    const profile = g4Profiles?.[index];
+    if (profile) return { ...meta, layer: 1, bridge: true, tunnel: false, heightSource: 'estimate', highwayProfile: profile };
+    if (feeders.has(meta.osmId) && mapped.links[index].slice(0, 2).some(node => portals.has(node))) {
+      return { ...meta, layer: 0, bridge: false, tunnel: false, heightSource: 'terrain' };
+    }
+    return meta;
+  }) };
+}

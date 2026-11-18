@@ -693,7 +693,7 @@ function tunnelSlabCollider(a, b) {
 
 // 单条 OSM 隧道链路：纵断面走 sink 口径（共享地面端 12 m 由地面压到洞底，洞内不抬升），
 // 洞身段按地形与路面的覆盖高差派生，与构建期裁地形（cover 0.05–5.6 m）互补。
-function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes, keyuanUnderpass) {
+function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes, profile) {
   const points = roadLinkPoints(graph, link);
   const lengthM = polylineLength(points);
   const sourceWidth = Number.isFinite(link[3]) ? link[3] : 0;
@@ -738,7 +738,6 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
     surfaceId: 'sz-tunnel:' + index
   };
   if (points.length < 2 || !(lengthM > EPSILON)) return record;
-  const profile = keyuanUnderpass?.tunnels?.includes(metadata.osmId) ? keyuanUnderpass : null;
   // 双幅洞口接入构建期估计工程面，在同一洞顶边界插入断面，避免用四米站距近似洞口。
   const profilePoints = profile ? points.flatMap((point, i) => {
     const next = points[i + 1];
@@ -819,6 +818,25 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
     const rightB = { x: b.right.x, y: b.floorY, z: b.right.z };
     record.topTriangles.push([leftA, rightA, rightB], [leftA, rightB, leftB]);
     record.pavementTriangles.push([leftA, rightA, rightB], [leftA, rightB, leftB]);
+  }
+  // 地面引道和洞口的端断面法线可能不同，按同一纵坡外推短搭接，补齐两条斜边之间的缺口。
+  if (profile) {
+    for (const [shared, portal, inner] of [[record.sharedStart, frames[0], frames[1]],
+      [record.sharedEnd, frames.at(-1), frames.at(-2)]]) {
+      if (!shared) continue;
+      const scale = 4 / Math.hypot(portal.x - inner.x, portal.z - inner.z);
+      const dx = (portal.x - inner.x) * scale;
+      const dz = (portal.z - inner.z) * scale;
+      const y = portal.floorY + (portal.floorY - inner.floorY) * scale;
+      const left = { ...portal.left, y: portal.floorY };
+      const right = { ...portal.right, y: portal.floorY };
+      const outsideLeft = { x: left.x + dx, y, z: left.z + dz };
+      const outsideRight = { x: right.x + dx, y, z: right.z + dz };
+      const strips = portal === frames[0]
+        ? [[outsideLeft, outsideRight, right], [outsideLeft, right, left]]
+        : [[left, right, outsideRight], [left, outsideRight, outsideLeft]];
+      record.pavementTriangles.push(...strips);
+    }
   }
   // 洞身段：相邻两站覆盖高差中点为「地形 - 路面 > 5.6 m」的区间；以上开敞引道只铺路面。
   const bore = [];
@@ -1135,11 +1153,15 @@ function planWholeCity(graph, terrainSurface, options) {
     ? options.groundHeight : createGroundSurfaceSampler(terrainSurface);
   const groundNodes = collectGroundNodes(graph);
   const records = [];
+  const profiles = new Map();
+  for (const plan of [terrainSurface?.keyuanUnderpass, terrainSurface?.hongliUnderpass]) {
+    for (const id of plan?.tunnels ?? []) profiles.set(id, plan);
+  }
   for (let index = 0; index < graph.links.length; index++) {
     const metadata = graph.metadata[index];
     if (!metadata || metadata.tunnel !== true) continue;
     records.push(planCityTunnel(graph, graph.links[index], index, metadata, groundHeight, groundNodes,
-      terrainSurface?.keyuanUnderpass));
+      profiles.get(metadata.osmId)));
   }
   tunnelComponents(records);
   const built = records.filter(record => record.frames.length >= 2);

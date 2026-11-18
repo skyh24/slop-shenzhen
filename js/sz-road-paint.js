@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
-import { createMarkingLayout, deckPaintLines } from './sz-road-markings.js';
+import { createMarkingLayout, deckPaintLines, junctionGap } from './sz-road-markings.js';
 import { createSzRoadPaintMaterial } from './sz-road-material.js';
-import { getDeckSection } from './sz-road-section.js';
+import { getDeckSection, throughRoadArms } from './sz-road-section.js';
 
 // 标线是静态几何，按 2.4 km 合并成块：出生点 1484 次绘制里有 246 次来自标线 600 m 分块，
 // 放大到 2.4 km 后同一视野内的块数约降到 1/16，三角形不变。
@@ -45,7 +45,7 @@ function buildChunks(strips, roadHeight) {
   return cells;
 }
 
-function addDeckStrip(cells, deck, section, frames, triangles, openings, statistics, count = true) {
+function addDeckStrip(cells, deck, section, frames, triangles, openings, statistics, count = true, paintRange = null) {
   if (!frames || frames.length < 2 || !triangles) return;
   for (let i = 1; i < frames.length; i++) {
     // 桥面分成两个三角面。标线在同一条对角线处切开，弯坡上也贴着实际桥面。
@@ -55,6 +55,7 @@ function addDeckStrip(cells, deck, section, frames, triangles, openings, statist
     const [leftA, rightA, rightB] = first;
     const [, , leftB] = second;
     const a = frames[i - 1], b = frames[i];
+    if (paintRange && (a.d < paintRange.start || b.d > paintRange.end)) continue;
     const cell = paintCell(cells, (a.x + b.x) / 2, (a.z + b.z) / 2);
     const phase = deck.stationOffsetM ?? 0;
     const widthA = a.widthM ?? Math.hypot(leftA.x - rightA.x, leftA.z - rightA.z);
@@ -99,10 +100,42 @@ function addDeckStrip(cells, deck, section, frames, triangles, openings, statist
 
 function addDeckPaint(cells, graph, decks) {
   const statistics = { links: 0, aprons: 0, laneCounts: {}, dashedLines: 0 };
+  const armsByNode = new Map();
+  const paintRanges = new Map();
+  for (const deck of decks) {
+    const { frames } = deck;
+    if (deck.tunnel || frames?.length < 2 || !frames) continue;
+    for (const [node, end, frame, next] of [[deck.startNode, 'start', frames[0], frames[1]],
+      [deck.endNode, 'end', frames.at(-1), frames.at(-2)]]) {
+      if (!Number.isInteger(node)) continue;
+      if (!armsByNode.has(node)) armsByNode.set(node, []);
+      const dx = next.x - frame.x, dz = next.z - frame.z;
+      const run = Math.hypot(dx, dz);
+      if (!run) continue;
+      const width = frame.widthM ?? deck.width;
+      armsByNode.get(node).push({ deck, index: deck.index, end, y: frame.y, dx: dx / run, dz: dz / run,
+        name: deck.name, kind: graph.metadata[deck.index]?.highway, width, left: width / 2, right: width / 2 });
+    }
+  }
+  // 只在同一标高的源节点收住侧道标线，桥下的路口各自处理。
+  for (const arms of armsByNode.values()) {
+    if (arms.length < 3) continue;
+    for (const arm of arms) {
+      const sameLevel = arms.filter(peer => Math.abs(arm.y - peer.y) <= 0.35);
+      const main = throughRoadArms(sameLevel);
+      if (!main || main.includes(arm)) continue;
+      const length = arm.deck.frames.at(-1).d;
+      const gap = junctionGap(sameLevel, arm.index, length);
+      const range = paintRanges.get(arm.deck) ?? { start: 0, end: length };
+      if (arm.end === 'start') range.start = gap;
+      else range.end = length - gap;
+      paintRanges.set(arm.deck, range);
+    }
+  }
   for (const deck of decks) {
     const section = getDeckSection(graph, deck);
     // contactSurface=false 的贴地结构边没有接触面，但有独立的顶面标线三角面。
-    addDeckStrip(cells, deck, section, deck.frames, deck.topPaintTriangles ?? deck.topTriangles, deck.openings, statistics);
+    addDeckStrip(cells, deck, section, deck.frames, deck.topPaintTriangles ?? deck.topTriangles, deck.openings, statistics, true, paintRanges.get(deck));
     // 悬空端引道不属于主桥面帧序列，单独按同一标线模板补画，避免引道留白。
     for (const apron of deck.aprons ?? []) {
       if (!apron.frames?.length || !apron.topTriangles?.length) continue;

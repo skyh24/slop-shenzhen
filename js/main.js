@@ -269,7 +269,8 @@ async function initApp() {
     publicWalkSurface: publicWalk.pedestrianSurface,
     // 场所行人排除从登记表取；其余场地/路侧排除仍沿用各自入口。
     excludeWalkAt: (x, z) => places.excludesWalker(x, z, 2) || urbanPaving.reserves(x, z, 2) || waterfront?.reserves(x, z, 2)
-      || districts.reserves(x, z) || roadFrontage.reserveWalk(x, z) || roadFrontage.plantingAt(x, z),
+      || districts.reserves(x, z) || roadFrontage.reserveWalk(x, z) || roadFrontage.plantingAt(x, z)
+      || roadFrontage.arterialMedianAt(x, z) || Number.isFinite(roadFrontage.shennanMedianHeight(x, z)),
     crossingLegs: roadFrontage.walkLegs, crossingControl: roadFrontage.control,
     // 公园/绿地内的目标人数明显调稀；密度是建筑覆盖率 + 道路等级 + 绿地的模拟代理。
     greenAreas: [...GEO.green, ...GEO.parks.flatMap(park => park.areas.map(area => area.polygon))],

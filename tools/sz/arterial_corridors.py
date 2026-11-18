@@ -79,10 +79,11 @@ def remap_structure_indices(payload, report, remap):
                 portal['edge'] = remap[portal['edge']]
 
 
-def _segments(graph, name, excluded):
+def _segments(graph, name, excluded, auxiliary_ways=()):
     for i, (link, meta) in enumerate(zip(graph['links'], graph['metadata'], strict=True)):
         a, b, road_name, width, _, direction, inner = link
-        if (graph['names'][road_name] != name or i in excluded or not _ground(meta)
+        if ((graph['names'][road_name] != name and meta['osmId'] not in auxiliary_ways)
+                or i in excluded or not _ground(meta)
                 or direction != 1 or meta['highway'].endswith('_link')):
             continue
         points = [graph['nodes'][a * 2:a * 2 + 2], *zip(inner[::2], inner[1::2]), graph['nodes'][b * 2:b * 2 + 2]]
@@ -92,7 +93,7 @@ def _segments(graph, name, excluded):
                 yield (LineString([p, q]), width, meta['osmId'])
 
 
-def _paired_strip(first, second, max_gap):
+def _paired_strip(first, second, max_gap, same_direction=False):
     line, width, _ = first
     other, other_width, _ = second
     a, b = line.coords
@@ -101,6 +102,8 @@ def _paired_strip(first, second, max_gap):
     dx, dz = (b[0] - a[0]) / length, (b[1] - a[1]) / length
     u = (c[0] - a[0]) * dx + (c[1] - a[1]) * dz
     v = (d[0] - a[0]) * dx + (d[1] - a[1]) * dz
+    if same_direction:
+        c, d, u, v = d, c, v, u
     if u - v < 0.90 * other_length:
         return None
     start, end = max(0, v), min(length, u)
@@ -118,13 +121,20 @@ def _paired_strip(first, second, max_gap):
     return Polygon([(a[0] + s * dx, a[1] + s * dz) for s in (start, end)] + [q, p])
 
 
+def _flower_axis(strip):
+    a, b, q, p, _ = strip.exterior.coords
+    return LineString([((a[0] + p[0]) / 2, (a[1] + p[1]) / 2),
+                       ((b[0] + q[0]) / 2, (b[1] + q[1]) / 2)])
+
+
 def compile_arterial_medians(payload, osm, manifest, report):
     graph = payload['roadGraph']
     frontage = payload['roadFrontage']
     suffix = '-arterial-median'
-    frontage['features'] = [f for f in frontage['features'] if not f['id'].endswith(suffix)]
-    # 仅同层双幅主线围合。排除高架及隧道进出段，保留已核实的上盖和场地。
+    flower_id = '深南大道-arterial-flowers'
+    frontage['features'] = [f for f in frontage['features'] if not f['id'].endswith(suffix) and f['id'] != flower_id]
     excluded = {row['index'] for row in payload['roadStructures']['records']}
+    ground_approaches = {row['index'] for row in payload['roadStructures']['records'] if row['kind'] == 'approach'}
     masks = [Polygon(list(zip(ring[::2], ring[1::2])))
              for row in frontage['features'] if row['kind'] in ('median', 'sidewalk', 'paving')
              for ring in row['outlines']]
@@ -146,18 +156,32 @@ def compile_arterial_medians(payload, osm, manifest, report):
         structure_masks.append(make_valid(Polygon(left + right[::-1])).buffer(0.36))
     rows = []
     for name, style in manifest['style'].items():
-        segments = list(_segments(graph, name, excluded))
+        shennan = name == '深南大道'
+        auxiliary_pairs = {frozenset(pair) for pair in manifest.get('shennanAuxiliaryPairs', [])} if shennan else set()
+        auxiliary_ways = set().union(*auxiliary_pairs) if auxiliary_pairs else set()
+        eligible = excluded - ground_approaches if shennan else excluded
+        segments = list(_segments(graph, name, eligible))
+        primary_ids = {part[2] for part in segments}
+        if auxiliary_ways - primary_ids:
+            segments.extend(part for part in _segments(graph, name, eligible, auxiliary_ways - primary_ids)
+                            if part[2] not in primary_ids)
         lines = [part[0] for part in segments]
         index = STRtree(lines)
-        strips, ids = [], set()
+        strips, axes, ids = [], [], set()
         for i, first in enumerate(segments):
             for j in sorted(index.query(lines[i], predicate='dwithin', distance=85)):
                 if j <= i:
                     continue
-                strip = _paired_strip(first, segments[j], 6 if style == 'separator' else 40)
+                second = segments[j]
+                auxiliary = frozenset((first[2], second[2])) in auxiliary_pairs
+                if not auxiliary and (first[2] not in primary_ids or second[2] not in primary_ids):
+                    continue
+                strip = _paired_strip(first, second, 6 if auxiliary or style == 'separator' else 40, auxiliary)
                 if strip is not None:
                     strips.append(strip)
-                    ids.update((first[2], segments[j][2]))
+                    ids.update((first[2], second[2]))
+                    if shennan and not auxiliary:
+                        axes.append(_flower_axis(strip))
         if not strips:
             continue
         area = make_valid(unary_union(strips))
@@ -170,7 +194,14 @@ def compile_arterial_medians(payload, osm, manifest, report):
         feature = _encode_surface('median', ids, island)
         if feature['trianglesXZ']:
             frontage['features'].append({**feature, 'id': name + suffix, 'arterialStyle': style})
-            rows.append({'road': name, 'style': style, 'areaM2': round(island.area, 2), 'sourceWayIds': sorted(ids)})
+            row = {'road': name, 'style': style, 'areaM2': round(island.area, 2), 'sourceWayIds': sorted(ids)}
+            if axes:
+                flowers = unary_union(axes).buffer(1.6).intersection(island.buffer(-1.2))
+                band = _encode_surface('flower-band', ids, flowers)
+                if band['trianglesXZ']:
+                    frontage['features'].append({**band, 'id': flower_id})
+                    row['flowerAreaM2'] = round(flowers.area, 2)
+            rows.append(row)
     report['arterialMedianDesign'] = {'placementSource': 'estimated-between-existing-osm-carriageways',
                                      'evidence': manifest['evidence'], 'roads': rows}
     report['roadFrontage'].update(features=len(frontage['features']),

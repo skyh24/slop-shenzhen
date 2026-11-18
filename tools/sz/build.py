@@ -47,6 +47,7 @@ from road_surface import build_road_surface
 from road_structures import compile_road_structures
 from elevated_cut import apply_elevated_cut
 from tunnel_portals import apply_tunnel_portal_cut
+from highway_corridors import apply_highway_corridors
 from interchange_levels import apply_interchange_levels
 from keyuan_underpass import apply_keyuan_underpass
 from trees import build_trees
@@ -368,6 +369,7 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
         apply_baishi_underpass(payload, report, waterfront_plan)
     apply_keyuan_underpass(payload, report)
     apply_interchange_levels(payload, report)
+    apply_highway_corridors(payload, report)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     write_regional_scene(payload, report)
     write_payload(payload, report, sources, started)
@@ -540,7 +542,7 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     compile_urban_paving(payload, osm_source, report)
     compile_ground_walk(payload, osm, osm_source, report)
     changed.extend(('urbanPaving', 'groundWalk'))
-    write_city_packages(payload, report, sources, started)
+    write_city_packages(payload, report, sources, started, arterial_osm=osm)
 
 
 def city_clip(osm):
@@ -833,6 +835,7 @@ def main():
             apply_baishi_underpass(payload, build_report, json.loads(WATERFRONT_SAMPLES.read_text()))
             apply_keyuan_underpass(payload, build_report)
             apply_interchange_levels(payload, build_report)
+            apply_highway_corridors(payload, build_report)
             write_regional_scene(payload, build_report)
             write_payload(payload, build_report, sources, started)
         elif args.rebuild_drive_rules:

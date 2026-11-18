@@ -257,7 +257,7 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
     // 双向路取本侧最靠路缘的车道，单向详细路沿用最右侧；无车道数据时退回默认偏移。
     const offsets = (laneOffsets(section) ?? section.routeOffsetsM)
       .filter(offset => Math.abs(offset) + model.hx + 0.12 <= section.travelWidthM / 2);
-    const lane = section.twoWay || detailed.has(edge.osmId) ? offsets.at(-1)
+    const lane = edge.highway === 'motorway' || section.twoWay || detailed.has(edge.osmId) ? offsets.at(-1)
       : structureSeams.has(edge) ? 0
       : offsets.reduce((best, offset) => best === undefined || Math.abs(offset) < Math.abs(best) ? offset : best, undefined);
     // 兜底车道同样必须落在本侧半幅内，否则该边不参与规划。

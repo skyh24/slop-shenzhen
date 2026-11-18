@@ -84,6 +84,24 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const roadHeight = roads.createRoadHeightSampler(chunks, terrain.grid);
   const scene = new THREE.Scene();
   const model = buildSzRoadFrontage(scene, raw.roadFrontage, raw.roadGraph, terrain, { groundHeight, roadHeight });
+  for (const [x, z] of [[-1403.57, 420.36], [-1408.58, 440.30], [-1274.23, 432.31], [-1223.73, 436.38]]) {
+    assert.equal(model.arterialMedianAt(x, z), true);
+    assert.equal(roadHeight(x, z), null);
+  }
+  const pressTowerFlowers = model.group.children.filter(mesh => mesh.name.startsWith('深南大道-arterial-flowers:'));
+  assert.ok(pressTowerFlowers.some(mesh => {
+    const points = mesh.geometry.attributes.position;
+    for (let i = 0; i < points.count; i += 3) {
+      const x = mesh.position.x + (points.getX(i) + points.getX(i + 1) + points.getX(i + 2)) / 3;
+      const z = mesh.position.z + (points.getZ(i) + points.getZ(i + 1) + points.getZ(i + 2)) / 3;
+      if (x < -1230 && x > -1330 && z > 430 && z < 440) {
+        assert.equal(model.arterialMedianAt(x, z), true);
+        assert.equal(roadHeight(x, z), null);
+        return true;
+      }
+    }
+    return false;
+  }));
   assert.equal(model.statistics.signals, 4);
   assert.ok(model.curbColliders.some(c => c.name === 'shennan-hongshulin:sidewalk'));
   assert.ok(model.curbColliders.some(c => c.name === 'shennan-civic-center:median'));

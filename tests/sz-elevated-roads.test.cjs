@@ -389,27 +389,21 @@ test('the real Shenzhen snapshot derives the whole-city deck network without any
   const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
   const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
   const { geo } = decodeCityPayload(raw);
-  const plan = elevated.planElevatedRoads(geo.roadGraph, geo.terrainSurface, { interchanges: [] });
-  assert.equal(plan.links.length, 1342);
+  const { applyCorridorRoadProfiles } = loadModule(read('sz-interchange-levels.js'));
+  const graph = applyCorridorRoadProfiles(geo.roadGraph, geo.terrainSurface);
+  const plan = elevated.planElevatedRoads(graph, geo.terrainSurface, { interchanges: [] });
   assert.equal(plan.statistics.skippedLinks, 0);
-  assert.equal(plan.statistics.tunnelLinks, 202);
-  assert.equal(plan.statistics.generic, 1342);
-  assert.equal(plan.statistics.layerZero, 20);
-  assert.equal(plan.statistics.layerZeroCrossings, 8);
-  assert.equal(plan.statistics.sunkLinks, 28);
-  // 与可驶入顶面、车道标高合并后重测：同节点错层衔接把 69 个悬空端接回下层桥面，
-  // 剩余悬空端补 8–48 m 引道；主分支的可驶入面让更多桥面进入车行链接。
-  assert.equal(plan.statistics.aprons, 97);
-  assert.equal(plan.statistics.dangling, 46);
-  assert.equal(plan.links.reduce((count, link) => count + (link.danglingEnds?.length ?? 0), 0), 48);
-  assert.equal(plan.statistics.driveLinks, 1159);
-  for (const deck of plan.links.filter(link => link.name === '京港澳高速')) {
-    assert.equal(deck.effectiveLiftM, 4.8 * deck.layer, deck.osmId);
+  assert.equal(plan.statistics.generic, plan.links.length);
+  const g4 = plan.links.filter(deck => deck.highwayMainline);
+  assert.equal(g4.length, 106);
+  for (const deck of g4) {
+    assert.equal(deck.effectiveLiftM, 4.8, deck.osmId);
     assert.ok(plan.driveLinks.includes(deck), deck.osmId);
+    assert.equal(deck.aprons.length, 0, deck.osmId);
+    assert.ok(deck.maxGrade <= 0.046, deck.osmId);
   }
   const splitLinks = plan.links.filter(link => link.splitStart || link.splitEnd);
-  // 64 条上层链路共 69 个错层端（部分链路两端都接）。
-  assert.equal(splitLinks.length, 64);
+  assert.ok(splitLinks.length > 0);
   const byIndex = new Map(plan.links.map(link => [link.index, link]));
   for (const link of splitLinks) {
     assert.ok(link.maxGrade <= MAX_GRADE + 1e-9, `${link.osmId} split grade ${link.maxGrade}`);

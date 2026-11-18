@@ -12,6 +12,10 @@
     "binhaiTunnel": "https://jtys.sz.gov.cn/pcjt/tsjt/content/post_12123186.html",
     "binhaiPark": "https://cgj.sz.gov.cn/xsmh/gysz/gydt/content/post_12919159.html"
   },
+  "shennanAuxiliaryPairs": [
+    ["way/96334031", "way/238028140"],
+    ["way/1050261077", "way/1050511767"]
+  ],
   "duplicates": [
     {"omit": "way/96934588", "keep": "way/1337092544", "nodes": ["node/1992853849", "node/7293795831"]},
     {"omit": "way/1337092548", "keep": "way/1337092549", "nodes": ["node/7293795831", "node/3379374435"]}
