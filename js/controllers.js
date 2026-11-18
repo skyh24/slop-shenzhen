@@ -133,6 +133,7 @@ function collisionBody(mode, radius, heading, margin = 0, bounds = null) {
 
 // 运动和传送共用脚印碰撞。人物使用圆，车辆和飞行器使用从模型提取的定向矩形。
 function buildingContact(c, x, y, z, body, contact) {
+  if (body.mode === 'car' && (c.type === 'person' || c.type === 'street-lamp' || c.type === 'tree')) return false;
   // 已确认承托的桥板可连续进入；车底与碰撞体顶面齐平的数值尾差由下方统一容差处理。
   if ((c.type === 'bridge-slab' || c.type === 'elevated-slab') && body.supportedSlabs?.has(c.name)) return false;
   // 桥头进出口允许跨过既有 2 cm 桥板唇口和 roadAccess 的 28 cm 入户台阶；这是 bridge-slab
@@ -1066,7 +1067,6 @@ class ThirdPersonControllerManager {
     const reach = Math.max(body.extX, body.extZ);
     const touching = collider => buildingContact(collider, x, y, z, body);
     return this.nearColliders(x, z, reach).some(touching)
-      || (mode === 'car' && (this.nearPedestrians?.(x, z, reach) ?? []).some(touching))
       || (mode === 'person' && (this.nearWalkers?.(x, z, reach + 0.5) ?? []).some(touching));
   }
 
@@ -1487,7 +1487,8 @@ class ThirdPersonControllerManager {
     const boost = Boolean(this.keys.boost);
     const speedMagnitude = Math.abs(c.speed);
     const search = 8 + speedMagnitude * (speedMagnitude / 8.5 + 0.25);
-    const obstacles = [...(this.nearTraffic?.(c.position.x, c.position.z, search) ?? []),
+    const nearbyTraffic = this.nearTraffic?.(c.position.x, c.position.z, search) ?? [];
+    const obstacles = [...nearbyTraffic,
       ...(this.nearPedestrians?.(c.position.x, c.position.z, search) ?? [])];
     const warning = !driveInput && c.speed > 0 && obstacles.length > 0
       && emergencyBrake(writeEntityCollider(this._carWarningBody ??= {}, c), obstacles) > 0;
@@ -1580,7 +1581,7 @@ class ThirdPersonControllerManager {
         driveInput?.deflect?.();
       }
       const clear = this.clipCarTrafficMove(c, { x: beforeX, y: beforeY, z: beforeZ, heading: previousHeading,
-        safe: previousSafe, support: previousSupport }, obstacles, driveInput?.avoidContact);
+        safe: previousSafe, support: previousSupport }, driveInput ? obstacles : nearbyTraffic, driveInput?.avoidContact);
       if (clear === false) driveInput?.rejectMove?.('traffic');
       if (driveInput && (clear === false || !driveInput.permitMove(c.position.x, c.position.z, c.heading, c.position.y))) {
         c.position.x = beforeX;

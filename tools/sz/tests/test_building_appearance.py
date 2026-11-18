@@ -8,7 +8,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from build import enc_poly
 from building_appearance import apply_building_appearance
-from buildings import CATEGORIES, FACADES, HEIGHT_SOURCES, ROLES, _category
+from buildings import CATEGORIES, FACADES, HEIGHT_SOURCES, LEVEL_HEIGHT, ROLES, _category
 from shapely.geometry import box
 
 
@@ -78,6 +78,45 @@ class BuildingAppearanceTests(unittest.TestCase):
         self.assertEqual({row[0] for row in group['samples']}, {'one', 'two', 'three', 'four'})
         self.assertTrue(all(36 <= payload['buildings']['h'][i] <= 54 for i in (0, 1, 7)))
         self.assertEqual(payload['buildings']['h'][2:7], [72, 84, 96, 108, 16])
+
+    def test_named_residential_compound_shares_one_estimated_height(self):
+        apartment = {'building': 'apartments'}
+        rows = [
+            ('first', 100, 20, 16, 'estimate', apartment),
+            ('second', 130, 40, 18, 'estimate', apartment),
+            ('known', 180, 20, 22.4, 'osm-levels', apartment),
+            ('predicted', 210, 20, 25, 'globfp', apartment),
+            ('shed', 240, 15, 8, 'estimate', {'building': 'shed'}),
+            ('tiny', 270, 6, 8, 'estimate', apartment),
+            ('house', 300, 20, 8, 'estimate', {'building': 'house'}),
+            ('unnamed-area', 330, 20, 16, 'estimate', apartment),
+            ('another', 360, 20, 16, 'estimate', apartment),
+        ]
+        regions = [
+            {'id': 'osm:small', 'name': '示例住宅区', 'type': 'residential', 'level': 'place',
+             'areaM2': 6000, 'anchors': [[200, 90, 50]], 'buildingRefs': list(range(7))},
+            {'id': 'osm:unnamed', 'type': 'residential', 'level': 'place',
+             'areaM2': 4500, 'anchors': [[340, 90, 20]], 'buildingRefs': [7]},
+            {'id': 'osm:another', 'name': '另一个住宅区', 'type': 'residential', 'level': 'place',
+             'areaM2': 4000, 'anchors': [[370, 90, 20]], 'buildingRefs': [8]},
+        ]
+        payload, osm = self.fixture(rows, regions=regions)
+        columns, report = payload['buildings'], {}
+        apply_building_appearance(payload, osm, report)
+        groups = report['heightEstimate']['groups']
+        group = groups['residential-compound:osm:small']
+        self.assertEqual(group['buildings'], ['first', 'second'])
+        self.assertIn(group['levels'], range(30, 36))
+        self.assertEqual(columns['h'][:2], [round(group['levels'] * LEVEL_HEIGHT, 1)] * 2)
+        self.assertEqual(columns['h'][2:4], [22.4, 25])
+        self.assertTrue(all(height < 30 for height in columns['h'][4:8]))
+        self.assertEqual(groups['residential-compound:osm:another']['buildings'], ['another'])
+        self.assertIn(groups['residential-compound:osm:another']['levels'], range(30, 36))
+        self.assertEqual(HEIGHT_SOURCES[columns['src'][0]], 'estimate')
+        self.assertEqual(columns['lv'][:2], [-1, -1])
+        result = deepcopy(payload)
+        apply_building_appearance(payload, osm, {})
+        self.assertEqual(payload, result)
 
     def test_protected_sites_and_known_low_rise_do_not_borrow_tower_heights(self):
         rows = [

@@ -11,7 +11,7 @@ from shapely import STRtree, make_valid
 from shapely.geometry import Point, Polygon
 
 from audit_shopping_park import packaged_polygon
-from buildings import (CANOPY_TYPES, ESTIMATE_SEED, FACADES, _category, _facade, _num)
+from buildings import CANOPY_TYPES, ESTIMATE_SEED, FACADES, LEVEL_HEIGHT, _category, _facade, _num
 from geo import project_coords
 from land import _to_local
 
@@ -20,6 +20,7 @@ RADII_M = (180, 350, 650, 1000, 1500)
 MIN_SAMPLES = 4
 MAX_SAMPLES = 12
 MAX_REFERENCE_HEIGHT = 150
+RESIDENTIAL_COMPOUND_LEVELS = (30, 35)
 RELIABLE = {'osm-height', 'osm-levels', 'overture-height', 'overture-floors', 'published'}
 RETAIL = {'retail', 'mall', 'supermarket'}
 LOW_RESIDENTIAL = {'house', 'detached', 'terrace', 'semidetached_house', 'cabin', 'hut', 'bungalow'}
@@ -100,7 +101,7 @@ def _height(identity, base, median_m=None):
 
 def _apply_building_heights(payload, osm, report, tags_by_id, foundations):
     b, enums = payload['buildings'], payload['enums']
-    region_use, blocks, protected = {}, {}, {}
+    region_use, blocks, protected, residential_compounds = {}, {}, {}, {}
     for region in sorted(payload['mapRegions']['regions'], key=lambda row: (row.get('areaM2', 0), row['id'])):
         kind, level, refs = region['type'], region['level'], region['buildingRefs']
         if kind in PROTECTED_REGIONS:
@@ -109,6 +110,12 @@ def _apply_building_heights(payload, osm, report, tags_by_id, foundations):
         if level == 'place' and kind in BLOCK_USES:
             for i in refs:
                 region_use.setdefault(i, BLOCK_USES[kind])
+            if kind == 'residential' and region.get('name'):
+                compound_id = region['id']
+                levels = random.Random(f'{ESTIMATE_SEED}:residential-compound:{compound_id}').randint(
+                    *RESIDENTIAL_COMPOUND_LEVELS)
+                for i in refs:
+                    residential_compounds.setdefault(i, (compound_id, levels))
         if region.get('anchors') and (level == 'block' or
                                       level == 'place' and kind in BLOCK_USES and region['areaM2'] <= CELL_M ** 2):
             for i in refs:
@@ -186,6 +193,13 @@ def _apply_building_heights(payload, osm, report, tags_by_id, foundations):
         explicit_category = _category(use_tag)
         use = ('retail' if kind in RETAIL else kind if kind in {'office', 'hotel'} else
                explicit_category if explicit_category != 'unknown' else category)
+        # 只给已识别的住宅主体估层，区域用途本身不能把附属设施变成住宅。
+        compound = residential_compounds.get(i)
+        if source == 'estimate' and compound and use == 'residential' and size > 0 and role in {'main', 'unknown'}:
+            compound_id, levels = compound
+            height = round(levels * LEVEL_HEIGHT, 1)
+            record(i, f'residential-compound:{compound_id}', {'levels': levels, 'heightM': height}, height)
+            continue
         if use == 'unknown':
             use = region_use.get(i, use)
         center = polygon.centroid
@@ -230,6 +244,7 @@ def _apply_building_heights(payload, osm, report, tags_by_id, foundations):
         'method': 'shared-block-median-or-use-default', 'cellM': CELL_M,
         'radiiM': RADII_M, 'minSamples': MIN_SAMPLES, 'maxSamples': MAX_SAMPLES,
         'maxReferenceHeightExclusiveM': MAX_REFERENCE_HEIGHT,
+        'residentialCompound': {'levels': RESIDENTIAL_COMPOUND_LEVELS, 'levelHeightM': LEVEL_HEIGHT, 'seedBy': 'region-id'},
         'scale': 0.5, 'jitter': [0.8, 1.2], 'seed': ESTIMATE_SEED, 'seedBy': 'building-id',
         'groups': {key: {**row, 'buildings': sorted(row['buildings'])} for key, row in sorted(groups.items())},
     }

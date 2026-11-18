@@ -156,7 +156,7 @@ function probesOnRoute(model) {
   return probes;
 }
 
-export function poseOnRoute(samples, s, model, roadHeight, pose) {
+export function poseOnRoute(samples, s, model, roadHeight, pose, offset = 0, yaw = 0) {
   let lo = 0;
   let hi = samples.length - 1;
   while (hi - lo > 1) {
@@ -167,9 +167,10 @@ export function poseOnRoute(samples, s, model, roadHeight, pose) {
   const a = samples[lo];
   const b = samples[hi];
   const t = (s - a.s) / (b.s - a.s);
-  const x = interpolate(a.x, b.x, t);
-  const z = interpolate(a.z, b.z, t);
-  const heading = Math.atan2(interpolate(a.dx, b.dx, t), interpolate(a.dz, b.dz, t));
+  const tangent = Math.atan2(interpolate(a.dx, b.dx, t), interpolate(a.dz, b.dz, t));
+  const x = interpolate(a.x, b.x, t) - Math.cos(tangent) * offset;
+  const z = interpolate(a.z, b.z, t) + Math.sin(tangent) * offset;
+  const heading = tangent + yaw;
   const sin = Math.sin(heading);
   const cos = Math.cos(heading);
   // 轮胎接触按当前段的表面身份取高度：高架段只采样桥面三角面，桥下地面车不会串到桥上。

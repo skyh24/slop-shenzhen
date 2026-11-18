@@ -112,6 +112,13 @@ export function planLampSites(roadGraph, options = {}) {
   const curbOffset = options.curbOffsetM ?? CURB_OFFSET_M;
   const sites = [];
   const carriageways = indexCarriageways(roadGraph);
+  const junctionDegree = new Map();
+  for (let index = 0; index < roadGraph.links.length; index++) {
+    const metadata = roadGraph.metadata[index];
+    if (!metadata || !isGroundRoad(metadata)) continue;
+    const [start, end] = roadGraph.links[index];
+    for (const node of [start, end]) junctionDegree.set(node, (junctionDegree.get(node) ?? 0) + 1);
+  }
   const seen = new Set();
   const rejected = { bridgeOrTunnelOrLayer: 0, unsupportedClass: 0, shortLink: 0, noGroundPoint: 0, occupied: 0 };
   for (let index = 0; index < roadGraph.links.length; index++) {
@@ -135,19 +142,27 @@ export function planLampSites(roadGraph, options = {}) {
     }
     let total = 0;
     for (let i = 1; i < points.length; i++) total += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
-    if (total < junctionMargin * 2 + 8) {
-      rejected.shortLink++;
-      continue;
-    }
     const style = options.roadStyle?.(metadata.osmId);
     if (style?.lampsEnabled === false) continue;
     const spacing = style?.lampSpacingM ?? options.spacingM ?? SPACING_BY_CLASS[kind];
     if (!(spacing > 0)) throw new Error('Street lamp spacing must be positive');
+    const marginAt = node => total < junctionMargin * 2 + 8 && junctionDegree.get(node) < 3
+      ? Math.min(junctionMargin, 4) : junctionMargin;
+    const start = marginAt(link[0]), end = total - marginAt(link[1]);
+    const available = end - start;
+    if (available < 8) {
+      rejected.shortLink++;
+      continue;
+    }
+    const origin = points[0];
+    const seed = Math.imul(Math.round(origin.x * 10), 73856093) ^ Math.imul(Math.round(origin.z * 10), 19349663);
+    const roadPhase = ((seed ^ (seed >>> 13)) & 7) / 8;
     const major = width >= 14 || (width >= 8 && MAJOR_LAMP_CLASSES.has(kind));
     for (const side of [1, -1]) {
-      // 两侧灯杆错开半个间距，避免正对。
-      const phase = side === 1 ? spacing * 0.5 : spacing * 0.25;
-      for (let distance = junctionMargin + phase; distance <= total - junctionMargin; distance += spacing) {
+      // 同一街段保持等距，按街段错开起点；短街在净空内补灯。
+      const phase = spacing * ((roadPhase + (side === 1 ? 0 : 0.5)) % 1);
+      const first = available < spacing ? available * (side === 1 ? 0.3 : 0.7) : phase;
+      for (let distance = start + first; distance <= end; distance += spacing) {
         const at = sectionAtStation(points, distance, { widthM: width });
         if (!at) continue;
         const median = width >= 6 && MAJOR_LAMP_CLASSES.has(kind)

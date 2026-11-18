@@ -954,8 +954,12 @@ export function validateCityPayload(raw) {
       && Array.isArray(frontage.corridors) && Array.isArray(frontage.features) && Array.isArray(frontage.intersections), 'road frontage source');
     for (const feature of frontage.features) {
       if (feature.arterialStyle !== undefined) {
+        const curb = feature.arterialStyle === 'grass' && Number.isFinite(feature.riseM) && feature.riseM > 0 && feature.riseM <= 0.25
+          && Array.isArray(feature.outlines) && feature.outlines.length > 0
+          && feature.outlines.every(ring => Array.isArray(ring) && ring.length >= 8 && ring.length % 2 === 0
+            && ring.every(Number.isFinite) && ring[0] === ring.at(-2) && ring[1] === ring.at(-1));
         requireData(feature.kind === 'median' && ['grass', 'separator'].includes(feature.arterialStyle)
-          && feature.riseM === 0 && Array.isArray(feature.sourceIds) && feature.sourceIds.length >= 2
+          && (feature.riseM === 0 || curb) && Array.isArray(feature.sourceIds) && feature.sourceIds.length >= 2
           && feature.sourceIds.every(isOsmId) && Array.isArray(feature.trianglesXZ) && feature.trianglesXZ.length > 0
           && feature.trianglesXZ.length % 6 === 0 && feature.trianglesXZ.every(Number.isFinite), 'arterial median finish');
       }

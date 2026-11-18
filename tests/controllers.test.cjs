@@ -1398,19 +1398,25 @@ test('an oblique wall strike sheds the inward velocity and preserves bounded tan
   assert.ok(Math.hypot(vx, vz) < 120 / 3.6);
 });
 
-test('manual car stops for same-level pedestrians and ignores another deck', () => {
+test('manual car passes through pedestrians and roadside objects without changing its speed or heading', () => {
   const { writePedestrianCollider } = driving['./sz-driving-motion.js'];
-  for (const height of [0, 5]) {
-    const { controller, car } = contactCar({ speed: 120 / 3.6 });
-    const person = writePedestrianCollider({}, 0, height, 6, Math.PI / 2, 0);
-    controller.nearPedestrians = () => [person];
-    controller.keys.forward = controller.keys.boost = true;
-    for (let i = 0; i < 20; i++) controller.updateCar(0.05);
-    if (height === 0) {
-      assert.ok(car.position.z > 3.1 && car.position.z < 3.31);
-      assert.ok(Math.abs(car.speed) < 1e-7);
-    } else assert.ok(car.position.z > 30);
+  const colliders = ['street-lamp', 'tree'].map((type, index) => {
+    const z = 8 + index * 4;
+    const outer = [{ x: -0.14, z: z - 0.14 }, { x: 0.14, z: z - 0.14 }, { x: 0.14, z: z + 0.14 }, { x: -0.14, z: z + 0.14 }];
+    return { type, minX: -0.14, maxX: 0.14, minZ: z - 0.14, maxZ: z + 0.14, minY: 0, maxY: 5,
+      polygon: { outer, holes: [] } };
+  });
+  const testCar = contactCar({ speed: 80 / 3.6, colliders });
+  const emptyRoad = contactCar({ speed: 80 / 3.6 });
+  testCar.controller.nearPedestrians = () => [writePedestrianCollider({}, 0, 0, 6, 0, 1.4)];
+  for (const { controller, car } of [testCar, emptyRoad]) {
+    controller.keys.forward = true;
+    for (let frame = 0; frame < 20; frame++) controller.updateCar(0.05);
+    assert.ok(car.position.z > 20);
   }
+  assert.deepEqual([testCar.car.position.z, testCar.car.speed, testCar.car.heading],
+    [emptyRoad.car.position.z, emptyRoad.car.speed, emptyRoad.car.heading]);
+  assert.equal(testCar.controller.isClearCarPose({ x: 0, y: 0, z: 10, heading: 0 }, true), true);
 });
 
 test('bumper contact produces a bounded 8 percent rebound without shifting into reverse', () => {

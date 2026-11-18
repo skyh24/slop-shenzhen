@@ -73,10 +73,19 @@ function groundMaterial(frontageLight) {
   const grainUV = positionWorld.xz.mul(48);
   const noise = fract(floor(grainUV).dot(vec2(0.754877, 0.56984)).mul(28.718));
   const grainFade = smoothstep(0.3, 1.4, max(fwidth(grainUV.x), fwidth(grainUV.y))).oneMinus();
-  const asphalt = noise.sub(0.5).mul(0.18).mul(grainFade).mul(attribute('asphalt', 'float')).add(1);
-  const variation = fract(floor(grid.x).mul(0.618).add(floor(grid.y).mul(0.414))).sub(0.5);
-  const tileTone = variation.mul(0.095).mul(stone).mul(smoothstep(0.1, 0.45, pixel).oneMinus());
-  material.colorNode = vec3(joint.mul(-0.20).mul(min(1, paving)).add(1).add(tileTone).mul(asphalt));
+  const grain = noise.sub(0.5).mul(grainFade);
+  const surfaceTone = grain.mul(attribute('asphalt', 'float').mul(0.18).add(stone.mul(0.26))).add(1);
+  const stoneRow = positionWorld.z.div(0.14);
+  const stoneCol = positionWorld.x.div(0.22).add(floor(stoneRow).mul(0.5));
+  const chips = fract(vec2(stoneCol, stoneRow));
+  const chipEdge = min(min(chips.x, chips.x.oneMinus()), min(chips.y, chips.y.oneMinus()));
+  const chipPixel = max(fwidth(positionWorld.x.div(0.22)), fwidth(stoneRow));
+  const chipFade = smoothstep(0.10, 0.42, chipPixel).oneMinus();
+  const chipJoint = smoothstep(0.018, max(0.075, chipPixel), chipEdge).oneMinus();
+  const chipTone = fract(floor(stoneCol).mul(0.618).add(floor(stoneRow).mul(0.414))).sub(0.5)
+    .mul(0.21).sub(chipJoint.mul(0.24)).mul(stone).mul(chipFade);
+  const slab = min(1, paving).sub(stone);
+  material.colorNode = vec3(joint.mul(-0.20).mul(slab).add(1).add(chipTone).mul(surfaceTone));
   if (frontageLight) {
     const reach = smoothstep(5, 46, distance(positionWorld.xz, vec2(frontageLight.x, frontageLight.z))).oneMinus();
     material.emissiveNode = color(0xa99c8c).mul(0.23).mul(frontageLight.night)

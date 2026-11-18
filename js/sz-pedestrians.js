@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
-import { buildWalkTracks, createColliderGrid, createCrossingWalkTracks, createPublicWalkTrack, sampleTrack } from './sz-pedestrian-tracks.js';
+import { buildWalkTracks, createColliderGrid, createCrossingWalkTracks, createPublicWalkTrack, sampleTrack, TRACK_DEFAULTS } from './sz-pedestrian-tracks.js';
+import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
 import { polygonContains } from './sz-polygon.js';
 import { createCrossingParticipant } from './sz-junction-participant.js';
 import { contactTime, writeEntityCollider, writePedestrianCollider } from './sz-driving-motion.js';
@@ -10,7 +11,7 @@ import { vehicleContact } from './vehicle-physics.js';
 // 正式深圳场景的环境人群：复用纽约的 PersonRig / PersonCrowd（步态、脚底接地、远近 LOD），
 // 但不搬纽约的人行道/斑马线数据。深圳没有全城铺装人行道网格，行走位置来自
 // sz-pedestrian-tracks.js 的模拟步行带（沿地面道路两侧偏移），铺装条带同样是模拟。
-// 人群只在玩家附近维持：活动区按 focus 增量重建，130 m 内才解算骨骼，220 m 外回收。
+// 人群在玩家附近持续移动，只有渲染半径内才解算骨骼，回收半径外释放名额。
 // 道路等级 → 活动强度（模拟代理，不是实测客流）
 const HIGHWAY_ACTIVITY = {
   primary: 1.0, secondary: 0.9, tertiary: 0.78, primary_link: 0.62, secondary_link: 0.55,
@@ -56,7 +57,7 @@ const PED_DEFAULTS = {
   restMaxS: 80,
   restPauseMinS: 1.5,
   restPauseMaxS: 3.5,
-  surfaceRiseM: 0.03,
+  surfaceRiseM: TRACK_DEFAULTS.surfaceRiseM,
   pavement: true,
   pavementHalfWidthM: 1.1
 };
@@ -234,18 +235,43 @@ function offsetPose(leg, s, lateral, out) {
   return out;
 }
 
-function pickTrack(region, random) {
+function pickSpawnWindow(region, random) {
   const total = region.spawnWeight;
   if (!(total > 0)) return null;
   const target = random() * total;
   let lo = 0;
-  let hi = region.spawnTracks.length - 1;
+  let hi = region.spawnWindows.length - 1;
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
     if (region.spawnCum[mid] < target) lo = mid + 1;
     else hi = mid;
   }
-  return region.spawnTracks[lo];
+  return region.spawnWindows[lo];
+}
+
+function visitSpawnWindows(track, focus, innerSq, outerSq, visit) {
+  for (let i = 1; i < track.points.length; i++) {
+    const start = track.cum[i - 1], length = track.cum[i] - start;
+    if (length <= 0) continue;
+    const a = track.points[i - 1], b = track.points[i];
+    const dx = (b.x - a.x) / length, dz = (b.z - a.z) / length;
+    const relX = focus.x - a.x, relZ = focus.z - a.z;
+    const along = relX * dx + relZ * dz;
+    const acrossSq = (relX * dz - relZ * dx) ** 2;
+    if (acrossSq >= outerSq) continue;
+    const outer = Math.sqrt(outerSq - acrossSq);
+    const low = Math.max(0.6, start, start + along - outer);
+    const high = Math.min(track.length - 0.6, track.cum[i], start + along + outer);
+    if (high <= low) continue;
+    if (acrossSq >= innerSq) visit(low, high);
+    else {
+      const inner = Math.sqrt(innerSq - acrossSq);
+      const before = Math.min(high, start + along - inner);
+      const after = Math.max(low, start + along + inner);
+      if (before > low) visit(low, before);
+      if (high > after) visit(after, high);
+    }
+  }
 }
 
 export function createSzPedestrians(scene, graph, options = {}) {
@@ -274,15 +300,17 @@ export function createSzPedestrians(scene, graph, options = {}) {
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   pavementMaterial.name = 'simulated-sidewalk-pavement';
   let pavementMesh = null;
+  let samplePavement = null;
+  const pavementHeightAt = (x, z) => samplePavement?.(x, z, pavementMaterial.name) ?? null;
   const peds = [];
   for (let id = 0; id < cfg.maxPeds; id++) peds.push(createPed(id, cfg));
   scene.add(group);
 
   const ground = (owner, x, z) => {
     if (owner.leg?.publicHeight) return owner.leg.publicHeight(x, z) ?? owner.y;
-    const height = cfg.heightAt(x, z);
-    const rise = owner.leg?.kind === 'public-walk' ? 0 : cfg.surfaceRiseM;
-    return Number.isFinite(height) ? height + rise : rise;
+    const top = owner.leg?.kind === 'public-walk' ? null : pavementHeightAt(x, z);
+    const height = top ?? cfg.heightAt(x, z);
+    return Number.isFinite(height) ? height : owner.y;
   };
   const publicTracks = (cfg.publicRoutes ?? []).map(route => createPublicWalkTrack(route.points, route));
   const crossingTracks = cfg.crossingLegs?.length ? createCrossingWalkTracks(cfg.crossingLegs) : [];
@@ -346,6 +374,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     offsetLimit: leg => poseOffsetLimit(leg, cfg), statistics });
 
   function applyPavement(pavement) {
+    samplePavement = null;
     if (pavementMesh) {
       group.remove(pavementMesh);
       pavementGeometry?.dispose();
@@ -353,6 +382,12 @@ export function createSzPedestrians(scene, graph, options = {}) {
       pavementGeometry = null;
     }
     if (!cfg.pavement || pavement.positions.length === 0) return;
+    const { positions, topTriangleCount } = pavement;
+    const triangles = Array.from({ length: topTriangleCount }, (_, index) => [0, 3, 6].map(delta => {
+      const start = index * 9 + delta;
+      return { x: positions[start], y: positions[start + 1], z: positions[start + 2] };
+    }));
+    samplePavement = createSurfaceHeightAt([{ id: pavementMaterial.name, triangles }]);
     pavementGeometry = new THREE.BufferGeometry();
     pavementGeometry.setAttribute('position', new THREE.BufferAttribute(pavement.positions, 3));
     pavementGeometry.setAttribute('color', new THREE.BufferAttribute(pavement.colors, 3));
@@ -384,55 +419,17 @@ export function createSzPedestrians(scene, graph, options = {}) {
       walkMarginM: cfg.walkMarginM
     });
     for (const track of [...tracks, ...crossingTracks]) {
-      if (!track.points.some(p => p.x >= bounds.minX && p.x <= bounds.maxX && p.z >= bounds.minZ && p.z <= bounds.maxZ)) continue;
+      if (!track.points.some((point, index) => {
+        if (index === 0) return false;
+        const previous = track.points[index - 1];
+        return Math.min(previous.x, point.x) <= bounds.maxX && Math.max(previous.x, point.x) >= bounds.minX
+          && Math.min(previous.z, point.z) <= bounds.maxZ && Math.max(previous.z, point.z) >= bounds.minZ;
+      })) continue;
       if (!track.crossing) built.tracks.push(track);
       built.legs.push(track);
       built.statistics.walkableMeters += track.length;
     }
-    // 出生权重按“可用轨道长度 × 地点活跃度”加权，CBD/商业街密、公园/支路稀；只统计
-    // 出生环（spawnMinM–spawnMaxM）内的轨道长度，避免把远处车流走廊算成本地人流目标。
-    const spawnTracks = [];
-    const spawnCum = [];
-    const crossingApproaches = [];
-    let spawnWeight = 0;
-    let weightedDensity = 0;
-    let totalLength = 0;
-    const ringMin = cfg.spawnMinM;
-    const ringMax = cfg.spawnMaxM;
-    for (const track of built.tracks) {
-      const samples = Math.max(2, Math.min(8, Math.ceil(track.length / 15)));
-      let sum = 0;
-      let inRing = 0;
-      for (let i = 0; i < samples; i++) {
-        sampleTrack(track, track.length * (i + 0.5) / samples, scratch);
-        const distance = Math.hypot(scratch.x - focus.x, scratch.z - focus.z);
-        if (distance < ringMin || distance > ringMax) continue;
-        inRing++;
-        sum += densityAt(scratch.x, scratch.z);
-      }
-      if (inRing === 0) continue;
-      const available = (track.length * inRing) / samples;
-      const place = clamp((sum / inRing) * (activityWeights[track.highway] ?? 0.5), 0.05, 1);
-      track.activity = place;
-      spawnTracks.push(track);
-      spawnWeight += available * (0.2 + place);
-      spawnCum.push(spawnWeight);
-      if (track.kind === 'crossing-network' && track.ends.some(end => end.some(next => next.leg.crossing))) {
-        crossingApproaches.push(track);
-      }
-      weightedDensity += available * place;
-      totalLength += available;
-    }
-    const density = totalLength > 0 ? weightedDensity / totalLength : 0;
-    // 活动度 → 目标人数：15% 以下按最低 40 人，70% 以上按最高 140 人，中间线性。
-    // 出生环内没有任何可行走轨道时目标为 0（如实反映“这里没有模拟人行道”）。
-    const spread = clamp((density - cfg.densitySpreadLow) / (cfg.densitySpreadHigh - cfg.densitySpreadLow), 0, 1);
-    const capacity = Math.floor(totalLength * cfg.trackCapacityPerM);
-    const targetPeds = totalLength > 0
-      ? Math.min(capacity, clamp(Math.round(targetMin + (targetMax - targetMin) * spread), targetMin, targetMax))
-      : 0;
-    region = { center: { x: focus.x, z: focus.z }, bounds, spawnTracks, spawnCum, spawnWeight, crossingApproaches,
-      targetPeds, capacity, density, ...built };
+    region = { ...built, center: { x: focus.x, z: focus.z }, bounds };
     applyPavement(built.pavement);
     statistics.regionBuilds++;
     statistics.regionBuildMs = (typeof performance === 'object' && performance?.now ? performance.now() : Date.now()) - started;
@@ -446,6 +443,42 @@ export function createSzPedestrians(scene, graph, options = {}) {
     statistics.carriagewayBlockedSamples = built.statistics.carriagewayBlockedSamples;
     statistics.barrierPolygons = built.statistics.barrierPolygons;
     statistics.colliderIndexed = built.statistics.colliderIndexed;
+  }
+
+  function refreshSpawnWindows(focus) {
+    const spawnWindows = [];
+    const spawnCum = [];
+    const crossingApproaches = [];
+    let spawnWeight = 0;
+    let weightedDensity = 0;
+    let totalLength = 0;
+    const innerSq = cfg.spawnMinM ** 2, outerSq = cfg.spawnMaxM ** 2;
+    for (const track of region.tracks) {
+      if (track.length < 2) continue;
+      const approach = track.kind === 'crossing-network' && track.ends.some(end => end.some(next => next.leg.crossing));
+      visitSpawnWindows(track, focus, innerSq, outerSq, (low, high) => {
+        sampleTrack(track, (low + high) * 0.5, scratch);
+        const place = clamp(densityAt(scratch.x, scratch.z) * (activityWeights[track.highway] ?? 0.5), 0.05, 1);
+        const available = high - low;
+        const window = { track, low, high };
+        spawnWindows.push(window);
+        spawnWeight += available * (0.2 + place);
+        spawnCum.push(spawnWeight);
+        if (approach) crossingApproaches.push(window);
+        weightedDensity += available * place;
+        totalLength += available;
+      });
+    }
+    const density = totalLength > 0 ? weightedDensity / totalLength : 0;
+    // 活动度 → 目标人数：15% 以下按最低 40 人，70% 以上按最高 140 人，中间线性。
+    // 出生环内没有任何可行走轨道时目标为 0（如实反映“这里没有模拟人行道”）。
+    const spread = clamp((density - cfg.densitySpreadLow) / (cfg.densitySpreadHigh - cfg.densitySpreadLow), 0, 1);
+    const capacity = Math.floor(totalLength * cfg.trackCapacityPerM);
+    const targetPeds = totalLength > 0
+      ? Math.min(capacity, clamp(Math.round(targetMin + (targetMax - targetMin) * spread), targetMin, targetMax))
+      : 0;
+    Object.assign(region, { spawnFocus: { x: focus.x, z: focus.z }, spawnWindows, spawnCum, spawnWeight,
+      crossingApproaches, targetPeds, capacity, density });
     statistics.targetPeds = targetPeds;
     statistics.spawnCapacity = capacity;
     statistics.density = density;
@@ -464,13 +497,15 @@ export function createSzPedestrians(scene, graph, options = {}) {
   }
 
   function trySpawn(ped, focus, isVisible, approach = null) {
-    if (!region || region.spawnTracks.length === 0) return false;
+    if (!region?.spawnWindows.length) return false;
     for (let attempt = 0; attempt < 8; attempt++) {
-      const track = approach ?? pickTrack(region, random);
-      if (!track || track.length < 2) continue;
+      const window = approach ? region.crossingApproaches[Math.floor(random() * region.crossingApproaches.length)]
+        : pickSpawnWindow(region, random);
+      if (!window) continue;
+      const { track, low, high } = window;
       // 窄巷内留出单人通行净宽，环境行人逐个进入。
       if (track.singleFile && peds.some(other => other.placed && other.leg === track)) continue;
-      const s = 0.6 + random() * Math.max(0, track.length - 1.2);
+      const s = low + random() * (high - low);
       sampleTrack(track, s, scratch);
       const distance = Math.hypot(scratch.x - focus.x, scratch.z - focus.z);
       if (distance < cfg.spawnMinM || distance > cfg.spawnMaxM) continue;
@@ -697,6 +732,12 @@ export function createSzPedestrians(scene, graph, options = {}) {
         }) ?? ped.nextLeg;
         ped.nextLinkCheck = clock + 0.75;
       }
+      if (!leg.crossing && !ped.pendingLeg && !yielding && !ped.priority && !ped.avoid && ped.stuckFor >= 7) {
+        ped.dir *= -1;
+        ped.fromLeg = ped.nextLeg = ped.staticPath = null;
+        ped.staticCheck = ped.nextLinkCheck = ped.stuckFor = 0;
+        ped.pause = cfg.pauseTurnS;
+      }
       return;
     }
     const dx = point.x - x, dz = point.z - z;
@@ -755,6 +796,9 @@ export function createSzPedestrians(scene, graph, options = {}) {
     if (!region || jump || Math.hypot(focus.x - region.center.x, focus.z - region.center.z) > cfg.regionShiftM) {
       buildRegion(focus);
     }
+    if (!region.spawnFocus || squareDistance(focus.x, focus.z, region.spawnFocus.x, region.spawnFocus.z) >= 16 ** 2) {
+      refreshSpawnWindows(focus);
+    }
     lastFocus = { x: focus.x, z: focus.z };
     collectAvoidance(players);
     nearbyVehicles.length = 0;
@@ -763,18 +807,28 @@ export function createSzPedestrians(scene, graph, options = {}) {
     if (car) nearbyVehicles.push(writeEntityCollider(vehicleProbe, car));
     // 远处回收：保证活动区人数只受 focus 附近轨道容量限制。
     const recycleSq = cfg.recycleRadiusM ** 2;
+    const localSq = Math.max(cfg.spawnMaxM, cfg.nearRadiusM) ** 2;
+    const outerWalkers = [];
     let placedNow = 0;
     for (const ped of peds) {
       if (!ped.placed) continue;
-      if (squareDistance(ped.x, ped.z, focus.x, focus.z) > recycleSq) {
+      const distanceSq = squareDistance(ped.x, ped.z, focus.x, focus.z);
+      if (distanceSq > recycleSq) {
         unplace(ped);
         statistics.recycled++;
         continue;
       }
+      if (distanceSq > localSq && !ped.leg?.crossing) outerWalkers.push(ped);
       placedNow++;
     }
     // 地点密度目标：走过的街区比当前目标稀时，先回收看不见的最远处人物，不直接在眼前减人。
     const targetPeds = region?.targetPeds ?? targetMin;
+    for (let i = 0; i < Math.min(cfg.spawnBudget, outerWalkers.length) && placedNow - outerWalkers.length < targetPeds
+      && placedNow >= targetPeds; i++) {
+      unplace(outerWalkers[i]);
+      statistics.recycled++;
+      placedNow--;
+    }
     if (!jump && placedNow > targetPeds + cfg.densityHysteresisPeds) {
       const retired = [];
       for (const ped of peds) {
@@ -796,11 +850,10 @@ export function createSzPedestrians(scene, graph, options = {}) {
     for (const ped of peds) if (ped.placed) grid.add(ped);
     let budget = jump ? cfg.maxPeds : cfg.spawnBudget;
     // 保留少量源人行道客流，防止邻近数公里的通用步道耗尽路口的出生配额。
-    if (region.crossingApproaches.length && budget > 0
+    if (region.crossingApproaches.length && budget > 0 && placedNow < targetPeds
       && peds.filter(ped => ped.placed && ped.leg?.kind === 'crossing-network').length < 3) {
       const pedestrian = peds.find(ped => !ped.placed);
-      const approach = region.crossingApproaches[Math.floor(random() * region.crossingApproaches.length)];
-      if (pedestrian && trySpawn(pedestrian, focus, isVisible, approach)) placedNow++;
+      if (pedestrian && trySpawn(pedestrian, focus, isVisible, true)) placedNow++;
       budget--;
     }
     let scanned = 0;
@@ -820,15 +873,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     for (const ped of peds) {
       if (!ped.placed) continue;
       placed++;
-      const dx = ped.x - focus.x;
-      const dz = ped.z - focus.z;
-      const distanceSq = dx * dx + dz * dz;
-      ped.activeWalker = distanceSq <= nearSq || Boolean(ped.leg?.crossing);
-      if (!ped.activeWalker) {
-        ped.frameVX = ped.frameVZ = ped.vx = ped.vz = 0;
-        if (ped.rig.placed) ped.rig.placed = false;
-        continue;
-      }
+      ped.activeWalker = true;
       sampleTrack(ped.leg, ped.s, scratch);
       ped.fx = scratch.dx * ped.dir;
       ped.fz = scratch.dz * ped.dir;
@@ -836,6 +881,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
     }
     // 规划读取同一帧的位置和速度，执行再校核连续包络。
     walkerAvoidance.update(nearPeds, grid, clock);
+    let near = 0;
     for (let i = 0; i < nearPeds.length; i++) {
       const ped = nearPeds[i];
       const { x, z } = ped;
@@ -849,6 +895,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
       }
       const distanceSq = squareDistance(ped.x, ped.z, focus.x, focus.z);
       if (distanceSq > nearSq) { ped.rig.placed = false; continue; }
+      near++;
       const draw = !isVisible || isVisible(ped.x, ped.z, 7, ped.y);
       if (draw) drawn++;
       // 隐藏但离得近的人仍然推进步态；超过 50 m 且看不见则等待重新落地，省掉骨骼计算。
@@ -857,14 +904,14 @@ export function createSzPedestrians(scene, graph, options = {}) {
     }
     crowd.end();
     statistics.placed = placed;
-    statistics.near = nearPeds.length;
+    statistics.near = near;
     statistics.drawn = drawn;
   }
 
   function nearColliders(x, z, radius) {
     // 车流会查询整个活动半径，宽查询直接扫 140 人池比枚举空格更便宜。
     const pool = radius <= 12 ? grid.query(x, z, radius + 0.65, []) : nearPeds;
-    return pool.filter(ped => ped.activeWalker
+    return pool.filter(ped => ped.placed
       && Math.abs(ped.x - x) < radius + 0.4 && Math.abs(ped.z - z) < radius + 0.4).map(ped => ped.collider);
   }
 
@@ -879,10 +926,11 @@ export function createSzPedestrians(scene, graph, options = {}) {
       pavementGeometry = null;
     }
     pavementMaterial.dispose();
+    samplePavement = null;
     region = null;
     grid.clear();
   }
 
-  return { group, meshes: crowd.meshes, update, nearColliders, statistics, dispose, peds, densityAt,
+  return { group, meshes: crowd.meshes, update, nearColliders, statistics, dispose, peds, densityAt, pavementHeightAt,
     densityModel, get region() { return region; } };
 }

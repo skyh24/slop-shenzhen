@@ -69,6 +69,20 @@ test('source road style applies across links without duplicating stations or rea
   assert.equal(disabled.sites.length, 0);
 });
 
+test('short streets get staggered lamps without using the junction clearance', () => {
+  const links = [[0, 1, 0, 7, 2, 0, []], [1, 2, 0, 7, 2, 0, []], [1, 3, 0, 7, 2, 0, []]];
+  const roads = { ...graph(links, links.map(() => ({ ...ground(), highway: 'residential' }))),
+    nodes: [0, 0, 32, 0, 64, 0, 32, 32] };
+  const plan = lamps.planLampSites(roads);
+  assert.deepEqual(lamps.planLampSites(roads), plan);
+  for (const [index, link] of links.entries()) {
+    const sites = plan.sites.filter(site => site.linkIndex === index);
+    assert.equal(sites.length, 2);
+    assert.notEqual(sites[0].stationM, sites[1].stationM);
+    assert.ok(sites.every(site => link[0] === 1 ? site.stationM >= 14 : 32 - site.stationM >= 14));
+  }
+});
+
 test('street lamps skip bridges, tunnels, layered roads and motorways', () => {
   const links = [[0, 1, 0, 12, 3, 0, []], [1, 2, 0, 12, 3, 0, []], [0, 1, 0, 12, 3, 0, []], [1, 2, 0, 12, 3, 0, []]];
   const metadata = [

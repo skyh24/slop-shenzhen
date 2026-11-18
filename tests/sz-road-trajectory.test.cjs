@@ -174,3 +174,14 @@ test('route support case slopes: 10 percent is accepted, 25 percent cross slope 
   assert.equal(poseOnRoute(line({ surfaceId: 'deck' }), 100, model, (x, z) => 5 + 0.25 * z, pose), false,
     'a 25 percent cross slope is rejected even though every probe has a surface');
 });
+
+test('lateral movement samples support and heading at the actual vehicle footprint', () => {
+  const pose = {};
+  const samples = line({ surfaceId: 'deck' });
+  const pavement = (x, z) => Math.abs(z) < 2 ? 5 : null;
+  assert.equal(poseOnRoute(samples, 100, model, pavement, pose), true);
+  assert.equal(poseOnRoute(samples, 100, model, pavement, pose, 3.5), false);
+  assert.equal(poseOnRoute(samples, 100, model, () => 5, pose, 3.5, -0.12), true);
+  assert.ok(Math.abs(pose.z - 3.5) < 1e-9);
+  assert.ok(Math.abs(pose.heading - (Math.PI / 2 - 0.12)) < 1e-9);
+});

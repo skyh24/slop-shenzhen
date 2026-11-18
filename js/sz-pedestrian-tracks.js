@@ -9,6 +9,8 @@ const EPSILON = 1e-9;
 const CELL_SIZE = 24;
 const BARRIER_CELL = 32;
 const ONE_WAY_SEGMENTS = new WeakMap();
+const MAX_CORRIDOR_GAP_M = 32;
+const DIVIDED_HIGHWAYS = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary']);
 
 export const DEFAULT_EXCLUDED_HIGHWAYS = ['motorway', 'motorway_link', 'trunk', 'trunk_link'];
 export const TRACK_DEFAULTS = {
@@ -29,8 +31,8 @@ export const TRACK_DEFAULTS = {
   pavement: true,
   pavementHalfWidthM: 1.1, // 模拟铺装带宽 2.2 m
   pavementStepM: 8,
-  surfaceRiseM: 0.03, // 铺装面相对 heightAt 的抬升，人物脚底用同一抬升
-  cornerPavementRiseM: 0.018, // 转角铺装压在下层，避免与直段共面闪烁
+  surfaceRiseM: 0.15, // 铺装顶面相对 heightAt 的抬升；接触高度从成形后的顶面采样
+  cornerPavementRiseM: 0.138, // 转角铺装压在下层，避免与直段共面闪烁
   excludedHighways: DEFAULT_EXCLUDED_HIGHWAYS
 };
 
@@ -330,6 +332,93 @@ function barrierPolygon(ring) {
   return edges.length >= 3 ? { edges, bounds } : null;
 }
 
+function betweenCarriageways(first, second) {
+  const alignment = first.dx * second.dx + first.dz * second.dz;
+  if (Math.abs(alignment) < 0.95 || first.linkIndex === second.linkIndex) return null;
+  const sameName = first.name && first.name === second.name;
+  const frontage = sameName && first.frontage !== second.frontage;
+  const signedAlignment = alignment * first.direction * second.direction;
+  const inferred = !first.name && !second.name && first.highway === second.highway && DIVIDED_HIGHWAYS.has(first.highway);
+  const [main, sideRoad] = first.name ? [first, second] : [second, first];
+  const unnamedFrontage = signedAlignment >= 0.97 && main.name && !main.frontage && !sideRoad.name
+    && /^(?:motorway|trunk|primary)$/.test(main.highway) && /^(?:secondary|tertiary)$/.test(sideRoad.highway)
+    && sideRoad.width < main.width;
+  if (!frontage && !unnamedFrontage && !(signedAlignment < 0 && (sameName || inferred))) return null;
+
+  const offsetX = second.start.x - first.start.x, offsetZ = second.start.z - first.start.z;
+  const projection = offsetX * first.dx + offsetZ * first.dz;
+  const end = projection + second.length * alignment;
+  let low = Math.max(0, Math.min(projection, end)), high = Math.min(first.length, Math.max(projection, end));
+  if (high - low < 2) return null;
+  const lateral = offsetX * first.dz - offsetZ * first.dx;
+  const slope = (second.dx * first.dz - second.dz * first.dx) / alignment;
+  const separation = station => lateral + (station - projection) * slope;
+  const side = Math.sign(separation((low + high) / 2));
+  if (!side) return null;
+  const towardLeft = side * alignment > 0;
+  const gapAt = station => {
+    const firstLeft = first.start.leftM + (first.end.leftM - first.start.leftM) * station / first.length;
+    const secondLeft = second.start.leftM + (second.end.leftM - second.start.leftM)
+      * (station - projection) / (second.length * alignment);
+    const firstEdge = side > 0 ? firstLeft : first.width - firstLeft;
+    const secondEdge = towardLeft ? second.width - secondLeft : secondLeft;
+    return separation(station) * side - firstEdge - secondEdge / Math.abs(alignment);
+  };
+  const maxGap = frontage ? MAX_CORRIDOR_GAP_M : sameName ? 24 : 9;
+  const lowGap = gapAt(low), highGap = gapAt(high);
+  if (Math.min(lowGap, highGap) > maxGap || Math.max(lowGap, highGap) <= 0) return null;
+  const stationAt = gap => low + (gap - lowGap) * (high - low) / (highGap - lowGap);
+  const clippedLow = lowGap > maxGap ? stationAt(maxGap) : lowGap < 0 ? stationAt(0) : low;
+  high = highGap > maxGap ? stationAt(maxGap) : highGap < 0 ? stationAt(0) : high;
+  low = clippedLow;
+  if (high - low < 2) return null;
+  const pointAt = (station, offset) => ({ x: first.start.x + first.dx * station + first.dz * offset,
+    z: first.start.z + first.dz * station - first.dx * offset });
+  const ring = [pointAt(low, 0), pointAt(high, 0), pointAt(high, separation(high)), pointAt(low, separation(low))];
+  return side > 0 ? ring.reverse() : ring;
+}
+
+function visitCorridorGaps(graph, includeLink, add) {
+  const cells = new Map();
+  for (const [linkIndex, link] of graph.links.entries()) {
+    const metadata = graph.metadata[linkIndex];
+    const [, , nameIndex, width, , direction] = link;
+    if (!metadata || !isGroundRoad(metadata) || !(width > 0) || (includeLink && !includeLink(linkIndex))) continue;
+    const roadName = graph.names?.[nameIndex] ?? '';
+    const name = roadName.replace(/(?:辅路|辅道)$/, '');
+    if (!name && (!direction || !DIVIDED_HIGHWAYS.has(metadata.highway))) continue;
+    const points = roadSectionPoints(graph, link, metadata);
+    for (let index = 1; index < points.length; index++) {
+      const start = { ...points[index - 1], leftM: points[index - 1].leftM ?? width / 2 };
+      const end = { ...points[index], leftM: points[index].leftM ?? width / 2 };
+      const length = Math.hypot(end.x - start.x, end.z - start.z);
+      if (length < 2) continue;
+      const current = { start, end, width, length, dx: (end.x - start.x) / length, dz: (end.z - start.z) / length,
+        name, frontage: name !== roadName, direction, highway: metadata.highway, linkIndex };
+      const pad = width + MAX_CORRIDOR_GAP_M / 2;
+      const minX = Math.floor((Math.min(start.x, end.x) - pad) / BARRIER_CELL);
+      const maxX = Math.floor((Math.max(start.x, end.x) + pad) / BARRIER_CELL);
+      const minZ = Math.floor((Math.min(start.z, end.z) - pad) / BARRIER_CELL);
+      const maxZ = Math.floor((Math.max(start.z, end.z) + pad) / BARRIER_CELL);
+      const seen = new Set();
+      for (let x = minX; x <= maxX; x++) {
+        for (let z = minZ; z <= maxZ; z++) {
+          const key = cellKey(x, z);
+          let nearby = cells.get(key);
+          if (!nearby) cells.set(key, nearby = []);
+          for (const other of nearby) {
+            if (seen.has(other)) continue;
+            seen.add(other);
+            const ring = betweenCarriageways(current, other);
+            if (ring) add(ring, true);
+          }
+          nearby.push(current);
+        }
+      }
+    }
+  }
+}
+
 export function createCarriagewayBarrier(graph, options = {}) {
   if (!graph || !Array.isArray(graph.links) || !Array.isArray(graph.metadata)) {
     throw new Error('Carriageway barrier requires a road graph');
@@ -349,9 +438,10 @@ export function createCarriagewayBarrier(graph, options = {}) {
   } : null;
   const cells = new Map();
   let polygons = 0;
-  function add(points) {
+  function add(points, corridorGap = false) {
     const polygon = barrierPolygon(points);
     if (!polygon) return;
+    polygon.corridorGap = corridorGap === true;
     const { minX, minZ, maxX, maxZ } = polygon.bounds;
     for (let x = Math.floor(minX / cellSize); x <= Math.floor(maxX / cellSize); x++) {
       for (let z = Math.floor(minZ / cellSize); z <= Math.floor(maxZ / cellSize); z++) {
@@ -364,7 +454,8 @@ export function createCarriagewayBarrier(graph, options = {}) {
     polygons++;
   }
   visitGroundRoadFootprints(graph, add, includeLink);
-  function contains(x, z, marginM = 0) {
+  if (options.includeCorridorGaps) visitCorridorGaps(graph, includeLink, add);
+  function contains(x, z, marginM = 0, corridorGap = null) {
     // 中心可能在相邻格内，但树干、灯杆或人体包络已跨过格线。
     const radius = Math.max(0, marginM);
     const lastX = Math.floor((x + radius) / cellSize);
@@ -372,6 +463,7 @@ export function createCarriagewayBarrier(graph, options = {}) {
     for (let ix = Math.floor((x - radius) / cellSize); ix <= lastX; ix++) {
       for (let iz = Math.floor((z - radius) / cellSize); iz <= lastZ; iz++) {
         for (const polygon of cells.get(cellKey(ix, iz)) ?? []) {
+          if (corridorGap !== null && polygon.corridorGap !== corridorGap) continue;
           const { minX, minZ, maxX, maxZ } = polygon.bounds;
           if (x < minX - marginM || x > maxX + marginM || z < minZ - marginM || z > maxZ + marginM) continue;
           if (polygon.edges.every(edge => edge.nx * x + edge.nz * z - edge.c <= marginM)) return true;
@@ -380,7 +472,7 @@ export function createCarriagewayBarrier(graph, options = {}) {
     }
     return false;
   }
-  return { polygons, cells, cellSize, contains };
+  return { polygons, cells, cellSize, contains, roadContains: (x, z, margin) => contains(x, z, margin, false) };
 }
 
 function makeTrack(points, kind, extra) {
@@ -461,7 +553,7 @@ export function buildSidewalkTracks(graph, options = {}) {
   const cfg = config(options);
   const bounds = cfg.bounds ?? null;
   const colliderIndex = cfg.colliderIndex ?? createColliderIndex(cfg.colliders ?? [], bounds, cfg.colliderGrid ?? null);
-  const barrier = cfg.barrier ?? null;
+  const barrier = cfg.barrier ?? createCarriagewayBarrier(graph, { bounds, linkExtendM: cfg.barrierLinkExtendM, includeCorridorGaps: true });
   const excluded = new Set(cfg.excludedHighways ?? []);
   const tracks = [];
   const statistics = { groundLinks: 0, candidateLinks: 0, clippedRuns: 0, blockedSamples: 0,
@@ -548,7 +640,7 @@ export function connectTracks(tracks, options = {}) {
   if (typeof cfg.heightAt !== 'function') throw new Error('connectTracks requires heightAt');
   const colliderIndex = cfg.colliderIndex ?? createColliderIndex(cfg.colliders ?? [], cfg.bounds ?? null, cfg.colliderGrid ?? null);
   const barrier = cfg.barrier ?? (cfg.graph
-    ? createCarriagewayBarrier(cfg.graph, { bounds: cfg.bounds ?? null, linkExtendM: cfg.barrierLinkExtendM })
+    ? createCarriagewayBarrier(cfg.graph, { bounds: cfg.bounds ?? null, linkExtendM: cfg.barrierLinkExtendM, includeCorridorGaps: true })
     : null);
   const maxPerEnd = cfg.maxConnectionsPerEnd;
   const radius = cfg.connectRadiusM;
@@ -657,6 +749,9 @@ export function buildPavementRibbons(legs, options = {}) {
   const clearance = cfg.pavementCarriagewayClearanceM;
   const positions = [];
   const colors = [];
+  const wallPositions = [];
+  const wallColors = [];
+  const wallColor = PAVEMENT_COLOR.map(value => value * 0.76);
   const statistics = { triangles: 0, areaM2: 0, clampedSamples: 0, blankRows: 0, carriagewaySkipped: 0 };
   for (const leg of legs) {
     if (!leg || leg.length < 2) continue;
@@ -697,14 +792,17 @@ export function buildPavementRibbons(legs, options = {}) {
         blocked
       });
     }
+    const usable = row => row && !row.blocked;
+    const addEdge = (start, end) => {
+      if (rise <= 0 || Math.hypot(end.x - start.x, end.z - start.z) < 0.003) return;
+      wallPositions.push(start.x, start.y, start.z, end.x, end.y, end.z, start.x, start.y - rise, start.z,
+        end.x, end.y, end.z, end.x, end.y - rise, end.z, start.x, start.y - rise, start.z);
+      for (let vertex = 0; vertex < 6; vertex++) wallColors.push(...wallColor);
+    };
     for (let i = 1; i < rows.length; i++) {
       const a = rows[i - 1];
       const b = rows[i];
-      if (!a || !b) {
-        statistics.carriagewaySkipped++;
-        continue;
-      }
-      if (a.blocked || b.blocked) {
+      if (!usable(a) || !usable(b)) {
         statistics.carriagewaySkipped++;
         continue;
       }
@@ -724,12 +822,22 @@ export function buildPavementRibbons(legs, options = {}) {
       push(a.right, rightColor);
       push(b.right, rightColor);
       push(b.left, leftColor);
+      addEdge(a.left, b.left);
+      addEdge(b.right, a.right);
+      if (!usable(rows[i - 2])) addEdge(a.right, a.left);
+      if (!usable(rows[i + 1])) addEdge(b.left, b.right);
       statistics.triangles += 2;
       const segment = Math.hypot(b.left.x - a.left.x, b.left.z - a.left.z);
       statistics.areaM2 += ((a.left.width + a.right.width + b.left.width + b.right.width) / 2) * Math.min(step, segment + 1e-6);
     }
   }
-  return { positions: new Float32Array(positions), colors: new Float32Array(colors), statistics };
+  const meshPositions = new Float32Array(positions.length + wallPositions.length);
+  meshPositions.set(positions);
+  meshPositions.set(wallPositions, positions.length);
+  const meshColors = new Float32Array(colors.length + wallColors.length);
+  meshColors.set(colors);
+  meshColors.set(wallColors, colors.length);
+  return { positions: meshPositions, colors: meshColors, topTriangleCount: statistics.triangles, statistics };
 }
 
 // 在指定公共面内为双向靠右预留空间，沿多个横向候选连续搜索。
@@ -791,7 +899,7 @@ export function buildWalkTracks(graph, options = {}) {
   const bounds = cfg.bounds ?? null;
   const colliderIndex = createColliderIndex(cfg.colliders ?? [], bounds, cfg.colliderGrid ?? null);
   colliderIndex.nearRegional = cfg.nearRegional;
-  const barrier = createCarriagewayBarrier(graph, { bounds, linkExtendM: cfg.barrierLinkExtendM });
+  const barrier = createCarriagewayBarrier(graph, { bounds, linkExtendM: cfg.barrierLinkExtendM, includeCorridorGaps: true });
   const built = buildSidewalkTracks(graph, { ...cfg, colliderIndex, barrier });
   const connected = connectTracks(built.tracks, { ...cfg, colliderIndex, barrier });
   const legs = [...built.tracks, ...connected.connectors];
@@ -809,7 +917,7 @@ export function buildWalkTracks(graph, options = {}) {
     connectors: connected.connectors,
     legs: [...legs, ...local],
     pavement,
-    carriagewayOccupied: (x, z) => barrier.contains(x, z, cfg.colliderRadiusM),
+    carriagewayOccupied: (x, z) => barrier.roadContains(x, z, cfg.colliderRadiusM),
     walkableHeight(x, z, referenceY) {
       return heightForPose(x, z, referenceY);
     },
@@ -830,8 +938,9 @@ export function buildWalkTracks(graph, options = {}) {
 
   function heightForPose(x, z, referenceY, leg, radius = cfg.colliderRadiusM, raised = false, padding = 0) {
     const y = leg?.publicHeight ? leg.publicHeight(x, z) : cfg.heightAt(x, z);
+    const blocked = leg?.kind === 'public-walk' ? barrier.roadContains : barrier.contains;
     if (!Number.isFinite(y) || Math.abs(y - referenceY) > (leg ? 0.19 : cfg.maxStepRiseM)
-      || (leg?.kind !== 'crossing-network' && barrier.contains(x, z, Math.max(radius, cfg.colliderRadiusM))) || cfg.isWater?.(x, z)
+      || (leg?.kind !== 'crossing-network' && blocked(x, z, Math.max(radius, cfg.colliderRadiusM))) || cfg.isWater?.(x, z)
       || colliderAt(colliderIndex, x, z, y, radius + padding, cfg.colliderHeightM)) return null;
     if (leg?.allows && !leg.allows(x, z, radius)) return null;
     const generic = leg?.kind !== 'public-walk' && !leg?.publicHeight;

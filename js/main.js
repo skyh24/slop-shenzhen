@@ -221,8 +221,9 @@ async function initApp() {
   await Promise.all([regional.prepare(SPAWN_POINT, 180, true), Number.isFinite(savedPose?.x) && Number.isFinite(savedPose?.z)
     ? regional.prepare(savedPose, 180, true) : null]);
   qa.markStartup('regional.safety', performance.now() - safetyStarted);
+  let pedestrians;
   const controllerManager = new ThirdPersonControllerManager(scene, colliders, {
-    groundHeight: site.heightAt,
+    groundHeight: (x, z) => pedestrians?.pavementHeightAt?.(x, z) ?? site.heightAt(x, z),
     roadHeight: roads.roadHeight,
     cruiseCurbs: roadFrontage.curbColliders,
     // 场所公开上跨面按登记顺序并入接触候选；其余结构面各自的入口不变。
@@ -264,7 +265,7 @@ async function initApp() {
   buildingDetails.update(loadingFocus);
   for (let i = 0; i < 40 && buildingDetails.statistics.pending > 0; i++) buildingDetails.update(loadingFocus);
   // 环境人群复用纽约 PersonRig；行走位置是沿路侧模拟步行带，非全城实测人行道。
-  const pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, roadGraph, {
+  pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, roadGraph, {
     ...site,
     publicRoute: qa.measureBuild('pedestrianPublicWalk', () => publicWalk.route(colliders)),
     publicWalkSurface: publicWalk.pedestrianSurface,
@@ -279,6 +280,7 @@ async function initApp() {
     localWalk: iec?.walk, blockGenericWalk: iec?.blockGenericWalk,
     spawnMinM: 8,
     spawnMaxM: 160,
+    nearRadiusM: 160,
     nearRegional: regional.colliders,
     regionalRoutes: regional.routes,
     publicRoutes: qa.measureBuild('pedestrianPublicRoutes', () => [...roadLandscape.routes, ...urbanPaving.connect(colliders, { contains: carriagewayOccupied }),

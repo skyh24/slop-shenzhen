@@ -98,6 +98,7 @@ const pedestrians = loadModule(read('sz-pedestrians.js'), {
     'three/webgpu': three,
     './pedestrians.js': pedestrianStub.module,
     './sz-pedestrian-tracks.js': tracks,
+    './sz-controller-surfaces.js': loadModule(read('sz-controller-surfaces.js')),
     './sz-walk-avoidance.js': loadModule(read('sz-walk-avoidance.js')),
     './sz-polygon.js': polygonModule,
     './sz-junction-participant.js': junction
@@ -323,6 +324,25 @@ test('pavement ribbons are 2.2 m light grey bands that narrow against buildings'
   assert.ok(built.statistics.pavementAreaM2 > 0);
 });
 
+test('sidewalk curbs close the rendered step without adding contact outside the top', () => {
+  const graph = straightGraph(200);
+  const built = buildWalkTracks(graph, { heightAt: flatHeight });
+  const { positions, topTriangleCount } = built.pavement;
+  const tops = positions.subarray(0, topTriangleCount * 9);
+  const walls = positions.subarray(topTriangleCount * 9);
+  assert.ok(tops.length > 0 && walls.length > 0);
+  const heights = values => values.filter((_, index) => index % 3 === 1);
+  assert.ok(heights(tops).every(y => y >= 0.15 && y < 0.152));
+  assert.ok(heights(walls).some(y => Math.abs(y) < 1e-6));
+  assertPavementOutsideBarrier(built.pavement, createCarriagewayBarrier(graph));
+
+  const { peds } = makeFactory(graph, { heightAt: flatHeight });
+  peds.update(0, { x: 100, y: 0, z: 0 }, 0);
+  assert.ok(Math.abs(peds.pavementHeightAt(100, 5.6) - 0.15) < 0.002);
+  assert.equal(peds.pavementHeightAt(100, 0), null);
+  assert.equal(peds.pavementHeightAt(100, 8), null);
+});
+
 test('walk tracks clip to the focus region instead of building whole roads', () => {
   const graph = straightGraph(2000);
   const built = buildWalkTracks(graph, { heightAt: flatHeight, pavement: false,
@@ -431,6 +451,33 @@ test('factory keeps the crowd inside the spawn ring and recycles it past the rec
   assert.ok(peds.statistics.regionBuilds >= 2);
 });
 
+test('nearby pieces of long public paths on several streets spawn walkers even when all endpoints are outside the region', () => {
+  const publicRoutes = [-125, -80, 65, 125].map(z => ({
+    points: [{ x: -1800, z }, { x: 1800, z }], highway: 'residential', heightAt: () => 0
+  }));
+  const { peds } = makeFactory(straightGraph(), { publicRoutes, excludeWalkAt: () => true, maxPeds: 64 });
+  for (let frame = 0; frame < 24; frame++) peds.update(0, { x: 0, y: 0, z: 0 }, frame);
+  const placed = peds.peds.filter(ped => ped.placed);
+  assert.equal(new Set(placed.map(ped => ped.leg)).size, publicRoutes.length);
+  assert.ok(placed.every(ped => Math.hypot(ped.x, ped.z) <= 161));
+});
+
+test('out of sight walkers keep moving, and walking to a new block refreshes spawn windows without rebuilding', () => {
+  const { peds } = makeFactory(straightGraph(1200), { nearRadiusM: 60, maxPeds: 30 });
+  const focus = { x: 600, y: 0, z: 0 };
+  for (let frame = 0; frame < 8; frame++) peds.update(0, focus, 0);
+  const walker = peds.peds.find(ped => ped.placed && Math.abs(ped.x - focus.x) > 90);
+  assert.ok(walker);
+  const start = walker.x;
+  for (let frame = 1; frame <= 40; frame++) peds.update(0.05, focus, frame * 0.05);
+  assert.ok(Math.abs(walker.x - start) > 0.8, 'the hidden walker still advances');
+  assert.equal(peds.nearColliders(walker.x, walker.z, 2).includes(walker.collider), true);
+  const region = peds.region;
+  peds.update(0, { ...focus, x: 630 }, 2);
+  assert.equal(peds.region, region);
+  assert.equal(region.spawnFocus.x, 630);
+});
+
 test('walking rigs use heightAt for ground contact and only solve near the focus', () => {
   const graph = straightGraph(2000);
   const heightAt = (x, z) => 2 + x * 0.002 + z * 0.001;
@@ -447,7 +494,9 @@ test('walking rigs use heightAt for ground contact and only solve near the focus
       const distanceSq = (call.x - focus.x) ** 2 + (call.z - focus.z) ** 2;
       assert.ok(distanceSq <= nearSq + 2, 'rigs are only solved inside the near radius');
       const ground = call.ground(call.owner, call.x, call.z);
-      assert.ok(Math.abs(ground - (heightAt(call.x, call.z) + 0.03)) < 1e-9);
+      const top = peds.pavementHeightAt(call.x, call.z);
+      assert.equal(ground, top ?? heightAt(call.x, call.z));
+      if (top !== null) assert.ok(Math.abs(top - heightAt(call.x, call.z) - 0.15) < 0.002);
       checked++;
     }
   }
@@ -625,21 +674,102 @@ test('sidewalks skip only the overlapping inner edges of similar ground one-ways
   assert.equal(sidewalks.filter(track => track.linkIndex === 3).length, 0);
 });
 
-test('Shennan Boulevard by Window of the World and Press Tower has only exterior mainline tracks', () => {
+test('Shennan Boulevard near Press Tower keeps sidewalk tracks on the outside frontage', () => {
+  const { roadGraph: graph } = JSON.parse(zlib.gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
+  const bounds = { minX: -1450, minZ: 390, maxX: -1200, maxZ: 480 };
+  const { tracks } = buildSidewalkTracks(graph, { bounds, heightAt: flatHeight });
+  for (const wayId of ['way/1050511760', 'way/1050511761']) {
+    const sidewalks = tracks.filter(track => graph.metadata[track.linkIndex]?.osmId === wayId);
+    assert.ok(sidewalks.length > 0, `missing exterior sidewalk along ${wayId}`);
+    assert.ok(sidewalks.every(track => track.side === -1), `interior sidewalk along ${wayId}`);
+  }
+  assert.equal(tracks.some(track => ['way/96334031', 'way/1050261077'].includes(graph.metadata[track.linkIndex]?.osmId)), false);
+});
+
+test('a divided road with frontage lanes only spawns and walks beyond the outer curbs', () => {
+  const graph = roadGraph([0, -30, 200, -30, 200, -11, 0, -11, 0, 11, 200, 11, 0, 30, 200, 30], [6, 4, 10, 4, 10, 4, 6]);
+  graph.names = ['Arterial', 'Arterial辅路'];
+  for (const [index, link] of graph.links.entries()) {
+    if (index % 2) graph.metadata[index].heightSource = 'bridge';
+    else if (index === 0 || index === 6) link[2] = 1;
+  }
+  const { peds } = makeFactory(graph, { spawnMinM: 5, spawnMaxM: 80 });
+  const outdoor = new Set();
+  for (let frame = 0; frame < 120; frame++) {
+    peds.update(0.1, { x: 100, y: 0, z: 0 }, frame / 10);
+    for (const ped of peds.peds.filter(ped => ped.placed)) {
+      assert.ok(Math.abs(ped.z) > 33, `walker entered the divider at ${ped.x},${ped.z}`);
+      outdoor.add(Math.sign(ped.z));
+    }
+  }
+  assert.deepEqual(outdoor, new Set([-1, 1]));
+  assert.deepEqual(Array.from(peds.region.tracks, track => track.linkIndex), [0, 6]);
+  assert.equal(peds.region.heightForPose(80, 20, 0), null);
+  assert.equal(peds.region.carriagewayOccupied(80, 20), false);
+  for (let index = 2; index < peds.region.pavement.positions.length; index += 3) {
+    assert.ok(Math.abs(peds.region.pavement.positions[index]) > 33);
+  }
+});
+
+test('frontage overlap is local and neither a different street nor an upper deck hides a sidewalk', () => {
+  const graph = roadGraph([0, 0, 180, 0, 60, 17, 130, 23, 0, -16, 180, -16, 0, -11, 180, -11], [12, 4, 6, 4, 6, 4, 6]);
+  graph.names = ['Arterial', 'Arterial辅道', 'Other Street'];
+  for (const [index, link] of graph.links.entries()) {
+    if (index % 2 || index === 6) graph.metadata[index].heightSource = 'bridge';
+    else if (index === 2) link[2] = 1;
+    else if (index === 4) { link[2] = 2; link[5] = -1; }
+  }
+  const region = buildWalkTracks(graph, { heightAt: flatHeight });
+  const main = region.tracks.filter(track => track.linkIndex === 0);
+  assert.ok(main.some(track => track.side === 1 && track.length >= 179));
+  const outer = main.filter(track => track.side === -1);
+  assert.equal(outer.length, 2);
+  assert.ok(outer[0].points.at(-1).x < 64 && outer[1].points[0].x > 126);
+  assert.ok(outer.every(track => track.points.every(point => point.x < 64 || point.x > 126)));
+  assert.ok(region.tracks.some(track => track.linkIndex === 2 && track.side === -1));
+});
+
+test('a narrow unnamed frontage road can define the outside curb without a name match', () => {
+  const graph = roadGraph([0, 0, 120, 0, 0, 18, 120, 18], [14, 4, 6]);
+  graph.names = ['Arterial', ''];
+  graph.metadata[0].highway = 'primary';
+  graph.metadata[1].heightSource = 'bridge';
+  graph.metadata[2].highway = 'secondary';
+  graph.links[2][2] = 1;
+  const built = buildSidewalkTracks(graph, { heightAt: flatHeight });
+  assert.deepEqual(Array.from(built.tracks, track => [track.linkIndex, track.side]), [[0, 1], [2, -1]]);
+});
+
+test('Shennan Boulevard by Window of the World keeps the exterior of unnamed frontage roads walkable', () => {
   const raw = JSON.parse(zlib.gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
   const graph = raw.roadGraph;
-  for (const [bounds, wayIds] of [
-    [{ minX: -8560, minZ: 750, maxX: -8180, maxZ: 1000 },
-      ['way/557222423', 'way/557222430', 'way/572963458', 'way/1241802797']],
-    [{ minX: -1450, minZ: 390, maxX: -1200, maxZ: 480 },
-      ['way/96334031', 'way/1050261077', 'way/1050511760', 'way/1050511761']]
-  ]) {
-    const built = buildSidewalkTracks(graph, { bounds, heightAt: flatHeight });
-    for (const wayId of wayIds) {
-      const sidewalks = built.tracks.filter(track => graph.metadata[track.linkIndex]?.osmId === wayId);
-      assert.ok(sidewalks.length > 0, `missing exterior sidewalk along ${wayId}`);
-      assert.ok(sidewalks.every(track => track.side === -1), `median sidewalk along ${wayId}`);
-    }
+  const bounds = { minX: -8560, minZ: 750, maxX: -8180, maxZ: 1000 };
+  const built = buildSidewalkTracks(graph, { bounds, heightAt: flatHeight });
+  const frontageIds = ['way/557222401', 'way/557222436', 'way/985389865'];
+  for (const wayId of frontageIds) {
+    const sidewalks = built.tracks.filter(track => graph.metadata[track.linkIndex]?.osmId === wayId);
+    assert.ok(sidewalks.length > 0, `missing exterior sidewalk along ${wayId}`);
+    assert.ok(sidewalks.every(track => track.side === -1), `interior sidewalk along ${wayId}`);
+  }
+  assert.equal(built.tracks.some(track => graph.names[graph.links[track.linkIndex][2]] === '深南大道'), false);
+});
+
+test('Shennan Boulevard in Futian keeps walkers and paving outside both frontage roads', () => {
+  const { roadGraph: graph } = JSON.parse(zlib.gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
+  const bounds = { minX: 565, minZ: 345, maxX: 635, maxZ: 445 };
+  const built = buildWalkTracks(graph, { bounds, heightAt: flatHeight });
+  const sidewalks = built.tracks.filter(track => /^深南大道(?:辅路)?$/.test(graph.names[graph.links[track.linkIndex]?.[2]]));
+  const ways = sidewalks.map(track => graph.metadata[track.linkIndex].osmId);
+  assert.deepEqual(new Set(ways), new Set(['way/777201409', 'way/1095317745']));
+  for (const track of sidewalks) {
+    assert.ok(track.points.every(point => point.z < 363 || point.z > 429));
+  }
+  assert.equal(built.heightForPose(600, 396, 0), null);
+  assert.equal(built.heightForPose(600, 373, 0), null);
+  assert.equal(built.heightForPose(600, 417, 0), null);
+  for (let index = 2; index < built.pavement.positions.length; index += 3) {
+    const z = built.pavement.positions[index];
+    assert.ok(z < 364 || z > 428, `pavement in the corridor at ${z}`);
   }
 });
 

@@ -343,7 +343,7 @@ test('traffic spreads spawns across the forward lanes of a reviewed two-way road
   assert.ok(active.every(actor => actor.route[actor.pose.index].laneOffset > 0));
 });
 
-test('traffic changes lanes when the leading lane is blocked by a standing player', () => {
+function laneChangeFixture() {
   const graph = {
     nodes: [0, 0, 600, 0, 1600, 0], nodeIds: ['node/1', 'node/2', 'node/3'], names: ['Ring'],
     links: [[0, 1, 0, 17, 4, 1, []], [1, 2, 0, 8, 2, 1, []]],
@@ -355,19 +355,52 @@ test('traffic changes lanes when the leading lane is blocked by a standing playe
   const focus = { x: 300, z: 0 };
   traffic.update(0, focus);
   for (let frame = 0; frame < 60; frame++) traffic.update(0.05, focus);
-  const active = () => traffic.vehicles.filter(vehicle => vehicle.route);
-  const actor = active().find(vehicle => vehicle.end - vehicle.s > 150 && vehicle.s > 10);
+  const actor = traffic.vehicles.find(vehicle => vehicle.route && vehicle.end - vehicle.s > 150 && vehicle.s > 10);
   assert.ok(actor, 'expected a moving car');
   const { x, z, sin, cos } = actor.pose;
   const player = { type: 'person', position: { x: x + sin * 12, y: 2, z: z + cos * 12 }, heading: 0 };
-  let shifted = false, completed = false;
-  for (let frame = 0; frame < 500; frame++) {
+  return { traffic, focus, actor, player, lane: () => actor.route[actor.pose.index].laneOffset };
+}
+
+test('traffic passes a standing obstruction and keeps the adjacent lane', () => {
+  const { traffic, focus, actor, player, lane } = laneChangeFixture();
+  const initialLane = lane();
+  for (let frame = 0; frame < 140 && (lane() === initialLane || actor.laneChange); frame++) {
+    const before = actor.pose.z;
     traffic.update(0.05, focus, [player]);
-    if (Math.abs(actor.shift ?? 0) > 0.05) shifted = true;
-    if (!actor.laneChange && Math.abs(actor.shift ?? 0) > 2) completed = true;
+    assert.ok(Math.abs(actor.pose.z - before) < 0.25, 'lane change must not snap sideways');
   }
-  assert.ok(completed, 'the lane change should finish one full lane to the side');
-  assert.ok(traffic.statistics.laneChanges >= 1);
+  const targetLane = lane();
+  assert.equal(Math.abs(targetLane - initialLane), 3.5);
+  assert.equal(actor.laneChange, null);
+  const targetZ = actor.pose.z;
+  for (let frame = 0; frame < 90; frame++) traffic.update(0.05, focus, [player]);
+  assert.ok((actor.pose.x - player.position.x) * actor.pose.sin > 10, 'passes the obstruction');
+  assert.equal(lane(), targetLane);
+  assert.ok(Math.abs(actor.pose.z - targetZ) < 0.1, 'stays centered rather than drifting back');
+});
+
+test('a closing rear car prevents changing lanes only on the same road level', () => {
+  const { traffic, focus, actor, player, lane } = laneChangeFixture();
+  const initialLane = lane();
+  const { sin, cos, heading, edge } = actor.pose;
+  const adjacent = sections.laneOffsets(edge.section).find(offset => offset !== initialLane);
+  const delta = adjacent - initialLane;
+  const rear = { type: 'car', position: { x: 0, y: 2, z: 0 }, heading, speed: 22 };
+  for (let frame = 0; frame < 120; frame++) {
+    rear.position.x = actor.pose.x - sin * 20 - cos * delta;
+    rear.position.z = actor.pose.z - cos * 20 + sin * delta;
+    traffic.update(0.05, focus, [player, rear]);
+    assert.equal(lane(), initialLane);
+  }
+  assert.ok(actor.laneAbort?.why.some(blocker => blocker.id === 'car' && blocker.ahead < -14));
+  rear.position.y = 10;
+  for (let frame = 0; frame < 140 && (lane() === initialLane || actor.laneChange); frame++) {
+    rear.position.x = actor.pose.x - sin * 20 - cos * delta;
+    traffic.update(0.05, focus, [player, rear]);
+  }
+  assert.equal(lane(), adjacent);
+  assert.equal(actor.laneChange, null);
 });
 
 function signalRoad() {

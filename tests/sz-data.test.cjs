@@ -68,6 +68,12 @@ test('city data rejects source loss, invalid topology and incompatible terrain b
     assert.throws(() => validateCityPayload({ ...raw, roadFrontage: { ...raw.roadFrontage, features: [feature] } }),
       /road frontage clipped surface/);
   }
+  const median = raw.roadFrontage.features.find(feature => feature.id === '深南大道-arterial-median');
+  assert.ok(median.riseM > 0);
+  for (const feature of [{ ...median, outlines: [] }, { ...median, arterialStyle: 'separator' }]) {
+    assert.throws(() => validateCityPayload({ ...raw, roadFrontage: { ...raw.roadFrontage, features: [feature] } }),
+      /arterial median finish/);
+  }
 });
 
 test('golf course paving shares sloped ground and keeps private paths out of the car network', async () => {

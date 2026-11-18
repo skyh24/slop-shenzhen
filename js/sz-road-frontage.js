@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { color, fract, fwidth, max, positionWorld, smoothstep } from 'three/tsl';
+import { color, fwidth, max, mx_noise_float, positionWorld, smoothstep } from 'three/tsl';
 import { createIntersectionControl } from './sz-intersection-control.js';
 import { createPavingMaterial, pavingMesh } from './sz-paving.js';
 import { convexHull, createRoadHeightSampler, createRoadPolygonLayout, createRoadsideSurfaceTreatment } from './sz-roads.js';
@@ -21,12 +21,12 @@ function material(colorValue, bias = 0, roughness = 0.9) {
 
 function plantedSurfaceMaterial(base, bias = 0) {
   const m = material(base, bias, 0.97);
-  const x = positionWorld.x.mul(2.7).add(positionWorld.z.mul(1.9));
-  const z = positionWorld.z.mul(2.3).sub(positionWorld.x.mul(1.4));
-  const detail = fract(x).mul(fract(z));
-  const fade = smoothstep(0.25, 0.9, max(fwidth(x), fwidth(z))).oneMinus();
-  const mottling = positionWorld.x.mul(0.43).sin().mul(positionWorld.z.mul(0.59).sin());
-  m.colorNode = color(base).mul(mottling.mul(0.055).add(detail.mul(fade).mul(0.35)).add(0.91));
+  const ground = positionWorld.xz;
+  const detailUV = ground.mul(7.3);
+  const fade = smoothstep(0.25, 0.9, max(fwidth(detailUV.x), fwidth(detailUV.y))).oneMinus();
+  const mottling = mx_noise_float(ground.mul(0.38)).mul(0.17);
+  const detail = mx_noise_float(detailUV).mul(fade).mul(0.13);
+  m.colorNode = color(base).mul(mottling.add(detail).add(1));
   return m;
 }
 
@@ -249,6 +249,8 @@ function addMedianShrubs(group, foliage, sites, contactHeight, low = false) {
   return matrices.length;
 }
 
+const SHENNAN_BED_MIN_MEDIAN_WIDTH = 7.5;
+
 // 沿绿带主方向每 2 米取一条断面，用边界环的穿越点配对得到可用绿带区间。
 function medianBedRows(feature) {
   const rings = feature.outlines ?? [];
@@ -258,7 +260,7 @@ function medianBedRows(feature) {
     minZ = Math.min(minZ, ring[i + 1]); maxZ = Math.max(maxZ, ring[i + 1]);
   }
   const alongX = maxX - minX >= maxZ - minZ;
-  if ((alongX ? maxX - minX : maxZ - minZ) < 16) return [];
+  if ((alongX ? maxX - minX : maxZ - minZ) < 24) return [];
   const from = alongX ? minX : minZ, to = alongX ? maxX : maxZ;
   const rows = [];
   for (let t = from + 2; t <= to - 2; t += 2) {
@@ -273,7 +275,7 @@ function medianBedRows(feature) {
     hits.sort((a, b) => a - b);
     for (let i = 0; i + 1 < hits.length; i += 2) {
       const width = hits[i + 1] - hits[i];
-      if (width >= 4.5) rows.push({ t, x: alongX ? t : (hits[i] + hits[i + 1]) / 2,
+      if (width >= SHENNAN_BED_MIN_MEDIAN_WIDTH) rows.push({ t, x: alongX ? t : (hits[i] + hits[i + 1]) / 2,
         z: alongX ? (hits[i] + hits[i + 1]) / 2 : t, width });
     }
   }
@@ -287,8 +289,7 @@ function addShennanFlowerBeds(group, rows, medianHeight, material, reserveFlower
   let count = 0, lastT = -Infinity;
   for (let i = 1; i < rows.length - 1; i++) {
     const { t, x, z, width } = rows[i];
-    // 花圃沿路每 42–63 米一块，宽度随绿带收敛，最宽 17 米。
-    if (t - lastT < 42 + (count % 4) * 7 || width < 4.5) continue;
+    if (t - lastT < 84 + (count % 4) * 14) continue;
     const dx = rows[i + 1].x - rows[i - 1].x, dz = rows[i + 1].z - rows[i - 1].z;
     if (dx * dx + dz * dz < 1e-6) continue;
     const angle = Math.atan2(dz, dx);
@@ -302,7 +303,7 @@ function addShennanFlowerBeds(group, rows, medianHeight, material, reserveFlower
       const u = j / 14;
       const along = (2 * u - 1) * halfLength;
       const bend = Math.sin(2 * Math.PI * u) * halfWidth * 0.95 * turn;
-      const span = halfWidth * (0.055 + 0.57 * Math.sin(Math.PI * u) ** 0.8)
+      const span = halfWidth * (0.085 + 0.80 * Math.sin(Math.PI * u) ** 0.8)
         * (0.86 + 0.14 * Math.cos(u * Math.PI * 3 + count));
       for (const side of [-1, 1]) {
         const cross = bend + span * side;
@@ -349,6 +350,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const medianSamplers = [];
   const bedRows = [];
   const arterialSamplers = [];
+  const arterialTops = [];
   const samplers = [];
   const planting = [];
   const curbColliders = [];
@@ -386,7 +388,6 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     const useTreatment = feature.clipToRoadComplement ? treatment : null;
     const layout = createRoadPolygonLayout(feature, terrain, useTreatment ?? (shennanPlanting.includes(feature) ? kejiTreatment : null), null,
       feature.kind === 'paint' ? treatment?.roadCells : null);
-    if (arterial) arterialSamplers.push(createRoadHeightSampler(layout.chunks, terrain.grid));
     const offset = feature.surfaceOffsetM ?? feature.riseM;
     for (const chunk of layout.chunks) {
       const positions = chunk.positions;
@@ -406,9 +407,10 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
         addCurbColliders(curbColliders, chunk.wallPositions, chunk.origin, feature.id);
       }
     }
+    const sample = arterial || feature.riseM || useTreatment ? createRoadHeightSampler(layout.chunks, terrain.grid) : null;
+    if (arterial) arterialSamplers.push(sample);
     if (feature.riseM || useTreatment) {
-      const sample = createRoadHeightSampler(layout.chunks, terrain.grid);
-      samplers.push(sample);
+      (arterial ? arterialTops : samplers).push(sample);
       if (feature.solidPlanting) plantingSurfaces.push(sample);
       if (verifiedMedian) medianSamplers.push({ bounds: corridor.bounds, sample, planted });
       if (planted) bedRows.push(...medianBedRows(feature));
@@ -435,11 +437,16 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   }
   const shennanMedianHeight = (x, z) => medianHeight(x, z, true);
   function contactHeight(x, z) {
-    if (!source.corridors.some(({ bounds }) => x >= bounds[0] && x <= bounds[2] && z >= bounds[1] && z <= bounds[3])) return null;
     let y = null;
-    for (const sample of samplers) {
+    for (const sample of arterialTops) {
       const next = sample(x, z);
       if (next !== null) y = y === null ? next : Math.max(y, next);
+    }
+    if (source.corridors.some(({ bounds }) => x >= bounds[0] && x <= bounds[2] && z >= bounds[1] && z <= bounds[3])) {
+      for (const sample of samplers) {
+        const next = sample(x, z);
+        if (next !== null) y = y === null ? next : Math.max(y, next);
+      }
     }
     return y;
   }

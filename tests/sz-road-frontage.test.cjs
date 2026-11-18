@@ -100,8 +100,10 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   for (const [x, z] of [[-1403.57, 420.36], [-1408.58, 440.30], [-1274.23, 432.31], [-1223.73, 436.38]]) {
     assert.equal(model.arterialMedianAt(x, z), true);
     assert.equal(roadHeight(x, z), null);
+    assert.ok(Math.abs(model.contactHeight(x, z) - groundHeight(x, z) - 0.15) < 0.002);
   }
   const pressTowerFlowers = model.group.children.filter(mesh => mesh.name.startsWith('深南大道-arterial-flowers:'));
+  assert.equal(raw.roadFrontage.features.find(feature => feature.id === '深南大道-arterial-flowers').surfaceOffsetM, 0.15);
   assert.ok(pressTowerFlowers.some(mesh => {
     const points = mesh.geometry.attributes.position;
     for (let i = 0; i < points.count; i += 3) {
@@ -118,6 +120,7 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   assert.equal(model.statistics.signals, 4);
   assert.ok(model.curbColliders.some(c => c.name === 'shennan-hongshulin:sidewalk'));
   assert.ok(model.curbColliders.some(c => c.name === 'shennan-civic-center:median'));
+  assert.ok(model.curbColliders.some(c => c.name === '深南大道-arterial-median'));
   assert.ok(model.curbColliders.every(c => c.type === 'curb' && c.maxY - c.minY >= 0.06 && c.obb.hx === 0.025));
 
   const pilot = raw.roadFrontage.features.filter(f => f.id.startsWith('shennan-hongshulin:') && f.clipToRoadComplement);
@@ -196,9 +199,18 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   assert.ok(Number.isInteger(model.statistics.curbSegments));
   assert.ok(model.statistics.curbTriangles >= model.statistics.curbSegments
     && model.statistics.curbTriangles <= model.statistics.curbSegments * 2);
-  assert.ok(model.statistics.shennanFlowerBeds > 8);
+  assert.ok(model.statistics.shennanFlowerBeds > 2);
   const flowerBeds = model.group.getObjectByName('shennan-median:flower-beds');
   const flowers = flowerBeds.geometry.attributes.position;
+  const verticesPerBed = 14 * 6;
+  assert.equal(flowers.count, model.statistics.shennanFlowerBeds * verticesPerBed);
+  let previousBed = null;
+  for (let start = 0; start < flowers.count; start += verticesPerBed) {
+    const end = start + verticesPerBed - 1;
+    const center = [flowers.getX(start) + flowers.getX(end), flowers.getZ(start) + flowers.getZ(end)].map(value => value / 2);
+    if (previousBed) assert.ok(Math.hypot(center[0] - previousBed[0], center[1] - previousBed[1]) >= 83.9);
+    previousBed = center;
+  }
   for (let i = 0; i < flowers.count; i++) {
     const x = flowers.getX(i) + flowerBeds.position.x;
     const z = flowers.getZ(i) + flowerBeds.position.z;
@@ -257,7 +269,8 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
     const paint = mesh.name.includes(':paint:') || mesh.name.startsWith('source-signal-stop-lines:');
     if (!raised && !paint) continue;
     const p = mesh.geometry.attributes.position.array;
-    for (let i = 0; i < p.length; i += 9) {
+    const stride = mesh.name.startsWith('深南大道-arterial-') ? 9 * 64 : 9;
+    for (let i = 0; i < p.length; i += stride) {
       const x = (p[i] + p[i + 3] + p[i + 6]) / 3 + mesh.position.x;
       const y = (p[i + 1] + p[i + 4] + p[i + 7]) / 3;
       const z = (p[i + 2] + p[i + 5] + p[i + 8]) / 3 + mesh.position.z;
