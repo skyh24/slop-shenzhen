@@ -20,12 +20,12 @@ class CheckTest(unittest.TestCase):
 
     def test_scopes_union_without_duplicate_execution(self):
         single = select_tests(['roads'])
-        self.assertEqual(single, select_tests(['roads', 'roads']))
-        self.assertIn('tools/sz/tests/test_roadgraph.py', single['python'])
+        self.assertTrue(single['node'])
+        self.assertEqual(single, select_tests(['roads', 'roads'], single['node']))
         self.assertEqual(select_tests(['docs']), {'node': [], 'python': []})
 
     def test_new_tests_can_be_added_and_missing_or_external_paths_fail(self):
-        selected = select_tests(['docs'], ['tests/controllers.test.cjs'])
+        selected = select_tests([], ['tests/controllers.test.cjs'])
         self.assertEqual(selected['node'], ['tests/controllers.test.cjs'])
         for path in ('tests/no-such-test.cjs', '../test.py', '/test.py'):
             with self.assertRaises(ValueError):

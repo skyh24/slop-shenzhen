@@ -24,7 +24,6 @@ const model = civic.build(sources, geo.terrain);
 const canopy = model.filter(row => row.style === 'civicRoofBlue');
 const platform = sources.get('relation/10837978');
 const base = terrain.terrainHeight(geo.terrain, platform.cx, platform.cz);
-const doc = readFileSync(join(__dirname, '../docs/landmarks/civic-center.md'), 'utf8');
 const { roofDetail, colonnadeSpec } = civic;
 
 function heightAt(part, x, z) {
@@ -150,9 +149,6 @@ test('Civic Center roof ribs and eave fascia hug the rendered canopy below the 8
     assert.ok(Math.abs(width - roofDetail.eaveWidth) < 1e-3, eave.id);
   }
   assert.ok(new Set(eaves.map(row => row.sourceId)).size >= 9);
-  assert.ok(doc.includes(`横肋间距 ${roofDetail.transverseSpacing} m`));
-  assert.ok(doc.includes(`檐口收边板宽 ${roofDetail.eaveWidth} m`));
-  assert.ok(doc.includes(`深 ${roofDetail.eaveDepth} m`));
 });
 
 test('Civic Center colonnade stands on both wings and meets the canopy underside', () => {
@@ -197,6 +193,4 @@ test('Civic Center colonnade stands on both wings and meets the canopy underside
     || row.id.includes(':eave:'));
   assert.ok(added.every(row => row.minY > plaza.maxY + 1.9
     || !collision.polygonContains(row.polygon, x, z)));
-  assert.ok(doc.includes(`${colonnadeSpec.groupsPerWing} 组`));
-  assert.ok(doc.includes(`接触量 ${colonnadeSpec.contact} m`));
 });

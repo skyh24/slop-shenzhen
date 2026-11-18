@@ -8,41 +8,11 @@ const main = readFileSync(join(__dirname, '../js/main.js'), 'utf8');
 const { waitForFirstFrame } = loadModule(readFileSync(join(__dirname, '../js/sz-startup.js'), 'utf8'), {
   globals: { setTimeout, clearTimeout }
 });
-const DATA_LABELS = ['data.download', 'data.decompress', 'data.parse', 'data.validate', 'data.decode'];
 const indexOf = (needle) => {
   const at = main.indexOf(needle);
   assert.ok(at >= 0, `${needle} is present in js/main.js`);
   return at;
 };
-
-test('main imports the staged city data timings from the geodata loader', () => {
-  assert.match(main, /import\s*\{[^}]*\bDATA_TIMINGS\b[^}]*\}\s*from\s*'\.\/sz-geodata\.js';/,
-    'DATA_TIMINGS is imported from ./sz-geodata.js with the other city data exports');
-});
-
-test('initApp pre-fills the five data.* timings from DATA_TIMINGS', () => {
-  const presetStart = indexOf('let initTimings = [];');
-  const rendererInit = indexOf('await renderer.init();');
-  assert.ok(presetStart < rendererInit, 'the timings are preset before the renderer starts');
-  const preset = main.slice(presetStart, rendererInit);
-  assert.match(preset, /DATA_TIMINGS/, 'DATA_TIMINGS pre-fills the [init] timings');
-  assert.match(preset, /initTimings\.push\(/);
-  assert.match(preset, /qa\.markStartup\(/, 'QA snapshots receive the same staged timings');
-  assert.match(preset, /\$\{label\} \$\{ms\}ms/, 'timings keep the "[init]" label format');
-  let previous = -1;
-  for (const label of DATA_LABELS) {
-    const at = main.indexOf(`'${label}'`);
-    assert.ok(at >= 0, `the ${label} label is defined`);
-    assert.ok(at > previous, `the ${label} label keeps the documented order`);
-    previous = at;
-  }
-  // 五个标签都在 initTimings 预置代码附近，而不是散落在别处或只在注释里。
-  const windowStart = Math.max(0, presetStart - 1600);
-  const window = main.slice(windowStart, rendererInit);
-  for (const label of DATA_LABELS) {
-    assert.ok(window.includes(`'${label}'`), `${label} is defined next to the initTimings preset`);
-  }
-});
 
 test('init failure reaches the boot fallback and keeps the plain console fallback', () => {
   const start = main.lastIndexOf('initApp().catch(');

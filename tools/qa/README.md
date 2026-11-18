@@ -4,7 +4,7 @@
 
 | 工具 | 用途 |
 | --- | --- |
-| `check.py` | `--scope`按模块检查，`--list`预览，日志存本地`docs/qa/checks/` |
+| `check.py` | `--scope` 跑模块关键结果，或用 `--node` / `--python` 单独点测文件；`--list` 预览 |
 | `perf-sample.mjs` | 可见聚焦浏览器的帧间隔、绘制和三角数采样；专门性能任务使用 |
 | `bench-city-data.mjs` | 同载荷JSON/SZC1读取对照，不代表完整冷启动性能 |
 

@@ -21,7 +21,7 @@
 | 中国有色大厦 `nonferrous-tower.js` | 源父/三部件绑定，26/6/6层推高83.2/19.2/19.2米；双翼弧阳台、西南7柱门廊，照片尺寸为估计。 | 南侧柱间已局部实走；北侧真实入口、门厅照片方位与Q1闭环仍缺。 [资料1](https://www.zg-ys.cn/images/0loupantu/2.jpg) · [资料2](https://www.zg-ys.cn/images/0loupantu/3.jpg) · [资料3](https://www.zg-ys.cn/images/0loupantu/4.jpg) |
 | 深圳湾超级总部 `super-hq.js` | 按建好形态；C塔设计400/336米、119.15米连廊与十字公共轴，招银单体采用源记录裁决。 | 平面旋转、双幅连廊和公共通行待核；不同招银高度口径见源覆盖表，不能互相冒充。 [资料1](http://gdstc.gd.gov.cn/kjzx_n/gdkj_n/content/post_4801250.html) · [资料2](https://5bur.cscec.com/5bur/oa/dtxw/202510/3911196.html) · [资料3](https://finance.sina.cn/2025-07-19/detail-inffzcmt0086775.d.html?vt=4) |
 | 国际交流中心 `iec-xiangmihu.js` | 院落/湖面/公园按OSM来源，主厅/酒店/门廊已注册并接APEC锚点。 | 建筑体量与高程仍为estimate，缺设计/竣工资料；会场报道不证明建筑尺寸。 [资料1](https://www.shenzhen-guide.com/guides/apec-2026-shenzhen-visitor-guide) · [资料2](https://hao.cnyes.com/post/277089) · [资料3](https://news.mingpao.com/pns/%E4%B8%AD%E5%9C%8B/article/20261109/s00013/1794155294115/) |
-| 市民中心 `civic-center.js` | 波浪屋盖、双色塔、孔洞、两翼树状柱；参数卡保留供测试使用 | [参数与来源](landmarks/civic-center.md)，曲面/柱位估计不写成实测 |
+| 市民中心 `civic-center.js` | 波浪屋盖、双色塔、孔洞、两翼树状柱 | [模型参数](../js/sz-landmarks/civic-center.js)，曲面与柱位按估计标注 |
 | 特区报业大厦 `press-tower.js` | 源楼体加镂空顶冠和尖塔 | 身份/高度见源清单，外形与邻楼关系按同机位核对 |
 
 ## 独立结构与场所

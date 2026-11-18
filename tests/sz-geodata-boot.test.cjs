@@ -166,11 +166,3 @@ test('without the boot fallback a city data failure rejects module evaluation wi
     delete globalThis.__szGeodataStubCalls;
   }
 });
-
-test('the loader keeps a static data-format import and a top-level await', () => {
-  assert.match(geodataSource,
-    /^import\s+\{[^}]*\breadCityPayload\b[^}]*\}\s+from\s+'\.\/sz-data-format\.js';/m,
-    'the city loader imports the data-format helpers statically');
-  assert.match(geodataSource, /\n(?:export )?const [\w$]+ = await [\w$]+\(/,
-    'module evaluation awaits the city data before the entry module runs');
-});

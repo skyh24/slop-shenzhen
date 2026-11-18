@@ -13,29 +13,18 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
-# 名单是常用起点，不是依赖分析器；跨模块时合并范围，新测试可用参数补入。
+# 日常入口只选代表性行为；具体修复用文件点测，共享核心和发布走 full。
 SCOPES = {
     'docs': ('', ''),
-    'tooling': ('', 'tools/qa/tests/test_*.py tools/sz/tests/test_*server.py'),
-    'controls': ('controllers vehicle-physics sz-driving-motion car-wheels vehicle-lights sz-vehicles '
-                 'sz-auto-drive sz-junction-participant sz-controller-surfaces building-collision teleports touch-controls cameras', ''),
-    'roads': ('sz-roads sz-road-section sz-section-frame sz-ground sz-terrain sz-surface-atlas sz-road-frontage sz-road-markings sz-road-material sz-elevated-roads '
-              'sz-tunnels sz-traffic sz-auto-drive sz-intersection-control sz-junction-participant sz-driving-motion '
-              'sz-controller-surfaces controllers',
-              'tools/sz/tests/test_road*.py tools/sz/tests/test_*terrain*.py '
-              'tools/sz/tests/test_copernicus.py tools/sz/tests/test_sea_surface.py'),
-    'buildings': ('sz-facade-look sz-facade-nodes sz-buildings sz-building-details sz-building-signs sz-roof-equipment '
-                  'sz-podium-clearance sz-landmarks sz-chunjian sz-civic-center sz-iec '
-                  'sz-convention-center sz-superhq sz-upperhills sz-nonferrous-tower '
-                  'sz-bay-bridge building-collision sz-light-show',
-                  'tools/sz/tests/test_building*.py tools/sz/tests/test_landmark_sites.py'),
-    'street': ('sz-street-batch sz-site-probe sz-section-frame sz-trees sz-tree-crown sz-streetscape sz-street-lamps sz-pedestrians pedestrians '
-               'sz-metro-entrances sz-station-sites sz-bay-waterfront sz-talent-park sz-drone-routes sz-air-evidence sz-apec sz-apec-city',
-               'tools/sz/tests/test_trees.py tools/sz/tests/test_metro.py'),
-    'ui': ('boot sz-day-phase sz-geodata-boot sz-main-startup runtime-reachability sz-qa sz-map sz-map-regions '
-           'sz-city-config teleports cameras touch-controls sz-observation-session', ''),
-    'data': ('sz-data sz-scene-style sz-fastpack sz-geodata-boot sz-ground sz-terrain sz-surface-atlas sz-spatial '
-             'sz-city-config sz-buildings sz-elevated-roads sz-tunnels sz-auto-drive', 'tools/sz/tests/test_*.py'),
+    'tooling': ('', 'tools/qa/tests/test_check.py tools/sz/tests/test_dev_server.py'),
+    'controls': ('occupant-states', ''),
+    'roads': ('sz-roads', ''),
+    'buildings': ('sz-civic-center', ''),
+    'street': ('sz-public-walk', ''),
+    'ui': ('sz-main-startup sz-map-regions', ''),
+    'data': ('sz-geodata-boot', 'tools/sz/tests/test_fastpack.py'),
+    'air': ('sz-air-cruise', ''),
+    'shows': ('sz-lianhuashan-program sz-observation-session', ''),
     'full': ('*', 'tools/sz/tests/test_*.py tools/qa/tests/test_*.py'),
 }
 
@@ -89,11 +78,13 @@ def test_summary(kind, output, returncode):
 
 def main():
     parser = argparse.ArgumentParser(description='Run scoped regression checks; use full for release or shared-core changes.')
-    parser.add_argument('--scope', choices=SCOPES, action='append', required=True)
+    parser.add_argument('--scope', choices=SCOPES, action='append', default=[])
     parser.add_argument('--node', action='append', default=[], help='additional repository-relative Node test glob')
     parser.add_argument('--python', action='append', default=[], help='additional repository-relative Python test glob')
     parser.add_argument('--list', action='store_true', help='print the selected files without running tests')
     args = parser.parse_args()
+    if not (args.scope or args.node or args.python):
+        parser.error('Select a scope or a test file with --scope, --node or --python')
     selected = select_tests(args.scope, args.node, args.python)
     if args.list:
         print(json.dumps(selected, indent=2))

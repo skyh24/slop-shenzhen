@@ -5,6 +5,7 @@ const { join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { loadModule } = require('./helpers/module.cjs');
 const driving = require('./helpers/driving.cjs');
+const { dayPhaseStub } = require('./helpers/day-phase.cjs');
 
 const source = readFileSync(join(__dirname, '../js/controllers.js'), 'utf8');
 // 仓库不提交本机绝对路径：three 包位置只能从环境变量取，未设置时整组跳过。
@@ -33,6 +34,7 @@ function loadControllers(THREE, world) {
     globals: { window: eventTarget(), document: { ...eventTarget(), hidden: false } },
     imports: {
       ...driving,
+      './sz-day-phase.js': dayPhaseStub(),
       'three/webgpu': THREE,
       './sz-city-config.js': {
         ISLAND_BOUNDS: { minX: -2000, maxX: 2000, minZ: -2000, maxZ: 2000, sidewalkHeight: 0 },

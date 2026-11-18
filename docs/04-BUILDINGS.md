@@ -34,4 +34,4 @@
 
 外观模板不证明真实用途，楼名/POI不证明入口，装饰也不自动参与碰撞。架空层、柱廊、连桥需按实体分段并实走。已修复的屋顶避让保持回归；当前未验区域见 [HANDOFF](HANDOFF.md)。明通首层先看 [源卡](../data/source/mingtong-frontage-evidence.md)，真实墙段和入口尚缺证据。
 
-检查用 `buildings`；接触影响加 `roads/controls`。重点测试 `tests/sz-buildings.test.cjs`、`sz-building-details.test.cjs`、`sz-building-signs.test.cjs` 与 `building-collision.test.cjs`。浏览器比较远近切换、屋顶和真实输入通过门洞；执行范围见 [TASKS T7](TASKS.md#t7-建筑与入口)。
+普通楼体、近景、楼名与碰撞可分别点测 `sz-buildings`、`sz-building-details`、`sz-building-signs` 或 `building-collision`。日常交付见[开发检查](25-FAST-CHECKS.md)，入口和远近切换的正式验收范围见 [T7](TASKS.md#t7-建筑与入口)。
