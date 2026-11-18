@@ -49,6 +49,8 @@ function loadTunnels(three = {}) {
     './sz-ground-surface.js': groundSurface,
     './sz-polygon.js': polygonModule,
     './sz-road-profile.js': roadProfile,
+    './sz-road-section.js': loadModule(read('sz-road-section.js')),
+    './sz-interchange-levels.js': loadModule(read('sz-interchange-levels.js')),
     './sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
   } });
 }
@@ -394,6 +396,8 @@ test('real THREE build raycasts the tunnel floor from inside the bore',
       './sz-ground-surface.js': groundSurface,
       './sz-polygon.js': polygonModule,
       './sz-road-profile.js': roadProfile,
+      './sz-road-section.js': loadModule(read('sz-road-section.js')),
+      './sz-interchange-levels.js': loadModule(read('sz-interchange-levels.js')),
       './sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
     } });
     const scene = new THREE.Scene();
@@ -420,6 +424,24 @@ test('real THREE build raycasts the tunnel floor from inside the bore',
     assert.equal(built.group.parent, null);
     assert.equal(scene.children.length, 0);
   });
+
+test('Nanping tunnel floors and source portal sections stay level in the current city', () => {
+  const { gunzipSync } = require('node:zlib');
+  const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
+  const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
+  const { applyCorridorRoadProfiles } = loadModule(read('sz-interchange-levels.js'));
+  const { geo } = decodeCityPayload(raw);
+  const graph = applyCorridorRoadProfiles(geo.roadGraph, geo.terrainSurface);
+  const plan = tunnels.planSzTunnels(graph, geo.terrainSurface, { wholeCity: true });
+  const bores = plan.links.filter(link => link.name === '南坪快速');
+  assert.equal(bores.length, 6);
+  assert.equal(bores.reduce((sum, link) => sum + link.portalCount, 0), 8);
+  for (const bore of bores) {
+    assert.ok(bore.drivable, bore.osmId);
+    assert.equal(bore.gradeProfile.maxGrade, 0, bore.osmId);
+    assert.ok(bore.frames.every(frame => frame.floorY === 18), bore.osmId);
+  }
+});
 
 test('real Shenzhen snapshot exposes sourced tunnels and the review list', () => {
   const { gunzipSync } = require('node:zlib');

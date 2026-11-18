@@ -214,9 +214,12 @@ def apply_baishi_underpass(payload, report, plan):
     if 'dasha' not in waterfront:
         return
     surface = payload['terrainSurface']
-    if surface.get('baishiUnderpass') == spec:
+    previous = surface.get('baishiUnderpass')
+    if previous == spec:
         return
-    if 'baishiUnderpass' in surface:
+    # 已裁过的基面可沿同一坡面继续下调，改动位置或抬高仍须使用原始地形。
+    if previous is not None and ({**previous, 'floorHeightM': spec['floorHeightM']} != spec
+                                 or previous['floorHeightM'] < spec['floorHeightM']):
         raise ValueError('Rebuild the underlying terrain before replacing the Baishi underpass')
 
     bank = next(route for route in waterfront['routes'] if route['id'] == spec['bank'])

@@ -1,7 +1,7 @@
-"""把高架桥面高于原地形的路段按"截断山体"裁开，桥面标高保持 layer×4.8 m。
+"""保持桥面纵断面，按竖直路堑裁掉侵入桥面的地形。
 
 口径取 js/sz-elevated-roads.js planLink 的非核实纵断面（round 55）：
-    lift      = LAYER_HEIGHT_M * max(0, layer)
+    lift      = 普通高架 4.8 m，南坪和南光高架主线 10.3 m
     base(d)   = (startGround + lift) + ((endGround + lift) - (startGround + lift)) * d / L
     weight(d) = min(共享起点 ? clamp01(d / rampLen) : 1,
                     共享终点 ? clamp01((L - d) / rampLen) : 1)
@@ -16,21 +16,22 @@
 
 import math
 
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
 
 from commercial_paving import cut_ground_openings
 from tunnel_portals import (_SurfaceSampler, _ground_nodes, _link_width, _polyline_length,
-                            _resample, _source_points)
+                            _high_deck_portals, _high_deck_road, _resample, _source_points)
 
-LAYER_HEIGHT_M = 4.8
+DECK_RISE_M = 4.8
+HIGH_DECK_RISE_M = 10.3
 ELEVATED_DRIVE_MAX_GRADE = 0.12
 MIN_DECK_WIDTH_M = 6.5
 CORRIDOR_MARGIN_M = 0.6
 CUT_WALL_DROP_M = 0.3
 CUT_MIN_M = 2.0
 STATION_M = 4.0
-CUT_VERSION = 2
+CUT_VERSION = 3
 
 
 def _deck_height(length, shared_start, shared_end, lift, start_ground, end_ground, *, g4=False):
@@ -70,7 +71,7 @@ def _runs(values):
     return runs
 
 
-def _g4_deck_width(link):
+def deck_width(link):
     # 与 sz-road-section.js 的 deckLaneProfile 同口径，包括路肩与护栏。
     source_width, lanes, direction = link[3:6]
     directions = 2 if direction == 0 else 1
@@ -79,28 +80,35 @@ def _g4_deck_width(link):
     return max(source_width, min(4, max(1, per_direction)) * directions * 3.25 + 1.7)
 
 
-def plan_elevated_cut_mask(graph, terrain_surface, *, g4_only=False):
+def plan_elevated_cut_mask(graph, terrain_surface):
     """求全城高架桥面截断山体的走廊并集，返回 (mask, 统计, 桥面采样)。
 
     桥面采样是落在切段内的 (x, z, 桥面标高)，供切口岩壁把底部贴在桥面下方。
     """
     sampler = _SurfaceSampler(terrain_surface)
     ground = _ground_nodes(graph)
+    deck_portals = _high_deck_portals(graph)
+    g4_profiles = terrain_surface.get('g4Profiles', {})
+    urban_areas = [spec['groundArea'] for spec in terrain_surface.get('interchangeLevels', [])]
     corridors = []
     deck_samples = []
     cut_links = 0
     cut_spans = 0
-    for link, metadata in zip(graph['links'], graph['metadata']):
-        if metadata.get('tunnel'):
+    for index, (link, metadata) in enumerate(zip(graph['links'], graph['metadata'], strict=True)):
+        if metadata.get('tunnel') or str(index) in g4_profiles:
             continue
         layer = metadata.get('layer') or 0
         if not metadata.get('bridge') and abs(layer) <= 0:
             continue
-        g4 = (metadata.get('bridge') and layer > 0 and metadata.get('highway') == 'motorway'
-              and graph['names'][link[2]] == '京港澳高速')
-        if g4_only and not g4:
+        name = graph['names'][link[2]]
+        # 南坪快速由整线水平断面单独裁山体，保留原隧道的覆土。
+        if name == '南坪快速' and metadata.get('highway') == 'trunk':
             continue
-        lift = LAYER_HEIGHT_M * max(0, layer)
+        high = _high_deck_road(metadata, name)
+        g4 = (metadata.get('bridge') and layer > 0 and metadata.get('highway') == 'motorway'
+              and name == '京港澳高速')
+        full_width = high or g4 or layer > 1
+        lift = HIGH_DECK_RISE_M if high else DECK_RISE_M if layer > 0 else 0
         points = _source_points(graph, link)
         length = _polyline_length(points)
         if length <= STATION_M or len(points) < 2:
@@ -112,13 +120,13 @@ def plan_elevated_cut_mask(graph, terrain_surface, *, g4_only=False):
         end_ground = sampler(points[-1][0], points[-1][1])
         if start_ground is None or end_ground is None:
             continue
-        height = _deck_height(length, link[0] in ground, link[1] in ground, lift,
-                              start_ground, end_ground, g4=g4)
-        width = _g4_deck_width(link) if g4 else max(_link_width(link), MIN_DECK_WIDTH_M)
+        shared = [node in ground or (high and node in deck_portals) for node in link[:2]]
+        height = _deck_height(length, *shared, lift, start_ground, end_ground, g4=g4 or high)
+        width = deck_width(link) if full_width else max(_link_width(link), MIN_DECK_WIDTH_M)
         rows = []
         for i, (distance, x, z) in enumerate(stations):
             deck_y = height(distance)
-            if g4 and 0 < i < len(stations) - 1:
+            if full_width and 0 < i < len(stations) - 1:
                 # 两侧山坡也可能先侵入桥面，沿完整断面探测，桥端保留与地面或下一跨的接点。
                 _, ax, az = stations[i - 1]
                 _, bx, bz = stations[i + 1]
@@ -129,11 +137,13 @@ def plan_elevated_cut_mask(graph, terrain_surface, *, g4_only=False):
                 needs_cut = any(sample is not None and sample - deck_y > 0.05 for sample in samples)
             else:
                 sample = sampler(x, z)
-                needs_cut = not g4 and sample is not None and sample - deck_y > CUT_MIN_M
+                needs_cut = not full_width and sample is not None and sample - deck_y > CUT_MIN_M
                 if needs_cut:
                     deck_samples.append((x, z, deck_y))
-            rows.append((distance, x, z, needs_cut))
-        if g4:
+            protected = any(area['minX'] <= x <= area['maxX'] and area['minZ'] <= z <= area['maxZ']
+                            for area in urban_areas)
+            rows.append((distance, x, z, needs_cut and not protected))
+        if full_width:
             # 单站也可能是真实凸起，裁到相邻站，保留两端的高程锚点。
             rows = [(d, x, z, 0 < i < len(rows) - 1 and any(row[3] for row in rows[i - 1:i + 2]))
                     for i, (d, x, z, _) in enumerate(rows)]
@@ -144,7 +154,7 @@ def plan_elevated_cut_mask(graph, terrain_surface, *, g4_only=False):
             if len(run) < 2:
                 continue
             coords = [(x, z) for _, x, z, _ in run]
-            if g4:
+            if full_width:
                 # 平端裁口延伸到相邻站间，避免曲线横断面斜交缓冲区端边而漏掉桥角。
                 _, ax, az, _ = rows[rows.index(run[0]) - 1]
                 _, bx, bz, _ = rows[rows.index(run[-1]) + 1]
@@ -154,7 +164,7 @@ def plan_elevated_cut_mask(graph, terrain_surface, *, g4_only=False):
             polygon = line.buffer(half_width, cap_style='flat', quad_segs=4)
             if not polygon.is_empty and polygon.area > 0:
                 polygons.append(polygon)
-                if g4:
+                if full_width:
                     deck_samples.extend((x, z, height(d)) for d, x, z, _ in run)
         if not polygons:
             continue
@@ -166,7 +176,7 @@ def plan_elevated_cut_mask(graph, terrain_surface, *, g4_only=False):
                   'removedM2': 0.0}, deck_samples
 
 
-def build_cut_walls(mask, deck_samples, sampler):
+def build_cut_walls(mask, deck_samples, sampler, *, opening_floor=None):
     """沿截断走廊边界造一圈竖直岩壁：顶部取原地形，底部落在桥面下 CUT_WALL_DROP_M。"""
     if mask.is_empty or not deck_samples:
         return {'positions': [], 'triangles': 0, 'minY': 0.0, 'maxY': 0.0}
@@ -193,6 +203,8 @@ def build_cut_walls(mask, deck_samples, sampler):
                     continue
                 nearest = int(tree.nearest(Point(x, z)))
                 bottom = heights[nearest] - CUT_WALL_DROP_M
+                if opening_floor is not None:
+                    bottom = max(bottom, opening_floor(x, z))
                 tops.append(max(top, bottom))
                 bottoms.append(bottom)
             for index in range(len(points)):
@@ -215,28 +227,38 @@ def build_cut_walls(mask, deck_samples, sampler):
             'minY': round(min_y, 3), 'maxY': round(max_y, 3)}
 
 
+def merge_cut_walls(previous, added, mask):
+    """保留裁口外的原岩壁，新裁口内部的旧墙移除。"""
+    from shapely.prepared import prep
+    inside = prep(mask)
+    old = (previous or {}).get('positions', [])
+    retained = []
+    for start in range(0, len(old), 9):
+        triangle = old[start:start + 9]
+        points = list(dict.fromkeys(zip(triangle[::3], triangle[2::3])))
+        edge = LineString(points) if len(points) > 1 else Point(points[0])
+        if not inside.contains(edge):
+            retained.extend(triangle)
+    positions = retained + added['positions']
+    return {'positions': positions, 'triangles': len(positions) // 9,
+            'minY': min(positions[1::3], default=0), 'maxY': max(positions[1::3], default=0)}
+
+
 def apply_elevated_cut(surface, graph, report=None):
     """在山体上裁出高架桥面走廊并补竖直岩壁，返回新的 terrainSurface；空 mask 时原样返回。"""
     previous_walls = surface.get('cutWalls')
     previous = (report or {}).get('elevatedCut', {})
     if previous_walls is not None and previous.get('version') == CUT_VERSION:
         return surface
-    # 增量重建旧包时已有通用裁口，只补京港澳并保留原岩壁。全量构建只计算一次高架裁口。
-    mask, stats, deck_samples = plan_elevated_cut_mask(graph, surface, g4_only=previous_walls is not None)
+    # 增量构建按新层高探测新增侵入处，保留旧裁口边界的岩壁。
+    mask, stats, deck_samples = plan_elevated_cut_mask(graph, surface)
     if mask.is_empty:
         if report is not None:
             report['elevatedCut'] = {**(previous or stats), 'version': CUT_VERSION}
         return surface
     walls = build_cut_walls(mask, deck_samples, _SurfaceSampler(surface))
     cut, removed_area = cut_ground_openings(surface, mask)
-    if previous_walls:
-        if walls['triangles'] and previous_walls['triangles']:
-            walls = {'positions': previous_walls['positions'] + walls['positions'],
-                     'triangles': previous_walls['triangles'] + walls['triangles'],
-                     'minY': min(previous_walls['minY'], walls['minY']),
-                     'maxY': max(previous_walls['maxY'], walls['maxY'])}
-        elif previous_walls['triangles']:
-            walls = previous_walls
+    walls = merge_cut_walls(previous_walls, walls, mask)
     if report is not None:
         stats['removedM2'] = round(removed_area, 3)
         if previous_walls is not None:

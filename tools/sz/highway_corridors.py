@@ -9,14 +9,17 @@ from shapely.geometry import LineString, box
 from shapely.ops import substring, unary_union
 
 from commercial_paving import cut_ground_openings
-from elevated_cut import _g4_deck_width, build_cut_walls
+from elevated_cut import apply_elevated_cut, build_cut_walls, deck_width, merge_cut_walls
 from keyuan_underpass import _restore_roof
-from tunnel_portals import _SurfaceSampler, _resample, _source_points
+from tunnel_portals import _SurfaceSampler, _resample, _source_points, plan_tunnel_portal_mask
 from waterfront import _clip_terrain
 
 # 皇岗端由源节点接入城市地面路，两条短分支需沿同一 source way 继续放坡。
 G4_TERMINAL_WAYS = {'way/74017036', 'way/974372190', 'way/974372191', 'way/1573392908'}
 G4_SOURCE = Path(__file__).resolve().parents[2] / 'data/source/g4-mainline.json'
+NANPING = {'cutVersion': 2, 'name': '南坪快速', 'highway': 'trunk', 'groundDatumM': 8, 'riseM': 10, 'heightSource': 'estimate'}
+NANPING_HEADROOM_M = 5.2
+
 HONGLI = {
     'tunnels': ['way/535064405', 'way/535064406'],
     'feeders': ['way/535064404', 'way/545681215', 'way/961590245', 'way/961590244'],
@@ -110,7 +113,7 @@ def _apply_g4(surface, graph, spec):
         a, b = edge[:2]
         start, end = anchors[a], anchors[b]
         profiles[str(index)] = [round(start, 5), round(end, 5), True, True]
-        width = _g4_deck_width(edge) / 2 + 0.75
+        width = deck_width(edge) / 2 + 0.75
         points = list(line.coords)
         stations = _resample(points, line.length)
         for i, (da, x, z) in enumerate(stations[:-1]):
@@ -202,6 +205,82 @@ def _apply_g4(surface, graph, spec):
                  'wallTriangles': walls['triangles'], 'heightSource': spec['heightSource']}
 
 
+def _apply_nanping(surface, graph):
+    """南坪快速车道保持水平，洞外按实际路幅切开山体，洞内留住覆土。"""
+    main = [(edge, meta) for edge, meta in zip(graph['links'], graph['metadata'], strict=True)
+            if graph['names'][edge[2]] == NANPING['name'] and meta['highway'] == NANPING['highway']]
+    if not main:
+        return surface, None
+
+    floor = NANPING['groundDatumM'] + NANPING['riseM']
+    sampler = _SurfaceSampler(surface)
+    tunnel_nodes = {node for edge, meta in main if meta['tunnel'] for node in edge[:2]}
+    portal_sections = []
+    cuts = []
+    samples = []
+    for edge, meta in main:
+        if meta['tunnel']:
+            continue
+        points = _source_points(graph, edge)
+        length = LineString(points).length
+        stations = _resample(points, length)
+        half_width = deck_width(edge) / 2 + 0.75
+        for node, at, inner in [(edge[0], points[0], points[1]), (edge[1], points[-1], points[-2])]:
+            if node not in tunnel_nodes:
+                continue
+            dx, dz = inner[0] - at[0], inner[1] - at[1]
+            run = math.hypot(dx, dz) or 1
+            portal_sections.append((*at, dx / run, dz / run, half_width))
+        spans = []
+        run_points = []
+        for (_, x, z), (_, xx, zz) in zip(stations, stations[1:]):
+            dx, dz = xx - x, zz - z
+            run = math.hypot(dx, dz)
+            if run <= 1e-8:
+                continue
+            probes = (sampler(x + t * dx + offset * dz / run, z + t * dz - offset * dx / run)
+                      for t in (-0.4, 0, 0.5, 1, 1.4)
+                      for offset in (-half_width, -half_width / 2, 0, half_width / 2, half_width))
+            if any(y is not None and y > floor + 0.025 for y in probes):
+                if not run_points:
+                    run_points.append((x, z))
+                run_points.append((xx, zz))
+            elif run_points:
+                spans.append(run_points)
+                run_points = []
+        if run_points:
+            spans.append(run_points)
+        for span in spans:
+            # 连续裁一段，拐角用斜接。两端多留 2 m，覆盖相邻道路的实际搭接断面。
+            endpoints = []
+            for tip, inner in [(span[0], span[1]), (span[-1], span[-2])]:
+                dx, dz = tip[0] - inner[0], tip[1] - inner[1]
+                stretch = 2.0 / math.hypot(dx, dz)
+                endpoints.append((tip[0] + dx * stretch, tip[1] + dz * stretch))
+            line = LineString([endpoints[0], *span, endpoints[1]])
+            cuts.append(line.buffer(half_width, cap_style='flat', join_style='mitre', mitre_limit=2))
+            samples.extend((x, z, floor) for x, z in span)
+
+    def opening_floor(x, z):
+        # 洞口截面只补门楣上方的山体，车行净空向下留给铺装与洞门。
+        for px, pz, dx, dz, half in portal_sections:
+            along = (x - px) * dx + (z - pz) * dz
+            across = (x - px) * dz - (z - pz) * dx
+            if -2.3 <= along <= 0.55 and abs(across) <= half + 0.3:
+                return floor + NANPING_HEADROOM_M
+        return -math.inf
+
+    mask = unary_union(cuts)
+    walls = build_cut_walls(mask, samples, sampler, opening_floor=opening_floor)
+    cut, area = cut_ground_openings(surface, mask) if not mask.is_empty else (surface, 0)
+    cut = {**cut, 'nanpingProfile': NANPING}
+    if walls['positions']:
+        cut['cutWalls'] = merge_cut_walls(surface.get('cutWalls'), walls, mask)
+    return cut, {'links': len(main), 'tunnelLinks': sum(meta['tunnel'] for _, meta in main),
+                 'deckY': floor, 'cutM2': round(area, 3), 'wallTriangles': walls['triangles'],
+                 'heightSource': NANPING['heightSource']}
+
+
 def apply_highway_corridors(payload, report):
     surface = payload['terrainSurface']
     graph = payload['roadGraph']
@@ -214,6 +293,17 @@ def apply_highway_corridors(payload, report):
         surface, stats = _apply_g4(surface, graph, json.loads(G4_SOURCE.read_text()))
         if stats is not None:
             report['g4Profiles'] = stats
+    if 'highDeckTunnelPortals' not in report:
+        portal_report = {}
+        mask = plan_tunnel_portal_mask(graph, surface, portal_report, high_deck_only=True)
+        if not mask.is_empty:
+            surface, area = cut_ground_openings(surface, mask)
+            report['highDeckTunnelPortals'] = {**portal_report['tunnelPortals'], 'genericCutM2': round(area, 3)}
+    surface = apply_elevated_cut(surface, graph, report)
+    if surface.get('nanpingProfile') != NANPING:
+        surface, stats = _apply_nanping(surface, graph)
+        if stats is not None:
+            report['nanpingProfile'] = stats
     payload['terrainSurface'] = surface
     report['terrainSurface'].update(vertices=sum(len(chunk['kinds']) for chunk in surface['chunks']),
                                     triangles=sum(len(chunk['indices']) // 3 for chunk in surface['chunks']))

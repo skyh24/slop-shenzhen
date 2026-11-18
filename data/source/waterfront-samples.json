@@ -275,7 +275,7 @@
       "bank": "west-bank",
       "paths": ["way/1021682337", "way/535088689", "way/657740616"],
       "heightSource": "estimate",
-      "floorHeightM": 6.0,
+      "floorHeightM": 5.55,
       "flatHalfLengthM": 6,
       "maxLongitudinalGrade": 0.09,
       "widthPadM": 1.0,

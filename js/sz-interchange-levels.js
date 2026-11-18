@@ -1,5 +1,50 @@
 // 城市立交采用估计断面。同一源节点只分配一个标高，所有道路消费者读取同一份派生路图。
-const DECK_RISE_M = 4.8;
+export const DECK_RISE_M = 4.8;
+const HIGH_DECK_RISE_M = 10.3;
+const HIGH_DECK_ROADS = new Map([['南坪快速', 'trunk'], ['南光高速', 'motorway']]);
+// 南光高速南头互通的一小段主线在源数据中记作匝道，两端均只接南光同向主线。
+const NANGUANG_THROUGH_WAY = 'way/1081087778';
+
+// OSM 的 layer 只表示相对上下关系。场景桥面采用两档估计抬升。
+export function roadDeckLayer(metadata, name) {
+  const layer = metadata.layer ?? 0;
+  if (layer <= 0) return layer;
+  if (Number.isFinite(metadata.nanpingDeckY)) return 2;
+  const upperMainline = HIGH_DECK_ROADS.get(name) === metadata.highway && HIGH_DECK_ROADS.has(name);
+  return !metadata.highwayProfile && !metadata.interchangeApproach
+    && (upperMainline || metadata.osmId === NANGUANG_THROUGH_WAY) ? 2 : 1;
+}
+
+export function roadDeckRise(layer, metadata) {
+  return layer === 2 ? metadata?.nanpingRiseM ?? HIGH_DECK_RISE_M : layer === 1 ? DECK_RISE_M : 0;
+}
+// 南光高速两幅主线与隧道在源节点直接接续，由两侧道路共同承担高差。
+export const HIGH_DECK_TUNNEL_APPROACH_M = 84;
+const NANGUANG_BORES = new Set(['way/25516495', 'way/183920372']);
+
+export function highDeckTunnelPortals(graph) {
+  const decks = new Map();
+  for (const [index, meta] of graph.metadata.entries()) {
+    const link = graph.links[index];
+    if (meta.tunnel || roadDeckLayer(meta, graph.names[link[2]]) !== 2) continue;
+    for (const node of link.slice(0, 2)) {
+      if (!decks.has(node)) decks.set(node, []);
+      decks.get(node).push(index);
+    }
+  }
+  const portals = new Map();
+  for (const [index, meta] of graph.metadata.entries()) {
+    if (!meta.tunnel || (!Number.isFinite(meta.nanpingDeckY) && !NANGUANG_BORES.has(meta.osmId))) continue;
+    const ends = new Map();
+    for (const node of graph.links[index].slice(0, 2)) {
+      const peers = decks.get(node)?.filter(peer => graph.links[peer][2] === graph.links[index][2]);
+      if (peers?.length) ends.set(node, peers);
+    }
+    if (ends.size) portals.set(index, ends);
+  }
+  return portals;
+}
+
 const APPROACH_M = 64;
 
 // 两端各留 8 米竖曲线，中央等坡；有效引道长度沿源路里程计算。
@@ -117,17 +162,37 @@ export function applyInterchangeLevels(graph, areas) {
 
 export function applyCorridorRoadProfiles(graph, terrain) {
   const mapped = applyInterchangeLevels(graph, terrain?.interchangeLevels);
-  const { g4Profiles, hongliUnderpass } = terrain ?? {};
-  if (!g4Profiles && !hongliUnderpass) return mapped;
+  const { g4Profiles, hongliUnderpass, nanpingProfile } = terrain ?? {};
+  if (!g4Profiles && !hongliUnderpass && !nanpingProfile) return mapped;
+  const nanpingLinks = new Set();
+  const nanpingNodes = new Set();
+  if (nanpingProfile) {
+    for (const [index, link] of mapped.links.entries()) {
+      if (mapped.names[link[2]] !== nanpingProfile.name || mapped.metadata[index].highway !== nanpingProfile.highway) continue;
+      nanpingLinks.add(index);
+      nanpingNodes.add(link[0]);
+      nanpingNodes.add(link[1]);
+    }
+  }
+  const nanpingDeckY = nanpingProfile && nanpingProfile.groundDatumM + nanpingProfile.riseM;
   const feeders = new Set(hongliUnderpass?.feeders);
   const tunnelWays = new Set(hongliUnderpass?.tunnels);
   const portals = new Set(mapped.links.flatMap((link, index) =>
     tunnelWays.has(mapped.metadata[index].osmId) ? link.slice(0, 2) : []));
   return { ...mapped, metadata: mapped.metadata.map((meta, index) => {
+    if (nanpingLinks.has(index)) {
+      const alignment = { ...meta, nanpingDeckY, nanpingRiseM: nanpingProfile.riseM, heightSource: 'estimate' };
+      return meta.tunnel ? alignment
+        : { ...alignment, layer: 2, bridge: true, highwayProfile: [nanpingDeckY, nanpingDeckY, true, true] };
+    }
     const profile = g4Profiles?.[index];
     if (profile) return { ...meta, layer: 1, bridge: true, tunnel: false, heightSource: 'estimate', highwayProfile: profile };
     if (feeders.has(meta.osmId) && mapped.links[index].slice(0, 2).some(node => portals.has(node))) {
       return { ...meta, layer: 0, bridge: false, tunnel: false, heightSource: 'terrain' };
+    }
+    if (!meta.tunnel && !meta.layer && meta.highway?.endsWith('_link')
+      && mapped.links[index].slice(0, 2).some(node => nanpingNodes.has(node))) {
+      return { ...meta, layer: 1, bridge: true, heightSource: 'estimate' };
     }
     return meta;
   }) };

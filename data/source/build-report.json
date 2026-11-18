@@ -358729,8 +358729,8 @@
   },
   "terrainSurface": {
     "chunks": 1264,
-    "vertices": 764472,
-    "triangles": 1158555,
+    "vertices": 795031,
+    "triangles": 1174364,
     "areaKm2": 279.029368,
     "areaErrorM2": -3.46e-06,
     "seconds": 5.37,
@@ -365393,7 +365393,7 @@
         "way/657740616"
       ],
       "heightSource": "estimate",
-      "floorHeightM": 6.0,
+      "floorHeightM": 5.55,
       "flatHalfLengthM": 6,
       "maxLongitudinalGrade": 0.09,
       "widthPadM": 1.0,
@@ -559195,13 +559195,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "86c5e28aafc7ea247d6e11befbe782066e1751066283b5096dbc857118894bed",
-    "bytes": 269121,
-    "decodedBytes": 1256173,
+    "fingerprint": "4eec2ba6b2934611b6ae77f1cad5e517a23cc67a12018e1af8af8b55c8652200",
+    "bytes": 269120,
+    "decodedBytes": 1256180,
     "files": {
-      "js/sz-regional/86c5e28aafc7ea247d6e/waterfront.json.gz": "331064d7d4c2ef3b1aac19770f882b8b19f1e2c74ee048764fb4767e29ef9165",
-      "js/sz-regional/86c5e28aafc7ea247d6e/metro.json.gz": "294f240367d39b0bacee9a44697d3a98fcbadea23b7f6b66c8a2af997a0b2d5d",
-      "js/sz-regional/86c5e28aafc7ea247d6e/drone.json.gz": "da56cf7c0dd4aaa2729f511a2c049ba9e975b8ef77c4bf3af0098b5df847f7fe"
+      "js/sz-regional/4eec2ba6b2934611b6ae/waterfront.json.gz": "682cd88748b12e97f48d566ab0d214b4c66b1b010420f10c7e29b5cbffe81d74",
+      "js/sz-regional/4eec2ba6b2934611b6ae/metro.json.gz": "1ee84edfaa360d38a8640918b62c9282bbd87d1393daf068d37727bb0a8a3c36",
+      "js/sz-regional/4eec2ba6b2934611b6ae/drone.json.gz": "712122f067ee1fd6d9ed3238a4c741d23c3ac46ee5ad2508626d017bc885e5be"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -559238,7 +559238,7 @@
       "js/sz-drone-choreography.js": "4d6283f31889df2a6918d45072ca7548e665768802ebb35c752c4a3bb86b2b04",
       "js/sz-drone-formations.js": "b748ea4a6b94e7035940e7b4ebcef29fd6c6621b6a049da5dfb809060165accc",
       "js/sz-drone-routes.js": "c90d72fde184c5b12ecd1879fe0a198a16679da4d81dbb4bee22dd7612b8bf6f",
-      "js/sz-elevated-roads.js": "60c0c45cfa2fcc0b575b517dfd76d1c0b44406a4d0acf2303f9198bfe275ef69",
+      "js/sz-elevated-roads.js": "c4dfe30194d8a3a7ef0d208dea3fafbcdc396ced7459853d276221b24c8c8ed9",
       "js/sz-facade-look.js": "0ca6eb053a653f2ebb5c021ffb5545194c028909c3863e6659e409c762bfbdc6",
       "js/sz-facade-nodes.js": "75157aec5399cea05ded5dae953bd049c3d84e490eee239f163dfaa9e9223872",
       "js/sz-facade-profiles.js": "5c77204644bee3fdd3a23231496bd13efcc8e841393b6675bab25395a45ab83b",
@@ -559247,7 +559247,7 @@
       "js/sz-golf-course.js": "b99b3695dab632393f2db9b9f33a9a93a1777c364f37741b2b86549f563c8673",
       "js/sz-ground-surface.js": "6c1fa2d206626fb271c7d1fab13ee8ecf7b6b4002e83deb50f1ac8a2fcc7ba68",
       "js/sz-ground.js": "926fdc1df4d5d945b281298aaa0e3dfaebf15752d602510a1d90b7ce7bdd3bf1",
-      "js/sz-interchange-levels.js": "1348f44a4d2ecd209c83e5a4877727cf30a603af3e1744ea797675501830c805",
+      "js/sz-interchange-levels.js": "a0e87cc1e44f7837c0e6cecb370df57c7a7963fbbec0af2f15cce5f54fa4294b",
       "js/sz-intersection-control.js": "d10996f0fa6d9f6ba5f6f5506145200e5f5115f726b6371907fe976019360871",
       "js/sz-landmarks/bay-opera.js": "b7a8f2d0534c44b50be4c987ad05d98bb15e12ada1ec246c9e92a5bee0b044a6",
       "js/sz-landmarks/chunjian.js": "fdbbd2b876691d789b525f81535612b08faf6fcb31fc44d023b837ac8c3d8bdc",
@@ -559291,7 +559291,7 @@
       "js/sz-metro-entrances.js": "f42f558be501a6ce6f548fc796c1f246fdd6b0d4f6ff082dfce548b79648c77c",
       "js/sz-park-fireworks.js": "451f9e54f24bef8f562f18e48b735a021d25961d96a06f7a5a72c98a6a02a6d1",
       "js/sz-paving.js": "dff9aead95f7b9add6412395ce7ba13dc7b3b25563894fa39e78f10cc34851da",
-      "js/sz-pedestrian-tracks.js": "012e6cdde513ac7db0a9a3995e19b581daa604d14f27cb7979c6a4f99e932911",
+      "js/sz-pedestrian-tracks.js": "25b33dfdf4ce115cfd9aacf98c44abe0522c844bc37ccee9dcbafdc669bf1f02",
       "js/sz-place-assembly.js": "3b5d657b1ce1af42c7bc59121b8f6a422c7c2c3034ffe1857e0ef18ea82c02c2",
       "js/sz-polygon.js": "43ee6014cb9a36585777ea9d7a81bc2d2d0ee784683ba25c21efe922f23c2651",
       "js/sz-public-walk.js": "c46a82e1d6f06720fb28ebca5503cf855ea52acaceb97a29af0ab0b18aeefe80",
@@ -559339,7 +559339,7 @@
       "js/sz-theme-parks/sites.js": "1de1f26ca47954345088529af856539d8356eb78ebd576b662606b35ff50f5f7",
       "js/sz-tree-crown.js": "fe307786aba22098be4a3b3d8e3e32aa1015b2ad67ba46c31cb5efe92282fb74",
       "js/sz-trees.js": "948e9a8abcc7598cee84bf0d086b6eed52e52de39c5366eda52b6cf457dfabf2",
-      "js/sz-tunnels.js": "239fbefd70c40fb4631289d1dfc42473034908d836ca69f06f17c93d397e3799",
+      "js/sz-tunnels.js": "5ae87fbad74daa4fbec58c0fde201995fa36ee2253ea839a20fa0335cdfe2150",
       "js/sz-urban-paving.js": "eb474e194c812de5ba2fe011b73664d79097674f179497ca2f17566b27906020",
       "js/sz-vegetation-layout.js": "732425135858fae7a294b4775cbafd2fc6742dd4e158f213f4e971b1d24241f0",
       "js/sz-vegetation.js": "16cf3897a203552a6733a18cd6c00e54cb77801ddcec8efac78fe3974c98bdc9",
@@ -559623,23 +559623,23 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7906,
-    "metadataBytes": 19328571,
-    "numericBytes": 42928504,
-    "uncompressedBytes": 62257128,
+    "metadataBytes": 19328846,
+    "numericBytes": 46798528,
+    "uncompressedBytes": 66127424,
     "lossless": true,
-    "compressedBytes": 16722362,
-    "compressedSha256": "d00b87451c18db85f8728f98d77c114984fbcc6386a0db9ab01665ed89474a3b"
+    "compressedBytes": 17886360,
+    "compressedSha256": "65b41e8d897645e79a957bf9f7d6064f950815abb33493e16a4f54aacf765057"
   },
-  "outputBytes": 16734730,
-  "outputSha256": "490ee2d256eae33c5318e5552138308c95bff78327bb1dd666522df1b72ff209",
-  "seconds": 409.0,
+  "outputBytes": 17971284,
+  "outputSha256": "6b59dad13ec9bc947a8f6ce0c343eca00a2968916cffa9529c228f7169eaaa20",
+  "seconds": 67.1,
   "elevatedCut": {
-    "version": 2,
-    "links": 18,
-    "spans": 21,
-    "cutM2": 34345.163,
-    "removedM2": 34345.163,
-    "wallTriangles": 2738
+    "version": 3,
+    "links": 45,
+    "spans": 64,
+    "cutM2": 72697.651,
+    "removedM2": 59828.883,
+    "wallTriangles": 5830
   },
   "keyuanUnderpass": {
     "heightSource": "estimate",
@@ -560999,5 +560999,19 @@
       "-32,17",
       "-31,17"
     ]
+  },
+  "highDeckTunnelPortals": {
+    "links": 2,
+    "portalSpans": 4,
+    "cutM2": 3512.04,
+    "genericCutM2": 3512.04
+  },
+  "nanpingProfile": {
+    "links": 91,
+    "tunnelLinks": 6,
+    "deckY": 18,
+    "cutM2": 2023.459,
+    "wallTriangles": 21074,
+    "heightSource": "estimate"
   }
 }

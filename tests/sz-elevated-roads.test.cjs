@@ -101,10 +101,10 @@ test('layer-zero bridges rise one layer only when they cross a ground road', () 
   const crossRoad = links.get('way/cross-road');
   const crossWater = links.get('way/cross-water');
   assert.equal(crossRoad.raisedForCrossing, true);
-  // 4.8 m 是梁底净空，桥面顶再加 0.35 m 梁高。
-  assert.ok(Math.abs(crossRoad.effectiveLiftM - 5.15) < 1e-9);
-  assert.ok(Math.abs(crossRoad.startDeckY - (FLAT_TERRAIN + 5.15)) < 1e-9);
-  assert.ok(Math.abs(crossRoad.endDeckY - (FLAT_TERRAIN + 5.15)) < 1e-9);
+  // 4.8 m 按桥面顶计，梁厚从桥面向下。
+  assert.ok(Math.abs(crossRoad.effectiveLiftM - 4.8) < 1e-9);
+  assert.ok(Math.abs(crossRoad.startDeckY - (FLAT_TERRAIN + 4.8)) < 1e-9);
+  assert.ok(Math.abs(crossRoad.endDeckY - (FLAT_TERRAIN + 4.8)) < 1e-9);
   // 跨水/涵洞桥没有地面道路相交，保持贴地。
   assert.equal(crossWater.raisedForCrossing, false);
   assert.equal(crossWater.effectiveLiftM, 0);
@@ -114,6 +114,18 @@ test('layer-zero bridges rise one layer only when they cross a ground road', () 
   assert.equal(plan.driveLinks.includes(crossWater), false);
   assert.equal(plan.statistics.layerZero, 2);
   assert.equal(plan.statistics.layerZeroCrossings, 1);
+});
+
+test('unequal source layers share a 4.8 m deck seam on ordinary roads', () => {
+  const graph = fixtureGraph();
+  graph.metadata[1].layer = 3;
+  const links = byOsm(elevated.planElevatedRoads(graph, surface, { interchanges: [] }));
+  const a = links.get('way/ramp-a');
+  const b = links.get('way/ramp-b');
+  assert.equal(a.effectiveLiftM, 4.8);
+  assert.equal(a.endDeckY, FLAT_TERRAIN + 4.8);
+  assert.equal(a.endDeckY, b.startDeckY);
+  assert.equal(a.connectedEnd && b.connectedStart, true);
 });
 
 test('sunk links stay at grade, keep a contact surface and follow the drive rules', () => {
@@ -136,7 +148,7 @@ test('hanging ends get an adaptive apron, or are marked dangling without throwin
   const links = byOsm(plan);
   const ramp = links.get('way/ramp-b');
   assert.deepEqual(Array.from(ramp.aprons, apron => apron.side), ['end']);
-  const rampLength = 5.15 / MAX_GRADE;
+  const rampLength = 4.8 / MAX_GRADE;
   assert.ok(Math.abs(ramp.aprons[0].lengthM - rampLength) < 1e-6);
   assert.ok(ramp.aprons[0].grade <= MAX_GRADE + 1e-9);
   assert.ok(Math.abs(ramp.aprons[0].endY - FLAT_TERRAIN) < 1e-9);
@@ -152,12 +164,12 @@ test('hanging ends get an adaptive apron, or are marked dangling without throwin
   // contactSurface=false 的贴地结构边没有接触面，但必须有独立的顶面标线三角面。
   for (const link of plan.links) assert.ok((link.topPaintTriangles?.length ?? 0) > 0);
 
-  // 9.6 m 的落差在 40 m 限长内接不回地面：两端保持悬空，但不抛错、不接入车行。
+  // 高层主线的 10.3 m 落差在 48 m 限长内接不回地面。
   const steep = {
     nodes: [0, 0, 30, 0],
-    names: ['dangle'],
+    names: ['南坪快速'],
     links: [[0, 1, 0, 8, 2, 0, []]],
-    metadata: [{ osmId: 'way/dangle', heightSource: 'unresolved', bridge: true, tunnel: false, layer: 2 }]
+    metadata: [{ osmId: 'way/dangle', highway: 'trunk', heightSource: 'unresolved', bridge: true, tunnel: false, layer: 2 }]
   };
   const dangling = elevated.planElevatedRoads(steep, surface, { interchanges: [] });
   assert.equal(dangling.links.length, 1);
@@ -401,6 +413,19 @@ test('the real Shenzhen snapshot derives the whole-city deck network without any
     assert.ok(plan.driveLinks.includes(deck), deck.osmId);
     assert.equal(deck.aprons.length, 0, deck.osmId);
     assert.ok(deck.maxGrade <= 0.046, deck.osmId);
+  }
+  const high = plan.links.filter(deck => deck.effectiveLiftM > 4.8);
+  assert.ok(high.some(deck => deck.name === '南坪快速'));
+  assert.ok(high.some(deck => deck.name === '南光高速'));
+  for (const deck of high) {
+    assert.ok(deck.name === '南坪快速' || deck.name === '南光高速' || deck.osmId === 'way/1081087778', deck.osmId);
+    assert.equal(deck.effectiveLiftM, deck.nanpingMainline ? 10 : 10.3, deck.osmId);
+  }
+  const nanping = high.filter(deck => deck.nanpingMainline);
+  assert.equal(nanping.length, 85);
+  for (const deck of nanping) {
+    assert.ok(deck.frames.every(frame => frame.y === 18), deck.osmId);
+    assert.ok(plan.driveLinks.includes(deck), deck.osmId);
   }
   const splitLinks = plan.links.filter(link => link.splitStart || link.splitEnd);
   assert.ok(splitLinks.length > 0);
