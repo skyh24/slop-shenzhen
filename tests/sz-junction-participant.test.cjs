@@ -6,7 +6,7 @@ const { loadModule } = require('./helpers/module.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
 const signal = loadModule(read('sz-intersection-control.js'));
-const { createJunctionParticipant } = loadModule(read('sz-junction-participant.js'));
+const { createJunctionParticipant, createCrossingParticipant } = loadModule(read('sz-junction-participant.js'));
 
 function fixture() {
   const graph = { links: [[0, 1, 0, 10, 3, 1, []], [2, 3, 1, 8, 2, -1, []]],
@@ -119,4 +119,90 @@ test('a pedestrian crossing keeps vehicles waiting even on green', () => {
   assert.equal(car.wait(east, 0.8, { distance: 1 }).held, false);
   assert.equal(car.enter(0.8).entered, true);
   assert.equal(control.enterCrossing(crossing, 0.9, 'walker-2'), false, '车辆占用时行人不得进入');
+});
+
+function crossingControlStub() {
+  const calls = [];
+  const owners = new Map();
+  let green = true;
+  return {
+    calls,
+    get owner() { return owners.values().next().value ?? null; },
+    setGreen(value) { green = value; },
+    enterCrossing(crossing, elapsedSeconds, actorId) {
+      calls.push(['enter', crossing.id, elapsedSeconds, actorId]);
+      if (!green || owners.has(crossing.id)) return false;
+      owners.set(crossing.id, actorId);
+      return true;
+    },
+    leaveCrossing(crossing, actorId, elapsedSeconds) {
+      calls.push(['leave', crossing.id, elapsedSeconds, actorId]);
+      if (owners.get(crossing.id) === actorId) owners.delete(crossing.id);
+    }
+  };
+}
+
+test('a crossing grant spans same-signal legs and is released once at the far sidewalk', () => {
+  const control = crossingControlStub();
+  const walker = createCrossingParticipant(control, 'ped-1');
+  assert.equal(walker.switchTo({ id: 'alfa', group: 0 }, 0.5), true);
+  assert.equal(control.owner, 'ped-1');
+  assert.equal(walker.signal.id, 'alfa');
+  // 同一信号下的下一段（安全岛另一侧）不重新看灯色，也不重复申请。
+  control.setGreen(false);
+  assert.equal(walker.switchTo({ id: 'alfa', group: 1 }, 4.2), true);
+  assert.deepEqual(control.calls, [['enter', 'alfa', 0.5, 'ped-1']]);
+  assert.equal(control.owner, 'ped-1');
+  assert.equal(walker.switchTo(null, 6), true);
+  assert.deepEqual(control.calls, [['enter', 'alfa', 0.5, 'ped-1'], ['leave', 'alfa', 6, 'ped-1']]);
+  assert.equal(control.owner, null);
+  assert.equal(walker.signal, null);
+  walker.switchTo(null, 6.5);
+  assert.equal(control.calls.length, 2);
+});
+
+test('a denied next signal keeps the current crossing grant and reports the block', () => {
+  const control = crossingControlStub();
+  const walker = createCrossingParticipant(control, 'ped-1');
+  walker.switchTo({ id: 'alfa', group: 0 }, 0.5);
+  control.setGreen(false);
+  assert.equal(walker.switchTo({ id: 'beta', group: 1 }, 3.5), false);
+  assert.equal(control.owner, 'ped-1');
+  assert.equal(walker.signal.id, 'alfa');
+  assert.deepEqual(control.calls.at(-1), ['enter', 'beta', 3.5, 'ped-1']);
+  // 新许可先取得，旧段随后释放，换段过程不会短暂交出占用。
+  control.setGreen(true);
+  assert.equal(walker.switchTo({ id: 'beta', group: 1 }, 8.2), true);
+  assert.deepEqual(control.calls.slice(-2), [
+    ['enter', 'beta', 8.2, 'ped-1'], ['leave', 'alfa', 8.2, 'ped-1']
+  ]);
+  assert.equal(walker.signal.id, 'beta');
+  assert.equal(control.owner, 'ped-1');
+});
+
+test('abandon clears a crossing grant once and repeated cleanup is silent', () => {
+  const control = crossingControlStub();
+  const walker = createCrossingParticipant(control, 'ped-1');
+  walker.switchTo({ id: 'alfa', group: 0 }, 1);
+  walker.abandon(2);
+  assert.equal(control.owner, null);
+  assert.equal(walker.signal, null);
+  const calls = control.calls.length;
+  walker.abandon(3);
+  walker.abandon(4);
+  assert.equal(control.calls.length, calls);
+  // 释放后可以重新进入同一信号。
+  assert.equal(walker.switchTo({ id: 'alfa', group: 0 }, 8.1), true);
+  assert.equal(control.owner, 'ped-1');
+});
+
+test('an uncontrolled crossing or a missing actor id never touches intersection control', () => {
+  const control = crossingControlStub();
+  const uncontrolled = createCrossingParticipant(null, 'ped-2');
+  assert.equal(uncontrolled.switchTo({ id: 'alfa', group: 0 }, 0), true);
+  uncontrolled.abandon(1);
+  const anonymous = createCrossingParticipant(control, undefined);
+  assert.equal(anonymous.switchTo({ id: 'alfa', group: 0 }, 0), true);
+  anonymous.abandon(1);
+  assert.deepEqual(control.calls, []);
 });

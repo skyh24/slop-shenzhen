@@ -1,7 +1,9 @@
-// 车辆通过信号路口只有一条状态链：排队请求随目标进向刷新，出口被占时不占用，
-// 占用只在车尾离开冲突区后释放。车辆尺寸、出口探测、路径推进和仲裁规则仍由调用方持有。
+// 信号路口的占用只有两种具体生命周期，不合并成同一状态机：车辆排队请求、越过停止线取得占用、
+// 车尾离开冲突区才释放；行人踏上信号过街段取得许可、离开该信号覆盖的过街段即释放。
+// 共同的只是“取得一次、保持、释放一次”的配对；许可规则、出口探测、路径推进仍由各自调用方持有。
 const REQUEST_WINDOW = 4;
 
+// 车辆：排队请求随目标进向刷新，出口被占时不占用，占用只在车尾离开冲突区后释放。
 export function createJunctionParticipant(control, actorId) {
   let target = null;
   let request = null;
@@ -66,6 +68,36 @@ export function createJunctionParticipant(control, actorId) {
       cancel();
       if (controlled && reservation !== null) control.release(reservation, actorId);
       reservation = null;
+    }
+  };
+}
+
+// 行人：没有排队请求和车尾探测。踏上信号过街段取得许可，离开该信号覆盖的过街段即释放；
+// 同一信号下的连续过街段（例如被安全岛分开的两半）不重复申请，也不在中途释放。
+export function createCrossingParticipant(control, actorId) {
+  let signal = null;
+  const controlled = Boolean(control) && actorId !== undefined;
+
+  return {
+    // 当前持有的过街信号；只由 switchTo/abandon 改写。
+    get signal() { return signal; },
+
+    // 换段后调用：下一段属于同一信号时保持；属于另一信号时先申请许可，被拒绝则保留原占用并返回 false。
+    // 传入空值表示离开过街段。先取得新许可再释放旧段，避免换段瞬间出现无占用间隙。
+    switchTo(next, elapsedSeconds) {
+      if (!controlled) return true;
+      if (signal !== null && next && signal.id === next.id) return true;
+      if (next && !control.enterCrossing(next, elapsedSeconds, actorId)) return false;
+      if (signal !== null) control.leaveCrossing(signal, actorId, elapsedSeconds);
+      signal = next ?? null;
+      return true;
+    },
+
+    // 回收、弃线、销毁：释放当前占用；重复调用无副作用。
+    abandon(elapsedSeconds) {
+      if (!controlled || signal === null) return;
+      control.leaveCrossing(signal, actorId, elapsedSeconds);
+      signal = null;
     }
   };
 }

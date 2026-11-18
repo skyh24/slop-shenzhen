@@ -14,6 +14,7 @@
 | `sz-street-lamps.js::planLampSites/buildSzStreetLamps` | 按断面布置灯杆、双头/倒L外形与光晕 |
 | `sz-pedestrian-tracks.js::buildWalkTracks/buildSidewalkTracks` | 模拟路侧步行带、连接与排斥 |
 | `sz-pedestrians.js::createSzPedestrians/createSzDensityModel` | 地点密度、附近人群池与队列减速；人物骨架来自 `pedestrians.js` |
+| `sz-junction-participant.js::createJunctionParticipant/createCrossingParticipant` | 车辆与行人的路口占用取得、保持、释放配对；许可和出口判断由各自调用方提供 |
 | `sz-park-arrivals.js::findParkArrival` | 公园到达点选择 |
 | `sz-metro-entrances.js::planMetroEntrances/buildSzMetroEntrances` | 出口归属、避让、雨棚、站名和线路色 |
 | `sz-station-sites.js::buildFutianStation/buildXiliConstruction` | 福田地面亭/天窗；西丽围挡/塔吊/基坑示意 |

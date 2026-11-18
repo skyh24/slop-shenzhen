@@ -91,6 +91,7 @@ const tracks = loadModule(read('sz-pedestrian-tracks.js'), {
   imports: { './sz-roads.js': roads, './building-collision.js': collision, './sz-section-frame.js': sectionFrame }
 });
 const pedestrianStub = createPedestrianStub();
+const junction = loadModule(read('sz-junction-participant.js'));
 const pedestrians = loadModule(read('sz-pedestrians.js'), {
   imports: {
     ...driving,
@@ -98,7 +99,8 @@ const pedestrians = loadModule(read('sz-pedestrians.js'), {
     './pedestrians.js': pedestrianStub.module,
     './sz-pedestrian-tracks.js': tracks,
     './sz-walk-avoidance.js': loadModule(read('sz-walk-avoidance.js')),
-    './sz-polygon.js': polygonModule
+    './sz-polygon.js': polygonModule,
+    './sz-junction-participant.js': junction
   }
 });
 const { buildSidewalkTracks, buildWalkTracks, connectTracks, createCarriagewayBarrier,
@@ -959,4 +961,161 @@ test('a walker waits on the sidewalk, crosses under a signal reservation and rel
   assert.equal(ped.leg.id, 'leg:2');
   assert.equal(control.snapshot(12)[0].pedestrianOwner, null);
   assert.equal(peds.statistics.crossingsCompleted, 1);
+});
+
+function crossingWorld(rows) {
+  const road = straightGraph(100, 8);
+  const { createIntersectionControl } = loadModule(read('sz-intersection-control.js'));
+  road.nodeIds = ['node/1', 'node/2'];
+  road.metadata[0].osmId = 'way/1';
+  const signal = { id: 'fixture', group: 1 };
+  const control = createIntersectionControl({ intersections: [{ id: signal.id, bounds: [45, -5, 55, 5], approaches: [
+    { group: 0, osmWayId: 'way/1', fromNodeId: 'node/1', toNodeId: 'node/2' }
+  ] }] }, road);
+  const { peds } = makeFactory(road, { maxPeds: 1, pavement: false, heightAt: () => 8, spawnBudget: 0,
+    excludeWalkAt: () => true, crossingControl: control,
+    crossingLegs: rows.map((row, i) => ({ id: `leg:${i}`, crossing: Boolean(row.crossing),
+      signal: row.crossing ? signal : null,
+      points: row.points.map(z => ({ x: 50, y: 8, z })), walkAt: () => 8 })) });
+  const focus = { x: 40, z: -12 };
+  peds.update(0, focus, 0);
+  return { peds, control, signal, focus };
+}
+
+function walkerAtEnd(world, id, dir = 1) {
+  const [ped] = world.peds.peds;
+  const leg = world.peds.region.legs.find(row => row.id === id);
+  const s = dir > 0 ? leg.length - 0.05 : 0.05;
+  const point = sampleTrack(leg, s);
+  Object.assign(ped, { leg, s, dir, x: point.x, y: point.y, z: point.z, placed: true, v: 1.2, speed: 1.2,
+    heading: Math.atan2(point.dx * dir, point.dz * dir), motionDir: dir, lateral: 0, pause: 0, restAt: Infinity,
+    fromLeg: null, nextLeg: null, pendingLeg: null });
+  return ped;
+}
+
+const crossingOwner = (world, elapsed) => world.control.snapshot(elapsed)[0].pedestrianOwner;
+
+test('a car blocking the crossing holds the walker at the curb until the exit clears', () => {
+  const world = crossingWorld([
+    { points: [-16, -4.65] }, { crossing: true, points: [-4.65, 4.65] }, { points: [4.65, 16] }
+  ]);
+  const ped = walkerAtEnd(world, 'leg:0');
+  const { writeEntityCollider } = driving['./sz-driving-motion.js'];
+  const car = writeEntityCollider({}, { type: 'car', position: { x: 50, y: 8, z: 0 }, heading: Math.PI / 2, speed: 0 });
+  for (let frame = 1; frame <= 100; frame++) world.peds.update(0.05, world.focus, frame * 0.05, null, null, [car]);
+  assert.equal(ped.leg.id, 'leg:0');
+  assert.equal(crossingOwner(world, 5), null);
+  assert.equal(world.peds.statistics.crossingWaits, 1);
+  let owned = false;
+  for (let frame = 101; frame <= 320; frame++) {
+    const elapsed = frame * 0.05;
+    world.peds.update(0.05, world.focus, elapsed);
+    if (ped.leg.id !== 'leg:1') continue;
+    owned = true;
+    assert.equal(crossingOwner(world, elapsed), ped.collider.id);
+    const approach = world.control.approachFor(0, 1);
+    assert.equal(world.control.vehiclePhase(approach, elapsed), 'red');
+    assert.equal(world.control.canEnter(approach, elapsed, 'car'), false);
+  }
+  assert.ok(owned);
+  assert.equal(ped.leg.id, 'leg:2');
+  assert.equal(crossingOwner(world, 16), null);
+});
+
+test('two crossing legs under one signal keep a single grant until the far sidewalk', () => {
+  const world = crossingWorld([
+    { points: [-16, -4.65] }, { crossing: true, points: [-4.65, 0] },
+    { crossing: true, points: [0, 4.65] }, { points: [4.65, 16] }
+  ]);
+  const grants = [];
+  const enter = world.control.enterCrossing.bind(world.control);
+  const leave = world.control.leaveCrossing.bind(world.control);
+  world.control.enterCrossing = (...args) => {
+    const granted = enter(...args);
+    if (granted) grants.push('enter');
+    return granted;
+  };
+  world.control.leaveCrossing = (...args) => { leave(...args); grants.push('leave'); };
+  const ped = walkerAtEnd(world, 'leg:0');
+  let onFirst = false;
+  let onSecond = false;
+  for (let frame = 1; frame <= 560; frame++) {
+    const elapsed = frame * 0.05;
+    world.peds.update(0.05, world.focus, elapsed);
+    if (ped.leg.id === 'leg:1') {
+      onFirst = true;
+      assert.equal(crossingOwner(world, elapsed), ped.collider.id);
+    } else if (ped.leg.id === 'leg:2') {
+      onSecond = true;
+      assert.equal(crossingOwner(world, elapsed), ped.collider.id);
+    } else if (ped.leg.id === 'leg:3') break;
+  }
+  assert.ok(onFirst && onSecond);
+  assert.equal(ped.leg.id, 'leg:3');
+  assert.deepEqual(grants, ['enter', 'leave']);
+  assert.equal(crossingOwner(world, 28), null);
+});
+
+test('a walker that turns back mid-crossing keeps the grant until it leaves the crossing', () => {
+  const world = crossingWorld([
+    { points: [-16, -4.65] }, { crossing: true, points: [-4.65, 4.65] }
+  ]);
+  const grants = [];
+  const enter = world.control.enterCrossing.bind(world.control);
+  const leave = world.control.leaveCrossing.bind(world.control);
+  world.control.enterCrossing = (...args) => {
+    const granted = enter(...args);
+    if (granted) grants.push('enter');
+    return granted;
+  };
+  world.control.leaveCrossing = (...args) => { leave(...args); grants.push('leave'); };
+  const ped = walkerAtEnd(world, 'leg:0');
+  let returning = false;
+  let released = false;
+  for (let frame = 1; frame <= 700; frame++) {
+    const elapsed = frame * 0.05;
+    world.peds.update(0.05, world.focus, elapsed);
+    if (ped.leg.id === 'leg:1' && ped.dir === -1) {
+      returning = true;
+      assert.equal(crossingOwner(world, elapsed), ped.collider.id);
+    }
+    if (ped.leg.id === 'leg:0' && grants.length === 2) { released = true; break; }
+  }
+  assert.ok(returning && released);
+  assert.deepEqual(grants, ['enter', 'leave']);
+  assert.equal(crossingOwner(world, 35), null);
+});
+
+test('recycling and disposal release a mid-crossing grant without residual owner', () => {
+  const legs = [{ points: [-16, -4.65] }, { crossing: true, points: [-4.65, 4.65] }, { points: [4.65, 16] }];
+  const world = crossingWorld(legs);
+  const ped = walkerAtEnd(world, 'leg:0');
+  let enteredAt = 0;
+  for (let frame = 1; frame <= 260; frame++) {
+    const elapsed = frame * 0.05;
+    world.peds.update(0.05, world.focus, elapsed);
+    if (ped.leg.id === 'leg:1' && ped.s > 3) { enteredAt = elapsed; break; }
+  }
+  assert.ok(enteredAt > 0);
+  assert.equal(crossingOwner(world, enteredAt), ped.collider.id);
+  // 活动区跳转超过回收半径：池回收必须同时释放过街占用。
+  world.peds.update(0.05, { x: 300, y: 0, z: -12 }, enteredAt + 0.05);
+  assert.equal(crossingOwner(world, enteredAt + 0.1), null);
+  assert.ok(world.peds.statistics.recycled >= 1);
+
+  const second = crossingWorld(legs);
+  const other = walkerAtEnd(second, 'leg:0');
+  let secondAt = 0;
+  for (let frame = 1; frame <= 260; frame++) {
+    const elapsed = frame * 0.05;
+    second.peds.update(0.05, second.focus, elapsed);
+    if (other.leg.id === 'leg:1' && other.s > 3) { secondAt = elapsed; break; }
+  }
+  assert.ok(secondAt > 0);
+  assert.equal(crossingOwner(second, secondAt), other.collider.id);
+  second.peds.dispose();
+  assert.equal(crossingOwner(second, secondAt + 0.05), null);
+  // dispose 重入也不重复释放或抛出。
+  second.peds.dispose();
+  assert.equal(crossingOwner(second, secondAt + 0.1), null);
 });

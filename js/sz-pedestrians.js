@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { PersonCrowd, PersonRig } from './pedestrians.js';
 import { buildWalkTracks, createColliderGrid, createCrossingWalkTracks, createPublicWalkTrack, sampleTrack } from './sz-pedestrian-tracks.js';
 import { polygonContains } from './sz-polygon.js';
+import { createCrossingParticipant } from './sz-junction-participant.js';
 import { contactTime, writeEntityCollider, writePedestrianCollider } from './sz-driving-motion.js';
 import { WALK_RADIUS, WALK_GAP, createWalkerGrid, clearOfWalkers, createWalkAvoidance } from './sz-walk-avoidance.js';
 import { vehicleContact } from './vehicle-physics.js';
@@ -207,7 +208,8 @@ function createPed(id, cfg) {
     lateral: 0,
     pause: 0,
     restAt: 0,
-    collider: { id: `pedestrian:${id}` }
+    collider: { id: `pedestrian:${id}` },
+    crossing: createCrossingParticipant(cfg.crossingControl, `pedestrian:${id}`)
   };
 }
 
@@ -513,17 +515,12 @@ export function createSzPedestrians(scene, graph, options = {}) {
   }
 
   function unplace(ped) {
-    releaseCrossing(ped);
+    ped.crossing.abandon(clock);
     ped.placed = false;
     ped.activeWalker = false;
     ped.leg = null;
     ped.fromLeg = null;
     ped.rig.placed = false;
-  }
-
-  function releaseCrossing(ped) {
-    if (!ped.leg?.signal) return;
-    cfg.crossingControl.leaveCrossing(ped.leg.signal, ped.collider.id, clock);
   }
 
   function crossingClear(track) {
@@ -710,8 +707,8 @@ export function createSzPedestrians(scene, graph, options = {}) {
       return;
     }
     if (switched) {
-      if (nextLeg.signal && leg.signal?.id !== nextLeg.signal.id
-        && !cfg.crossingControl.enterCrossing(nextLeg.signal, clock, ped.collider.id)) {
+      // 许可的取得与释放成对交给路口参与者；同一信号下的连续过街段不重复申请。
+      if (!ped.crossing.switchTo(nextLeg.signal, clock)) {
         if (ped.pendingLeg !== ped.nextLeg) statistics.crossingWaits++;
         ped.pendingLeg = ped.nextLeg;
         ped.v = 0;
@@ -719,10 +716,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
       }
       ped.pendingLeg = null;
       if (nextLeg.crossing) statistics.crossingsEntered++;
-      if (leg.crossing) {
-        if (leg.signal && leg.signal.id !== nextLeg.signal?.id) releaseCrossing(ped);
-        statistics.crossingsCompleted++;
-      }
+      if (leg.crossing) statistics.crossingsCompleted++;
       ped.fromLeg = leg;
       ped.nextLeg = null;
       ped.leg = nextLeg;
@@ -875,7 +869,7 @@ export function createSzPedestrians(scene, graph, options = {}) {
   }
 
   function dispose() {
-    for (const ped of peds) releaseCrossing(ped);
+    for (const ped of peds) ped.crossing.abandon(clock);
     scene.remove(group);
     crowd.dispose();
     if (pavementMesh) {
