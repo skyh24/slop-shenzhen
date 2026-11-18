@@ -5,7 +5,8 @@ import {
 } from 'three/tsl';
 import { cityUniforms } from './city-lighting-materials.js';
 import { hash21Node } from './sz-facade-nodes.js';
-import { FACADE_PROFILES, FACADE_SAMPLE_PROFILES, HOUHAI_OFFICE, SHENZHEN_BAY_MANSION } from './sz-facade-profiles.js';
+import { FACADE_GRID, FACADE_PROFILES, FACADE_SAMPLE_PROFILES, HOUHAI_OFFICE,
+  SHENZHEN_BAY_MANSION } from './sz-facade-profiles.js';
 
 // 全局氛围参数：night 0 白天 → 1 深夜；show 控制楼体灯光秀。
 // 楼体窗灯和首层灯按 docs/22 的 V2 改读 cityUniforms.uInteriorGlow（和纽约立面同一套时段参数），
@@ -57,9 +58,9 @@ const shopDetails = Fn(([x, y, pixel]) => {
 
 // 立面参数按编号插值。fid 是 attribute，不能改写成 JS 分支，否则着色器无法按实例换材质。
 const packV = (fields, fallback = 0) => FACADE_PROFILES.map((p) => vec4(
-  num(p[fields[0]]), num(p[fields[1]]), num(p[fields[2]]), fields.length > 3 ? num(p[fields[3]]) : num(fallback)));
+  num(p[fields[0]]), num(p[fields[1]]), num(p[fields[2]]), num(fields.length > 3 ? Number(p[fields[3]]) : fallback)));
 
-export function createBuildingMaterial(programEmission = null) {
+export function createBuildingMaterial(programEmission = null, { balconyDoors = false } = {}) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.68, metalness: 0.06 });
   const meta = attribute('bmeta', 'vec4');
 
@@ -113,8 +114,8 @@ export function createBuildingMaterial(programEmission = null) {
 
   // 按墙长拟合整数开间，墙角留实体余量；u 每面墙从 0 起、meta.z 是墙长，所以两端不会切半窗。
   const wallLength = max(abs(meta.z), HALF);
-  const margin = min(cornerNominal, wallLength.mul(num(0.18)));
-  const innerLength = max(wallLength.sub(margin.mul(num(2))), num(0.2));
+  const margin = min(cornerNominal, wallLength.mul(num(FACADE_GRID.cornerFraction)));
+  const innerLength = max(wallLength.sub(margin.mul(num(2))), num(FACADE_GRID.minInnerLength));
   const bayCount = max(floor(innerLength.div(bayNominal).add(HALF)), ONE);
   const bayWidth = innerLength.div(bayCount);
   const gridU = u.sub(margin).div(bayWidth);
@@ -142,8 +143,8 @@ export function createBuildingMaterial(programEmission = null) {
   const parapet = wall.mul(ONE.sub(smoothstep(num(0.35), ONE, belowTop)));
   const coping = wall.mul(ONE.sub(smoothstep(num(0.02), num(0.16), belowTop))).mul(detail);
 
-  const upperMask = wall.mul(ONE.sub(groundMask));
-  const frameW = num(0.04);
+  const upperBay = inBay.mul(wall).mul(ONE.sub(groundMask));
+  const frameW = num(FACADE_GRID.frame);
   const halfWin = winW.mul(HALF);
   const glassA = HALF.sub(halfWin);
   const glassB = HALF.add(halfWin);
@@ -158,23 +159,31 @@ export function createBuildingMaterial(programEmission = null) {
 
   // 成组窗/幕墙竖挺：一格窗中间一道竖挺，不再画第二道横挺。
   const mullion = ONE.sub(smoothstep(ZERO, aaU, abs(cellU.sub(HALF))));
-  const mullionMask = mullion.mul(grouped).mul(inBay).mul(upperMask).mul(detail);
+  const mullionMask = mullion.mul(grouped).mul(upperBay).mul(detail);
 
-  // 阳台门：住宅宽窗右侧下延到楼面，做成落地玻璃门，不再单独画栏杆。
-  const doorX = stepBand(cellU, num(0.58), num(0.82));
-  const doorLower = step(cellV, sill).mul(doorX).mul(grouped)
-    .mul(step(num(0.55), fract(seed.add(cellU.mul(num(0.37))).add(row.mul(num(0.29))))));
-  const glazedUpper = max(windowGlass, doorLower).mul(inBay).mul(upperMask);
+  // 普通墙的窗台连续；仅有实体阳台时，下面的门片材质会把同跨玻璃延伸到门槛。
+  const glazedUpper = windowGlass.mul(upperBay);
   const windowArea = winW.mul(winH);
   // 窗格小于一像素时用平均开窗率/平均框宽收敛，远景幕墙仍保持玻璃比例，也不被逐窗框线糊成实墙。
-  const glazed = mix(windowArea.mul(inBay).mul(upperMask), glazedUpper, detail).mul(topFit);
+  let glazed = mix(windowArea.mul(upperBay), glazedUpper, detail).mul(topFit);
   const openingArea = winW.add(frameW.mul(num(2))).mul(winH.add(frameW.mul(num(2))));
-  const windowFrameMask = mix(openingArea.sub(windowArea).mul(inBay).mul(upperMask),
-    windowFrame.mul(inBay).mul(upperMask), detail);
+  let windowFrameMask = mix(openingArea.sub(windowArea), windowFrame, detail).mul(upperBay);
+  let doorOpening = ZERO;
+  if (balconyDoors) {
+    const doorMask = inBay.mul(wall).mul(detail).mul(topFit).mul(step(groundHeight, v));
+    const lowerGlass = aaBand(cellU, HALF.add(frameW.mul(HALF)), glassB, aaU)
+      .mul(aaBand(cellV, num(0.02), sill.add(frameW), aaV));
+    const lowerFrame = aaBand(cellU, HALF, openB, aaU).mul(aaBand(cellV, ZERO, sill.add(frameW), aaV));
+    const doorGlass = lowerGlass.mul(doorMask);
+    const doorFrame = max(lowerFrame.sub(max(lowerGlass, windowGlass)), ZERO).mul(doorMask);
+    glazed = max(glazed, doorGlass);
+    windowFrameMask = max(windowFrameMask.mul(ONE.sub(doorGlass)), doorFrame);
+    doorOpening = max(doorGlass, doorFrame);
+  }
 
   // 楼板带：幕墙用更厚的层间带，其余楼一道细带；远景收敛成平均带宽避免条纹。
   const slabWidth = mix(num(0.03), sill, curtain);
-  const floorBandMask = mix(slabWidth, step(cellV, slabWidth), detail).mul(inBay).mul(upperMask);
+  const floorBandMask = mix(slabWidth, step(cellV, slabWidth), detail).mul(upperBay);
 
   // 首层：0 大堂、1 店面、2 单元入口、3 工业门洞（与 FACADE_PROFILES.groundStyle 对应）。
   const groundZone = groundMask.mul(inBay).mul(wall);
@@ -226,7 +235,7 @@ export function createBuildingMaterial(programEmission = null) {
   surface = mix(surface, glassColor, glazed);
   surface = mix(surface, frameColor, windowFrameMask);
   surface = mix(surface, frameColor, mullionMask);
-  const ordinaryGround = ONE.sub(retailWall);
+  const ordinaryGround = balconyDoors ? ONE.sub(retailWall).mul(ONE.sub(doorOpening)) : ONE.sub(retailWall);
   const baseGlass = groundGlass.mul(ordinaryGround);
   const baseDoor = groundDoor.mul(ordinaryGround);
   surface = mix(surface, groundGlassColor, baseGlass);
@@ -263,7 +272,8 @@ export function createBuildingMaterial(programEmission = null) {
   const hardSurface = max(windowFrameMask, mullionMask);
   // 幕墙玻璃对齐纽约 createCurtainWallMaterial：满玻璃率粗糙度 0.055，窗台附近叠一点积灰；
   // 积灰只给幕墙（curtain=1），非幕墙立面的基础粗糙度仍是 0.42→0.12 的旧插值，观感不变。
-  const sillDirt = ONE.sub(smoothstep(sill, sill.add(num(0.18)), cellV)).mul(num(0.12)).mul(curtain);
+  const sillDirt = ONE.sub(smoothstep(sill, sill.add(num(0.18)), cellV)).mul(num(0.12)).mul(curtain)
+    .mul(balconyDoors ? ONE.sub(doorOpening) : ONE);
   const glassRough = mix(num(0.42), mix(num(0.12), num(0.055), curtain), glazing).add(sillDirt);
   let roughSurface = mix(num(0.86), num(0.55), hardSurface);
   roughSurface = mix(roughSurface, glassRough, glazed);
@@ -292,4 +302,33 @@ export function createWaterMaterial({ coastal = false } = {}) {
   m.colorNode = mix(day, nightCol, sceneUniforms.night);
   m.roughnessNode = ripple.mul(0.15).add(0.06);
   return m;
+}
+
+// 太子湾 K11 南馆。颜色、分带和折板宽度为当地滨水商业外观的设计估计。
+export function createK11SouthWallMaterial() {
+  const { x: u, y: v } = uv();
+  const meta = attribute('bmeta', 'vec4');
+  const height = max(meta.w, 1);
+  const band = v.div(height);
+  const width = max(abs(meta.z), 0.5);
+  const bays = max(floor(width.div(3.6).add(0.5)), 1);
+  const bay = u.div(width).mul(bays);
+  const seam = abs(fract(bay.add(0.5)).sub(0.5));
+  const edgeWidth = max(fwidth(bay), 0.012);
+  const mullion = smoothstep(0.012, edgeWidth.add(0.022), seam).oneMinus();
+  const gallery = stepBand(band, num(0.49), num(0.60));
+  const glazing = max(step(band, num(0.23)), gallery);
+  const transom = max(stepBand(band, num(0.167), num(0.173)), stepBand(band, num(0.55), num(0.555)));
+  const glass = glazing.mul(max(mullion, transom).oneMinus());
+  // 每段源墙拟合整数开间。折板在像素以下收敛为均色，首层亮灯读取已有城市时钟。
+  const fin = bay.mul(6);
+  const fold = mix(fract(fin), HALF, smoothstep(0.12, 0.60, fwidth(fin)));
+  const finish = mix(color(0x98785a), color(0xc9ad82), fold);
+  const reveals = max(stepBand(band, num(0.232), num(0.248)), stepBand(band, num(0.604), num(0.621)));
+  const trim = max(reveals, glazing.mul(max(mullion, transom)));
+  const pane = mix(color(0x374c57), color(0x71898d), smoothstep(0.01, 0.62, band));
+  const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.57, metalness: 0.18 });
+  material.colorNode = mix(mix(finish, color(0x715d4d), trim), pane, glass);
+  material.emissiveNode = color(0xdeab76).mul(glass).mul(sceneUniforms.night).mul(0.26);
+  return material;
 }

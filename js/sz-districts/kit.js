@@ -16,11 +16,14 @@ const PALETTE = {
   glass: 0x344c53, lamp: 0xd2ad78, aqua: 0x359ca0, white: 0xf4f1e8,
   hull: 0xf0eee4, waterline: 0x883d30, navy: 0x273943, orange: 0xc97443,
   roof: 0x695e55, tile: 0x8d6755, leaf: 0x638044, soil: 0x504233,
-  blossom: 0xcd6e6a, goldFlower: 0xe9b565, darkGlass: 0x344c53
+  blossom: 0xcd6e6a, goldFlower: 0xe9b565, darkGlass: 0x344c53,
+  b10Screen: 0xb5b6ae, b10Reveal: 0xbfbdb3,
+  burgundyBrick: 0x93484a, darkBurgundyBrick: 0x763d42
 };
 
 const MASONRY = {
   brick: [0.25, 0.082, 0xaea093], oldBrick: [0.32, 0.115, 0x9b8f7a],
+  burgundyBrick: [0.25, 0.082, 0xae8c81], darkBurgundyBrick: [0.25, 0.082, 0x97796e],
   granite: [0.86, 0.36, 0x685f54], tile: [0.19, 0.30, 0x604e43]
 };
 
@@ -61,6 +64,21 @@ function makeMaterial(style) {
     const d = min(min(u, u.oneMinus()), min(v, v.oneMinus()));
     const seam = smoothstep(0.025, 0.066, d).oneMinus().mul(smoothstep(0.16, 0.5, px).oneMinus());
     material.colorNode = mix(color(PALETTE[style]), color(mortar), seam.mul(0.56));
+  }
+  if (style === 'b10Screen') {
+    // 拉伸网用米制菱格表达，缩到像素以下时并入底色，避免远处摩尔纹。
+    const u = uv().x.div(0.13), v = uv().y.div(0.060);
+    const grid = vec2(u.add(v), u.sub(v));
+    const stripe = fract(grid).sub(0.5).abs();
+    const pixel = max(fwidth(grid.x), fwidth(grid.y));
+    const strand = smoothstep(0.07, 0.20, min(stripe.x, stripe.y)).oneMinus()
+      .mul(smoothstep(0.25, 0.65, pixel).oneMinus());
+    const panel = fract(uv().x.div(1.9).add(0.5)).sub(0.5).abs();
+    const edge = smoothstep(0.003, max(fwidth(panel), 0.009), panel).oneMinus();
+    const silver = mix(color(PALETTE.b10Screen), color(0xe5e6dc), strand);
+    material.colorNode = mix(silver, color(0x848984), edge.mul(0.52));
+    material.metalness = 0.24;
+    material.roughness = 0.62;
   }
   return material;
 }

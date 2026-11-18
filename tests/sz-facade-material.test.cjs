@@ -610,3 +610,57 @@ test('curtain-wall panes reach reference metalness and low roughness while solid
   assert.ok(punched.roughness >= 0.3 && punched.roughness <= 0.35,
     `punched housing windows keep the old roughness (got ${punched.roughness})`);
 });
+
+test('ordinary residential balcony doors fill the lower right pane only on streamed detail geometry', () => {
+  const evaluator = createFacadeEvaluator();
+  const regular = evaluator.materials.createBuildingMaterial();
+  const doors = evaluator.materials.createBuildingMaterial(null, { balconyDoors: true });
+  const readPane = (level, column, cellU, cellV, material, profile) => {
+    const { margin, bayWidth } = fittedBay(profile);
+    evaluator.state.uv.current = [margin + (column + cellU) * bayWidth,
+      profile.groundHeight + (level + cellV) * profile.floorHeight];
+    evaluator.bump();
+    return {
+      color: Array.from(material.colorNode.values),
+      roughness: material.roughnessNode.values[0],
+      emission: Array.from(material.emissiveNode.values)
+    };
+  };
+  evaluator.cityUniforms.uInteriorGlow.value = GLOW.twilight;
+  for (const fid of [2, 3]) {
+    const profile = facadeProfiles.FACADE_PROFILES[fid];
+    evaluator.state.meta.current = [fid, seed, wallLength, buildingHeight];
+    let lit = false;
+    for (let column = 0; column < 6; column++) {
+      const at = (level, cellU, cellV, material) => readPane(level, column, cellU, cellV, material, profile);
+      const glass = at(0, 0.72, 0.50, regular);
+      const lower = at(0, 0.72, 0.08, doors);
+      assert.deepEqual(lower, glass, 'the threshold extension uses the same glass and night lights as the window');
+      assert.deepEqual(at(0, 0.72, profile.sill - 0.015, doors), glass,
+        'the old horizontal sill does not cut across the door glass');
+      assert.ok(at(0, 0.72, 0.08, regular).roughness > 0.7, 'the far/base facade keeps a solid sill');
+      assert.ok(at(0, 0.3, 0.08, doors).roughness > 0.7, 'the left pane keeps a solid sill');
+      lit ||= glass.emission.some(value => value > 0.05);
+    }
+    assert.equal(lit, true, 'the sample includes a lit suite');
+  }
+
+  const office = facadeProfiles.FACADE_PROFILES[1];
+  evaluator.state.meta.current = [1, seed, wallLength, buildingHeight];
+  for (let row = 0; row < 5; row++) {
+    const left = readPane(row, 1, 0.28, 0.08, regular, office);
+    const right = readPane(row, 1, 0.72, 0.08, regular, office);
+    assert.equal(right.roughness, left.roughness, 'an office spandrel stays solid across both panes');
+  }
+
+  const sample = facadeProfiles.FACADE_SAMPLE_PROFILES[facadeProfiles.SHENZHEN_BAY_MANSION];
+  const profile = { ...facadeProfiles.FACADE_PROFILES[2], ...sample };
+  const [minX, maxX, minZ, maxZ] = sample.bounds;
+  evaluator.state.position.current = [(minX + maxX) / 2, 20, (minZ + maxZ) / 2];
+  evaluator.state.meta.current = [2, sample.materialSeed, wallLength, buildingHeight];
+  const atSample = (row, cellU, cellV, material) => readPane(row, 1, cellU, cellV, material, profile);
+  assert.deepEqual(atSample(1, 0.86, 0.08, doors), atSample(1, 0.86, 0.5, regular),
+    'the named sample uses its wider window and taller floor profile');
+  assert.ok(atSample(1, 0.3, 0.08, doors).roughness > 0.7, 'the left window is still above its sill');
+  assert.ok(atSample(2, 0.86, 0.08, regular).roughness > 0.7, 'the duplex window row without a slab has no door');
+});

@@ -84,6 +84,18 @@ function openShop(kit, building, f, u, y, w, d, top, kind, i, style) {
   }
 }
 
+function addDisplayWindow(kit, f, u, y, width, trim) {
+  // 展示窗均抬离地面，原墙内留实；横向卷帘箱、侧槽和窗台用浅体量表现。
+  kit.piece(f.at(u, 0.026), y + 1.55, width + 0.16, 2.1, 0.08, f, 'steel');
+  for (const side of [-1, 1]) {
+    kit.piece(f.at(u + side * width / 4, 0.071), y + 1.52, width / 2 - 0.075, 1.76, 0.046, f, 'glass');
+    kit.piece(f.at(u + side * width / 2, 0.10), y + 1.55, 0.07, 2.01, 0.12, f, trim);
+  }
+  kit.piece(f.at(u, 0.092), y + 1.52, 0.065, 1.78, 0.082, f, 'steel');
+  kit.piece(f.at(u, 0.107), y + 2.58, width + 0.20, 0.21, 0.22, f, 'silver');
+  kit.piece(f.at(u, 0.11), y + 0.56, width + 0.19, 0.12, 0.24, f, 'stone');
+}
+
 export function restyleBlock(kit, building, terrain, heightAt, kind, options = {}) {
   const style = DISTRICT_STYLE[kind];
   const seed = buildingSeed(building.id);
@@ -131,14 +143,20 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
       const length = Math.hypot(a.x - b.x, a.z - b.z);
       if (length < 2.3) continue;
       const f = frame(a.x, a.z, b.x - a.x, b.z - a.z);
-      const canProject = (u, depth, y, w, h) => [-w / 2, 0, w / 2].every(d =>
-        [0.15, depth].every(v => options.clear?.(f.at(u + d, v), y, h, building.id) !== false));
+      const canProject = (u, depth, y, w, h) => {
+        const center = f.at(u, (depth + 0.01) / 2);
+        // 排除折回的源外墙或同栋另一个体块。留出 1 cm 避免把本墙的接缝计作相交。
+        if (building.polygons.some(footprint => polygonBoxOverlaps(footprint, center.x, center.z,
+          w / 2, (depth - 0.01) / 2, f.c, -f.s))) return false;
+        return [-w / 2, 0, w / 2].every(d =>
+          [0.15, depth].every(v => options.clear?.(f.at(u + d, v), y, h, building.id) !== false));
+      };
       const count = Math.max(1, Math.round(length / style.bays));
       const bay = length / count;
       const shopBays = openings.get(j) ?? [];
       kit.piece(f.at(length / 2, 0.035), roof - 0.22, length, 0.25, 0.13, f, style.trim, { detail: false });
       if (kind === 'oct' && override && shopBays.length) {
-        // 三层联排按开间分段；砖与灰墙的分缝延续到屋檐，仍使用原建筑轮廓。
+        // 联排铺面按开间分段；砖与灰墙的分缝延续到屋檐，仍使用原建筑轮廓。
         for (const { u, w } of shopBays) {
           const upper = height - baseFloor - 0.45;
           const x = u - w / 2 - 0.10;
@@ -157,14 +175,35 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
         for (let floor = 0; floor < levelCount; floor++) {
           if (floor === 0 && shopBays.some(opening => Math.abs(u - opening.u) < opening.w / 2 + bay * 0.47)) continue;
           const y = base + building.minHeight + floor * story;
+          if (floor === 0 && building.minHeight === 0 && story >= 3.0 && Math.abs(ground - y) < 0.13
+            && options.displayFront?.(p, f) && canProject(u, 0.24, y + 0.5, bay * 0.78 + 0.20, 2.2)) {
+            addDisplayWindow(kit, f, u, y, bay * 0.78, style.trim);
+            continue;
+          }
           const window = bay * (floor === 0 && shop ? 0.83 : 0.62);
           const h = Math.min(story * (floor === 0 && shop ? 0.63 : 0.51), 2.6);
           if (y + h + 0.7 > roof) continue;
           const cy = y + (floor === 0 && shop ? h / 2 + 0.19 : story * 0.53);
-          row(cy, window + 0.17, h + 0.14, 0.026, 0.14, floor === 0 && shop ? style.metal : style.trim);
-          row(cy, window, h, 0.108, 0.065, floor === 0 || (k + j + floor) % 4 === 0 ? 'glass' : 'darkGlass', levelCount < 9);
-          for (const side of [-1, 1]) {
-            kit.piece(f.at(u + side * window / 6, 0.147), cy, 0.045, h, 0.06, f, style.metal);
+          const depth = kind === 'oct' && floor === 1 ? 1.72 : kind === 'nantou' ? 0.73 : 1.12;
+          const width = Math.min(bay - 0.22, window + (kind === 'oct' ? 1.1 : 0.38));
+          const balcony = options.balconies && shop && floor > 0 && floor < 4 && levelCount <= 6
+            && (k + j + Math.floor(seed * 8)) % (kind === 'nantou' ? 5 : 3) === 0
+            && canProject(u, depth, y - 0.24, width, 1.34);
+          const glass = floor === 0 || (k + j + floor) % 4 === 0 ? 'glass' : 'darkGlass';
+          if (balcony) {
+            // 左扇保留窗台，右侧落地门与板面共用门槛；整组框、玻璃与栏板沿同一开间排布。
+            const doorHeight = cy + h / 2 - y;
+            const pane = window / 2;
+            for (const [du, centerY, paneHeight] of [[-pane / 2, cy, h], [pane / 2, y + doorHeight / 2, doorHeight]]) {
+              kit.piece(f.at(u + du, 0.028), centerY, pane, paneHeight + 0.08, 0.14, f, style.trim);
+              kit.piece(f.at(u + du, 0.108), centerY, pane - 0.10, paneHeight - 0.08, 0.065, f, glass);
+            }
+          } else {
+            row(cy, window + 0.17, h + 0.14, 0.026, 0.14, floor === 0 && shop ? style.metal : style.trim);
+            row(cy, window, h, 0.108, 0.065, glass, levelCount < 9);
+            for (const side of [-1, 1]) {
+              kit.piece(f.at(u + side * window / 6, 0.147), cy, 0.045, h, 0.06, f, style.metal);
+            }
           }
           if (!floor && shop) {
             row(cy + h / 2 + 0.22, window, 0.23, 0.15, 0.11, ['terra', 'green', 'blue', 'wood'][(k + j) % 4]);
@@ -173,11 +212,7 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
               row(y + 2.62, window + 0.34, 0.10, 0.94, 0.075, 'lamp');
             }
           }
-          const balcony = floor > 0 && floor < 4 && levelCount <= 6 && shop && options.balconies
-            && (k + j + Math.floor(seed * 8)) % (kind === 'nantou' ? 5 : 3) === 0;
-          const depth = kind === 'oct' && floor === 1 ? 1.72 : kind === 'nantou' ? 0.73 : 1.12;
-          const width = Math.min(bay - 0.22, window + (kind === 'oct' ? 1.1 : 0.38));
-          if (!balcony || !canProject(u, depth, y - 0.24, width, 1.34)) continue;
+          if (!balcony) continue;
           kit.box(f.at(u, depth / 2), y - 0.23, y, width, depth + 0.06, f, style.trim, building);
           railing(kit, f, y, u - width / 2, u + width / 2, depth, style.metal);
           for (const side of [-1, 1]) {
@@ -185,8 +220,9 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
             const sideFrame = frame(q.x, q.z, -f.s, f.c);
             railing(kit, sideFrame, y, 0, depth, 0, style.metal);
           }
-          row(y + 0.30, 0.48, 0.37, depth - 0.24, 0.42, 'terra');
-          row(y + 0.63, 0.49, 0.50, depth - 0.24, 0.44, 'leaf');
+          const planter = f.at(u - width * 0.28, depth - 0.24);
+          kit.piece(planter, y + 0.30, 0.48, 0.37, 0.42, f, 'terra');
+          kit.piece(planter, y + 0.63, 0.49, 0.50, 0.44, f, 'leaf');
         }
       }
       if (options.terrace && length > 9) railing(kit, f, roof, 0, length, -0.06, style.metal);
@@ -200,31 +236,80 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
   }
 }
 
-export function buildB10(kit, building, terrain, heightAt, clear) {
-  restyleBlock(kit, building, terrain, heightAt, 'oct', { floors: 3, floorHeight: 3.65, wall: 'chalk', front: () => false });
-  const y = buildingPlacement(building, terrain).baseY;
-  // 南立面圆盘与筛网参考都市实践的改造照片；网格/入口比例为视觉估计，室内不开放。
-  const f = frame(-6803.43, 438.82, 54.73, -4.1);
-  const screen = f.at(27, 0.25);
-  kit.box(screen, y + 5.3, y + 10.5, 51, 0.32, f, 'silver', building, 'oct-b10:screen');
-  for (let x = 2.5; x < 53; x += 1.25) {
-    kit.piece(f.at(x, 0.43), y + 7.9, 0.047, 5.1, 0.065, f, 'chalk');
-  }
-  for (let x = 5.4; x < 53; x += 7.05) {
-    const d = x % 3 > 1.5 ? 2.62 : 1.84;
-    kit.piece(f.at(x, 0.475), y + 7.7 + 0.25 * (x % 2), d, d, 0.18, f, 'glass', { shape: 'disc', detail: false });
-    kit.piece(f.at(x, 0.60), y + 7.7 + 0.25 * (x % 2), d * 0.68, d * 0.68, 0.09, f, 'chalk', { shape: 'disc' });
-  }
-  kit.label(f.at(27, 0.72), y + 9.5, 13.1, 1.65, f, STR.districts.b10, '#f3eee4', '#5c6c68');
-  const entry = f.at(31, 1.15);
-  if (clear(entry, y, 4.6, building.id)) {
-    kit.box(entry, y + 3.44, y + 3.71, 10.8, 2.35, f, 'white', building, 'oct-b10:entry-canopy');
-    kit.piece(f.at(31, 0.18), y + 1.56, 6.9, 2.93, 0.28, f, 'glass', { detail: false });
-    for (const u of [27.1, 34.9]) {
-      kit.piece(f.at(u, 1.25), y + 3.41, 1.45, 0.06, 0.17, f, 'lamp');
-      kit.lamp(f.at(u, 1.3), y + 3.18, 43, 10);
+export function buildB10(kit, building, terrain, clear) {
+  const placement = buildingPlacement(building, terrain);
+  const y = placement.baseY;
+  const estimatedHeight = building.heightSource === 'estimate' && !(building.levels > 0);
+  const height = estimatedHeight ? 10.95 : building.height;
+  const roof = y + height;
+  const screenBase = y + height * 0.61;
+  const provenance = estimatedHeight ? 'scene-design-height' : 'osm-footprint';
+  const poly = building.polygons[0];
+  const ring = signedRingArea(poly.outer) < 0 ? poly.outer : [...poly.outer].reverse();
+  const edges = ring.map((a, i) => {
+    const b = ring[(i + 1) % ring.length];
+    return { f: frame(a.x, a.z, b.x - a.x, b.z - a.z), length: Math.hypot(b.x - a.x, b.z - a.z) };
+  });
+
+  // 都市实践照片中的原厂房白墙与上部拉伸网。尺寸为视觉估计，场景仍以闭合实体表达未开放空间。
+  const whiteBox = solid('oct-b10:white-box', building, poly, placement.foundationBottomY ?? placement.minY,
+    screenBase, 'chalk', provenance);
+  kit.part({ ...whiteBox, topFace: false });
+  const screen = solid('oct-b10:screen', building, poly, screenBase, roof, 'b10Screen', provenance);
+  kit.part({ ...screen, bottomFace: false });
+
+  for (const { f, length } of edges) {
+    const south = f.c > 0.7;
+    const west = f.s > 0.7;
+    const portal = south ? length * 0.56 : length * 0.48;
+    const portalWidth = south ? 6.6 : 4.4;
+    const bays = Math.max(1, Math.round(length / 4.9));
+    const depth = south ? 2.15 : 1.45;
+    const width = portalWidth + (south ? 3.7 : 0.8);
+    const canopyY = y + (south ? 3.48 : 3.27);
+    const canProject = (south || west) && [-width / 2, 0, width / 2].every(offset =>
+      [0.15, depth].every(v => clear(f.at(portal + offset, v), canopyY, south ? 1.42 : 0.22, building.id)));
+    const balconyBay = south && canProject ? Math.floor(portal / length * bays) : -1;
+    for (let i = 0; i < bays; i++) {
+      const u = (i + 0.5) * length / bays;
+      const w = Math.min(2.15, length / bays * 0.57);
+      for (const [j, h] of [[0, 1.65], [1, 1.3]]) {
+        if ((south || west) && !j && Math.abs(u - portal) < (portalWidth + w) / 2 + 0.5) continue;
+        const cy = y + 1.90 + j * 3.28;
+        if (cy + h / 2 + 0.25 > screenBase) continue;
+        const lite = south && j === 1 && Math.abs(u - portal) < 5.3;
+        if (j === 1 && i === balconyBay) {
+          const threshold = canopyY + 0.23;
+          const top = cy + h / 2;
+          kit.piece(f.at(u, 0.033), (threshold + top) / 2, w, top - threshold, 0.078, f, 'glass');
+          continue;
+        }
+        kit.piece(f.at(u, 0.033), cy, w, h, 0.078, f, lite ? 'glass' : 'b10Reveal');
+        // 浅凹窗通过暗侧边、浅色封板和薄窗台产生，沿源墙线摆放。
+        if (!lite) kit.piece(f.at(u + 0.045, 0.079), cy - 0.045, w - 0.18, h - 0.18, 0.035, f, 'loft');
+        kit.piece(f.at(u, 0.091), cy - h / 2, w + 0.13, 0.085, 0.15, f, 'chalk');
+      }
     }
-    for (const u of [26.2, 35.8]) kit.box(f.at(u, 2.10), y, y + 3.46, 0.24, 0.24, f, 'silver', building);
+    if (!south && !west) continue;
+    kit.piece(f.at(portal, 0.061), y + 1.51, portalWidth, 2.96, 0.14, f, 'darkGlass', { detail: false });
+    for (const side of [-1, 0, 1]) {
+      kit.piece(f.at(portal + side * portalWidth / 2.03, 0.14), y + 1.51, 0.075, 2.98, 0.11, f, 'silver');
+    }
+    if (canProject) {
+      kit.box(f.at(portal, depth / 2), canopyY, canopyY + 0.23, width, depth, f, 'white', building,
+        `oct-b10:${south ? 'south-balcony' : 'west-canopy'}`);
+      if (south) {
+        railing(kit, f, canopyY + 0.23, portal - width / 2, portal + width / 2, depth - 0.05, 'silver');
+        for (const side of [-1, 1]) {
+          const end = f.at(portal + side * width / 2, 0);
+          railing(kit, frame(end.x, end.z, -f.s, f.c), canopyY + 0.23, 0, depth - 0.05, 0, 'silver');
+        }
+      }
+      kit.piece(f.at(portal, depth * 0.65), canopyY - 0.032, portalWidth * 0.58, 0.058, 0.085, f, 'lamp');
+      kit.lamp(f.at(portal, depth * 0.68), canopyY - 0.28, 35, 8);
+    }
+    if (south) kit.label(f.at(length * 0.49, 0.031), screenBase + (roof - screenBase) * 0.57,
+      7.4, 1.38, f, STR.districts.b10, '#f3eee4', '#8e938e');
   }
-  return { base: y, roof: y + 10.95 };
+  return { base: y, roof };
 }

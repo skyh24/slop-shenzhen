@@ -85,6 +85,19 @@ export function facadeProfile(name) {
   return FACADE_PROFILES[facadeIndex(name)];
 }
 
+// 外墙 UV 与近景阳台共用墙角余量、整数开间和窗框尺寸。
+export const FACADE_GRID = Object.freeze({ cornerFraction: 0.18, minInnerLength: 0.2, frame: 0.04 });
+
+export function fitFacadeBays(length, profile) {
+  // 按顶点属性和着色器的 Float32 精度取整，避免名义半跨附近分成不同的整数开间。
+  const f32 = Math.fround;
+  const wallLength = f32(length);
+  const margin = Math.min(f32(profile.cornerMargin), f32(wallLength * f32(FACADE_GRID.cornerFraction)));
+  const inner = Math.max(f32(wallLength - f32(margin * 2)), f32(FACADE_GRID.minInnerLength));
+  const count = Math.max(1, Math.floor(f32(f32(inner / f32(profile.bayWidth)) + 0.5)));
+  return { margin, count, width: f32(inner / count) };
+}
+
 // 航天科技广场 A 座与深圳湾公馆的外观样本。大堂高度参考设计方资料，
 // 窗格、阳台和雨棚尺寸取外观估计，坐标为正式包足迹的米制范围。
 // materialSeed 取 Math.fround(buildingSeed(id) * 10)，与合批顶点属性一致。
