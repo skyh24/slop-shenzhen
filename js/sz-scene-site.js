@@ -156,20 +156,18 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     buildCityBlocks(scene, { skipIds: sceneSkipIds, renderChunkSize: qa.chunkSize, retail,
       programEmission: cbdProgram.emission, programParticipant: isCbdProgramBuilding,
       roadClearance: createRoadBuildingClearance(site.roadGraph, site.roadHeight, elevatedRoads.links) }));
-  const detailSkipIds = new Set([...sceneSkipIds, ...(cityBlocks.duplicateIds?.keys() ?? []),
-    ...(cityBlocks.roadConflicts ?? []).map(row => row.buildingId)]);
+  // 基础体量交给后续夜景和近景的排除身份只从 detailPlan 取，入口不再重拼一份 detailSkipIds。
   // 福田中心区夜景灯光秀：只给已建成普通高层加灯带，颜色/节奏为展示估计；白天隐藏。
   // 地标源对象已由专模打光，排除它们；地标外露钢架（平安 8 根巨柱）单独沿柱轴生成灯带。
   const landmarkBands = !offline && planLandmarkBands(landmarks.colliders);
   const lightShow = !offline && qa.stage('lightshow', () =>
     buildSzLightShow(scene, { buildings: site.buildings, terrain: site.terrain,
-      excludeIds: detailSkipIds, landmarkBands, isProgramActive: () => cbdProgram.active }));
+      excludeIds: cityBlocks.detailPlan.skipIds, landmarkBands, isProgramActive: () => cbdProgram.active }));
   const buildingSigns = !offline && qa.stage('signs', () =>
     buildBuildingSigns(scene, { buildings: cityBlocks.allBlocks, roadGraph: site.roadGraph }));
-  // 近景补足屋顶和立面细节，避开基础屋顶已绘制的构件。
+  // 近景补足屋顶和立面细节，避开基础屋顶已绘制的构件；输入只读建筑规划产出的 detailPlan。
   const buildingDetails = !offline && qa.stage('details', () =>
-    buildBuildingDetails(scene, { ...site, skipIds: detailSkipIds, roofPlans: cityBlocks.roofPlans,
-      retailBuildingIds: cityBlocks.retailBuildingIds, envelopePlans: cityBlocks.envelopePlans }));
+    buildBuildingDetails(scene, { detailPlan: cityBlocks.detailPlan }));
   markInit('blocks');
   const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders, ...districts.colliders, ...themeParks.colliders, ...(northStation?.colliders ?? [])];
   site.colliders = buildings;

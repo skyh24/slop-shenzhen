@@ -741,33 +741,23 @@ function estimatePlanTriangles(plan) {
 
 // ---------------- 主入口：分块流式加载 ----------------
 
+const DETAIL_PLAN_FIELDS = ['buildings', 'terrain', 'roofPlans', 'retailBuildingIds', 'envelopePlans', 'skipIds'];
+
 export function buildBuildingDetails(scene, options = {}) {
   if (!scene || typeof scene.add !== 'function') throw new Error('Missing scene for building details');
-  // detailPlan 是 buildCityBlocks 产出的唯一近景输入包；旧字段保留给直接调用和测试。
+  // detailPlan 是 buildCityBlocks 产出的唯一近景输入包。基础排除身份、屋顶占用和商圈归属
+  // 都随这份计划下传，入口不再拼 detailSkipIds，也不接受第二份旧字段。
   const detailPlan = options.detailPlan;
-  if (detailPlan !== undefined && (!detailPlan || typeof detailPlan !== 'object')) {
-    throw new Error('Building detail plan must be an object');
-  }
-  if (detailPlan && options.buildings !== undefined && options.buildings !== detailPlan.buildings) {
-    throw new Error('Building details buildings do not match the detail plan');
-  }
-  if (detailPlan && options.terrain !== undefined && options.terrain !== detailPlan.terrain) {
-    throw new Error('Building details terrain does not match the detail plan');
-  }
-  for (const field of ['roofPlans', 'retailBuildingIds', 'envelopePlans']) {
-    if (detailPlan && options[field] !== undefined && options[field] !== detailPlan[field]) {
-      throw new Error(`Building details ${field} do not match the detail plan`);
+  if (!detailPlan || typeof detailPlan !== 'object') throw new Error('Building details require a detail plan');
+  for (const field of DETAIL_PLAN_FIELDS) {
+    if (options[field] !== undefined) {
+      throw new Error(`Building details read the detail plan; remove legacy ${field}`);
     }
   }
-  const buildings = detailPlan?.buildings ?? options.buildings ?? [];
-  const terrain = detailPlan?.terrain ?? options.terrain;
-  const roofPlans = detailPlan?.roofPlans ?? options.roofPlans;
-  const retailBuildingIds = detailPlan?.retailBuildingIds ?? options.retailBuildingIds;
-  const envelopePlans = detailPlan?.envelopePlans ?? options.envelopePlans;
+  const { buildings, terrain, roofPlans, retailBuildingIds, envelopePlans } = detailPlan;
   if (!Array.isArray(buildings)) throw new Error('Building details require a building list');
   if (!terrain) throw new Error('Missing terrain for building details');
-  const extraSkipIds = options.skipIds instanceof Set ? options.skipIds : options.skipIds ?? [];
-  const skipIds = new Set([...(detailPlan?.skipIds ?? []), ...extraSkipIds]);
+  const skipIds = detailPlan.skipIds instanceof Set ? detailPlan.skipIds : new Set(detailPlan.skipIds ?? []);
   const chunkSize = options.chunkSize ?? DETAIL_CHUNK_SIZE;
   const generateRadius = options.generateRadius ?? GENERATE_RADIUS;
   const disposeRadius = options.disposeRadius ?? DISPOSE_RADIUS;

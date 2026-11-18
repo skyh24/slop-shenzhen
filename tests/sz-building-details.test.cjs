@@ -67,6 +67,11 @@ const FLAT_GRID = () => ({
   heightScale: 0.1, heights: new Array(200 * 200).fill(0)
 });
 
+// 近景入口只接受建筑规划产出的 detailPlan；测试用同一工厂构造，不再直传旧字段。
+function detailPlanFor(buildings, terrain, extra = {}) {
+  return buildingPlan.createBuildingDetailPlan({ buildings, terrain, ...extra });
+}
+
 function ring(x, z, half) {
   return [{ x: x - half, z: z - half }, { x: x + half, z: z - half },
     { x: x + half, z: z + half }, { x: x - half, z: z + half }];
@@ -130,7 +135,7 @@ test('streams 200 m detail chunks in and out around the player', () => {
     makeBuilding({ id: 'way/4', x: 2600, z: 0 })
   ];
   const scene = makeScene();
-  const result = details.buildBuildingDetails(scene, { buildings, terrain: FLAT_GRID(), maxGenerationMs: Infinity });
+  const result = details.buildBuildingDetails(scene, { detailPlan: detailPlanFor(buildings, FLAT_GRID()), maxGenerationMs: Infinity });
   const perUpdate = [];
   let guard = 0;
   do {
@@ -168,7 +173,7 @@ test('detail geometry is deterministic for the same input and update sequence', 
   ];
   function run() {
     const details = loadDetails(stubThree());
-    const result = details.buildBuildingDetails(makeScene(), { buildings, terrain: FLAT_GRID() });
+    const result = details.buildBuildingDetails(makeScene(), { detailPlan: detailPlanFor(buildings, FLAT_GRID()) });
     const sequence = [{ x: 0, z: 0 }, { x: 150, z: 10 }, { x: 700, z: -200 }, { x: 0, z: 0 }];
     for (const position of sequence) drain(result, position);
     const statistics = result.statistics;
@@ -293,7 +298,8 @@ test('the rendered roof plan removes duplicate Shenzhen roof equipment while kee
         }
       }
     }
-    const stream = details.buildBuildingDetails(scene, { buildings: [building], terrain: geo.terrain, roofPlans: blocks.roofPlans });
+    const stream = details.buildBuildingDetails(scene, {
+      detailPlan: detailPlanFor([building], geo.terrain, { roofPlans: blocks.roofPlans }) });
     drain(stream, playerPosition);
     assert.equal(stream.statistics.parapetParts, 0);
     assert.equal(stream.statistics.roofParts, shared.roofParts.length);
@@ -346,7 +352,7 @@ test('the two facade samples keep source placement and stream their estimated de
   assert.equal(far.balconies.length, 0);
   assert.equal(far.canopy, null);
   const scene = new THREE.Scene();
-  const stream = details.buildBuildingDetails(scene, { buildings: [office, home], terrain: grid });
+  const stream = details.buildBuildingDetails(scene, { detailPlan: detailPlanFor([office, home], grid) });
   drain(stream, focus);
   let disposed = 0;
   for (const mesh of stream.group.children.flatMap(group => group.children)) {
@@ -464,21 +470,12 @@ test('detail plan carries base exclusions, roof occupancy and source identity', 
   const stream = details.buildBuildingDetails(makeScene(), { detailPlan });
   drain(stream, { x: 0, z: 0 });
   assert.equal(stream.statistics.buildings, 1, 'excluded objects produce no isolated close-up geometry');
+  // 旧字段是临时兼容路径，已删除：入口只读 detailPlan，避免两套近景事实来源。
+  assert.throws(() => details.buildBuildingDetails(makeScene(), { buildings, terrain }),
+    /require a detail plan/);
   assert.throws(() => details.buildBuildingDetails(makeScene(), { detailPlan, buildings: [] }),
-    /do not match the detail plan/);
+    /remove legacy buildings/);
   stream.dispose();
-
-  // 任务 4 的接线形式：保留 site 的 buildings/terrain，再展开 detailPlan 覆盖近景事实。
-  const wired = details.buildBuildingDetails(makeScene(), { buildings, terrain, ...detailPlan });
-  drain(wired, { x: 0, z: 0 });
-  assert.equal(wired.statistics.buildings, 1);
-  wired.dispose();
-
-  const control = details.buildBuildingDetails(makeScene(), { buildings, terrain, maxChunksPerUpdate: 8 });
-  drain(control, { x: 0, z: 0 });
-  assert.equal(control.statistics.buildings, buildings.length,
-    'without the plan the same objects would all receive close-up geometry');
-  control.dispose();
   blocks.dispose();
 });
 
@@ -548,7 +545,7 @@ test('landmark buildings and skipIds produce no detail geometry', () => {
     { ...makeBuilding({ id: 'way/landmark-id', x: 180, z: 0 }), landmark: 'civic-center' }
   ];
   const result = details.buildBuildingDetails(makeScene(), {
-    buildings, terrain: FLAT_GRID(), skipIds: new Set(['way/skip-me']), maxChunksPerUpdate: 8
+    detailPlan: detailPlanFor(buildings, FLAT_GRID(), { skipIds: new Set(['way/skip-me']) }), maxChunksPerUpdate: 8
   });
   result.update({ x: 0, z: 0 });
   assert.equal(result.statistics.buildings, 1);
@@ -568,7 +565,7 @@ test('thin roofs stay inside the per-chunk mesh and triangle budgets', () => {
     }
   }
   const result = details.buildBuildingDetails(makeScene(), {
-    buildings, terrain: FLAT_GRID(), maxChunksPerUpdate: 8, maxChunkTriangles: 120
+    detailPlan: detailPlanFor(buildings, FLAT_GRID()), maxChunksPerUpdate: 8, maxChunkTriangles: 120
   });
   result.update({ x: 0, z: 0 });
   assert.equal(result.statistics.chunks, 1);
@@ -588,7 +585,7 @@ test('statistics stay stable while the player does not move; dispose releases ev
     makeBuilding({ id: 'way/stable-b', x: 100, z: 20, height: 200, facade: 'glass_tower' })
   ];
   const scene = makeScene();
-  const result = details.buildBuildingDetails(scene, { buildings, terrain: FLAT_GRID() });
+  const result = details.buildBuildingDetails(scene, { detailPlan: detailPlanFor(buildings, FLAT_GRID()) });
   drain(result, { x: 0, z: 0 });
   const snapshot = {
     chunks: result.statistics.chunks, meshes: result.statistics.meshes,
@@ -621,14 +618,16 @@ test('statistics stay stable while the player does not move; dispose releases ev
   result.dispose();
 });
 
-test('invalid update positions and missing terrain fail loudly', () => {
+test('invalid update positions and missing plan facts fail loudly', () => {
   const details = loadDetails(stubThree());
-  assert.throws(() => details.buildBuildingDetails(makeScene(), { buildings: [] }), /Missing terrain/);
-  const result = details.buildBuildingDetails(makeScene(), { buildings: [], terrain: FLAT_GRID() });
+  assert.throws(() => details.buildBuildingDetails(makeScene(), {}), /require a detail plan/);
+  assert.throws(() => details.buildBuildingDetails(makeScene(), { detailPlan: { buildings: [] } }),
+    /Missing terrain/);
+  const result = details.buildBuildingDetails(makeScene(), { detailPlan: detailPlanFor([], FLAT_GRID()) });
   assert.throws(() => result.update({}), /finite x\/z/);
   assert.throws(() => result.update({ x: Number.NaN, z: 0 }), /finite x\/z/);
   assert.throws(() => details.buildBuildingDetails(makeScene(), {
-    buildings: [], terrain: FLAT_GRID(), generateRadius: 800, disposeRadius: 700
+    detailPlan: detailPlanFor([], FLAT_GRID()), generateRadius: 800, disposeRadius: 700
   }), /Dispose radius/);
 });
 
@@ -657,7 +656,7 @@ test('real three smoke: merged meshes, finite vertices, unload and dispose',
       makeBuilding({ id: 'way/smoke-b', x: 120, z: 40, half: 14, height: 210, facade: 'office', hole: 4 })
     ];
     const scene = new THREE.Scene();
-    const result = details.buildBuildingDetails(scene, { buildings, terrain: FLAT_GRID() });
+    const result = details.buildBuildingDetails(scene, { detailPlan: detailPlanFor(buildings, FLAT_GRID()) });
     drain(result, { x: 0, z: 0 });
     assert.ok(result.statistics.chunks >= 1);
     assert.ok(result.statistics.triangles > 0);
@@ -678,3 +677,12 @@ test('real three smoke: merged meshes, finite vertices, unload and dispose',
     assert.equal(result.group.children.length, 0);
     assert.equal(scene.getObjectByName('ShenzhenBuildingDetails'), undefined);
   });
+
+test('the scene entry hands the base building plan to the close-up entrance', () => {
+  const sceneSite = read('sz-scene-site.js');
+  // 建筑规划到近景入口只有一条链：buildCityBlocks → detailPlan → buildBuildingDetails。
+  assert.match(sceneSite, /buildBuildingDetails\(scene, \{ detailPlan: cityBlocks\.detailPlan \}\)/);
+  assert.match(sceneSite, /excludeIds: cityBlocks\.detailPlan\.skipIds/);
+  assert.doesNotMatch(sceneSite, /const detailSkipIds/);
+  assert.doesNotMatch(sceneSite, /retailBuildingIds: cityBlocks/);
+});

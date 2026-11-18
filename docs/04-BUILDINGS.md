@@ -13,13 +13,13 @@
 | `sz-buildings.js::buildCityBlocks/roofPlan` | 普通楼体、塔裙与基础屋顶；2.4km静态分块，返回 `detailPlan` |
 | `sz-facade-profiles.js::facadeIndex/facadeProfile` | 普通楼的立面、楼名层高及近景部件预设，和两个按已核对象绑定的外观样本 |
 | `sz-materials.js::createBuildingMaterial` | 局部墙面整数窗格与共享日夜状态 |
-| `sz-building-details.js::planBuildingDetails/buildBuildingDetails` | 200m近景流式块、立面细节及屋顶设备避让 |
+| `sz-building-details.js::planBuildingDetails/buildBuildingDetails` | 200m近景流式块、立面细节及屋顶设备避让；入口只接收 `detailPlan` |
 | `sz-building-signs.js::planBuildingSigns/planSignAtlas/buildBuildingSigns` | 墙面/屋顶选牌、共用图集与门牌示意 |
 | `building-collision.js`、`sz-road-building-clearance.js` | 按高度切片的碰撞与道路净空约束 |
 
 数据经 `tools/sz/buildings.py` 融合，楼高保留 `heightSource`。已有事实优先于外观模板；层数推算、遥感和样本估计不改写成实测。楼体放置、地标让位和碰撞必须引用同一对象与基底。
 
-`buildCityBlocks` 把同一批原始建筑对象、地形、`skipIds`、重复体量/道路冲突排除、`roofPlans`、`retailBuildingIds` 和 `envelopePlans` 收进 `detailPlan`，近景入口直接消费，不再由调用方拼 `detailSkipIds`。未注入 `buildings` 时仍读共享包 GEO；注入局部集合时，地形、路网、入口和商圈索引必须显式传入，不能回落到全城单例。
+`buildCityBlocks` 把同一批原始建筑对象、地形、`skipIds`、重复体量/道路冲突排除、`roofPlans`、`retailBuildingIds` 和 `envelopePlans` 收进 `detailPlan`，近景入口直接消费，不再由调用方拼 `detailSkipIds`。`buildBuildingDetails` 只接受 `detailPlan`；旧的 `buildings`/`terrain`/`roofPlans`/`retailBuildingIds`/`envelopePlans`/`skipIds` 入口字段已删除并显式报错，夜景排除也读同一份 `detailPlan.skipIds`，同一批排除身份只有一处事实来源。未注入 `buildings` 时仍读共享包 GEO；注入局部集合时，地形、路网、入口和商圈索引必须显式传入，不能回落到全城单例。
 
 ## 立面与部件共用规则
 
