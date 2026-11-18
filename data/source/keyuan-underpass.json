@@ -1,0 +1,13 @@
+{
+  "heightSource": "estimate",
+  "tunnels": ["way/25543388", "way/231901936"],
+  "feeders": ["way/1463427727", "way/1051817800", "way/1463427744", "way/1051817811"],
+  "southMerge": "way/220880941",
+  "crossings": ["way/1463427726", "way/633620701", "way/633620767", "way/183402036"],
+  "northPortalZ": 348,
+  "southPortalZ": 413,
+  "boreFloorM": 2.25,
+  "datumM": 8,
+  "approachGrade": 0.115,
+  "mergeGrade": 0.119
+}

@@ -25,6 +25,8 @@ const ROUTE_RANGE = 560;
 const REVIEWED_MAINLINE_RANGE = 1500;
 // 路线不再有终点：剩余不足该距离时从当前位姿续接，车辆在视野内不会因路线用完而停住。
 const EXTEND_AHEAD = 140;
+const TERMINAL_RETRY_NEAR_M = 16;
+const TERMINAL_RETRY_INTERVAL_S = 0.75;
 // 换道用五次曲线整段完成；一次换道约 2 秒，跨段时收回到本车道。
 const LANE_CHANGE_SECONDS = 2;
 const LANE_CHANGE_MIN_EDGE = 45;
@@ -288,6 +290,9 @@ function touchesObstacle(body, candidate) {
   if (!intersects(body, candidate)) return false;
   if ((candidate.type === 'bridge-slab' || candidate.type === 'elevated-slab')
     && body.supportedSlabs?.has(candidate.name)) return false;
+  // 与玩家一致：坡上车体低端可能略低于前方梁底，保留底下较低车辆的墩身碰撞。
+  if (candidate.type === 'elevated-pier' && candidate.topClearance
+    && body.minY >= candidate.maxY - candidate.topClearance) return false;
   if (candidate.type === 'bridge-slab'
     && ((body.supportedSlabs?.size && body.minY >= candidate.maxY - 0.02)
       || (candidate.roadAccess && body.minY >= candidate.maxY - 0.28))) return false;
@@ -664,7 +669,7 @@ function markerAt(actor) {
 }
 
 // 剩余路线不足时从当前位置续接；先按出生同样的静态规则截断，避免续进建筑。
-function extendRoute(actor) {
+function extendRoute(actor, recovering = false) {
   const marker = markerAt(actor);
   if (!marker) { actor.dead = true; return; }
   // 续接时以车辆实际横向位置（路线车道 + 换道偏移）为准，避免换道完成后又被新路线拽回原车道。
@@ -684,17 +689,24 @@ function extendRoute(actor) {
   const limit = Math.min(reach, s + 320);
   let last = s;
   while (last < limit) {
-    const next = Math.min(limit, last + 4);
+    // 从卡住的位姿重选转弯时，先细查车身出口，避免粗采样跨过短小的承托缺口。
+    const step = recovering && last - s < 12 ? 0.5 : 4;
+    const next = Math.min(limit, last + step);
     if (blockerOnRoute(actor, samples, next, false)) break;
     last = next;
   }
-  if (last - s < 60) { actor.dead = true; return; }
+  const required = recovering ? 12 : actor.extendShort ? Math.max(12, actor.end - actor.s + 6) : 60;
+  if (last - s < required) {
+    if (!actor.extendShort || actor.end - actor.s < 0.5) actor.dead = true;
+    return;
+  }
   const rearMargin = Math.hypot(actor.model.hx, actor.model.hz) + Math.abs(actor.model.z) + 0.5;
   actor.route = samples;
   actor.s = s;
   actor.end = last;
-  // 续出来的路线不到一个预取距离，说明前方是断头路或静态阻挡：别再每帧续一次。
-  actor.extendShort = reach < s + EXTEND_AHEAD;
+  // 静态检查后的实际末端短于预取距离时，在临近末端后按间隔尝试其他合法续接。
+  actor.extendShort = last < s + EXTEND_AHEAD;
+  actor.retryAfter = 0;
   actor.stops = routeSignalStops(samples, signals, rearMargin).filter(stop => stop.clearS > s);
   actor.stopIndex = 0;
   actor.junction.suspend();
@@ -846,6 +858,7 @@ function startRoute(actor, focus) {
       actor.deadSince = 0;
       actor.extendFails = 0;
       actor.extendShort = false;
+      actor.retryAfter = 0;
       actor.speed = Math.min(4, actor.desiredSpeed);
       actor.collider.vx = actor.pose.sin * actor.speed;
       actor.collider.vz = actor.pose.cos * actor.speed;
@@ -953,7 +966,7 @@ function startRoute(actor, focus) {
     actor.stalled = s === actor.s && !waiting ? actor.stalled + dt : 0;
     // 路面接触检查失败说明这条车道在当前位置真的过不去（弯道外缘/路口缺口），别让它永久杵在那里。
     if (actor.stalled > 6 && actor.blocker?.kind === 'road-contact') actor.dead = true;
-    // 前面是断头路：开到头就判死，交给远距回收，不再无限续接。
+    // 短路段在合法续接失败时交给远距回收；近处仍按间隔继续检查出口。
     if (actor.extendShort && actor.end - actor.s < 0.5) actor.dead = true;
     actor.speed = steps > 0 && s === next ? speed : 0;
     actor.s = s;
@@ -990,7 +1003,16 @@ function startRoute(actor, focus) {
         if (blocked || dead) statistics.stalledRecycled++;
       } else if (dt) {
         updateLaneChange(actor, dt);
-        if (!actor.extendShort && !actor.laneChange && !actor.junction.reservation && actor.end - actor.s < EXTEND_AHEAD) extendRoute(actor);
+        const remaining = actor.end - actor.s;
+        const canExtend = !actor.laneChange && !actor.junction.reservation;
+        const recovering = actor.dead && actor.stalled > 6;
+        const shortEnd = actor.extendShort && remaining < TERMINAL_RETRY_NEAR_M;
+        if (canExtend && (recovering || shortEnd) && simulationTime >= (actor.retryAfter ?? 0)) {
+          actor.retryAfter = simulationTime + TERMINAL_RETRY_INTERVAL_S;
+          extendRoute(actor, recovering);
+        } else if (canExtend && !recovering && !actor.extendShort && remaining < EXTEND_AHEAD) {
+          extendRoute(actor);
+        }
         advance(actor, dt, clock);
       }
     }

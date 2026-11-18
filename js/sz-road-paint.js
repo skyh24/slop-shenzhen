@@ -57,9 +57,9 @@ function addDeckStrip(cells, deck, section, frames, triangles, openings, statist
     const a = frames[i - 1], b = frames[i];
     const cell = paintCell(cells, (a.x + b.x) / 2, (a.z + b.z) / 2);
     const phase = deck.stationOffsetM ?? 0;
-    const widthA = Math.hypot(leftA.x - rightA.x, leftA.z - rightA.z);
-    const widthB = Math.hypot(leftB.x - rightB.x, leftB.z - rightB.z);
-    // 同一根标线在两端各自的铺装宽度下换算比例；不能用较窄一端同时算两端，否则宽端整排线会向中心错位。
+    const widthA = a.widthM ?? Math.hypot(leftA.x - rightA.x, leftA.z - rightA.z);
+    const widthB = b.widthM ?? Math.hypot(leftB.x - rightB.x, leftB.z - rightB.z);
+    // 斜接处按断面净宽排车道，再映射到斜接边；不能把斜接对角长度当成新增车道。
     const linesA = deckPaintLines(section, widthA);
     const linesB = new Map(deckPaintLines(section, widthB).map(line => [line.id, line]));
     const vertex = (p, q, t, station, color, duty) => {

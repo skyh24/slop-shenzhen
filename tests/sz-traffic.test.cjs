@@ -639,6 +639,7 @@ test('Chegongmiao route clears both junction guardrails and keeps its deck conta
   const graph = geo.roadGraph;
   const surfaces = load('sz-controller-surfaces.js');
   const { planElevatedRoads } = load('sz-elevated-roads.js', {
+    './sz-road-profile.js': load('sz-road-profile.js'),
     'three/webgpu': three,
     'three/tsl': {},
     './sz-roads.js': roads,
@@ -712,4 +713,49 @@ test('Chegongmiao route clears both junction guardrails and keeps its deck conta
   });
   assert.ok(auto.canStart(departure, atLevel(deckY, bridge.surfaceId), 'car'));
   assert.equal(auto.canStart(departure, atLevel(groundY, 'terrain'), 'car'), false);
+});
+
+test('ambient cars clear a pier cap while lower traffic still collides with the shaft', () => {
+  const graph = { nodes: [0, 0, 70, 0], names: [''], links: [[0, 1, 0, 8, 2, 1, []]],
+    metadata: [groundRoad(1)] };
+  const pier = { type: 'elevated-pier', minX: 27, maxX: 29, minZ: -1, maxZ: 1,
+    minY: 0, maxY: 10.25, topClearance: 0.35 };
+  const drive = height => {
+    const traffic = createSzTraffic(new Group(), graph, { roadHeight: () => height, colliders: [pier] });
+    const [actor] = traffic.vehicles;
+    const [edge] = traffic.network.edges;
+    const route = [{ x: 0, z: 0, s: 0, dx: 1, dz: 0, edge },
+      { x: 68, z: 0, s: 68, dx: 1, dz: 0, edge }];
+    Object.assign(actor, { route, s: 20, end: 65, stops: [], stopIndex: 0, speed: 5, extendShort: true,
+      shift: 0, prevX: 20, prevZ: 0, prevHeading: Math.PI / 2 });
+    assert.ok(poseOnRoute(route, actor.s, actor.model, traffic.roadHeight, actor.pose));
+    writeTrafficCollider(actor.collider, actor.model, actor.pose);
+    for (let i = 0; i < 80; i++) traffic.update(0.05, { x: 33, z: 0 }, [], i * 0.05);
+    return actor;
+  };
+  const upper = drive(10);
+  assert.ok(upper.pose.x > pier.maxX + upper.model.hz);
+  const lower = drive(4.8);
+  assert.ok(lower.pose.x < pier.minX);
+  assert.equal(lower.blocker?.kind, 'elevated-pier');
+});
+
+test('a vehicle near the player can recover from a short end or an unsupported turn', () => {
+  const graph = { nodes: [0, 0, 400, 0], names: [''], links: [[0, 1, 0, 8, 2, 1, []]],
+    metadata: [groundRoad(1)] };
+  for (const short of [true, false]) {
+    const traffic = createSzTraffic(new Group(), graph, { roadHeight: (_, z) => Math.abs(z) <= 3 ? 0 : null });
+    const [actor] = traffic.vehicles;
+    const [edge] = traffic.network.edges;
+    const route = [{ x: 0, z: 0, s: 0, dx: 1, dz: 0, edge },
+      { x: 75, z: 0, s: 75, dx: 1, dz: 0, edge }];
+    if (!short) route.push({ x: 83, z: 40, s: 116, dx: 0, dz: 1, edge });
+    Object.assign(actor, { route, s: 75, end: short ? 75 : 280, stops: [], stopIndex: 0, speed: 0, dead: true,
+      stalled: 6.1, extendShort: short, shift: 0, prevX: 75, prevZ: 0, prevHeading: Math.PI / 2 });
+    assert.ok(poseOnRoute(route, actor.s, actor.model, traffic.roadHeight, actor.pose));
+    writeTrafficCollider(actor.collider, actor.model, actor.pose);
+    for (let i = 0; i < 55; i++) traffic.update(0.05, { x: 64, z: 0 }, [], i * 0.05);
+    assert.ok(actor.pose.x > 82, `actual x: ${actor.pose.x}`);
+    assert.equal(actor.dead, false);
+  }
 });

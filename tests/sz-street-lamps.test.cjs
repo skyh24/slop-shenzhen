@@ -210,3 +210,25 @@ test('real Three street lamps cull halo points per chunk and dispose their group
   assert.equal(model.group.parent, null);
   assert.ok(!scene.children.includes(model.group));
 });
+
+
+test('an elevated lamp uses the deck edge and skips an opening in its rail', () => {
+  const metadata = { ...ground(), bridge: true, heightSource: 'unresolved', layer: 1, osmId: 'way/1' };
+  const source = graph([[0, 1, 0, 8, 2, 1, []]], [metadata]);
+  const deck = { index: 0, osmId: 'way/1', lengthM: 300, contactSurface: true,
+    direction: 1, surfaceId: 'bridge', barrierWidthM: 0.35,
+    frames: [0, 300].map(x => ({ x, y: 7 + x / 300, z: 0, d: x, right: { x, z: 4 } })),
+    barriers: [{ side: 'right', startD: 0, endD: 72 }, { side: 'right', startD: 140, endD: 300 }] };
+  const { sites } = lamps.planLampSites(source, { decks: [deck] });
+  assert.ok(sites.length > 5);
+  assert.ok(sites.some(site => site.x < 72));
+  assert.ok(sites.some(site => site.x > 140));
+  for (const site of sites) {
+    assert.ok(site.x <= 72 || site.x >= 140);
+    assert.equal(site.z, 4 - 0.35 / 2);
+    assert.equal(site.y, 7 + site.x / 300);
+    assert.equal(site.deckId, 'bridge');
+    assert.equal(site.style, 'L');
+    assert.ok(-Math.sin(site.yaw) < 0, 'arm faces the deck');
+  }
+});

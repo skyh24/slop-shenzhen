@@ -35,8 +35,9 @@ export function deckPaintLines(section, widthM = section.pavementWidthM) {
   const backwardWidth = section.twoWay ? travel / 2 - split : travel;
   const forwardLane = forward ? forwardWidth / forward : 0;
   const backwardLane = backward ? backwardWidth / backward : 0;
-  const lines = [{ id: 'edge-left', offset: -half + 0.24, duty: 1, color: 'white', kind: 'edge' },
-    { id: 'edge-right', offset: half - 0.24, duty: 1, color: 'white', kind: 'edge' }];
+  const shoulder = Math.min(0.5, Math.max(0.24, half - travel / 2));
+  const lines = [{ id: 'edge-left', offset: -half + shoulder, duty: 1, color: 'white', kind: 'edge' },
+    { id: 'edge-right', offset: half - shoulder, duty: 1, color: 'white', kind: 'edge' }];
   const dividers = [];
   for (let i = 1; i < forward; i++) {
     dividers.push({ id: `lane-left-${i}`, offset: -travel / 2 + i * forwardLane,

@@ -14,6 +14,7 @@ const controllerSurfaces = loadModule(read('sz-controller-surfaces.js'));
 const tslStub = { normalWorld: { mul: () => ({}) }, positionWorld: { add: () => ({}) } };
 const roadSection = loadModule(read('sz-road-section.js'));
 const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
+  './sz-road-profile.js': loadModule(read('sz-road-profile.js')),
   'three/webgpu': {}, 'three/tsl': tslStub,
   './sz-roads.js': roads,
   './sz-road-section.js': roadSection,
@@ -323,13 +324,21 @@ function fakeElevatedThree() {
       this.userData = {};
     }
   }
+  class FakeColor {
+    setHex(value) {
+      this.r = (value >> 16) / 255;
+      this.g = (value >> 8 & 255) / 255;
+      this.b = (value & 255) / 255;
+    }
+  }
   return { Group: FakeGroup, Mesh: FakeMesh, BufferGeometry: FakeBufferGeometry,
-    BufferAttribute: FakeBufferAttribute, MeshStandardNodeMaterial: FakeMaterial, DoubleSide: 2 };
+    BufferAttribute: FakeBufferAttribute, MeshStandardNodeMaterial: FakeMaterial, Color: FakeColor, DoubleSide: 2 };
 }
 
 test('built elevated roads expose meshes, contact surfaces and the same drivable decks', () => {
   const fake = fakeElevatedThree();
   const module = loadModule(read('sz-elevated-roads.js'), { imports: {
+    './sz-road-profile.js': loadModule(read('sz-road-profile.js')),
     'three/webgpu': fake, 'three/tsl': tslStub,
     './sz-roads.js': roads,
     './sz-road-section.js': roadSection,
@@ -366,7 +375,11 @@ test('built elevated roads expose meshes, contact surfaces and the same drivable
   assert.equal(typeof built.dispose, 'function');
   for (const mesh of built.meshes) {
     assert.equal(mesh.material.side, 2);
-    assert.ok(mesh.geometry.attributes.position.array.length > 0);
+    const { position, color } = mesh.geometry.attributes;
+    assert.ok(position.array.length > 0);
+    assert.equal(color.array.length, position.array.length);
+    assert.ok(color.array.includes(165), 'concrete guardrail vertices are present');
+    assert.ok(color.array.includes(59), 'asphalt deck vertices are present');
   }
 });
 
@@ -443,5 +456,57 @@ test('piers stay off the carriageway of the ground road below', () => {
   for (const pier of bridge.piers) {
     assert.ok(Math.abs(pier.z - 500) > roadHalf + pier.half + 0.5 - 1e-6,
       `pier at z=${pier.z} sits on the ground carriageway`);
+  }
+});
+
+test('a wide bridge with a blocked centerline keeps piers where its footprint clears the road and path', () => {
+  const graph = {
+    nodes: [100, 500, 900, 500],
+    names: ['Bridge'],
+    links: [[0, 1, 0, 13, 4, 1, []]],
+    metadata: [{ osmId: 'way/wide', heightSource: 'unresolved', bridge: true, tunnel: false, layer: 1 }]
+  };
+  const carriagewayOccupied = (_, z, radius) => Math.abs(z - 500) < 2.5 + radius;
+  const pedestrianKeepout = (_, z, radius) => Math.abs(z - 506) < 0.8 + radius;
+  const sidePierBlocked = (x, z, half) => x + half > 120 && x - half < 165 && z < 500;
+  const plan = elevated.planElevatedRoads(graph, surface, { carriagewayOccupied, pedestrianKeepout, sidePierBlocked });
+  const [bridge] = plan.links;
+  const top = controllerSurfaces.createSurfaceHeightAt(plan.surfaces);
+  assert.ok(bridge.piers.length > 20);
+  for (const pier of bridge.piers) {
+    const radius = pier.half * Math.SQRT2 + 0.5;
+    assert.equal(carriagewayOccupied(pier.x, pier.z, radius), false);
+    assert.equal(pedestrianKeepout(pier.x, pier.z, radius), false);
+    assert.equal(sidePierBlocked(pier.x, pier.z, pier.half), false);
+    for (const dx of [-pier.half, pier.half]) for (const dz of [-pier.half, pier.half]) {
+      assert.ok(Number.isFinite(top(pier.x + dx, pier.z + dz, bridge.surfaceId)));
+    }
+  }
+});
+
+
+test('a named same-level continuation keeps a shared corner and tapers four lanes to one', () => {
+  const graph = {
+    nodes: [100, 100, 300, 100, 300, 300], names: ['Binhai Avenue'],
+    links: [[0, 1, 0, 13, 4, 1, []], [1, 2, 0, 3.25, 1, 1, []]],
+    metadata: ['way/wide', 'way/narrow'].map(osmId => ({ osmId, heightSource: 'unresolved', bridge: true,
+      tunnel: false, layer: 1, highway: 'primary' }))
+  };
+  const plan = elevated.planElevatedRoads(graph, surface, { interchanges: [] });
+  const [wide, narrow] = plan.links;
+  const a = wide.frames.at(-1), b = narrow.frames[0];
+  assert.deepEqual(a.left, b.left);
+  assert.deepEqual(a.right, b.right);
+  assert.equal(a.widthM, narrow.width);
+  assert.equal(b.widthM, narrow.width);
+  assert.equal(a.y, b.y);
+  assert.ok(wide.noEndExtension && narrow.noStartExtension);
+  assert.ok(wide.frames.at(-5).left.z < wide.frames.at(-1).left.z);
+  assert.ok(wide.barriers.some(rail => rail.side === 'left' && rail.endD === wide.lengthM));
+  assert.ok(narrow.barriers.some(rail => rail.side === 'left' && rail.startD === 0));
+  const heightAt = controllerSurfaces.createSurfaceHeightAt(plan.surfaces);
+  for (const point of [a, a.left, a.right]) {
+    assert.equal(heightAt(point.x, point.z, wide.surfaceId), a.y);
+    assert.equal(heightAt(point.x, point.z, narrow.surfaceId), b.y);
   }
 });

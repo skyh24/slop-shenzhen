@@ -47,10 +47,11 @@ from road_surface import build_road_surface
 from road_structures import compile_road_structures
 from elevated_cut import apply_elevated_cut
 from tunnel_portals import apply_tunnel_portal_cut
+from keyuan_underpass import apply_keyuan_underpass
 from trees import build_trees
 from metro import build_metro
 from turn_restrictions import build_turn_restrictions
-from waterfront import (SOURCE as WATERFRONT_SAMPLES, compile_bridge_waters, compile_waterfront,
+from waterfront import (SOURCE as WATERFRONT_SAMPLES, apply_baishi_underpass, compile_bridge_waters, compile_waterfront,
                         compile_waterfront_routes, restore_bay_paving)
 from waterfront_parks import compile_waterfront_parks
 from dasha_greenway import compile_dasha_greenway
@@ -349,7 +350,8 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
     if 'waterfront' in payload:
         waterfront_osm = appearance_osm or read_osm(PHASE1_BBOX, pbf=ROOT / osm_source['file'],
                                                     source_sha256=osm_source['sha256'])
-        compile_bridge_waters(payload, waterfront_osm, report, json.loads(WATERFRONT_SAMPLES.read_text()))
+        waterfront_plan = json.loads(WATERFRONT_SAMPLES.read_text())
+        compile_bridge_waters(payload, waterfront_osm, report, waterfront_plan)
         cover_shapes = read_road_covers(manifest, osm_source, waterfront_osm)
     else:
         cover_shapes = read_road_covers(manifest, osm_source, appearance_osm)
@@ -361,6 +363,9 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
         apply_building_appearance(payload, appearance_osm, report)
     if building_provenance is not None:
         write_building_provenance(payload, report, sources, building_provenance, local_output=local_provenance)
+    if 'waterfront' in payload:
+        apply_baishi_underpass(payload, report, waterfront_plan)
+    apply_keyuan_underpass(payload, report)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     write_regional_scene(payload, report)
     write_payload(payload, report, sources, started)
@@ -823,6 +828,8 @@ def main():
         require_matching_snapshot(raw, report, sources)
         if args.rebuild_regional_scene:
             build_report = json.loads(REPORT.read_text())
+            apply_baishi_underpass(payload, build_report, json.loads(WATERFRONT_SAMPLES.read_text()))
+            apply_keyuan_underpass(payload, build_report)
             write_regional_scene(payload, build_report)
             write_payload(payload, build_report, sources, started)
         elif args.rebuild_drive_rules:

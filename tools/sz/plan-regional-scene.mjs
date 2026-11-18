@@ -32,6 +32,7 @@ const context = new Proxy({ measureText: text => ({ width: String(text).length *
   get: (target, key) => target[key] ?? noop
 });
 globalThis.document = { createElement: () => ({ getContext: () => context }), addEventListener: noop };
+globalThis.Path2D ??= class Path2D {};
 
 const { Scene } = await import('three/webgpu');
 const { GEO } = await import('../../js/sz-geodata.js');

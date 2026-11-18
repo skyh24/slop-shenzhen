@@ -1,4 +1,5 @@
 import { spatialIndex } from './sz-spatial.js';
+import { polygonBoxOverlaps } from './building-collision.js';
 import { isWater, nearRoadsForFrontage } from './sz-city-config.js';
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
 import { createSceneStyle } from './sz-scene-style.js';
@@ -59,23 +60,37 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     roadGraph, groundHeight: ground.groundHeight, roadHeight: roads.roadHeight, isWater,
     colliders: [], golfCourse: GEO.golfCourse, style: createSceneStyle(GEO)
   };
-  // 车公庙立交高架/匝道：sz-roads 只画地面道路，这里补高架桥面和可站立表面（层高估计）。
-  const elevatedRoads = qa.stage('elevated', () =>
-    buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface,
-      extraCrossing: northBridgeProfile(GEO.shenzhenNorthRail), waterfront: GEO.waterfront,
-      parkFootbridges: GEO.talentPark?.footbridges, water: GEO.water, isWater }));
   const carriagewayOccupied = createCarriagewayBarrier(roadGraph).contains;
   const parkBayPaths = GEO.waterfront?.parkNetwork?.bayPaths ?? [];
   const relocated = relocatedBayPathIds(GEO.waterfront?.parkNetwork);
   const pilotBayPaths = (GEO.shenzhenBay?.paths ?? []).filter(path => !relocated.has(path.osmId));
   const bayPaths = createBayPathLookup([...pilotBayPaths, ...parkBayPaths]);
-  // 隧道与桥面同一套通用剖面：洞身、洞口、路面都由源图与地形派生，审核结构只离线留存。
-  const tunnels = qa.stage('tunnels', () => buildSzTunnels(scene, { graph: site.roadGraph,
-    terrainSurface: site.terrainSurface, groundHeight: ground.groundHeight, wholeCity: true, water: GEO.water, isWater }));
+  const waterfrontPaths = createWaterfrontPaths(GEO.waterfront);
   const roadLandscape = qa.measureBuild('roadLandscape', () =>
     buildRoadLandscape(scene, GEO.roadStructures?.landscape, GEO.terrainSurface, ground.groundHeight));
   const roadFrontage = qa.measureBuild('frontage', () =>
     buildSzRoadFrontage(scene, GEO.roadFrontage, roadGraph, GEO.terrainSurface, site));
+  let pierBuildings;
+  // 桥墩使用真实地面铺装及已接入步道的预留，保持桥下通行。
+  const elevatedRoads = qa.stage('elevated', () =>
+    buildSzElevatedRoads(scene, { graph: site.roadGraph, terrainSurface: site.terrainSurface,
+      extraCrossing: northBridgeProfile(GEO.shenzhenNorthRail), waterfront: GEO.waterfront,
+      parkFootbridges: GEO.talentPark?.footbridges, water: GEO.water, isWater, carriagewayOccupied,
+      pedestrianKeepout: (x, z, radius) => roadFrontage.reserveWalk(x, z, radius)
+        || roadLandscape.walkAt(x, z, radius).length > 0 || bayPaths(x, z, radius).length > 0
+        || waterfrontPaths.reserves(x, z, radius),
+      sidePierBlocked: (x, z, half) => {
+        pierBuildings ??= spatialIndex(site.buildings, b => [{ x: b.minX, z: b.minZ }, { x: b.maxX, z: b.maxZ }]);
+        for (const building of pierBuildings(x, z, half)) {
+          if (building.minX > x + half || building.maxX < x - half
+            || building.minZ > z + half || building.maxZ < z - half) continue;
+          if (building.polygons.some(polygon => polygonBoxOverlaps(polygon, x, z, half, half))) return true;
+        }
+        return false;
+      } }));
+  // 隧道与桥面同一套通用剖面：洞身、洞口、路面都由源图与地形派生，审核结构只离线留存。
+  const tunnels = qa.stage('tunnels', () => buildSzTunnels(scene, { graph: site.roadGraph,
+    terrainSurface: site.terrainSurface, groundHeight: ground.groundHeight, wholeCity: true, water: GEO.water, isWater }));
   const roadPaint = !offline && qa.stage('paint', () =>
     buildSzRoadPaint(scene, roadGraph, { ...site, intersections: roadFrontage.control.intersections,
       frontage: GEO.roadFrontage,
@@ -104,7 +119,6 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     { water: GEO.water, roads: roads.surfaces, carriagewayOccupied }));
   surfaceAtlas.add({ id: 'districts', heightSource: 'rendered-terrain', sample: districts.heightAt });
   site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
-  const waterfrontPaths = createWaterfrontPaths(GEO.waterfront);
   const urbanPaving = createUrbanPavingWalk(GEO.urbanPaving, site.heightAt);
   site.reserveBayWalk = (x, z, radius) => bayPaths(x, z, radius).length > 0;
   markInit('roads');
@@ -194,8 +208,8 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     .map(row => row.bounds);
   // 避让只看露天地面之上的桥面；隧道洞身顶面在地形以下，不参与树木与灯杆避让。
   const deck = createSurfaceResolver({ groundHeight: () => null, surfaces: elevatedRoads.surfaces });
-  const deckOccupied = (x, z, bottom, top) => deck.at(x, z).some(surface => surface.height + 4.5 > bottom
-    && surface.height - 0.35 < top);
+  const deckOccupied = (x, z, bottom, top, ownDeck) => deck.at(x, z).some(surface =>
+    surface.surfaceId !== ownDeck && surface.height + 4.5 > bottom && surface.height - 0.35 < top);
   // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
   const treeSite = {
     ...site, carriagewayOccupied, deckOccupied, excludedSite: themeParks.reserved, woodlandTrees: planWoodlandTrees(), simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
@@ -219,12 +233,14 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
       || waterfrontPaths.reserves(x, z, r) || site.reserveBayWalk(x, z, r) || waterfront?.reserves(x, z, r),
     reserveCrossing: roadFrontage.reserveWalk,
     placementObstacles: [...buildings, ...trees.colliders],
+    decks: elevatedRoads.links,
+    deckHeightAt: (x, z, id) => deck.at(x, z).find(surface => surface.surfaceId === id)?.height,
     deckOccupied
   }));
   const anchors = iec?.anchors;
   // APEC 周城市元素：会期内默认打开，模块内所有几何都在主题开关下。
   const apecTheme = !offline && qa.stage('apec', () =>
-    buildApecTheme(scene, { ...site, lampSites: streetLamps.sites, lampChunkVisible: streetLamps.chunkVisible,
+    buildApecTheme(scene, { ...site, lampSites: streetLamps.sites.filter(site => !site.deckId), lampChunkVisible: streetLamps.chunkVisible,
       landmarks: GEO.landmarks, area: GEO.bounds, anchors }));
   const apecCity = !offline && qa.stage('apecCity', () =>
     buildApecCityElements(scene, { ...site, landmarks: GEO.landmarks, anchors }));

@@ -15,6 +15,7 @@ const roads = loadModule(read('sz-roads.js'), { imports: {
 } });
 const roadSection = loadModule(read('sz-road-section.js'));
 const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
+  './sz-road-profile.js': loadModule(read('sz-road-profile.js')),
   'three/webgpu': {}, 'three/tsl': {}, './sz-roads.js': roads, './sz-ground-surface.js': ground,
   './sz-controller-surfaces.js': contact, './sz-polygon.js': polygon, './sz-road-section.js': roadSection
 } });
@@ -25,8 +26,6 @@ const heightAt = ground.createGroundSurfaceSampler(terrainSurface);
 const spatial = loadModule(read('sz-spatial.js'), { imports: {
   './sz-ground-surface.js': ground, './sz-polygon.js': polygon
 } }).createCitySpatial(geo);
-const plan = elevated.planElevatedRoads(roadGraph, terrainSurface, { waterfront, water, isWater: spatial.isWater });
-const resolve = contact.createSurfaceResolver({ groundHeight: heightAt, surfaces: plan.surfaces });
 const bayModule = loadModule(read('sz-bay-waterfront.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': {}, './building-collision.js': {}, './sz-materials.js': {},
   './sz-day-phase.js': dayPhaseStub(0, () => 0.48), './sz-detail-residency.js': loadModule(read('sz-detail-residency.js')),
@@ -37,6 +36,20 @@ const { createParkGroundAccess, createWaterfrontPaths, createWaterfrontAccess, f
   'three/webgpu': {}, './building-collision.js': {}, './sz-bay-waterfront.js': bayModule,
   './sz-controller-surfaces.js': contact, './sz-site-fixtures.js': {}, './sz-sea.js': {}, './sz-spatial.js': {}, './sz-materials.js': {},
   './sz-day-phase.js': dayPhaseStub(0, () => 0.48)
+} });
+const waterfrontPaths = createWaterfrontPaths(waterfront);
+const plan = elevated.planElevatedRoads(roadGraph, terrainSurface, { waterfront, water, isWater: spatial.isWater,
+  pedestrianKeepout: waterfrontPaths.reserves });
+const resolve = contact.createSurfaceResolver({ groundHeight: heightAt, surfaces: plan.surfaces });
+const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygon } });
+const { ThirdPersonControllerManager } = loadModule(read('controllers.js'), { imports: {
+  'three/webgpu': {}, './sz-city-config.js': {
+    ISLAND_BOUNDS: { minX: -30000, maxX: 30000, minZ: -30000, maxZ: 30000 }
+  }, './sz-controller-surfaces.js': contact, './sz-park-arrivals.js': {}, './sz-strings.js': {},
+  './city-lighting-materials.js': {}, './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } },
+  './pedestrians.js': {}, './vehicle-lights.js': {}, './building-collision.js': collision,
+  './sz-day-phase.js': dayPhaseStub(0.86, () => 1.55),
+  ...require('./helpers/driving.cjs')
 } });
 
 test('reviewed bridge profiles are owned by a single elevated plan and connect to both land portals', () => {
@@ -75,26 +88,154 @@ test('loop and access branches stay on ground or on their own reviewed footbridg
   }
 });
 
-test('both banks remain on the lower surface under the Baishi Road deck and outside piers', () => {
+const baishiRamp = plan.links.find(link => link.osmId === 'way/839645212');
+const baishiBridges = plan.links.filter(link => link === baishiRamp
+  || waterfront.roadBridges.slice(0, 4).some(row => row.osmId === link.osmId));
+
+function undersideHeight(decks) {
+  return contact.createSurfaceHeightAt(decks.map(deck => {
+    const triangles = [];
+    for (let i = 0; i < deck.geometry.length; i += 9) {
+      const [ax, ay, az, bx, by, bz, cx, cy, cz] = deck.geometry.slice(i, i + 9);
+      if ((bz - az) * (cx - ax) - (bx - ax) * (cz - az) < -1e-8) {
+        triangles.push([{ x: ax, y: ay, z: az }, { x: bx, y: by, z: bz }, { x: cx, y: cy, z: cz }]);
+      }
+    }
+    return { id: deck.surfaceId, triangles };
+  }));
+}
+
+test('Baishi underpass clearance uses the rendered underside and paved support across both banks', t => {
+  const bottomAt = undersideHeight(baishiBridges);
+  const minimum = new Map();
+  const paved = ground.createGroundSurfaceSampler(terrainSurface, kind => kind >= 4 && kind <= 9);
+  assert.ok(baishiRamp.slabColliders.length && plan.driveLinks.includes(baishiRamp));
+  const river = waterfront.waters.find(row => row.id === 'way/25603390');
+  let shorePiers = 0, riverPiers = 0;
+  for (const pier of baishiRamp.piers) {
+    const collider = baishiRamp.pierColliders.find(c => c.minX === pier.x - pier.half && c.minZ === pier.z - pier.half);
+    assert.equal(collider.minY, pier.baseY);
+    for (const { x, z } of collider.polygon.outer) {
+      const y = heightAt(x, z);
+      if (Number.isFinite(y)) {
+        shorePiers++;
+        assert.ok(pier.baseY < y, `Unseated pier corner at ${x},${z}`);
+      } else if (polygon.polygonContainsInclusive(water[river.waterIndex], x, z)) {
+        riverPiers++;
+        assert.ok(pier.baseY < river.heightM, `Pier floats above water at ${x},${z}`);
+      }
+    }
+  }
+  assert.ok(shorePiers && riverPiers);
+  for (const frame of [baishiRamp.frames[0], baishiRamp.frames.at(-1)]) {
+    assert.ok(Math.abs(frame.y - heightAt(frame.x, frame.z)) < 0.025);
+  }
+  const bottomCollisionAt = contact.createSurfaceHeightAt([{ id: baishiRamp.surfaceId,
+    triangles: baishiRamp.slabColliders.map(({ roofPanel: panel }) => panel.outer.map((p, i) => ({ ...p, y: panel.bottom[i] })))
+  }]);
+  const piers = plan.colliders.filter(c => c.type === 'elevated-pier');
   for (const route of waterfront.routes.filter(r => r.id.endsWith('-bank'))) {
     assert.ok(route.lengthM >= 400 && route.lengthM <= 500);
-    let bridgeSamples = 0;
     for (const [x, y, z] of route.points) {
       assert.ok(Math.abs(heightAt(x, z) - y) < 0.005);
-      const surfaces = resolve.at(x, z);
-      if (surfaces.some(s => s.surfaceId.startsWith('sz-elevated-road:'))) {
-        bridgeSamples++;
-        const upper = surfaces.find(s => s.surfaceId.startsWith('sz-elevated-road:'));
-        assert.ok(upper.height - 0.65 - y >= 2.60, `${route.id} ${x} ${z}: ${upper.height - 0.65 - y} m under ${upper.surfaceId}`);
-        assert.equal(resolve.resolve(x, z, { previousY: y, previousSurfaceId: 'terrain' }).surfaceId, 'terrain');
-        assert.equal(resolve.resolve(x, z, { previousY: upper.height, previousSurfaceId: upper.surfaceId }).surfaceId, upper.surfaceId);
-      }
-      assert.ok(!plan.colliders.some(c => c.type === 'elevated-pier' && c.minX < x + 1.4 && c.maxX > x - 1.4
-        && c.minZ < z + 1.4 && c.maxZ > z - 1.4));
     }
-    assert.ok(bridgeSamples > 8);
+    for (const path of route.paths) for (let i = 1; i < path.points.length; i++) {
+      const [ax, az] = path.points[i - 1], [bx, bz] = path.points[i];
+      const dx = bx - ax, dz = bz - az;
+      const length = Math.hypot(dx, dz);
+      if (!length) continue;
+      const steps = Math.ceil(length / 0.25);
+      for (let j = 0; j <= steps; j++) for (const side of [-0.5, -0.35, 0, 0.35, 0.5]) {
+        const offset = path.widthM * side;
+        const x = ax + dx * j / steps + dz * offset / length;
+        const z = az + dz * j / steps - dx * offset / length;
+        for (const deck of baishiBridges) {
+          const bottom = bottomAt(x, z, deck.surfaceId);
+          if (!Number.isFinite(bottom)) continue;
+          const y = heightAt(x, z);
+          const loweredPath = deck === baishiRamp && path.osmId === 'way/1021682337';
+          if (side === 0 || (loweredPath && Math.abs(side) <= 0.35)) {
+            assert.ok(Number.isFinite(y), `No bank support at ${x},${z}`);
+          }
+          if (!Number.isFinite(y)) continue;
+          assert.ok(bottom - y >= 2.60, `${route.id} ${deck.osmId} ${x},${z}: ${bottom - y} m`);
+          const key = `${route.id}:${deck.osmId}`;
+          minimum.set(key, Math.min(minimum.get(key) ?? Infinity, bottom - y));
+          if (deck === baishiRamp) {
+            assert.ok(Math.abs(bottomCollisionAt(x, z, deck.surfaceId) - bottom) < 1e-6);
+            if (loweredPath && Math.abs(side) <= 0.35) assert.equal(paved(x, z), y);
+          }
+          assert.ok(!piers.some(c => c.minX < x + 0.3 && c.maxX > x - 0.3 && c.minZ < z + 0.3 && c.maxZ > z - 0.3
+            && c.minY < y + 2.60 && c.maxY > y));
+        }
+      }
+    }
   }
+  assert.ok(minimum.has('west-bank:way/839645212'));
+  assert.ok(minimum.has('east-bank:way/25543384'));
+  for (const bank of ['west-bank', 'east-bank']) {
+    const gaps = [...minimum].filter(([key]) => key.startsWith(bank)).map(([, gap]) => gap);
+    t.diagnostic(`${bank}: ${Math.min(...gaps).toFixed(3)} m minimum sampled clearance`);
+  }
+  const { roofPanel: panel } = baishiRamp.slabColliders[0];
+  const x = panel.outer.reduce((mean, p) => mean + p.x / 3, 0);
+  const z = panel.outer.reduce((mean, p) => mean + p.z / 3, 0);
+  const beamY = bottomAt(x, z, baishiRamp.surfaceId);
+  const gap = collision.roofPanelContactPolygon(panel, beamY - 1, beamY - 0.01);
+  const blocked = collision.roofPanelContactPolygon(panel, beamY + 0.01, beamY + 0.08);
+  assert.ok(!gap || !collision.polygonContains(gap, x, z));
+  assert.ok(blocked && collision.polygonContains(blocked, x, z));
 });
+
+const bankResolver = contact.createSurfaceResolver({ groundHeight: heightAt, surfaces: plan.surfaces,
+  groundIdentity: waterfrontPaths.groundIdentity });
+for (const [bankId, pathId, roadId] of [
+  ['west-bank', 'way/1021682337', 'way/839645212'],
+  ['east-bank', 'way/758375245', 'way/25543384']
+]) {
+  for (const mode of ['person', 'cyclist']) test(`${mode} crosses the Baishi underpass both ways on ${bankId}`, () => {
+    const bank = waterfront.routes.find(route => route.id === bankId);
+    const path = bank.paths.find(row => row.osmId === pathId);
+    const deck = baishiBridges.find(link => link.osmId === roadId);
+    const bottomAt = undersideHeight([deck]);
+    const lowerSurface = 'waterfront:river-bank';
+    const groundAccess = createWaterfrontAccess(waterfront, waterfrontPaths, () => Date.parse('2026-11-14T04:00:00Z')).allowsGroundMode;
+    const [a, b] = path.points.slice(0, -1).map((point, i) => [point, path.points[i + 1]])
+      .reduce((longest, segment) => {
+        const length = ([a, b]) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+        return length(segment) > length(longest) ? segment : longest;
+      });
+    const run = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const dx = (b[0] - a[0]) / run, dz = (b[1] - a[1]) / run;
+    for (const sign of [-1, 1]) {
+      const [x, z] = sign === 1 ? a : b;
+      const position = { x, y: heightAt(x, z), z };
+      const speed = mode === 'person' ? 1.6 : 4;
+      const entity = { type: mode, position, speed, heading: Math.atan2(sign * dx, sign * dz),
+        leanAngle: 0, leanPivot: { rotation: {} }, frontWheel: { rotation: { x: 0 } },
+        rearWheel: { rotation: { x: 0 } }, crankPivot: { rotation: {} }, pedals: [], pedalPhase: 0,
+        _support: bankResolver.resolve(x, z), _safePosition: { ...position } };
+      const controller = Object.assign(Object.create(ThirdPersonControllerManager.prototype), {
+        activeMode: mode, entities: { [mode]: entity }, keys: { forward: 0.25 }, cruiseSpeed: speed,
+        surfaceResolver: bankResolver, groundAccess, groundHeight: heightAt,
+        colliders: plan.colliders.filter(c => c.minX <= Math.max(a[0], b[0]) + 5 && c.maxX >= Math.min(a[0], b[0]) - 5
+          && c.minZ <= Math.max(a[1], b[1]) + 5 && c.maxZ >= Math.min(a[1], b[1]) - 5).map(c => ({ ...c }))
+      });
+      let under = 0;
+      const dt = 0.025;
+      const steps = Math.floor(run / (speed * dt)) - 1;
+      for (let i = 0; i < steps; i++) {
+        if (mode === 'person') controller.updatePerson(dt);
+        else controller.updateCyclist(dt);
+        assert.equal(entity._support.surfaceId, lowerSurface);
+        assert.ok(entity.speed > 0.99 * speed, `${position.x},${position.z}`);
+        assert.ok(Math.abs(entity._support.height - position.y) < 0.06);
+        if (Number.isFinite(bottomAt(position.x, position.z, deck.surfaceId))) under++;
+      }
+      assert.ok(under > 10 && Math.hypot(position.x - x, position.z - z) > run - 0.3);
+    }
+  });
+}
 
 test('coastal terrace is supported, slopes into and out of existing route, and preserves sea datum', () => {
   const { bayLower } = waterfront;
@@ -205,16 +346,6 @@ test('the park route spans the bay with continuous ground or bridge support', ()
 });
 
 test('a bicycle rides the coastal bridge from either bank on the rendered deck', () => {
-  const collision = loadModule(read('building-collision.js'), { imports: { './sz-polygon.js': polygon } });
-  const { ThirdPersonControllerManager } = loadModule(read('controllers.js'), { imports: {
-    'three/webgpu': {}, './sz-city-config.js': {
-      ISLAND_BOUNDS: { minX: -30000, maxX: 30000, minZ: -30000, maxZ: 30000 }
-    }, './sz-controller-surfaces.js': contact, './sz-park-arrivals.js': {}, './sz-strings.js': {},
-    './city-lighting-materials.js': {}, './sz-vehicles.js': { VEHICLE_SPECS: { taxi: { wheelbase: 2.8, radius: 0.335 } } },
-    './pedestrians.js': {}, './vehicle-lights.js': {}, './building-collision.js': collision,
-    './sz-day-phase.js': dayPhaseStub(0.86, () => 1.55),
-    ...require('./helpers/driving.cjs')
-  } });
   const bridge = waterfront.footbridges.find(row => row.id === 'way/357765497');
   const access = createWaterfrontAccess(waterfront, createWaterfrontPaths(waterfront),
     () => Date.parse('2026-11-13T16:00:00Z'));

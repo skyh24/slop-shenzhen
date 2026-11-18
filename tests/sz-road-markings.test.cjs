@@ -37,6 +37,7 @@ test('deck paint distinguishes single ramps, measured wide ramps and tagged carr
   const three = plan(9.8, 3, 1);
   assert.equal(three.laneSource, 'osm-lanes');
   assert.equal(three.lines.filter(line => line.duty < 1).length, 2);
+  assert.ok(Math.abs(three.pavementWidthM / 2 - 0.35 - three.lines[1].offset - 0.5) < 1e-8);
   // 4 车道桥面收窄到 8.2 m：只保留 2 条整车道，分隔线不会挤在边线上。
   const compressed = plan(8.2, 4, 1);
   assert.equal(compressed.laneCount, 4);

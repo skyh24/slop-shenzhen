@@ -269,6 +269,17 @@
     ],
     "deckHeightM": 8.0,
     "girderDepthM": 0.65,
-    "minClearanceM": 2.6
+    "minClearanceM": 2.6,
+    "baishiUnderpass": {
+      "bridgeOsmId": "way/839645212",
+      "bank": "west-bank",
+      "paths": ["way/1021682337", "way/535088689", "way/657740616"],
+      "heightSource": "estimate",
+      "floorHeightM": 6.0,
+      "flatHalfLengthM": 6,
+      "maxLongitudinalGrade": 0.09,
+      "widthPadM": 1.0,
+      "blendM": 2.5
+    }
   }
 }

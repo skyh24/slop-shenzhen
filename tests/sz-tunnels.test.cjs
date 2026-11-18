@@ -14,6 +14,7 @@ const roads = loadModule(read('sz-roads.js'), { imports: {
 } });
 const groundSurface = loadModule(read('sz-ground-surface.js'));
 const polygonModule = loadModule(read('sz-polygon.js'));
+const roadProfile = loadModule(read('sz-road-profile.js'));
 const { polygonContact, spanContactPolygon } = loadModule(read('building-collision.js'), {
   imports: { './sz-polygon.js': polygonModule }
 });
@@ -47,6 +48,7 @@ function loadTunnels(three = {}) {
     './sz-roads.js': roads,
     './sz-ground-surface.js': groundSurface,
     './sz-polygon.js': polygonModule,
+    './sz-road-profile.js': roadProfile,
     './sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
   } });
 }
@@ -391,6 +393,7 @@ test('real THREE build raycasts the tunnel floor from inside the bore',
       './sz-roads.js': realRoads,
       './sz-ground-surface.js': groundSurface,
       './sz-polygon.js': polygonModule,
+      './sz-road-profile.js': roadProfile,
       './sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
     } });
     const scene = new THREE.Scene();
@@ -561,6 +564,50 @@ test('whole-city tunnel under a hill builds bores, portals and 5.2 m clearance',
   assert.equal(result.statistics.boreTunnels, 1);
   assert.equal(result.statistics.portalCount, 2);
   assert.ok(result.statistics.lights > 100, 'lights ' + result.statistics.lights);
+});
+
+test('final profile exposes steep approaches while preserving the connected tunnel geometry', () => {
+  const result = wholeCityPlan(() => 8, { osmId: 'way/25543388' }, 79.548);
+  const link = result.links[0];
+  const { sections, seams, maxGrade } = link.gradeProfile;
+  assert.ok(Math.abs(maxGrade - 0.5) < 1e-9);
+  assert.ok(Math.abs(sections.approach.traces.center.maxGrade - 0.5) < 1e-9);
+  assert.ok(sections.bore.lengthM > 0);
+  assert.ok(sections.bore.maxGrade < tunnels.TUNNEL_DRIVE_MAX_GRADE);
+  assert.ok(Math.abs(sections.approach.lengthM + sections.bore.lengthM - link.lengthM) < 1e-9);
+  assert.deepEqual(Array.from(seams, seam => `${seam.kind}:${seam.deltaM}`), [
+    'terrain:0', 'terrain:0', 'approach-to-bore:0', 'bore-to-approach:0'
+  ]);
+  assert.ok(result.statistics.finalProfileGradeConflicts.includes(link.index));
+  assert.equal(link.clearanceM, 5.2);
+  assert.equal(link.drivable, true);
+  assert.ok(result.drive.links.includes(link));
+});
+
+test('Keyuan snapshot keeps both approaches within grade and attaches them to the ground', () => {
+  const { gunzipSync } = require('node:zlib');
+  const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
+  const surface = raw.terrainSurface;
+  const profile = surface.keyuanUnderpass;
+  const ground = groundSurface.createGroundSurfaceSampler(surface);
+  const graph = raw.roadGraph;
+  const result = tunnels.planSzTunnels(graph, surface, { wholeCity: true });
+  for (const osmId of ['way/25543388', 'way/231901936']) {
+    const link = result.drive.links.find(candidate => candidate.osmId === osmId);
+    assert.ok(link, osmId);
+    assert.equal(link.clearanceM, 5.2);
+    assert.ok(link.gradeProfile.sections.approach.maxGrade <= tunnels.TUNNEL_DRIVE_MAX_GRADE);
+    assert.ok(Math.abs(link.gradeProfile.sections.bore.maxGrade) < 1e-8);
+    for (const seam of link.gradeProfile.seams.filter(seam => seam.kind === 'terrain')) {
+      assert.equal(seam.status, 'aligned');
+      assert.ok(Math.abs(seam.deltaM) < 0.01);
+    }
+    const bore = link.frames.filter(frame => frame.z > profile.northPortalZ && frame.z < profile.southPortalZ);
+    for (const frame of bore) {
+      assert.ok(Math.abs(ground(frame.x, frame.z) - profile.datumM) < 0.01);
+      assert.ok(ground(frame.x, frame.z) >= frame.ceilingY + 0.4);
+    }
+  }
 });
 
 test('open stretches sit at both tunnel ends while the bore stays in the middle', () => {

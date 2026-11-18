@@ -94,7 +94,7 @@ def compile_bridge_waters(payload, osm, report, plan):
     report['waterfrontSamples']['bridgeWaters'] = waters
 
 
-def _clip_terrain(surface, masks, grades, *, replace_kinds=None):
+def _clip_terrain(surface, masks, grades, *, replace_kinds=None, grade_step=2.5):
     """在原三角面内切材质与高程影响范围；范围外保留原来的几何和采样。"""
     affected = unary_union([*masks.values(), *(shape for shape, _ in grades)])
     prepare(affected)
@@ -168,7 +168,7 @@ def _clip_terrain(surface, masks, grades, *, replace_kinds=None):
                             piece = piece.difference(patch)
                             # 同一世界网格切分，跨原地形面和分块的高程一致。
                             min_x, min_z, max_x, max_z = patch.bounds
-                            delta = 2.5
+                            delta = grade_step
                             for ix in range(math.floor(min_x/delta), math.ceil(max_x/delta)):
                                 for iz in range(math.floor(min_z/delta), math.ceil(max_z/delta)):
                                     emit(patch.intersection(box(ix*delta, iz*delta, (ix+1)*delta, (iz+1)*delta)), kind, grade)
@@ -205,6 +205,81 @@ def _height_rows(line, sample, *, step=2):
             raise ValueError(f'Waterfront route has no support at {x:.2f}, {z:.2f}')
         rows.append([round(x, 4), round(y, 4), round(z, 4)])
     return rows
+
+
+def apply_baishi_underpass(payload, report, plan):
+    """西岸过匝道的估计坡面由可见地形承托，桥面和源接点继续沿原纵断面。"""
+    waterfront = payload.get('waterfront', {})
+    spec = plan['river']['baishiUnderpass']
+    if 'dasha' not in waterfront:
+        return
+    surface = payload['terrainSurface']
+    if surface.get('baishiUnderpass') == spec:
+        return
+    if 'baishiUnderpass' in surface:
+        raise ValueError('Rebuild the underlying terrain before replacing the Baishi underpass')
+
+    bank = next(route for route in waterfront['routes'] if route['id'] == spec['bank'])
+    paths = {path['osmId']: path for route in [*waterfront['dasha']['routes'], bank] for path in route['paths']}
+    first, *extensions = [paths[identity] for identity in spec['paths']]
+    points = list(first['points'])
+    for path in extensions:
+        extension = path['points']
+        if math.dist(points[-1], extension[-1]) < 0.001:
+            extension = extension[::-1]
+        if math.dist(points[-1], extension[0]) >= 0.001:
+            raise ValueError('Baishi underpass approaches lack a shared source node')
+        points.extend(extension[1:])
+    bank_line = LineString(points)
+    graph = payload['roadGraph']
+    edges = [link for link, meta in zip(graph['links'], graph['metadata'], strict=True)
+             if meta['osmId'] == spec['bridgeOsmId'] and meta['bridge'] and not meta['tunnel']]
+    if len(edges) != 1:
+        raise ValueError('Missing unique Baishi underpass bridge edge')
+    start, end, *_, interior = edges[0]
+    nodes = graph['nodes']
+    deck = LineString([nodes[2 * start:2 * start + 2], *zip(interior[::2], interior[1::2]),
+                       nodes[2 * end:2 * end + 2]])
+    crossing = LineString(first['points']).intersection(deck)
+    if crossing.geom_type != 'Point' or crossing.is_empty:
+        raise ValueError('Missing unique Baishi bridge and bank crossing')
+    station = bank_line.project(crossing)
+    flat = substring(bank_line, station - spec['flatHalfLengthM'], station + spec['flatHalfLengthM'])
+    corridor = substring(bank_line, station - 40, station + 40)
+    half_width = first['widthM'] / 2 + spec['widthPadM']
+    blend = spec['blendM']
+    region = corridor.buffer(half_width + blend, quad_segs=8)
+
+    def grade(point, height):
+        cut = max(0, height - spec['floorHeightM'] - spec['maxLongitudinalGrade'] * point.distance(flat))
+        weight = max(0, 1 - max(0, point.distance(corridor) - half_width) / blend)
+        return height - cut * weight
+
+    if any(grade(Point(p), 8) < 8 - 1e-6 for p in [deck.coords[0], deck.coords[-1]]):
+        raise ValueError('Baishi underpass crosses a bridge portal')
+    surface, changed, _ = _clip_terrain(surface, {}, [(region, grade)], grade_step=0.75)
+    payload['terrainSurface'] = {**surface, 'baishiUnderpass': spec}
+    sample = _surface_sampler(surface, region)
+
+    def refresh(rows, digits=4):
+        for row in rows:
+            if row and region.covers(Point(row[0], row[2])):
+                y = sample(row[0], row[2])
+                if y is not None:
+                    row[1] = round(y, digits)
+
+    for route in [*waterfront['routes'], *waterfront['dasha']['routes']]:
+        if all(not path['bridge'] for path in route['paths']):
+            refresh(route['points'])
+    for rail in [*waterfront['rails'], *waterfront['dasha']['rails']]:
+        refresh(rail['stations'])
+    for key in ['lamps', 'trees', 'shrubs']:
+        refresh(waterfront['dasha'][key], digits=3)
+    for bank_face in waterfront['dasha']['banks']:
+        refresh(bank_face['stations'], digits=3)
+    report['waterfrontSamples']['baishiUnderpass'] = {**spec, 'changedTerrainChunks': changed}
+    report['terrainSurface'].update(vertices=sum(len(chunk['kinds']) for chunk in surface['chunks']),
+                                    triangles=sum(len(chunk['indices']) // 3 for chunk in surface['chunks']))
 
 
 def compile_waterfront_routes(payload, osm, pbf, report):

@@ -13,6 +13,10 @@ const SPACING_BY_CLASS = {
   tertiary: 42, tertiary_link: 46, residential: 50, unclassified: 50, living_street: 56, service: 56
 };
 const MAJOR_LAMP_CLASSES = new Set(['trunk', 'primary', 'secondary']);
+const DECK_LAMP_SPACING_M = {
+  motorway: 36, motorway_link: 38, trunk: 30, trunk_link: 34, primary: 28, primary_link: 32,
+  secondary: 34, secondary_link: 38
+};
 const MEDIAN_CELL_M = 80;
 const MIN_MEDIAN_M = 2.4;
 const MAX_INFERRED_MEDIAN_M = 18;
@@ -180,6 +184,45 @@ export function planLampSites(roadGraph, options = {}) {
       }
     }
   }
+  for (const deck of options.decks ?? []) {
+    const metadata = roadGraph.metadata[deck.index];
+    const spacingDefault = DECK_LAMP_SPACING_M[metadata.highway];
+    const style = options.roadStyle?.(deck.osmId);
+    if (!spacingDefault || style?.lampsEnabled === false || deck.dangling
+      || !deck.contactSurface || deck.lengthM < junctionMargin * 2 + 8) continue;
+    const spacing = style?.lampSpacingM ?? options.spacingM ?? spacingDefault;
+    if (!(spacing > 0)) throw new Error('Street lamp spacing must be positive');
+    // 单向桥用行进右侧，双向桥两侧错开；在同一段连续护栏内找底座。
+    const sides = deck.direction === 0 ? ['left', 'right'] : [deck.direction < 0 ? 'left' : 'right'];
+    for (const side of sides) {
+      const rails = deck.barriers.filter(rail => rail.side === side);
+      let station = 1;
+      let railIndex = 0;
+      const phase = side === 'left' ? spacing / 2 : spacing / 4;
+      for (let distance = junctionMargin + phase; distance <= deck.lengthM - junctionMargin; distance += spacing) {
+        while (rails[railIndex]?.endD < distance) railIndex++;
+        const rail = rails[railIndex];
+        if (!rail || rail.startD > distance) continue;
+        while (deck.frames[station].d < distance) station++;
+        const a = deck.frames[station - 1], b = deck.frames[station];
+        const t = (distance - a.d) / (b.d - a.d);
+        const cx = a.x + (b.x - a.x) * t, cz = a.z + (b.z - a.z) * t;
+        const ex = a[side].x + (b[side].x - a[side].x) * t;
+        const ez = a[side].z + (b[side].z - a[side].z) * t;
+        const half = Math.hypot(cx - ex, cz - ez);
+        if (half < 1.6) continue;
+        const nx = (cx - ex) / half, nz = (cz - ez) / half;
+        const curbInset = deck.barrierWidthM / 2;
+        sites.push({
+          x: ex + nx * curbInset, y: a.y + (b.y - a.y) * t, z: ez + nz * curbInset,
+          yaw: Math.atan2(-nz, nx), class: metadata.highway, side: side === 'left' ? 1 : -1,
+          linkIndex: deck.index, roadName: deck.name, stationM: distance,
+          deckId: deck.surfaceId, style: 'L', armLengthM: Math.min(3.2, half)
+        });
+        if (sites.length >= (options.maxLamps ?? Infinity)) return { sites, rejected };
+      }
+    }
+  }
   return { sites, rejected };
 }
 
@@ -258,9 +301,12 @@ function glowInstances(chunk, group, materials) {
   pool.name = `${group.name}:pools`;
   const matrix = new THREE.Matrix4();
   const quaternion = new THREE.Quaternion();
+  const axis = new THREE.Vector3(0, 1, 0);
   const positions = new Float32Array(count * 3);
   chunk.forEach((site, index) => {
-    matrix.compose(new THREE.Vector3(site.poolX, site.poolY + 0.06, site.poolZ), quaternion, new THREE.Vector3(1, 1, 1));
+    quaternion.setFromAxisAngle(axis, site.yaw);
+    matrix.compose(new THREE.Vector3(site.poolX, site.poolY + 0.06, site.poolZ), quaternion,
+      new THREE.Vector3(site.deck ? 0.24 : 1, 1, site.deck ? 0.65 : 1));
     pool.setMatrixAt(index, matrix);
     positions[index * 3] = site.headX;
     positions[index * 3 + 1] = site.headY;
@@ -281,12 +327,13 @@ function glowInstances(chunk, group, materials) {
   return [poolGeometry, haloGeometry];
 }
 
-function lampLights(site, roadHeight) {
+function lampLights(site, roadHeight, deckHeightAt) {
   const dx = Math.cos(site.yaw) * site.armLengthM;
   const dz = -Math.sin(site.yaw) * site.armLengthM;
   return (site.style === 'T' ? [1, -1] : [1]).map(side => {
     const poolX = site.x + side * dx * 0.8, poolZ = site.z + side * dz * 0.8;
-    return { yaw: site.yaw, poolX, poolZ, poolY: roadHeight?.(poolX, poolZ) ?? site.y,
+    const poolY = site.deckId ? deckHeightAt?.(poolX, poolZ, site.deckId) : roadHeight?.(poolX, poolZ);
+    return { yaw: site.yaw, poolX, poolZ, poolY: poolY ?? site.y, deck: Boolean(site.deckId),
       headX: site.x + side * dx, headY: site.y + HEAD_HEIGHT_M - 0.16, headZ: site.z + side * dz };
   });
 }
@@ -305,7 +352,7 @@ function poleCollider(site) {
 }
 
 export function buildSzStreetLamps(scene, roadGraph, options = {}) {
-  const { groundHeight, heightAt = groundHeight, roadHeight, medianHeight, deckOccupied, walkPlacement } = options;
+  const { groundHeight, heightAt = groundHeight, roadHeight, medianHeight, deckOccupied, deckHeightAt, walkPlacement } = options;
   if (typeof groundHeight !== 'function') throw new Error('Street lamps require a ground height sampler');
   const plan = planLampSites(roadGraph, options);
   const glow = uniform(0);
@@ -327,6 +374,17 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
     item.maxX >= walkPlacement.bounds.minX && item.minX <= walkPlacement.bounds.maxX
     && item.maxZ >= walkPlacement.bounds.minZ && item.minZ <= walkPlacement.bounds.maxZ) : [];
   for (const candidate of plan.sites) {
+    if (candidate.deckId) {
+      const { x, y, z, yaw, deckId, armLengthM } = candidate;
+      const head = y + HEAD_HEIGHT_M;
+      if (deckOccupied?.(x, z, y, head, deckId)
+        || deckOccupied?.(x + Math.cos(yaw) * armLengthM, z - Math.sin(yaw) * armLengthM, head - 0.25, head, deckId)) {
+        tally.skip('deck', 'deck');
+        continue;
+      }
+      sites.push(candidate);
+      continue;
+    }
     const site = options.relocateSite ? options.relocateSite(candidate) : candidate;
     if (!site) continue;
     if (options.reserveCrossing?.(site.x, site.z, placementRadius)) {
@@ -393,7 +451,7 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
       0,
       chunk.reduce((sum, site) => sum + site.z, 0) / chunk.length
     );
-    const lights = chunk.flatMap(site => lampLights(site, roadHeight));
+    const lights = chunk.flatMap(site => lampLights(site, roadHeight, deckHeightAt));
     for (const site of chunk) site.chunkKey = key;
     geometries.push(...poleInstances(chunk, lights, chunkGroup.group, materials));
     geometries.push(...glowInstances(lights, chunkGroup.group, materials));
@@ -409,6 +467,7 @@ export function buildSzStreetLamps(scene, roadGraph, options = {}) {
     spacingByClassM: { ...SPACING_BY_CLASS },
     planned: plan.sites.length,
     placed: sites.length,
+    deckPoles: sites.filter(site => site.deckId).length,
     tPoles: sites.filter(site => site.style === 'T').length,
     medianPoles: sites.filter(site => site.median).length,
     chunks: chunkGroups.size,
