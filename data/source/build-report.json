@@ -559196,13 +559196,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "f80eafbbdcda5e0c6da49935007870b118174fd6c9ed0d54628ca06108140492",
-    "bytes": 269122,
+    "fingerprint": "86b823b05cc42ca20ef1b4323d81370ca2426c85eb23a23f1a59ca9911c88cb0",
+    "bytes": 269118,
     "decodedBytes": 1256180,
     "files": {
-      "js/sz-regional/f80eafbbdcda5e0c6da4/waterfront.json.gz": "d25cfee6cfb25210ff67b8f9541e08f6fb0532570fe1572a5f6c49ecb7280272",
-      "js/sz-regional/f80eafbbdcda5e0c6da4/metro.json.gz": "395acbcf912e7b9089c252020a98294296198f1264c049e222bce118d110afe5",
-      "js/sz-regional/f80eafbbdcda5e0c6da4/drone.json.gz": "4674fb0b177bc5237e95fb2cca568f18f0042166e9042156f5f035b9fa5e410f"
+      "js/sz-regional/86b823b05cc42ca20ef1/waterfront.json.gz": "33fbd49fc9aa7ceb11cd09f89c8b65d6711a55d3ba7dcef57783b1799d0014fd",
+      "js/sz-regional/86b823b05cc42ca20ef1/metro.json.gz": "93c26a751af8f06ca2d4ebffb117c24e6814c206c0c07464dd78fefa68276e7a",
+      "js/sz-regional/86b823b05cc42ca20ef1/drone.json.gz": "2c74c6eaef8a5514c0ab71daf61ec555d1c329fd76e4ecc4e3aeca1e41c55b95"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -559211,7 +559211,7 @@
       "js/cars.js": "ff212291764b78173d3c42399f64991de1c5b77ece1c689908e8b9d9cb1798a5",
       "js/city-lighting-materials.js": "f75a1ff3c208bf3f979c7b78d62916534ee8246b7886386aa74623680f9e0de0",
       "js/pedestrians.js": "ba32139c5937c2f0e61cd927394aa41f6a99a6decbd9ad9bc0f891e9b8a49a40",
-      "js/sz-apec-city.js": "b73ac9ba636ebfa7c8f37593089a42cd04899e7a8c8b594a746ec0f1ccec1a08",
+      "js/sz-apec-city.js": "b3c1c70727b01b6bfabd3a9be02494eaf02d2df6c732028ef695c06adbede7fd",
       "js/sz-apec.js": "2212ddf564fdf9d60daeafffa248222d9fc77166928527686088a4b293792c88",
       "js/sz-arterial-trees.js": "b242541f49635ff91a2b66d41d55529c3236f5ac4618960791ba20735c3cd614",
       "js/sz-bay-waterfront.js": "223feef7c8bccca13e89029f84ae0f45548cbce06194e956f40d53df588bbb73",
@@ -559628,12 +559628,12 @@
     "numericBytes": 47432704,
     "uncompressedBytes": 66761600,
     "lossless": true,
-    "compressedBytes": 18044227,
-    "compressedSha256": "aac82a74c3caf22dad4f015751cd0fd40293a6d50d2158c0d3cfd03dc8abd000"
+    "compressedBytes": 18044228,
+    "compressedSha256": "fb002a0973d2bbe53711d6101d70866ebff88981ad7dca16b11eee45408859a6"
   },
   "outputBytes": 18122962,
-  "outputSha256": "0a57f22d023114c6eaf33a2a8cd52aac60980eb99d8e8e217db3ab86d906e26e",
-  "seconds": 59.9,
+  "outputSha256": "5ed1dc1c6d4773020a8061fab5127deac655907ab9dec78247a2bd2d2e96a4ff",
+  "seconds": 57.6,
   "elevatedCut": {
     "version": 3,
     "links": 45,

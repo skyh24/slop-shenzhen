@@ -83,7 +83,12 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const { chunks } = roads.createRoadSurfaceLayout(raw.roadGraph, terrain);
   const roadHeight = roads.createRoadHeightSampler(chunks, terrain.grid);
   const scene = new THREE.Scene();
-  const reserveFlowerBed = (x, z) => Math.abs(x - 6) <= 34 && Math.abs(z - 408) <= 20;
+  const { reserveApecCivicLawn: reserveFlowerBed } = loadModule(read('sz-apec-city.js'), {
+    imports: { 'three/webgpu': THREE, './sz-terrain.js': {}, './sz-polygon.js': {},
+      './sz-mesh-utils.js': {}, './sz-day-phase.js': {} }
+  });
+  assert.ok(reserveFlowerBed(-150, 400) && reserveFlowerBed(165, 408));
+  assert.ok(!reserveFlowerBed(250, 410) && !reserveFlowerBed(-1280, 435));
   const model = buildSzRoadFrontage(scene, raw.roadFrontage, raw.roadGraph, terrain, { groundHeight, roadHeight, reserveFlowerBed });
   for (const [x, z] of [[-1403.57, 420.36], [-1408.58, 440.30], [-1274.23, 432.31], [-1223.73, 436.38]]) {
     assert.equal(model.arterialMedianAt(x, z), true);
@@ -155,8 +160,8 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const civic = raw.roadFrontage.corridors.find(row => row.id === 'shennan-civic-center');
   assert.equal(civic.medianSource.imageryReview.captureDate, '2026-01-25');
   assert.ok(!model.group.children.some(mesh => mesh.name.startsWith('shennan-civic-center:flower-band:')));
-  for (let x = -23; x <= 35; x += 2) {
-    for (let z = 393; z <= 423; z += 2) {
+  for (let x = -30; x <= 42; x += 2) {
+    for (let z = 390; z <= 426; z += 2) {
       assert.equal(roadHeight(x, z), null);
       assert.ok(Number.isFinite(model.shennanMedianHeight(x, z)));
     }

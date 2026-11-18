@@ -238,7 +238,7 @@ test('statistics count the plan and mark every part as an estimate', () => {
   assert.equal(statistics.robots, REAL_PLAN.robots.length);
   assert.equal(statistics.hoardings, REAL_PLAN.hoardings.length);
   assert.equal(statistics.heightSource, 'estimate');
-  assert.equal(statistics.approach, 'text-and-colors-only-china-red-apec-purple-no-official-emblem');
+  assert.equal(statistics.approach, 'text-colors-and-original-lawn-art-no-official-emblem');
   assert.deepEqual(plain(statistics.built), { screens: 0, robots: 0, hoardings: 0 });
   assert.equal(statistics.parts.length, REAL_PLAN.screens.length + REAL_PLAN.robots.length + REAL_PLAN.hoardings.length);
   assert.ok(statistics.parts.every((part) => part.heightSource === 'estimate'));
@@ -250,7 +250,9 @@ test('statistics count the plan and mark every part as an estimate', () => {
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
 const fakeCanvasGlobals = () => {
   const drawCalls = [];
-  const context = new Proxy({}, {
+  const context = new Proxy({
+    createLinearGradient: () => ({ addColorStop: (offset, color) => drawCalls.push(['gradientStop', offset, color]) })
+  }, {
     get(target, key) {
       if (key in target) return target[key];
       return (...args) => { drawCalls.push([key, ...args]); };
@@ -261,7 +263,7 @@ const fakeCanvasGlobals = () => {
   return { document, drawCalls };
 };
 
-test('runtime builds screens robots and hoarding panels on the real data, then disposes', { skip: !threeDir }, async () => {
+test('runtime builds APEC city elements and a red and blue bird below the lawn lettering, then disposes', { skip: !threeDir }, async () => {
   const loadThree = (file) => import(pathToFileURL(join(threeDir, 'build', file)));
   const [THREE] = await Promise.all([loadThree('three.webgpu.js')]);
   const { document, drawCalls } = fakeCanvasGlobals();
@@ -321,6 +323,12 @@ test('runtime builds screens robots and hoarding panels on the real data, then d
     'A', 'P', 'E', 'C', 'CHINA 2026']) {
     assert.ok(filledText.includes(text), `canvas missing text: ${text}`);
   }
+  const subtitle = drawCalls.findIndex(([method, text]) => method === 'fillText' && text === 'CHINA 2026');
+  const bird = drawCalls.slice(subtitle + 1);
+  const wings = bird.filter(([method]) => method === 'scale');
+  assert.deepEqual(wings, [['scale', -1, 1], ['scale', 1, 1]]);
+  const gradientEnds = bird.filter(([method, offset]) => method === 'gradientStop' && offset === 1);
+  assert.deepEqual(gradientEnds.slice(0, 3), [['gradientStop', 1, '#ffb36f'], ['gradientStop', 1, '#a4ead0'], ['gradientStop', 1, '#e2114c']]);
   assert.ok(drawCalls.some(([method]) => method === 'fillRect'));
 
   // 机器人确定性巡逻：位置和车轮有限，步长封顶。

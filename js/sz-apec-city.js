@@ -1,5 +1,5 @@
-// APEC 2026 城市元素：路侧双面 LED 大屏、会场巡逻机器人、西丽站围挡公益广告。
-// 全部为展示示意（heightSource = 'estimate'）：只用文字、中国红和 APEC 紫，不画 APEC 官方会徽，
+// APEC 2026 城市元素：路侧双面 LED 大屏、会场巡逻机器人、西丽站围挡公益广告及市民中心草坪字标。
+// 全部为展示示意（heightSource = 'estimate'）：使用文字、配色与原创景观图案，不画 APEC 官方会徽，
 // 也不加载外部素材，文字贴图全部在运行时用 canvas 2D 绘制；没有 canvas 时退回 1×1 纯色贴图。
 // 本模块不建碰撞体：大屏、机器人、广告面板都是装饰，交由 Lead 决定是否补碰撞。
 import * as THREE from 'three/webgpu';
@@ -28,38 +28,80 @@ export const APEC_CITY_SLOGANS = Object.freeze({
   footer: 'APEC CHINA 2026 · SHENZHEN'
 });
 
-const LAWN_MARK = { x: 6, z: 408, width: 58, depth: 30 };
+const LAWN_MARK = { x: 6, z: 408, width: 72, depth: 36 };
 
 export function reserveApecCivicLawn(x, z) {
-  return Math.abs(x - LAWN_MARK.x) <= LAWN_MARK.width / 2 + 5
-    && Math.abs(z - LAWN_MARK.z) <= LAWN_MARK.depth / 2 + 5;
+  return x >= -161 && x <= 180 && z >= 350 && z <= 468;
+}
+
+function drawLawnBird(ctx, center) {
+  ctx.save();
+  ctx.translate(center, 0);
+  for (const [side, inner, middle, outer] of [
+    [-1, '#e72a55', '#ff7252', '#ffb36f'],
+    [1, '#3cb0e9', '#5bd3ef', '#a4ead0']
+  ]) {
+    ctx.save();
+    ctx.scale(side, 1);
+    const wing = ctx.createLinearGradient(18, 415, 451, 232);
+    wing.addColorStop(0, inner);
+    wing.addColorStop(0.55, middle);
+    wing.addColorStop(1, outer);
+    ctx.fillStyle = wing;
+    ctx.beginPath();
+    ctx.moveTo(18, 409);
+    ctx.bezierCurveTo(208, 405, 375, 354, 444, 233);
+    ctx.quadraticCurveTo(464, 236, 446, 261);
+    ctx.bezierCurveTo(371, 369, 214, 434, 18, 409);
+    ctx.closePath();
+    ctx.moveTo(172, 415);
+    ctx.bezierCurveTo(268, 397, 386, 345, 445, 281);
+    ctx.quadraticCurveTo(454, 290, 437, 307);
+    ctx.bezierCurveTo(370, 373, 259, 414, 172, 415);
+    ctx.closePath();
+    ctx.moveTo(240, 415);
+    ctx.bezierCurveTo(308, 396, 377, 368, 418, 335);
+    ctx.quadraticCurveTo(426, 344, 413, 355);
+    ctx.bezierCurveTo(369, 387, 301, 412, 240, 415);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  const body = ctx.createLinearGradient(-158, 425, 158, 465);
+  body.addColorStop(0, '#ff765c');
+  body.addColorStop(1, '#e2114c');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.moveTo(-159, 424);
+  ctx.bezierCurveTo(-69, 441, 49, 439, 157, 420);
+  ctx.bezierCurveTo(128, 446, 56, 470, 3, 469);
+  ctx.bezierCurveTo(-66, 470, -126, 453, -159, 424);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawLawnMark(ctx, width, height) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '900 320px sans-serif';
-  ctx.lineWidth = 16;
+  ctx.font = '900 250px sans-serif';
+  ctx.lineWidth = 12;
   ctx.lineJoin = 'round';
   ctx.strokeStyle = '#fff7e4';
   const colors = ['#e52548', '#ffb629', '#5cd5f1', '#a88afa'];
   for (const [index, letter] of [...'APEC'].entries()) {
     const x = width * (0.17 + 0.22 * index);
     ctx.fillStyle = colors[index];
-    ctx.strokeText(letter, x, height * 0.35);
-    ctx.fillText(letter, x, height * 0.35);
-    for (const offset of [-20, 0, 20]) {
-      ctx.beginPath();
-      ctx.arc(x + offset, height * 0.93 - (offset === 0 ? 7 : 0), offset === 0 ? 7 : 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    ctx.strokeText(letter, x, height * 0.24);
+    ctx.fillText(letter, x, height * 0.24);
   }
-  ctx.font = '800 116px sans-serif';
-  ctx.lineWidth = 12;
+  ctx.font = '800 90px sans-serif';
+  ctx.lineWidth = 9;
   ctx.strokeStyle = '#263724';
   ctx.fillStyle = '#fff7e4';
-  ctx.strokeText('CHINA 2026', width / 2, height * 0.76);
-  ctx.fillText('CHINA 2026', width / 2, height * 0.76);
+  ctx.strokeText('CHINA 2026', width / 2, height * 0.47);
+  ctx.fillText('CHINA 2026', width / 2, height * 0.47);
+  drawLawnBird(ctx, width / 2);
 }
 
 function lawnMarkGeometry(sample) {
@@ -320,7 +362,7 @@ export function planApecCityElements({ landmarks = [], sites = null, anchors = n
 export function summarizeApecCityPlan(plan) {
   return {
     source: 'geo-landmarks+geo-sites-xili-station+main-anchors',
-    approach: 'text-and-colors-only-china-red-apec-purple-no-official-emblem',
+    approach: 'text-colors-and-original-lawn-art-no-official-emblem',
     heightSource: 'estimate',
     screens: plan.screens.length,
     robots: plan.robots.length,
@@ -355,7 +397,7 @@ export function summarizeApecCityPlan(plan) {
       '大屏位置是地标中心加固定示意偏移，朝向按 2026-11-09 OSM 路网人工检查固定，不是逐块屏实测',
       '机器人巡逻椭圆、速度和灯光亮度是展示参数，不是实际巡逻路线；没有 AI 或寻路',
       '西丽站广告面板沿 OSM 场地外环等分布置并避开大门，尺寸按 3 m 施工围挡比例示意',
-      '只用文字和中国红 / APEC 紫，不使用 APEC 官方会徽；所有贴图运行时 canvas 绘制',
+      '使用文字、配色及原创展翅鸟图案，不使用 APEC 官方会徽；所有贴图运行时 canvas 绘制',
       '本模块不建碰撞体：大屏、机器人和广告面板都是装饰，玩家可以穿过'
     ]
   };
