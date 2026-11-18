@@ -3,31 +3,25 @@
 import heapq
 import json
 import math
+from bisect import bisect_right
 from pathlib import Path
 
-from shapely.geometry import LineString, box
+from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import substring, unary_union
 
 from commercial_paving import cut_ground_openings
 from elevated_cut import apply_elevated_cut, build_cut_walls, deck_width, merge_cut_walls
 from keyuan_underpass import _restore_roof
+from road_structures import ground_height, resolve_route
 from tunnel_portals import _SurfaceSampler, _resample, _source_points, plan_tunnel_portal_mask
 from waterfront import _clip_terrain
 
 # 皇岗端由源节点接入城市地面路，两条短分支需沿同一 source way 继续放坡。
 G4_TERMINAL_WAYS = {'way/74017036', 'way/974372190', 'way/974372191', 'way/1573392908'}
 G4_SOURCE = Path(__file__).resolve().parents[2] / 'data/source/g4-mainline.json'
-NANPING = {
-    'cutVersion': 3, 'name': '南坪快速', 'highway': 'trunk', 'groundDatumM': 8, 'riseM': 10,
-    'heightSource': 'estimate',
-    # 塘朗山北口至南坪立交。参考旧版地形和桥面标高，两端接回既有断面。
-    'deckCurves': {
-        'way/221018208': [[0, 18], [1, 42.3]],
-        'way/581971317': [[0, 42.3], [0.57, 59], [1, 18]],
-        'way/227775714': [[0, 18], [0.43, 57], [1, 39.5]],
-        'way/581971316': [[0, 39.5], [1, 18]],
-    },
-}
+NANPING_SOURCE = Path(__file__).resolve().parents[2] / 'data/source/nanping-mainline.json'
+CORRIDOR_SOURCE = NANPING_SOURCE.with_name('road-corridor-profiles.json')
+NANPING_CUT_VERSION = 4
 NANPING_HEADROOM_M = 5.2
 
 HONGLI = {
@@ -215,43 +209,187 @@ def _apply_g4(surface, graph, spec):
                  'wallTriangles': walls['triangles'], 'heightSource': spec['heightSource']}
 
 
-def _nanping_height(curve, fraction, floor):
-    if not curve:
-        return floor
-    for (start, y), (end, next_y) in zip(curve, curve[1:]):
-        if fraction <= end:
-            t = max(0, (fraction - start) / (end - start))
-            return y + (next_y - y) * t * t * (3 - 2 * t)
-    return curve[-1][1]
+def _nanping_height(curve, fraction):
+    i = min(len(curve) - 2, max(0, bisect_right(curve, fraction, key=lambda point: point[0]) - 1))
+    (start, y), (end, next_y) = curve[i:i + 2]
+    t = max(0, min(1, (fraction - start) / (end - start)))
+    return y + (next_y - y) * t
 
 
-def _apply_nanping(surface, graph):
-    """洞外沿设计纵断面按路幅裁山，洞内保留覆土。"""
-    main = [(edge, meta) for edge, meta in zip(graph['links'], graph['metadata'], strict=True)
-            if graph['names'][edge[2]] == NANPING['name'] and meta['highway'] == NANPING['highway']]
-    if not main:
-        return surface, None
+def _compact_profile(samples, tolerance=0.025):
+    """保留端点和必要的纵断面站点，误差不超过 2.5 厘米。"""
+    first, last = samples[0], samples[-1]
+    d, y = first
+    length = last[0] - d
+    if len(samples) == 2:
+        return [first, last]
+    error, split = max((abs(h - (y + (last[1] - y) * (s - d) / length)), i)
+                       for i, (s, h) in enumerate(samples[1:-1], 1))
+    if error <= tolerance:
+        return [first, last]
+    return _compact_profile(samples[:split + 1], tolerance)[:-1] + _compact_profile(samples[split:], tolerance)
 
-    floor = NANPING['groundDatumM'] + NANPING['riseM']
-    sampler = _SurfaceSampler(surface)
-    tunnel_nodes = {node for edge, meta in main if meta['tunnel'] for node in edge[:2]}
+
+def _nanping_profiles(graph, structures, spec):
+    ways = set(spec['ways'])
+    selected = {i: edge for i, (edge, meta) in enumerate(zip(graph['links'], graph['metadata'], strict=True))
+                if meta['osmId'] in ways and meta['highway'] == 'trunk'}
+    if not selected:
+        return {}
+    routes = spec['referenceRoutes']
+    reviewed = {row['index']: row['stations'] for row in structures.get('records', []) if row['route'] in routes}
+    route_ends = {row['id']: row['portalNodes'] for row in structures.get('routes', [])}
+    if not reviewed or not all(route in route_ends for route in routes) or not reviewed.keys() <= selected.keys():
+        raise ValueError('Nanping needs the matching reviewed eastbound and westbound profiles')
+
+    outgoing = {edge[0]: i for i, edge in selected.items() if edge[5] == 1}
+    incoming = {edge[1] for edge in selected.values()}
+    starts = outgoing.keys() - incoming
+    if len(outgoing) != len(selected) or len(incoming) != len(selected) or len(starts) != 2:
+        raise ValueError('Nanping source ways must form two directed mainlines')
+    chains = []
+    for node in sorted(starts):
+        chain = []
+        while node in outgoing:
+            index = outgoing.pop(node)
+            chain.append(index)
+            node = selected[index][1]
+        chains.append(chain)
+    if outgoing:
+        raise ValueError('Nanping source ways contain disconnected links')
+    node_ids = graph['nodeIds']
+    east, west = sorted(chains, key=lambda chain: graph['nodes'][2 * selected[chain[0]][0]])
+    lines = {i: LineString(_source_points(graph, edge)) for i, edge in selected.items()}
+
+    def first_reference(chain):
+        return next(i for i in chain if i in reviewed)
+
+    profiles = {}
+    def set_profile(index, rows):
+        length = lines[index].length
+        profiles[index] = [[round(distance / length, 8), round(height, 5)]
+                           for distance, height in _compact_profile(rows)]
+
+    heights = {}
+    for index, stations in reviewed.items():
+        length = lines[index].length
+        rows = [(stations[j], stations[j + 2]) for j in range(0, len(stations), 8)]
+        rows[-1] = (length, rows[-1][1])
+        set_profile(index, rows)
+        for node, row in zip(selected[index][:2], (rows[0], rows[-1]), strict=True):
+            if abs(heights.setdefault(node, row[1]) - row[1]) > 1e-5:
+                raise ValueError('Reviewed Nanping profiles have a height discontinuity')
+
+    east_start = first_reference(east)
+    for index in east[:east.index(east_start)]:
+        y = heights[selected[east_start][0]]
+        set_profile(index, [(0, y), (lines[index].length, y)])
+    suffix_anchor = spec['eastTailAnchorsM']
+    last = max(i for i, index in enumerate(east) if index in reviewed)
+    remaining = east[last + 1:]
+    distance = 0
+    tail_y = heights[selected[east[last]][1]]
+    controls = [(0, tail_y)]
+    for index in remaining:
+        distance += lines[index].length
+        if (node := node_ids[selected[index][1]]) in suffix_anchor:
+            controls.append((distance, suffix_anchor[node]))
+    if distance > controls[-1][0]:
+        controls.append((distance, controls[-1][1]))
+    normalized = [(station / distance, y) for station, y in controls]
+    start = 0
+    for index in remaining:
+        length = lines[index].length
+        rows = [(s, _nanping_height(normalized, (start + s) / distance))
+                for s in (0, length)]
+        set_profile(index, rows)
+        start += length
+
+    # 西向东端没有旧纵断面：投影到平行东幅，并在并入已审核断面处平顺消除高差。
+    west_start = first_reference(west)
+    gap = west[:west.index(west_start)]
+    end_node = selected[west_start][0]
+    east_axis = LineString([point for i in east for point in list(lines[i].coords)[:-1]] + [lines[east[-1]].coords[-1]])
+    east_distances = [0]
+    for index in east:
+        east_distances.append(east_distances[-1] + lines[index].length)
+
+    def parallel_height(point):
+        distance = east_axis.project(point)
+        j = min(len(east) - 1, bisect_right(east_distances, distance) - 1)
+        return _nanping_height(profiles[east[j]], (distance - east_distances[j]) / lines[east[j]].length)
+
+    end_point = Point(graph['nodes'][end_node * 2:end_node * 2 + 2])
+    delta = heights[end_node] - parallel_height(end_point)
+    remaining_m = sum(lines[index].length for index in gap)
+    for index in gap:
+        line = lines[index]
+        length = line.length
+        # 短曲线内不追逐两幅投影的小幅抖动，站距至少约 50 米。
+        steps = max(1, math.ceil(length / 70))
+        stations = [length * k / steps for k in range(steps + 1)]
+        rows = [(d, parallel_height(line.interpolate(d)) + delta * max(0, 1 - (remaining_m - d) / 500))
+                for d in stations]
+        set_profile(index, rows)
+        remaining_m -= length
+    last = max(i for i, index in enumerate(west) if index in reviewed)
+    for index in west[last + 1:]:
+        y = heights[selected[west[last]][1]]
+        set_profile(index, [(0, y), (lines[index].length, y)])
+
+    if profiles.keys() != selected.keys():
+        raise ValueError('Nanping cross section does not cover the full route')
+    anchors = {}
+    for index, curve in profiles.items():
+        for node, (_, y) in zip(selected[index][:2], (curve[0], curve[-1]), strict=True):
+            if abs(anchors.setdefault(node, y) - y) > 0.001:
+                raise ValueError(f'Grade mismatch at Nanping node {node_ids[node]}')
+    return profiles
+
+
+def _profile_key(graph, index):
+    a, b = graph['links'][index][:2]
+    return ':'.join([graph['metadata'][index]['osmId'], graph['nodeIds'][a], graph['nodeIds'][b]])
+
+
+def _cut_profiled_decks(surface, graph, profiles, fallback=None, ground_ends=(), restore_entries=False):
+    """洞外沿设计纵断面裁山，洞内保留覆土。"""
+    main = [(graph['links'][index], graph['metadata'][index], curve) for index, curve in profiles.items()]
+    rendered_height = _SurfaceSampler(surface)
+
+    def sampler(x, z):
+        y = rendered_height(x, z)
+        return fallback(x, z) if y is None and fallback else y
+
+    tunnel_nodes = {node for edge, meta, _ in main if meta['tunnel'] for node in edge[:2]}
     portal_sections = []
     cuts = []
     samples = []
-    for edge, meta in main:
+    entry_ground = []
+    removed_entries = []
+    for edge, meta, curve in main:
         if meta['tunnel']:
             continue
         points = _source_points(graph, edge)
         length = LineString(points).length
         stations = _resample(points, length)
-        curve = NANPING['deckCurves'].get(meta['osmId'])
         half_width = deck_width(edge) / 2 + 0.75
         for node, at, inner in [(edge[0], points[0], points[1]), (edge[1], points[-1], points[-2])]:
-            if node not in tunnel_nodes:
+            if node not in tunnel_nodes and node not in ground_ends:
                 continue
             dx, dz = inner[0] - at[0], inner[1] - at[1]
             run = math.hypot(dx, dz) or 1
-            portal_sections.append((*at, dx / run, dz / run, half_width))
+            if node in tunnel_nodes:
+                portal_y = curve[0 if node == edge[0] else -1][1]
+                portal_sections.append((*at, dx / run, dz / run, half_width, portal_y))
+            if node in ground_ends:
+                # 在接点的地面一侧保留整幅路基。保留区只延入桥头 25 厘米，以免上坡的地面穿过桥面。
+                width = half_width + 3
+                apron = Polygon([(at[0] + (s * dx + t * dz) / run, at[1] + (s * dz - t * dx) / run)
+                                 for s, t in [(-8, -width), (0.25, -width), (0.25, width), (-8, width)]])
+                entry_ground.append(apron)
+                if restore_entries and rendered_height(*at) is None:
+                    removed_entries.append(apron)
         spans = []
         run_points = []
         for (d, x, z), (next_d, xx, zz) in zip(stations, stations[1:]):
@@ -260,13 +398,13 @@ def _apply_nanping(surface, graph):
             if run <= 1e-8:
                 continue
             probes = ((sampler(x + t * dx + offset * dz / run, z + t * dz - offset * dx / run),
-                       _nanping_height(curve, (d + t * (next_d - d)) / length, floor))
+                       _nanping_height(curve, (d + t * (next_d - d)) / length))
                       for t in (-0.4, 0, 0.5, 1, 1.4)
                       for offset in (-half_width, -half_width / 2, 0, half_width / 2, half_width))
             if any(y is not None and y > deck_y + 0.025 for y, deck_y in probes):
                 if not run_points:
-                    run_points.append((x, z, _nanping_height(curve, d / length, floor)))
-                run_points.append((xx, zz, _nanping_height(curve, next_d / length, floor)))
+                    run_points.append((x, z, _nanping_height(curve, d / length)))
+                run_points.append((xx, zz, _nanping_height(curve, next_d / length)))
             elif run_points:
                 spans.append(run_points)
                 run_points = []
@@ -286,24 +424,198 @@ def _apply_nanping(surface, graph):
 
     def opening_floor(x, z):
         # 洞口截面只补门楣上方的山体，车行净空向下留给铺装与洞门。
-        for px, pz, dx, dz, half in portal_sections:
+        for px, pz, dx, dz, half, portal_y in portal_sections:
             along = (x - px) * dx + (z - pz) * dz
             across = (x - px) * dz - (z - pz) * dx
             if -2.3 <= along <= 0.55 and abs(across) <= half + 0.3:
-                return floor + NANPING_HEADROOM_M
+                return portal_y + NANPING_HEADROOM_M
         return -math.inf
 
+    if restore_entries:
+        # 回填真实接地道路的来向；转弯/分流处不能用桥面切线猜地面引道的位置。
+        for index, edge in enumerate(graph['links']):
+            meta = graph['metadata'][index]
+            if index in profiles or meta['tunnel'] or meta['bridge'] or meta['layer']:
+                continue
+            for node, reverse in [(edge[0], False), (edge[1], True)]:
+                if node not in ground_ends:
+                    continue
+                coords = _source_points(graph, edge)
+                line = LineString(coords[::-1] if reverse else coords)
+                approach = substring(line, 0, min(line.length, 12))
+                at, inner = approach.coords[:2]
+                if rendered_height(*at) is not None and rendered_height(*inner) is not None:
+                    continue
+                dx, dz = inner[0] - at[0], inner[1] - at[1]
+                run = math.hypot(dx, dz)
+                lead = (at[0] - 0.65 * dx / run, at[1] - 0.65 * dz / run)
+                apron = LineString([lead, *approach.coords]).buffer(deck_width(edge) / 2 + 1.0, cap_style='flat')
+                entry_ground.append(apron)
+                removed_entries.append(apron)
+
     mask = unary_union(cuts)
+    if entry_ground:
+        mask = mask.difference(unary_union(entry_ground))
     walls = build_cut_walls(mask, samples, sampler, opening_floor=opening_floor)
     cut, area = cut_ground_openings(surface, mask) if not mask.is_empty else (surface, 0)
-    cut = {**cut, 'nanpingProfile': NANPING}
     if walls['positions']:
         cut['cutWalls'] = merge_cut_walls(surface.get('cutWalls'), walls, mask)
-    return cut, {'links': len(main), 'tunnelLinks': sum(meta['tunnel'] for _, meta in main),
-                 'deckY': floor, 'curvedWays': len(NANPING['deckCurves']),
-                 'maxDeckY': max(y for curve in NANPING['deckCurves'].values() for _, y in curve),
-                 'cutM2': round(area, 3), 'wallTriangles': walls['triangles'],
-                 'heightSource': NANPING['heightSource']}
+    if removed_entries:
+        restored = unary_union(removed_entries)
+        cut, _ = _restore_roof(cut, restored, fallback)
+        cut['cutWalls'] = merge_cut_walls(cut.get('cutWalls'), {'positions': []}, restored)
+    elevations = [y for curve in profiles.values() for _, y in curve]
+    return cut, {'links': len(main), 'tunnelLinks': sum(meta['tunnel'] for _, meta, _ in main),
+                 'minDeckY': min(elevations), 'maxDeckY': max(elevations),
+                 'cutM2': round(area, 3), 'wallTriangles': walls['triangles']}
+
+
+def _apply_nanping(surface, graph, structures, spec):
+    profiles = _nanping_profiles(graph, structures, spec)
+    if not profiles:
+        return surface, None
+    cut, stats = _cut_profiled_decks(surface, graph, profiles)
+    cut['nanpingProfile'] = {'cutVersion': NANPING_CUT_VERSION, 'name': spec['name'],
+                             'profiles': {_profile_key(graph, i): curve for i, curve in sorted(profiles.items())}}
+    return cut, {**stats, 'heightSource': spec['heightSource']}
+
+
+def _road_corridor_controls(route, lines, terrain):
+    total = sum(line.length for line in lines)
+    ends = [lines[0].coords[0], lines[-1].coords[-1]]
+    joints = dict(zip(route['pathNodes'], [0.0, *[sum(line.length for line in lines[:i])
+                                                 for i in range(1, len(lines) + 1)]], strict=True))
+    locations = dict(zip(route['pathNodes'], [ends[0], *(line.coords[-1] for line in lines)], strict=True))
+    if 'riseM' not in route:
+        return [(total if s == 'end' else joints.get(s, s), y if y is not None else
+                 ground_height(terrain, *locations.get(s, ends[s == 'end']))) for s, y in route['controlsM']]
+
+    def terminal_y(value, point):
+        if value == 'underpass':
+            z = point[1]
+            return HONGLI['boreFloorM'] + HONGLI['approachGrade'] * max(
+                0, HONGLI['northPortalZ'] - z, z - HONGLI['southPortalZ'])
+        return ground_height(terrain, *point) if value is None else value
+
+    rise = route['riseM']
+    anchors = {0.0: terminal_y(route['terminalY'][0], ends[0]),
+               total: terminal_y(route['terminalY'][1], ends[-1]),
+               **{joints[node]: y for node, y in route.get('joinDeckM', {}).items()}}
+    # 车公庙的汇入与分流节点沿用既有一层桥面；避免把 DEM 局部高点加到桥面。
+    def blend(distance):
+        t = max(0, 1 - distance / 115)
+        return t * t * (3 - 2 * t)
+
+    stations = []
+    middle = sorted(joints[node] for node in route.get('joinDeckM', {}))
+    start = 0
+    for line in lines:
+        steps = math.ceil(line.length / 16)
+        for j in range(steps + 1):
+            d = line.length * j / steps
+            x, z = line.interpolate(d).coords[0]
+            s = start + d
+            if stations and s - stations[-1][0] < 0.001:
+                continue
+            ground = ground_height(terrain, x, z) + rise
+            influence = [(blend(abs(s - at)), y) for at, y in anchors.items() if abs(s - at) < 115]
+            if middle and middle[0] <= s <= middle[-1]:
+                # 同层立交内使用共享桥头之间的设计纵坡。
+                k = min(bisect_right(middle, s), len(middle) - 1)
+                a, b = middle[max(0, k - 1)], middle[k]
+                ground = anchors[a] if a == b else anchors[a] + (anchors[b] - anchors[a]) * (s - a) / (b - a)
+            weight = sum(w for w, _ in influence)
+            y = (max(0, 1 - weight) * ground + sum(w * y for w, y in influence)) / max(1, weight)
+            y = anchors.get(s, y)
+            stations.append((s, y))
+        start += line.length
+    stations[-1] = (total, anchors[total])
+    # 对 DEM 的局部尖峰限坡，保留两端的接点标高。
+    grade = 0.075
+    for step in (1, -1):
+        for j in range(1, len(stations) - 1) if step == 1 else range(len(stations) - 2, 0, -1):
+            s, y = stations[j]
+            if s in anchors:
+                continue
+            previous_s, previous_y = stations[j - step]
+            run = grade * abs(s - previous_s)
+            stations[j] = s, min(previous_y + run, max(previous_y - run, y))
+    return _compact_profile(stations)
+
+
+def _apply_road_corridor_profiles(surface, payload, spec, *, extension=False):
+    graph, terrain = payload['roadGraph'], payload['terrain']
+    source = payload['mapRegions']['source']
+    if (source['id'], source['sha256']) != (spec['source'], spec['osmSnapshotSha256']):
+        raise ValueError('Road corridor profiles need the matching source snapshot')
+    structures = payload['roadStructures']
+    reference = set() if extension else set(spec['referenceRoutes'])
+    routes = {row['id']: row for row in structures['routes'] if row['id'] in reference}
+    if routes.keys() != reference:
+        raise ValueError('Missing reviewed profiles for Meiguan Road')
+    by_way = {}
+    for index, meta in enumerate(graph['metadata']):
+        by_way.setdefault(meta['osmId'], []).append(index)
+    profiles, entrances, counts, heights = {}, {}, {}, {}
+
+    def add(index, length, samples, shared_start, shared_end):
+        if index in profiles or graph['metadata'][index]['tunnel']:
+            raise ValueError('Road corridor profiles must use distinct links outside tunnels')
+        curve = [[round(d / length, 8), round(y, 5)] for d, y in _compact_profile(samples)]
+        profiles[index] = curve
+        entrances[index] = [shared_start, shared_end]
+        for node, y in zip(graph['links'][index][:2], [curve[0][1], curve[-1][1]], strict=True):
+            if abs(heights.setdefault(node, y) - y) > 0.001:
+                raise ValueError(f'Road corridor grade mismatch at {graph["nodeIds"][node]}')
+
+    specs = spec['extensions' if extension else 'routes']
+    continuations = {row['pathNodes'][0] for row in specs if 'start' not in row['groundEnds']}
+    continuations.update(row['pathNodes'][-1] for row in specs if 'end' not in row['groundEnds'])
+    for row in structures['records']:
+        if row['route'] not in reference:
+            continue
+        index = row['index']
+        edge = graph['links'][index]
+        length = LineString(_source_points(graph, edge)).length
+        stations = row['stations']
+        samples = [(stations[j], stations[j + 2]) for j in range(0, len(stations), 8)]
+        samples[-1] = (length, samples[-1][1])
+        add(index, length, samples, row['sharedStart'] and graph['nodeIds'][edge[0]] not in continuations,
+            row['sharedEnd'] and graph['nodeIds'][edge[1]] not in continuations)
+        counts[row['route']] = counts.get(row['route'], 0) + 1
+
+    for route in specs:
+        path = route['pathNodes']
+        indices = resolve_route({**route, 'portalNodes': [path[0], path[-1]]}, graph, by_way)
+        if not indices or any(graph['links'][i][5] != 1 for i in indices):
+            raise ValueError(f'Cannot resolve road corridor {route["id"]}')
+        lines = [LineString(_source_points(graph, graph['links'][i])) for i in indices]
+        total = sum(line.length for line in lines)
+        ends = route['groundEnds']
+        joins = set(route.get('groundJoins', []))
+        controls = _road_corridor_controls(route, lines, terrain)
+        if (controls[0][0] != 0 or controls[-1][0] != total or any(
+                b <= a or abs(yb - ya) > 0.11 * (b - a) for (a, ya), (b, yb) in zip(controls, controls[1:]))):
+            raise ValueError(f'Invalid grade controls for {route["id"]}')
+        normalized = [(s / total, y) for s, y in controls]
+        start = 0
+        for j, (index, line) in enumerate(zip(indices, lines, strict=True)):
+            length = line.length
+            points = [start, *(s for s, _ in controls if start < s < start + length), start + length]
+            add(index, length, [(s - start, _nanping_height(normalized, s / total)) for s in points],
+                path[j] in joins or j == 0 and 'start' in ends,
+                path[j + 1] in joins or j == len(indices) - 1 and 'end' in ends)
+            start += length
+        counts[route['id']] = len(indices)
+
+    ground_ends = {node for index, ends in entrances.items()
+                   for node, at_grade in zip(graph['links'][index][:2], ends, strict=True) if at_grade}
+    cut, stats = _cut_profiled_decks(surface, graph, profiles, fallback=lambda x, z: ground_height(terrain, x, z),
+                                    ground_ends=ground_ends, restore_entries=extension)
+    cut['roadCorridorExtensions' if extension else 'roadCorridorProfiles'] = {
+        _profile_key(graph, i): [*entrances[i], curve] for i, curve in sorted(profiles.items())
+    }
+    return cut, {**stats, 'routes': counts, 'heightSource': spec['heightSource']}
 
 
 def apply_highway_corridors(payload, report):
@@ -325,10 +637,22 @@ def apply_highway_corridors(payload, report):
             surface, area = cut_ground_openings(surface, mask)
             report['highDeckTunnelPortals'] = {**portal_report['tunnelPortals'], 'genericCutM2': round(area, 3)}
     surface = apply_elevated_cut(surface, graph, report)
-    if surface.get('nanpingProfile') != NANPING:
-        surface, stats = _apply_nanping(surface, graph)
+    nanping = surface.get('nanpingProfile')
+    if nanping and nanping['cutVersion'] != NANPING_CUT_VERSION:
+        raise ValueError('Nanping grade changes require rebuilding the uncut terrain with --rebuild-ground')
+    if not nanping:
+        surface, stats = _apply_nanping(surface, graph, payload.get('roadStructures', {}),
+                                        json.loads(NANPING_SOURCE.read_text()))
         if stats is not None:
             report['nanpingProfile'] = stats
+    corridor_spec = json.loads(CORRIDOR_SOURCE.read_text())
+    if 'roadCorridorProfiles' not in surface:
+        surface, report['roadCorridorProfiles'] = _apply_road_corridor_profiles(
+            surface, payload, corridor_spec)
+    if surface.get('roadCorridorExtensionVersion') != 4:
+        surface, report['roadCorridorExtensions'] = _apply_road_corridor_profiles(
+            surface, payload, corridor_spec, extension=True)
+        surface['roadCorridorExtensionVersion'] = 4
     payload['terrainSurface'] = surface
     report['terrainSurface'].update(vertices=sum(len(chunk['kinds']) for chunk in surface['chunks']),
                                     triangles=sum(len(chunk['indices']) // 3 for chunk in surface['chunks']))

@@ -422,27 +422,75 @@ test('the real Shenzhen snapshot derives the whole-city deck network without any
     assert.equal(deck.effectiveLiftM, deck.nanpingMainline ? 10 : 10.3, deck.osmId);
   }
   const nanping = high.filter(deck => deck.nanpingMainline);
-  assert.equal(nanping.length, 85);
-  const tanglang = new Map([
-    ['way/221018208', [18, 42.3]], ['way/581971317', [42.3, 18]],
-    ['way/227775714', [18, 39.5]], ['way/581971316', [39.5, 18]]
-  ]);
+  assert.equal(nanping.length, 111);
+  const joins = new Map();
   for (const deck of nanping) {
-    const ends = tanglang.get(deck.osmId) ?? [18, 18];
-    assert.deepEqual([deck.startDeckY, deck.endDeckY], ends, deck.osmId);
-    if (!tanglang.has(deck.osmId)) assert.ok(deck.frames.every(frame => frame.y === 18), deck.osmId);
     assert.ok(plan.driveLinks.includes(deck), deck.osmId);
+    assert.ok(deck.gradeProfile.maxGrade < 0.08, deck.osmId);
+    for (const [node, y] of [[deck.startNode, deck.startDeckY], [deck.endNode, deck.endDeckY]]) {
+      if (joins.has(node)) assert.ok(Math.abs(joins.get(node) - y) < 0.001, graph.nodeIds[node]);
+      joins.set(node, y);
+    }
   }
-  const rises = nanping.filter(deck => tanglang.has(deck.osmId));
-  assert.equal(rises.length, 4);
-  assert.ok(Math.max(...rises.flatMap(deck => deck.frames.map(frame => frame.y))) > 58.9);
-  assert.ok(rises.every(deck => deck.maxGrade < 0.08));
+  const tanglang = nanping.filter(deck => ['way/581971317', 'way/227775714'].includes(deck.osmId));
+  assert.equal(tanglang.length, 2);
+  assert.ok(tanglang.every(deck => Math.max(...deck.frames.map(frame => frame.y)) >= 65.9));
+  // 无路名的跨谷桥属于同一源路线，坂银大道匝道口也保持东幅纵断面。
+  assert.ok(nanping.some(deck => deck.osmId === 'way/237808698' && deck.startDeckY > 95));
+  assert.ok(joins.get(graph.nodeIds.indexOf('node/6796972977')) > 100);
   const nanpingOverG4 = nanping.filter(deck => ['way/963575158', 'way/963575161'].includes(deck.osmId));
   const g4UnderNanping = g4.filter(deck => ['way/227852267', 'way/687529427'].includes(deck.osmId));
   assert.equal(new Set(nanpingOverG4.map(deck => deck.osmId)).size, 2);
   assert.equal(new Set(g4UnderNanping.map(deck => deck.osmId)).size, 2);
   assert.ok(Math.min(...nanpingOverG4.flatMap(deck => deck.frames.map(frame => frame.y)))
     - Math.max(...g4UnderNanping.flatMap(deck => deck.frames.map(frame => frame.y))) >= 5);
+  const corridors = plan.links.filter(deck => graph.metadata[deck.index].explicitCorridorProfile);
+  const corridorJoins = new Map();
+  const groundAt = groundSurface.createGroundSurfaceSampler(geo.terrainSurface);
+  assert.equal(corridors.length, 96);
+  for (const deck of corridors) {
+    assert.ok(plan.driveLinks.includes(deck), deck.osmId);
+    assert.equal(deck.aprons.length, 0, deck.osmId);
+    for (const [node, frame, ground] of [[deck.startNode, deck.frames[0], deck.sharedStart],
+      [deck.endNode, deck.frames.at(-1), deck.sharedEnd]]) {
+      if (corridorJoins.has(node)) assert.ok(Math.abs(corridorJoins.get(node) - frame.y) < 0.001, graph.nodeIds[node]);
+      if (ground) {
+        const y = groundAt(frame.x, frame.z);
+        assert.ok(Number.isFinite(y) && Math.abs(y - frame.y) < 0.15, graph.nodeIds[node]);
+      }
+      corridorJoins.set(node, frame.y);
+    }
+    if (deck.name === '福龙路') {
+      assert.ok(deck.frames.every(({ x, z, y }) => (groundAt(x, z) ?? -Infinity) <= y + 0.08), deck.osmId);
+    }
+  }
+  const [fulongSouth, fulongNorth, longhuaSouth, longhuaNorth] = [
+    'way/40954709', 'way/40989518', 'way/1180048047', 'way/1180048049'
+  ].map(id => corridors.find(deck => deck.osmId === id));
+  for (const deck of [fulongSouth, fulongNorth]) {
+    const crossing = deck.frames.filter(frame => frame.z < -1490 && frame.z > -1555);
+    assert.ok(crossing.length > 5);
+    assert.ok(crossing.every(frame => frame.y - groundAt(frame.x, frame.z) >= 4.8), deck.osmId);
+  }
+  assert.ok(corridorJoins.get(graph.nodeIds.indexOf('node/504650814')) > 110);
+  for (const deck of [longhuaSouth, longhuaNorth]) {
+    assert.ok(deck.frames.every(frame => Math.abs(frame.y - 13.2) < 0.001), deck.osmId);
+  }
+  const longzhu = corridors.filter(deck => deck.name === '南坪快速支线');
+  assert.equal(longzhu.length, 11);
+  for (const deck of longzhu) assert.ok(deck.gradeProfile.maxGrade < 0.12, deck.osmId);
+  const flyover = corridors.find(deck => deck.osmId === 'way/625227519');
+  assert.ok(flyover.frames.some(({ z, y }) => Math.abs(z + 1500) < 5 && y > 21 && y < 23));
+  assert.ok(flyover.gradeProfile.maxGrade < 0.12);
+  for (const way of ['way/96336938', 'way/412448773']) {
+    const deck = corridors.find(row => row.osmId === way);
+    assert.ok(deck.frames.every(({ x, z, y }) => Math.abs(y - groundAt(x, z) - 4.8) < 0.15), way);
+  }
+  for (const id of ['node/1116534740', 'node/1116534624']) {
+    const node = graph.nodeIds.indexOf(id);
+    const decks = corridors.filter(deck => deck.startNode === node || deck.endNode === node);
+    assert.deepEqual(Array.from(decks, deck => deck.name).sort(), ['福龙路', '香蜜湖路']);
+  }
   const splitLinks = plan.links.filter(link => link.splitStart || link.splitEnd);
   assert.ok(splitLinks.length > 0);
   const byIndex = new Map(plan.links.map(link => [link.index, link]));

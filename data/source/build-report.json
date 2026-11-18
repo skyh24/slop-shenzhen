@@ -315784,11 +315784,11 @@
     ],
     "unresolvedLinks": [],
     "timing": {
-      "baselineSeconds": 0.067,
-      "stationSeconds": 0.401,
-      "profileSeconds": 3.09,
-      "vertexSeconds": 3.046,
-      "totalSeconds": 6.92
+      "baselineSeconds": 0.06,
+      "stationSeconds": 0.345,
+      "profileSeconds": 2.19,
+      "vertexSeconds": 2.257,
+      "totalSeconds": 5.105
     },
     "limitations": [
       "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
@@ -315958,11 +315958,11 @@
   },
   "terrainSurface": {
     "chunks": 1264,
-    "vertices": 778341,
-    "triangles": 1167640,
+    "vertices": 779701,
+    "triangles": 1161725,
     "areaKm2": 279.029368,
     "areaErrorM2": -3.46e-06,
-    "seconds": 6.18,
+    "seconds": 5.21,
     "waterLevelsGenerated": false,
     "heightSource": "urban-datum",
     "exclusions": [
@@ -516425,13 +516425,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "a193de31ab6a8cf878e1bd4f842303e16372201f8163598721551df8a29c250b",
-    "bytes": 269008,
+    "fingerprint": "1f9181c25cc8e703b4dae8d36ee1211e6cee0ad5183e42bd2090a2859514eca9",
+    "bytes": 269024,
     "decodedBytes": 1255868,
     "files": {
-      "js/sz-regional/a193de31ab6a8cf878e1/waterfront.json.gz": "3babba6ea40f157042ecacda613bc10898340d5d880b91e4f029a55510b5329e",
-      "js/sz-regional/a193de31ab6a8cf878e1/metro.json.gz": "910898d62d3cead09421e8c69cea229e9bff2599b7d1e7d7ef83674c4900a56e",
-      "js/sz-regional/a193de31ab6a8cf878e1/drone.json.gz": "1b587d0d2d4a7b3f378e42ec5bfc60471b55aeb88b292757b68001a32e3ea64a"
+      "js/sz-regional/1f9181c25cc8e703b4da/waterfront.json.gz": "1d9027c74b39640d4f1c3cb02ea93afda713cd09256d10309308b43ac5448e76",
+      "js/sz-regional/1f9181c25cc8e703b4da/metro.json.gz": "7ceb4e0a5f601d1bc7d54873148af822a9e6828ebb5876ee8a9e61471ac312da",
+      "js/sz-regional/1f9181c25cc8e703b4da/drone.json.gz": "346656db65b6571f549245583288e0a7390f05c0aeb854d198850093359f61ad"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -516468,7 +516468,7 @@
       "js/sz-drone-choreography.js": "4d6283f31889df2a6918d45072ca7548e665768802ebb35c752c4a3bb86b2b04",
       "js/sz-drone-formations.js": "b748ea4a6b94e7035940e7b4ebcef29fd6c6621b6a049da5dfb809060165accc",
       "js/sz-drone-routes.js": "c90d72fde184c5b12ecd1879fe0a198a16679da4d81dbb4bee22dd7612b8bf6f",
-      "js/sz-elevated-roads.js": "b1773b10f0ebbcc95ec45198beba8422eab1fc1c2dfacf7289b2b63c85ba69e4",
+      "js/sz-elevated-roads.js": "d171758d1d4eabcd4509cda2404ed23eec0dffac96ba1184e066ec978b1bdea6",
       "js/sz-facade-look.js": "0ca6eb053a653f2ebb5c021ffb5545194c028909c3863e6659e409c762bfbdc6",
       "js/sz-facade-nodes.js": "75157aec5399cea05ded5dae953bd049c3d84e490eee239f163dfaa9e9223872",
       "js/sz-facade-profiles.js": "5c77204644bee3fdd3a23231496bd13efcc8e841393b6675bab25395a45ab83b",
@@ -516477,7 +516477,7 @@
       "js/sz-golf-course.js": "b99b3695dab632393f2db9b9f33a9a93a1777c364f37741b2b86549f563c8673",
       "js/sz-ground-surface.js": "6c1fa2d206626fb271c7d1fab13ee8ecf7b6b4002e83deb50f1ac8a2fcc7ba68",
       "js/sz-ground.js": "7d9fb17c0dcaf7350daa3508ad56bf260ee79731eaac8b8e91c2158d51acc9bc",
-      "js/sz-interchange-levels.js": "a3ec829852de7320cdb0912674fc85fc13b962f57a5fbed4ca3c11bafe07a7b0",
+      "js/sz-interchange-levels.js": "03a4b8d01843c81b34086b17649549d0d70c6f66c1a8c1f56bbb199948049738",
       "js/sz-intersection-control.js": "d10996f0fa6d9f6ba5f6f5506145200e5f5115f726b6371907fe976019360871",
       "js/sz-landmarks/bay-opera.js": "b7a8f2d0534c44b50be4c987ad05d98bb15e12ada1ec246c9e92a5bee0b044a6",
       "js/sz-landmarks/chunjian.js": "fdbbd2b876691d789b525f81535612b08faf6fcb31fc44d023b837ac8c3d8bdc",
@@ -516572,7 +516572,7 @@
       "js/sz-theme-parks/sites.js": "1de1f26ca47954345088529af856539d8356eb78ebd576b662606b35ff50f5f7",
       "js/sz-tree-crown.js": "fe307786aba22098be4a3b3d8e3e32aa1015b2ad67ba46c31cb5efe92282fb74",
       "js/sz-trees.js": "948e9a8abcc7598cee84bf0d086b6eed52e52de39c5366eda52b6cf457dfabf2",
-      "js/sz-tunnels.js": "b65e49cbbdc43a341287f38ed6e827cb38f150846f95675c57236e19907bf111",
+      "js/sz-tunnels.js": "0b3c4f9b8ab72eccac7294adc5bf52d4a90c84ac0b466a4e2761693b72e5b0f4",
       "js/sz-urban-paving.js": "eb474e194c812de5ba2fe011b73664d79097674f179497ca2f17566b27906020",
       "js/sz-vegetation-layout.js": "732425135858fae7a294b4775cbafd2fc6742dd4e158f213f4e971b1d24241f0",
       "js/sz-vegetation.js": "16cf3897a203552a6733a18cd6c00e54cb77801ddcec8efac78fe3974c98bdc9",
@@ -516856,16 +516856,16 @@
     "format": "SZC1",
     "version": 1,
     "columns": 8064,
-    "metadataBytes": 19445536,
-    "numericBytes": 45236392,
-    "uncompressedBytes": 64681976,
+    "metadataBytes": 19478908,
+    "numericBytes": 44707312,
+    "uncompressedBytes": 64186272,
     "lossless": true,
-    "compressedBytes": 17480931,
-    "compressedSha256": "45f787e6f0ff1a606cecbd27eabb9b9ccb2f545430d4d1a31a6fcc471f75423b"
+    "compressedBytes": 17370565,
+    "compressedSha256": "fc2068b50448567ee69190ed15061b9fce7bb1347dc975b0e09a3363aedc9b27"
   },
-  "outputBytes": 17531922,
-  "outputSha256": "f1d75d45c79a5612ba6abb3c6c0f048ac3449b1e22affb8573d5b3144a7d060e",
-  "seconds": 255.7,
+  "outputBytes": 17428902,
+  "outputSha256": "03cb448a7e89aa2e0d7f04907ce5869b2b83bb6698010509e8355e599decf483",
+  "seconds": 37.0,
   "elevatedCut": {
     "version": 3,
     "links": 28,
@@ -516959,7 +516959,7 @@
     "heightSource": "estimate"
   },
   "groundRebuild": {
-    "basePayloadSha256": "3df16010cb128190863bbef637a5b213c769ae6023c09b74845e7f383a6a2732",
+    "basePayloadSha256": "55aea9245da1c99565fd488766d02fe7c5f7a00a99cbe8ce1ee921a03a3dccdf",
     "changedSections": [
       "terrain",
       "terrainSurface",
@@ -518240,13 +518240,49 @@
     "genericCutM2": 3512.04
   },
   "nanpingProfile": {
-    "links": 91,
-    "tunnelLinks": 6,
-    "deckY": 18,
-    "curvedWays": 4,
-    "maxDeckY": 59,
-    "cutM2": 239517.177,
-    "wallTriangles": 18548,
+    "links": 119,
+    "tunnelLinks": 8,
+    "minDeckY": 8.0,
+    "maxDeckY": 125.0,
+    "cutM2": 52736.611,
+    "wallTriangles": 6218,
+    "heightSource": "estimate"
+  },
+  "roadCorridorProfiles": {
+    "links": 53,
+    "tunnelLinks": 0,
+    "minDeckY": 8.0,
+    "maxDeckY": 114.823,
+    "cutM2": 45107.05,
+    "wallTriangles": 2386,
+    "routes": {
+      "meiguan-north": 6,
+      "meiguan-south": 16,
+      "fulong-beihuan-north": 8,
+      "fulong-beihuan-south": 7,
+      "meiguan-north-continuation": 5,
+      "meiguan-south-continuation": 3,
+      "longhua-dadao-north": 4,
+      "longhua-dadao-south": 4
+    },
+    "heightSource": "estimate"
+  },
+  "roadCorridorExtensions": {
+    "links": 43,
+    "tunnelLinks": 0,
+    "minDeckY": 5.14441,
+    "maxDeckY": 52.04404,
+    "cutM2": 0.0,
+    "wallTriangles": 940,
+    "routes": {
+      "nanping-branch-longzhu-north": 5,
+      "nanping-branch-longzhu-south": 6,
+      "nanping-branch-longzhu-flyover": 2,
+      "xiangmihu-north-before-underpass": 9,
+      "xiangmihu-north-after-underpass": 6,
+      "xiangmihu-south-before-underpass": 7,
+      "xiangmihu-south-after-underpass": 8
+    },
     "heightSource": "estimate"
   }
 }

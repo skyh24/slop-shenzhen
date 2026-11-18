@@ -58,7 +58,7 @@ def _restore_roof(surface, mask, datum):
                         for px, pz in (a, c, b) if face.exterior.is_ccw else (a, b, c):
                             indices.append(len(kinds))
                             kinds.append(0)
-                            positions.extend((px - ox, datum, pz - oz))
+                            positions.extend((px - ox, datum(px, pz) if callable(datum) else datum, pz - oz))
                         area += face.area
                         changed = True
             if len(indices) > begin:

@@ -9,14 +9,14 @@ const NANGUANG_THROUGH_WAY = 'way/1081087778';
 export function roadDeckLayer(metadata, name) {
   const layer = metadata.layer ?? 0;
   if (layer <= 0) return layer;
-  if (Number.isFinite(metadata.nanpingDeckY)) return 2;
+  if (metadata.nanpingMainline) return 2;
   const upperMainline = HIGH_DECK_ROADS.get(name) === metadata.highway && HIGH_DECK_ROADS.has(name);
   return !metadata.highwayProfile && !metadata.interchangeApproach
     && (upperMainline || metadata.osmId === NANGUANG_THROUGH_WAY) ? 2 : 1;
 }
 
 export function roadDeckRise(layer, metadata) {
-  return layer === 2 ? metadata?.nanpingRiseM ?? HIGH_DECK_RISE_M : layer === 1 ? DECK_RISE_M : 0;
+  return layer === 2 ? (metadata?.nanpingMainline ? 10 : HIGH_DECK_RISE_M) : layer === 1 ? DECK_RISE_M : 0;
 }
 // 南光高速两幅主线与隧道在源节点直接接续，由两侧道路共同承担高差。
 export const HIGH_DECK_TUNNEL_APPROACH_M = 84;
@@ -34,12 +34,38 @@ export function highDeckTunnelPortals(graph) {
   }
   const portals = new Map();
   for (const [index, meta] of graph.metadata.entries()) {
-    if (!meta.tunnel || (!Number.isFinite(meta.nanpingDeckY) && !NANGUANG_BORES.has(meta.osmId))) continue;
+    if (!meta.tunnel || (!meta.nanpingMainline && !NANGUANG_BORES.has(meta.osmId))) continue;
     const ends = new Map();
     for (const node of graph.links[index].slice(0, 2)) {
       const peers = decks.get(node)?.filter(peer => graph.links[peer][2] === graph.links[index][2]);
       if (peers?.length) ends.set(node, peers);
     }
+    if (ends.size) portals.set(index, ends);
+  }
+  return portals;
+}
+
+// 下穿洞门只接共用源节点且标高一致的工程引道。
+export function profiledUnderpassPortals(graph, underpass) {
+  const portals = new Map();
+  if (!underpass || !graph.metadata.some(meta => meta.explicitCorridorProfile)) return portals;
+  const tunnels = new Set(underpass.tunnels);
+  const approaches = new Map();
+  for (const [index, link] of graph.links.entries()) {
+    const meta = graph.metadata[index];
+    if (!meta.explicitCorridorProfile) continue;
+    for (const [side, node] of link.slice(0, 2).entries()) {
+      const z = graph.nodes[2 * node + 1];
+      const y = underpass.boreFloorM + underpass.approachGrade *
+        Math.max(0, underpass.northPortalZ - z, z - underpass.southPortalZ);
+      if (Math.abs(meta.highwayProfile[side] - y) > 0.01) continue;
+      if (!approaches.has(node)) approaches.set(node, []);
+      approaches.get(node).push(index);
+    }
+  }
+  for (const [index, link] of graph.links.entries()) {
+    if (!tunnels.has(graph.metadata[index].osmId)) continue;
+    const ends = new Map(link.slice(0, 2).filter(node => approaches.has(node)).map(node => [node, approaches.get(node)]));
     if (ends.size) portals.set(index, ends);
   }
   return portals;
@@ -173,33 +199,59 @@ export function applyInterchangeLevels(graph, areas) {
   return { ...graph, metadata: result };
 }
 
+// 构建期裁山、运行时铺装和洞底用同一组归一化里程控制点。
+export function highwayProfileHeight(profile, fraction) {
+  const curve = profile[4];
+  if (!curve) return profile[0] + (profile[1] - profile[0]) * fraction;
+  if (fraction <= 0) return profile[0];
+  const next = curve.findIndex(([station], index) => index > 0 && fraction <= station);
+  if (next < 0) return profile[1];
+  const [start, y] = curve[next - 1];
+  const [end, nextY] = curve[next];
+  return y + (nextY - y) * (fraction - start) / (end - start);
+}
+
 export function applyCorridorRoadProfiles(graph, terrain) {
   const mapped = applyInterchangeLevels(graph, terrain?.interchangeLevels);
-  const { g4Profiles, hongliUnderpass, nanpingProfile } = terrain ?? {};
-  if (!g4Profiles && !hongliUnderpass && !nanpingProfile) return mapped;
-  const nanpingLinks = new Set();
+  const { g4Profiles, hongliUnderpass, nanpingProfile, roadCorridorProfiles, roadCorridorExtensions } = terrain ?? {};
+  if (!g4Profiles && !hongliUnderpass && !nanpingProfile && !roadCorridorProfiles && !roadCorridorExtensions) return mapped;
+  const nanpingLinks = new Map();
   const nanpingNodes = new Set();
-  if (nanpingProfile) {
+  const nanpingName = mapped.names.indexOf(nanpingProfile?.name);
+  if (nanpingProfile?.profiles) {
     for (const [index, link] of mapped.links.entries()) {
-      if (mapped.names[link[2]] !== nanpingProfile.name || mapped.metadata[index].highway !== nanpingProfile.highway) continue;
-      nanpingLinks.add(index);
-      nanpingNodes.add(link[0]);
-      nanpingNodes.add(link[1]);
+      const [a, b] = link;
+      const { osmId } = mapped.metadata[index];
+      const curve = nanpingProfile.profiles[`${osmId}:${mapped.nodeIds[a]}:${mapped.nodeIds[b]}`];
+      if (!curve) continue;
+      nanpingLinks.set(index, curve);
+      nanpingNodes.add(a);
+      nanpingNodes.add(b);
     }
   }
-  const nanpingDeckY = nanpingProfile && nanpingProfile.groundDatumM + nanpingProfile.riseM;
   const feeders = new Set(hongliUnderpass?.feeders);
   const tunnelWays = new Set(hongliUnderpass?.tunnels);
   const portals = new Set(mapped.links.flatMap((link, index) =>
     tunnelWays.has(mapped.metadata[index].osmId) ? link.slice(0, 2) : []));
-  return { ...mapped, metadata: mapped.metadata.map((meta, index) => {
-    if (nanpingLinks.has(index)) {
-      const alignment = { ...meta, nanpingDeckY, nanpingRiseM: nanpingProfile.riseM, heightSource: 'estimate' };
-      if (meta.tunnel) return alignment;
-      const curve = nanpingProfile.deckCurves?.[meta.osmId];
-      return { ...alignment, layer: 2, bridge: true, highwayProfile: [
-        curve?.[0][1] ?? nanpingDeckY, curve?.at(-1)[1] ?? nanpingDeckY, true, true, curve
-      ] };
+  const links = nanpingName < 0 ? mapped.links : mapped.links.map((link, index) =>
+    nanpingLinks.has(index) && link[2] !== nanpingName ? link.with(2, nanpingName) : link);
+  return { ...mapped, links, metadata: mapped.metadata.map((meta, index) => {
+    const curve = nanpingLinks.get(index);
+    if (curve) {
+      const alignment = { ...meta, nanpingMainline: true, heightSource: 'estimate',
+        highwayProfile: [curve[0][1], curve.at(-1)[1], true, true, curve] };
+      return meta.tunnel ? alignment : { ...alignment, layer: 2, bridge: true };
+    }
+    if (roadCorridorProfiles || roadCorridorExtensions) {
+      const [a, b] = mapped.links[index];
+      const key = `${meta.osmId}:${mapped.nodeIds[a]}:${mapped.nodeIds[b]}`;
+      const corridor = roadCorridorExtensions?.[key] ?? roadCorridorProfiles?.[key];
+      if (corridor) {
+        const [startAtGrade, endAtGrade, stations] = corridor;
+        return { ...meta, layer: 1, bridge: true,
+          heightSource: 'estimate', explicitCorridorProfile: true,
+          highwayProfile: [stations[0][1], stations.at(-1)[1], !startAtGrade, !endAtGrade, stations] };
+      }
     }
     const profile = g4Profiles?.[index];
     if (profile) return { ...meta, layer: 1, bridge: true, tunnel: false, heightSource: 'estimate', highwayProfile: profile };

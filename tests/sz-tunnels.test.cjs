@@ -427,21 +427,46 @@ test('real THREE build raycasts the tunnel floor from inside the bore',
     assert.equal(scene.children.length, 0);
   });
 
-test('Nanping tunnel floors and source portal sections stay level in the current city', () => {
+test('Nanping bores and the Hongli underpass join the adjoining road profiles', () => {
   const { gunzipSync } = require('node:zlib');
   const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
   const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
-  const { applyCorridorRoadProfiles } = loadModule(read('sz-interchange-levels.js'));
+  const { applyCorridorRoadProfiles, highDeckTunnelPortals, profiledUnderpassPortals } =
+    loadModule(read('sz-interchange-levels.js'));
   const { geo } = decodeCityPayload(raw);
   const graph = applyCorridorRoadProfiles(geo.roadGraph, geo.terrainSurface);
   const plan = tunnels.planSzTunnels(graph, geo.terrainSurface, { wholeCity: true });
-  const bores = plan.links.filter(link => link.name === '南坪快速');
-  assert.equal(bores.length, 6);
-  assert.equal(bores.reduce((sum, link) => sum + link.portalCount, 0), 8);
+  const bores = plan.links.filter(link => graph.metadata[link.index].nanpingMainline);
+  const portals = highDeckTunnelPortals(graph);
+  assert.equal(bores.length, 8);
+  assert.equal(bores.reduce((sum, link) => sum + link.portalCount, 0), 12);
   for (const bore of bores) {
     assert.ok(bore.drivable, bore.osmId);
-    assert.equal(bore.gradeProfile.maxGrade, 0, bore.osmId);
-    assert.ok(bore.frames.every(frame => frame.floorY === 18), bore.osmId);
+    assert.ok(bore.gradeProfile.maxGrade < 0.08, bore.osmId);
+    assert.ok(bore.frames.every(frame => Math.abs(frame.ceilingY - frame.floorY - bore.clearanceM) < 1e-6), bore.osmId);
+    for (const [node, peers] of portals.get(bore.index) ?? []) {
+      const y = node === bore.startNode ? bore.startDeckY : bore.endDeckY;
+      for (const peer of peers) {
+        const profile = graph.metadata[peer].highwayProfile;
+        assert.ok(Math.abs(y - profile[node === graph.links[peer][0] ? 0 : 1]) < 0.001, bore.osmId);
+      }
+    }
+  }
+  assert.ok(bores.find(bore => bore.osmId === 'way/221018213').startDeckY >= 43);
+  assert.ok(bores.find(bore => bore.osmId === 'way/221892582').startDeckY > 110);
+  const underpass = profiledUnderpassPortals(graph, geo.terrainSurface.hongliUnderpass);
+  assert.equal(underpass.size, 2);
+  for (const [index, portals] of underpass) {
+    const bore = plan.drive.links.find(link => link.index === index);
+    assert.ok(bore, graph.metadata[index].osmId);
+    assert.equal(portals.size, 2);
+    for (const [node, peers] of portals) {
+      const y = node === bore.startNode ? bore.startDeckY : bore.endDeckY;
+      for (const peer of peers) {
+        assert.ok(bore.structureNeighbors.includes(`sz-elevated-road:${peer}`));
+        assert.ok(Math.abs(y - graph.metadata[peer].highwayProfile[graph.links[peer].indexOf(node)]) < 0.001);
+      }
+    }
   }
 });
 

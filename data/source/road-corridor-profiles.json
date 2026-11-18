@@ -1,0 +1,586 @@
+{
+  "source": "osm-guangdong",
+  "osmSnapshotSha256": "b67bb095ba1371087e5e8033ec333743d6788f56bc7d7daa3f385eacc14fcfa3",
+  "heightSource": "estimate",
+  "placeNameSource": "https://pnr.sz.gov.cn/attachment/1/1442/1442495/10537363.pdf",
+  "referenceRoutes": [
+    "meiguan-north",
+    "meiguan-south"
+  ],
+  "routes": [
+    {
+      "id": "fulong-beihuan-north",
+      "pathNodes": [
+        "node/1116534740",
+        "node/499559138",
+        "node/499558951",
+        "node/3811042773",
+        "node/3811042776",
+        "node/5274700004",
+        "node/1476460562",
+        "node/5053182004",
+        "node/1476460614"
+      ],
+      "ways": [
+        "way/517912105",
+        "way/40989518",
+        "way/377716600",
+        "way/377716602",
+        "way/134218034",
+        "way/589243222",
+        "way/589243222",
+        "way/517912180"
+      ],
+      "controlsM": [
+        [
+          0,
+          null
+        ],
+        [
+          125,
+          20.65
+        ],
+        [
+          183,
+          25.75
+        ],
+        [
+          285,
+          35.2
+        ],
+        [
+          515,
+          51.8
+        ],
+        [
+          "end",
+          null
+        ]
+      ],
+      "groundEnds": [
+        "start",
+        "end"
+      ]
+    },
+    {
+      "id": "fulong-beihuan-south",
+      "pathNodes": [
+        "node/279961537",
+        "node/5053182005",
+        "node/5053181998",
+        "node/3811042775",
+        "node/3811042774",
+        "node/499558934",
+        "node/499558938",
+        "node/1116534624"
+      ],
+      "ways": [
+        "way/589243215",
+        "way/517912181",
+        "way/517912178",
+        "way/377716599",
+        "way/377716601",
+        "way/40954709",
+        "way/412448775"
+      ],
+      "controlsM": [
+        [
+          0,
+          null
+        ],
+        [
+          222,
+          50.0
+        ],
+        [
+          387,
+          39.25
+        ],
+        [
+          575,
+          25.4
+        ],
+        [
+          665,
+          16.9
+        ],
+        [
+          "end",
+          null
+        ]
+      ],
+      "groundEnds": [
+        "start",
+        "end"
+      ]
+    },
+    {
+      "id": "meiguan-north-continuation",
+      "pathNodes": [
+        "node/504648550",
+        "node/504648558",
+        "node/6037956993",
+        "node/2308765380",
+        "node/4889053502",
+        "node/581073485"
+      ],
+      "ways": [
+        "way/1242231950",
+        "way/996597669",
+        "way/996597670",
+        "way/1059172709",
+        "way/996597663"
+      ],
+      "controlsM": [
+        [
+          0,
+          113.715
+        ],
+        [
+          75,
+          109.2
+        ],
+        [
+          240,
+          94.8
+        ],
+        [
+          640,
+          55.6
+        ],
+        [
+          1060,
+          16.5
+        ],
+        [
+          "end",
+          null
+        ]
+      ],
+      "groundEnds": [
+        "end"
+      ]
+    },
+    {
+      "id": "meiguan-south-continuation",
+      "pathNodes": [
+        "node/581073550",
+        "node/2308765271",
+        "node/6037956681",
+        "node/504650814"
+      ],
+      "ways": [
+        "way/996597676",
+        "way/1049968050",
+        "way/638246754"
+      ],
+      "controlsM": [
+        [
+          0,
+          null
+        ],
+        [
+          260,
+          15.25
+        ],
+        [
+          520,
+          36.0
+        ],
+        [
+          1000,
+          81.0
+        ],
+        [
+          1300,
+          109.1
+        ],
+        [
+          "end",
+          114.823
+        ]
+      ],
+      "groundEnds": [
+        "start"
+      ]
+    },
+    {
+      "id": "longhua-dadao-north",
+      "pathNodes": [
+        "node/11911586327",
+        "node/10959920174",
+        "node/2308720139",
+        "node/7252159113",
+        "node/10959920190"
+      ],
+      "ways": [
+        "way/1180048048",
+        "way/1180048049",
+        "way/1155205439",
+        "way/1155205439"
+      ],
+      "controlsM": [
+        [
+          0,
+          null
+        ],
+        [
+          68,
+          8
+        ],
+        [
+          235,
+          13.2
+        ],
+        [
+          310,
+          13.2
+        ],
+        [
+          490,
+          8
+        ],
+        [
+          "end",
+          null
+        ]
+      ],
+      "groundEnds": [
+        "start",
+        "end"
+      ]
+    },
+    {
+      "id": "longhua-dadao-south",
+      "pathNodes": [
+        "node/9194010582",
+        "node/2308720133",
+        "node/2308720096",
+        "node/10959920173",
+        "node/11911590242"
+      ],
+      "ways": [
+        "way/1215698196",
+        "way/1244796673",
+        "way/1180048047",
+        "way/1180048046"
+      ],
+      "controlsM": [
+        [
+          0,
+          null
+        ],
+        [
+          168,
+          13.2
+        ],
+        [
+          251,
+          13.2
+        ],
+        [
+          430,
+          8
+        ],
+        [
+          "end",
+          null
+        ]
+      ],
+      "groundEnds": [
+        "start",
+        "end"
+      ]
+    }
+  ],
+  "extensions": [
+    {
+      "id": "nanping-branch-longzhu-north",
+      "pathNodes": [
+        "node/10241989444",
+        "node/1116457119",
+        "node/278935261",
+        "node/1116448642",
+        "node/2550490907",
+        "node/2367043556"
+      ],
+      "ways": [
+        "way/160220796",
+        "way/96328159",
+        "way/96327292",
+        "way/1058122728",
+        "way/248224204"
+      ],
+      "groundEnds": [
+        "start",
+        "end"
+      ],
+      "controlsM": [
+        [
+          0,
+          null
+        ],
+        [
+          225,
+          12.8
+        ],
+        [
+          350,
+          14.1
+        ],
+        [
+          "node/278935261",
+          null
+        ],
+        [
+          "node/1116448642",
+          null
+        ],
+        [
+          "end",
+          null
+        ]
+      ],
+      "groundJoins": [
+        "node/278935261",
+        "node/1116448642"
+      ]
+    },
+    {
+      "id": "nanping-branch-longzhu-south",
+      "pathNodes": [
+        "node/2550490852",
+        "node/2550490945",
+        "node/1116449051",
+        "node/1116448530",
+        "node/2367037724",
+        "node/1116448567",
+        "node/2367043460"
+      ],
+      "ways": [
+        "way/248224208",
+        "way/1058122730",
+        "way/248224213",
+        "way/96327310",
+        "way/1052079676",
+        "way/160220794"
+      ],
+      "groundEnds": [
+        "start",
+        "end"
+      ],
+      "controlsM": [
+        [
+          0,
+          null
+        ],
+        [
+          "node/1116449051",
+          null
+        ],
+        [
+          "node/1116448530",
+          19.1
+        ],
+        [
+          "node/2367037724",
+          15.17
+        ],
+        [
+          620,
+          12.8
+        ],
+        [
+          "end",
+          null
+        ]
+      ],
+      "groundJoins": [
+        "node/1116449051"
+      ]
+    },
+    {
+      "id": "nanping-branch-longzhu-flyover",
+      "pathNodes": [
+        "node/1116449012",
+        "node/2367043450",
+        "node/2367043544"
+      ],
+      "ways": [
+        "way/228054093",
+        "way/625227519"
+      ],
+      "groundEnds": [
+        "start",
+        "end"
+      ],
+      "controlsM": [
+        [
+          0,
+          null
+        ],
+        [
+          "node/2367043450",
+          null
+        ],
+        [
+          192,
+          39
+        ],
+        [
+          320,
+          33
+        ],
+        [
+          475,
+          26.3
+        ],
+        [
+          615,
+          22
+        ],
+        [
+          740,
+          16
+        ],
+        [
+          "end",
+          null
+        ]
+      ]
+    },
+    {
+      "id": "xiangmihu-north-before-underpass",
+      "pathNodes": [
+        "node/498857737",
+        "node/8869144268",
+        "node/8869144269",
+        "node/8711330058",
+        "node/10579173189",
+        "node/13898260749",
+        "node/498882102",
+        "node/13898260746",
+        "node/7973114673",
+        "node/5187499071"
+      ],
+      "ways": [
+        "way/958548488",
+        "way/996188229",
+        "way/854903611",
+        "way/40955120",
+        "way/40955120",
+        "way/40955120",
+        "way/854903608",
+        "way/854903608",
+        "way/961590245"
+      ],
+      "groundEnds": [
+        "start"
+      ],
+      "riseM": 4.8,
+      "terminalY": [
+        null,
+        "underpass"
+      ],
+      "joinDeckM": {
+        "node/8711330058": 12.8,
+        "node/10579173189": 12.8,
+        "node/13898260749": 12.8
+      }
+    },
+    {
+      "id": "xiangmihu-north-after-underpass",
+      "pathNodes": [
+        "node/5187498610",
+        "node/5771508454",
+        "node/3969348466",
+        "node/5273698184",
+        "node/1116534911",
+        "node/5273698158",
+        "node/1116534740"
+      ],
+      "ways": [
+        "way/535064404",
+        "way/535064404",
+        "way/535064404",
+        "way/96336938",
+        "way/96336927",
+        "way/96336927"
+      ],
+      "groundEnds": [
+        "end"
+      ],
+      "riseM": 4.8,
+      "terminalY": [
+        "underpass",
+        null
+      ]
+    },
+    {
+      "id": "xiangmihu-south-before-underpass",
+      "pathNodes": [
+        "node/1116534624",
+        "node/499559058",
+        "node/1116534544",
+        "node/5273698185",
+        "node/1116534625",
+        "node/1116534575",
+        "node/499559076",
+        "node/499559114"
+      ],
+      "ways": [
+        "way/996207980",
+        "way/517912099",
+        "way/412448773",
+        "way/1052425739",
+        "way/1052425739",
+        "way/545681215",
+        "way/545681215"
+      ],
+      "groundEnds": [
+        "start"
+      ],
+      "riseM": 4.8,
+      "terminalY": [
+        null,
+        "underpass"
+      ]
+    },
+    {
+      "id": "xiangmihu-south-after-underpass",
+      "pathNodes": [
+        "node/5187499093",
+        "node/498882034",
+        "node/8894937257",
+        "node/13898260747",
+        "node/7973259245",
+        "node/3969348312",
+        "node/8184413584",
+        "node/7902654987",
+        "node/498867945"
+      ],
+      "ways": [
+        "way/961590244",
+        "way/961590247",
+        "way/1524817655",
+        "way/535064397",
+        "way/854919696",
+        "way/879817598",
+        "way/958548492",
+        "way/1163682880"
+      ],
+      "groundEnds": [
+        "end"
+      ],
+      "riseM": 4.8,
+      "terminalY": [
+        "underpass",
+        8
+      ],
+      "joinDeckM": {
+        "node/7973259245": 12.8,
+        "node/3969348312": 12.8
+      }
+    }
+  ]
+}
