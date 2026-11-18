@@ -275,36 +275,13 @@ function carVelocity(car) {
   return [Math.sin(car.heading) * car.speed + car.vx, Math.cos(car.heading) * car.speed + car.vz];
 }
 
-test('car accelerates gradually to full speed and preserves coasting and braking', () => {
-  const acceleration = carDynamicsHarness();
-  acceleration.controller.keys.forward = true;
-  acceleration.advance(1);
-  assert.ok(Math.abs(acceleration.car.speed * 3.6 - 80 / 3) < 0.01);
-  acceleration.advance(1);
-  assert.ok(Math.abs(acceleration.car.speed * 3.6 - 160 / 3) < 0.01);
-  acceleration.advance(1);
-  assert.ok(Math.abs(acceleration.car.speed * 3.6 - 80) < 0.01);
-  acceleration.advance(3);
-  assert.equal(acceleration.car.speed, 80 / 3.6);
-
-  const boosted = carDynamicsHarness();
-  boosted.controller.keys.forward = boosted.controller.keys.boost = true;
-  boosted.advance(1);
-  assert.ok(Math.abs(boosted.car.speed * 3.6 - 40) < 0.01);
-  boosted.advance(1);
-  assert.ok(Math.abs(boosted.car.speed * 3.6 - 80) < 0.01);
-  boosted.advance(1);
-  assert.ok(Math.abs(boosted.car.speed * 3.6 - 120) < 0.01);
-
-  const coasting = carDynamicsHarness({ speed: 50 / 3.6 });
-  coasting.advance(5);
-  assert.ok(Math.abs(coasting.car.speed * 3.6 - 33.07) < 0.2, 'keep the existing accelerator-release resistance');
-
-  const braking = carDynamicsHarness({ speed: 50 / 3.6 });
-  braking.controller.keys.backward = true;
-  braking.advance(1.5);
-  assert.ok(braking.car.speed >= 0 && braking.car.speed < 0.2, 'braking reaches a stop without reversing early');
-  assert.ok(braking.car.position.z > 9.8 && braking.car.position.z < 10.6, 'preserve the roughly ten-metre stopping distance');
+test('releasing boost with throttle held returns the car to the regular cap without snapping', () => {
+  const { controller, car, advance } = carDynamicsHarness({ speed: 160 / 3.6 });
+  controller.keys.forward = true;
+  advance(1);
+  assert.ok(Math.abs(car.speed * 3.6 - 120) < 0.01);
+  advance(1);
+  assert.ok(Math.abs(car.speed * 3.6 - 80) < 0.01);
 });
 
 test('Space brakes the car without requiring reverse throttle', () => {
@@ -398,7 +375,7 @@ test('S and Space have the same grip and steering through service braking', () =
     space.controller.keys.brake = true;
     for (const sim of [backward, space]) {
       sim.controller.keys.left = true;
-      sim.advance(0.75);
+      sim.advance(0.25);
     }
     assert.deepEqual(carVelocity(backward.car), carVelocity(space.car));
     assert.equal(backward.car.heading, space.car.heading);
@@ -918,13 +895,12 @@ test('cyclist braking stops briskly, pauses at zero before reversing, and suppor
     return { controller, cyclist };
   }
 
-  // Holding S from cruising speed (12 m/s) stops in ~6.5 m and pauses cleanly at 0 before backing up
+  // 倒车输入先刹停，再停顿片刻后倒车。
   const sBrake = bikeHarness(12);
   sBrake.controller.keys.backward = true;
-  for (let i = 0; i < 72; i++) sBrake.controller.updateCyclist(1 / 60); // 1.2 s
+  for (let i = 0; i < 30; i++) sBrake.controller.updateCyclist(1 / 60);
   assert.equal(sBrake.cyclist.speed, 0, 'S brake brings the bicycle to a clean stop without immediately reversing');
-  assert.ok(sBrake.cyclist.position.z > 5.5 && sBrake.cyclist.position.z < 7.5,
-    `bicycle stops within ~6.5 m from 12 m/s (got ${sBrake.cyclist.position.z.toFixed(2)} m)`);
+  assert.ok(sBrake.cyclist.position.z > 2.3 && sBrake.cyclist.position.z < 2.7);
 
   // Continuing to hold S past the brief stop hold engages gentle reverse
   for (let i = 0; i < 30; i++) sBrake.controller.updateCyclist(1 / 60);
@@ -1202,7 +1178,7 @@ test('passenger aircraft caps speed and altitude and brings level skids onto ter
   controller.keys.forward = controller.keys.up = true;
   for (let i = 0; i < 120; i++) controller.updateHelicopter(1 / 60);
   assert.ok(Math.abs(ent.speed * 3.6 - 400) < 0.01);
-  assert.ok(Math.abs(ent.verticalSpeed - 20) < 1e-8);
+  assert.ok(Math.abs(ent.verticalSpeed - 30) < 1e-8);
 
   ent.position.y = 399.97;
   controller.updateHelicopter(1 / 60);
@@ -1269,7 +1245,11 @@ test('aircraft stops before terrain above its ceiling without compressing skids 
 
 test('player vehicles reach their configured speed limits across frame rates', () => {
   for (const hz of [30, 60, 120, null]) {
-    for (const [mode, target, seconds] of [['car', 80, 3], ['cyclist', 60, 3], ['helicopter', 600, 3], ['helicopter', -300, 3]]) {
+    for (const [mode, target, rate, boost] of [
+      ['car', 80, 40], ['car', -80, 40], ['car', 160, 40, true],
+      ['cyclist', 60, 20], ['cyclist', -40, 20], ['cyclist', 100, 20, true],
+      ['helicopter', 600, 200], ['helicopter', -400, 200]
+    ]) {
       const sim = mode === 'car' ? carDynamicsHarness() : teleportHarness(mode);
       const { controller } = sim;
       const entity = sim.car || sim.ent;
@@ -1279,22 +1259,47 @@ test('player vehicles reach their configured speed limits across frame rates', (
       controller.resolveHorizontalCollision = () => {};
       const input = target < 0 ? 'backward' : 'forward';
       controller.keys[input] = true;
+      controller.keys.boost = Boolean(boost);
       const update = mode === 'car' ? 'updateCar' : mode === 'cyclist' ? 'updateCyclist' : 'updateHelicopter';
       let elapsed = 0, frame = 0;
-      for (const milestone of [1, 2, 3, 4, 6]) {
+      for (const milestone of [1, 2, 3, 4, 5, 6, 8, 10, 11]) {
+        if (milestone > 6) controller.keys[input] = false;
         while (elapsed < milestone - 1e-10) {
           const dt = Math.min(hz ? 1 / hz : [1 / 30, 1 / 144, 1 / 60][frame++ % 3], milestone - elapsed);
           controller[update](dt);
           elapsed += dt;
         }
-        assert.ok(Math.abs(entity.speed * 3.6 - target * Math.min(1, milestone / seconds)) < 0.01,
+        const expected = milestone <= 6 ? Math.sign(target) * Math.min(Math.abs(target), rate * milestone)
+          : target * (11 - milestone) / 5;
+        assert.ok(Math.abs(entity.speed * 3.6 - expected) < 0.01,
           `${mode} reaches the expected speed at ${milestone}s with ${hz || 'variable'} FPS`);
       }
       assert.equal(Math.sign(entity.position.z), Math.sign(target), 'the vehicle moves in the requested direction');
-      controller.keys[input] = false;
-      controller[update](0.1);
-      assert.equal(Math.sign(entity.speed), Math.sign(target));
-      assert.ok(Math.abs(entity.speed * 3.6) < Math.abs(target), 'release slows the vehicle');
+      assert.equal(entity.speed, 0);
+    }
+  }
+});
+
+test('all player vehicles brake from top speed in one second without reversing through zero', () => {
+  for (const [mode, top] of [['car', 160], ['cyclist', 100], ['helicopter', 600]]) {
+    for (const input of ['brake', 'backward']) {
+      const sim = mode === 'car' ? carDynamicsHarness() : teleportHarness(mode);
+      const { controller } = sim;
+      const entity = sim.car ?? sim.ent;
+      Object.assign(entity.position, { x: 0, y: mode === 'helicopter' ? 200 : 0, z: 0 });
+      Object.assign(entity, { speed: top / 3.6, heading: 0, verticalSpeed: 0 });
+      controller.getGroundHeight = () => 0;
+      controller.resolveHorizontalCollision = () => {};
+      controller.keys[input] = true;
+      const update = mode === 'car' ? 'updateCar' : mode === 'cyclist' ? 'updateCyclist' : 'updateHelicopter';
+      for (let frame = 0; frame < 59; frame++) {
+        controller[update](1 / 60);
+        assert.ok(entity.speed > 0, mode + ' brakes without changing direction');
+      }
+      controller[update](1 / 60);
+      assert.equal(entity.speed, 0, mode + ' stops by one second');
+      for (let frame = 0; frame < 60; frame++) controller[update](1 / 60);
+      assert.ok(input === 'brake' ? entity.speed === 0 : entity.speed < 0);
     }
   }
 });
@@ -1332,8 +1337,8 @@ test('speed telemetry uses the physical maximum for each mode and reports speed 
   });
   for (const [mode, speedKmh, expectedFill] of [
     ['person', 0, 0], ['person', 15, 0.5], ['person', 30, 1],
-    ['car', 40, 0.5], ['car', 80, 1], ['car', 130, 1],
-    ['cyclist', 30, 0.5], ['cyclist', 60, 1],
+    ['car', 40, 0.25], ['car', 80, 0.5], ['car', 160, 1],
+    ['cyclist', 50, 0.5], ['cyclist', 100, 1],
     ['helicopter', 300, 0.5], ['helicopter', 600, 1], ['helicopter', -300, 0.5]
   ]) {
     controllerManager.activeMode = mode;
@@ -1361,8 +1366,8 @@ function contactCar({ speed = 0, heading = 0, colliders = [], y = 0 } = {}) {
   return { controller, car };
 }
 
-test('a thin wall stops the 80 and 120 km/h car and sustained throttle cannot bounce it', () => {
-  for (const speed of [80 / 3.6, 120 / 3.6, -9]) {
+test('a thin wall stops the 80 and 160 km/h car and sustained throttle cannot bounce it', () => {
+  for (const speed of [80 / 3.6, 160 / 3.6, -9]) {
     const sign = Math.sign(speed);
     const wall = { minX: -20, maxX: 20, minY: 0, maxY: 3,
       minZ: sign > 0 ? 4 : -4.12, maxZ: sign > 0 ? 4.12 : -4 };
@@ -1408,26 +1413,39 @@ test('manual car stops for same-level pedestrians and ignores another deck', () 
   }
 });
 
-test('a rear-end contact matches the lead normal velocity while an approaching car cannot launch the player backwards', () => {
+test('bumper contact produces a bounded 8 percent rebound without shifting into reverse', () => {
   const { writeEntityCollider } = driving['./sz-driving-motion.js'];
   for (const leadSpeed of [0, 6, -6]) {
     const { controller, car } = contactCar({ speed: 18 });
     const lead = writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: 5.1 }, heading: 0, speed: leadSpeed });
     controller.nearTraffic = () => [lead];
-    // 直接进入接触阶段，以免前置紧急制动掩盖碰撞后的速度约束。
     controller.applyCarContact(car, lead, 'vehicle', 0, -1, 0, 2.5);
-    assert.ok(Math.abs(car.speed - Math.max(leadSpeed, 0)) < 0.1);
+    assert.ok(Math.abs(car.speed - (Math.max(leadSpeed, 0) - (18 - leadSpeed) * 0.08)) < 1e-9);
+    if (leadSpeed > 0) continue;
+    controller.nearTraffic = null;
+    controller.updateCar(0.2);
+    assert.equal(car.lights[1], false);
+    assert.ok(Math.abs(car.speed) < 1e-8);
+    assert.ok(car.position.z < 0 && car.position.z > -0.25);
   }
 });
 
-test('manual emergency brake intervenes before contact without a player setting', () => {
-  const { writeEntityCollider } = driving['./sz-driving-motion.js'];
-  const leader = writeEntityCollider({}, { type: 'car', position: { x: 0, y: 0, z: 20 }, heading: 0, speed: 0 });
-  const { controller, car } = contactCar({ speed: 22 });
-  controller.nearTraffic = () => [leader];
-  controller.keys.forward = true;
-  controller.updateCar(0.05);
-  assert.ok(car.position.z < 1.2 && car.speed < 22);
+test('manual car flashes for same-level vehicles and pedestrians without braking', () => {
+  const { writeEntityCollider, writePedestrianCollider } = driving['./sz-driving-motion.js'];
+  for (const type of ['car', 'person']) {
+    for (const height of [0, 5]) {
+      const { controller, car } = contactCar({ speed: 22 });
+      if (type === 'car') controller.nearTraffic = () => [
+        writeEntityCollider({}, { type, position: { x: 0, y: height, z: 20 }, heading: 0, speed: 0 })
+      ];
+      else controller.nearPedestrians = () => [writePedestrianCollider({}, 0, height, 18, 0, 0)];
+      controller.keys.forward = true;
+      controller.updateCar(0.05);
+      assert.equal(car.trafficFlash, height === 0);
+      assert.equal(car.lights[0], false);
+      assert.equal(car.speed, 80 / 3.6);
+    }
+  }
 });
 
 test('flight cruise holds horizontal speed through manual turning and climbing until reverse input', () => {
@@ -1562,7 +1580,7 @@ test('landing across a graded bridge seam permits walking and driving on the sam
   assert.equal(controller.getFlightSupport(ent, ent.position.y), 8);
   ent.position.x = 0;
   for (const mode of ['person', 'car']) controller.entities[mode] = teleportHarness(mode).ent;
-  assert.equal(controller.findModePosition('person'), null);
+  assert.equal(controller.findModePosition('person').surfaceId, 'deck-0');
   ent.verticalSpeed = -5;
   controller.keys.down = true;
   for (let i = 0; i < 18; i++) controller.updateHelicopter(1 / 60);
@@ -1578,6 +1596,23 @@ test('landing across a graded bridge seam permits walking and driving on the sam
   assert.equal(controller.surfaceResolver.resolve(0, 2, {
     mode: 'person', previousY: 8, previousSurfaceId: 'terrain'
   }).surfaceId, 'terrain');
+});
+
+test('switching from flight prefers the highest clear drivable deck below the aircraft', () => {
+  for (const [altitude, expected] of [[40, 'upper'], [15, 'lower'], [4, 'terrain']]) {
+    const { controller, ent } = teleportHarness('helicopter');
+    controller.entities.car = teleportHarness('car').ent;
+    controller.groundHeight = () => 0;
+    controller.driveDeckIds = new Set(['upper', 'lower']);
+    controller.surfaceResolver = createSurfaceResolver({
+      groundHeight: controller.groundHeight,
+      surfaces: [supportSurface('lower', () => 8), supportSurface('upper', () => 18)]
+    });
+    Object.assign(ent.position, { x: 0, y: altitude, z: 0 });
+    ent.heading = 0;
+    assert.equal(controller.setMode('car'), true);
+    assert.equal(controller.entities.car._support.surfaceId, expected);
+  }
 });
 
 // 车辆支撑对照样段：同一组几何分别走玩家、自动驾驶和环境车三条流程，各模式保留自己的阈值。

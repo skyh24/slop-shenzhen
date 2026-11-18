@@ -69,7 +69,7 @@ def apply_urban_datum(terrain, pilots, datum, dry, protected, report):
             'processing': {**terrain['processing'], 'urbanDatum': details}}
 
 
-def apply_city_datum(terrain, datum, dry, relief, fixed, fixed_terrain, report):
+def apply_city_datum(terrain, datum, dry, relief, fixed, fixed_terrain, report, *, park_only_pilots=(), park_relief=()):
     """统一普通城区地坪，保留已核山地、公园核心和既有工程接点。"""
     step, scale = terrain['step'], terrain['heightScale']
     height = datum['heightM']
@@ -114,9 +114,36 @@ def apply_city_datum(terrain, datum, dry, relief, fixed, fixed_terrain, report):
     engineering = weights(*fixed)
     engineering_band = (engineering > 0) & (engineering < 1)
     legacy = np.asarray(fixed_terrain['heights']).reshape(original.shape)
-    values = np.rint(smooth_transition(base + (legacy - base) * engineering, engineering_band)).astype(np.int64)
+    fitted = smooth_transition(base + (legacy - base) * engineering, engineering_band)
+    pilot_weight = np.zeros(x.shape)
+    for row, polygon in park_only_pilots:
+        width = row['transitionM']
+        if not math.isfinite(width) or width < step:
+            raise ValueError('Park-only pilot transition must cover at least one grid cell')
+        np.maximum(pilot_weight, weights(polygon, 0, width), out=pilot_weight)
+    if park_only_pilots:
+        park_weight = np.zeros(x.shape)
+        support = step * math.sqrt(2)
+        for polygon, transition in park_relief:
+            if not math.isfinite(transition) or transition < step:
+                raise ValueError('Park transition must cover at least one grid cell')
+            if polygon.is_empty:
+                continue
+            prepare(polygon)
+            inside = (pilot_weight > 0) & contains_xy(polygon, x, z)
+            if not inside.any():
+                continue
+            edge = distance(polygon.boundary, xy[inside])
+            ratio = np.clip((edge - support) / transition, 0, 1)
+            park_weight[inside] = np.maximum(park_weight[inside], ratio * ratio * (3 - 2 * ratio))
+        park_only = target + (original - target) * park_weight
+        fitted += (park_only - fitted) * pilot_weight
+    values = np.rint(fitted).astype(np.int64)
     urban = coverage & (natural == 0) & (engineering == 0)
-    ramp = (natural_band | engineering_band) & (engineering < 1)
+    ramp = ((natural_band | engineering_band) & (engineering < 1) & (pilot_weight < 1))
+    ramp |= (pilot_weight > 0) & (pilot_weight < 1)
+    if park_only_pilots:
+        ramp |= (park_weight > 0) & (park_weight < 1)
     dx, dz = np.diff(values, axis=1) * scale / step, np.diff(values, axis=0) * scale / step
     first = cells & (ramp[:-1, :-1] | ramp[1:, :-1] | ramp[:-1, 1:])
     last = cells & (ramp[1:, 1:] | ramp[1:, :-1] | ramp[:-1, 1:])
@@ -124,6 +151,7 @@ def apply_city_datum(terrain, datum, dry, relief, fixed, fixed_terrain, report):
     source = terrain['processing']['heightSource']
     details = {'heightSource': 'urban-datum', 'sourceHeightSource': source, 'heightM': height,
                'reference': datum['reference'], 'coverage': 'phase1-dry-land',
+               'parkOnlyPilots': [row['id'] for row, _ in park_only_pilots],
                'urbanVertices': int(urban.sum()), 'naturalCoreVertices': int(((natural == 1) & (engineering == 0)).sum()),
                'engineeringVertices': int((engineering == 1).sum()), 'transitionVertices': int(ramp.sum()),
                'changedVertices': int((values != legacy).sum()), 'maxDeltaM': round(float(np.abs(values - legacy).max() * scale), 3),

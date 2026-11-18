@@ -231,8 +231,14 @@ def compile_ground(terrain, clip, land, water, green, wetland, exclusions, graph
     paving = unary_union(commercial).intersection(dry).difference(planted)
     terrain = build_road_surface(terrain, graph, report, excluded_polygons=exclusions)
     structural_baseline = apply_urban_datum(terrain, pilots, manifest['datum'], dry, previous_protected, {})
+    park_only_pilots = []
+    for row in manifest.get('parkOnlyPilots', []):
+        west, south, east, north = row['boundsWgs84']
+        park_only_pilots.append((row, box(*project(west, north), *project(east, south))))
+    park_relief = [(polygon, widths[kind][0]) for row in manifest['relief'] if row.get('parkRelief', True)
+                   for kind, polygon in [relief_by_id[row['osmId']]]]
     terrain = apply_city_datum(terrain, manifest['datum'], dry, relief, (anchors, 0, widths['engineering']),
-                               structural_baseline, report)
+                               structural_baseline, report, park_only_pilots=park_only_pilots, park_relief=park_relief)
     report['urbanDatum']['commercialPaving'] = {'osmIds': [row['osmId'] for row in manifest['commercial']],
         'source': manifest['pavingSource'], 'areaM2': round(paving.intersection(dry).area, 2)}
     civic = civic.intersection(dry).difference(unary_union(exclusions_polys))
@@ -340,7 +346,8 @@ def write_regional_scene(payload, report):
 
 
 def write_city_packages(payload, report, sources, started, *, refresh_regions=True, appearance_osm=None,
-                        structure_base=None, arterial_osm=None, building_provenance=None, local_provenance=None):
+                        structure_base=None, arterial_osm=None, building_provenance=None, local_provenance=None,
+                        preserve_structure_ids=()):
     payload.pop('roads', None)
     osm_source = next(row for row in sources if row['id'] == 'osm-guangdong')
     if refresh_regions:
@@ -359,6 +366,9 @@ def write_city_packages(payload, report, sources, started, *, refresh_regions=Tr
         cover_shapes = read_road_covers(manifest, osm_source, appearance_osm)
     exclude_packaged_road_covers(payload, report, cover_shapes)
     compile_road_structures(payload, manifest, report, base=structure_base, cover_shapes=cover_shapes or None)
+    missing = set(preserve_structure_ids) - {row['id'] for row in payload['roadStructures']['routes']}
+    if missing:
+        raise ValueError(f'Ground rebuild would remove existing road structures: {sorted(missing)}')
     if arterial_osm is not None:
         compile_arterial_medians(payload, arterial_osm, json.loads(ARTERIAL_CORRIDORS.read_text()), report)
     if appearance_osm is not None:
@@ -528,7 +538,7 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     report['groundRebuild'] = {'basePayloadSha256': validation['payloadSha256'],
         'changedSections': changed, 'rebuiltChunks': [chunk['id'] for chunk in surface['chunks']]}
     payload['terrain'], payload['terrainSurface'] = terrain, surface
-    payload.pop('roadStructures', None)
+    previous_structures = payload.pop('roadStructures', {})
     build_shenzhen_golf(payload, osm, pbf, report)
     payload.pop('shenzhenBay', None)
     build_shenzhen_bay(payload, osm, pbf, report)
@@ -542,7 +552,8 @@ def rebuild_ground(terrain_source, sources, osm, osm_source, report, started, cl
     compile_urban_paving(payload, osm_source, report)
     compile_ground_walk(payload, osm, osm_source, report)
     changed.extend(('urbanPaving', 'groundWalk'))
-    write_city_packages(payload, report, sources, started, arterial_osm=osm)
+    write_city_packages(payload, report, sources, started, arterial_osm=osm,
+                        preserve_structure_ids=[row['id'] for row in previous_structures.get('routes', [])])
 
 
 def city_clip(osm):

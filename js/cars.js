@@ -1549,8 +1549,8 @@ function shenzhenSignTexture() {
  * Creates the TSL material for lofted vehicles.
  * Instanced traffic reads the per-instance `paintColor` (vec3) and `carState` (vec4: brake, left (+x) & right (-x)
  * turn signal, style/livery code from `carStyleCode` where 1 = NYPD) attributes; with a fixed `fixedColorHex` (the
- * player's taxi, or fixed wheels) the state is the `material.userData.carState` uniform instead, with its fourth
- * component controlling reverse lights.
+ * player's taxi, or fixed wheels) the state is the `material.userData.carState` uniform instead: brake, headlight flash,
+ * unused, reverse lights.
  * Every mask is built once and shared by the colour, roughness, metalness & emissive graphs (TSL turns nodes used
  * more than once into temporaries), so the fragment shader evaluates each SDF a single time.
  */
@@ -2206,7 +2206,7 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
 
   // ---- Emissive (evaluated only on front/rear lamp zones, taxi sign, or braking rear window) -----------------------
   const brake = state.x;
-  const blink = max(state.y.mul(step(0.0, p.x)), state.z.mul(step(p.x, 0.0)));
+  const blink = fixed ? float(0) : max(state.y.mul(step(0.0, p.x)), state.z.mul(step(p.x, 0.0)));
   const nightHeadlamp = smoothstep(0.60, 1.15, cityUniforms.uInteriorGlow);
 
   const emissiveFn = Fn(() => {
@@ -2214,7 +2214,8 @@ function createLoftedCarMaterial(spec, fixedColorHex = null) {
     If(isBody.greaterThan(0.5), () => {
       If(p.z.greaterThan(frontZone).and(n.z.greaterThan(0.02)), () => {
         const { turnFront, headlightLens, drl } = headlightMasks();
-        const beam = nightHeadlamp.mul(shenzhenTaxi ? 2.5 : 1.35).add(shenzhenTaxi ? 0.18 : 1.45);
+        const beam = nightHeadlamp.mul(shenzhenTaxi ? 2.5 : 1.35).add(shenzhenTaxi ? 0.18 : 1.45)
+          .add(fixed ? state.y.mul(4) : 0);
         const guide = nightHeadlamp.mul(0.75).add(shenzhenTaxi ? 0.75 : 1.65);
         const turnMask = shenzhenTaxi ? turnFront : max(turnFront, drl.mul(0.75));
         const headlamps = color(0xfff8ec).mul(headlightLens.mul(beam).add(drl.mul(guide)))

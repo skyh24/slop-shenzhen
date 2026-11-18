@@ -113,6 +113,22 @@ test('golf course paving shares sloped ground and keeps private paths out of the
   assert.equal(placement.maxY, Math.fround(placement.baseY + onSlope.height));
 });
 
+test('Jianye Street ground stays flat beside separately profiled roads', () => {
+  const read = name => readFileSync(join(root, 'js', name), 'utf8');
+  const { terrainHeight } = loadModule(read('sz-terrain.js'));
+  const { createGroundSurfaceSampler, URBAN_STONE_KIND, URBAN_LAWN_KIND } = loadModule(read('sz-ground-surface.js'));
+  const ground = createGroundSurfaceSampler(raw.terrainSurface);
+  for (const [x, z] of [[-4600, 750], [-4500, 775], [-4400, 825], [-4300, 850], [-4146, 808]]) {
+    assert.equal(terrainHeight(raw.terrain, x, z), 8);
+    assert.ok(Math.abs(ground(x, z) - 8) < 0.001);
+  }
+  assert.ok(raw.terrain.processing.urbanDatum.parkOnlyPilots.includes('jianye-xianglin'));
+  const stone = createGroundSurfaceSampler(raw.terrainSurface, kind => kind === URBAN_STONE_KIND);
+  const lawn = createGroundSurfaceSampler(raw.terrainSurface, kind => kind === URBAN_LAWN_KIND);
+  assert.ok(Math.abs(stone(-4089.210, 699.934) - 8) < 0.001);
+  assert.ok(Math.abs(lawn(-4000.305, 695.620) - 8) < 0.001);
+});
+
 test('coordinate decoder rejects truncated or fractional delta streams', async () => {
   const { decodeRing } = await modulePromise;
   assert.throws(() => decodeRing([1, 2, 3]), /coordinate sequence/);

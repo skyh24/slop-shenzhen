@@ -398,10 +398,10 @@ function createShenzhenCarMesh({ type = 'taxi', color = PALETTE.white, detail = 
   group.add(chassis);
 
   const wheels = attachLoftWheels(group, body, detail);
-  // 固定色材质的灯光状态在 carState uniform 里：x 刹车、w 倒车（转向灯语义留给环境车实例）。
   const carState = material.userData.carState;
-  const setLights = detail && carState ? (braking, reversing) => {
+  const setLights = detail && carState ? (braking, reversing, flashing = false) => {
     carState.value.x = braking ? 1 : 0;
+    carState.value.y = flashing ? 1 : 0;
     carState.value.w = reversing ? 1 : 0;
   } : null;
   const bounds = new THREE.Box3().setFromObject(group, true);

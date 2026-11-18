@@ -20,29 +20,23 @@ import { FLIGHT_ENTRY_SECONDS, FLIGHT_FORWARD_ACCELERATION, flightEntryYaw, flig
 // 出生候选来自真实源道路；构造时还要用显示地面和碰撞体复核。
 const groundCollider = { type: 'ground' };
 
-// 每个模式的极速都按 3 秒从静止到达来反推加速度；Shift 只抬高汽车的极速。
 const CAR_DRIVE = {
-  speed: 80 / 3.6, reverseSpeed: 60 / 3.6, acceleration: 4.5,
-  forwardAcceleration: 80 / 3.6 / 3,
-  powerSpeed: 14.5, // Above 52 km/h, engine power limits acceleration.
-  rolling: 0.18, drag: 0.0012, coast: 0.6, brake: 9,
-  wheelbase: VEHICLE_SPECS.taxi.wheelbase, grip: 9.5, cornering: 10.5
+  speed: 80 / 3.6, reverseSpeed: 80 / 3.6, acceleration: 40 / 3.6, brake: 160 / 3.6
 };
-const CAR_BOOST_DRIVE = { ...CAR_DRIVE, speed: 120 / 3.6, forwardAcceleration: 120 / 3.6 / 3 };
-const BICYCLE_DRIVE = {
-  speed: 60 / 3.6, reverseSpeed: 30 / 3.6, acceleration: 60 / 3.6 / 3, forwardAcceleration: 60 / 3.6 / 3,
-  powerSpeed: 10.5, // Above 38 km/h, rider power limits acceleration.
-  rolling: 0.1, drag: 0.004, coast: 0.45, brake: 10.5
+const CAR_BOOST_DRIVE = { ...CAR_DRIVE, speed: 160 / 3.6 };
+const BICYCLE_DRIVE = { speed: 60 / 3.6, reverseSpeed: 40 / 3.6, acceleration: 20 / 3.6, brake: 100 / 3.6 };
+const BICYCLE_BOOST_DRIVE = { ...BICYCLE_DRIVE, speed: 100 / 3.6 };
+const CAR_HANDLING = { wheelbase: VEHICLE_SPECS.taxi.wheelbase, grip: 9.5, cornering: 10.5 };
+const CAR_AUTO_DRIVE = {
+  speed: 120 / 3.6, reverseSpeed: 60 / 3.6, acceleration: 4.5, powerSpeed: 14.5,
+  rolling: 0.18, drag: 0.0012, coast: 0.6, brake: 9
 };
-// 自动驾驶按路线限速行驶，可以跑到 120 km/h，不受普通前进档 80 km/h 的限制。
-const CAR_AUTO_DRIVE = { ...CAR_BOOST_DRIVE, forwardAcceleration: null };
-// 2026-11-11 用户指定升降上限 20 m/s、2 秒加速到位，因此垂直加速度取 10 m/s²。
 const EVTOL_DRIVE = {
-  speed: 600 / 3.6, reverseSpeed: 300 / 3.6, reverseAcceleration: 300 / 3.6 / 3, braking: 24,
-  verticalSpeed: 20, verticalAcceleration: 10
+  speed: 600 / 3.6, reverseSpeed: 400 / 3.6, acceleration: FLIGHT_FORWARD_ACCELERATION, brake: 600 / 3.6,
+  verticalSpeed: 30, verticalAcceleration: 15
 };
 export const PLAYER_SPEED_LIMITS = Object.freeze({
-  person: 30 / 3.6, car: CAR_DRIVE.speed, cyclist: BICYCLE_DRIVE.speed, helicopter: EVTOL_DRIVE.speed
+  person: 30 / 3.6, car: CAR_BOOST_DRIVE.speed, cyclist: BICYCLE_BOOST_DRIVE.speed, helicopter: EVTOL_DRIVE.speed
 });
 const PERSON_STEP_UP = 0.38;
 const CONTACT_EPSILON = 1e-5;
@@ -76,7 +70,7 @@ function seatTilt(scratch, angle, out) {
   return out.setFromAxisAngle(scratch.axisX, angle);
 }
 
-function driveSpeed(speed, throttle, dt, drive, serviceBrake = 0) {
+function autoDriveSpeed(speed, throttle, dt, drive, serviceBrake) {
   // Turning can project tiny sideways motion back into speed after braking to zero.
   // Treat a crawl as stopped when changing direction, so this cannot hold the brakes forever.
   if (speed * throttle < 0 && Math.abs(speed) < 0.05) speed = 0;
@@ -89,17 +83,32 @@ function driveSpeed(speed, throttle, dt, drive, serviceBrake = 0) {
   const coasting = Math.max(0, magnitude - deceleration * dt) / (1 + drive.drag * magnitude * dt);
   if (!throttle || brakeStrength) return Math.sign(speed) * coasting;
 
-  // 玩家正向油门按 3 秒到极速的加速度推进，不再叠加阻力项，保证各帧率下的到达时间确定。
-  if (throttle > 0 && drive.forwardAcceleration) {
-    // 超过本档极速（例如松开 Shift）按阻力回落，不回弹也不卡住。
-    if (magnitude > drive.speed) return Math.sign(speed) * Math.max(drive.speed, coasting);
-    return Math.min(drive.speed, magnitude + throttle * drive.forwardAcceleration * dt);
-  }
   const limit = throttle < 0 ? drive.reverseSpeed : drive.speed;
   let acceleration = drive.acceleration;
   if (drive.powerSpeed) acceleration *= drive.powerSpeed / Math.max(drive.powerSpeed, magnitude);
   // Collision momentum above the powered limit decays naturally instead of being clamped.
   return Math.sign(throttle) * Math.min(Math.max(limit, coasting), coasting + Math.abs(throttle) * acceleration * dt);
+}
+
+function manualDriveSpeed(entity, speed, throttle, dt, drive, brake) {
+  const magnitude = Math.abs(speed);
+  if (brake || throttle) entity._coastRate = null;
+  if (brake || speed * throttle < 0) {
+    const next = magnitude - drive.brake * dt;
+    return next > 1e-7 ? Math.sign(speed) * next : 0;
+  }
+  if (!throttle) {
+    if (magnitude < 1e-7) {
+      entity._coastRate = null;
+      return 0;
+    }
+    const rate = entity._coastRate ??= magnitude / 5;
+    const next = magnitude - rate * dt;
+    return next > 1e-7 ? Math.sign(speed) * next : 0;
+  }
+  const limit = throttle > 0 ? drive.speed : drive.reverseSpeed;
+  const change = drive.acceleration * Math.abs(throttle) * dt;
+  return Math.sign(throttle) * (magnitude > limit ? Math.max(limit, magnitude - change) : Math.min(limit, magnitude + change));
 }
 
 // Walking surface for the player's pedestrian (its rig samples it around its feet)
@@ -210,6 +219,7 @@ class ThirdPersonControllerManager {
     if (!this.spawnPoint) throw new Error('No sourced ground spawn is available');
     this.maxFlightAltitude = options.maxFlightAltitude ?? FLIGHT_MAX_ALTITUDE;
     this.flightSettings = options.flightSettings;
+    this.driveDeckIds = new Set(options.driveDeckIds);
     this.scene = scene;
     this.groundAccess = options.groundAccess;
     this.colliders = colliders;
@@ -282,7 +292,7 @@ class ThirdPersonControllerManager {
       up: ['Space', 'KeyE'],
       down: ['KeyQ', 'KeyC'],
       boost: ['ShiftLeft', 'ShiftRight'],
-      brake: ['Space']
+      brake: ['Space', 'KeyX']
     };
     // Space 同时承担跳跃/上升和汽车刹车，一个键可以对应多个动作。
     const actionsByCode = new Map();
@@ -407,6 +417,18 @@ class ThirdPersonControllerManager {
     const flying = mode === 'helicopter';
     const body = collisionBody(mode, flying ? 4.5 : mode === 'cyclist' ? 1 : 0.48,
       heading, 0.05, this.entities[mode].collisionBounds);
+    if (!flying && active.type === 'helicopter') {
+      const skidY = y + (active.collisionBounds?.min.y ?? 0);
+      const decks = this.surfaceResolver.at?.(x, z, mode) ?? [];
+      for (let index = decks.length - 1; index >= 0; index--) {
+        const deck = decks[index];
+        if (deck.height > skidY + 0.05 || !this.isDriveDeck(deck.surfaceId)) continue;
+        const support = this.supportedFootprint(x, z, body, null, false, deck.surfaceId);
+        if (support && !this.arrivalBlocked(mode, x, support.height, z, body)) {
+          return { x, y: support.height, z, heading, surfaceId: support.surfaceId };
+        }
+      }
+    }
     const takeoff = active.takeoff;
     const sameTakeoffPoint = takeoff && Math.hypot(x - takeoff.x, z - takeoff.z) < 0.001;
     const previous = (sameTakeoffPoint ? takeoff.support : active._support)
@@ -430,6 +452,10 @@ class ThirdPersonControllerManager {
     if (this.arrivalBlocked(mode, x, height, z, body)) return null;
     return { x, y: height, z, heading, surfaceId,
       takeoff: flying && active.type !== 'helicopter' && previous ? { x, z, support: previous } : null };
+  }
+
+  isDriveDeck(surfaceId) {
+    return this.driveDeckIds?.has(surfaceId) || this.surfaceResolver.isFlightRoadDeck?.(surfaceId);
   }
 
   findFlightGroundArrival(mode, target) {
@@ -599,6 +625,7 @@ class ThirdPersonControllerManager {
     ent._support = heli ? null : support ?? { height: point.y, surfaceId: point.surfaceId ?? 'terrain' };
     ent._safePosition = { x: point.x, y: point.y, z: point.z };
     ent.speed = 0;
+    ent._coastRate = null;
     if (this.activeMode === 'person') {
       ent.verticalVel = 0;
       ent.jumping = false;
@@ -624,6 +651,9 @@ class ThirdPersonControllerManager {
       ent.chassisPivot.rotation.x = ent.chassisPivot.rotation.z = 0;
       ent.chassisPivot.position.y = 0;
       ent.lastCollisionSpark = null;
+      ent.trafficWarningTime = null;
+      ent.trafficFlash = false;
+      ent.impactRecovery = 0;
       for (const wheel of ent.wheels) if (wheel.isFront) wheel.steerPivot.rotation.y = 0;
       ent.setLights?.(false, false);
     } else if (this.activeMode === 'cyclist') {
@@ -947,7 +977,7 @@ class ThirdPersonControllerManager {
     }
     const halfX = body.car ? body.hx : body.extX, halfZ = body.car ? body.hz : body.extZ;
     const sin = body.car ? body.sin : 0, cos = body.car ? body.cos : 1;
-    const keepSlab = id => body.mode === 'car' || this.surfaceResolver.isFlightRoadDeck?.(id)
+    const keepSlab = id => body.mode === 'car' || this.isDriveDeck(id)
       || this.surfaceResolver.isSolidDeck?.(id);
     let supportedSlabs = keepSlab(center.surfaceId) ? new Set([center.surfaceId]) : null;
     if (surfaceId !== null) Object.assign(options, { previousY: center.height, previousSurfaceId: center.surfaceId });
@@ -1175,8 +1205,12 @@ class ThirdPersonControllerManager {
 
   applyCarContact(car, obstacle, kind, nx, nz, x, z) {
     const staticContact = kind === 'building' || kind === 'curb';
-    const closing = constrainContactVelocity(car, nx, nz, staticContact ? null : obstacle);
+    const previousSpeed = car.speed;
+    const rebound = kind === 'vehicle' && this.cruiseSpeed == null;
+    const closing = constrainContactVelocity(car, nx, nz, staticContact ? null : obstacle, rebound ? 0.08 : 0);
     if (closing <= 0) return false;
+    car._coastRate = null;
+    if (rebound && car.speed * previousSpeed < 0) car.impactRecovery = 0.16;
     const deflected = staticContact && this.cruiseSpeed != null;
     if (deflected) {
       const sin = Math.sin(car.heading), cos = Math.cos(car.heading);
@@ -1193,7 +1227,7 @@ class ThirdPersonControllerManager {
     const sin = Math.sin(car.heading), cos = Math.cos(car.heading);
     car.pitchVel += (sin * nx + cos * nz) * strength * 0.09;
     car.rollVel -= (cos * nx - sin * nz) * strength * 0.09;
-    if (kind === 'person') return;
+    if (kind === 'person') return deflected;
     this.reportCollision(car, obstacle, kind, x, car.position.y + 0.56, z, nx, 0, nz, strength);
     if (kind === 'building' && closing > 5) {
       car.lastCollisionSpark = { x, y: car.position.y + 0.56, z, nx, nz, speed: strength };
@@ -1320,7 +1354,7 @@ class ThirdPersonControllerManager {
     if (car?.headLights) {
       for (const spot of car.headLights) {
         // Accelerating does not change the headlamp output or range.
-        spot.intensity = this.activeMode === 'car' ? HEADLIGHTS.intensity * beamScale : 0;
+        spot.intensity = this.activeMode === 'car' ? HEADLIGHTS.intensity * (beamScale + (car.trafficFlash ? 1 : 0)) : 0;
       }
     }
     const bike = this.entities.cyclist;
@@ -1455,14 +1489,15 @@ class ThirdPersonControllerManager {
     const search = 8 + speedMagnitude * (speedMagnitude / 8.5 + 0.25);
     const obstacles = [...(this.nearTraffic?.(c.position.x, c.position.z, search) ?? []),
       ...(this.nearPedestrians?.(c.position.x, c.position.z, search) ?? [])];
-    const assistance = !driveInput && obstacles.length
-      ? emergencyBrake(writeEntityCollider(this._carBrakeBody ??= {}, c), obstacles) : 0;
-    const serviceBrake = Math.max(driveInput?.brake ?? 0, this.keys.brake ? 1 : 0, assistance);
+    const warning = !driveInput && c.speed > 0 && obstacles.length > 0
+      && emergencyBrake(writeEntityCollider(this._carWarningBody ??= {}, c), obstacles) > 0;
+    c.trafficWarningTime = warning ? c.trafficWarningTime == null ? 0 : c.trafficWarningTime + dt : null;
+    c.trafficFlash = warning && c.trafficWarningTime % 0.65 < 0.14;
+    const serviceBrake = Math.max(driveInput?.brake ?? 0, this.keys.brake ? 1 : 0);
     if (!driveInput?.cruise || this.keys.brake || this.keys.backward) this.cruiseSpeed = null;
     const cruising = this.cruiseSpeed != null;
     c.contactCooldown = Math.max(0, (c.contactCooldown ?? 0) - dt);
     const braking = serviceBrake > 0 || c.speed * throttle < 0;
-    // Shift 提高前进加速度；地图自动驾驶按自己的路线限速。
     const drive = driveInput ? CAR_AUTO_DRIVE : boost ? CAR_BOOST_DRIVE : CAR_DRIVE;
 
     let steerInput = 0;
@@ -1476,9 +1511,10 @@ class ThirdPersonControllerManager {
     // Short steps keep grip, impacts and suspension consistent at different display rates.
     const steps = Math.ceil(dt * 120);
     const step = dt / steps;
-    const steerResponse = 1 - Math.exp(-(steerInput || driveInput ? 10 : 17) * step);
-    const yawResponse = 1 - Math.exp(-(steerInput || driveInput ? 7 : 13) * step);
+    const steerResponse = 1 - Math.exp(-(driveInput ? 10 : steerInput ? 16 : 30) * step);
+    const yawResponse = 1 - Math.exp(-(driveInput ? 7 : steerInput ? 15 : 28) * step);
     const tireResponse = 1 - Math.exp(-7 * step);
+    const { wheelbase, cornering, grip } = CAR_HANDLING;
     let deflected = false;
     for (let i = 0; i < steps; i++) {
       const previousHeading = c.heading;
@@ -1486,20 +1522,30 @@ class ThirdPersonControllerManager {
       const vx = sin * c.speed + c.vx, vz = cos * c.speed + c.vz;
       const forward = vx * sin + vz * cos;
       const sideways = vx * cos - vz * sin;
-      const speed = driveSpeed(forward, throttle, step, drive, serviceBrake);
+      let speed;
+      if (driveInput) {
+        c._coastRate = null;
+        speed = autoDriveSpeed(forward, throttle, step, drive, serviceBrake);
+      } else if (!serviceBrake && c.impactRecovery > 0) {
+        const fraction = Math.min(1, step / c.impactRecovery);
+        speed = forward * (1 - fraction);
+      } else {
+        speed = manualDriveSpeed(c, forward, throttle, step, drive, serviceBrake);
+      }
+      c.impactRecovery = Math.max(0, (c.impactRecovery ?? 0) - step);
       const acceleration = (speed - forward) / step;
-      // 普通制动仍分配侧向抓地，S 与空格共用轮胎约束。
-      const tireAcceleration = acceleration + CAR_DRIVE.drag * forward * Math.abs(forward);
-      const lateralGrip = Math.sqrt(Math.max((CAR_DRIVE.grip * 0.45) ** 2, CAR_DRIVE.grip ** 2 - tireAcceleration ** 2));
+      const tireAcceleration = driveInput ? acceleration + CAR_AUTO_DRIVE.drag * forward * Math.abs(forward)
+        : speed * forward >= 0 && Math.abs(speed) < Math.abs(forward) ? acceleration : 0;
+      const lateralGrip = Math.sqrt(Math.max((grip * 0.45) ** 2, grip ** 2 - tireAcceleration ** 2));
 
       // Full lock at parking speeds, progressively less steering at road speeds.
-      const turn = CAR_DRIVE.wheelbase * CAR_DRIVE.cornering;
-      const maxSteer = Math.atan(turn / Math.max(speed * speed, turn / Math.tan(0.60)));
+      const turn = wheelbase * cornering;
+      const maxSteer = Math.atan(turn / Math.max(speed * speed, turn / Math.tan(driveInput ? 0.60 : 0.66)));
       const followRoute = driveInput && !deflected && !(cruising && steerInput);
       const steering = followRoute ? Math.max(-maxSteer, Math.min(maxSteer, driveInput.steerAngle)) : steerInput * maxSteer;
       c.steerAngle += (steering - c.steerAngle) * steerResponse;
       const yawLimit = lateralGrip / Math.max(2, Math.abs(speed));
-      const targetYaw = Math.max(-yawLimit, Math.min(yawLimit, speed * Math.tan(c.steerAngle) / CAR_DRIVE.wheelbase));
+      const targetYaw = Math.max(-yawLimit, Math.min(yawLimit, speed * Math.tan(c.steerAngle) / wheelbase));
       // Collision spin remains part of the yaw velocity; the tires gradually regain control.
       const yawStep = lateralGrip * 0.85 * step;
       c.angularVel += Math.max(-yawStep, Math.min(yawStep, (targetYaw - c.angularVel) * yawResponse));
@@ -1547,8 +1593,8 @@ class ThirdPersonControllerManager {
         break;
       }
 
-      const targetPitch = -Math.max(-1, Math.min(1, acceleration / CAR_DRIVE.acceleration)) * 0.026;
-      const targetRoll = Math.max(-0.09, Math.min(0.09, correction / step * 0.012));
+      const targetPitch = -Math.max(-1, Math.min(1, acceleration / drive.acceleration)) * 0.026;
+      const targetRoll = Math.max(-0.07, Math.min(0.07, correction / step * 0.008));
       c.pitchVel += ((targetPitch - c.chassisPivot.rotation.x) * 68 - c.pitchVel * 11.2) * step;
       c.rollVel += ((targetRoll - c.chassisPivot.rotation.z) * 68 - c.rollVel * 11.2) * step;
       c.chassisPivot.rotation.x = Math.max(-0.22, Math.min(0.22, c.chassisPivot.rotation.x + c.pitchVel * step));
@@ -1561,7 +1607,7 @@ class ThirdPersonControllerManager {
     this.updateCarWheelContact(c);
     c.chassisPivot.position.y = c.heaveY;
 
-    c.setLights?.(braking, c.speed < -0.2);
+    c.setLights?.(braking, c.speed < -0.2 && !c.impactRecovery, c.trafficFlash);
 
     const forwardDist = (c.position.x - prevX) * Math.sin(c.heading) + (c.position.z - prevZ) * Math.cos(c.heading);
     const rawWheelStep = forwardDist / VEHICLE_SPECS.taxi.radius;
@@ -1579,29 +1625,30 @@ class ThirdPersonControllerManager {
     if (dt <= 0) return;
     const b = this.entities.cyclist;
 
-    const handbrake = b.speed > 0 ? +this.keys.up : 0;
+    const handbrake = this.keys.brake || this.keys.up;
     let throttle = 0;
-    if (handbrake) throttle = -handbrake;
-    else if (this.keys.forward) throttle = +this.keys.forward;
-    else if (this.keys.backward) throttle = b.speed > 0 ? -this.keys.backward : -0.6 * this.keys.backward;
+    if (this.keys.forward) throttle = +this.keys.forward;
+    else if (this.keys.backward) throttle = -this.keys.backward;
+    const drive = this.keys.boost ? BICYCLE_BOOST_DRIVE : BICYCLE_DRIVE;
+    if (handbrake) this.cruiseSpeed = null;
 
     if (this.cruiseSpeed != null) {
       // 匀速骑行：保持速度，转向、压弯与碰撞钳制照常生效。
       b.speed = this.cruiseSpeed;
       b._brakeHold = 0;
+      b._coastRate = null;
+    } else if (handbrake) {
+      b.speed = manualDriveSpeed(b, b.speed, throttle, dt, drive, true);
+      b._brakeHold = 0;
     } else if (b.speed > 0 && throttle < 0) {
-      // Pause briefly at zero after braking from forward travel so holding S stops cleanly before backing up
-      b.speed = driveSpeed(b.speed, throttle, dt, BICYCLE_DRIVE);
-      if (b.speed < 0.05) {
-        b.speed = 0;
-        if (!handbrake) b._brakeHold = 0.25;
-      }
+      b.speed = manualDriveSpeed(b, b.speed, throttle, dt, drive, false);
+      if (b.speed === 0) b._brakeHold = 0.25;
     } else if (!handbrake && b._brakeHold > 0 && throttle < 0) {
       b._brakeHold = Math.max(0, b._brakeHold - dt);
       b.speed = 0;
     } else {
       b._brakeHold = 0;
-      b.speed = driveSpeed(b.speed, throttle, dt, BICYCLE_DRIVE);
+      b.speed = manualDriveSpeed(b, b.speed, throttle, dt, drive, false);
     }
 
     let turnInput = 0;
@@ -1683,7 +1730,8 @@ class ThirdPersonControllerManager {
     let fwdInput = 0;
     if (this.keys.forward) fwdInput = this.keys.forward;
     else if (this.keys.backward) fwdInput = -this.keys.backward;
-    if (this.keys.backward) this.cruiseSpeed = null;
+    const brake = this.keys.brake && (!this.keys.up || this._pressedCodes?.has('KeyX'));
+    if (this.keys.backward || brake) this.cruiseSpeed = null;
 
     let yawInput = 0;
     if (this.keys.left) yawInput = this.keys.left;
@@ -1694,13 +1742,12 @@ class ThirdPersonControllerManager {
     else if (this.keys.down) vertInput = -this.keys.down;
 
     // 高速时缩短接触检测间隔，防止跨过窄障碍。
-    const forwardAcceleration = this.flightSettings?.accelerationMps2 ?? FLIGHT_FORWARD_ACCELERATION;
-    const maxTravel = (Math.abs(h.speed) + forwardAcceleration * dt) * dt;
+    const maxTravel = (Math.max(Math.abs(h.speed), this.cruiseSpeed ?? 0) + EVTOL_DRIVE.acceleration * dt) * dt;
     const steps = Math.max(1, Math.ceil(maxTravel / 1.5));
     const step = dt / steps;
     let floor;
     for (let i = 0; i < steps; i++) {
-      floor = this.stepHelicopter(h, step, fwdInput, yawInput, vertInput);
+      floor = this.stepHelicopter(h, step, fwdInput, yawInput, vertInput, brake);
     }
 
     const targetPitch = h.speed / EVTOL_DRIVE.speed * 0.21;
@@ -1714,18 +1761,13 @@ class ThirdPersonControllerManager {
     h.tiltPivot.rotation.z = h.rollAngle * airborne;
   }
 
-  stepHelicopter(h, dt, fwdInput, yawInput, vertInput) {
-    const { speed, reverseSpeed, reverseAcceleration, braking, verticalSpeed: maxVertSpeed } = EVTOL_DRIVE;
+  stepHelicopter(h, dt, fwdInput, yawInput, vertInput, brake) {
+    const maxVertSpeed = EVTOL_DRIVE.verticalSpeed;
     if (this.cruiseSpeed != null) {
       h.speed = this.cruiseSpeed;
-    } else if (fwdInput !== 0) {
-      // 反向输入先减速，停稳后用本步剩余时间按新方向加速。
-      const brakingTime = h.speed * fwdInput < 0 ? Math.min(dt, -h.speed / (fwdInput * braking)) : 0;
-      const acceleration = fwdInput > 0 ? this.flightSettings?.accelerationMps2 ?? FLIGHT_FORWARD_ACCELERATION : reverseAcceleration;
-      h.speed += fwdInput * (braking * brakingTime + acceleration * (dt - brakingTime));
-      h.speed = Math.max(-reverseSpeed, Math.min(speed, h.speed));
+      h._coastRate = null;
     } else {
-      h.speed *= Math.max(0, 1 - dt * 1.8);
+      h.speed = manualDriveSpeed(h, h.speed, fwdInput, dt, EVTOL_DRIVE, brake);
     }
 
     if (vertInput !== 0) {

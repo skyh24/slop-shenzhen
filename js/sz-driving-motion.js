@@ -107,14 +107,15 @@ export function contactTime(a, b, seconds, vx = (a.vx ?? 0) - (b.vx ?? 0), vz = 
 }
 
 // 零恢复系数。追尾可以保留前车的同向速度，迎面来车不会让玩家突然反向。
-export function constrainContactVelocity(car, nx, nz, obstacle = null) {
+export function constrainContactVelocity(car, nx, nz, obstacle = null, restitution = 0) {
   const sin = Math.sin(car.heading), cos = Math.cos(car.heading);
   let vx = sin * car.speed + (car.vx ?? 0), vz = cos * car.speed + (car.vz ?? 0);
   const normal = vx * nx + vz * nz;
   const other = (obstacle?.vx ?? 0) * nx + (obstacle?.vz ?? 0) * nz;
   const closing = Math.max(0, other - normal);
   if (normal >= Math.min(0, other)) return 0;
-  const removed = Math.min(0, other) - normal;
+  const rebound = closing > 1 ? Math.min(2.5, closing * restitution) : 0;
+  const removed = Math.min(0, other) + rebound - normal;
   const tangent = vx * nz - vz * nx;
   const friction = Math.sign(tangent) * Math.min(Math.abs(tangent), removed * 0.22);
   vx += removed * nx - friction * nz;

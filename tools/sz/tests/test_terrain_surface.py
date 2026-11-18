@@ -14,6 +14,7 @@ from shapely.ops import unary_union
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from build import rebuild_ground
 from geo import KX, KY, ORIGIN_LAT, ORIGIN_LON
+from ground_walk import _cover_candidates
 from terrain_exclusions import SOURCE, _footprint_signature, chunjian_exclusions
 from terrain_surface import apply_city_datum, apply_urban_datum, build_terrain_surface
 
@@ -41,6 +42,17 @@ def faces(surface):
 
 
 class TerrainSurfaceTests(unittest.TestCase):
+    def test_street_fill_respects_buildings_road_and_mapped_surfaces(self):
+        roadside = box(0, 0, 70, 28)
+        road = box(0, 0, 70, 4)
+        building = box(3, 9, 17, 22)
+        mapped = box(36, 4, 50, 13)
+        stone, lawn = _cover_candidates(roadside, road, building, {}, mapped)
+        self.assertTrue(stone.covers(box(5, 6, 15, 8)))
+        self.assertTrue(lawn.covers(box(28, 6, 32, 10)))
+        self.assertEqual(stone.intersection(lawn).area, 0)
+        self.assertEqual(stone.union(lawn).intersection(road.union(building).union(mapped)).area, 0)
+
     def test_scoped_ground_rebuild_rejects_an_unbound_base_package(self):
         with TemporaryDirectory() as directory:
             base = Path(directory) / 'city.json.gz'
@@ -86,31 +98,37 @@ class TerrainSurfaceTests(unittest.TestCase):
         self.assertEqual(report['urbanDatum']['heightSource'], 'urban-datum')
         self.assertEqual(report['urbanDatum']['pilots']['test-pilot']['levelVertices'], 2)
 
-    def test_city_datum_levels_ordinary_ground_and_blends_to_relief_and_engineering(self):
+    def test_city_datum_keeps_relief_inside_marked_park_even_between_grid_points(self):
         row = [170, 210, 230, 400, 170, 180, 200, 300, 250, 220, 240, 230, 200, 200, 300, 350, 340, 360, 380]
         source = {**grid(), 'nx': len(row), 'heights': row * 3}
-        legacy = {**source, 'heights': [160] * (len(row) * 3)}
         dry = box(0, 0, 450, 50)
-        mountain = box(350, -200, 475, 250)
-        bridge = box(150, -1, 175, 51)
+        park = box(286, -200, 500, 250).difference(box(449, 20, 451, 30))
+        legacy = {**source, 'heights': [160] * (len(row) * 3)}
+        engineering = (dry, 0, 50)
         report = {}
-        result = apply_city_datum(source, {'heightM': 8, 'reference': {}}, dry, [(mountain, 25, 75)],
-                                  (bridge, 0, 50), legacy, report)
+        result = apply_city_datum(source, {'heightM': 8, 'reference': {}}, dry, [], engineering, legacy, report,
+                                  park_only_pilots=[({'id': 'test-pilot', 'transitionM': 25}, dry)],
+                                  park_relief=[(park, 25)])
         middle = result['heights'][len(row):2 * len(row)]
-        self.assertEqual(middle[:4], [80] * 4)
-        self.assertEqual(middle[6:8], [160, 160])
-        self.assertEqual(middle[9:12], [80] * 3)
-        self.assertEqual(middle[15:], row[15:])
-        self.assertGreater(middle[5], 80)
-        self.assertLess(middle[5], 160)
+        self.assertEqual(middle[:13], [80] * 13)
+        self.assertGreater(middle[13], 80)
+        self.assertLess(middle[13], row[13])
+        self.assertEqual(middle[15], row[15])
+        self.assertEqual(middle[18], 80)
         self.assertEqual(source['heights'], row * 3)
         self.assertEqual(result['processing']['heightSource'], 'urban-datum')
         self.assertEqual(report['urbanDatum']['sourceHeightSource'], 'fixture-dem')
         surface = build_terrain_surface(result, dry, [dry], [], {}, chunk_size=25)
         covered = {(x, z): y for face in faces(surface) for x, y, z in face}
         self.assertEqual(covered[25, 25], 8)
-        self.assertEqual(covered[150, 25], 16)
-        self.assertEqual(covered[425, 25], 36)
+        self.assertEqual(covered[150, 25], 8)
+        for face in faces(surface):
+            if any(y != 8 for _, y, _ in face):
+                self.assertTrue(park.covers(Polygon([(x, z) for x, _, z in face])))
+
+        scoped = apply_city_datum(source, {'heightM': 8, 'reference': {}}, dry, [], engineering, legacy, {},
+                                  park_only_pilots=[({'id': 'test-pilot', 'transitionM': 50}, box(75, 0, 125, 50))])
+        self.assertEqual(scoped['heights'][len(row):len(row) + 4], [160, 160, 120, 80])
 
     def test_exact_l_shaped_coverage_and_subcell_water_channel(self):
         g = grid()

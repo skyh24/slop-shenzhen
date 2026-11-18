@@ -228,6 +228,7 @@ async function initApp() {
     // 场所公开上跨面按登记顺序并入接触候选；其余结构面各自的入口不变。
     surfaces: [...cityBlocks.surfaces, ...themeParks.surfaces, ...places.standable, ...landmarks.surfaces, ...elevatedRoads.surfaces, ...tunnels.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
     nearTraffic: traffic.nearColliders, nearWalkers: nearTalentPeople, nearRegional: regional.colliders, flightSettings: GEO.airCruises?.flight,
+    driveDeckIds: elevatedRoads.drive.surfaces.map(surface => surface.id),
     groundIdentity: waterfrontPaths.groundIdentity,
     // 单车按实际地面承托与实体碰撞通行，不再被区域用途标签拦住。
     groundAccess: (mode, x, z, surface) => mode === 'cyclist' || parkGroundAccess(mode, x, z, surface)

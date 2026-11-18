@@ -152,6 +152,7 @@
     },
     {
       "osmId": "way/686377686",
+      "parkRelief": false,
       "name": "塘朗山—梅林山山脊灌丛",
       "kind": "mountain",
       "tag": {
@@ -163,6 +164,7 @@
     },
     {
       "osmId": "relation/9523118",
+      "parkRelief": false,
       "name": "塘朗山—梅林山连续山林",
       "kind": "mountain",
       "tag": {
@@ -1294,6 +1296,13 @@
       150
     ]
   },
+  "parkOnlyPilots": [
+    {
+      "id": "jianye-xianglin",
+      "boundsWgs84": [114.0035, 22.5348, 114.0215, 22.5425],
+      "transitionM": 225
+    }
+  ],
   "engineering": {
     "source": "现有三处立交的桥面计划及 OSM 场地轮廓；桥头、桥下和已建模入口台面沿用上一版派生高程。",
     "bridgeWayIds": [
