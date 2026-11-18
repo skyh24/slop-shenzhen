@@ -12,6 +12,7 @@ import { buildSzRoadPaint } from './sz-road-paint.js';
 import { createRoadBuildingClearance } from './sz-road-building-clearance.js';
 import { createSurfaceResolver } from './sz-controller-surfaces.js';
 import { createSurfaceAtlas } from './sz-surface-atlas.js';
+import { createPlaceAssembly } from './sz-place-assembly.js';
 import { buildSzStreetscape } from './sz-streetscape.js';
 import { prepareTalentPark } from './sz-talent-park.js';
 import { createUrbanPavingWalk } from './sz-urban-paving.js';
@@ -82,11 +83,19 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
       decks: [...elevatedRoads.links, ...tunnels.links]
         .filter(link => (link.topPaintTriangles?.length ?? link.topTriangles?.length ?? 0) > 0) }));
   const publicWalk = buildZhongxinWalk(scene, site.roadGraph, site.terrainSurface, site.style);
+  // 场所接入声明：公共步道只在这里登记一次，图集、树灯预留与行人排除都从同一份声明取。
+  const places = createPlaceAssembly();
+  places.register({
+    id: 'public-walk',
+    ground: { heightSource: 'rendered-terrain', sample: publicWalk.heightAt },
+    walkReserve: publicWalk.reserves,
+    walkerExclusion: publicWalk.reserves
+  });
   // 活动表面图集：地面、步行面、路侧与场地按注册顺序叠加，后注册的覆盖先注册的。
   // 落位、接触与测试都读同一份装配，不再靠就地改写 site.heightAt 决定谁权威。
   const surfaceAtlas = createSurfaceAtlas({ groundHeight: ground.groundHeight });
+  places.applyGrounds(surfaceAtlas);
   surfaceAtlas
-    .add({ id: 'public-walk', heightSource: 'rendered-terrain', sample: publicWalk.heightAt })
     .add({ id: 'road-frontage', heightSource: 'rendered-terrain', sample: roadFrontage.contactHeight })
     .add({ id: 'road-landscape', heightSource: 'rendered-terrain', sample: roadLandscape.pathHeight });
   site.surfaceAtlas = surfaceAtlas;
@@ -109,7 +118,19 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     ? buildIecGrounds(scene, { ...site, roadSurfaces: roads.surfaces, water: GEO.water, paths: GEO.iecPaths }) : null;
   const northStation = landmarks.heights?.has('shenzhen-north')
     ? qa.measureBuild('northStation', () => buildNorthStation(scene, GEO.shenzhenNorthRail, site)) : null;
-  if (northStation) surfaceAtlas.add({ id: 'north-station', heightSource: 'rendered-terrain', sample: northStation.heightAt });
+  // 北站场地：地面层、公开上跨面、树灯预留、行人排除、模式限制与公共步行线路在同一处登记。
+  if (northStation) {
+    places.register({
+      id: 'north-station',
+      ground: { heightSource: 'rendered-terrain', sample: northStation.heightAt },
+      standable: northStation.surfaces,
+      walkReserve: northStation.reserves,
+      walkerExclusion: northStation.inRestricted,
+      access: { restricted: northStation.inRestricted },
+      publicRoutes: ({ colliders, carriageway }) => northStation.publicRoutes(colliders, carriageway)
+    });
+    places.applyGrounds(surfaceAtlas);
+  }
   const bridge = !offline && buildShenzhenBayBridge(scene, GEO.bridges.find(item => item.id === 'shenzhen-bay-bridge'));
   const yanjiang = !offline && buildYanjiangExpressway(scene, GEO.yanjiangExpressway,
     new Set([...elevatedRoads.links, ...tunnels.links].map(link => Number(link.osmId.split('/')[1]))));
@@ -123,7 +144,8 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   const pavementAtlas = createSurfaceAtlas({ layers: [
     { id: 'paved-terrain', heightSource: 'terrain', sample: pavedHeight },
     { id: 'road-frontage', heightSource: 'rendered-terrain', sample: roadFrontage.contactHeight },
-    { id: 'public-walk', heightSource: 'rendered-terrain', sample: publicWalk.heightAt }
+    // 铺装图集的优先级与主图集不同：公共步道在这里最后覆盖。层定义仍复用场所声明。
+    places.groundLayer('public-walk')
   ] });
   const retail = {
     regions: GEO.mapRegions?.regions, nearRoads: nearRoadsForFrontage, carriageway: carriagewayOccupied,
@@ -179,8 +201,9 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   // 树灯按完整底座避让与沥青网格同源的车行范围，路口补面也参与。
   const treeSite = {
     ...site, carriagewayOccupied, deckOccupied, excludedSite: themeParks.reserved, woodlandTrees: planWoodlandTrees(), simulatedPathAt: iec?.sceneryAt, roadFrontage: GEO.roadFrontage,
-    reserveWalk: (x, z, r) => publicWalk.reserves(x, z, r) || waterfront?.reserves(x, z, r)
-      || northStation?.reserves(x, z, r) || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || site.reserveBayWalk(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
+    // 场所自己的步道预留先查登记表；其余场地/路侧预留仍按各自既有入口提供。
+    reserveWalk: (x, z, r) => places.reservesWalk(x, z, r) || waterfront?.reserves(x, z, r)
+      || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || site.reserveBayWalk(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
     reserveView: summit.group ? summitViewObstructed : null,
     observedTrees: streetscape.observedTrees, pilotTrees: [...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees, ...districts.trees, ...urbanPaving.trees],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds),
@@ -193,8 +216,9 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
       const placed = iec ? iec.relocateLamp(candidate) : candidate;
       return placed && !landmarks.reservesApproach?.(placed.x, placed.z, 0.34) ? placed : null;
     },
-    reserveWalk: (x, z, r) => urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r)
-      || site.reserveBayWalk(x, z, r) || waterfront?.reserves(x, z, r),
+    // 路灯的避让范围与树不同：场所可选择登记 lampReserve，未登记的不改变既有落位。
+    reserveWalk: (x, z, r) => places.reservesLampSites(x, z, r) || urbanPaving.reserves(x, z, r)
+      || waterfrontPaths.reserves(x, z, r) || site.reserveBayWalk(x, z, r) || waterfront?.reserves(x, z, r),
     reserveCrossing: roadFrontage.reserveWalk,
     placementObstacles: [...buildings, ...trees.colliders],
     deckOccupied
@@ -225,7 +249,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     reserveWalk: (x, z, r) => treeSite.reserveWalk(x, z, r) || site.reserveBayWalk(x, z, r)
   }, trees.colliders));
   colliders.push(...vegetation.colliders);
-  return { site, sea, ground, roads, roadGraph, elevatedRoads, tunnels, roadLandscape, roadFrontage, roadPaint,
+  return { site, places, sea, ground, roads, roadGraph, elevatedRoads, tunnels, roadLandscape, roadFrontage, roadPaint,
     publicWalk, districts, carriagewayOccupied, deckOccupied, bayPaths, pilotBayPaths, parkBayPaths, waterfrontPaths, urbanPaving, summit, parkOmissions, cbdProgram,
     landmarks, iec, northStation, bridge, yanjiang, themeParks, cityBlocks, lightShow, buildingSigns, buildingDetails,
     streetscape, talentPark, waterfront, trees, vegetation, streetLamps, apecTheme, apecCity, futianStation, xiliConstruction, colliders };

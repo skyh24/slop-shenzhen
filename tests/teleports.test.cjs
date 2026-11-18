@@ -123,7 +123,7 @@ test('map travel resolves a walking pose before closing and leaves the map open 
     parkBayPaths: [],
     pilotBayPaths: [],
     findWaterfrontWalkPoint: (_paths, x, z, heading) => x === 103 ? { x: 100, z, heading } : null,
-    northStation: null,
+    places: { restricted: () => false },
     controllerManager: {
       get activeMode() { return mode; },
       findTeleportPosition: (x, z, heading, altitude, required, park, options) => {
