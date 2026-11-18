@@ -18,24 +18,27 @@ const sections = load('sz-road-section.js');
 const surface = load('sz-controller-surfaces.js');
 const roads = load('sz-roads.js', { 'three/webgpu': {}, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame });
 const collision = load('building-collision.js', { './sz-polygon.js': polygonModule });
+// 路线采样与贴地校验独立于车流渲染；规划器只装载共享轨迹模块。
+const trajectory = load('sz-road-trajectory.js', driving);
 const traffic = load('sz-traffic.js', { 'three/webgpu': {}, './sz-intersection-control.js': signalApi,
   './sz-junction-participant.js': junctionApi, './sz-roads.js': roads, './sz-road-section.js': sections,
-  // 路线规划只用到 sz-traffic 的纯函数；车队涂装用到的 carStyleCode 给一个等价替身。
+  // 这里只需车流路图；模块求值用到的涂装编码给一个等价替身。
   './sz-vehicles.js': { carStyleCode: ({ livery = 0, metallic = 0, trim = 0, wheel = 0 }) =>
     (livery & 7) + ((metallic & 1) << 3) + ((trim & 3) << 4) + ((wheel & 3) << 6) },
+  './sz-road-trajectory.js': trajectory,
   './building-collision.js': collision, ...driving });
 const { createAutoDrive, hasRoadFootprint } = load('sz-auto-drive.js', {
   './sz-intersection-control.js': signalApi, './sz-junction-participant.js': junctionApi,
-  './sz-traffic.js': traffic, ...driving
+  ...driving
 });
 const { createLaneAssist } = load('sz-lane-assist.js', {
   './sz-auto-drive.js': { hasRoadFootprint }, './sz-road-section.js': sections, ...driving
 });
 const { createDrivePlanner, createTurnFilter } = load('sz-drive-route.js', {
-  './sz-intersection-control.js': signalApi, './sz-traffic.js': traffic, './sz-road-section.js': sections
+  './sz-intersection-control.js': signalApi, './sz-road-trajectory.js': trajectory, './sz-road-section.js': sections
 });
 const bounds = { min: { x: -1.1, y: 0, z: -2.4 }, max: { x: 1.1, y: 1.81, z: 2.4 } };
-const model = traffic.trafficModelBounds(bounds, { wheelbase: 2.8, track: 1.54 });
+const model = trajectory.routeModelBounds(bounds, { wheelbase: 2.8, track: 1.54 });
 
 const groundRoad = id => ({ osmId: `way/${id}`, heightSource: 'terrain', layer: 0, bridge: false, tunnel: false });
 const rule = (restriction, from, to, via, viaWays = []) => ({ osmId: 'relation/1', restriction,
@@ -500,7 +503,7 @@ test('starting is explicit and signal occupancy survives manual takeover inside 
 test('a North Ring vehicle contact outside route lookahead waits and clears without aborting', () => {
   // 碰撞候选与环境车包络取自北环新洲段堵车实录。
   const { x, y, z, heading } = { x: -1943.91213244, y: 24.70868285, z: -1832.06503373, heading: -1.3909399904 };
-  const recordedModel = traffic.trafficModelBounds({
+  const recordedModel = trajectory.routeModelBounds({
     min: { x: -1.11500001, y: 0, z: -2.36949992 }, max: { x: 1.11500001, y: 1.80900002, z: 2.37986207 }
   }, { wheelbase: 2.8, track: 1.54 });
   const obstacle = { x: -1946.70521145, z: -1830.47853599, sin: -0.7223695469, cos: 0.6915072217,
@@ -874,7 +877,7 @@ test('the player controller drives from ground through the sourced Chegongmiao d
   const deckHeight = surface.createSurfaceHeightAt(plan.surfaces);
   const roadHeight = (x, z, edge) => edge?.surfaceId ? deckHeight(x, z, edge.surfaceId) : pavement(x, z);
   const carBounds = { min: { x: -1.11500001, y: 0, z: -2.36949992 }, max: { x: 1.11500001, y: 1.80900002, z: 2.37986207 } };
-  const bridgeModel = traffic.trafficModelBounds(carBounds, { wheelbase: 2.8, track: 1.54 });
+  const bridgeModel = trajectory.routeModelBounds(carBounds, { wheelbase: 2.8, track: 1.54 });
   const { controller, car } = playerCarFixture(groundHeight, { surfaces: plan.surfaces, colliders: plan.colliders, carBounds });
   const control = signalApi.createIntersectionControl(geo.roadFrontage, graph);
   const network = traffic.createTrafficGraph(graph, { elevated: { links: plan.driveLinks } });

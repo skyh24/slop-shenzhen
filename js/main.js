@@ -20,7 +20,8 @@ import { wireAirCruise } from './sz-air-cruise-ui.js';
 import { wireDroneWatch } from './sz-drone-watch.js';
 import { SUMMIT_ARRIVAL } from './sz-lianhuashan.js';
 import { BUILDING_RENDER_CHUNK_SIZE } from './sz-buildings.js';
-import { createSzTraffic, trafficModelBounds } from './sz-traffic.js';
+import { createSzTraffic } from './sz-traffic.js';
+import { routeModelBounds } from './sz-road-trajectory.js';
 import { createSzPedestrians } from './sz-pedestrians.js';
 import { COCO_PARK_ENTRANCE } from './sz-zhongxin-walk.js';
 import { createDrivePlanner, createTurnFilter } from './sz-drive-route.js';
@@ -283,7 +284,7 @@ async function initApp() {
   traffic.update(0, loadingFocus, [controllerManager.getActiveEntity()], 0);
   pedestrians.update(0, controllerManager.getActiveEntity().position, 0, null, [controllerManager.getActiveEntity()]);
   const driveCar = controllerManager.entities.car;
-  const driveModel = trafficModelBounds(driveCar.collisionBounds, VEHICLE_SPECS.taxi);
+  const driveModel = routeModelBounds(driveCar.collisionBounds, VEHICLE_SPECS.taxi);
   // 自动驾驶与地图规划使用交通模块的组合高度：地面沥青 + 高架桥面（按边表面身份取样）。
   const driveOptions = { model: driveModel, roadHeight: traffic.roadHeight, control: roadFrontage.control };
   const nearPedestrians = (x, z, radius) => [

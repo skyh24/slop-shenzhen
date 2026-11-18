@@ -90,14 +90,18 @@ const trafficVehicles = {
   }
 };
 const sections = load('sz-road-section.js');
-const { createTrafficGraph, createSzTraffic, laneRoute, playerImpact, poseOnRoute, routeSegments,
-  trafficModelBounds, writeTrafficCollider } = load('sz-traffic.js', {
+// 路线采样与贴地校验独立于车流场景和车型网格；这里只注入足迹探针支撑。
+const trajectory = load('sz-road-trajectory.js', driving);
+const { laneRoute, poseOnRoute, routeModelBounds } = trajectory;
+const { createTrafficGraph, createSzTraffic, playerImpact, routeSegments,
+  writeTrafficCollider } = load('sz-traffic.js', {
   'three/webgpu': three,
   './sz-intersection-control.js': signalModule,
   './sz-junction-participant.js': junctionModule,
   './sz-roads.js': roads,
   './sz-road-section.js': sections,
   './sz-vehicles.js': trafficVehicles,
+  './sz-road-trajectory.js': trajectory,
   './building-collision.js': load('building-collision.js', { './sz-polygon.js': polygonModule }),
   ...driving
 });
@@ -184,7 +188,7 @@ test('traffic keeps the nearest lane when the road ahead changes lane count', ()
 });
 
 test('traffic collision bounds are the same local model box with the rendered yaw', () => {
-  const model = trafficModelBounds({ min: { x: -1, y: 0, z: -2 }, max: { x: 1, y: 2, z: 3 } }, vehicleSpecs.taxi);
+  const model = routeModelBounds({ min: { x: -1, y: 0, z: -2 }, max: { x: 1, y: 2, z: 3 } }, vehicleSpecs.taxi);
   const body = writeTrafficCollider({}, model, { x: 8, y: 6, z: 11, sin: 1, cos: 0, pitch: 0, roll: 0 });
   assert.equal(body.obb.cx, 8.5);
   assert.equal(body.obb.cz, 11);
@@ -523,83 +527,6 @@ test('traffic graph connects layers only through shared ground ends and matching
   assert.ok(!edgeOf('way/g1').elevated);
 });
 
-test('poseOnRoute follows the deck for elevated edges and keeps ground height underneath', () => {
-  const box = { min: { x: -0.95, y: 0, z: -2.4 }, max: { x: 0.95, y: 1.8, z: 2.4 } };
-  const model = trafficModelBounds(box, vehicleSpecs.taxi);
-  const deckEdge = { osmId: 'way/e1', elevated: true, surfaceId: 'sz-elevated-road:300' };
-  const groundEdge = { osmId: 'way/g1', elevated: false };
-  // 高度函数按边的表面身份取高度：高架边只能拿到桥面，地面边只能拿到地面。
-  const height = (x, z, edge) => edge?.surfaceId ? 12.5 : 6;
-  const line = edge => Array.from({ length: 101 }, (_, i) => ({ x: i * 2, z: 0, dx: 1, dz: 0, s: i * 2, edge }));
-  const pose = {};
-  assert.equal(poseOnRoute(line(deckEdge), 100, model, height, pose), true);
-  assert.equal(pose.edge, deckEdge);
-  assert.ok(Math.abs(pose.y - 12.5) < 1e-9, `elevated pose y ${pose.y}`);
-  assert.equal(poseOnRoute(line(groundEdge), 100, model, height, pose), true);
-  assert.equal(pose.edge, groundEdge);
-  assert.ok(Math.abs(pose.y - 6) < 1e-9, `ground pose keeps its own height ${pose.y}`);
-  assert.equal(poseOnRoute(line(deckEdge), 100, model, () => null, pose), false);
-});
-
-// 车辆支撑对照样段：环境车按路线邻段的表面身份逐点取面，并保留四轮俯仰/侧倾阈值。
-const supportCarModel = trafficModelBounds({
-  min: { x: -0.95, y: 0, z: -2.4 }, max: { x: 0.95, y: 1.8, z: 2.4 }
-}, vehicleSpecs.taxi);
-
-function routeLine(edge, z = 0) {
-  return Array.from({ length: 101 }, (_, i) => ({ x: i * 2, z, dx: 1, dz: 0, s: i * 2, edge }));
-}
-
-test('traffic support case flush seam: a pose spans both segments and records both identities', () => {
-  const a = { osmId: 'way/a', surfaceId: 'sz-elevated-road:1' };
-  const b = { osmId: 'way/b', surfaceId: 'sz-elevated-road:2' };
-  const samples = Array.from({ length: 101 }, (_, i) => {
-    const s = i * 2;
-    return { x: s, z: 0, dx: 1, dz: 0, s, edge: s <= 100 ? a : b };
-  });
-  const height = (x, z, edge) => x <= 100 ? (edge === a ? 5 : null) : (edge === b ? 5 : null);
-  const pose = {};
-  assert.equal(poseOnRoute(samples, 100, supportCarModel, height, pose), true);
-  assert.equal(pose.y, 5);
-  assert.equal(pose.edge, a);
-  assert.deepEqual([...pose.supportedSlabs].sort(), ['sz-elevated-road:1', 'sz-elevated-road:2']);
-});
-
-test('traffic support case stacked levels: the route edge identity decides the level', () => {
-  const deck = { osmId: 'way/deck', surfaceId: 'deck' };
-  const ground = { osmId: 'way/ground' };
-  const height = (x, z, edge) => edge?.surfaceId ? 8 : 4;
-  const pose = {};
-  assert.equal(poseOnRoute(routeLine(deck), 100, supportCarModel, height, pose), true);
-  assert.deepEqual([pose.y, pose.edge], [8, deck]);
-  assert.deepEqual([...pose.supportedSlabs], ['deck']);
-  assert.equal(poseOnRoute(routeLine(ground), 100, supportCarModel, height, pose), true);
-  assert.deepEqual([pose.y, pose.edge], [4, ground], 'the ground line keeps its own height under the deck');
-  assert.equal(pose.supportedSlabs.size, 0, 'a ground edge without an identity clears the previous slab');
-});
-
-test('traffic support cases: wheels on the strip but corners beyond it fail the pose', () => {
-  const pose = {};
-  const deckEndsEarly = (x, z) => x <= 101 ? 5 : null;
-  assert.equal(poseOnRoute(routeLine({ surfaceId: 'deck' }), 100, supportCarModel, deckEndsEarly, pose), false,
-    'front wheels past the deck end leave no support');
-  const cornersBeyond = (x, z) => x <= 101.5 ? 5 : null;
-  assert.equal(poseOnRoute(routeLine({ surfaceId: 'deck' }), 100, supportCarModel, cornersBeyond, pose), false,
-    'wheels on the strip are not enough when a corner is off it');
-  assert.equal(poseOnRoute(routeLine({ surfaceId: 'deck' }), 100, supportCarModel, x => x <= 103 ? 5 : null, pose), true);
-});
-
-test('traffic support case slopes: 10 percent is accepted, 25 percent cross slope exceeds the roll limit', () => {
-  const pose = {};
-  assert.equal(poseOnRoute(routeLine({ surfaceId: 'deck' }), 100, supportCarModel, (x, z) => 5 + 0.1 * z, pose), true);
-  assert.ok(Math.abs(pose.roll) < 0.2);
-  assert.ok(Math.abs(pose.y - 5) < 1e-9);
-  assert.equal(poseOnRoute(routeLine({ surfaceId: 'deck' }), 100, supportCarModel, (x, z) => 5 + 0.1 * x, pose), true);
-  assert.ok(Math.abs(pose.pitch) < 0.28, 'a 10 percent grade stays inside the pitch limit');
-  assert.equal(poseOnRoute(routeLine({ surfaceId: 'deck' }), 100, supportCarModel, (x, z) => 5 + 0.25 * z, pose), false,
-    'a 25 percent cross slope is rejected even though every probe has a surface');
-});
-
 test('traffic road height uses the deck for elevated edges and ground height for ground edges', () => {
   const deckSurfaceId = 'sz-elevated-road:300';
   const deckHeight = (x, z, surfaceId) => surfaceId === deckSurfaceId
@@ -722,7 +649,7 @@ test('Chegongmiao route clears both junction guardrails and keeps its deck conta
   const plan = planElevatedRoads(graph, geo.terrainSurface);
   const { createDrivePlanner, createTurnFilter } = load('sz-drive-route.js', {
     './sz-intersection-control.js': signalModule,
-    './sz-traffic.js': { laneRoute, poseOnRoute }, './sz-road-section.js': sections
+    './sz-road-trajectory.js': trajectory, './sz-road-section.js': sections
   });
   const areaLinks = graph.links.flatMap((link, index) =>
     roads.roadLinkPoints(graph, link).some(({ x, z }) => x > -3500 && x < -3000 && z > 500 && z < 1200) ? [index] : []);
@@ -734,7 +661,7 @@ test('Chegongmiao route clears both junction guardrails and keeps its deck conta
     roadHeight: groundHeight, elevated: { links: plan.driveLinks, heightAt: deckHeight },
     canTurn: createTurnFilter(graph)
   });
-  const model = trafficModelBounds(geometryFixture(0.96, 2.4).boundingBox, vehicleSpecs.taxi);
+  const model = routeModelBounds(geometryFixture(0.96, 2.4).boundingBox, vehicleSpecs.taxi);
   const planner = createDrivePlanner(network, graph, { model, roadHeight, isClear: () => true });
   const route = planner.route(planner.snap(-3311.9624, 730.481), planner.snap(-3179.0028, 975.6674));
   assert.ok(route, 'the source-directed route can be planned');

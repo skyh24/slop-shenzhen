@@ -1,6 +1,6 @@
 import { routeSignalStops } from './sz-intersection-control.js';
 import { laneOffsets, usableWidth } from './sz-road-section.js';
-import { laneRoute, poseOnRoute } from './sz-traffic.js';
+import { laneRoute, poseOnRoute } from './sz-road-trajectory.js';
 
 const SNAP_RADIUS = 44;
 const SNAP_ALTERNATIVES = 7;
