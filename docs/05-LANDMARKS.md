@@ -1,10 +1,10 @@
 # 地标与场所模型参考
 
-源身份、坐标与高度以 [landmarks.json](../data/source/landmarks.json)、[楼高覆盖](../data/source/building-height-overrides.json) 及当前包为准。以下压缩既有模型卡与资料入口；外部资料未在本轮重新联网核实。当前验收统一在 HANDOFF，后续统一在 TASKS T7/T14。
+源身份、坐标与高度以 [landmarks.json](../data/source/landmarks.json)、[楼高覆盖](../data/source/building-height-overrides.json) 及当前包为准。下表选列有模型资料的对象，完整专模注册表见 [layout.js](../js/sz-landmarks/layout.js)。
 
 ## 装配方法
 
-`sz-landmarks/layout.js`注册13个建筑专模。每个`build()`输出实体部件，`parts.js/render.js`生成显示与碰撞，成功后才让对应源ID退出普通楼；保留邻楼、内院、架空净空。几何估计与源事实分开，模型可见不表示门内或屋顶开放。
+专模按已核对象注册。每个`build()`输出实体部件，`parts.js/render.js`生成显示与碰撞，成功后才让对应源ID退出普通楼；保留邻楼、内院、架空净空。几何估计与源事实分开，门内或屋顶开放须有独立证据。
 
 ## 专模
 
@@ -28,11 +28,11 @@
 
 | 对象 | 接入与边界 |
 | --- | --- |
-| 深圳湾大桥、沿江高速 | `sz-landmarks/shenzhen-bay-bridge.js`的`buildShenzhenBayBridge/buildYanjiangExpressway`由main直接调用；OSM线形，结构标高/墩距含估计，当前为远景，不承诺可驾驶 |
+| 深圳湾大桥、沿江高速 | `sz-landmarks/shenzhen-bay-bridge.js`的`buildShenzhenBayBridge/buildYanjiangExpressway`在场景中独立装配；OSM线形，结构标高/墩距含估计，当前为远景，不承诺可驾驶 |
 | 福田站、西丽站 | `sz-station-sites.js`独立装配；站亭/天窗与施工围挡/塔吊/基坑示意。源`way/800275814`、`way/402048868`；公共接驳和真实坑壁另验 |
 | APEC城市元素、福田灯光秀 | `sz-apec*.js`与`sz-light-show.js`独立装配；站点/活动来源与模拟灯效分开，不是逐块实景复刻 |
-| 其他公园、商圈、古城、大学城 | 有地图地点或通用建筑不代表已有独立场所模型；用户指定清单保留在TASKS T14 |
+| 其他公园、商圈、古城、大学城 | 有地图地点或通用建筑不代表已有独立场所模型；待完善的场所见[优化清单](TASKS.md) |
 
 ## 样板验收方法
 
-每次选一个已核对象，以地块/道路/水岸确定周边边界，保留照片日期/朝向、对应尺寸和未知项。至少对照俯瞰关系、街道视线和入口三个尺度及日夜。用同一实体检查门洞/柱廊/桥下与平台，实走有来源的公共路线。截图/轨迹存本地QA；不再为每一轮追加一份模型交接。
+每次选一个已核对象，以地块/道路/水岸确定周边边界，保留照片日期/朝向、对应尺寸和未知项。至少对照俯瞰关系、街道视线和入口三个尺度及日夜。用同一实体检查门洞/柱廊/桥下与平台，实走有来源的公共路线。截图和轨迹存本地 QA。

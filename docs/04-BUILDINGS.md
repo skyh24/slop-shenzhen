@@ -17,13 +17,15 @@
 | `sz-building-signs.js::planBuildingSigns/planSignAtlas/buildBuildingSigns` | 墙面/屋顶选牌、共用图集与门牌示意 |
 | `building-collision.js`、`sz-road-building-clearance.js` | 按高度切片的碰撞与道路净空约束 |
 
-数据经 `tools/sz/buildings.py` 融合，楼高保留 `heightSource`。已有事实优先于外观模板；层数推算、遥感和样本估计不改写成实测。楼体放置、地标让位和碰撞必须引用同一对象与基底。
+数据经 `tools/sz/buildings.py` 融合，楼高保留 `heightSource`。层数推算、遥感和样本估计不改写成实测。楼体放置、地标让位和碰撞必须引用同一对象与基底。
 
-`buildCityBlocks` 把同一批原始建筑对象、地形、`skipIds`、重复体量/道路冲突排除、`roofPlans`、`retailBuildingIds` 和 `envelopePlans` 收进 `detailPlan`，近景入口直接消费，不再由调用方拼 `detailSkipIds`。`buildBuildingDetails` 只接受 `detailPlan`；旧的 `buildings`/`terrain`/`roofPlans`/`retailBuildingIds`/`envelopePlans`/`skipIds` 入口字段已删除并显式报错，夜景排除也读同一份 `detailPlan.skipIds`，同一批排除身份只有一处事实来源。未注入 `buildings` 时仍读共享包 GEO；注入局部集合时，地形、路网、入口和商圈索引必须显式传入，不能回落到全城单例。
+`buildCityBlocks` 输出的 `detailPlan` 汇集基底、源楼、地标让位、屋面设备和临街用途。近景与夜景沿用同一组排除对象。局部建筑集须显式传入所用地形、路网和商圈信息。
+
+核实共边或重复体量后，按实际重叠高度确定唯一外墙，保留露出部分、屋面与源身份。关系登记在 `js/sz-building-envelope-relations.js`，含[铜鼓路](research/dachong-building-flicker.md)与[新洲路等样区](research/xinzhou-building-flicker-audit.md)的对象证据。
 
 ## 立面与部件共用规则
 
-- 城市包 v2 解码后保留 `facade` 的字符串名称和 `category`、`heightSource` 等来源字段。渲染批次按预设名称取得着色索引，索引只在运行时使用。旧包已有外观估计继续采用原名称，缺省或 `null` 采用中性预设，拼错的预设名报错。回归对照 Python 生成器的八种载荷值。
+- 城市包 v2 解码后保留 `facade` 的字符串名称和 `category`、`heightSource` 等来源字段。渲染批次按预设名称取得着色索引，索引只在运行时使用。旧包已有外观估计继续采用原名称，缺省或 `null` 采用中性预设，拼错的预设名报错。
 - `FACADE_PROFILES` 单独维护米制开间、默认层高、首层表现、窗占比、配色和阳台/空调/水箱开关。外观部件默认关闭。共享近景材质按四个族合并，每个流式块释放自己的几何，共用材质由近景系统关闭时统一释放。
 - 新增普通楼仍走现有数据管线；同类型引用已有立面，外观变体在预设表扩展参数。建筑身份、开口、屋顶外形和开放权限仍从来源几何确定。深圳湾公馆的复式阳台和航天科技广场 A 座的北侧高大堂与雨棚各需明确对象绑定，共用预设表中的样本参数。其他地标继续使用各自的结构和公共地标部件。
 - 基础屋顶输出实际设备底面和屋面高度，近景按同一足迹与高度读取已占范围。水箱、天线和航空灯仅由近景生成；双层屋顶仍各按自己的面规划，门洞与首层接触不由外观部件生成。

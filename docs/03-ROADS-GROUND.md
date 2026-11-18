@@ -1,36 +1,31 @@
 # 道路、地形与水面
 
-## 已有功能
+## 表面与断面
 
-正式入口已装配地形、海面、地面道路、标线、路侧和高架。道路断面、弯道与路口使用共同车行范围，供沥青绘制、人行避让和建筑退让消费。高架同时提供显示实体与驾驶表面；深圳湾大桥、沿江高速已有远景。
+- 地形格点、城区工程地坪、车行面、步行铺装、桥面、洞底和屋顶分别保留来源。城区基准高程是估计值。落位同时查询高度和表面身份，桥下与桥上可以共用平面坐标。
+- 地面道路的沥青、标线、路缘、人行避让和建筑退让使用同一车行范围。断面以距左路缘的米数描述横位，沿源路段保持标线连续。复核断面和源车道标签优先，估计车道数保留来源。
+- 路口信号、停车线和通行方向应能相互对应。过街路径两端须有同层等待面。绿化分隔带内的通行资格按实际过街连接确定。
+- 海面与内河按各自水域生成。大沙河、静谧河谷和部分公园有水面样段。其余水域需分别核水位、岸顶、护栏和可通行岸线。
 
-普通城区采用派生工程地坪，山体与指定结构区保留独立处理。当前标高、异常和实际通行证据见 [HANDOFF](HANDOFF.md)，不能将工程地坪称为实测裸地。
+## 桥梁、匝道与隧道
 
-## 方法与架构
+正式场景以路网和地形派生桥面、隧道路面与洞身。道路的 `bridge`、`tunnel`、`layer` 描述结构和上下关系。具体结构高度与净空按源纵断面或标明来源的估计生成。
 
-| 入口（相对 `js/`） | 职责 |
+| 对象 | 通用规格 |
 | --- | --- |
-| `sz-terrain.js::terrainHeight/terrainCellTriangles` | 格点三角插值，提供地形高度 |
-| `sz-ground-surface.js::createGroundSurfaceSampler`、`sz-ground.js::buildSzGround` | 同一三角面数据用于查询与绘制 |
-| `sz-controller-surfaces.js::createSurfaceResolver` | 区分地面、桥面、屋顶等活动表面的身份与高度 |
-| `sz-surface-atlas.js::createSurfaceAtlas` | 按注册顺序叠加地面/步行面/路侧/场地层，一次查询同时给出高度与出处 |
-| `sz-roads.js::visitGroundRoadFootprints/createRoadSurfaceLayout/buildSzRoads` | 断面、弯道、路口范围与网格 |
-| `sz-road-section.js::getRoadSection/getDeckSection` | 共用有效宽、方向、估计车道数、偏距、分界与表面身份 |
-| `sz-road-markings.js::createMarkingLayout`、`sz-road-paint.js::buildSzRoadPaint` | 标线布局与绘制，贴对应活动表面 |
-| `sz-road-frontage.js::buildSzRoadFrontage`、`sz-road-building-clearance.js::createRoadBuildingClearance` | 路缘/人行道与道路建筑净空 |
-| `sz-elevated-roads.js::planElevatedRoads/buildSzElevatedRoads` | 桥梁规划、实体和车行链接 |
-| `sz-sea.js::buildSzSea`、`sz-water-material.js::createSzWaterMaterial` | 海面、波浪法线与反射 |
+| 桥面与引道 | 顶面与车轮接触共用三角面。接地端过渡同时考虑端点高差与纵坡。普通派生车行桥面采用 12% 纵坡上限。悬空端可以有显示引道，车行连通还须核源节点、方向和接缝标高。 |
+| 桥墩与护栏 | 桥墩避让下层车行范围，护栏沿上层外缘布置，并为合流、分流和落地留出通道。桥下净空从梁底量起。 |
+| 隧道与洞口 | 洞底、洞壁、洞顶及碰撞沿同一纵断面生成。构建期按洞口剖面裁地形。运行时分别记录结构与可车行链路，洞口过渡坡、连续净空和接回地面要实驾验证。 |
+| 多层连接 | 路网按共享源节点连边。手动驾驶、自动驾驶和环境车流分别验证上桥、下桥、穿洞和在下层通过。平面相交只提示核查。 |
 
-离线由 `tools/sz/roads.py`、`roadgraph.py`、`road_surface.py`、`terrain_surface.py`、`bridges.py` 等经 `build.py` 生成。来源与重建规则见 [数据管线](02-DATA-PIPELINE.md)。驾驶和信号消费者见 [载具](07-VEHICLES.md)。
+## 实现入口
 
-深南大道经影像复核的中分带统一铺草坪并禁止行人进入，中分带内不设步道，过街只在路口。红色花圃按沿路 42–63 米间距、由中分带边界断面程序化生成，宽度随绿带收敛、最宽约 17 米；影像复核过的连续低花带保留在草坪边沿。
+| 职责 | 入口 |
+| --- | --- |
+| 源路网、地形与洞口裁切 | `tools/sz/roadgraph.py`、`terrain_surface.py`、`tunnel_portals.py`、`elevated_cut.py` |
+| 可见地面与支撑查询 | `js/sz-ground.js`、`js/sz-ground-surface.js`、`js/sz-surface-atlas.js` |
+| 断面、路口、路侧与标线 | `js/sz-road-section.js`、`js/sz-roads.js`、`js/sz-road-frontage.js`、`js/sz-road-paint.js` |
+| 桥隧与分层接触 | `js/sz-elevated-roads.js`、`js/sz-tunnels.js`、`js/sz-controller-surfaces.js` |
+| 水面与岸线 | `js/sz-sea.js`、`js/sz-waterfront.js`、`js/sz-bay-waterfront.js` |
 
-标线、环境车、自动驾驶、换道和建筑净空共用断面结果。无源车道数时，标线显示估计并保留来源，普通双向车流保留保守偏距，车道数未知的单向车流沿中心行驶。桥面以现有桥面计划和栏杆宽计算净宽，轮胎接触按实际 `surfaceId` 查询。信号灯面、环境车和自动驾驶继续读取同一路口状态。
-
-路灯配置按源道路 ID 生效，沿用已有道路断面、路口安全边距、分隔带判定和净空检查。跨区域无需切断源边或重置标线里程。路侧铺装可按已生成的铺装对象 ID 选择材质，边缘、厚度、裁切与通行资格仍由地面处理负责。 [参数规则](REGIONS-PLACES.md#场景参数)
-
-## 实现边界与验证
-
-内河目前有数据和地图，三维水面仍缺。`sz-tunnels.js` 有规划/构建函数，但正式入口只消费审核清单，不能宣称隧道可通行。地坪接缝、山脚、入口和上下桥仍需逐段实走；同一XZ的桥上与桥下必须分层。
-
-修改检查用 `roads`，接触/驾驶加 `controls`，生成器加 `data`；共享表面契约按 [开发检查](25-FAST-CHECKS.md) 用 `full`。浏览器走 [验收路线](10-PERF-QA.md) Q1–Q3/Q8，分别验手动、自动和环境车。后续仅在 [TASKS T2/T3](TASKS.md#t2-地面和q8) 派工。
+代表路线和接触误差见[正式验收](10-PERF-QA.md)。待核路段见[优化清单](TASKS.md)。

@@ -145,11 +145,11 @@ Switch to a bicycle and **ride along the seawall at Shenzhen Bay Park**, passing
 
 | Key | Action |
 | --- | --- |
-| `1` / `2` / `3` / `4` | Walk / Car / Bicycle / Flight |
+| `1` / `2` / `3` / `4` | Walk / Bicycle / Car / Flight |
 | `M` | Open the map |
 | `V` | Cycle cameras |
 | `5` | Recenter the chase camera |
-| `F` | Car or aircraft cruise control |
+| `F` | Toggle cruise control in the current movement mode |
 | `Space` | Car brake |
 | `H` | Hide the interface for screenshots |
 | `N` | Toggle sound |
