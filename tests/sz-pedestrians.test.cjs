@@ -605,16 +605,41 @@ test('pavement ribbons stay outside the carriageway at a junction', () => {
   assertPavementOutsideBarrier(built.pavement, barrier);
 });
 
-test('Shennan Boulevard by Window of the World has only exterior sidewalk tracks', () => {
+test('sidewalks skip only the overlapping inner edges of similar ground one-ways', () => {
+  const graph = roadGraph([0, 0, 140, 0, 0, -20, 80, -20, 0, 16, 140, 16, 0, -35, 140, -35], []);
+  graph.names.push('Independent Street');
+  graph.links = [[0, 1, 0, 8, 2, 1, []], [2, 3, 0, 8, 2, -1, []],
+    [4, 5, 1, 8, 2, -1, []], [6, 7, 0, 8, 2, 1, []]];
+  graph.metadata.length = graph.links.length;
+  graph.metadata[3] = { ...graph.metadata[3], bridge: true, layer: 1 };
+  const { tracks: sidewalks } = buildSidewalkTracks(graph, { heightAt: flatHeight });
+  const first = sidewalks.filter(track => track.linkIndex === 0);
+  assert.ok(first.some(track => track.side === -1 && track.length === 140));
+  const interrupted = first.filter(track => track.side === 1);
+  assert.equal(interrupted.length, 1);
+  assert.ok(interrupted[0].points[0].x > 80 && interrupted[0].points.at(-1).x === 140);
+  const reverse = sidewalks.filter(track => track.linkIndex === 1);
+  assert.equal(reverse.length, 1);
+  assert.equal(reverse[0].side, 1);
+  assert.equal(sidewalks.filter(track => track.linkIndex === 2).length, 2);
+  assert.equal(sidewalks.filter(track => track.linkIndex === 3).length, 0);
+});
+
+test('Shennan Boulevard by Window of the World and Press Tower has only exterior mainline tracks', () => {
   const raw = JSON.parse(zlib.gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
   const graph = raw.roadGraph;
-  const bounds = { minX: -8560, minZ: 750, maxX: -8180, maxZ: 1000 };
-  const built = buildSidewalkTracks(graph, { bounds, heightAt: flatHeight });
-  const wayIds = ['way/557222423', 'way/557222430', 'way/572963458', 'way/1241802797'];
-  for (const wayId of wayIds) {
-    const sidewalks = built.tracks.filter(track => graph.metadata[track.linkIndex]?.osmId === wayId);
-    assert.ok(sidewalks.length > 0, `missing exterior sidewalk along ${wayId}`);
-    assert.ok(sidewalks.every(track => track.side === -1), `median sidewalk along ${wayId}`);
+  for (const [bounds, wayIds] of [
+    [{ minX: -8560, minZ: 750, maxX: -8180, maxZ: 1000 },
+      ['way/557222423', 'way/557222430', 'way/572963458', 'way/1241802797']],
+    [{ minX: -1450, minZ: 390, maxX: -1200, maxZ: 480 },
+      ['way/96334031', 'way/1050261077', 'way/1050511760', 'way/1050511761']]
+  ]) {
+    const built = buildSidewalkTracks(graph, { bounds, heightAt: flatHeight });
+    for (const wayId of wayIds) {
+      const sidewalks = built.tracks.filter(track => graph.metadata[track.linkIndex]?.osmId === wayId);
+      assert.ok(sidewalks.length > 0, `missing exterior sidewalk along ${wayId}`);
+      assert.ok(sidewalks.every(track => track.side === -1), `median sidewalk along ${wayId}`);
+    }
   }
 });
 

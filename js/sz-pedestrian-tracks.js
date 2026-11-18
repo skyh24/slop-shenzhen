@@ -8,10 +8,7 @@ import { sectionSideLine } from './sz-section-frame.js';
 const EPSILON = 1e-9;
 const CELL_SIZE = 24;
 const BARRIER_CELL = 32;
-// 世界之窗至佛山街的成对主路，中央绿带两侧不生成纵向模拟步道。
-const SHENNAN_OUTER_SIDE_WAYS = new Set([
-  'way/557222423', 'way/557222430', 'way/572963458', 'way/1241802797'
-]);
+const ONE_WAY_SEGMENTS = new WeakMap();
 
 export const DEFAULT_EXCLUDED_HIGHWAYS = ['motorway', 'motorway_link', 'trunk', 'trunk_link'];
 export const TRACK_DEFAULTS = {
@@ -72,6 +69,61 @@ function linkBoundsCache(graph) {
   for (let i = 0; i < graph.links.length; i++) cache[i] = linkBounds(graph, graph.links[i], graph.metadata[i]);
   LINK_BOUNDS_CACHE.set(graph, cache);
   return cache;
+}
+
+function pairedRoadGap(name) {
+  return name === '深南大道' ? 44 : name ? 18 : 8;
+}
+
+function oneWaySegments(graph) {
+  if (ONE_WAY_SEGMENTS.has(graph)) return ONE_WAY_SEGMENTS.get(graph);
+  const cells = new Map();
+  for (const [index, link] of graph.links.entries()) {
+    const metadata = graph.metadata[index];
+    const direction = link[5];
+    if (!direction || !(link[3] > 0) || !isGroundRoad(metadata) || metadata.highway?.endsWith('_link')) continue;
+    const name = graph.names?.[link[2]] ?? '';
+    const points = roadSectionPoints(graph, link, metadata);
+    const reach = pairedRoadGap(name) + link[3] / 2;
+    for (let i = 1; i < points.length; i++) {
+      const start = points[i - 1], end = points[i];
+      const length = Math.hypot(end.x - start.x, end.z - start.z);
+      if (length < 0.5) continue;
+      const segment = { index, name, highway: metadata.highway, direction, start, length, width: link[3],
+        dx: (end.x - start.x) / length, dz: (end.z - start.z) / length };
+      for (let x = Math.floor((Math.min(start.x, end.x) - reach) / BARRIER_CELL);
+        x <= Math.floor((Math.max(start.x, end.x) + reach) / BARRIER_CELL); x++) {
+        for (let z = Math.floor((Math.min(start.z, end.z) - reach) / BARRIER_CELL);
+          z <= Math.floor((Math.max(start.z, end.z) + reach) / BARRIER_CELL); z++) {
+          const key = cellKey(x, z);
+          if (!cells.has(key)) cells.set(key, []);
+          cells.get(key).push(segment);
+        }
+      }
+    }
+  }
+  ONE_WAY_SEGMENTS.set(graph, cells);
+  return cells;
+}
+
+function facesPairedRoad(cells, graph, index, side, points, sample, margin) {
+  const point = points[sample];
+  const { dx, dz } = tangentAt(points, sample);
+  const link = graph.links[index];
+  const name = graph.names?.[link[2]] ?? '';
+  const reach = pairedRoadGap(name) - margin;
+  const key = cellKey(Math.floor(point.x / BARRIER_CELL), Math.floor(point.z / BARRIER_CELL));
+  return cells.get(key)?.some(other => {
+    if (other.index === index) return false;
+    const alignment = dx * other.dx + dz * other.dz;
+    const withTraffic = alignment * link[5] * other.direction;
+    if (withTraffic > -0.90 || name !== other.name || (!name && graph.metadata[index].highway !== other.highway)) return false;
+    const along = ((point.x - other.start.x) * dx + (point.z - other.start.z) * dz) / alignment;
+    if (along < 0 || along > other.length) return false;
+    const lateral = side * ((other.start.x + other.dx * along - point.x) * dz
+      - (other.start.z + other.dz * along - point.z) * dx);
+    return lateral > 0 && lateral <= reach + other.width / 2;
+  }) ?? false;
 }
 
 // Liang–Barsky：把一段中心线裁到关注范围内，避免为了 260 m 的活动区生成整条十几公里的路。
@@ -347,7 +399,7 @@ function onRaisedSidewalk({ heightAt, groundHeight }, x, z) {
   return Number.isFinite(base) && Number.isFinite(top) && top - base >= 0.06 && top - base <= 0.18;
 }
 
-function walkableRuns(points, cfg, heightAt, colliderIndex, barrier, statistics, raisedOnly = false) {
+function walkableRuns(points, cfg, heightAt, colliderIndex, barrier, statistics, raisedOnly, isInside = null) {
   const runs = [];
   let current = [];
   let lastY = null;
@@ -365,7 +417,7 @@ function walkableRuns(points, cfg, heightAt, colliderIndex, barrier, statistics,
       }
     }
     const y = heightAt(point.x, point.z);
-    let blocked = !Number.isFinite(y) || (raisedOnly && !raised) || cfg.excludeWalkAt?.(point.x, point.z)
+    let blocked = !Number.isFinite(y) || isInside?.(i) || (raisedOnly && !raised) || cfg.excludeWalkAt?.(point.x, point.z)
       || cfg.blockGenericWalk?.(point.x, point.z);
     if (!blocked && lastY !== null && Math.abs(y - lastY) > cfg.maxStepRiseM) blocked = true;
     if (!blocked && barrier && barrier.contains(point.x, point.z, cfg.carriagewayClearanceM)) {
@@ -416,6 +468,7 @@ export function buildSidewalkTracks(graph, options = {}) {
     colliderBlockedSamples: 0, carriagewayBlockedSamples: 0, rejectedRuns: 0, tracks: 0,
     walkableMeters: 0, colliderIndexed: colliderIndex.indexed };
   const boxes = linkBoundsCache(graph);
+  const pairedSegments = oneWaySegments(graph);
   let nextId = 0;
   for (let index = 0; index < graph.links.length; index++) {
     const metadata = graph.metadata[index];
@@ -435,16 +488,16 @@ export function buildSidewalkTracks(graph, options = {}) {
     statistics.candidateLinks++;
     const centerline = roadSectionPoints(graph, link, metadata);
     if (centerline.length < 2) continue;
-    const direction = link[5];
-    const sides = direction && SHENNAN_OUTER_SIDE_WAYS.has(metadata.osmId) ? [-direction] : [1, -1];
-    for (const side of sides) {
+    for (const side of [1, -1]) {
       const sidewalk = sectionSideLine(centerline, { widthM, side, marginM: cfg.walkMarginM });
       const runs = bounds ? clipPolyline(sidewalk, bounds) : [sidewalk];
       statistics.clippedRuns += runs.length;
       for (const run of runs) {
         if (trackLength(run) < 0.5) continue;
         const line = resamplePolyline(run, cfg.sampleStepM);
-        for (const points of walkableRuns(line, cfg, cfg.heightAt, colliderIndex, barrier, statistics, raisedOnly)) {
+        const isInside = link[5] && !metadata.highway?.endsWith('_link')
+          ? sample => facesPairedRoad(pairedSegments, graph, index, side, line, sample, cfg.walkMarginM) : null;
+        for (const points of walkableRuns(line, cfg, cfg.heightAt, colliderIndex, barrier, statistics, raisedOnly, isInside)) {
           const length = trackLength(points);
           if (length < cfg.minRunLengthM) {
             statistics.rejectedRuns++;
