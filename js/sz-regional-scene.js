@@ -8,6 +8,7 @@ import { createGreenwayLightMaterial, unpackFixtureRows, unpackGreenwayLightPool
 import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
 import { buildSzSea } from './sz-sea.js';
 import { compatibleRegionalScene } from './sz-regional-format.js';
+import { createDetailResidency } from './sz-detail-residency.js';
 import { createRegionalStream } from './sz-regional-stream.js';
 
 function fixtures(batch, keys) {
@@ -99,24 +100,22 @@ export function createRegionalScene(scene, geo, { site, talentPark, trees, veget
           return live;
         }
         case 'shore': {
-          // 近处才分配实例缓冲。离开细节范围就释放，保留已加载的接触数据。
-          let live, desired = false;
+          // 近处才分配实例缓冲：进入 275 m、离开 335 m，迟滞避免边界抖动。
+          // 接触数据（batch）保留，只有实例缓冲随距离释放；创建走区域流的分帧任务，
+          // 离开后排队的结果由驻留规则丢弃。共享路面灯材质由区域场景统一释放。
+          const { batch } = data;
+          const residency = createDetailResidency({ enterM: 275, exitM: 335,
+            schedule: build => stream.visual(build, row) });
           return { update(point) {
-            const { batch } = data;
-            const d = Math.hypot(point.x - batch.x, point.z - batch.z);
-            desired = d < 275;
-            if (live && d > 335) { live.dispose(); live = null; }
-            else if (!live && desired) {
-              stream.visual(() => {
-                if (live || !desired) return;
-                unpackGreenwayLightPools(batch);
-                if (batch.poolPositions?.length) shoreLight ??= createGreenwayLightMaterial();
-                live = mountWaterfrontBatch(shore, batch, shoreLight);
-                shore.updateMatrixWorld(true);
-              }, row);
-            }
+            const live = residency.update(Math.hypot(point.x - batch.x, point.z - batch.z), () => {
+              unpackGreenwayLightPools(batch);
+              if (batch.poolPositions?.length) shoreLight ??= createGreenwayLightMaterial();
+              const mounted = mountWaterfrontBatch(shore, batch, shoreLight);
+              shore.updateMatrixWorld(true);
+              return mounted;
+            });
             live?.update();
-          }, dispose() { live?.dispose(); } };
+          }, dispose() { residency.dispose(); } };
         }
         case 'shore-bank': {
           const source = geo.waterfront.dasha.banks[data.bankIndex];

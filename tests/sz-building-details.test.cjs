@@ -686,3 +686,91 @@ test('the scene entry hands the base building plan to the close-up entrance', ()
   assert.doesNotMatch(sceneSite, /const detailSkipIds/);
   assert.doesNotMatch(sceneSite, /retailBuildingIds: cityBlocks/);
 });
+
+test('close-up chunks keep the 650-850 m hysteresis and rebuild once on re-entry', () => {
+  const details = loadDetails(stubThree());
+  const buildings = [makeBuilding({ id: 'way/chunk-a', x: 0, z: 0 })];
+  const result = details.buildBuildingDetails(makeScene(), {
+    detailPlan: detailPlanFor(buildings, FLAT_GRID()), maxGenerationMs: Infinity
+  });
+  result.update({ x: 0, z: 0 });
+  assert.equal(result.statistics.chunks, 1, 'the 200 m chunk around the player is built');
+  const generated = result.statistics.generated;
+
+  // 650 m 生成半径附近来回：块心距 549/551 m，不重建也不卸载。
+  for (const x of [649, 651, 649, 651]) result.update({ x, z: 0 });
+  assert.equal(result.statistics.generated, generated);
+  assert.equal(result.statistics.disposed, 0);
+  assert.equal(result.statistics.chunks, 1);
+
+  // 迟滞带内保留：块心距 700/800/840 m。
+  for (const x of [800, 900, 940]) result.update({ x, z: 0 });
+  assert.equal(result.statistics.chunks, 1);
+
+  // 只有超过 850 m 才释放。
+  result.update({ x: 951, z: 0 });
+  assert.equal(result.statistics.chunks, 0);
+  assert.equal(result.statistics.disposed, 1);
+
+  // 释放后回到迟滞带内不重建，进入 650 m 内才重建一次。
+  result.update({ x: 900, z: 0 });
+  assert.equal(result.statistics.chunks, 0);
+  result.update({ x: 640, z: 0 });
+  assert.equal(result.statistics.chunks, 1);
+  assert.equal(result.statistics.generated, generated + 1);
+  for (let i = 0; i < 6; i++) result.update({ x: 640, z: 0 });
+  assert.equal(result.statistics.generated, generated + 1);
+});
+
+test('the balcony upgrade rebuild fires once and stays quiet inside its band', () => {
+  const details = loadDetails(stubThree());
+  const buildings = [makeBuilding({ id: 'way/upgrade', x: 0, z: 0, facade: 'residential_tower',
+    levels: 30, category: 'residential' })];
+  const result = details.buildBuildingDetails(makeScene(), {
+    detailPlan: detailPlanFor(buildings, FLAT_GRID()), maxGenerationMs: Infinity
+  });
+  // 远建：块心距 500 m，此时还没有近距离立面细节的升级记录。
+  result.update({ x: 600, z: 0 });
+  assert.equal(result.statistics.generated, 1);
+  assert.equal(result.statistics.rebuilt, 0);
+
+  // 进入 250 m 内升级一次（块心距 150 m）。
+  result.update({ x: 250, z: 0 });
+  assert.equal(result.statistics.rebuilt, 1);
+  assert.equal(result.statistics.generated, 2);
+
+  // 250 m 阈值附近来回不再重建：升级只做一次。
+  for (const x of [251, 249, 252, 248]) result.update({ x, z: 0 });
+  assert.equal(result.statistics.rebuilt, 1);
+
+  // 离开 850 m 后重进，只在进入 650 m 时重建一次。
+  result.update({ x: 951, z: 0 });
+  assert.equal(result.statistics.chunks, 0);
+  result.update({ x: 640, z: 0 });
+  assert.equal(result.statistics.chunks, 1);
+  assert.equal(result.statistics.generated, 3);
+  assert.equal(result.statistics.rebuilt, 1);
+});
+
+test('releasing one chunk keeps the shared detail materials alive for the others', () => {
+  const THREE = stubThree();
+  const details = loadDetails(THREE);
+  const buildings = [makeBuilding({ id: 'way/shared-a', x: 0, z: 0 }),
+    makeBuilding({ id: 'way/shared-b', x: 2000, z: 0 })];
+  const result = details.buildBuildingDetails(makeScene(), {
+    detailPlan: detailPlanFor(buildings, FLAT_GRID()), maxGenerationMs: Infinity
+  });
+  result.update({ x: 0, z: 0 });
+  const materials = THREE.created.materials;
+  assert.ok(materials.length >= 5);
+  assert.ok(materials.every(material => !material.disposed));
+
+  // 走远只释放附近块的几何，共用的近景材质仍归近景模块所有。
+  result.update({ x: 2000, z: 0 });
+  assert.equal(result.statistics.chunks, 1);
+  assert.equal(result.statistics.disposed, 1);
+  assert.ok(materials.every(material => !material.disposed),
+    'releasing one chunk must not dispose the shared materials');
+  result.dispose();
+  assert.ok(materials.every(material => material.disposed));
+});

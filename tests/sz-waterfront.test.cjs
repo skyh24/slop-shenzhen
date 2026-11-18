@@ -29,7 +29,7 @@ const plan = elevated.planElevatedRoads(roadGraph, terrainSurface, { waterfront,
 const resolve = contact.createSurfaceResolver({ groundHeight: heightAt, surfaces: plan.surfaces });
 const bayModule = loadModule(read('sz-bay-waterfront.js'), { imports: {
   'three/webgpu': {}, 'three/tsl': {}, './building-collision.js': {}, './sz-materials.js': {},
-  './sz-day-phase.js': dayPhaseStub(0, () => 0.48),
+  './sz-day-phase.js': dayPhaseStub(0, () => 0.48), './sz-detail-residency.js': loadModule(read('sz-detail-residency.js')),
   './sz-site-fixtures.js': { GREENWAY_RAIL: [[0.55, 0.068, 0.068], [1.07, 0.077, 0.077]], planRail: (a, b, heights) => heights.map(([y, width, height]) =>
     ({ a: { ...a, y: a.y + y }, b: { ...b, y: b.y + y }, width, height })) }, './sz-strings.js': {}
 } });
