@@ -156,6 +156,7 @@ export function createTalentDroneShow(scene, { airspace, lake, colliders, lakeHe
     },
     update(dt, camera) {
       if (!group || document.hidden) return;
+      // 后台隐藏的整段间隔由入口帧时钟剔除；超过 0.5 s 的单帧按卡顿处理，不推进编队以免跳段。
       const delta = paused || dt > 0.5 ? 0 : Math.max(0, dt) * playbackRate;
       if (retreat) {
         retreatTime += delta;

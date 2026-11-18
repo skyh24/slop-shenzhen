@@ -175,10 +175,6 @@ export function createCbdProgram(origin, night) {
   let paused = false;
   let playbackRate = 1;
   let lastFrame = -1;
-  let visibleSince = null;
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) visibleSince = performance.now();
-  });
   function render(force = false) {
     const cue = cbdCue(total);
     const frame = Math.floor(cue.time * SAMPLE_RATE);
@@ -209,11 +205,11 @@ export function createCbdProgram(origin, night) {
     replay() { total = 0; paused = false; render(true); },
     togglePause() { paused = !paused; },
     stop() { enabled.value = 0; paused = false; },
+    // 播放步长由入口帧时钟给出：隐藏期间和恢复首帧为 0，这里只保证非负。
     update(dt) {
-      if (!this.active || paused || document.hidden) return;
-      const visibleDt = visibleSince === null ? dt : (performance.now() - visibleSince) / 1000;
-      visibleSince = null;
-      total += Math.max(0, Math.min(dt, visibleDt)) * playbackRate;
+      const step = Number.isFinite(dt) ? Math.max(0, dt) : 0;
+      if (!this.active || paused || document.hidden || step === 0) return;
+      total += step * playbackRate;
       if (dayPhase.channel('deepNight') > 0) render();
     }
   };
