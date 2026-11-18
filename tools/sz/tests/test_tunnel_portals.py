@@ -12,9 +12,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from shapely.geometry import Point  # noqa: E402
+from elevated_cut import apply_elevated_cut  # noqa: E402
 
 from tunnel_portals import (COVER_MAX_M, COVER_MIN_M, MIN_TUNNEL_WIDTH_M,  # noqa: E402
-                            CORRIDOR_MARGIN_M, apply_tunnel_portal_cut,
+                            CORRIDOR_MARGIN_M, _SurfaceSampler, apply_tunnel_portal_cut,
                             plan_tunnel_portal_mask)
 
 STEP = 4.0
@@ -87,6 +88,30 @@ def tunnel_graph(shared_start=True, shared_end=True, layer=1, width=10.0):
     if shared_end:
         builder.add_link(b, builder.node(END[0] + 60, END[1]))
     return builder.graph()
+
+
+class ElevatedCutTest(unittest.TestCase):
+    def test_g4_cuts_side_slope_to_rendered_deck_width(self):
+        graph = GraphBuilder()
+        graph.names[0] = '京港澳高速'
+        a, b = (graph.node(*point) for point in (START, END))
+        graph.add_link(a, b, width=9.8, bridge=True, layer=1, highway='motorway', heightSource='unresolved')
+        graph.links[0][5] = 1
+        # 中线低于桥面，只有侧坡进入加宽后的桥面。裁口保留两端与走廊外地形。
+        source = terrain_surface(lambda x, z: 11.0 if 184 <= x <= 216 and z >= 104 else 5.0)
+        old_wall = {'positions': [100, 1, 88, 100, 5, 88, 105, 5, 88], 'triangles': 1, 'minY': 1, 'maxY': 5}
+        source['cutWalls'] = old_wall
+        report = {}
+        cut = apply_elevated_cut(source, graph.graph(), report)
+        height_at = _SurfaceSampler(cut)
+        self.assertIsNone(height_at(200, 105.7))
+        self.assertEqual(height_at(200, 108), 11.0)
+        self.assertEqual(height_at(*START), 5.0)
+        self.assertEqual(height_at(*END), 5.0)
+        self.assertEqual(report['elevatedCut']['links'], 1)
+        self.assertGreater(cut['cutWalls']['triangles'], old_wall['triangles'])
+        self.assertEqual(cut['cutWalls']['positions'][:9], old_wall['positions'])
+        self.assertIs(apply_elevated_cut(cut, graph.graph(), report), cut)
 
 
 class TunnelPortalCutTest(unittest.TestCase):

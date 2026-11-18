@@ -235,7 +235,8 @@ function wallCollider(frameA, frameB, side) {
     minZ: Math.min(...outer.map(point => point.z)),
     maxZ: Math.max(...outer.map(point => point.z)),
     minY: Math.min(frameA.floorY, frameB.floorY),
-    maxY: Math.max(frameA.ceilingY, frameB.ceilingY)
+    maxY: Math.max(frameA.ceilingY, frameB.ceilingY),
+    verticalSpan: [frameA.floorY, frameB.floorY, frameA.ceilingY, frameB.ceilingY]
   };
 }
 
@@ -654,6 +655,9 @@ function tunnelPortal(list, frame, flow, width) {
 }
 
 function tunnelSlabCollider(a, b) {
+  // 按两站实际洞顶裁碰撞范围，避免上坡端的顶高延伸到低端路面上。
+  const topA = a.ceilingY + 0.4;
+  const topB = b.ceilingY + 0.4;
   const polygon = { outer: [
     { x: a.left.x, z: a.left.z }, { x: b.left.x, z: b.left.z },
     { x: b.right.x, z: b.right.z }, { x: a.right.x, z: a.right.z }
@@ -667,7 +671,8 @@ function tunnelSlabCollider(a, b) {
     minZ: Math.min(a.left.z, a.right.z, b.left.z, b.right.z),
     maxZ: Math.max(a.left.z, a.right.z, b.left.z, b.right.z),
     minY: Math.min(a.ceilingY, b.ceilingY),
-    maxY: Math.max(a.ceilingY, b.ceilingY) + 0.4
+    maxY: Math.max(topA, topB),
+    verticalSpan: [a.ceilingY, b.ceilingY, topA, topB]
   };
 }
 
@@ -754,7 +759,11 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes)
     const startSink = record.sharedStart ? clamp01(station.d / PORTAL_TRANSITION_M) : 1;
     const endSink = record.sharedEnd ? clamp01((lengthM - station.d) / PORTAL_TRANSITION_M) : 1;
     const sink = Math.min(startSink, endSink);
-    const floorY = resolved[frameIndex] - depthM * sink;
+    // 紫众道从京港澳两幅斜坡下穿。洞身留 0.3 m 覆土余量，洞口过渡和源路接点保持原高程。
+    const coverAllowance = metadata.osmId === 'way/1083453776' ? 0.3 * clamp01(
+      (Math.min(station.d, lengthM - station.d) - PORTAL_TRANSITION_M) / PORTAL_TRANSITION_M
+    ) : 0;
+    const floorY = resolved[frameIndex] - depthM * sink - coverAllowance;
     const groundY = Number.isFinite(grounds[frameIndex]) ? grounds[frameIndex] : null;
     return {
       x: station.x, z: station.z, d: station.d,

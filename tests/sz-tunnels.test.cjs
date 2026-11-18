@@ -14,6 +14,9 @@ const roads = loadModule(read('sz-roads.js'), { imports: {
 } });
 const groundSurface = loadModule(read('sz-ground-surface.js'));
 const polygonModule = loadModule(read('sz-polygon.js'));
+const { polygonContact, spanContactPolygon } = loadModule(read('building-collision.js'), {
+  imports: { './sz-polygon.js': polygonModule }
+});
 
 // 默认立交替身故意选在没有隧道的范围，用来验证「空范围返回 0 条、不抛错」。
 const DEFAULT_INTERCHANGES = [{
@@ -627,6 +630,24 @@ test('a 100 m layer -1 tunnel keeps only the middle 77.6 m as bore', () => {
   assert.equal(link.drivable, true);
   assert.equal(result.statistics.boreTunnels, 1);
   assert.equal(result.drive.links.length, 1);
+});
+
+test('a sloped tunnel wall and roof leave the road above passable', () => {
+  const result = wholeCityPlan((x, z) => 10 + x * 0.05 + z * 0.06);
+  const { frames } = result.tunnels[0];
+  const a = frames[25], b = frames[26];
+  const x = a.x + 0.5;
+  const z = b.left.z;
+  const ground = 10 + x * 0.05 + z * 0.06;
+  const car = { car: true, hx: 0.25, hz: 2, cos: 1, sin: 0 };
+  const colliders = result.colliders.filter(c =>
+    c.minX <= x && c.maxX >= x && c.minZ <= z && c.maxZ >= z);
+  assert.ok(colliders.some(c => c.type === 'tunnel-slab' && c.maxY > ground));
+  for (const c of colliders) {
+    if (c.maxY <= ground) continue;
+    const polygon = c.verticalSpan ? spanContactPolygon(c.polygon, c.verticalSpan, ground, ground + 1.8) : c.polygon;
+    assert.ok(!polygon || !polygonContact(polygon, x, z, car), c.type);
+  }
 });
 
 test('a tunnel split across two OSM ways stays connected through the shared node', () => {

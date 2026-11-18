@@ -228,6 +228,22 @@ test('planned decks sample back to their own top triangles', () => {
   }
 });
 
+test('G4 bridge uses a 4.8 m lift, with a flat deck and at-grade ramps', () => {
+  const graph = fixtureGraph();
+  graph.names[0] = '京港澳高速';
+  for (const i of [0, 1, 2]) graph.metadata[i].highway = 'motorway';
+  const plan = elevated.planElevatedRoads(graph, surface, { interchanges: [] });
+  const [first, next] = [byOsm(plan).get('way/ramp-a'), byOsm(plan).get('way/ramp-b')];
+  assert.equal(first.effectiveLiftM, 4.8);
+  assert.equal(first.startDeckY, FLAT_TERRAIN);
+  assert.equal(first.endDeckY, FLAT_TERRAIN + 4.8);
+  assert.equal(next.startDeckY, first.endDeckY);
+  assert.ok(first.frames.filter(f => f.d >= 40).every(f => f.y === FLAT_TERRAIN + 4.8));
+  assert.ok(first.maxGrade <= MAX_GRADE + 1e-9);
+  assert.ok(plan.driveLinks.includes(first));
+  assert.equal(plan.links.some(link => link.index === 0), false);
+});
+
 test('chunks bucket every planned link into at most 64 two-kilometre grids', () => {
   const plan = planFixture({ interchanges: [] });
   assert.ok(plan.chunks.length >= 1 && plan.chunks.length <= 64);
@@ -372,6 +388,10 @@ test('the real Shenzhen snapshot derives the whole-city deck network without any
   assert.equal(plan.statistics.dangling, 46);
   assert.equal(plan.links.reduce((count, link) => count + (link.danglingEnds?.length ?? 0), 0), 48);
   assert.equal(plan.statistics.driveLinks, 1159);
+  for (const deck of plan.links.filter(link => link.name === '京港澳高速')) {
+    assert.equal(deck.effectiveLiftM, 4.8 * deck.layer, deck.osmId);
+    assert.ok(plan.driveLinks.includes(deck), deck.osmId);
+  }
   const splitLinks = plan.links.filter(link => link.splitStart || link.splitEnd);
   // 64 条上层链路共 69 个错层端（部分链路两端都接）。
   assert.equal(splitLinks.length, 64);

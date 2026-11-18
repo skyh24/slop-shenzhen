@@ -434,7 +434,7 @@ function findJunctionTapers(graph, groundNodes) {
 // 看起来像断头。这里在同一个路网节点上找方向相反、宽度相近、层数差 1 的结构邻居，
 // 让上层最后一段按 12% 缓降到下层桥面高程，并把两端都登记为接通，避免再补落地引道。
 // 只读取原始路网，不读取已生成的桥面，规划顺序保持无依赖。
-function findLayerSplits(graph, groundNodes) {
+function findLayerSplits(graph, groundNodes, g4LayersAt) {
   const endsByNode = new Map();
   for (let index = 0; index < graph.links.length; index++) {
     const metadata = graph.metadata[index];
@@ -474,7 +474,8 @@ function findLayerSplits(graph, groundNodes) {
         if (!splits.has(upper.index)) splits.set(upper.index, {});
         const entry = splits.get(upper.index);
         if (entry[upper.side]) continue;
-        entry[upper.side] = { toLayer: lower.layer, joinIndex: lower.index, joinSide: lower.side };
+        const layerHeight = g4LayersAt.get(lower.node)?.has(lower.layer) ? LAYER_CLEARANCE_M : LAYER_HEIGHT_M;
+        entry[upper.side] = { toLift: lower.layer * layerHeight, joinIndex: lower.index, joinSide: lower.side };
       }
     }
   }
@@ -579,28 +580,30 @@ function pierSpacing(record) {
   return tiles;
 }
 
-/** 解析：单条高架/匝道链路 → 桥面缎带、护栏、桥墩、可站立三角面。
- *  高度：主体保持 `layer×4.8 m` 全高；只有与地面共享的落地端在 12% 坡度引道内降到地形，
- *        避免把坡度摊到整条链路、导致中段跨路净空不足。内部再用中心+两侧地形采样做下限。
- *        既有立交（reviewed）仍按核实的纵断面。
- *  显示和接触同源：桥面顶面三角面给控制器当可站立面，护栏与桥墩的接触体从同一批顶点生成。
- *  输出：{ frames, geometry, topTriangles, barriers, BarrierColliders, PierColliders, surfaceId, ... }。 */
-function planLink(graph, link, index, metadata, groundHeight, groundNodes, reviewed = null, crossing = null, liftOverride = null, groundIndex = null, split = null, taper = null) {
+/** 派生桥面纵断面、共享通行三角面以及护栏、桥墩和碰撞体。 */
+function planLink(graph, link, index, metadata, groundHeight, groundNodes, reviewed = null, crossing = null, liftOverride = null, groundIndex = null, split = null, taper = null, alignment = null) {
   const points = roadLinkPoints(graph, link);
   if (points.length < 2) return null;
   const length = polylineLength(points);
   if (length <= EPSILON) return null;
   const [start, end] = [link[0], link[1]];
-  const startGround = groundHeight(points[0].x, points[0].z);
-  const endGround = groundHeight(points[points.length - 1].x, points[points.length - 1].z);
+  const startGround = alignment?.startGround ?? groundHeight(points[0].x, points[0].z);
+  const endGround = alignment?.endGround ?? groundHeight(points.at(-1).x, points.at(-1).z);
   if (!reviewed && (!Number.isFinite(startGround) || !Number.isFinite(endGround))) return null;
   const layer = Number.isFinite(metadata.layer) ? metadata.layer : 0;
   // bridge 且 layer=0 的链路可能因跨路被抬到 1 层；其余仍按 layer 计算。
   const lift = Number.isFinite(liftOverride) ? liftOverride : LAYER_HEIGHT_M * Math.max(0, layer);
+  const startLift = alignment?.startLift ?? lift;
+  const endLift = alignment?.endLift ?? lift;
   const sharedStart = groundNodes.has(start);
   const sharedEnd = groundNodes.has(end);
-  const startY = sharedStart ? startGround : startGround + lift;
-  const endY = sharedEnd ? endGround : endGround + lift;
+  const fullStart = startGround + startLift;
+  const fullEnd = endGround + endLift;
+  const startY = sharedStart ? startGround : fullStart;
+  const endY = sharedEnd ? endGround : fullEnd;
+  const baseGrade = Math.abs(fullEnd - fullStart) / length;
+  const rampGrade = alignment?.g4 && baseGrade < ELEVATED_DRIVE_MAX_GRADE
+    ? ELEVATED_DRIVE_MAX_GRADE - baseGrade : ELEVATED_DRIVE_MAX_GRADE;
   const parkBridge = reviewed?.profile === 'park-footbridge-estimate';
   const stations = resample(points, DECK_STEP_M);
   if (stations.length < 2) return null;
@@ -618,18 +621,12 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
       const endWeight = Math.max(0, 1 - (length - d) / run(b - reviewed.heightM));
       return reviewed.heightM + (a - reviewed.heightM) * startWeight + (b - reviewed.heightM) * endWeight;
     })
-    // 非核实链路：主体按 layer×4.8 m 抬高，落地端在 12% 引道内降到地形。旧实现把
-    // 两个落地端的引道上限一起取 min，两端都接地面时整条桥会被压成"低端地面+4.8 m"
-    // 的水平面（香梅路跨山下降段因此埋进山坡）；改成按权重过渡：只有落在各自引道长度
-    // 内的断面才往本端地面收，桥中段仍保持全高。
+    // 两端设计标高间走直线纵坡，只有接地端扣减层高。京港澳引道预留主体纵坡所占的 12% 坡度预算。
     : distance => {
-      const fullY = (startGround + lift) + ((endGround + lift) - (startGround + lift))
-        * Math.min(1, distance / length);
-      const rampLen = lift > 0 ? lift / ELEVATED_DRIVE_MAX_GRADE : 0;
-      const rampWeight = value => (rampLen > 0 ? Math.max(0, Math.min(1, value / rampLen)) : 1);
-      const weight = Math.min(sharedStart ? rampWeight(distance) : 1,
-        sharedEnd ? rampWeight(length - distance) : 1);
-      return fullY - (1 - weight) * lift;
+      const fullY = fullStart + (fullEnd - fullStart) * Math.min(1, distance / length);
+      const dropStart = sharedStart ? Math.max(0, startLift - distance * rampGrade) : 0;
+      const dropEnd = sharedEnd ? Math.max(0, endLift - (length - distance) * rampGrade) : 0;
+      return fullY - Math.max(dropStart, dropEnd);
     });
   // 同节点错层衔接：在上层链路靠近节点的一段内线性降到下层桥面高程。
   // 纵坡固定不超过 12%；长度不够时放弃衔接，仍按引道/悬空端规则处理，避免造出不可驾驶的陡坡。
@@ -638,8 +635,8 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   if (split && !reviewed && !crossing) {
     const resolve = (side, baseY, groundY) => {
       const info = split[side];
-      if (!info || !Number.isFinite(info.toLayer)) return null;
-      const targetY = groundY + LAYER_HEIGHT_M * info.toLayer;
+      if (!info) return null;
+      const targetY = groundY + info.toLift;
       const drop = baseY - targetY;
       if (drop <= 0.05) return null;
       const rampM = drop / ELEVATED_DRIVE_MAX_GRADE;
@@ -676,10 +673,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   let maxClearanceM = 0;
   let maxGrade = 0;
   for (const frame of frames) {
-    // 桥面统一按端点标高 + layer×4.8 m 的直线纵断面，不再逐帧跟随地形：旧实现每帧取
-    // max(线性, 中心/两侧地形+层高)，地形 4–6 m 的起伏被原样搬到桥面，形成“坑坑洼洼”的
-    // 波浪（round 55 京港澳反馈）。地形高于该标高的位置按“截断山体”处理，不抬桥面；
-    // 只有落地端在 12% 引道内贴地，起坡/落坡才是平缓过渡。
+    // 桥面沿纵断面取高，山体侵入处由构建期裁切，保留平顺的路面。
     const linearY = deckHeightAt(frame.d);
     const centerGround = groundHeight(frame.x, frame.z);
     frame.y = crossing ? crossing.height(frame, linearY) : linearY;
@@ -708,6 +702,11 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   }
   for (let i = 1; i < frames.length; i++) {
     const a = frames[i - 1], b = frames[i];
+    if (alignment?.g4) {
+      // 与落地引道一致，按设计纵线量纵坡，收边和转弯内缘不缩短设计里程。
+      maxGrade = Math.max(maxGrade, Math.abs(b.y - a.y) / (b.d - a.d));
+      continue;
+    }
     for (const side of ['left', 'right']) {
       const run = Math.hypot(b[side].x - a[side].x, b[side].z - a[side].z);
       maxGrade = Math.max(maxGrade, Math.abs((b[side].y ?? b.y) - (a[side].y ?? a.y)) / Math.max(EPSILON, run));
@@ -825,7 +824,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
     areaM2,
     maxClearanceM,
     // 错层衔接那段 12% 缓降必须计入纵坡，否则驾驶面会把它当平桥。
-    maxGrade: reviewed || crossing ? maxGrade
+    maxGrade: reviewed || crossing || alignment?.g4 ? maxGrade
       : Math.max(Math.abs(endY - startY) / length, splitStart?.grade ?? 0, splitEnd?.grade ?? 0),
     splitStart: splitStart && {
       joinIndex: splitStart.joinIndex, joinSide: splitStart.joinSide,
@@ -1277,11 +1276,22 @@ export function planElevatedRoads(graph, terrainSurface, options) {
   const groundNodes = new Set();
   const groundSignatures = new Set();
   const groundIndex = createGroundRoadIndex();
+  const g4Bridges = new Set();
+  const g4LayersAt = new Map();
 
   for (let index = 0; index < graph.links.length; index++) {
     const metadata = graph.metadata[index];
-    if (!isGroundRoad(metadata)) continue;
     const link = graph.links[index];
+    // 与 tools/sz/elevated_cut.py 一致。按快照的高速主线名称和桥梁标签选段。
+    if (metadata?.bridge === true && !metadata.tunnel && metadata.layer > 0
+      && metadata.highway === 'motorway' && graph.names[link[2]] === '京港澳高速') {
+      g4Bridges.add(index);
+      for (const node of [link[0], link[1]]) {
+        if (!g4LayersAt.has(node)) g4LayersAt.set(node, new Set());
+        g4LayersAt.get(node).add(metadata.layer);
+      }
+    }
+    if (!isGroundRoad(metadata)) continue;
     const points = roadLinkPoints(graph, link);
     groundSignatures.add(canonicalSignature(points));
     groundNodes.add(link[0]);
@@ -1290,7 +1300,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
   }
 
   // 同节点错层断裂（OSM 把连续高架的花括号层数写错）在这里统一找出，规划时缓降衔接。
-  const layerSplits = findLayerSplits(graph, groundNodes);
+  const layerSplits = findLayerSplits(graph, groundNodes, g4LayersAt);
   // 同层延续到更窄桥面时，宽桥面的一端按 1:4 收边；分岔窄匝道不参与。
   const junctionTapers = findJunctionTapers(graph, groundNodes);
   const sources = options?.waterfront;
@@ -1328,7 +1338,8 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     // 分区只用于归属统计，不再决定是否生成结构面。
     const owner = crossing ?? interchanges.find(entry => polylineIntersectsArea(points, entry.area));
     const layer = Number.isFinite(metadata.layer) ? metadata.layer : 0;
-    let liftOverride = null;
+    const g4 = g4Bridges.has(index);
+    let liftOverride = g4 ? layer * LAYER_CLEARANCE_M : null;
     let raisedForCrossing = false;
     // bridge 且 layer=0：跨越地面道路时抬 1 层，跨水/涵洞保持贴地。
     if (metadata.bridge === true && layer === 0 && !profile && !crossing) {
@@ -1336,8 +1347,16 @@ export function planElevatedRoads(graph, terrainSurface, options) {
       raisedForCrossing = groundIndex.crosses(points, width / 2, link[0], link[1]);
       liftOverride = raisedForCrossing ? LAYER_HEIGHT_M : 0;
     }
+    // 同层支线共用京港澳接点的高度基准和层高；跨层缓降仍用邻段的目标高度。
+    const alignment = g4LayersAt.has(link[0]) || g4LayersAt.has(link[1]) ? {
+      g4,
+      startGround: g4LayersAt.has(link[0]) ? terrainHeight(points[0].x, points[0].z) : null,
+      endGround: g4LayersAt.has(link[1]) ? terrainHeight(points.at(-1).x, points.at(-1).z) : null,
+      startLift: g4LayersAt.get(link[0])?.has(layer) ? layer * LAYER_CLEARANCE_M : null,
+      endLift: g4LayersAt.get(link[1])?.has(layer) ? layer * LAYER_CLEARANCE_M : null
+    } : null;
     const record = planLink(graph, link, index, metadata, profile || crossing ? terrainHeight : groundHeight,
-      groundNodes, profile, crossing, liftOverride, groundIndex, layerSplits.get(index), junctionTapers.get(index));
+      groundNodes, profile, crossing, liftOverride, groundIndex, layerSplits.get(index), junctionTapers.get(index), alignment);
     if (record === null) {
       skippedLinks++;
       continue;

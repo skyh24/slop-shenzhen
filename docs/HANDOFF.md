@@ -13,6 +13,8 @@ T13 已接入共同格式、区域参数、建筑立面、道路断面、铺装�
 
 ## 当前事实
 
+福田立交的京港澳高速双幅主线 `way/40933472`、`way/40933474` 在锁定 OSM 快照均标为 `bridge=yes`、`layer=1`。覆盖范围内 14 条京港澳高架链路按每层 4.8 米抬升，主体用直线纵坡，两端接地时按不超过 12% 的中心线纵坡过渡。构建期按桥全宽检测侵入车道的地形，12 号桥双幅引道新增约 1,077 平方米竖直裁切。福田立交北侧引道的卡点来自紫众道下穿隧道 `way/1083453776` 的碰撞体，已按实际洞壁与洞顶坡度裁碰撞，并增加 0.3 米覆土余量。内置浏览器双向驶过卡点、从两端驶上高架，并驶过 12 号桥一处切坡（局部 L5）。全线路、持续环境车流及源纵断面实测待验。证据见本地 `docs/qa/g4-futian/`。
+
 地面高度改为活动表面图集统一装配：`sz-surface-atlas.js::createSurfaceAtlas` 按注册顺序叠加地面、步行面、路侧、场地与北站层，后注册的层覆盖先注册的层，一次查询同时返回高度与 `surfaceId`/`heightSource`。`sz-scene-site.js` 的 `site.heightAt` 不再被原地改写三次，零售铺装高度用同一模块的三层栈表达。旧 `??` 链的优先级由 `tests/sz-surface-atlas.test.cjs` 逐点对照锁定；`roads`+`ui` 306 Node / 52 Python 通过，浏览器首帧正常、步行离地 0 米，`__szSurfaceAt` 抽样 7 点高度均为有限值。顺带补上 `js/sz-retail-signs.js` 缺失的 modulepreload（该缺口在本轮前已使 boot 测试失败）。半径内取最高面的 `footing` 与控制器接触面收口留给 siteProbe 候选，本轮未改 `createSurfaceResolver`。
 
 街具可见性收口到 `sz-street-batch.js`：`chunkKey` 与 `createStreetBatch({enterM, exitM, levels})` 一处实现分块键、包围盒/中心距离、迟滞与档位切换，树、路灯、地铁口各自只声明“这个状态显示什么”。树的 828/900 m 进出与 180/198 m 近景档、路灯 1600 m、地铁口 1500 m 的阈值保持不变。新 `tests/sz-street-batch.test.cjs` 9 项锁住边界与抛错，`street`+`ui` 226 Node / 16 Python 通过；浏览器在市民中心抽样灯块 10/325 可见、树近景 6 格 118 株，移到 3 公里外后灯块降到 7、树可见子格降到 44。`sz-site-fixtures.js` 的几何/材质引用计数是所有权，不是可见性，本轮不并入。
