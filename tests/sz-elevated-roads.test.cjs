@@ -548,6 +548,31 @@ test('a named same-level continuation keeps a shared corner and tapers four lane
   }
 });
 
+test('a shallow same-height ramp leaves the through lanes supported and opens overlapping rails', () => {
+  const graph = {
+    nodes: [100, 100, 300, 100, 500, 100, 335, 101.4], names: ['Main road', 'Side road'],
+    links: [[0, 1, 0, 13, 4, 1, []], [1, 2, 0, 13, 4, 1, []], [3, 1, 1, 4, 1, -1, []]],
+    metadata: ['way/in', 'way/out', 'way/ramp'].map((osmId, index) => ({ osmId, heightSource: 'unresolved',
+      bridge: true, tunnel: false, layer: 1, highway: index === 2 ? 'primary_link' : 'primary' }))
+  };
+  const plan = elevated.planElevatedRoads(graph, surface, { interchanges: [] });
+  const [incoming, outgoing, ramp] = plan.links;
+  const heightAt = controllerSurfaces.createSurfaceHeightAt(plan.surfaces);
+  const { polygonBoxOverlaps } = loadModule(read('building-collision.js'), {
+    imports: { './sz-polygon.js': loadModule(read('sz-polygon.js')) }
+  });
+  for (let x = 285; x <= 330; x += 0.5) {
+    for (const z of [95.125, 98.375, 101.625, 104.875]) {
+      const y = heightAt(x, z, (x < 300 ? incoming : outgoing).surfaceId);
+      assert.ok(Number.isFinite(y), `missing through-lane support at ${x}, ${z}`);
+      assert.equal(plan.colliders.some(c => c.type === 'elevated-barrier' && c.minY < y + 1.8 && c.maxY > y
+        && polygonBoxOverlaps(c.polygon, x, z, 0.96, 2.4, 0, 1)), false, `blocked lane at ${x}, ${z}`);
+    }
+  }
+  assert.ok(ramp.openings.size > 0);
+  assert.ok(outgoing.barrierColliders.length > 0);
+});
+
 test('urban interchange decks share one level across short source edges and restore the ground crossing', () => {
   const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
   const { applyInterchangeLevels } = loadModule(read('sz-interchange-levels.js'));

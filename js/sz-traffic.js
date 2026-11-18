@@ -220,7 +220,7 @@ export function createTrafficGraph(graph, { canTurn = () => true, elevated = nul
   return { edges, cells, nearSegments };
 }
 
-export function routeSegments(marker, model, random, detailedRoads, laneChoice, preferred = null, plannedNext = null) {
+export function routeSegments(marker, model, random, laneChoice, preferred = null, plannedNext = null) {
   const segments = [];
   const used = new Set();
   let edge = marker.edge;
@@ -246,9 +246,8 @@ export function routeSegments(marker, model, random, detailedRoads, laneChoice, 
     }
     used.add(edge.sourceIndex);
     // 高速主线沿有标注的车道行驶，入口优先接右侧车道。
-    const useLanes = (!edge.elevated || edge.highway === 'motorway')
-      && (laneOffsets(edge.section) !== null || detailedRoads.has(edge.osmId));
-    const offsets = useLanes ? edge.section.routeOffsetsM : edge.section.defaultOffsetsM;
+    const useLanes = !edge.elevated || edge.highway === 'motorway';
+    const offsets = (useLanes ? laneOffsets(edge.section, edge.sign) : null) ?? edge.section.defaultOffsetsM;
     const halfWidth = edge.section.travelWidthM / 2;
     const lanes = offsets.filter(offset => Math.abs(offset) + model.hx + 0.08 <= halfWidth);
     let offset = lanes[Math.min(lanes.length - 1, Math.floor(laneChoice * lanes.length))] ?? 0;
@@ -602,7 +601,7 @@ function startLaneChange(actor, leaderLimit) {
   const reject = why => { actor.laneAbort = { reject: why }; statistics.laneChangeIneligible++; };
   if (!edge) return reject('no-edge');
   if (actor.junction.reservation) return reject('reservation');
-  const lanes = !edge.elevated || edge.highway === 'motorway' ? laneOffsets(edge.section) : null;
+  const lanes = !edge.elevated || edge.highway === 'motorway' ? laneOffsets(edge.section, edge.sign) : null;
   if (!lanes) return reject('no-lanes');
   if (lanes.length < 2) return reject('single-lane');
   const usable = lanes.filter(offset => Math.abs(offset) + actor.model.hx + 0.08 <= edge.section.travelWidthM / 2);
@@ -637,7 +636,7 @@ function startLaneChange(actor, leaderLimit) {
     const delta = target - current;
     if (!laneGapOk(actor, delta, leaderLimit, why)) { tried.push(['blocked', +delta.toFixed(2)]); continue; }
     const laneChoice = (index + step + 0.5) / usable.length;
-    const segments = routeSegments(marker, actor.model, actor.random, detailedRoads, laneChoice, target, plannedNext);
+    const segments = routeSegments(marker, actor.model, actor.random, laneChoice, target, plannedNext);
     if (!segments) continue;
     const samples = laneRoute(segments);
     const s = Math.min(16, marker.distance);
@@ -708,7 +707,7 @@ function extendRoute(actor, recovering = false) {
   const marker = markerAt(actor);
   if (!marker) { actor.dead = true; return; }
   const lane = actor.route[actor.pose.index]?.laneOffset ?? 0;
-  const samples = laneRoute(routeSegments(marker, actor.model, actor.random, detailedRoads, actor.laneChoice, lane));
+  const samples = laneRoute(routeSegments(marker, actor.model, actor.random, actor.laneChoice, lane));
   if (samples.length < 2) { actor.dead = true; return; }
   const start = Math.max(0, marker.distance - 16);
   const s = marker.distance - start;
@@ -757,7 +756,7 @@ function adoptContinuation(actor, samples, s, required, recovering = false) {
 // 出生时挑一条 80 米内同路段车最少的车道，避免同一车道连排投放。
 function chooseLaneChoice(marker, model, random) {
   const edge = marker.edge;
-  const lanes = laneOffsets(edge.section);
+  const lanes = laneOffsets(edge.section, edge.sign);
   if (!lanes?.length) return detailedRoads.size ? random() : 0.5;
   const usable = lanes.filter(offset => Math.abs(offset) + model.hx + 0.08 <= edge.section.travelWidthM / 2);
   if (!usable.length) return 0.5;
@@ -830,7 +829,7 @@ function startRoute(actor, focus) {
       const distance = squareDistance(marker.x, marker.z, focus);
       if (distance < 44 ** 2 || distance > SEARCH_RADIUS ** 2 || !usableWidth(marker.edge, model.hx)) continue;
       const laneChoice = chooseLaneChoice(marker, model, random);
-      const samples = laneRoute(routeSegments(marker, model, random, detailedRoads, laneChoice));
+      const samples = laneRoute(routeSegments(marker, model, random, laneChoice));
       if (samples.at(-1)?.edge.section.reviewed || samples.at(-1)?.edge.surfaceId) {
         statistics.mainlineEndRejects++;
         continue;

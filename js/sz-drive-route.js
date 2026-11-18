@@ -1,5 +1,5 @@
 import { routeSignalStops } from './sz-intersection-control.js';
-import { laneOffsets, usableWidth } from './sz-road-section.js';
+import { laneOffsets, throughRoadArms, usableWidth } from './sz-road-section.js';
 import { laneRoute, poseOnRoute } from './sz-road-trajectory.js';
 
 const SNAP_RADIUS = 44;
@@ -255,7 +255,7 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
     if (!usableWidth(edge, model.hx) || !allowsCar(edge, rules, model)) continue;
     const { section } = edge;
     // 双向路取本侧最靠路缘的车道，单向详细路沿用最右侧；无车道数据时退回默认偏移。
-    const offsets = (laneOffsets(section) ?? section.routeOffsetsM)
+    const offsets = (laneOffsets(section, edge.sign) ?? section.defaultOffsetsM)
       .filter(offset => Math.abs(offset) + model.hx + 0.12 <= section.travelWidthM / 2);
     const lane = edge.highway === 'motorway' || section.twoWay || detailed.has(edge.osmId) ? offsets.at(-1)
       : structureSeams.has(edge) ? 0
@@ -369,15 +369,15 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
   }
 
   // 巡航车道偏移与 planCruise 的 side、laneSegments 的 offset 同为“行驶方向右侧为正”。
-  // 双向路两个方向都取 laneOffsets（只含本侧半幅）；无车道数据时用同侧中心数组换算。
+  // 双向路分别使用自己的半幅；无车道数据时从该方向的断面中心换算。
   function cruiseLanes(edge) {
     const { section } = edge;
     const width = edge.sign === 1 ? section.forwardLaneWidthM : section.backwardLaneWidthM;
     if (width < model.hx * 2 + 0.15) return section.defaultOffsetsM;
-    const lanes = laneOffsets(section);
+    const lanes = laneOffsets(section, edge.sign);
     if (lanes) return lanes;
-    const centers = section.twoWay || edge.sign === 1 ? section.forwardCentersM : section.backwardCentersM;
-    return centers.map(center => -center).reverse();
+    return edge.sign === 1 ? section.forwardCentersM.map(center => -center).reverse()
+      : section.twoWay ? [...section.backwardCentersM].reverse() : section.backwardCentersM;
   }
 
   function cruiseContinuation(edge) {
@@ -388,8 +388,14 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
       straight: dx * next.segments[0].dx + dz * next.segments[0].dz
     }));
     const sameWay = candidates.filter(c => c.sameWay);
-    const sameName = candidates.filter(c => c.sameName);
     if (sameWay.length === 1) return sameWay[0].next;
+    const arm = (link, ux, uz) => ({ link, dx: ux, dz: uz, name: link.name,
+      kind: link.highway, width: link.section.pavementWidthM });
+    const incoming = arm(edge, -dx, -dz);
+    const main = throughRoadArms([incoming, ...candidates.map(({ next }) =>
+      arm(next, next.segments[0].dx, next.segments[0].dz))]);
+    if (main?.includes(incoming)) return main.find(part => part !== incoming).link;
+    const sameName = candidates.filter(c => c.sameName);
     if (!sameWay.length && sameName.length === 1) return sameName[0].next;
     const options = (sameWay.length ? sameWay : sameName.length ? sameName : candidates)
       .filter(c => c.straight >= 0.85).sort((a, b) => b.straight - a.straight);

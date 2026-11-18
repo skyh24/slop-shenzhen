@@ -1,5 +1,5 @@
 import { isGroundRoad, roadSectionPoints } from './sz-roads.js';
-import { getRoadSection, throughRoadArms } from './sz-road-section.js';
+import { ESTIMATED_LANE_WIDTH_M, getRoadSection, throughRoadArms } from './sz-road-section.js';
 import { sectionMiteredLine, sectionNormal } from './sz-section-frame.js';
 
 // 深圳地面道路标线：按 [23 号文档](../../docs/23-BUILDING-AND-STREET-PLAN.md) 第 7 节收束线型。
@@ -17,8 +17,6 @@ const LINE_STOP_GAP = 0.6;
 const STOP_CLEARANCE = CROSSWALK_SETBACK + CROSSWALK_DEPTH + STOP_BAR_GAP + STOP_WIDTH + LINE_STOP_GAP;
 const SAMPLE_STEP = 20;
 
-const DECK_LANE_WIDTH_M = 3.25;
-
 export function deckPaintLines(section, widthM = section.pavementWidthM) {
   // 桥面在节点处会收窄。按当前宽度能容纳的整车道数重排标线：4 车道收到 8.2 m 时
   // 只保留 2 车道和中心线，而不是把四条车道压成四条 1.8 m 的细缝。
@@ -26,8 +24,8 @@ export function deckPaintLines(section, widthM = section.pavementWidthM) {
   const half = Math.max(0, widthM - 2 * barrier) / 2;
   const minimum = section.twoWay ? 2 : 1;
   const visible = Math.min(section.laneCount,
-    Math.max(minimum, Math.floor((half * 2 + 0.25) / DECK_LANE_WIDTH_M)));
-  const travel = Math.min(half * 2, visible * DECK_LANE_WIDTH_M);
+    Math.max(minimum, Math.floor((half * 2 + 0.25) / ESTIMATED_LANE_WIDTH_M)));
+  const travel = Math.min(half * 2, visible * ESTIMATED_LANE_WIDTH_M);
   const forward = section.twoWay ? Math.ceil(visible / 2) : visible;
   const backward = section.twoWay ? visible - forward : 0;
   const split = section.twoWay ? travel * (forward / visible - 0.5) : 0;
@@ -35,9 +33,9 @@ export function deckPaintLines(section, widthM = section.pavementWidthM) {
   const backwardWidth = section.twoWay ? travel / 2 - split : travel;
   const forwardLane = forward ? forwardWidth / forward : 0;
   const backwardLane = backward ? backwardWidth / backward : 0;
-  const shoulder = Math.min(0.5, Math.max(0.24, half - travel / 2));
-  const lines = [{ id: 'edge-left', offset: -half + shoulder, duty: 1, color: 'white', kind: 'edge' },
-    { id: 'edge-right', offset: half - shoulder, duty: 1, color: 'white', kind: 'edge' }];
+  const edge = Math.min(travel / 2, half - LINE_WIDTH / 2);
+  const lines = [{ id: 'edge-left', offset: -edge, duty: 1, color: 'white', kind: 'edge' },
+    { id: 'edge-right', offset: edge, duty: 1, color: 'white', kind: 'edge' }];
   const dividers = [];
   for (let i = 1; i < forward; i++) {
     dividers.push({ id: `lane-left-${i}`, offset: -travel / 2 + i * forwardLane,
@@ -236,6 +234,7 @@ export function junctionGap(arms, index, length) {
   const main = throughRoadArms(arms);
   if (main?.includes(arm)) return 0;
   let clearance = 0;
+  let forkClearance = 0;
   for (const other of main ?? arms) {
     if (other === arm) continue;
     const cos = arm.dx * other.dx + arm.dz * other.dz;
@@ -244,11 +243,13 @@ export function junctionGap(arms, index, length) {
     // 从共享节点沿本进向退到两幅沥青边缘分离处。小角度分流给标线留渐开距离。
     const otherHalf = sin > 0 ? other.left : other.right;
     const ownHalf = sin > 0 ? arm.right : arm.left;
-    clearance = Math.max(clearance, (otherHalf + Math.max(0, cos) * ownHalf) / Math.max(main ? 0.08 : 0.25, Math.abs(sin)));
+    const span = otherHalf + Math.max(0, cos) * ownHalf;
+    // 同向浅角分叉的内侧边线要等车行面分开才出现，否则两条边线会交成 X。
+    if (main || cos >= 0.85) forkClearance = Math.max(forkClearance, span / Math.max(1e-6, Math.abs(sin)));
+    else clearance = Math.max(clearance, span / Math.max(0.25, Math.abs(sin)));
   }
-  // 旧上限 28 m 在斜交分流口会留下整段无标线沥青，读起来像断头路；但压到 8 m
-  // 又会让支路车道线穿过 30 m 宽的主路。18 m 只收紧斜交，不越过正交主路的边缘。
-  return main ? Math.min(clearance + 0.75, length) : Math.min(clearance + 0.75, 18, length * 0.5);
+  // 普通交叉口留有限的进向空白，同向分叉则按实际夹角退线。
+  return Math.min(length, Math.max(Math.min(clearance + 0.75, 18, length * 0.5), forkClearance + 0.75));
 }
 
 export function createMarkingLayout(graph, { intersections = [], frontage } = {}) {
@@ -316,19 +317,18 @@ export function createMarkingLayout(graph, { intersections = [], frontage } = {}
       const before = strips.length;
       if (startS > 0 || endS < Infinity) statistics.breakLinks++;
       const half = width / 2;
+      const travelHalf = section.travelWidthM / 2;
+      const travelCenter = section.reviewed ? travelHalf - half : 0;
       if (width >= 3.2) {
-        line(clipped, half - 0.38, 'white', 1, 1, 0, strips, 'edge-right', half);
-        line(clipped, -half + 0.38, 'white', 1, 1, 0, strips, 'edge-left', half);
+        line(clipped, Math.min(half - 0.38, travelCenter + travelHalf), 'white', 1, 1, 0, strips, 'edge-right', half);
+        line(clipped, Math.max(-half + 0.38, travelCenter - travelHalf), 'white', 1, 1, 0, strips, 'edge-left', half);
       }
-      const travelCenter = (section.travelWidthM - width) / 2;
       if (section.twoWay) {
         const center = travelCenter + section.splitM;
         line(clipped, center - 0.12, 'yellow', 1, 1, 0, strips, 'center-left', half);
         line(clipped, center + 0.12, 'yellow', 1, 1, 0, strips, 'center-right', half);
       }
-      if (!section.narrow) {
-        for (const offset of section.dividerOffsetsM) line(clipped, travelCenter + offset, 'white', 12, 0.25, 0, strips, 'lane', half);
-      }
+      for (const offset of section.dividerOffsetsM) line(clipped, travelCenter + offset, 'white', 12, 0.25, 0, strips, 'lane', half);
       const areas = reviewedBounds.get(metadata.osmId);
       if (areas) {
         let generic = strips.splice(before);

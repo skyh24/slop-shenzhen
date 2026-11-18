@@ -155,7 +155,7 @@ test('traffic connects a reviewed expressway ramp to the outside lane without cr
     metadata: [profile(1, 0, 200), ramp(2), profile(3, 200, 500), ramp(4)]
   };
   const [main, exit, straight, entry] = createTrafficGraph(graph).edges;
-  const path = (edge, choice) => routeSegments({ edge, segment: 0, distance: 20 }, { hx: 1 }, () => 0, new Set(), choice);
+  const path = (edge, choice) => routeSegments({ edge, segment: 0, distance: 20 }, { hx: 1 }, () => 0, choice);
   assert.ok(path(main, 0.1).some(segment => segment.edge === straight));
   assert.ok(path(main, 0.1).every(segment => segment.edge !== exit));
   const outbound = laneRoute(path(main, 0.9));
@@ -180,7 +180,7 @@ test('traffic keeps the nearest lane when the road ahead changes lane count', ()
   const [first, second] = createTrafficGraph(graph).edges;
   assert.deepEqual(Array.from(first.section.routeOffsetsM), [-3.5, 0, 3.5]);
   assert.deepEqual(Array.from(second.section.routeOffsetsM), [-7, -3.5, 0, 3.5, 7]);
-  const path = laneRoute(routeSegments({ edge: first, segment: 0, distance: 100 }, { hx: 1 }, () => 0, new Set(), 0));
+  const path = laneRoute(routeSegments({ edge: first, segment: 0, distance: 100 }, { hx: 1 }, () => 0, 0));
   const crossing = path.filter(point => point.edge === second);
   assert.ok(crossing.length > 10);
   // 按比例选道会从 -3.5 跳到 -7；沿用最近车道后整段应保持同一横向位置。
@@ -807,7 +807,7 @@ test('an elevated expressway entrance joins the right lane of a marked mainline'
     { ...elevatedEdgeRecord({ osmId: 'way/2', index: 1, surfaceId: 'main', startNode: 1, endNode: 2,
       points: [[0, 0], [240, 0]] }), width: 11.45, lanes: 3, laneCount: 3 }
   ] } }).edges;
-  const pieces = routeSegments({ edge: ramp, segment: 0, distance: 20 }, { hx: 1 }, () => 0, new Set(), 0.1);
+  const pieces = routeSegments({ edge: ramp, segment: 0, distance: 20 }, { hx: 1 }, () => 0, 0.1);
   const entered = pieces.find(piece => piece.edge === main);
   assert.ok(entered);
   assert.equal(entered.laneOffset, 3.25);

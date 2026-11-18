@@ -226,6 +226,22 @@ test('car cruise follows a gentle bend at the set speed and keeps going straight
   assert.ok(car.speed < 10);
 });
 
+test('cruise follows the straight carriageway past a shallow branch with the same name and width', () => {
+  const graph = { nodes: [0, 0, 0, 80, 0, 170, 12, 170], nodeIds: [], names: ['Main road'],
+    links: [[0, 1, 0, 10.5, 3, 1, []], [1, 2, 0, 10.5, 3, 1, []], [1, 3, 0, 10.5, 3, 1, []]],
+    metadata: [groundRoad(1), groundRoad(2), groundRoad(3)] };
+  const network = traffic.createTrafficGraph(graph);
+  const roadHeight = (x, z) => Math.abs(x) < 5.25 && z >= 0 && z <= 170 ? 0 : null;
+  const planner = createDrivePlanner(network, graph, { model, roadHeight, isClear: () => true });
+  const { car } = playerCarFixture(roadHeight);
+  Object.assign(car.position, { x: -3.5, y: 0, z: 45 });
+  car.heading = 0;
+  car.speed = 10;
+  const route = planner.planCruise(car);
+  assert.ok(route?.samples.some(p => p.edge?.sourceIndex === 1 && p.z > 100));
+  assert.ok(route.samples.every(p => p.edge?.sourceIndex !== 2));
+});
+
 test('manual steering keeps cruise speed until braking through the frame wiring', () => {
   const main = read('main.js');
   const start = main.indexOf('    const { forward, backward, left, right', main.indexOf('  function renderFrame'));

@@ -36,6 +36,7 @@ test('two-way reviewed five lanes use the odd forward half without negative offs
   assert.equal(section.forwardCentersM.length, 3);
   assert.equal(section.backwardCentersM.length, 2);
   assert.equal(offsets.length, 3);
+  assert.deepEqual([...laneOffsets(section, -1)], [2.1875, 6.5625]);
   assert.ok(ascending(offsets));
   assert.ok(offsets.every(offset => offset > 0));
   assert.deepEqual([...offsets], [...section.forwardCentersM].map(center => -center).reverse());
