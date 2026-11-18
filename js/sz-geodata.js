@@ -1,5 +1,6 @@
 import { readCityPayload, decodeCityPayload } from './sz-data-format.js';
 import { applyCorridorRoadProfiles } from './sz-interchange-levels.js';
+import { applyShennanKejiCrossing } from './sz-shennan-keji.js';
 
 // 正式版与预览共用一次加载，后续模块不得各自请求不同城市快照。
 // 快读包先在本机 QA 对照；来源真实性审核未完成，不自动迁移正式默认包。
@@ -48,7 +49,7 @@ async function loadCityData(url) {
       const raw = await readCityPayload(url, fetcher, metrics);
       const decoded = decodeCityPayload(raw, metrics);
       const { geo } = decoded;
-      geo.roadGraph = applyCorridorRoadProfiles(geo.roadGraph, geo.terrainSurface);
+      geo.roadGraph = applyShennanKejiCrossing(applyCorridorRoadProfiles(geo.roadGraph, geo.terrainSurface));
       pendingRetry = null;
       boot?.clear?.();
       return { raw, decoded, timings: pickTimings(metrics) };

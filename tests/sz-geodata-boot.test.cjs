@@ -6,6 +6,7 @@ const test = require('node:test');
 const root = join(__dirname, '..');
 const geodataSource = readFileSync(join(root, 'js/sz-geodata.js'), 'utf8');
 const interchangeSource = readFileSync(join(root, 'js/sz-interchange-levels.js'), 'utf8');
+const crossingSource = readFileSync(join(root, 'js/sz-shennan-keji.js'), 'utf8');
 const uri = (source) => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 let sequence = 0;
 
@@ -38,6 +39,7 @@ function loadGeodata(stubUrl, tag) {
   const replaced = geodataSource
     .replace(/(['"])[.]\/sz-data-format[.]js\1/, JSON.stringify(stubUrl))
     .replace(/(['"])[.]\/sz-interchange-levels[.]js\1/, JSON.stringify(uri(interchangeSource)))
+    .replace(/(['"])[.]\/sz-shennan-keji[.]js\1/, JSON.stringify(uri(crossingSource)))
     .replace(/import[.]meta[.]url/g, JSON.stringify('https://example.test/js/sz-geodata.js'));
   assert.notEqual(replaced, geodataSource, 'js/sz-geodata.js keeps its static ./sz-data-format.js import');
   return import(uri(`// ${tag} ${++sequence}\n${replaced}`));

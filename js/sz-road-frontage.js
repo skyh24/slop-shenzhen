@@ -4,6 +4,7 @@ import { createIntersectionControl } from './sz-intersection-control.js';
 import { createPavingMaterial, pavingMesh } from './sz-paving.js';
 import { convexHull, createRoadHeightSampler, createRoadPolygonLayout, createRoadsideSurfaceTreatment } from './sz-roads.js';
 import { createCompactFoliage } from './sz-tree-crown.js';
+import { KEJI_SURFACE_WAYS } from './sz-shennan-keji.js';
 
 const POLE_RADIUS = 0.135;
 const FOOT_RADIUS = 0.24;
@@ -355,6 +356,18 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const roadside = source.features.filter(feature => feature.clipToRoadComplement);
   const paint = source.features.filter(feature => feature.kind === 'paint');
   const treatment = roadside.length || paint.length ? createRoadsideSurfaceTreatment(graph, terrain.grid, roadside, paint) : null;
+  const shennanPlanting = source.features.filter(feature =>
+    feature.id === '深南大道-arterial-median' || feature.id === '深南大道-arterial-flowers');
+  const kejiLinks = [], kejiMetadata = [];
+  for (const [index, meta] of graph.metadata.entries()) {
+    if (!KEJI_SURFACE_WAYS.has(meta.osmId) || meta.heightSource !== 'terrain') continue;
+    kejiLinks.push(graph.links[index]);
+    kejiMetadata.push(meta);
+  }
+  // 只为新增平交段补裁已经打包的绿带与花卉，使用与沥青面相同的平面边界。
+  const kejiTreatment = kejiLinks.length && shennanPlanting.length
+    ? createRoadsideSurfaceTreatment({ ...graph, links: kejiLinks, metadata: kejiMetadata }, terrain.grid, [], shennanPlanting)
+    : null;
   for (const feature of source.features) {
     if (feature.id === 'shennan-civic-center:flower-band') continue;
     const corridor = medians.get(feature.id);
@@ -371,7 +384,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       : preset ? paving.get(preset) : feature.plantSites ? islandSoil : planted ? grass : style[feature.kind]);
     if (!mat) throw new Error(`Unknown frontage surface: ${feature.kind}`);
     const useTreatment = feature.clipToRoadComplement ? treatment : null;
-    const layout = createRoadPolygonLayout(feature, terrain, useTreatment, null,
+    const layout = createRoadPolygonLayout(feature, terrain, useTreatment ?? (shennanPlanting.includes(feature) ? kejiTreatment : null), null,
       feature.kind === 'paint' ? treatment?.roadCells : null);
     if (arterial) arterialSamplers.push(createRoadHeightSampler(layout.chunks, terrain.grid));
     const offset = feature.surfaceOffsetM ?? feature.riseM;

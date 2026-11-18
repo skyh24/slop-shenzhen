@@ -10,6 +10,7 @@ const sectionFrame = require('./helpers/section-frame.cjs');
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
 const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
 const intersectionControl = loadModule(read('sz-intersection-control.js'));
+const shennanKeji = loadModule(read('sz-shennan-keji.js'));
 
 test('road frontage resolves its four source approach nodes on ground-only directed links', () => {
   const source = raw.roadFrontage;
@@ -76,11 +77,12 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const crown = loadModule(read('sz-tree-crown.js'), { imports });
   const { buildSzRoadFrontage } = loadModule(read('sz-road-frontage.js'), {
     imports: { ...imports, './sz-roads.js': roads, './sz-intersection-control.js': intersectionControl,
-      './sz-paving.js': paving, './sz-tree-crown.js': crown }
+      './sz-paving.js': paving, './sz-tree-crown.js': crown, './sz-shennan-keji.js': shennanKeji }
   });
   const terrain = raw.terrainSurface;
   const groundHeight = ground.createGroundSurfaceSampler(terrain);
-  const { chunks } = roads.createRoadSurfaceLayout(raw.roadGraph, terrain);
+  const graph = shennanKeji.applyShennanKejiCrossing(raw.roadGraph);
+  const { chunks } = roads.createRoadSurfaceLayout(graph, terrain);
   const roadHeight = roads.createRoadHeightSampler(chunks, terrain.grid);
   const scene = new THREE.Scene();
   const { reserveApecCivicLawn: reserveFlowerBed } = loadModule(read('sz-apec-city.js'), {
@@ -89,7 +91,12 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   });
   assert.ok(reserveFlowerBed(-150, 400) && reserveFlowerBed(165, 408));
   assert.ok(!reserveFlowerBed(250, 410) && !reserveFlowerBed(-1280, 435));
-  const model = buildSzRoadFrontage(scene, raw.roadFrontage, raw.roadGraph, terrain, { groundHeight, roadHeight, reserveFlowerBed });
+  const model = buildSzRoadFrontage(scene, raw.roadFrontage, graph, terrain, { groundHeight, roadHeight, reserveFlowerBed });
+  // 科技路的两条单向道路贯通绿带，路口外的绿带仍然存在。
+  for (const [x, z, median] of [[-11274, 359, false], [-11265, 359, false], [-11298, 359, true]]) {
+    assert.equal(model.arterialMedianAt(x, z), median, `${x}, ${z}`);
+    assert.equal(roadHeight(x, z), median ? null : 8, `${x}, ${z}`);
+  }
   for (const [x, z] of [[-1403.57, 420.36], [-1408.58, 440.30], [-1274.23, 432.31], [-1223.73, 436.38]]) {
     assert.equal(model.arterialMedianAt(x, z), true);
     assert.equal(roadHeight(x, z), null);
