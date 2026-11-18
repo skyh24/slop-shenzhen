@@ -24,6 +24,7 @@ const { createRoadBuildingClearance } = loadModule(read('sz-road-building-cleara
   './sz-roads.js': roads, './building-collision.js': collision, './sz-road-section.js': loadModule(read('sz-road-section.js'))
 } });
 const { polygonContains } = collision;
+const buildingPlan = loadModule(read('sz-building-plan.js'));
 
 // 离线 stub：sz-geometry 只用到这些能力，注意三角化按扇形生成，足以覆盖任意外环顶点数。
 function stubThree() {
@@ -75,6 +76,7 @@ function loadCityBlocks(THREE) {
   const geometry = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } });
   return loadModule(read('sz-buildings.js'), { imports: {
     './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
+    './sz-building-plan.js': buildingPlan,
     './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,

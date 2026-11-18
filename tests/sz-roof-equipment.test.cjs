@@ -8,6 +8,7 @@ const polygonModule = require('./helpers/polygon.cjs');
 const roadsModule = require('./helpers/roads.cjs');
 
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
+const buildingPlan = loadModule(read('sz-building-plan.js'));
 // 只验证平面几何计划，不创建场景；Three 和材质用空壳，建筑模块的入口函数不在这里调用。
 const emptyThree = {};
 const layout = loadModule(read('sz-building-layout.js'), { imports: {
@@ -15,6 +16,7 @@ const layout = loadModule(read('sz-building-layout.js'), { imports: {
 } });
 const buildingsModule = loadModule(read('sz-buildings.js'), { imports: {
   './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
+  './sz-building-plan.js': buildingPlan,
   './building-collision.js': {},
   './sz-retail-frontage.js': {},
   'three/webgpu': emptyThree,

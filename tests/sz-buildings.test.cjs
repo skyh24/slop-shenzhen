@@ -8,6 +8,7 @@ const { loadFacadeNodes } = require('./helpers/facade-nodes.cjs');
 const polygonModule = require('./helpers/polygon.cjs');
 const roadsModule = require('./helpers/roads.cjs');
 const read = file => readFileSync(join(__dirname, '../js', file), 'utf8');
+const buildingPlan = loadModule(read('sz-building-plan.js'));
 const terrain = loadModule(read('sz-terrain.js'));
 const { buildingPlacement, buildingSeed } = loadModule(read('sz-building-layout.js'), { imports: { './sz-terrain.js': terrain } });
 const { GeoBuilder, addWalls } = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': {} } });
@@ -45,6 +46,7 @@ test('raised building soffits face the passage and preserve courtyard holes and 
     const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
     const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
       './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
+      './sz-building-plan.js': buildingPlan,
       './building-collision.js': {},
       './sz-retail-frontage.js': {},
       'three/webgpu': THREE,
@@ -92,6 +94,7 @@ test('one-kilometre building batches preserve every triangle attribute and colli
   };
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
     './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
+    './sz-building-plan.js': buildingPlan,
     './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
@@ -135,6 +138,7 @@ test('tall ordinary towers gain an estimated podium with matching display and co
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
     './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
+    './sz-building-plan.js': buildingPlan,
     './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
@@ -163,6 +167,7 @@ test('ordinary roof equipment and parapets share rendered contact geometry', { s
   const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
   const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
     './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
+    './sz-building-plan.js': buildingPlan,
     './building-collision.js': {},
     './sz-retail-frontage.js': {},
     'three/webgpu': THREE,
@@ -214,6 +219,7 @@ test('retail walls replace only street-facing lower geometry and retain the clos
     } });
     const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
       './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
+      './sz-building-plan.js': buildingPlan,
       './building-collision.js': {},
       ...imports, './sz-retail-frontage.js': retail, './sz-geodata.js': {}, './sz-geometry.js': geometry,
       './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
@@ -291,6 +297,66 @@ test('retail walls replace only street-facing lower geometry and retain the clos
     blocks.dispose();
   });
 
+test('injected building lists resolve retail membership from the same source', () => {
+  const globalRetail = { ...building, id: 'way/global-retail', height: 25, minHeight: 0, facade: 'office' };
+  const realBuildings = [globalRetail];
+  const localRetail = { ...globalRetail, id: 'way/local-retail' };
+  const GEO = {
+    terrain: grid, roadGraph: null,
+    roadFrontage: { entrances: [] }, metro: { entrances: [] },
+    mapRegions: { regions: [{ type: 'retail', buildingRefs: [0], polygons: [] }] }
+  };
+  const THREE = {
+    Vector2: class { constructor(x, y) { Object.assign(this, { x, y }); } },
+    ShapeUtils: { triangulateShape: () => [[0, 1, 2], [0, 2, 3]] },
+    BufferAttribute: class { constructor(array, itemSize) { Object.assign(this, { array, itemSize }); } },
+    BufferGeometry: class {
+      attributes = {};
+      setAttribute(name, attribute) { this.attributes[name] = attribute; }
+      setIndex(index) { this.index = index; }
+      computeBoundingSphere() {}
+      computeBoundingBox() {}
+      dispose() {}
+    },
+    Group: class { children = []; add(mesh) { this.children.push(mesh); } },
+    Mesh: class { constructor(geometry) { this.geometry = geometry; } }
+  };
+  const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
+    './sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map(), duplicateIds: new Map() }) },
+    './sz-building-plan.js': buildingPlan,
+    './building-collision.js': {},
+    './sz-retail-frontage.js': {},
+    'three/webgpu': THREE,
+    './sz-geodata.js': { GEO, REAL_BUILDINGS: realBuildings },
+    './sz-geometry.js': loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } }),
+    './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
+    './sz-materials.js': { createBuildingMaterial: () => ({ dispose() {} }) },
+    './sz-building-layout.js': { buildingPlacement, buildingSeed },
+    './sz-polygon.js': polygonModule, './sz-roads.js': roadsModule
+  } });
+  const scene = { add() {} };
+  // 生产同源的 REAL_BUILDINGS 仍按共享包商圈索引映射。
+  const canonical = buildCityBlocks(scene, { buildings: realBuildings, terrain: grid });
+  assert.deepEqual(Array.from(canonical.retailIds), ['way/global-retail']);
+  assert.equal(canonical.detailPlan.buildings, realBuildings);
+
+  // 注入局部集合后，即使 id 与全城零售楼相同，也不读全城索引。
+  const localOnly = buildCityBlocks(scene, { buildings: [localRetail], terrain: grid });
+  assert.equal(localOnly.retailIds.size, 0);
+  assert.equal(localOnly.detailPlan.buildings[0], localRetail);
+  assert.equal(localOnly.detailPlan.buildings[0].heightSource, 'osm-height');
+
+  // 局部集合需要零售归属时，由同源 regions 或显式 id 提供。
+  const sameSource = buildCityBlocks(scene, { buildings: [localRetail], terrain: grid,
+    retail: { regions: [{ type: 'retail', buildingRefs: [0], polygons: [] }] } });
+  assert.deepEqual(Array.from(sameSource.retailIds), ['way/local-retail']);
+  const explicit = buildCityBlocks(scene, { buildings: [localRetail], terrain: grid, retailIds: [localRetail.id] });
+  assert.deepEqual(Array.from(explicit.retailIds), ['way/local-retail']);
+
+  // 局部集合缺地形时明确报错，不再悄悄回落到 GEO.terrain。
+  assert.throws(() => buildCityBlocks(scene, { buildings: [localRetail] }), /Missing terrain for city blocks/);
+});
+
 test('reviewed envelopes keep partial wall ownership, exposed roofs and raised clearance across batches',
   { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
     const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
@@ -301,7 +367,7 @@ test('reviewed envelopes keep partial wall ownership, exposed roofs and raised c
       './sz-building-envelope-relations.js': loadModule(read('sz-building-envelope-relations.js'))
     } });
     const { buildCityBlocks } = loadModule(read('sz-buildings.js'), { imports: {
-      ...imports, './sz-building-envelope.js': envelopes, './building-collision.js': collision,
+      ...imports, './sz-building-envelope.js': envelopes, './sz-building-plan.js': buildingPlan, './building-collision.js': collision,
       './sz-retail-frontage.js': {}, './sz-geodata.js': {}, './sz-geometry.js': geometry,
       './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
       './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshBasicMaterial() },
