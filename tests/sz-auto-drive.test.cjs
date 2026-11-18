@@ -713,6 +713,43 @@ test('a ground edge under an elevated deck keeps the ground surface', () => {
   assert.ok(queries.some(({ edge }) => edge === route.from.edge));
 });
 
+// 车辆支撑对照样段：与玩家/环境车共用同一组几何，自动驾驶仍按路线边的表面身份取面。
+test('auto support case flush seam: probes fall back across the routed edge window', () => {
+  const a = { surfaceId: 'deck-a' }, b = { surfaceId: 'deck-b' };
+  const roadHeight = (x, z, edge) => z <= 0 ? (edge === a ? 5 : null) : (edge === b ? 5 : null);
+  assert.equal(hasRoadFootprint(roadHeight, model, 0, -1, 0, [a, b], 5), true);
+  assert.equal(hasRoadFootprint(roadHeight, model, 0, -1, 0, [a], 5), false,
+    'a corner past the segment end needs the neighbouring identity in the window');
+});
+
+test('auto support case stacked levels: only the listed surface identity supplies height', () => {
+  const deck = { surfaceId: 'deck' }, ground = {};
+  const roadHeight = (x, z, edge) => edge === deck ? 8 : edge === ground ? 0 : null;
+  assert.equal(hasRoadFootprint(roadHeight, model, 0, 0, 0, [deck], 8), true);
+  assert.equal(hasRoadFootprint(roadHeight, model, 0, 0, 0, [deck], 0), false,
+    'the deck is not silently replaced by ground below it');
+  assert.equal(hasRoadFootprint(roadHeight, model, 0, 0, 0, [ground], 0), true);
+  assert.equal(hasRoadFootprint(roadHeight, model, 0, 0, 0, [ground, deck], 0), true);
+});
+
+test('auto support cases: half footprint and a strip narrower than the corners fail', () => {
+  const edgeHeight = (x, z) => z <= -0.5 ? 5 : null;
+  assert.equal(hasRoadFootprint(edgeHeight, model, 0, -1.5, 0, null, 5), false,
+    'front corners beyond the deck end leave no footprint');
+  const stripHeight = (x, z) => Math.abs(x) <= 1.0 ? 5 : null;
+  assert.equal(hasRoadFootprint((x, z) => Math.abs(z) <= 3 ? 5 : null, model, 0, 0, 0), true);
+  assert.equal(hasRoadFootprint(stripHeight, model, 0, 0, 0), false,
+    'a strip covering the centre but not the corners is unsupported');
+});
+
+test('auto support case slopes: a 25 percent cross slope is accepted, a two metre step is not', () => {
+  const crossSlope = (x, z) => 5 + 0.25 * x;
+  assert.equal(hasRoadFootprint(crossSlope, model, 0, 0, 0, null, 5), true);
+  const step = (x, z) => z < 0.5 ? 5 : 7;
+  assert.equal(hasRoadFootprint(step, model, 0, 0, 0, null, 5), false,
+    'a probe more than 1.5 m from the centre height is rejected');
+});
+
 test('hasRoadFootprint forwards the edge identity to every height query', () => {
   const deck = { surfaceId: DECK_SURFACE };
   const calls = [];

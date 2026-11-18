@@ -1,7 +1,30 @@
-// 交通体共用模型包络、世界速度与垂直范围。坡道接缝按实际高度相交判定。
+// 交通体共用模型包络、世界速度、垂直范围与车身足迹探针。坡道接缝按实际高度相交判定。
 export function boxDimensions({ min, max }) {
   return { x: (max.x + min.x) / 2, y: (max.y + min.y) / 2, z: (max.z + min.z) / 2,
     hx: (max.x - min.x) / 2, hy: (max.y - min.y) / 2, hz: (max.z - min.z) / 2 };
+}
+
+// 车身局部坐标 → 世界坐标的唯一约定：局部 +x 向右、+z 向前，朝向用 (sin, cos)。
+// 玩家、自动驾驶和环境车只声明探针偏移，不再各自推导旋转符号。
+const footprintScratch = { x: 0, z: 0 };
+
+export function footprintPoint(x, z, sin, cos, px, pz, out = footprintScratch) {
+  out.x = x + px * cos + pz * sin;
+  out.z = z - px * sin + pz * cos;
+  return out;
+}
+
+/** 逐探针取承托高度。sample(worldX, worldZ, px, pz) 返回有限高度；任一点没有承托则整体不成立。
+ *  heights 传入时按探针顺序写入，供车轮回读。选面政策、高差阈值、姿态和失败后的处理仍由调用方决定。 */
+export function sampleFootprint(x, z, sin, cos, probes, sample, heights = null) {
+  for (let i = 0; i < probes.length; i++) {
+    const px = probes[i][0], pz = probes[i][1];
+    const point = footprintPoint(x, z, sin, cos, px, pz);
+    const height = sample(point.x, point.z, px, pz);
+    if (!Number.isFinite(height)) return false;
+    if (heights) heights[i] = height;
+  }
+  return true;
 }
 
 export function writeTrafficCollider(body, model, pose) {

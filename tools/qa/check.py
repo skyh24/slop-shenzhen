@@ -17,10 +17,11 @@ ROOT = Path(__file__).resolve().parents[2]
 SCOPES = {
     'docs': ('', ''),
     'tooling': ('', 'tools/qa/tests/test_*.py tools/sz/tests/test_*server.py'),
-    'controls': ('controllers vehicle-physics car-wheels vehicle-lights sz-vehicles sz-auto-drive '
-                 'sz-junction-participant sz-controller-surfaces building-collision teleports touch-controls cameras', ''),
+    'controls': ('controllers vehicle-physics sz-driving-motion car-wheels vehicle-lights sz-vehicles '
+                 'sz-auto-drive sz-junction-participant sz-controller-surfaces building-collision teleports touch-controls cameras', ''),
     'roads': ('sz-roads sz-road-section sz-section-frame sz-ground sz-terrain sz-surface-atlas sz-road-frontage sz-road-markings sz-road-material sz-elevated-roads '
-              'sz-tunnels sz-traffic sz-auto-drive sz-intersection-control sz-junction-participant sz-controller-surfaces controllers',
+              'sz-tunnels sz-traffic sz-auto-drive sz-intersection-control sz-junction-participant sz-driving-motion '
+              'sz-controller-surfaces controllers',
               'tools/sz/tests/test_road*.py tools/sz/tests/test_*terrain*.py '
               'tools/sz/tests/test_copernicus.py tools/sz/tests/test_sea_surface.py'),
     'buildings': ('sz-facade-look sz-facade-nodes sz-buildings sz-building-details sz-building-signs sz-roof-equipment '

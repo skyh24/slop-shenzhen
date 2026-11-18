@@ -9,8 +9,8 @@ import {
 import { polygonBoxOverlaps, roofPanelContactPolygon, spanContactPolygon,
   SURFACE_CONTACT_EPSILON_M } from './building-collision.js';
 import { vehicleContact } from './vehicle-physics.js';
-import { boxDimensions, contactTime, followingReach, routeLeader, sameTrafficLevel, writeEntityCollider,
-  writeTrafficCollider } from './sz-driving-motion.js';
+import { boxDimensions, contactTime, followingReach, routeLeader, sameTrafficLevel, sampleFootprint,
+  writeEntityCollider, writeTrafficCollider } from './sz-driving-motion.js';
 
 export { writeTrafficCollider };
 
@@ -412,6 +412,20 @@ export function laneRoute(path, maxBend = 3.2) {
   return samples;
 }
 
+const routeProbes = new WeakMap();
+
+// 探针顺序固定：车心、四轮、车身四角。车心也是普通探针，踩中它的边即本姿态的表面身份。
+function probesOnRoute(model) {
+  let probes = routeProbes.get(model);
+  if (!probes) {
+    const { halfTrack, halfWheelbase } = model;
+    probes = [[0, 0], [-halfTrack, halfWheelbase], [halfTrack, halfWheelbase],
+      [-halfTrack, -halfWheelbase], [halfTrack, -halfWheelbase], ...model.corners];
+    routeProbes.set(model, probes);
+  }
+  return probes;
+}
+
 export function poseOnRoute(samples, s, model, roadHeight, pose) {
   let lo = 0;
   let hi = samples.length - 1;
@@ -446,30 +460,23 @@ export function poseOnRoute(samples, s, model, roadHeight, pose) {
   let centerEdge = null;
   const supportedSlabs = pose.supportedSlabs ??= new Set();
   supportedSlabs.clear();
-  const heightAt = (px, pz) => {
-    const wx = x + px * cos + pz * sin;
-    const wz = z - px * sin + pz * cos;
+  // 每个探针按当前段身份逐个回退取面；第一点（车心）命中的边就是本姿态所在的表面。
+  let atCenter = true;
+  const heightOnEdges = (wx, wz) => {
     for (const edge of edges) {
       const height = roadHeight(wx, wz, edge);
-      if (Number.isFinite(height)) {
-        if (px === 0 && pz === 0) centerEdge = edge;
-        if (edge?.surfaceId) supportedSlabs.add(edge.surfaceId);
-        return height;
-      }
+      if (!Number.isFinite(height)) continue;
+      if (atCenter) { centerEdge = edge; atCenter = false; }
+      if (edge?.surfaceId) supportedSlabs.add(edge.surfaceId);
+      return height;
     }
     return null;
   };
-  const center = heightAt(0, 0);
-  if (!Number.isFinite(center)) return false;
   const { halfTrack, halfWheelbase } = model;
-  const leftFront = heightAt(-halfTrack, halfWheelbase);
-  const rightFront = heightAt(halfTrack, halfWheelbase);
-  const leftRear = heightAt(-halfTrack, -halfWheelbase);
-  const rightRear = heightAt(halfTrack, -halfWheelbase);
-  if (![leftFront, rightFront, leftRear, rightRear].every(Number.isFinite)) return false;
-  for (const corner of model.corners) {
-    if (!Number.isFinite(heightAt(corner[0], corner[1]))) return false;
-  }
+  const heights = pose.heights ??= [];
+  if (!sampleFootprint(x, z, sin, cos, probesOnRoute(model), heightOnEdges, heights)) return false;
+  const center = heights[0];
+  const leftFront = heights[1], rightFront = heights[2], leftRear = heights[3], rightRear = heights[4];
   const pitch = Math.atan2(leftRear + rightRear - leftFront - rightFront, 4 * halfWheelbase);
   const roll = Math.atan2(rightFront + rightRear - leftFront - leftRear, 4 * halfTrack);
   const y = (leftFront + rightFront + leftRear + rightRear) / 4;

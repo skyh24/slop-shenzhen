@@ -541,6 +541,65 @@ test('poseOnRoute follows the deck for elevated edges and keeps ground height un
   assert.equal(poseOnRoute(line(deckEdge), 100, model, () => null, pose), false);
 });
 
+// 车辆支撑对照样段：环境车按路线邻段的表面身份逐点取面，并保留四轮俯仰/侧倾阈值。
+const supportCarModel = trafficModelBounds({
+  min: { x: -0.95, y: 0, z: -2.4 }, max: { x: 0.95, y: 1.8, z: 2.4 }
+}, vehicleSpecs.taxi);
+
+function routeLine(edge, z = 0) {
+  return Array.from({ length: 101 }, (_, i) => ({ x: i * 2, z, dx: 1, dz: 0, s: i * 2, edge }));
+}
+
+test('traffic support case flush seam: a pose spans both segments and records both identities', () => {
+  const a = { osmId: 'way/a', surfaceId: 'sz-elevated-road:1' };
+  const b = { osmId: 'way/b', surfaceId: 'sz-elevated-road:2' };
+  const samples = Array.from({ length: 101 }, (_, i) => {
+    const s = i * 2;
+    return { x: s, z: 0, dx: 1, dz: 0, s, edge: s <= 100 ? a : b };
+  });
+  const height = (x, z, edge) => x <= 100 ? (edge === a ? 5 : null) : (edge === b ? 5 : null);
+  const pose = {};
+  assert.equal(poseOnRoute(samples, 100, supportCarModel, height, pose), true);
+  assert.equal(pose.y, 5);
+  assert.equal(pose.edge, a);
+  assert.deepEqual([...pose.supportedSlabs].sort(), ['sz-elevated-road:1', 'sz-elevated-road:2']);
+});
+
+test('traffic support case stacked levels: the route edge identity decides the level', () => {
+  const deck = { osmId: 'way/deck', surfaceId: 'deck' };
+  const ground = { osmId: 'way/ground' };
+  const height = (x, z, edge) => edge?.surfaceId ? 8 : 4;
+  const pose = {};
+  assert.equal(poseOnRoute(routeLine(deck), 100, supportCarModel, height, pose), true);
+  assert.deepEqual([pose.y, pose.edge], [8, deck]);
+  assert.deepEqual([...pose.supportedSlabs], ['deck']);
+  assert.equal(poseOnRoute(routeLine(ground), 100, supportCarModel, height, pose), true);
+  assert.deepEqual([pose.y, pose.edge], [4, ground], 'the ground line keeps its own height under the deck');
+  assert.equal(pose.supportedSlabs.size, 0, 'a ground edge without an identity clears the previous slab');
+});
+
+test('traffic support cases: wheels on the strip but corners beyond it fail the pose', () => {
+  const pose = {};
+  const deckEndsEarly = (x, z) => x <= 101 ? 5 : null;
+  assert.equal(poseOnRoute(routeLine({ surfaceId: 'deck' }), 100, supportCarModel, deckEndsEarly, pose), false,
+    'front wheels past the deck end leave no support');
+  const cornersBeyond = (x, z) => x <= 101.5 ? 5 : null;
+  assert.equal(poseOnRoute(routeLine({ surfaceId: 'deck' }), 100, supportCarModel, cornersBeyond, pose), false,
+    'wheels on the strip are not enough when a corner is off it');
+  assert.equal(poseOnRoute(routeLine({ surfaceId: 'deck' }), 100, supportCarModel, x => x <= 103 ? 5 : null, pose), true);
+});
+
+test('traffic support case slopes: 10 percent is accepted, 25 percent cross slope exceeds the roll limit', () => {
+  const pose = {};
+  assert.equal(poseOnRoute(routeLine({ surfaceId: 'deck' }), 100, supportCarModel, (x, z) => 5 + 0.1 * z, pose), true);
+  assert.ok(Math.abs(pose.roll) < 0.2);
+  assert.ok(Math.abs(pose.y - 5) < 1e-9);
+  assert.equal(poseOnRoute(routeLine({ surfaceId: 'deck' }), 100, supportCarModel, (x, z) => 5 + 0.1 * x, pose), true);
+  assert.ok(Math.abs(pose.pitch) < 0.28, 'a 10 percent grade stays inside the pitch limit');
+  assert.equal(poseOnRoute(routeLine({ surfaceId: 'deck' }), 100, supportCarModel, (x, z) => 5 + 0.25 * z, pose), false,
+    'a 25 percent cross slope is rejected even though every probe has a surface');
+});
+
 test('traffic road height uses the deck for elevated edges and ground height for ground edges', () => {
   const deckSurfaceId = 'sz-elevated-road:300';
   const deckHeight = (x, z, surfaceId) => surfaceId === deckSurfaceId
