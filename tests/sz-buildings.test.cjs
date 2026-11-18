@@ -512,3 +512,66 @@ test('shop signs stay above 2.9m and lit share stays inside the 55-75% night ban
     assert.ok(lit > 0 && lit < 240, 'a sign run mixes lit and dark panels');
   }
 });
+
+test('K11 South routes only its original exterior walls to the mall finish', async () => {
+  const threeDir = process.env.SZ_THREE_PACKAGE_DIR ?? join(__dirname, '../.agents/three-0.187.0');
+  const { registerHooks } = require('node:module');
+  const hooks = registerHooks({ resolve(specifier, context, next) {
+    if (specifier.endsWith('/sz-geodata.js')) return {
+      url: 'data:text/javascript,export const GEO=null,REAL_BUILDINGS=[]', shortCircuit: true
+    };
+    const file = { 'three/webgpu': 'build/three.webgpu.js', 'three/tsl': 'build/three.tsl.js' }[specifier];
+    return file ? { url: pathToFileURL(join(threeDir, file)).href, shortCircuit: true } : next(specifier, context);
+  } });
+  try {
+    const { Scene } = await import('three/webgpu');
+    const { decodeCityPayload } = await import('../js/sz-data-format.js');
+    const { buildCityBlocks } = await import('../js/sz-buildings.js');
+    const { gunzipSync } = require('node:zlib');
+    const city = decodeCityPayload(JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz')))));
+    const south = city.buildings.find(b => b.id === 'way/1215840986');
+    const neighbour = city.buildings.find(b => b.id === 'way/1215840987');
+    const build = (buildings, retail) => buildCityBlocks(new Scene(), { buildings, terrain: city.geo.terrain, retail });
+    const block = build([south, neighbour]);
+    const walls = block.group.getObjectByName('ShenzhenBuildings:K11EcoastSouth');
+    const pos = walls.geometry.attributes.position;
+    const normals = walls.geometry.attributes.normal;
+    const uv = walls.geometry.attributes.uv;
+    const placed = buildingPlacement(south, city.geo.terrain);
+    assert.equal(south.name, 'K11 ECOAST 南馆');
+    assert.ok(walls.material.colorNode && walls.material.emissiveNode);
+    assert.equal(pos.count, south.polygons[0].outer.length * 4);
+    const corners = south.polygons[0].outer;
+    for (let i = 0; i < pos.count; i++) {
+      assert.ok(corners.some(p => Math.abs(p.x - pos.getX(i)) < 0.002 && Math.abs(p.z - pos.getZ(i)) < 0.002));
+      assert.equal(normals.getY(i), 0);
+      assert.ok(Math.abs(pos.getY(i) - placed.baseY - uv.getY(i)) < 0.001);
+    }
+    const collider = block.colliders.find(c => c.sourceId === south.id);
+    assert.equal(collider.polygon, south.polygons[0]);
+    assert.equal(collider.minY, placed.minY);
+    assert.equal(collider.maxY, placed.maxY);
+    assert.ok(block.surfaces.some(s => s.id === south.id + ':roof:0' && s.heightSource === south.heightSource));
+    assert.ok(block.colliders.some(c => c.sourceId === neighbour.id));
+    block.dispose();
+    // 用源零售区和贴门槛的模拟铺装触发正式临街路径，核对店面与上部专用墙面衔接。
+    assert.equal(south.retailFloors, 2);
+    const street = build([south], { regions: city.geo.mapRegions.regions, pavementAt: () => placed.minY });
+    const shops = street.group.children.filter(mesh => mesh.name.startsWith('ShenzhenRetail:'));
+    assert.ok(shops.length && street.retailDoors.some(door => door.buildingId === south.id && !door.open));
+    const shopTop = Math.max(...shops.flatMap(mesh => {
+      const pos = mesh.geometry.attributes.position;
+      return Array.from({ length: pos.count }, (_, i) => pos.getY(i));
+    }));
+    assert.ok(shopTop > placed.minY + 2.8 && shopTop < placed.minY + 5.3);
+    const streetWall = street.group.getObjectByName('ShenzhenBuildings:K11EcoastSouth').geometry.attributes.position;
+    assert.ok(Array.from({ length: streetWall.count }, (_, i) => streetWall.getY(i)).some(y => Math.abs(y - shopTop) < 0.001));
+    assert.equal(street.colliders.find(c => c.sourceId === south.id).polygon, south.polygons[0]);
+    street.dispose();
+    const plain = build([neighbour]);
+    assert.equal(plain.group.getObjectByName('ShenzhenBuildings:K11EcoastSouth'), undefined);
+    plain.dispose();
+  } finally {
+    hooks.deregister();
+  }
+});

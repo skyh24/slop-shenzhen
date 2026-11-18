@@ -8,17 +8,24 @@ import { addBasin, addFixtures, addLowFence, addWalkLamps, buildDistrictGround, 
 import { createDistrictKit, frame } from './kit.js';
 import { buildMinghua, MINGHUA_ID } from './minghua.js';
 import { buildSouthGate, buildSouthPaifang, SOUTH_GATE_ID } from './nantou.js';
+import { buildTollCanopies } from './tolls.js';
 
 const B10 = 'way/435827468';
 // 以核对过的对象为白名单，保留未核实邻楼、原有高楼及车行路线。
 const OCT_BLOCKS = [
   ['way/333871652', 'brick', null, true], ['way/435827465', 'loft', null, false],
-  ['way/435827461', 'brick', 3, true], ['way/435827469', 'loft', 3, true],
-  ['way/532810249', 'concrete', 3, true], ['way/532810260', 'loft', null, true],
-  ['way/435827467', 'concrete', 3, false], ['way/435827466', 'chalk', null, false],
-  ['way/532810264', 'brick', 3, true], ['way/532810266', 'chalk', null, true],
-  ['way/532810267', 'loft', 3, true]
+  ['way/435827461', 'burgundyBrick', 2, true], ['way/435827469', 'darkBurgundyBrick', 2, true],
+  ['way/532810249', 'burgundyBrick', 2, true], ['way/532810260', 'loft', null, true],
+  ['way/435827467', 'darkBurgundyBrick', 2, false], ['way/435827466', 'chalk', null, false],
+  ['way/532810264', 'burgundyBrick', 2, true], ['way/532810266', 'chalk', null, true],
+  ['way/532810267', 'darkBurgundyBrick', 2, true]
 ];
+// 按源墙朝向选展示面。435827467 只处理朝庭院的东北段。
+const OCT_DISPLAY_FRONTS = {
+  'way/435827467': (p, f) => f.c < -0.85 && p.x > -6954.5 && p.z < 446.7,
+  'way/532810264': (_p, f) => f.s < -0.85,
+  'way/532810267': (_p, f) => f.c < -0.85
+};
 const SEA_BLOCKS = [
   ['way/135951438', 'ivory', 3, true], ['way/135951443', 'chalk', 3, true],
   ['way/492141833', 'ivory', 2, true], ['way/492141834', 'tan', 3, true],
@@ -104,7 +111,7 @@ function addLoftStairs(kit, source, heightAt, clear) {
   kit.box(f.at(5.95, -0.66), base + 2.95, base + 3.15, 0.94, 1.35, f, 'steel', source);
 }
 
-export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupied }) {
+export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupied, decks }) {
   const group = new THREE.Group();
   group.name = 'shenzhen-three-districts';
   const kit = createDistrictKit(group);
@@ -115,7 +122,8 @@ export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupie
     && polygonContainsInclusive(poly, -14664, 6725));
   const active = [basin && 'sea', byId.has(B10) && 'oct', byId.has(SOUTH_GATE_ID) && 'nantou'].filter(Boolean);
   const ground = buildDistrictGround(group, site, active, roads, basin);
-  const colliders = [], skipIds = new Set(), heights = new Map(), trees = [], arrivals = {}, shops = [];
+  const { colliders, skipIds } = buildTollCanopies(kit, site, byId, carriagewayOccupied, decks);
+  const heights = new Map(), trees = [], arrivals = {}, shops = [];
   const reserveEntries = (x, z, radius = 0) => shops.some(shop =>
     distanceToRing([shop.approach, shop.mouth], x, z) < 1.05 + radius);
   for (const kind of active) {
@@ -140,6 +148,7 @@ export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupie
       if (!building) continue;
       restyleBlock(view, building, site.terrain, site.heightAt, kind, {
         wall, floors, balconies, front, clear: nonBlocking, entryClear: allowed, open: kind !== 'nantou' || balconies,
+        displayFront: OCT_DISPLAY_FRONTS[id],
         shopGrade: id === 'way/135951438' ? { x: -14802, z: 6588 } : null,
         registerShop: shop => shops.push({ ...shop, district: kind }),
         terrace: (kind === 'oct' && id === 'way/435827461') || (kind === 'sea' && id === 'way/492141834')
@@ -155,7 +164,7 @@ export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupie
       if (canopy) { addRetailCanopy(view, canopy, site.terrain); skipIds.add(canopy.id); }
     } else if (kind === 'oct') {
       const b10 = byId.get(B10);
-      heights.set('oct-loft', buildB10(view, b10, site.terrain, site.heightAt, nonBlocking));
+      heights.set('oct-loft', buildB10(view, b10, site.terrain, nonBlocking));
       skipIds.add(B10);
       const a3Plus = byId.get('way/532810249');
       if (a3Plus) addLoftStairs(view, a3Plus, site.heightAt, nonBlocking);

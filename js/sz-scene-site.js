@@ -116,7 +116,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   site.surfaceAtlas = surfaceAtlas;
   site.heightAt = (x, z) => surfaceAtlas.heightAt(x, z);
   const districts = qa.measureBuild('districts', () => buildSzDistricts(scene, site,
-    { water: GEO.water, roads: roads.surfaces, carriagewayOccupied }));
+    { water: GEO.water, roads: roads.surfaces, carriagewayOccupied, decks: elevatedRoads.links }));
   surfaceAtlas.add({ id: 'districts', heightSource: 'rendered-terrain', sample: districts.heightAt });
   site.shennanMedianHeight = roadFrontage.shennanMedianHeight;
   const urbanPaving = createUrbanPavingWalk(GEO.urbanPaving, site.heightAt);

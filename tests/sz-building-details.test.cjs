@@ -57,7 +57,8 @@ function loadDetails(THREE) {
       './sz-building-layout.js': layout,
       './building-collision.js': collision,
       './sz-polygon.js': polygonModule,
-      './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js'))
+      './sz-facade-profiles.js': loadModule(read('sz-facade-profiles.js')),
+      './sz-materials.js': { createBuildingMaterial: () => new THREE.MeshStandardNodeMaterial() }
     }
   });
 }
@@ -333,11 +334,19 @@ test('the two facade samples keep source placement and stream their estimated de
   assert.ok(lobby.canopy.y - 0.68 > 5);
   const placement = layout.buildingPlacement(home, grid);
   const residence = details.planBuildingDetails(home, placement, { playerPosition: focus });
+  const { facadeProfile, fitFacadeBays, FACADE_SAMPLE_PROFILES } = loadModule(read('sz-facade-profiles.js'));
+  const sampleFacade = { ...facadeProfile(home.facade), ...FACADE_SAMPLE_PROFILES[home.id] };
   assert.equal(residence.appearanceSource, 'estimate');
   assert.equal(residence.roofY, home.height);
   assert.equal(residence.floors, 48);
   const columns = new Map();
   for (const balcony of residence.balconies) {
+    const bay = fitFacadeBays(balcony.wallLength, sampleFacade);
+    const u = (balcony.doorU - bay.margin) / bay.width;
+    assert.ok(Math.abs(u - Math.floor(u) - 0.5) < 1e-6, 'the door starts at the fitted bay centre');
+    const row = (balcony.y - placement.baseY - sampleFacade.groundHeight) / sampleFacade.floorHeight;
+    assert.ok(Math.abs(row - Math.round(row)) < 1e-6 && Math.round(row) % 2 === 1,
+      'the visual door skips every even row of a duplex');
     const key = `${balcony.x},${balcony.z}`;
     if (!columns.has(key)) columns.set(key, []);
     columns.get(key).push(balcony.y);
@@ -356,7 +365,11 @@ test('the two facade samples keep source placement and stream their estimated de
   drain(stream, focus);
   let disposed = 0;
   for (const mesh of stream.group.children.flatMap(group => group.children)) {
-    assert.equal(mesh.castShadow && mesh.receiveShadow, true);
+    assert.equal(mesh.receiveShadow, true);
+    if (mesh.name.endsWith(':balcony-doors')) {
+      assert.equal(mesh.castShadow, false);
+      assert.equal(mesh.geometry.index.count / 3, residence.balconies.length * 2);
+    } else assert.equal(mesh.castShadow, true);
     mesh.geometry.addEventListener('dispose', () => disposed++);
   }
   assert.ok(stream.statistics.balconies > 0 && stream.statistics.canopies > 0);
@@ -521,6 +534,84 @@ test('levels drive floor rhythm without changing the building height', () => {
   assert.equal(plan.floorHeight, 3);
   assert.equal(plan.roofY, placement.maxY);
   assert.equal(placement.maxY - placement.minY, building.height);
+});
+
+test('streamed balcony doors match the wall UV, facade row and triangle budget', () => {
+  const THREE = stubThree();
+  const details = loadDetails(THREE);
+  const geometry = loadModule(read('sz-geometry.js'), { imports: { 'three/webgpu': THREE } });
+  const { facadeProfile, fitFacadeBays } = loadModule(read('sz-facade-profiles.js'));
+  const building = makeBuilding({ id: 'way/balcony-uv', x: 0, z: 0, half: 14.23, height: 41, levels: 8, minHeight: 5,
+    facade: 'residential_tower', category: 'residential' });
+  building.polygons[0].outer.reverse();
+  const grid = FLAT_GRID();
+  const placement = layout.buildingPlacement(building, grid);
+  const profile = facadeProfile(building.facade);
+  const focus = { x: 0, z: 0 };
+  const plan = details.planBuildingDetails(building, placement, { playerPosition: focus });
+  assert.ok(plan.balconies.length > 0);
+  const sourceWalls = new geometry.GeoBuilder(true);
+  const ring = building.polygons[0].outer.flatMap(({ x, z }) => [x, z]);
+  geometry.addWalls(sourceWalls, [ring], placement.minY, placement.maxY, [2, 0.5, 0, building.height], placement.baseY);
+  const walls = sourceWalls.build().attributes;
+  const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-5, `${actual} != ${expected}`);
+  const options = { detailPlan: detailPlanFor([building], grid), maxGenerationMs: Infinity };
+  const stream = details.buildBuildingDetails(makeScene(), options);
+  drain(stream, { x: 600, z: 0 });
+  assert.equal(stream.statistics.balconies, 0);
+  drain(stream, focus);
+  const doorMesh = stream.group.children[0].children.find(mesh => mesh.name.endsWith(':balcony-doors'));
+  assert.ok(doorMesh);
+  const { position, normal, uv, bmeta } = doorMesh.geometry.attributes;
+  assert.equal(doorMesh.geometry.index.array.length / 3, plan.balconies.length * 2);
+  for (const [i, balcony] of plan.balconies.entries()) {
+    const vertex = i * 4;
+    const nx = normal.array[vertex * 3], nz = normal.array[vertex * 3 + 2];
+    const x = position.array[vertex * 3], y = position.array[vertex * 3 + 1], z = position.array[vertex * 3 + 2];
+    const wallIndex = [0, 4, 8, 12].find(k => walls.normal.array[k * 3] === nx && walls.normal.array[k * 3 + 2] === nz);
+    assert.notEqual(wallIndex, undefined);
+    const ax = walls.position.array[wallIndex * 3], az = walls.position.array[wallIndex * 3 + 2];
+    const width = walls.bmeta.array[wallIndex * 4 + 2];
+    const fit = fitFacadeBays(width, profile);
+    const u = (x - ax) * -nz + (z - az) * nx;
+    const row = (y - placement.baseY - profile.groundHeight) / profile.floorHeight;
+    const bay = (u - fit.margin) / fit.width;
+    close(row, Math.round(row));
+    close(bay - Math.floor(bay), 0.5);
+    close(y, balcony.y);
+    close(u, uv.array[vertex * 2]);
+    close(y - placement.baseY, uv.array[vertex * 2 + 1]);
+    close(bmeta.array[vertex * 4 + 2], width);
+    assert.ok(y > placement.minY && y + (profile.sill + profile.winRatioH) * profile.floorHeight <= placement.maxY);
+  }
+  const budget = stream.statistics.triangles - 1;
+  const capped = details.buildBuildingDetails(makeScene(), { ...options, maxChunkTriangles: budget });
+  drain(capped, focus);
+  assert.ok(capped.statistics.triangles <= budget);
+  assert.equal(capped.statistics.balconies, 0);
+  assert.ok(capped.group.children.every(chunk => chunk.children.every(mesh => !mesh.name.endsWith(':balcony-doors'))));
+  drain(stream, { x: 1200, z: 0 });
+  assert.equal(doorMesh.geometry.disposed, true);
+  stream.dispose();
+  capped.dispose();
+});
+
+test('balcony columns avoid a narrow recess and another footprint of the same building', () => {
+  const details = loadDetails(stubThree());
+  const building = makeBuilding({ id: 'way/balcony-recess', x: 0, z: 0, half: 14, height: 18,
+    facade: 'residential_low', category: 'residential' });
+  building.polygons = [
+    { outer: [[-11, -14], [0, -14], [11, -14], [11, 0], [11, 14], [0.5, 14], [0.5, -10],
+      [-0.5, -10], [-0.5, 14], [-11, 14], [-11, 0]].map(([x, z]) => ({ x, z })), holes: [] },
+    { outer: [[-13, -14], [-11.25, -14], [-11.25, 14], [-13, 14]].map(([x, z]) => ({ x, z })), holes: [] }
+  ];
+  const placement = layout.buildingPlacement(building, FLAT_GRID());
+  const { balconies } = details.planBuildingDetails(building, placement, { playerPosition: { x: 0, z: 0 } });
+  assert.ok(balconies.length > 0, 'the open outer walls still receive balconies');
+  for (const balcony of balconies) {
+    assert.ok(Math.abs(balcony.x) > 0.5, 'the two long walls in the narrow recess have no projecting slab');
+    assert.ok(balcony.x !== -11, 'the separate western wing leaves no space for a balcony');
+  }
 });
 
 test('raised (架空) buildings start all details above minY', () => {

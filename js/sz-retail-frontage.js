@@ -66,7 +66,7 @@ export function createRetailFrontage(buildings, { regions = [], nearRoads, pavem
     batch.tri(base, base + 2, base + 3);
   }
 
-  function edge(building, placement, ax, az, bx, bz, nx, nz, length) {
+  function edge(building, placement, ax, az, bx, bz, nx, nz, length, groundOnly = false) {
     const { minY, maxY } = placement;
     if (length < SHOP_MIN_M || maxY - minY < 2.85) return;
     const mx = (ax + bx) / 2, mz = (az + bz) / 2;
@@ -81,9 +81,9 @@ export function createRetailFrontage(buildings, { regions = [], nearRoads, pavem
       ? THREE.MathUtils.clamp((maxY - minY) / building.levels, 3, 5.2) : 4.1;
     const ground = Math.min(floorHeight, maxY - minY);
     const floors = Math.max(1, Math.round((maxY - minY) / ground));
-    const top = fullRetail ? maxY : minY + ground;
-    const levels = fullRetail ? floors : 1;
-    const storefrontHeight = fullRetail ? (maxY - minY) / levels : ground;
+    const storefrontHeight = fullRetail ? (maxY - minY) / floors : ground;
+    const levels = fullRetail && !groundOnly ? floors : 1;
+    const top = fullRetail && !groundOnly ? maxY : minY + storefrontHeight;
     const distanceToEntrance = entrance?.buildingId === building.id
       ? Math.hypot(mx - entrance.x, mz - entrance.z) : Infinity;
     const count = Math.max(1, Math.round(length / 7.2));

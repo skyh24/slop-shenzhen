@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
 import { GeoBuilder, addWalls, addFlatPolygon, readTriangles } from './sz-geometry.js';
-import { createBuildingMaterial } from './sz-materials.js';
+import { createBuildingMaterial, createK11SouthWallMaterial } from './sz-materials.js';
 import { facadeIndex } from './sz-facade-profiles.js';
 import { createBuildingEnvelopePlan } from './sz-building-envelope.js';
 import { createBuildingDetailPlan, retailBuildingIdsFromRegions } from './sz-building-plan.js';
@@ -455,6 +455,7 @@ export function buildCityBlocks(scene, options = {}) {
   group.name = 'ShenzhenCityBlocks';
   const batches = new Map();
   const foundations = new GeoBuilder();
+  let k11Walls = null;
   const colliders = [];
   const surfaces = [];
   const allBlocks = [];
@@ -478,6 +479,9 @@ export function buildCityBlocks(scene, options = {}) {
     const key = `${Math.floor(building.cx / renderChunkSize)},${Math.floor(building.cz / renderChunkSize)}${participant ? ':program' : ''}`;
     if (!batches.has(key)) batches.set(key, new GeoBuilder(true));
     const batch = batches.get(key);
+    // K11 南馆仅换原外墙的材质，屋面、裙房、真实首层分段和碰撞继续走原楼管线。
+    const isK11South = building.id === 'way/1215840986';
+    const wallBatch = isK11South ? (k11Walls ??= new GeoBuilder(true)) : batch;
     const facade = facadeIndex(building.facade);
     // 普通超高层不自动套同一种灯光秀，地标灯光由各自模型负责。
     const meta = [facade, buildingSeed(building.id) * 10, 0, building.height];
@@ -487,7 +491,7 @@ export function buildCityBlocks(scene, options = {}) {
     const storefront = retailIds.has(building.id) && building.minHeight === 0 && building.height >= 3
       && building.category !== 'residential' && !building.landmark ? retailFront : null;
     const retailEdge = frontage && building.retailFloors && building.minHeight === 0 && !building.landmark
-      ? (bounds, ...edge) => frontage.edge(building, bounds, ...edge) : null;
+      ? (bounds, ...edge) => frontage.edge(building, bounds, ...edge, isK11South && !podium) : null;
     const replaceEdge = retailEdge && !podium ? (...edge) => retailEdge(placement, ...edge) : null;
     const addRoof = (rings, y, id, heightSource) => {
       const firstIndex = batch.idx.length;
@@ -512,7 +516,7 @@ export function buildCityBlocks(scene, options = {}) {
       if (placement.foundationBottomY !== null) {
         addWalls(foundations, rings, placement.foundationBottomY, placement.baseY);
       }
-      addWalls(batch, rings, placement.minY, placement.maxY, meta, placement.baseY, replaceEdge, envelopes.get(polygon)?.wall, !podium && !replaceEdge ? storefront : null);
+      addWalls(wallBatch, rings, placement.minY, placement.maxY, meta, placement.baseY, replaceEdge, envelopes.get(polygon)?.wall, !podium && !replaceEdge ? storefront : null);
       addCap(polygon, rings, placement.maxY, 1, index);
       if (building.minHeight > 0) addCap(polygon, rings, placement.minY, -1, index);
     }
@@ -594,6 +598,14 @@ export function buildCityBlocks(scene, options = {}) {
     mesh.receiveShadow = true;
     group.add(mesh);
   }
+  const k11Material = k11Walls?.count ? createK11SouthWallMaterial() : null;
+  if (k11Material) {
+    const mesh = new THREE.Mesh(k11Walls.build(), k11Material);
+    mesh.name = 'ShenzhenBuildings:K11EcoastSouth';
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
   if (foundationMaterial) {
     const mesh = new THREE.Mesh(foundations.build(), foundationMaterial);
     mesh.name = 'shenzhen-golf-foundations';
@@ -617,6 +629,7 @@ export function buildCityBlocks(scene, options = {}) {
       material.dispose();
       retailMaterial?.dispose();
       foundationMaterial?.dispose();
+      k11Material?.dispose();
       programMaterial?.dispose();
       roofPlans.clear();
       envelopes.clear();

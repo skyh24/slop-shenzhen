@@ -1,4 +1,4 @@
-import { roofPanelPart, spanPart } from '../sz-landmarks/parts.js';
+import { loftPart, roofPanelPart, spanPart } from '../sz-landmarks/parts.js';
 import { STR } from '../sz-strings.js';
 import { frame } from './kit.js';
 
@@ -40,13 +40,36 @@ export function buildSouthGate(kit, source, heightAt) {
     for (let u = -5.7; u < 6.1; u += 1.42) block(u, v, wallTop + 0.75, wallTop + 1.14, 0.72, 0.56, 'oldBrick');
   }
   kit.label(f.at(0, depth / 2 + 0.11), base + 5.13, 2.0, 0.74, f, STR.districts.ningnan, '#302d27', '#b3a898');
-  kit.label(f.at(0, depth / 2 + 0.13), base + 6.17, 4.58, 0.72, f, STR.districts.nantouGate, '#d0af71', '#383632');
+
+  // 运营方《南头古城建筑手册》第 8 页可见南城门自身的灰瓦城楼、三开间和檐匾；尺寸为影像估计。
+  const tower = { v: -0.30, width: 8.75, depth: 4.82, base: wallTop + 0.21, eave: wallTop + 2.87 };
+  block(0, tower.v, tower.base, tower.eave, tower.width, tower.depth, 'oldBrick', 'nantou:south-gate:tower');
+  const facade = tower.v + tower.depth / 2;
+  for (const [u, w, h] of [[-2.72, 1.32, 1.22], [0, 2.85, 1.64], [2.72, 1.32, 1.22]]) {
+    const bottom = tower.base + (u === 0 ? 0.26 : 0.62);
+    kit.piece(f.at(u, facade + 0.035), base + bottom + h / 2, w + 0.22, h + 0.2, 0.12, f, 'waterline');
+    kit.piece(f.at(u, facade + 0.103), base + bottom + h / 2, w - 0.22, h - 0.19, 0.06, f, 'steel');
+    for (const fraction of [-0.30, -0.15, 0, 0.15, 0.30]) {
+      kit.piece(f.at(u + w * fraction, facade + 0.15), base + bottom + h / 2, 0.06, h, 0.07, f, 'waterline');
+    }
+  }
+  const eave = tower.eave - 0.15;
+  const ring = (w, d) => [f.at(-w / 2, tower.v - d / 2), f.at(w / 2, tower.v - d / 2),
+    f.at(w / 2, tower.v + d / 2), f.at(-w / 2, tower.v + d / 2)];
+  const profiles = [[10.7, 6.54, eave], [9.62, 5.02, eave + 0.34], [8.39, 3.25, eave + 0.93], [6.04, 0.35, eave + 1.93]];
+  for (let i = 1; i < profiles.length; i++) {
+    const [w0, d0, y0] = profiles[i - 1], [w1, d1, y1] = profiles[i];
+    kit.part(loftPart(`nantou:south-gate:tower-roof:${i}`, source, ring(w0, d0), ring(w1, d1),
+      base + y0, base + y1, 'roof', { bottomFace: i === 1, topFace: i === profiles.length - 1 }));
+  }
+  block(0, tower.v, eave + 1.9, eave + 2.13, 6.2, 0.29, 'granite', 'nantou:south-gate:tower-ridge');
+  kit.label(f.at(0, facade + 0.15), base + tower.eave - 0.42, 3.23, 0.57, f, STR.districts.nantouGate, '#d0af71', '#383632');
   for (const x of [-3.15, 3.15]) {
     kit.piece(f.at(x, depth / 2 + 0.16), base + 2.42, 0.25, 0.41, 0.24, f, 'lamp');
     kit.lamp(f.at(x, depth / 2 + 1.3), base + 2.3, 72, 13);
     kit.lamp(f.at(x, -depth / 2 - 0.8), base + 2.35, 36, 8);
   }
-  return { base, roof: base + wallTop + 1.14 };
+  return { base, roof: base + eave + 2.13 };
 }
 
 export function buildSouthPaifang(kit, heightAt, clear) {

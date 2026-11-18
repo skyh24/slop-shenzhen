@@ -3,7 +3,9 @@ import { GeoBuilder } from './sz-geometry.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { polygonContains, ringArea, signedRingArea, orientedBoxRing } from './sz-polygon.js';
-import { facadeProfile, FACADE_PROFILES, FACADE_SAMPLE_PROFILES } from './sz-facade-profiles.js';
+import { facadeIndex, facadeProfile, fitFacadeBays, FACADE_GRID, FACADE_PROFILES,
+  FACADE_SAMPLE_PROFILES } from './sz-facade-profiles.js';
+import { createBuildingMaterial } from './sz-materials.js';
 
 // 普通楼近景细节：女儿墙、屋顶设备（含水箱/天线/航空障碍灯）、住宅阳台、空调外机、入口雨棚。
 // 细节只影响外观，不参与碰撞、不改建筑身份/楼高/足迹；高度基准一律取 buildingPlacement()。
@@ -25,6 +27,8 @@ const MAX_FULL_DETAIL_BUILDINGS = 40;
 // 每帧生成预算：一块很贵时本帧不再开第二块，把生成摊到后续帧，避免长卡顿。
 const MAX_GENERATION_MS = 10;
 const MAX_BALCONIES = 30;
+const BALCONY_SLAB_THICKNESS = 0.16;
+const BALCONY_TRIANGLES = 8 * 12;
 const MAX_AC_UNITS = 16;
 const PARAPET_INSET = 0.15;
 const PARAPET_THICKNESS = 0.2;
@@ -362,28 +366,49 @@ function blockedFacade(spans, building, edge, y0, y1) {
   return blockedByNeighbours(spans, building, cx, cz, Math.min(edge.length, 8), 1.8, edge.ux, -edge.uz, y0, y1);
 }
 
-function planDuplexBalconies(building, edges, placement, profile, groundHeight, neighbours) {
+function balconyOnEdge(edge, bay, column, width, depth) {
+  const t = bay.margin + (column + 0.5) * bay.width;
+  // addWalls 按逆时针发出外环，原始环也可能顺时针。
+  const forward = edge.uz * edge.outX - edge.ux * edge.outZ > 0;
+  return { x: edge.ax + edge.ux * t, z: edge.az + edge.uz * t, w: width, d: depth,
+    yaw: edge.yaw, outX: edge.outX, outZ: edge.outZ,
+    doorU: forward ? t : Math.fround(edge.length) - t, bayWidth: bay.width, wallLength: edge.length };
+}
+
+function clearBalconyColumn(building, edge, part, columns, firstY, lastY, neighbours) {
+  const { x, z, outX, outZ, w, d } = part;
+  const cx = x + outX * d / 2;
+  const cz = z + outZ * d / 2;
+  const cs = edge.ux;
+  const sn = -edge.uz;
+  // 阳台的后边可贴墙。检查从外墙向外 1cm 到板端的矩形，避免凹角和同楼其余足迹。
+  const inset = 0.01;
+  if (building.polygons.some(polygon => polygonBoxOverlaps(polygon, cx + outX * inset / 2,
+    cz + outZ * inset / 2, w / 2, (d - inset) / 2, cs, sn))) return null;
+  if (columns.some(polygon => polygonBoxOverlaps(polygon, cx, cz, w / 2, d / 2, cs, sn))) return null;
+  // 同一列竖向位置相同，只按整列高度查一次邻楼。
+  if (blockedByNeighbours(neighbours, building, cx, cz, w, d, cs, sn,
+    firstY - BALCONY_SLAB_THICKNESS, lastY + 1.1)) return null;
+  return { outer: orientedBoxRing(cx, cz, w, d, cs, -sn), holes: [] };
+}
+
+function planDuplexBalconies(building, edges, profile, firstY, lastY, neighbours) {
   const balconies = [];
   const usedEdges = new Set();
-  const firstY = placement.minY + groundHeight + profile.floorHeight;
-  const lastY = placement.maxY - 1.5;
+  const columns = [];
   const depth = profile.balconyDepth;
   for (const edge of edges.slice(0, 2)) {
-    const margin = 0.4;
-    const inner = edge.length - margin * 2;
-    const bays = Math.round(inner / profile.bayWidth);
-    if (bays < 4 || firstY > lastY) continue;
-    const bay = inner / bays;
-    const width = bay * 0.82;
-    for (const index of [Math.floor(bays / 4), Math.floor(bays * 0.75)]) {
-      const offset = margin + (index + 0.5) * bay;
-      const x = edge.ax + edge.ux * offset;
-      const z = edge.az + edge.uz * offset;
-      if (blockedByNeighbours(neighbours, building, x + edge.outX * depth / 2, z + edge.outZ * depth / 2,
-        width, depth, edge.ux, -edge.uz, firstY, lastY + 1)) continue;
+    const bay = fitFacadeBays(edge.length, profile);
+    if (bay.count < 4) continue;
+    const width = bay.width;
+    for (const column of [Math.floor(bay.count / 4), Math.floor(bay.count * 0.75)]) {
+      const part = balconyOnEdge(edge, bay, column, width, depth);
+      const outline = clearBalconyColumn(building, edge, part, columns, firstY, lastY, neighbours);
+      if (!outline) continue;
+      columns.push(outline);
       // 复式两层一组，阳台与幕墙共用开间和层高的外观节奏。
       for (let y = firstY; y <= lastY; y += profile.floorHeight * 2) {
-        balconies.push({ x, z, y, w: width, d: depth, yaw: edge.yaw, outX: edge.outX, outZ: edge.outZ });
+        balconies.push({ ...part, y });
       }
       usedEdges.add(edge);
     }
@@ -391,7 +416,7 @@ function planDuplexBalconies(building, edges, placement, profile, groundHeight, 
   return { balconies, usedEdges };
 }
 
-function planBalconies(building, edges, placement, rand, profile, floorHeight, floors, options) {
+function planBalconies(building, edges, placement, rand, profile, options) {
   const balconies = [];
   const usedEdges = new Set();
   if (!profile.balcony) return { balconies, usedEdges };
@@ -399,38 +424,41 @@ function planBalconies(building, edges, placement, rand, profile, floorHeight, f
   if (!player) return { balconies, usedEdges };
   if (Math.hypot(building.cx - player.x, building.cz - player.z) > BALCONY_RADIUS) return { balconies, usedEdges };
   const wallEdges = edges.filter(edge => edge.length >= 4).sort((a, b) => b.length - a.length);
-  if (options.sample?.balconyDepth) return planDuplexBalconies(building, wallEdges, placement,
-    options.sample, profile.groundHeight, options.neighbours);
-  const step = Math.max(2.2, profile.bayWidth);
-  const wallTop = placement.maxY - 0.4;
+  const sample = options.sample?.balconyDepth ? options.sample : null;
+  const facade = sample ? { ...profile, ...sample } : profile;
+  const { floorHeight, groundHeight, sill, winRatioH } = facade;
+  const rowOrigin = placement.baseY + groundHeight;
+  // 高楼保留最靠近入口的一排标准窗，架空层跳过未落在实体墙上的窗排。
+  const stride = sample ? 2 : 1;
+  const initialRow = sample || building.height >= 24 ? 1 : 0;
+  const minimumY = rowOrigin + initialRow * floorHeight;
+  const steps = Math.max(0, Math.ceil((placement.minY + BALCONY_SLAB_THICKNESS - minimumY) / (floorHeight * stride)));
+  const firstRow = initialRow + stride * steps;
+  const firstY = rowOrigin + firstRow * floorHeight;
+  const minHeadroom = Math.max(1.5, (sill + winRatioH) * floorHeight);
+  const lastY = Math.min(placement.maxY, placement.baseY + building.height) - minHeadroom;
+  if (firstY > lastY) return { balconies, usedEdges };
+  if (sample) return planDuplexBalconies(building, wallEdges, facade, firstY, lastY, options.neighbours);
+  const columns = [];
   for (const edge of wallEdges) {
     if (usedEdges.size >= 2) break;
-    if (blockedFacade(options.neighbours, building, edge, placement.minY + floorHeight, wallTop)) continue;
-    const width = Math.min(step * 0.86, 3.0);
+    if (blockedFacade(options.neighbours, building, edge, firstY - BALCONY_SLAB_THICKNESS, lastY + 1.1)) continue;
+    const bay = fitFacadeBays(edge.length, profile);
+    const width = bay.width * 0.92;
     const depth = 1.1 + rand() * 0.2;
-    const columns = [];
-    for (let t = 1.2 + step / 2; t <= edge.length - 1.2; t += step) {
-      if (rand() < 0.22) continue;
-      columns.push(t);
-    }
-    if (!columns.length) continue;
-    // 高层住宅的阳台从 2 层起，给首层入口牌和雨棚留出净空；低层住宅仍从 1 层起。
-    const firstBalconyFloor = building.height >= 24 ? 2 : 1;
     let placed = false;
-    for (const t of columns) {
-      const wx = edge.ax + edge.ux * t;
-      const wz = edge.az + edge.uz * t;
-      // 同一列竖向位置相同，只需按整列高度查一次邻楼，避免逐层重复检测。
-      if (blockedByNeighbours(options.neighbours, building, wx + edge.outX * depth * 0.5, wz + edge.outZ * depth * 0.5,
-        width, depth, edge.ux, -edge.uz, placement.minY + floorHeight, wallTop)) continue;
-      for (let floor = firstBalconyFloor; floor < floors; floor++) {
-        const y = placement.minY + floorHeight * floor;
-        if (y + 1.1 > wallTop) break;
-        if (balconies.length >= MAX_BALCONIES) break;
-        balconies.push({ x: wx, z: wz, y, w: width, d: depth, yaw: edge.yaw, outX: edge.outX, outZ: edge.outZ });
+    for (let column = 0; column < bay.count && balconies.length < MAX_BALCONIES; column++) {
+      if (rand() < 0.22) continue;
+      const part = balconyOnEdge(edge, bay, column, width, depth);
+      const outline = clearBalconyColumn(building, edge, part, columns, firstY, lastY, options.neighbours);
+      if (!outline) continue;
+      columns.push(outline);
+      for (let row = firstRow; balconies.length < MAX_BALCONIES; row++) {
+        const y = rowOrigin + row * floorHeight;
+        if (y > lastY) break;
+        balconies.push({ ...part, y });
         placed = true;
       }
-      if (balconies.length >= MAX_BALCONIES) break;
     }
     if (placed) usedEdges.add(edge);
   }
@@ -546,7 +574,7 @@ export function planBuildingDetails(building, placement, options = {}) {
   let acUnits = [];
   let canopy = null;
   if (allowFacadeDetails) {
-    const plan = planBalconies(building, edges, placement, rand, profile, floorHeight, floors, planOptions);
+    const plan = planBalconies(building, edges, placement, rand, profile, planOptions);
     balconies = plan.balconies;
     acUnits = planAcUnits(building, edges, placement, rand, profile, floorHeight, floors, planOptions, plan.usedEdges);
     if (!options.retailBuildingIds?.has(building.id)) {
@@ -682,7 +710,8 @@ function appendBalcony(b, balcony) {
   const ux = Math.cos(yaw);
   const uz = Math.sin(yaw);
   // 外挑板
-  addBox(b, x + outX * d * 0.5, y - 0.08, z + outZ * d * 0.5, w, 0.16, d, yaw);
+  addBox(b, x + outX * d * 0.5, y - BALCONY_SLAB_THICKNESS / 2, z + outZ * d * 0.5,
+    w, BALCONY_SLAB_THICKNESS, d, yaw);
   // 正面做镂空栏杆：上下横杆 + 三根立柱，近看能透光，不再是一块实心方盒。
   // 栏杆件只有这一列阳台会用到；单块三角面超预算时由分块裁剪器整体减楼。
   addBox(b, x + outX * (d - 0.05), y + 0.13, z + outZ * (d - 0.05), w, 0.07, 0.06, yaw);
@@ -696,6 +725,28 @@ function appendBalcony(b, balcony) {
     addBox(b, x + ux * sign * (w / 2 - 0.04) + outX * d * 0.5, y + 0.42,
       z + uz * sign * (w / 2 - 0.04) + outZ * d * 0.5, 0.06, 0.84, d, yaw);
   }
+}
+
+function appendBalconyDoor(b, balcony, meta, profile, baseY) {
+  const { x, z, y, outX, outZ, doorU, bayWidth, wallLength } = balcony;
+  const extent = bayWidth * (profile.winRatioW / 2 + FACADE_GRID.frame);
+  const doorTop = y + (profile.sill + FACADE_GRID.frame) * profile.floorHeight;
+  const offset = 0.028;
+  // 和基础墙体保持同一 UV、种子和朝向，贴墙面只覆盖从门槛到窗台的右扇补段。
+  const leftX = x + outX * offset;
+  const leftZ = z + outZ * offset;
+  const rightX = leftX - outZ * extent;
+  const rightZ = leftZ + outX * extent;
+  const u1 = doorU + extent;
+  const v0 = y - baseY;
+  const v1 = doorTop - baseY;
+  meta[2] = wallLength;
+  const a0 = b.vertex(leftX, y, leftZ, outX, 0, outZ, doorU, v0, meta);
+  const b0 = b.vertex(rightX, y, rightZ, outX, 0, outZ, u1, v0, meta);
+  const b1 = b.vertex(rightX, doorTop, rightZ, outX, 0, outZ, u1, v1, meta);
+  const a1 = b.vertex(leftX, doorTop, leftZ, outX, 0, outZ, doorU, v1, meta);
+  b.tri(a0, b1, b0);
+  b.tri(a0, a1, b1);
 }
 
 function appendAcUnit(b, unit) {
@@ -714,15 +765,21 @@ function appendCanopy(b, canopy) {
   }
 }
 
-function appendPlanGeometry(builders, plan) {
+function appendPlanGeometry(builders, doorBuilder, plan, building, baseY) {
   const b = builders[plan.bucket];
   const before = b.idx.length;
+  const beforeDoors = doorBuilder?.idx.length ?? 0;
   appendParapet(b, plan.parapet, plan.roofY);
   for (const part of plan.roofParts) appendRoofPart(b, part, plan.roofY);
   for (const balcony of plan.balconies) appendBalcony(b, balcony);
+  if (plan.balconies.length) {
+    const profile = { ...facadeProfile(plan.facade), ...FACADE_SAMPLE_PROFILES[building.id] };
+    const meta = [facadeIndex(plan.facade), buildingSeed(building.id) * 10, 0, building.height];
+    for (const balcony of plan.balconies) appendBalconyDoor(doorBuilder, balcony, meta, profile, baseY);
+  }
   for (const unit of plan.acUnits) appendAcUnit(b, unit);
   if (plan.canopy) appendCanopy(b, plan.canopy);
-  return (b.idx.length - before) / 3;
+  return (b.idx.length - before + (doorBuilder?.idx.length ?? 0) - beforeDoors) / 3;
 }
 
 // 用于写入 statistics 的三角面估算；实际数字以合并后的 index 数为准。
@@ -733,7 +790,7 @@ function estimatePlanTriangles(plan) {
     else if (part.kind === 'tank') triangles += TANK_SIDES * 3;
     else triangles += 12;
   }
-  triangles += plan.balconies.length * 48;
+  triangles += plan.balconies.length * (BALCONY_TRIANGLES + 2);
   triangles += plan.acUnits.length * 12;
   if (plan.canopy) triangles += 36;
   return triangles;
@@ -789,6 +846,7 @@ export function buildBuildingDetails(scene, options = {}) {
   }
 
   const materials = BUCKET_COLORS.map(color => new THREE.MeshStandardNodeMaterial({ color, roughness: 0.85, metalness: 0.04 }));
+  let doorMaterial;
   const lightMaterial = new THREE.MeshStandardNodeMaterial({ color: 0x42140f, emissive: 0xff2a18, emissiveIntensity: 1.2, roughness: 0.5 });
   const group = new THREE.Group();
   group.name = 'ShenzhenBuildingDetails';
@@ -884,6 +942,7 @@ export function buildBuildingDetails(scene, options = {}) {
     const chunkGroup = new THREE.Group();
     chunkGroup.name = `ShenzhenBuildingDetails:${chunk.key}`;
     const builders = [new GeoBuilder(false), new GeoBuilder(false), new GeoBuilder(false), new GeoBuilder(false)];
+    let doorBuilder = null;
     const record = {
       chunk, group: chunkGroup, meshes: 0, triangles: 0, buildingCount: 0,
       parapetParts: 0, roofPartCount: 0, balconyCount: 0, acUnitCount: 0, canopyCount: 0,
@@ -915,7 +974,8 @@ export function buildBuildingDetails(scene, options = {}) {
       } else if (!minimal) {
         fullDetailBuildings++;
       }
-      budget -= appendPlanGeometry(builders, plan);
+      if (plan.balconies.length) doorBuilder ??= new GeoBuilder(true);
+      budget -= appendPlanGeometry(builders, doorBuilder, plan, building, placement.baseY);
       record.buildingCount++;
       record.parapetParts += plan.parapet.parts.length;
       record.roofPartCount += plan.roofParts.length;
@@ -936,6 +996,16 @@ export function buildBuildingDetails(scene, options = {}) {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       chunkGroup.add(mesh);
+      record.meshes++;
+    }
+    if (doorBuilder) {
+      doorMaterial ??= createBuildingMaterial(null, { balconyDoors: true });
+      const geometry = doorBuilder.build();
+      const mesh = new THREE.Mesh(geometry, doorMaterial);
+      mesh.name = `ShenzhenBuildingDetails:${chunk.key}:balcony-doors`;
+      mesh.receiveShadow = true;
+      chunkGroup.add(mesh);
+      record.triangles += geometry.index.array.length / 3;
       record.meshes++;
     }
     group.add(chunkGroup);
@@ -1031,6 +1101,7 @@ export function buildBuildingDetails(scene, options = {}) {
     for (const key of [...active.keys()]) disposeChunk(key);
     disposeAerialMesh();
     for (const material of materials) material.dispose();
+    doorMaterial?.dispose();
     lightMaterial.dispose();
     if (typeof scene.remove === 'function') scene.remove(group);
     // 释放邻楼索引和放置缓存，避免保留 4 万栋楼的引用。
