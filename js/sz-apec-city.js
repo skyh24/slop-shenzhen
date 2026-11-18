@@ -28,7 +28,7 @@ export const APEC_CITY_SLOGANS = Object.freeze({
   footer: 'APEC CHINA 2026 · SHENZHEN'
 });
 
-const LAWN_MARK = { x: 6, z: 408, width: 72, depth: 36 };
+const LAWN_MARK = { x: 6, z: 408, width: 240, depth: 58 };
 
 export function reserveApecCivicLawn(x, z) {
   return x >= -161 && x <= 180 && z >= 350 && z <= 468;
@@ -36,7 +36,8 @@ export function reserveApecCivicLawn(x, z) {
 
 function drawLawnBird(ctx, center) {
   ctx.save();
-  ctx.translate(center, 0);
+  ctx.translate(center, -142);
+  ctx.scale(1, 1.36);
   for (const [side, inner, middle, outer] of [
     [-1, '#e72a55', '#ff7252', '#ffb36f'],
     [1, '#3cb0e9', '#5bd3ef', '#a4ead0']
@@ -84,30 +85,23 @@ function drawLawnBird(ctx, center) {
 function drawLawnMark(ctx, width, height) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '900 250px sans-serif';
-  ctx.lineWidth = 12;
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#fff7e4';
-  const colors = ['#e52548', '#ffb629', '#5cd5f1', '#a88afa'];
-  for (const [index, letter] of [...'APEC'].entries()) {
-    const x = width * (0.17 + 0.22 * index);
-    ctx.fillStyle = colors[index];
-    ctx.strokeText(letter, x, height * 0.24);
-    ctx.fillText(letter, x, height * 0.24);
-  }
-  ctx.font = '800 90px sans-serif';
+  ctx.font = '900 128px sans-serif';
   ctx.lineWidth = 9;
+  ctx.lineJoin = 'round';
   ctx.strokeStyle = '#263724';
   ctx.fillStyle = '#fff7e4';
-  ctx.strokeText('CHINA 2026', width / 2, height * 0.47);
-  ctx.fillText('CHINA 2026', width / 2, height * 0.47);
+  ctx.strokeText('APEC CHINA', width / 2, height * 0.23, width * 0.74);
+  ctx.fillText('APEC CHINA', width / 2, height * 0.23, width * 0.74);
+  ctx.font = '800 100px sans-serif';
+  ctx.strokeText('2026', width / 2, height * 0.46);
+  ctx.fillText('2026', width / 2, height * 0.46);
   drawLawnBird(ctx, width / 2);
 }
 
 function lawnMarkGeometry(sample) {
   if (!sample) return null;
   const { x, z, width, depth } = LAWN_MARK;
-  const geometry = new THREE.PlaneGeometry(width, depth, 29, 15);
+  const geometry = new THREE.PlaneGeometry(width, depth, 48, 15);
   geometry.rotateX(-Math.PI / 2);
   const positions = geometry.attributes.position;
   for (let index = 0; index < positions.count; index++) {

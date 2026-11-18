@@ -279,6 +279,8 @@ test('runtime builds APEC city elements and a red and blue bird below the lawn l
   });
   const lawnMark = model.group.getObjectByName('apec-civic-lawn-mark');
   assert.equal(lawnMark.parent, model.group);
+  assert.equal(lawnMark.geometry.parameters.width, 240);
+  assert.equal(lawnMark.geometry.parameters.height, 58);
   const positions = lawnMark.geometry.attributes.position;
   for (let index = 0; index < positions.count; index++) {
     const x = lawnMark.position.x + positions.getX(index), z = lawnMark.position.z + positions.getZ(index);
@@ -320,13 +322,15 @@ test('runtime builds APEC city elements and a red and blue bird below the lawn l
   // canvas 2D 真的画了两条中文标语、英文页脚和红色底；不加载外部图片。
   const filledText = drawCalls.filter(([method]) => method === 'fillText').map(([, text]) => text);
   for (const text of [module.APEC_CITY_SLOGANS.line1, module.APEC_CITY_SLOGANS.line2, module.APEC_CITY_SLOGANS.footer,
-    'A', 'P', 'E', 'C', 'CHINA 2026']) {
+    'APEC CHINA', '2026']) {
     assert.ok(filledText.includes(text), `canvas missing text: ${text}`);
   }
-  const subtitle = drawCalls.findIndex(([method, text]) => method === 'fillText' && text === 'CHINA 2026');
+  const title = drawCalls.findIndex(([method, text]) => method === 'fillText' && text === 'APEC CHINA');
+  const subtitle = drawCalls.findIndex(([method, text]) => method === 'fillText' && text === '2026');
+  assert.ok(drawCalls[title][3] < drawCalls[subtitle][3]);
   const bird = drawCalls.slice(subtitle + 1);
   const wings = bird.filter(([method]) => method === 'scale');
-  assert.deepEqual(wings, [['scale', -1, 1], ['scale', 1, 1]]);
+  assert.deepEqual(wings, [['scale', 1, 1.36], ['scale', -1, 1], ['scale', 1, 1]]);
   const gradientEnds = bird.filter(([method, offset]) => method === 'gradientStop' && offset === 1);
   assert.deepEqual(gradientEnds.slice(0, 3), [['gradientStop', 1, '#ffb36f'], ['gradientStop', 1, '#a4ead0'], ['gradientStop', 1, '#e2114c']]);
   assert.ok(drawCalls.some(([method]) => method === 'fillRect'));

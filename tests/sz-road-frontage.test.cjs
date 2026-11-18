@@ -160,8 +160,8 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   const civic = raw.roadFrontage.corridors.find(row => row.id === 'shennan-civic-center');
   assert.equal(civic.medianSource.imageryReview.captureDate, '2026-01-25');
   assert.ok(!model.group.children.some(mesh => mesh.name.startsWith('shennan-civic-center:flower-band:')));
-  for (let x = -30; x <= 42; x += 2) {
-    for (let z = 390; z <= 426; z += 2) {
+  for (let x = -114; x <= 126; x += 2) {
+    for (let z = 379; z <= 437; z += 2) {
       assert.equal(roadHeight(x, z), null);
       assert.ok(Number.isFinite(model.shennanMedianHeight(x, z)));
     }
