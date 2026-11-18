@@ -605,6 +605,19 @@ test('pavement ribbons stay outside the carriageway at a junction', () => {
   assertPavementOutsideBarrier(built.pavement, barrier);
 });
 
+test('Shennan Boulevard by Window of the World has only exterior sidewalk tracks', () => {
+  const raw = JSON.parse(zlib.gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
+  const graph = raw.roadGraph;
+  const bounds = { minX: -8560, minZ: 750, maxX: -8180, maxZ: 1000 };
+  const built = buildSidewalkTracks(graph, { bounds, heightAt: flatHeight });
+  const wayIds = ['way/557222423', 'way/557222430', 'way/572963458', 'way/1241802797'];
+  for (const wayId of wayIds) {
+    const sidewalks = built.tracks.filter(track => graph.metadata[track.linkIndex]?.osmId === wayId);
+    assert.ok(sidewalks.length > 0, `missing exterior sidewalk along ${wayId}`);
+    assert.ok(sidewalks.every(track => track.side === -1), `median sidewalk along ${wayId}`);
+  }
+});
+
 test('real city invariant: tracks and pavement never enter the rendered carriageway', () => {
   const raw = JSON.parse(zlib.gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
   const graph = raw.roadGraph;

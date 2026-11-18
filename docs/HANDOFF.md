@@ -17,6 +17,8 @@
 
 京港澳高速福田立交的双幅主线（`way/40933472`、`way/40933474`）有源桥梁与层级标签，场景采用每层 4.8 米的估计桥面。紫众道下穿处双向驾驶、两端上桥和 12 号桥局部切坡已有实驾记录（局部 L5）。
 
+深南大道世界之窗东侧至佛山街附近的已核对双幅主路，仅在各自行车方向右侧生成纵向模拟步道。浏览器样段可见中央绿带连贯、道路外侧有铺装和环境行人（局部 L4）。[来源与断面](research/shennan-sidewalk-sides.md)
+
 本地样段证据位于 `docs/qa/`：公开试玩见 `cloudflare/`，道路见 `g4-futian/`、`houhai-second-bridge/`，建筑共边见 `xinzhou-flicker-fix/`，巡游与节目操作见 `air-cruise-speed/`、`program-controls/`。
 
 ## 验收边界

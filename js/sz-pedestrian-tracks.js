@@ -8,6 +8,10 @@ import { sectionSideLine } from './sz-section-frame.js';
 const EPSILON = 1e-9;
 const CELL_SIZE = 24;
 const BARRIER_CELL = 32;
+// 世界之窗至佛山街的成对主路，中央绿带两侧不生成纵向模拟步道。
+const SHENNAN_OUTER_SIDE_WAYS = new Set([
+  'way/557222423', 'way/557222430', 'way/572963458', 'way/1241802797'
+]);
 
 export const DEFAULT_EXCLUDED_HIGHWAYS = ['motorway', 'motorway_link', 'trunk', 'trunk_link'];
 export const TRACK_DEFAULTS = {
@@ -431,7 +435,9 @@ export function buildSidewalkTracks(graph, options = {}) {
     statistics.candidateLinks++;
     const centerline = roadSectionPoints(graph, link, metadata);
     if (centerline.length < 2) continue;
-    for (const side of [1, -1]) {
+    const direction = link[5];
+    const sides = direction && SHENNAN_OUTER_SIDE_WAYS.has(metadata.osmId) ? [-direction] : [1, -1];
+    for (const side of sides) {
       const sidewalk = sectionSideLine(centerline, { widthM, side, marginM: cfg.walkMarginM });
       const runs = bounds ? clipPolyline(sidewalk, bounds) : [sidewalk];
       statistics.clippedRuns += runs.length;
