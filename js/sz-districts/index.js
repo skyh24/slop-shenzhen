@@ -8,6 +8,7 @@ import { addBasin, addFixtures, addLowFence, addWalkLamps, buildDistrictGround, 
 import { createDistrictKit, frame } from './kit.js';
 import { buildMinghua, MINGHUA_ID } from './minghua.js';
 import { buildSouthGate, buildSouthPaifang, SOUTH_GATE_ID } from './nantou.js';
+import { buildTollCanopies } from './tolls.js';
 
 const B10 = 'way/435827468';
 // 以核对过的对象为白名单，保留未核实邻楼、原有高楼及车行路线。
@@ -110,7 +111,7 @@ function addLoftStairs(kit, source, heightAt, clear) {
   kit.box(f.at(5.95, -0.66), base + 2.95, base + 3.15, 0.94, 1.35, f, 'steel', source);
 }
 
-export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupied }) {
+export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupied, decks }) {
   const group = new THREE.Group();
   group.name = 'shenzhen-three-districts';
   const kit = createDistrictKit(group);
@@ -121,7 +122,8 @@ export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupie
     && polygonContainsInclusive(poly, -14664, 6725));
   const active = [basin && 'sea', byId.has(B10) && 'oct', byId.has(SOUTH_GATE_ID) && 'nantou'].filter(Boolean);
   const ground = buildDistrictGround(group, site, active, roads, basin);
-  const colliders = [], skipIds = new Set(), heights = new Map(), trees = [], arrivals = {}, shops = [];
+  const { colliders, skipIds } = buildTollCanopies(kit, site, byId, carriagewayOccupied, decks);
+  const heights = new Map(), trees = [], arrivals = {}, shops = [];
   const reserveEntries = (x, z, radius = 0) => shops.some(shop =>
     distanceToRing([shop.approach, shop.mouth], x, z) < 1.05 + radius);
   for (const kind of active) {

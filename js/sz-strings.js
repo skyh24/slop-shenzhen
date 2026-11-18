@@ -151,6 +151,7 @@ export const STR = {
     stop: '退出环绕'
   },
   bayWaterfront: { destination: '中湾阅海广场', walk: '观海步道' },
+  tollStation: '收费站',
   districts: {
     minghua: '明华轮', seaWorld: '海上世界', b10: 'OCAT · B10', octLoft: 'OCT-LOFT',
     ningnan: '寧南', nantouGate: '嶺南重鎮', nantouPaifang: '城古頭南', closed: '暂不开放',

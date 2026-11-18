@@ -36,7 +36,7 @@ function load() {
     const blocked = (x, z, y, r = 0.48) => colliders.some(b => b.minX < x + r && b.maxX > x - r
       && b.minZ < z + r && b.maxZ > z - r && b.minY < y + 1.9 && b.maxY > y + 0.02
       && polygonBoxOverlaps(b.polygon, x, z, r, r));
-    return { districts, buildings, colliders, road, groundHeight, contact, blocked, scene, site, chunks, buildSzDistricts };
+    return { districts, buildings, colliders, road, groundHeight, contact, blocked, scene, site, chunks, buildSzDistricts, geo };
   })();
 }
 
@@ -59,6 +59,68 @@ test('district replacements use reviewed OSM objects and retain sourced neighbor
     { water: [], roads: chunks, carriagewayOccupied: road.contains });
   assert.equal(withoutBasin.skipIds.size, 0);
   withoutBasin.dispose();
+});
+
+test('reviewed toll roofs keep the ramps and Qianhai decks open beneath the source footprint', async () => {
+  const { Scene } = await import('three/webgpu');
+  const { buildSzElevatedRoads } = await import('../js/sz-elevated-roads.js');
+  const { createRoadHeightSampler, roadSectionPoints } = await import('../js/sz-roads.js');
+  const { createSurfaceHeightAt } = await import('../js/sz-controller-surfaces.js');
+  const { polygonContainsInclusive } = await import('../js/sz-polygon.js');
+  const { buildSzDistricts, site, road, chunks, geo, buildings } = await load();
+  const scene = new Scene();
+  const roadGraph = geo.roadGraph, terrainSurface = geo.terrainSurface;
+  const roadHeight = createRoadHeightSampler(chunks, terrainSurface.grid);
+  const elevated = buildSzElevatedRoads(scene, { graph: roadGraph, terrainSurface, water: geo.water });
+  const districts = buildSzDistricts(scene, { ...site, roadGraph, roadHeight },
+    { water: geo.water, roads: chunks, carriagewayOccupied: road.contains, decks: elevated.links });
+  const roofs = districts.colliders.filter(c => c.name.startsWith('toll:') && c.name.endsWith(':roof'));
+  assert.equal(roofs.length, 13);
+  assert.ok(!districts.skipIds.has('way/482249522'), 'Huanggang has no verified through edge in this pack');
+  assert.ok(!districts.skipIds.has('way/1212748044'), 'the road noise cover is a separate structure');
+  for (const roof of roofs) {
+    assert.ok(districts.skipIds.has(roof.sourceId));
+    assert.equal(roof.polygon, buildings.find(b => b.id === roof.sourceId).polygons[0]);
+    assert.equal(roof.heightSource, 'estimate');
+    assert.ok(districts.group.getObjectByName(`ShenzhenToll:${roof.sourceId}:silver`).geometry.index.count > 0);
+    const parts = districts.colliders.filter(c => c.sourceId === roof.sourceId && c.maxY <= roof.minY);
+    if (roof.sourceId === 'way/482234119') {
+      assert.ok(parts.filter(c => c.name.includes(':deck-column:')).length >= 2);
+      continue;
+    }
+    assert.ok(parts.some(c => c.name.includes(':booth:')));
+    for (const part of parts) {
+      const { minX, maxX, minZ, maxZ } = part;
+      const x = (minX + maxX) / 2, z = (minZ + maxZ) / 2;
+      const radius = Math.max(...part.polygon.outer.map(p => Math.hypot(p.x - x, p.z - z)));
+      assert.ok(!road.contains(x, z, radius));
+    }
+  }
+  function checkRoute(roofId, points, heightAt) {
+    const roof = roofs.find(c => c.sourceId === roofId);
+    let checked = 0;
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1], b = points[i];
+      const steps = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.5);
+      for (let j = 0; j <= steps; j++) {
+        const x = a.x + (b.x - a.x) * j / steps, z = a.z + (b.z - a.z) * j / steps;
+        if (!polygonContainsInclusive(roof.polygon, x, z)) continue;
+        const y = heightAt(x, z);
+        assert.ok(Number.isFinite(y) && roof.minY - y >= 5.5);
+        checked++;
+      }
+    }
+    assert.ok(checked > 8);
+  }
+  const ramp = roadGraph.metadata.findIndex(r => r.osmId === 'way/25588751');
+  checkRoute('way/482249531', roadSectionPoints(roadGraph, roadGraph.links[ramp], roadGraph.metadata[ramp]), roadHeight);
+  const qianhaiDecks = elevated.links.filter(d => /^way\/121274804[0-3]$/.test(d.osmId));
+  assert.equal(qianhaiDecks.length, 4);
+  for (const deck of qianhaiDecks) {
+    const sample = createSurfaceHeightAt([{ id: deck.surfaceId, triangles: deck.topTriangles }]);
+    checkRoute('way/482234119', deck.frames, (x, z) => sample(x, z, deck.surfaceId));
+  }
+  districts.dispose();
 });
 
 test('six reviewed OCT blocks use a two-story burgundy brick design over their source footprints', async () => {
