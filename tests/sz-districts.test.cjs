@@ -61,6 +61,31 @@ test('district replacements use reviewed OSM objects and retain sourced neighbor
   withoutBasin.dispose();
 });
 
+test('the Xiangmihu interchange outlines render as plain one-story solids with matching collision', async () => {
+  const { districts, buildings, site } = await load();
+  const { buildingPlacement } = await import('../js/sz-building-layout.js');
+  const group = districts.group.getObjectByName('xiangmihu-interchange-blocks');
+  const meshes = group.children.filter(child => child.isMesh);
+  assert.equal(meshes.length, 1);
+  assert.equal(group.getObjectByName('xiangmihu-interchange-blocks:detail').children.length, 0);
+  const positions = meshes[0].geometry.attributes.position;
+  for (const id of ['overture/9c8df500-092b-4917-ac95-1186f5e8e604', 'overture/2ed49f3c-8f4f-46e3-a2a3-32cb709bd37e']) {
+    assert.ok(districts.skipIds.has(id));
+    const building = buildings.find(b => b.id === id);
+    const { baseY } = buildingPlacement(building, site.terrain);
+    const collider = districts.colliders.find(c => c.sourceId === id);
+    assert.equal(collider.polygon, building.polygons[0]);
+    assert.equal(collider.maxY, Math.fround(baseY + 3.2));
+    const ys = [];
+    for (let i = 0; i < positions.count; i++) {
+      if (positions.getX(i) >= building.minX - 0.001 && positions.getX(i) <= building.maxX + 0.001
+        && positions.getZ(i) >= building.minZ - 0.001 && positions.getZ(i) <= building.maxZ + 0.001) ys.push(positions.getY(i));
+    }
+    assert.ok(ys.length > 0);
+    assert.equal(Math.max(...ys), collider.maxY);
+  }
+});
+
 test('reviewed toll roofs keep the ramps and Qianhai decks open beneath the source footprint', async () => {
   const { Scene } = await import('three/webgpu');
   const { buildSzElevatedRoads } = await import('../js/sz-elevated-roads.js');
