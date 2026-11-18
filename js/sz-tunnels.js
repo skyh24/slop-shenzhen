@@ -3,6 +3,7 @@ import { isGroundRoad, roadLinkPoints } from './sz-roads.js';
 import { createGroundSurfaceSampler } from './sz-ground-surface.js';
 import { polygonContains } from './sz-polygon.js';
 import { deckLaneProfile } from './sz-road-section.js';
+import { createSzRoadSurfaceMaterial } from './sz-road-material.js';
 import { HIGH_DECK_TUNNEL_APPROACH_M, highDeckTunnelPortals } from './sz-interchange-levels.js';
 import { createRoadProfile, measureRoadProfile, recordRoadProfileSeam } from './sz-road-profile.js';
 // 默认立交选区与桥面共用 sz-elevated-roads.js 导出的 SHENZHEN_INTERCHANGES，隧道和桥面不会各用一套范围。
@@ -657,7 +658,7 @@ function tunnelPortalBox(list, frame, n0, n1, y0, y1) {
   cityQuad(list, at(n0, -axial, y0), at(n0, axial, y0), at(n1, axial, y0), at(n1, -axial, y0), DOWN);
 }
 
-function tunnelPortal(list, frame, flow, width) {
+function tunnelPortal(list, frame, flow, width, baseHeight) {
   const half = width / 2;
   const outer = half + TUNNEL_PORTAL_WING_M;
   const floorY = frame.floorY;
@@ -667,6 +668,19 @@ function tunnelPortal(list, frame, flow, width) {
   tunnelPortalBox(list, frame, half, outer, floorY, topY);
   tunnelPortalBox(list, frame, -outer, -half, floorY, topY);
   tunnelPortalBox(list, frame, -outer, outer, ceilingY, topY);
+  if (baseHeight) {
+    // 补上洞门背后的覆土切面，沿原地形取高，洞门净空保持不变。
+    const outward = { x: -frame.nz * flow, y: 0, z: frame.nx * flow };
+    const edge = [-outer, -half / 2, 0, half / 2, outer].map(offset => {
+      const x = frame.x + frame.nx * offset - outward.x * 0.15;
+      const z = frame.z + frame.nz * offset - outward.z * 0.15;
+      return { x, z, y: Math.max(topY, (baseHeight(x, z) ?? topY) + 0.05) };
+    });
+    for (let i = 1; i < edge.length; i++) {
+      const a = edge[i - 1], b = edge[i];
+      cityQuad(list, { ...a, y: topY }, { ...b, y: topY }, b, a, outward);
+    }
+  }
   return { x: frame.x, z: frame.z, y: floorY, ceilingY, topY,
     nx: frame.nx, nz: frame.nz, flow };
 }
@@ -700,7 +714,8 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
   const lengthM = polylineLength(points);
   const sourceWidth = Number.isFinite(link[3]) ? link[3] : 0;
   const fixedFloor = Number.isFinite(metadata.nanpingDeckY);
-  const width = fixedFloor ? deckLaneProfile(link).widthM : Math.max(sourceWidth, TUNNEL_MIN_WIDE_WIDTH_M);
+  const mountain = metadata.mountainTunnel;
+  const width = mountain?.width ?? (fixedFloor ? deckLaneProfile(link).widthM : Math.max(sourceWidth, TUNNEL_MIN_WIDE_WIDTH_M));
   const startNode = link[0];
   const endNode = link[1];
   const record = {
@@ -714,6 +729,7 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
     lengthM,
     tunnel: true,
     heightSource: 'estimate',
+    mountainPavement: Boolean(mountain),
     drivable: false,
     blockedReason: null,
     startNode,
@@ -761,13 +777,13 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
     lastValid = i;
   }
   // 地形缺失的站用最近有效站兜底（段内线性插值），不再因个别站缺地形整条跳过。
-  if (firstValid < 0 && !fixedFloor) {
+  if (firstValid < 0 && !fixedFloor && !mountain) {
     record.blockedReason = 'terrain';
     return record;
   }
   const resolved = grounds.slice();
   if (firstValid < 0) {
-    resolved.fill(metadata.nanpingDeckY);
+    resolved.fill(mountain?.startY ?? metadata.nanpingDeckY);
   } else {
     for (let i = 0; i < firstValid; i++) resolved[i] = grounds[firstValid];
     for (let i = lastValid + 1; i < grounds.length; i++) resolved[i] = grounds[lastValid];
@@ -796,7 +812,10 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
     const coverAllowance = metadata.osmId === 'way/1083453776' ? 0.3 * clamp01(
       (Math.min(station.d, lengthM - station.d) - PORTAL_TRANSITION_M) / PORTAL_TRANSITION_M
     ) : 0;
-    const floorY = fixedFloor ? metadata.nanpingDeckY : profile ? profile.boreFloorM
+    const t = station.d / lengthM;
+    const blend = mountain?.bore ? t : t * t * (3 - 2 * t);
+    const floorY = mountain ? mountain.startY + (mountain.endY - mountain.startY) * blend
+      : fixedFloor ? metadata.nanpingDeckY : profile ? profile.boreFloorM
       + profile.approachGrade * Math.max(0, profile.northPortalZ - station.z, station.z - profile.southPortalZ)
       : resolved[frameIndex] - depthM * sink - coverAllowance;
     const groundY = Number.isFinite(grounds[frameIndex]) ? grounds[frameIndex] : null;
@@ -828,11 +847,11 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
     record.pavementTriangles.push([leftA, rightA, rightB], [leftA, rightB, leftB]);
   }
   // 地面引道和洞口的端断面法线可能不同，按同一纵坡外推短搭接，补齐两条斜边之间的缺口。
-  if (profile) {
+  if (profile || mountain) {
     for (const [shared, portal, inner] of [[record.sharedStart, frames[0], frames[1]],
       [record.sharedEnd, frames.at(-1), frames.at(-2)]]) {
       if (!shared) continue;
-      const scale = 4 / Math.hypot(portal.x - inner.x, portal.z - inner.z);
+      const scale = (mountain ? 1 : 4) / Math.hypot(portal.x - inner.x, portal.z - inner.z);
       const dx = (portal.x - inner.x) * scale;
       const dz = (portal.z - inner.z) * scale;
       const y = portal.floorY + (portal.floorY - inner.floorY) * scale;
@@ -849,8 +868,10 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
   // 洞身段：相邻两站覆盖高差中点为「地形 - 路面 > 5.6 m」的区间；以上开敞引道只铺路面。
   const bore = [];
   for (let i = 1; i < frames.length; i++) {
-    if (fixedFloor) {
-      bore.push(true);
+    if (fixedFloor || mountain) {
+      const mid = (frames[i - 1].d + frames[i].d) / 2;
+      bore.push(!mountain || (mountain.bore && mid >= (mountain.openStartM ?? 0)
+        && mid <= lengthM - (mountain.openEndM ?? 0)));
       continue;
     }
     if (profile) {
@@ -865,7 +886,8 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
   }
   measureRoadProfile(record.gradeProfile, frames, i => bore[i] ? 'bore' : 'approach');
   recordTunnelTerrainSeams(record.gradeProfile, frames, startNode, endNode,
-    !fixedFloor && record.sharedStart, !fixedFloor && record.sharedEnd, groundHeight);
+    !fixedFloor && record.sharedStart && !mountain?.deckPortals?.some(([node]) => node === startNode),
+    !fixedFloor && record.sharedEnd && !mountain?.deckPortals?.some(([node]) => node === endNode), groundHeight);
   for (let i = 1; i < bore.length; i++) {
     if (bore[i - 1] === bore[i]) continue;
     const frame = frames[i];
@@ -895,6 +917,23 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
   const concrete = record.chunkTriangles.concrete;
   const asphalt = record.chunkTriangles.asphalt;
   const colliders = record.colliders;
+  if (mountain?.baseHeight) {
+    for (let i = 1; i < frames.length; i++) {
+      if (bore[i - 1]) continue;
+      const a = frames[i - 1], b = frames[i];
+      for (const [side, sign] of [['left', 1], ['right', -1]]) {
+        const topAt = frame => Math.max(frame.floorY, mountain.baseHeight(
+          frame[side].x + frame.nx * sign * WALL_THICKNESS_M,
+          frame[side].z + frame.nz * sign * WALL_THICKNESS_M) ?? frame.floorY);
+        const yA = topAt(a), yB = topAt(b);
+        if (Math.max(yA - a.floorY, yB - b.floorY) < 0.04) continue;
+        cityQuad(concrete, { ...a[side], y: a.floorY }, { ...b[side], y: b.floorY },
+          { ...b[side], y: yB }, { ...a[side], y: yA },
+          { x: -sign * (a.nx + b.nx), y: 0, z: -sign * (a.nz + b.nz) });
+        colliders.push(wallCollider({ ...a, ceilingY: yA }, { ...b, ceilingY: yB }, side));
+      }
+    }
+  }
   for (const run of runs) {
     const firstStation = run.firstInterval;
     const lastStation = run.lastInterval + 1;
@@ -936,16 +975,16 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
       cityQuad(light, at(-lightHalf, -axial), at(lightHalf, -axial), at(lightHalf, axial), at(-lightHalf, axial), DOWN);
     }
     // 洞身与开敞段相接的两个断面建洞门；链路边界上的洞身段不建，留给相邻链路续接。
-    if (firstStation > 0 || (fixedFloor && deckPortals?.has(startNode))) {
-      record.portals.push(tunnelPortal(concrete, frames[firstStation], -1, width));
+    if (firstStation > 0 || mountain?.portalStart || (fixedFloor && deckPortals?.has(startNode))) {
+      record.portals.push(tunnelPortal(concrete, frames[firstStation], -1, width, mountain?.baseHeight));
     }
-    if (lastStation < frames.length - 1 || (fixedFloor && deckPortals?.has(endNode))) {
-      record.portals.push(tunnelPortal(concrete, frames[lastStation], 1, width));
+    if (lastStation < frames.length - 1 || mountain?.portalEnd || (fixedFloor && deckPortals?.has(endNode))) {
+      record.portals.push(tunnelPortal(concrete, frames[lastStation], 1, width, mountain?.baseHeight));
     }
   }
   record.portalCount = record.portals.length;
   // 净空固定 5.2 m，只有纵坡超限或没有洞身地形时不可车行；连通性在链路之间再判。
-  if (profile || deckPortals) record.maxGrade = record.gradeProfile.maxGrade;
+  if (profile || deckPortals || mountain) record.maxGrade = record.gradeProfile.maxGrade;
   record.drivable = record.maxGrade <= TUNNEL_DRIVE_MAX_GRADE + EPSILON;
   if (!record.drivable) record.blockedReason = 'grade';
   return record;
@@ -967,9 +1006,10 @@ function tunnelChunkCell(grid, ix, iz) {
 // 路面——平地下穿也必须有可渲染的路面，但路面不进 chunks（洞身结构为空即无洞）。
 function buildTunnelGridChunks(records, mode = 'structure') {
   const grid = new Map();
-  const materials = mode === 'pavement' ? ['asphalt'] : ['concrete', 'light'];
+  const pavement = mode !== 'structure';
+  const materials = pavement ? ['asphalt'] : ['concrete', 'light'];
   for (const record of records) {
-    const buckets = mode === 'pavement' ? { asphalt: record.pavementTriangles } : record.chunkTriangles;
+    const buckets = pavement ? { asphalt: record.pavementTriangles } : record.chunkTriangles;
     for (const material of materials) {
       for (const triangle of buckets[material]) {
         const cx = (triangle[0].x + triangle[1].x + triangle[2].x) / 3;
@@ -990,7 +1030,7 @@ function buildTunnelGridChunks(records, mode = 'structure') {
       }
     }
   }
-  const prefix = mode === 'pavement' ? 'sz-tunnels:pavement:' : 'sz-tunnels:';
+  const prefix = pavement ? `sz-tunnels:pavement:${mode === 'mountain' ? 'mountain:' : ''}` : 'sz-tunnels:';
   return [...grid.values()].map(cell => {
     const origin = [cell.ix * TUNNEL_GRID_M, cell.iz * TUNNEL_GRID_M];
     const positions = [];
@@ -1172,13 +1212,18 @@ function planWholeCity(graph, terrainSurface, options) {
   }
   for (let index = 0; index < graph.links.length; index++) {
     const metadata = graph.metadata[index];
-    if (!metadata || metadata.tunnel !== true) continue;
+    if (!metadata || (metadata.tunnel !== true && !metadata.mountainTunnel)) continue;
+    if (metadata.mountainTunnel?.deckPortals?.length) {
+      deckPortals.set(index, new Map(metadata.mountainTunnel.deckPortals));
+    }
     records.push(planCityTunnel(graph, graph.links[index], index, metadata, groundHeight, groundNodes,
       profiles.get(metadata.osmId), deckPortals.get(index)));
   }
   tunnelComponents(records);
   for (const record of records) {
-    if (Number.isFinite(graph.metadata[record.index]?.nanpingDeckY)) {
+    const metadata = graph.metadata[record.index];
+    if (Number.isFinite(metadata?.nanpingDeckY) || (metadata?.mountainTunnel?.deckPortals?.length
+      && ![record.startNode, record.endNode].some(node => groundNodes.has(node)))) {
       record.structureNeighbors = record.structureNeighbors.filter(id => id !== 'terrain');
     }
     for (const peers of deckPortals.get(record.index)?.values() ?? []) {
@@ -1194,7 +1239,10 @@ function planWholeCity(graph, terrainSurface, options) {
     climbableFromGround: true
   }));
   const chunks = buildTunnelGridChunks(built);
-  const pavementChunks = buildTunnelGridChunks(built, 'pavement');
+  const pavementChunks = [
+    ...buildTunnelGridChunks(built.filter(record => !record.mountainPavement), 'pavement'),
+    ...buildTunnelGridChunks(built.filter(record => record.mountainPavement), 'mountain')
+  ];
   const colliders = built.flatMap(record => record.colliders);
   const portals = built.flatMap(record => record.portals.map(portal => ({ osmId: record.osmId, index: record.index, ...portal })));
   const driveLinks = links.filter(link => link.drivable);
@@ -1430,7 +1478,8 @@ export function buildSzTunnels(scene, options = {}) {
     // 洞身分块按材质分段（混凝土 / 灯带）；路面分块与分区模式用单材质整块。
     const pavement = chunk.id.includes(':pavement:');
     const grouped = !pavement && Array.isArray(chunk.groups) && chunk.groups.length > 0;
-    const material = grouped ? createCityMaterials() : createSurfaceMaterial();
+    const material = chunk.id.startsWith('sz-tunnels:pavement:mountain:') ? createSzRoadSurfaceMaterial()
+      : grouped ? createCityMaterials() : createSurfaceMaterial();
     if (grouped && typeof geometry.addGroup === 'function') {
       for (const groupRange of chunk.groups) {
         geometry.addGroup(groupRange.start, groupRange.count, groupRange.materialIndex);

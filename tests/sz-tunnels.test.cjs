@@ -49,6 +49,7 @@ function loadTunnels(three = {}) {
     './sz-ground-surface.js': groundSurface,
     './sz-polygon.js': polygonModule,
     './sz-road-profile.js': roadProfile,
+    './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) },
     './sz-road-section.js': loadModule(read('sz-road-section.js')),
     './sz-interchange-levels.js': loadModule(read('sz-interchange-levels.js')),
     './sz-elevated-roads.js': { SHENZHEN_INTERCHANGES: DEFAULT_INTERCHANGES }
@@ -393,6 +394,7 @@ test('real THREE build raycasts the tunnel floor from inside the bore',
     const module = loadModule(auditSource, { imports: {
       'three/webgpu': THREE,
       './sz-roads.js': realRoads,
+      './sz-road-material.js': { createSzRoadSurfaceMaterial: () => new THREE.MeshStandardNodeMaterial({ color: 0x3b3d41 }) },
       './sz-ground-surface.js': groundSurface,
       './sz-polygon.js': polygonModule,
       './sz-road-profile.js': roadProfile,

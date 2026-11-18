@@ -319,6 +319,54 @@ function subtractFootprint(polygon, footprint, result) {
   result.push(...(hasArea(inside) ? pieces : [polygon]));
 }
 
+// 山路开敞引道与地面道路共用足迹裁切，保留原网格与未切到的三角面。
+export function cutTerrainOpenings(surface, rings) {
+  const { cells, addFootprint } = footprintIndex(surface.grid);
+  for (const ring of rings) addFootprint(convexHull(ring), null);
+  const chunks = surface.chunks.map(chunk => {
+    if (!chunk.cellRanges.some((value, index) => index % 3 === 0 && cells[value])) return chunk;
+    const positions = Array.from(chunk.positions), kinds = Array.from(chunk.kinds);
+    const indices = [], cellRanges = [];
+    const [originX, originZ] = chunk.origin;
+    for (let i = 0; i < chunk.cellRanges.length; i += 3) {
+      const [cell, start, count] = chunk.cellRanges.slice(i, i + 3);
+      const nextStart = indices.length;
+      for (let k = start; k < start + count; k += 3) {
+        const triangle = Array.from(chunk.indices.slice(k, k + 3));
+        if (!cells[cell]) {
+          indices.push(...triangle);
+          continue;
+        }
+        const polygon = triangle.map(index => ({ x: chunk.positions[3 * index] + originX,
+          y: chunk.positions[3 * index + 1], z: chunk.positions[3 * index + 2] + originZ }));
+        const bounds = boundsOf(polygon);
+        let remaining = [polygon];
+        for (const footprint of cells[cell]) {
+          if (!overlaps(footprint.bounds, bounds)) continue;
+          const pieces = [];
+          for (const part of remaining) subtractFootprint(part, footprint, pieces);
+          remaining = pieces;
+        }
+        for (const part of remaining) {
+          if (part === polygon) {
+            indices.push(...triangle);
+            continue;
+          }
+          const first = kinds.length;
+          for (const { x, y, z } of part) {
+            positions.push(x - originX, y, z - originZ);
+            kinds.push(chunk.kinds[triangle[0]]);
+          }
+          for (let j = 1; j < part.length - 1; j++) indices.push(first, first + j, first + j + 1);
+        }
+      }
+      if (indices.length > nextStart) cellRanges.push(cell, nextStart, indices.length - nextStart);
+    }
+    return { ...chunk, positions, kinds, indices, cellRanges };
+  });
+  return { ...surface, chunks };
+}
+
 function appendTriangles(vertices, polygon, [originX, originZ], plane, treatment, minTwiceArea = EPSILON) {
   const local = polygon.map(p => {
     const x = Math.fround(p.x - originX);

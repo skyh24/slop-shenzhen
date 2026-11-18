@@ -1,7 +1,8 @@
 import { spatialIndex } from './sz-spatial.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { isWater, nearRoadsForFrontage } from './sz-city-config.js';
-import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
+import { GEO as CITY_GEO, REAL_BUILDINGS } from './sz-geodata.js';
+import { prepareMountainTunnels } from './sz-mountain-tunnels.js';
 import { createSceneStyle } from './sz-scene-style.js';
 import { createGroundSurfaceSampler, buildSzGround } from './sz-ground.js';
 import { createBayPathLookup } from './sz-bay-waterfront.js';
@@ -47,6 +48,7 @@ import { sceneUniforms } from './sz-materials.js';
 
 // 离线规划与正式场景共用地面、建筑、桥梁及树冠的生成顺序和接触面。
 export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, startup, offline = false, captureExpoLayout }) {
+  const GEO = qa.measureBuild('mountainTunnels', () => prepareMountainTunnels(CITY_GEO));
   const frontageLight = { ...COCO_PARK_ENTRANCE, night: sceneUniforms.night };
   const ground = qa.measureBuild('ground', () => buildSzGround(scene, GEO.terrainSurface, { frontageLight }));
   const sea = !offline && qa.measureBuild('sea', () => buildSzSea(scene, GEO.seaSurface));
