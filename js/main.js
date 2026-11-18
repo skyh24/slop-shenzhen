@@ -30,6 +30,7 @@ import { VEHICLE_SPECS } from './sz-vehicles.js';
 import { sceneUniforms } from './sz-materials.js';
 import { cityUniforms } from './city-lighting-materials.js';
 import { dayPhase } from './sz-day-phase.js';
+import { createFrameClock } from './sz-frame-clock.js';
 import { ThirdPersonControllerManager, FLIGHT_START_ALTITUDE, PLAYER_SPEED_LIMITS } from './controllers.js';
 import { TouchControls } from './touch-controls.js';
 import { GamepadControls } from './gamepad-controls.js';
@@ -57,7 +58,9 @@ async function initApp() {
   let graphicsLoss = null;
   let droneWatch;
   let renderedFrames = 0;
-  let elapsed = 0;
+  // 帧时钟：模拟步长与播放步长分开，后台恢复的首帧播放进度为 0；绝对墙钟仍由 now 直接传给需要的消费者。
+  const frameClock = createFrameClock(performance.now(), { hidden: document.hidden });
+  document.addEventListener('visibilitychange', () => frameClock.setHidden(document.hidden));
   // QA 调试入口只在回环地址的 ?qa=1 下安装；固定机位、?skip= 阶段开关和帧采样都在 js/sz-qa.js。
   const qa = createQaSession({ search: location.search, hostname: location.hostname, defaultChunkSize: BUILDING_RENDER_CHUNK_SIZE });
 
@@ -810,7 +813,7 @@ async function initApp() {
         elevatedRoads, tunnels, metroEntrances, futian: futianStation, xili: xiliConstruction, northStation
       },
       teleport: teleportTo,
-      getElapsed: () => elapsed,
+      getElapsed: () => frameClock.elapsed,
       getRenderedFrames: () => renderedFrames,
       getGraphicsLoss: () => graphicsLoss
     });
@@ -904,9 +907,6 @@ async function initApp() {
   markInit('compile');
   await showLoadingStage(STR.startup.warmup, 'warmup');
 
-  let lastTime = performance.now();
-  let railResuming = false;
-  document.addEventListener('visibilitychange', () => { railResuming = true; });
   let nextPlayerSave = 0;
   let warmedUp = false; // see the first frame below
 
@@ -916,10 +916,7 @@ async function initApp() {
     if (graphicsLoss) return;
     // QA 采样令牌：非 qa 或未就绪时返回 null，下面几个调用都按空操作处理。
     const profile = qa.beginFrame(audioSystem.ready);
-    const rawDt = (now - lastTime) * 0.001;
-    lastTime = now;
-    const dt = Math.min(Math.max(rawDt, 0.001), 0.05);
-    elapsed += dt;
+    const { raw: rawDt, simulation: dt, playback, elapsed } = frameClock.advance(now);
 
     gamepadControls.update(dt);
     roadFrontage.update(elapsed);
@@ -946,7 +943,7 @@ async function initApp() {
         manual: takeover, steering: Boolean(left || right) });
       controllerManager.update(dt, elapsed, autoInput);
     }
-    const prefetch = cruiseUi.update(now, rawDt);
+    const prefetch = cruiseUi.update(now, playback);
     drivingAssists.render(carLaneAvailable());
     speedCruise.render();
     const hintMode = autoDrive.cruising ? 'cruiseCar' : autoCarAvailable() ? 'autoCar' : controllerManager.activeMode;
@@ -961,12 +958,11 @@ async function initApp() {
     districts.update(cameraSystem.camera.position);
     apecTheme.update(dt);
     apecCity.update(dt);
-    showSession.update(rawDt);
+    showSession.update(playback);
     lightShow.update();
     themeParks.update(now * 0.001, dayPhase.isDeepNight, cameraSystem.camera.position);
     regional.update(active.position, cameraSystem.camera.position);
-    northStation?.update(document.hidden || railResuming ? 0 : rawDt, cameraSystem.camera.position, audioSystem);
-    railResuming = false;
+    northStation?.update(playback, cameraSystem.camera.position, audioSystem);
     futianStation?.update(cameraSystem.camera.position);
     xiliConstruction?.update();
     buildingSigns.update(cameraSystem.camera.position);
@@ -1024,7 +1020,7 @@ async function initApp() {
   const boot = globalThis.__szBoot;
   if (graphicsLoss || boot?.state === 'failed') return;
   markInit('gpu');
-  lastTime = performance.now();
+  frameClock.reset(performance.now());
   await renderer.setAnimationLoop(renderFrame);
   if (graphicsLoss || boot?.state === 'failed') return;
   console.log(`[init] ${initTimings.join(', ')}`);

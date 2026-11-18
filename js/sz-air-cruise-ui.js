@@ -45,11 +45,12 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
       closePopovers();
       cameraSystem.initialized = false;
     },
-    update(_route, now, rawDt) {
+    update(_route, now, playbackDt) {
       const prefetch = cruise.prefetch();
       if (!prefetch) return null;
       const ready = !buildingDetails.readyNear || (buildingDetails.readyNear(cruise.entity.position) && buildingDetails.readyNear(prefetch));
-      cruise.update(document.hidden ? 0 : Math.max(0, Math.min(0.1, rawDt)), ready);
+      // 播放步长来自入口帧时钟（隐藏/恢复首帧为 0）；巡游仍需单帧封顶，位置不随长帧前跳。
+      cruise.update(Math.max(0, Math.min(0.1, playbackDt)), ready);
       render(now);
       return prefetch;
     },
@@ -192,6 +193,6 @@ export function wireAirCruise({ cruise, cameraSystem, controllerManager, mapSyst
 
   return {
     close,
-    update: (now, rawDt) => session.update(now, rawDt) ?? null
+    update: (now, playbackDt) => session.update(now, playbackDt) ?? null
   };
 }
