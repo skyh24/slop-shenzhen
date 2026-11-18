@@ -4,6 +4,7 @@ import { createLandmarkMaterial } from './materials.js';
 import { partCollider } from './parts.js';
 import { renderLandmark, renderLandmarkTrim } from './render.js';
 import { addSportsGround } from './sports-ground.js';
+import { tencentSignMaterial } from './tencent-signs.js';
 
 export function buildSzLandmarks(scene, { buildings, terrain, terrainSurface, sites = {}, heightAt, groundHeight, roadHeight, northRail, programEmission = null }) {
   const { plans, skipIds } = planSzLandmarks(buildings, terrain, sites, { heightAt, groundHeight, roadHeight, northRail });
@@ -22,6 +23,14 @@ export function buildSzLandmarks(scene, { buildings, terrain, terrainSurface, si
   for (const plan of plans) {
     const result = renderLandmark(plan, materialFor);
     group.add(result.group);
+    for (const sign of plan.signs) {
+      if (!materials.has(sign.style)) materials.set(sign.style, tencentSignMaterial(sign.style));
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(sign.width, sign.height), materials.get(sign.style));
+      mesh.name = sign.style;
+      mesh.position.set(sign.x, sign.y, sign.z);
+      mesh.rotation.set(sign.pitch ?? 0, sign.yaw, 0, 'YXZ');
+      result.group.add(mesh);
+    }
     const trimStyles = new Map();
     for (const item of plan.trim) {
       const style = item.style ?? 'landmarkEdge';

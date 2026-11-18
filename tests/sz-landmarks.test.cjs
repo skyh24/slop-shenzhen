@@ -253,18 +253,15 @@ test('priority landmarks keep distinct footprints, height provenance and open lo
   const old = byLandmark.get('tencent-towers');
   const coast = byLandmark.get('tencent-binhai');
   assert.ok(old.every(part => !coast.some(row => row.sourceId === part.sourceId)));
-  const tip = old.filter(part => part.id.startsWith('tencent-towers:shaft')).at(-1);
   const first = old.find(part => part.id.startsWith('tencent-towers:shaft'));
-  assert.equal(tip.heightSource, 'published');
-  assert.ok(tip.maxY - first.minY > 184.7 && tip.maxY - first.minY < 184.9);
-  // 冠部不是平顶：上环每个顶点高度不同，两端起翘、中间下凹。
-  const crown = old.find(part => part.id === 'tencent-towers:shaft:crown');
-  assert.ok(crown?.crownLoft);
-  assert.equal(crown.heightSource, 'published');
-  const crownTops = crown.crownLoft.topYs;
-  assert.ok(crownTops.length > 20);
-  assert.ok(Math.max(...crownTops) - Math.min(...crownTops) > 11);
-  assert.equal(crown.maxY, Math.max(...crownTops));
+  const tips = [-1, 1].map(side => old.filter(part => part.id.startsWith(`tencent-towers:crown:${side}:`)).at(-1));
+  for (const tip of tips) {
+    assert.equal(tip.heightSource, 'published');
+    assert.ok(tip.maxY - first.minY > 184.7 && tip.maxY - first.minY < 184.9);
+    assert.ok(tip.maxX - tip.minX > 50);
+  }
+  assert.ok(Math.max(...tips[0].loft.upper.map(p => p.z)) < Math.min(...tips[1].loft.upper.map(p => p.z)));
+  assert.deepEqual(Array.from(plan.plans.find(model => model.id === 'tencent-towers').signs, sign => sign.style), ['tencentBadge', 'tencentWordmark']);
   const spears = byLandmark.get('diwang').filter(part => part.id.startsWith('diwang:spire'));
   assert.equal(spears.length, 2);
   assert.ok(spears.every(part => part.heightSource === 'published' && part.maxY === 392));

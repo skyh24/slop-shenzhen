@@ -87,11 +87,11 @@ export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, grou
     // 已核场地与玩家活动地面一同传入；贴地接驳用显示面，楼体估高仍用原地形。
     const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {}, heightAt, groundHeight, roadHeight, northRail };
     const model = definition.build(source, terrain, context);
-    const { parts, patches = [], trim = [], approaches = [], reservesField } = Array.isArray(model) ? { parts: model } : model;
+    const { parts, patches = [], signs = [], trim = [], approaches = [], reservesField } = Array.isArray(model) ? { parts: model } : model;
     if (parts.length === 0) continue;
     for (const id of sourceIds) skipIds.add(id);
     for (const id of definition.optionalSkipIds ?? []) if (source.has(id)) skipIds.add(id);
-    plans.push({ id: definition.id, parts, patches, reservesField, approaches: definition.approaches?.(source) ?? approaches,
+    plans.push({ id: definition.id, parts, patches, signs, reservesField, approaches: definition.approaches?.(source) ?? approaches,
       trim: definition.trim?.(parts, source) ?? trim });
   }
   // 场地接管与地标接管合并成一份 skipIds：超级总部/西丽场地轮廓内的旧通用楼不再单独渲染。

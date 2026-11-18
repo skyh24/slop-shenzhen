@@ -19,7 +19,7 @@ const styles = {
   tencentTower: { metal: 0xc9d0d5, glass: 0x60819c, roof: 0x879096, bay: 1.58, floor: 4.87, fin: 0.22, sill: 0.092, lit: 0.15, rough: 0.16, glow: 0xeeeaf2 },
   tencentPodium: { metal: 0xaab2af, glass: 0x556d79, roof: 0x697371, bay: 3.1, floor: 6.9, fin: 0.12, sill: 0.065, lit: 0.1, rough: 0.24, glow: 0xffca97 },
   tencentCopper: { metal: 0xb87543, glass: 0x93603f, roof: 0x776454, bay: 1.38, floor: 5.4, fin: 0.24, sill: 0.095, lit: 0.21, rough: 0.26, glow: 0xffb179 },
-  tencentLegacyGlass: { metal: 0xbec8ce, glass: 0x2f465c, roof: 0x4c5a66, bay: 2.22, floor: 4.72, fin: 0.075, sill: 0.2, lit: 0.09, rough: 0.21, glow: 0xd6e6ff, wash: 0.035 },
+  tencentLegacyGlass: { metal: 0x435965, glass: 0x99acb4, roof: 0x4c5a66, bay: 2.22, floor: 4.72, fin: 0.045, sill: 0.40, lit: 0.09, rough: 0.21, glow: 0xd6e6ff, wash: 0.035 },
   landmarkLobby: { metal: 0x839095, glass: 0x3e545a, roof: 0x8a8b82, bay: 2.7, floor: 7.8, fin: 0.09, sill: 0.1, lit: 0.22, rough: 0.31, glow: 0xffdfb7, wash: 0.15 },
   libraryRibbon: { metal: 0xb7c1be, glass: 0x51696c, roof: 0xa7adab, bay: 1.75, floor: 3.4, fin: 0.11, sill: 0.14, lit: 0.12, rough: 0.31, glow: 0xffdfbc, wash: 0.12 },
   diwangShaft: { metal: 0x9b9987, glass: 0x2c6863, roof: 0x728477, bay: 4.4, floor: 4.35, fin: 0.20, sill: 0.10, lit: 0.12, rough: 0.21, glow: 0xc8f2de, wash: 0.047 },
@@ -252,6 +252,15 @@ export function createLandmarkMaterial(name, programEmission = null) {
       metalness: name === 'sportsRoof' || name === 'sportsFin' ? 0.22 : 0,
       polygonOffset: decal, polygonOffsetFactor: bias, polygonOffsetUnits: bias,
       ...(name === 'sportsLamp' ? { emissive: 0xf3dab0, emissiveIntensity: 0.65 } : {}) });
+  }
+  if (name === 'tencentLegacyGlass' || name === 'tencentLouvers') {
+    const material = facadeMaterial(styles.tencentLegacyGlass);
+    const row = uv().y.div(0.79);
+    const blade = sin(row.mul(Math.PI * 2)).mul(smoothstep(0.14, 0.5, fwidth(row)).oneMinus());
+    const louvers = mix(color(0x304754), color(0x81939c), blade.mul(0.5).add(0.5));
+    const end = name === 'tencentLouvers' ? float(1) : smoothstep(0.28, 0.88, abs(normalWorldGeometry.x));
+    material.colorNode = mix(material.colorNode, louvers, end);
+    return material;
   }
   if (Object.hasOwn(styles, name)) {
     return facadeMaterial(styles[name], CBD_GLASS_STYLES.has(name) ? programEmission : null);
