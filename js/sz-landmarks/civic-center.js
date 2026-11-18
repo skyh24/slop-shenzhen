@@ -20,9 +20,13 @@ const glassIds = [
 ];
 const annexIds = ['way/781536981', 'way/781536982', 'way/781536983', 'way/781536984'];
 
+// 市城管局记载广场东西两侧各三座光塔。六个成对的 OSM 足迹统一标有玻璃和 20 米高，场景沿用源楼高。
+const lightTowerIds = ['way/781536987', 'way/781536988', 'way/781536989',
+  'way/781536990', 'way/781536991', 'way/781536992'];
+
 export const sourceIds = [platformId, roundTowerId, squareTowerId, ...roofIds, ...glassIds, ...annexIds];
-// 原始 Overture 条目注明来自 OSM，其多边形与父关系重合。
-export const optionalSkipIds = ['overture/9b9ca793-5c25-4b18-a954-8762180c50ff'];
+// 跳过与父关系重合的 Overture 足迹，以及已用光塔材质接管的 OSM 足迹。
+export const optionalSkipIds = ['overture/9b9ca793-5c25-4b18-a954-8762180c50ff', ...lightTowerIds];
 
 const roofGrid = 13;
 const maxCanopyRise = 80;
@@ -291,6 +295,10 @@ export function build(buildings, terrain) {
     ...annexIds.flatMap(id => {
       const source = buildings.get(id);
       return footprintParts(source, baseAt(source, terrain), 'civicStone');
+    }),
+    ...lightTowerIds.flatMap(id => {
+      const source = buildings.get(id);
+      return source ? footprintParts(source, baseAt(source, terrain), 'civicLightTower', { roofContact: true }) : [];
     }),
     ...towerParts(buildings.get(roundTowerId), terrain, base, true),
     ...towerParts(buildings.get(squareTowerId), terrain, base, false),

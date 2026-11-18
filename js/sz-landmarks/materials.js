@@ -303,6 +303,7 @@ export function createLandmarkMaterial(name, programEmission = null) {
     case 'civicPillar': return new THREE.MeshStandardMaterial({ color: 0xd2d3cf, metalness: 0.14, roughness: 0.52 });
     case 'civicTowerRed': return nightSurface(0xb83425, 0.53, 0.09, 0xffdcb8, 0.09);
     case 'civicTowerYellow': return nightSurface(0xe3a622, 0.53, 0.09, 0xffe6bd, 0.10);
+    case 'civicLightTower': return nightSurface(0xabc4cb, 0.26, 0.22, 0xc6e7ff, 0.62);
     case 'civicStone': return nightSurface(0xb5b6b5, 0.76, 0, 0xe8d9bf, 0.08);
     case 'pressEye': return roofMaterial(0x1e5364, 0x25454e, 0.21);
     case 'stadiumRib': return roofMaterial(0xd3dde0, 0xbac4c7, 0.69, 0.05, 0.06);

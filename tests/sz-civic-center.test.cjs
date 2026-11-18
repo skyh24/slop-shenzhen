@@ -82,6 +82,22 @@ test('Civic Center binds the complete OSM roof and preserves the four wing court
   for (const x of [-201, -147, 154, 209]) assert.equal(canopyAt(x, 0), undefined);
 });
 
+test('Civic Square keeps six glass light towers at the source height', () => {
+  const towers = model.filter(part => part.style === 'civicLightTower');
+  assert.equal(towers.length, 6);
+  assert.equal(towers.filter(tower => tower.minX < 0).length, 3);
+  for (const tower of towers) {
+    const source = sources.get(tower.sourceId);
+    const { minY, maxY } = placement.buildingPlacement(source, geo.terrain);
+    assert.ok(civic.optionalSkipIds.includes(source.id));
+    assert.equal(tower.polygon, source.polygons[0]);
+    assert.equal(tower.minY, Math.fround(minY));
+    assert.equal(tower.maxY, maxY);
+    assert.equal(tower.heightSource, 'osm-height');
+    assert.equal(tower.roofContact, true);
+  }
+});
+
 test('Civic Center has two source-aligned slanted tower crowns and an open central span', () => {
   for (const [id, style, outside] of [
     ['way/616988599', 'civicTowerYellow', 'minX'], ['way/616988601', 'civicTowerRed', 'maxX']

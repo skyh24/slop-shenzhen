@@ -8,6 +8,10 @@ const test = require('node:test');
 
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR ?? resolve(__dirname, '../.agents/three-0.187.0');
 registerHooks({ resolve(specifier, context, next) {
+  // 普通体块测试显式传入已解包的建筑和地形，Node 无需请求默认城市包。
+  if (specifier === './sz-geodata.js' && context.parentURL?.endsWith('/sz-buildings.js')) {
+    return { url: 'data:text/javascript,export const GEO=null, REAL_BUILDINGS=[]', shortCircuit: true };
+  }
   const name = { 'three/webgpu': 'three.webgpu.js', 'three/tsl': 'three.tsl.js' }[specifier];
   return name ? { url: pathToFileURL(resolve(threeDir, 'build', name)).href, shortCircuit: true } : next(specifier, context);
 } });
@@ -61,29 +65,57 @@ test('district replacements use reviewed OSM objects and retain sourced neighbor
   withoutBasin.dispose();
 });
 
-test('the Xiangmihu interchange outlines render as plain one-story solids with matching collision', async () => {
-  const { districts, buildings, site } = await load();
-  const { buildingPlacement } = await import('../js/sz-building-layout.js');
-  const group = districts.group.getObjectByName('xiangmihu-interchange-blocks');
-  const meshes = group.children.filter(child => child.isMesh);
-  assert.equal(meshes.length, 1);
-  assert.equal(group.getObjectByName('xiangmihu-interchange-blocks:detail').children.length, 0);
-  const positions = meshes[0].geometry.attributes.position;
-  for (const id of ['overture/9c8df500-092b-4917-ac95-1186f5e8e604', 'overture/2ed49f3c-8f4f-46e3-a2a3-32cb709bd37e']) {
-    assert.ok(districts.skipIds.has(id));
-    const building = buildings.find(b => b.id === id);
-    const { baseY } = buildingPlacement(building, site.terrain);
-    const collider = districts.colliders.find(c => c.sourceId === id);
+test('ordinary blocks simplify tiny and rotated narrow outlines with one shared roof and collision height', async () => {
+  const { buildings, site, districts } = await load();
+  const { Scene, Vector3, Raycaster } = await import('three/webgpu');
+  const { buildCityBlocks } = await import('../js/sz-buildings.js');
+  const { orientedBoxRing } = await import('../js/sz-polygon.js');
+  const ids = ['overture/9c8df500-092b-4917-ac95-1186f5e8e604', 'overture/2ed49f3c-8f4f-46e3-a2a3-32cb709bd37e'];
+  const interchange = ids.map(id => buildings.find(b => b.id === id));
+  assert.ok(ids.every(id => !districts.skipIds.has(id)));
+  const fixture = (id, cx, width, depth, extra = {}) => {
+    const outer = orientedBoxRing(cx, 50, width, depth, Math.SQRT1_2, Math.SQRT1_2);
+    const xs = outer.map(p => p.x), zs = outer.map(p => p.z);
+    return { ...interchange[0], id, cx, cz: 50, height: 20,
+      minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs),
+      polygons: [{ outer, holes: [] }], ...extra };
+  };
+  const compact = [...interchange, fixture('test/tiny', 0, 6, 6), fixture('test/narrow', 40, 25, 3)];
+  const protectedBuildings = [
+    fixture('test/wide', 80, 9, 9), fixture('test/long', 120, 40, 2),
+    fixture('test/known-height', 160, 6, 6, { heightSource: 'osm-height' }),
+    fixture('test/known-use', 200, 6, 6, { category: 'residential' }),
+    fixture('test/levels', 240, 6, 6, { levels: 2 }),
+    fixture('test/raised', 280, 6, 6, { minHeight: 4 }),
+    fixture('test/shop', 320, 6, 6, { retailFloors: 'ground' }),
+    fixture('test/part', 360, 6, 6, { role: 'part' }),
+    fixture('test/named', 400, 6, 6, { name: 'Named building' })
+  ];
+  const scene = new Scene();
+  const blocks = buildCityBlocks(scene, { buildings: [...compact, ...protectedBuildings], terrain: site.terrain,
+    retailIds: compact.map(b => b.id) });
+  scene.updateMatrixWorld(true);
+  for (const building of compact) {
+    const block = blocks.allBlocks.find(row => row.id === building.id);
+    const collider = blocks.colliders.find(row => row.sourceId === building.id);
+    assert.equal(block.sourceHeight, building.height);
+    assert.equal(block.height, 3.2);
     assert.equal(collider.polygon, building.polygons[0]);
-    assert.equal(collider.maxY, Math.fround(baseY + 3.2));
-    const ys = [];
-    for (let i = 0; i < positions.count; i++) {
-      if (positions.getX(i) >= building.minX - 0.001 && positions.getX(i) <= building.maxX + 0.001
-        && positions.getZ(i) >= building.minZ - 0.001 && positions.getZ(i) <= building.maxZ + 0.001) ys.push(positions.getY(i));
-    }
-    assert.ok(ys.length > 0);
-    assert.equal(Math.max(...ys), collider.maxY);
+    assert.equal(collider.maxY, Math.fround(block.baseY + 3.2));
+    assert.equal(collider.heightSource, 'estimate');
+    const ray = new Raycaster(new Vector3(building.cx, 200, building.cz), new Vector3(0, -1, 0));
+    const hit = ray.intersectObjects(blocks.group.children)[0];
+    assert.ok(Math.abs(hit.point.y - collider.maxY) < 1e-6);
+    assert.ok(hit.object.name.endsWith(':compact'));
+    assert.ok(blocks.surfaces.find(row => row.id === `${building.id}:roof:0`)
+      .triangles.every(triangle => triangle.every(point => point.y === collider.maxY)));
+    assert.ok(blocks.detailPlan.skipIds.has(building.id));
   }
+  for (const building of protectedBuildings) {
+    assert.equal(blocks.allBlocks.find(row => row.id === building.id).height, 20);
+    assert.equal(blocks.detailPlan.skipIds.has(building.id), false);
+  }
+  blocks.dispose();
 });
 
 test('reviewed toll roofs keep the ramps and Qianhai decks open beneath the source footprint', async () => {

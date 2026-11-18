@@ -45,6 +45,45 @@ const ROOF_EQUIPMENT_MIN_SIZE_M = 1.5;
 const ROOF_EQUIPMENT_SHRINK_STEPS = [1, 0.75, 0.55, 0.35];
 const ROOF_EQUIPMENT_GRID_MAX = 12;
 const flatRing = ring => ring.flatMap(p => [p.x, p.z]);
+const COMPACT_HEIGHT_M = 3.2;
+const COMPACT_AREA_M2 = 40;
+const NARROW_AREA_M2 = 120;
+const NARROW_WIDTH_M = 3.5;
+const COMPACT_MAX_DIAGONAL_M = 32;
+// 深南香蜜立交的两个已核轮廓沿用原场景设计，其中较大的轮廓不满足通用尺寸条件。
+const REVIEWED_COMPACT_IDS = new Set([
+  'overture/9c8df500-092b-4917-ac95-1186f5e8e604',
+  'overture/2ed49f3c-8f4f-46e3-a2a3-32cb709bd37e'
+]);
+
+function fitsNarrowStrip(ring) {
+  return ring.some((a, i) => {
+    const b = ring[(i + 1) % ring.length];
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const length = Math.hypot(dx, dz);
+    if (length < 0.01) return false;
+    let min = 0, max = 0;
+    for (const p of ring) {
+      const across = (dx * (p.z - a.z) - dz * (p.x - a.x)) / length;
+      min = Math.min(min, across);
+      max = Math.max(max, across);
+      if (max - min > NARROW_WIDTH_M) return false;
+    }
+    return true;
+  });
+}
+
+function isCompactBlock(building) {
+  if (building.heightSource !== 'estimate' || building.minHeight !== 0 || building.landmark
+    || building.name || building.levels > 0 || building.category !== 'unknown' || building.retailFloors
+    || building.foundation || (building.role && !['main', 'unknown'].includes(building.role))
+    || building.polygons.length !== 1 || building.polygons[0].holes.length > 0) return false;
+  if (REVIEWED_COMPACT_IDS.has(building.id)) return true;
+  if (Math.hypot(building.maxX - building.minX, building.maxZ - building.minZ) > COMPACT_MAX_DIAGONAL_M) return false;
+  const { outer } = building.polygons[0];
+  const area = ringArea(outer);
+  return area <= COMPACT_AREA_M2 || (area <= NARROW_AREA_M2 && fitsNarrowStrip(outer));
+}
 
 function ringBounds(ring) {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -419,11 +458,11 @@ function indexRetailFronts(buildings, retailIds, skipIds) {
  *  输出：{ group, colliders, surfaces, allBlocks, roofs, roofPlans, retailIds, detailPlan, update, dispose }。
  *  约束：所有体量都由共享包足迹+高度派生；heightSource 保留源数据，新增细节标 estimate。 */
 export function buildCityBlocks(scene, options = {}) {
-  const buildings = options.buildings !== undefined ? options.buildings : REAL_BUILDINGS;
-  if (!Array.isArray(buildings)) throw new Error('City blocks require a building list');
+  const sourceBuildings = options.buildings !== undefined ? options.buildings : REAL_BUILDINGS;
+  if (!Array.isArray(sourceBuildings)) throw new Error('City blocks require a building list');
   // 注入局部建筑集合时，地形、路网、入口和商圈索引都不得再隐式回落到全城 GEO；
   // 缺省生产调用（未传 buildings 或传入同一份 REAL_BUILDINGS）仍使用共享包。
-  const cityContext = options.buildings === undefined || buildings === REAL_BUILDINGS;
+  const cityContext = options.buildings === undefined || sourceBuildings === REAL_BUILDINGS;
   const terrain = options.terrain !== undefined ? options.terrain
     : cityContext ? GEO?.terrain : undefined;
   if (!terrain) throw new Error('Missing terrain for city blocks');
@@ -437,13 +476,21 @@ export function buildCityBlocks(scene, options = {}) {
   const entrances = options.entrances !== undefined ? options.entrances
     : cityContext ? [...(GEO?.roadFrontage?.entrances ?? []), ...(GEO?.metro?.entrances ?? [])] : [];
   // 商圈归属与零售店面必须读同一份 regions 和同一批 buildings；局部 fixture 不再混入全城索引。
+  const compactIds = new Set();
+  // 先确定场景体量，净空、共边和碰撞都使用同一高度；原始包仍保留原估值。
+  const buildings = sourceBuildings.map(building => {
+    if (skipIds.has(building.id) || !isCompactBlock(building)) return building;
+    compactIds.add(building.id);
+    return { ...building, sourceHeight: building.height, height: Math.min(building.height, COMPACT_HEIGHT_M) };
+  });
   const retailRegions = options.retail?.regions !== undefined ? options.retail.regions
     : cityContext ? GEO?.mapRegions?.regions : undefined;
   if (options.retailIds !== undefined && !Array.isArray(options.retailIds)
     && !(options.retailIds instanceof Set)) throw new Error('Retail ids must be an array or set');
   const retailIds = options.retailIds !== undefined ? new Set(options.retailIds)
     : retailBuildingIdsFromRegions(retailRegions, buildings);
-  const retailFront = indexRetailFronts(buildings, retailIds, skipIds);
+  const detailSkipIds = new Set([...skipIds, ...compactIds]);
+  const retailFront = indexRetailFronts(buildings, retailIds, detailSkipIds);
   const candidates = collectPodiumCandidates(buildings);
   const occupancy = candidates.length ? buildPodiumOccupancy(buildings, terrain, roadGraph, entrances, candidates) : [];
   const candidateByBuilding = new Map(candidates.map((candidate, index) => [candidate.buildingIndex, index]));
@@ -474,9 +521,10 @@ export function buildCityBlocks(scene, options = {}) {
         continue;
       }
     }
-    const participant = programEmission && programParticipant(building);
+    const compact = compactIds.has(building.id);
+    const participant = !compact && programEmission && programParticipant(building);
     if (participant) programIds.push(building.id);
-    const key = `${Math.floor(building.cx / renderChunkSize)},${Math.floor(building.cz / renderChunkSize)}${participant ? ':program' : ''}`;
+    const key = `${Math.floor(building.cx / renderChunkSize)},${Math.floor(building.cz / renderChunkSize)}${compact ? ':compact' : participant ? ':program' : ''}`;
     if (!batches.has(key)) batches.set(key, new GeoBuilder(true));
     const batch = batches.get(key);
     // K11 南馆仅换原外墙的材质，屋面、裙房、真实首层分段和碰撞继续走原楼管线。
@@ -488,7 +536,7 @@ export function buildCityBlocks(scene, options = {}) {
     const candidateIndex = candidateByBuilding.get(buildingIndex);
     const podium = candidateIndex === undefined ? null
       : podiumPlan(candidates[candidateIndex], occupancy[candidateIndex], placement, roadClearance);
-    const storefront = retailIds.has(building.id) && building.minHeight === 0 && building.height >= 3
+    const storefront = !compact && retailIds.has(building.id) && building.minHeight === 0 && building.height >= 3
       && building.category !== 'residential' && !building.landmark ? retailFront : null;
     const retailEdge = frontage && building.retailFloors && building.minHeight === 0 && !building.landmark
       ? (bounds, ...edge) => frontage.edge(building, bounds, ...edge, isK11South && !podium) : null;
@@ -591,8 +639,12 @@ export function buildCityBlocks(scene, options = {}) {
   const foundationMaterial = foundations.count
     ? new THREE.MeshStandardNodeMaterial({ color: 0x969084, roughness: 0.94 }) : null;
   const programMaterial = programIds.length ? createBuildingMaterial(programEmission) : null;
+  let compactMaterial;
   for (const [key, batch] of batches) {
-    const mesh = new THREE.Mesh(batch.build(), key.endsWith(':program') ? programMaterial : material);
+    const wallMaterial = key.endsWith(':compact')
+      ? (compactMaterial ??= new THREE.MeshStandardMaterial({ color: 0x9d998b, roughness: 0.94 }))
+      : key.endsWith(':program') ? programMaterial : material;
+    const mesh = new THREE.Mesh(batch.build(), wallMaterial);
     mesh.name = `ShenzhenBuildings:${key}`;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -618,7 +670,8 @@ export function buildCityBlocks(scene, options = {}) {
   const retailBuildingIds = frontage?.buildingsWithFrontage ?? new Set();
   // 近景入口的完整输入：同一批原始对象、地形、排除身份和基础占用都在这里收口。
   const detailPlan = createBuildingDetailPlan({
-    buildings, terrain, skipIds, duplicateIds, roadConflicts, roofPlans, retailBuildingIds, envelopePlans: envelopes
+    buildings: sourceBuildings, terrain, skipIds: detailSkipIds, duplicateIds, roadConflicts, roofPlans,
+    retailBuildingIds, envelopePlans: envelopes
   });
   return { group, colliders, surfaces, allBlocks, roadConflicts, roofPlans, envelopePlans: envelopes, duplicateIds, programIds,
     retailIds, detailPlan, retailDoors: frontage?.doors ?? [], retailBuildingIds,
@@ -631,6 +684,7 @@ export function buildCityBlocks(scene, options = {}) {
       foundationMaterial?.dispose();
       k11Material?.dispose();
       programMaterial?.dispose();
+      compactMaterial?.dispose();
       roofPlans.clear();
       envelopes.clear();
       duplicateIds.clear();

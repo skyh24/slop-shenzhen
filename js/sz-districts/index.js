@@ -5,17 +5,12 @@ import { distanceToRing, polygonContainsInclusive } from '../sz-polygon.js';
 import { STR } from '../sz-strings.js';
 import { buildB10, restyleBlock } from './facades.js';
 import { addBasin, addFixtures, addLowFence, addWalkLamps, buildDistrictGround, DISTRICT_FOCUS } from './ground.js';
-import { createDistrictKit, frame, solid } from './kit.js';
+import { createDistrictKit, frame } from './kit.js';
 import { buildMinghua, MINGHUA_ID } from './minghua.js';
 import { buildSouthGate, buildSouthPaifang, SOUTH_GATE_ID } from './nantou.js';
 import { buildTollCanopies } from './tolls.js';
 
 const B10 = 'way/435827468';
-// 深南香蜜立交西北环匝道内的两个无实测高度的补充轮廓。
-const XIANGMIHU_COMPACT_BLOCKS = [
-  'overture/9c8df500-092b-4917-ac95-1186f5e8e604',
-  'overture/2ed49f3c-8f4f-46e3-a2a3-32cb709bd37e'
-];
 // 以核对过的对象为白名单，保留未核实邻楼、原有高楼及车行路线。
 const OCT_BLOCKS = [
   ['way/333871652', 'brick', null, true], ['way/435827465', 'loft', null, false],
@@ -128,22 +123,6 @@ export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupie
   const active = [basin && 'sea', byId.has(B10) && 'oct', byId.has(SOUTH_GATE_ID) && 'nantou'].filter(Boolean);
   const ground = buildDistrictGround(group, site, active, roads, basin);
   const { colliders, skipIds } = buildTollCanopies(kit, site, byId, carriagewayOccupied, decks);
-  const compactBlocks = XIANGMIHU_COMPACT_BLOCKS.map(id => byId.get(id))
-    .filter(building => building?.heightSource === 'estimate' && building.minHeight === 0);
-  if (compactBlocks.length) {
-    const first = compactBlocks[0];
-    const view = kit.district('xiangmihu-interchange-blocks', { x: first.cx, z: first.cz });
-    for (const building of compactBlocks) {
-      const { baseY, foundationBottomY } = buildingPlacement(building, site.terrain);
-      const topY = Math.fround(baseY + 3.2);
-      for (const [index, polygon] of building.polygons.entries()) {
-        view.part(solid(`${building.id}:compact:${index}`, building, polygon, foundationBottomY ?? baseY, topY, 'concrete'));
-      }
-      skipIds.add(building.id);
-    }
-    view.finish();
-    colliders.push(...view.colliders);
-  }
   const heights = new Map(), trees = [], arrivals = {}, shops = [];
   const reserveEntries = (x, z, radius = 0) => shops.some(shop =>
     distanceToRing([shop.approach, shop.mouth], x, z) < 1.05 + radius);
