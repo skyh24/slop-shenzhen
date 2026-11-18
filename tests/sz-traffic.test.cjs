@@ -56,6 +56,7 @@ const three = {
 const load = (name, imports) => loadModule(readFileSync(join(__dirname, '../js', name), 'utf8'), { imports });
 const roads = load('sz-roads.js', { 'three/webgpu': three, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame });
 const signalModule = load('sz-intersection-control.js');
+const junctionModule = load('sz-junction-participant.js');
 const vehicleSpecs = {
   taxi: { track: 1.6, wheelbase: 2.8, radius: 0.35 }, sedan: { track: 1.6, wheelbase: 2.8, radius: 0.35 },
   suv: { track: 1.69, wheelbase: 2.9, radius: 0.38 }, minivan: { track: 1.69, wheelbase: 3.03, radius: 0.37 },
@@ -93,6 +94,7 @@ const { createTrafficGraph, createSzTraffic, laneRoute, playerImpact, poseOnRout
   trafficModelBounds, writeTrafficCollider } = load('sz-traffic.js', {
   'three/webgpu': three,
   './sz-intersection-control.js': signalModule,
+  './sz-junction-participant.js': junctionModule,
   './sz-roads.js': roads,
   './sz-road-section.js': sections,
   './sz-vehicles.js': trafficVehicles,
@@ -391,6 +393,23 @@ test('traffic stops for a held approach and clears the conflict area after green
   assert.ok(waiter.pose.x > afterGreen + 24);
   assert.equal(waiter.reservation, null);
   assert.equal(traffic.statistics.signalEntries, 1);
+});
+
+test('a recycled actor releases its junction ownership and pending request', () => {
+  const { graph, control } = signalRoad();
+  const traffic = createSzTraffic(new Group(), graph, { signals: control,
+    roadHeight: (x, z) => x >= 0 && x <= 900 && Math.abs(z) <= 5 ? 2 : null });
+  const focus = { x: 196, z: 0 };
+  for (let i = 0; i < 550; i++) traffic.update(0.05, focus, [], 5);
+  const waiter = traffic.vehicles.find(actor => actor.waitingForSignal);
+  assert.ok(waiter, 'expected a car queued at the red signal');
+  for (let i = 0; i < 45 && !waiter.reservation; i++) traffic.update(0.05, focus, [], 0.4);
+  assert.ok(waiter.reservation, 'the queued car owns the approach on green');
+  // 远距回收时占用与请求都由参与者的收尾步骤清理，不留给后面的车。
+  traffic.update(0.05, { x: 5000, z: 0 }, [], 0.4);
+  assert.equal(waiter.reservation, null);
+  const [junction] = control.snapshot(0.4);
+  assert.deepEqual([junction.owner, junction.requests.length], [null, 0]);
 });
 
 test('traffic refuses to reserve an intersection over a narrow unsupported gap in the exit', () => {
@@ -695,6 +714,7 @@ test('Chegongmiao route clears both junction guardrails and keeps its deck conta
   assert.ok(deckY > groundY + 4);
   const { createAutoDrive } = load('sz-auto-drive.js', {
     './sz-intersection-control.js': signalModule,
+    './sz-junction-participant.js': junctionModule,
     ...driving
   });
   const auto = createAutoDrive({ model, roadHeight });
