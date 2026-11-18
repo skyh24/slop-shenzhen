@@ -677,8 +677,12 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   const layer = roadDeckLayer(metadata, graph.names[link[2]]);
   const lift = liftOverride ?? roadDeckRise(layer, metadata);
   const urban = metadata.interchangeApproach;
-  const startLift = urban ? interchangeRise(urban.start) : lift;
-  const endLift = urban ? interchangeRise(urban.end) : lift;
+  const urbanLift = (distance, groundY) => {
+    const rise = interchangeRise(distance);
+    return urban.deckY === undefined ? rise : (urban.deckY - groundY) * rise / DECK_RISE_M;
+  };
+  const startLift = urban ? urbanLift(urban.start, startGround) : lift;
+  const endLift = urban ? urbanLift(urban.end, endGround) : lift;
   const sharedStart = !highway?.[2] && (groundNodes.has(start) || alignment?.portalStart === true);
   const sharedEnd = !highway?.[3] && (groundNodes.has(end) || alignment?.portalEnd === true);
   const fullStart = startGround + startLift;
@@ -720,10 +724,12 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   // 在两端分别扣除带方向的基准坡度；不移动源接点或改变桥梁层级。
   const startRampGrade = calibrated ? gradeBudget - signedBaseGrade : rampGrade;
   const endRampGrade = calibrated ? gradeBudget + signedBaseGrade : rampGrade;
-  const riseAt = distance => interchangeRise(Math.min(
-    urban.start + Math.max(0, distance - urban.delayStart),
-    urban.end + Math.max(0, length - distance - urban.delayEnd)
-  ));
+  const approachDistanceAt = distance => Math.min(urban.start + Math.max(0, distance - urban.delayStart),
+    urban.end + Math.max(0, length - distance - urban.delayEnd));
+  const urbanHeightAt = distance => {
+    const groundY = startGround + (endGround - startGround) * distance / length;
+    return groundY + urbanLift(approachDistanceAt(distance), groundY);
+  };
   const curve = highway?.[4];
   // 与构建期裁山共用控制点。接点处坡度回到零，让高架自然接回相邻断面。
   let deckHeightAt = curve ? distance => {
@@ -735,8 +741,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
     const t = (fraction - start) / (end - start);
     return y + (nextY - y) * t * t * (3 - 2 * t);
   } : highway ? distance => highway[0] + (highway[1] - highway[0]) * distance / length
-    : urban
-    ? distance => startGround + (endGround - startGround) * distance / length + riseAt(distance)
+    : urban ? urbanHeightAt
     : reviewed?.heightAt ?? (reviewed
     ? (d => {
       const [a, b] = reviewed.portalHeights;
@@ -850,7 +855,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   }
   const crossesApproach = frame => groundCrossings?.some(({ d, half, approachM }) =>
     Math.abs(frame.d - d) < half + approachM);
-  const isApproach = (a, b) => urban ? Math.min(riseAt(a.d), riseAt(b.d)) < lift - EPSILON : !reviewed && !crossing && (
+  const isApproach = (a, b) => urban ? interchangeRise(Math.min(approachDistanceAt(a.d), approachDistanceAt(b.d))) < lift - EPSILON : !reviewed && !crossing && (
     crossesApproach(a) || crossesApproach(b)
     || (highway && (!highway[2] || !highway[3]))
     || (sharedStart && a.d * startRampGrade < startLift - EPSILON)
@@ -1063,6 +1068,32 @@ function mergeNeighbors(records) {
   return neighbors;
 }
 
+// 已确认的同层辅道允许重叠车行面互相让出护栏。行车拓扑仍使用源节点。
+function interchangeDeckNeighbors(records, metadata, neighbors) {
+  const decks = records.filter(road => metadata[road.index]?.interchangeApproach);
+  const bounds = new Map(decks.map(road => {
+    const edges = road.frames.flatMap(({ left, right }) => [left, right]);
+    return [road, {
+      minX: Math.min(...edges.map(p => p.x)), maxX: Math.max(...edges.map(p => p.x)),
+      minZ: Math.min(...edges.map(p => p.z)), maxZ: Math.max(...edges.map(p => p.z))
+    }];
+  }));
+  for (const road of decks) {
+    const { id, sharesDeck } = metadata[road.index].interchangeApproach;
+    if (!sharesDeck) continue;
+    const a = bounds.get(road);
+    for (const peer of decks) {
+      if (peer === road || metadata[peer.index].interchangeApproach.id !== id) continue;
+      const b = bounds.get(peer);
+      if (a.maxX < b.minX || b.maxX < a.minX || a.maxZ < b.minZ || b.maxZ < a.minZ) continue;
+      if (!neighbors.has(road)) neighbors.set(road, new Set());
+      if (!neighbors.has(peer)) neighbors.set(peer, new Set());
+      neighbors.get(road).add(peer);
+      neighbors.get(peer).add(road);
+    }
+  }
+}
+
 // 按实际桥面三角面索引，不用路名、共享节点或 layer 猜测上下关系。
 const PIER_DECK_CELL_M = 32;
 function createPierDeckKeepouts(records) {
@@ -1253,7 +1284,7 @@ function addBarriers(record, groundHeight, neighbors = []) {
       const insetB = inset(edgeB, b);
       const insetStart = interpolatePoint(insetA, insetB, from);
       const insetEnd = interpolatePoint(insetA, insetB, to);
-      // 只有真实接点的重叠支道才开放车道，两条在平面偶然靠近的独立路保留边界。
+      // 同层汇入或横穿的车行面让出护栏。
       if (heightAt && (blocksNeighbor(start, end) || blocksNeighbor(insetStart, insetEnd))) {
         if (!openings.has(i - 1)) openings.set(i - 1, new Set());
         openings.get(i - 1).add(side);
@@ -1794,6 +1825,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     for (const peer of peers) merged.add(peer);
     junctionNeighbors.set(record, merged);
   }
+  interchangeDeckNeighbors(records, graph.metadata, junctionNeighbors);
   const deckKeepout = createPierDeckKeepouts([...records, ...walking]);
   const carriagewayOccupied = options?.carriagewayOccupied ?? groundIndex.occupied;
   const pierOptions = { ...options, terrainHeight };

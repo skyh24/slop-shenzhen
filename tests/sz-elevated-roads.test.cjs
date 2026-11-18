@@ -578,6 +578,30 @@ test('urban interchange decks share one level across short source edges and rest
   const main = plan.links.find(deck => deck.osmId === 'way/96334028');
   assert.ok(main.frames.every(frame => Math.abs(frame.y - 12.8) < 0.01));
 
+  const connectors = new Set(['way/40953703', 'way/638856658', 'way/846895339']);
+  const southernDecks = plan.links.filter(deck => connectors.has(deck.osmId));
+  assert.equal(southernDecks.length, 5);
+  for (const deck of southernDecks) {
+    assert.ok(plan.driveLinks.includes(deck), deck.osmId);
+    assert.ok(deck.gradeProfile.maxGrade <= MAX_GRADE, deck.osmId);
+    assert.ok(deck.gradeProfile.seams.every(seam => seam.status === 'aligned'), deck.osmId);
+    assert.ok(deck.frames.every(frame => frame.y <= 12.8 + 1e-6), deck.osmId);
+  }
+  const crossLink = southernDecks.find(deck => deck.osmId === 'way/846895339');
+  const crossings = [
+    [-3055.6192, 1558.6831, 'way/879817597'],
+    [-3031.6384, 1600.2774, 'way/412445341'],
+    [-2975.8855, 1577.9264, 'way/940632562']
+  ];
+  for (const [x, z, throughWay] of crossings) {
+    const through = plan.links.find(deck => deck.osmId === throughWay && heightAt(x, z, deck.surfaceId) !== null);
+    assert.ok(through);
+    assert.equal(heightAt(x, z, crossLink.surfaceId), 12.8);
+    assert.equal(heightAt(x, z, through.surfaceId), 12.8);
+    assert.ok(through.openings.size > 0);
+  }
+  assert.ok(raw.roadGraph.metadata.every((meta, i) => meta.osmId !== 'way/1126957193' || roads.isGroundRoad(graph.metadata[i])));
+
   const index = graph.metadata.findIndex(meta => meta.osmId === 'way/853206474');
   const crossing = graph.links[index];
   assert.ok(roads.isGroundRoad(graph.metadata[index]));

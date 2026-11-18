@@ -753,6 +753,14 @@ test('auto support case slopes: a 25 percent cross slope is accepted, a two metr
     'a probe more than 1.5 m from the centre height is rejected');
 });
 
+test('road footprint prefers the current ramp height where pavement still overlaps', () => {
+  const ground = { surfaceId: null };
+  const ramp = { surfaceId: DECK_SURFACE };
+  const roadHeight = (x, z, edge) => edge === ramp ? 8.5 + z * 0.08 : 8;
+  assert.equal(hasRoadFootprint(roadHeight, model, 0, 0, 0, [ground, ramp], 8.5), true);
+  assert.equal(hasRoadFootprint(roadHeight, model, 0, 0, 0, [ramp, ground], 8), true);
+});
+
 test('hasRoadFootprint forwards the edge identity to every height query', () => {
   const deck = { surfaceId: DECK_SURFACE };
   const calls = [];

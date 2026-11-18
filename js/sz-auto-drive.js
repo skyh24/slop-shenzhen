@@ -15,11 +15,18 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 export function hasRoadFootprint(roadHeight, model, x, z, heading, edges = null, centerY = null) {
   const list = edges == null || (Array.isArray(edges) && edges.length === 0) ? [null] : Array.isArray(edges) ? edges : [edges];
   const heightAt = (px, pz) => {
+    let closest = null;
+    let closestDelta = 1.5;
     for (const edge of list) {
       const height = roadHeight(px, pz, edge);
-      if (Number.isFinite(height) && (centerY === null || Math.abs(height - centerY) <= 1.5)) return height;
+      if (!Number.isFinite(height)) continue;
+      if (centerY === null || height === centerY) return height;
+      const delta = Math.abs(height - centerY);
+      if (delta > closestDelta || (delta === closestDelta && closest !== null)) continue;
+      closest = height;
+      closestDelta = delta;
     }
-    return null;
+    return closest;
   };
   const height = heightAt(x, z);
   if (!Number.isFinite(height) || (centerY !== null && !(Math.abs(height - centerY) <= START_HEIGHT_TOLERANCE))) return false;

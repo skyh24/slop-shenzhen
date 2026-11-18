@@ -46,6 +46,14 @@ export function highDeckTunnelPortals(graph) {
 }
 
 const APPROACH_M = 64;
+// 车公庙南侧辅道从泰然八路及东侧街口接向 4.8 米平台。
+const CHEGONGMIAO_CONNECTOR_MIN_Z = new Map([
+  ['way/40953703', 1366], ['way/638856658', 1372], ['way/846895339', 1372]
+]);
+function isChegongmiaoConnector(meta, edge, nodes) {
+  const minZ = CHEGONGMIAO_CONNECTOR_MIN_Z.get(meta.osmId);
+  return minZ !== undefined && Math.min(nodes[edge[0] * 2 + 1], nodes[edge[1] * 2 + 1]) >= minZ;
+}
 
 // 两端各留 8 米竖曲线，中央等坡；有效引道长度沿源路里程计算。
 export function interchangeRise(distance) {
@@ -89,9 +97,12 @@ export function applyInterchangeLevels(graph, areas) {
   }
   const isGround = meta => !meta.bridge && !meta.layer && !meta.tunnel && meta.heightSource === 'terrain';
   for (const area of areas) {
+    const chegongmiao = area.id === 'chegongmiao';
     const bridgeWays = new Set();
+    const connectors = new Set();
     const groundWays = new Set(area.groundWays);
     for (const [index, meta] of metadata.entries()) {
+      if (chegongmiao && isChegongmiaoConnector(meta, links[index], graph.nodes)) connectors.add(index);
       if (meta.tunnel || (!meta.bridge && !(meta.layer > 0))) continue;
       if (!intersectsArea(edgeGeometry(graph, links[index]).points, area.area)) continue;
       if (meta.bridge) bridgeWays.add(meta.osmId);
@@ -99,10 +110,10 @@ export function applyInterchangeLevels(graph, areas) {
     }
     const lengths = new Map();
     for (const [index, meta] of metadata.entries()) {
-      if (groundWays.has(meta.osmId)) {
-        result[index] = { ...meta, layer: 0, bridge: false, tunnel: false, heightSource: 'terrain' };
-      } else if (!meta.tunnel && bridgeWays.has(meta.osmId)) {
+      if (connectors.has(index) || (!meta.tunnel && bridgeWays.has(meta.osmId) && !groundWays.has(meta.osmId))) {
         lengths.set(index, edgeGeometry(graph, links[index]).length);
+      } else if (groundWays.has(meta.osmId)) {
+        result[index] = { ...meta, layer: 0, bridge: false, tunnel: false, heightSource: 'terrain' };
       }
     }
     // 只有明确的直续地面边能借作引道，分叉或不明去向的节点留在地面。
@@ -153,7 +164,9 @@ export function applyInterchangeLevels(graph, areas) {
       const extension = borrowed.get(index);
       const approach = { id: area.id, start: distance.get(a) ?? APPROACH_M, end: distance.get(b) ?? APPROACH_M,
         delayStart: extension?.side === 0 ? extension.delay : 0,
-        delayEnd: extension?.side === 1 ? extension.delay : 0 };
+        delayEnd: extension?.side === 1 ? extension.delay : 0,
+        deckY: chegongmiao ? area.groundY + DECK_RISE_M : undefined,
+        sharesDeck: connectors.has(index) };
       result[index] = { ...result[index], layer: 1, bridge: true, heightSource: 'estimate', interchangeApproach: approach };
     }
   }
