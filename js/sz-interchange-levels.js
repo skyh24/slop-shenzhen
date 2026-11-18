@@ -182,8 +182,11 @@ export function applyCorridorRoadProfiles(graph, terrain) {
   return { ...mapped, metadata: mapped.metadata.map((meta, index) => {
     if (nanpingLinks.has(index)) {
       const alignment = { ...meta, nanpingDeckY, nanpingRiseM: nanpingProfile.riseM, heightSource: 'estimate' };
-      return meta.tunnel ? alignment
-        : { ...alignment, layer: 2, bridge: true, highwayProfile: [nanpingDeckY, nanpingDeckY, true, true] };
+      if (meta.tunnel) return alignment;
+      const curve = nanpingProfile.deckCurves?.[meta.osmId];
+      return { ...alignment, layer: 2, bridge: true, highwayProfile: [
+        curve?.[0][1] ?? nanpingDeckY, curve?.at(-1)[1] ?? nanpingDeckY, true, true, curve
+      ] };
     }
     const profile = g4Profiles?.[index];
     if (profile) return { ...meta, layer: 1, bridge: true, tunnel: false, heightSource: 'estimate', highwayProfile: profile };

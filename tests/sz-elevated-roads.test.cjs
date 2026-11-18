@@ -423,10 +423,26 @@ test('the real Shenzhen snapshot derives the whole-city deck network without any
   }
   const nanping = high.filter(deck => deck.nanpingMainline);
   assert.equal(nanping.length, 85);
+  const tanglang = new Map([
+    ['way/221018208', [18, 42.3]], ['way/581971317', [42.3, 18]],
+    ['way/227775714', [18, 39.5]], ['way/581971316', [39.5, 18]]
+  ]);
   for (const deck of nanping) {
-    assert.ok(deck.frames.every(frame => frame.y === 18), deck.osmId);
+    const ends = tanglang.get(deck.osmId) ?? [18, 18];
+    assert.deepEqual([deck.startDeckY, deck.endDeckY], ends, deck.osmId);
+    if (!tanglang.has(deck.osmId)) assert.ok(deck.frames.every(frame => frame.y === 18), deck.osmId);
     assert.ok(plan.driveLinks.includes(deck), deck.osmId);
   }
+  const rises = nanping.filter(deck => tanglang.has(deck.osmId));
+  assert.equal(rises.length, 4);
+  assert.ok(Math.max(...rises.flatMap(deck => deck.frames.map(frame => frame.y))) > 58.9);
+  assert.ok(rises.every(deck => deck.maxGrade < 0.08));
+  const nanpingOverG4 = nanping.filter(deck => ['way/963575158', 'way/963575161'].includes(deck.osmId));
+  const g4UnderNanping = g4.filter(deck => ['way/227852267', 'way/687529427'].includes(deck.osmId));
+  assert.equal(new Set(nanpingOverG4.map(deck => deck.osmId)).size, 2);
+  assert.equal(new Set(g4UnderNanping.map(deck => deck.osmId)).size, 2);
+  assert.ok(Math.min(...nanpingOverG4.flatMap(deck => deck.frames.map(frame => frame.y)))
+    - Math.max(...g4UnderNanping.flatMap(deck => deck.frames.map(frame => frame.y))) >= 5);
   const splitLinks = plan.links.filter(link => link.splitStart || link.splitEnd);
   assert.ok(splitLinks.length > 0);
   const byIndex = new Map(plan.links.map(link => [link.index, link]));

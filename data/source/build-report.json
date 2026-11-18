@@ -358558,11 +358558,11 @@
     ],
     "unresolvedLinks": [],
     "timing": {
-      "baselineSeconds": 0.068,
-      "stationSeconds": 0.4,
-      "profileSeconds": 2.361,
-      "vertexSeconds": 2.511,
-      "totalSeconds": 5.629
+      "baselineSeconds": 0.067,
+      "stationSeconds": 0.401,
+      "profileSeconds": 3.09,
+      "vertexSeconds": 3.046,
+      "totalSeconds": 6.92
     },
     "limitations": [
       "FABDEM is a modelled DTM (source GLO-30 mainly 2011-2015) and still contains residual building and canopy height in dense areas; the derived surface is an explicitly estimated engineering surface, not measured elevation",
@@ -358732,11 +358732,11 @@
   },
   "terrainSurface": {
     "chunks": 1264,
-    "vertices": 779422,
-    "triangles": 1168548,
+    "vertices": 778341,
+    "triangles": 1167640,
     "areaKm2": 279.029368,
     "areaErrorM2": -3.46e-06,
-    "seconds": 5.75,
+    "seconds": 6.18,
     "waterLevelsGenerated": false,
     "heightSource": "urban-datum",
     "exclusions": [
@@ -559199,13 +559199,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "515d0f850fb4df66c849e0dca0c00a74b6a45882bb43c46c5eb9c95917505408",
-    "bytes": 269074,
+    "fingerprint": "07b798dc9c887566bc3aeae8fde5d6fce817225615e62df8f7edcbe1cac86440",
+    "bytes": 269090,
     "decodedBytes": 1256130,
     "files": {
-      "js/sz-regional/515d0f850fb4df66c849/waterfront.json.gz": "a4b791674faf37dbb9813334d1e216406cb3f32e4238410441d88dd1f4a6c594",
-      "js/sz-regional/515d0f850fb4df66c849/metro.json.gz": "c61fcdbdef2ef8ebfe4cf2e98cf43e8d1ea3a0f2ed80d99d1d4ed5f524e370c6",
-      "js/sz-regional/515d0f850fb4df66c849/drone.json.gz": "f59cc1fface3981e0adfa99b021090d7c5578a9505508c6c4cc1649b5ad44c4d"
+      "js/sz-regional/07b798dc9c887566bc3a/waterfront.json.gz": "f1f668fe67b9bb4d2562f400c7ceb2411eec50e5dcf3333779d291cab4f95e54",
+      "js/sz-regional/07b798dc9c887566bc3a/metro.json.gz": "d89c0e6dd5255bca07f1dc00fefad9b85be7c8462f02f06a9c3865f77d1138dd",
+      "js/sz-regional/07b798dc9c887566bc3a/drone.json.gz": "50009bd6942a5afb87affc2a126cb1983d0b8655558c22e5058c303c05485ed2"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -559242,7 +559242,7 @@
       "js/sz-drone-choreography.js": "4d6283f31889df2a6918d45072ca7548e665768802ebb35c752c4a3bb86b2b04",
       "js/sz-drone-formations.js": "b748ea4a6b94e7035940e7b4ebcef29fd6c6621b6a049da5dfb809060165accc",
       "js/sz-drone-routes.js": "c90d72fde184c5b12ecd1879fe0a198a16679da4d81dbb4bee22dd7612b8bf6f",
-      "js/sz-elevated-roads.js": "c4dfe30194d8a3a7ef0d208dea3fafbcdc396ced7459853d276221b24c8c8ed9",
+      "js/sz-elevated-roads.js": "10480a0b3c345571abf0fd31e0ccbb814616a4699832ad00a36dd9342e0d72e8",
       "js/sz-facade-look.js": "0ca6eb053a653f2ebb5c021ffb5545194c028909c3863e6659e409c762bfbdc6",
       "js/sz-facade-nodes.js": "75157aec5399cea05ded5dae953bd049c3d84e490eee239f163dfaa9e9223872",
       "js/sz-facade-profiles.js": "5c77204644bee3fdd3a23231496bd13efcc8e841393b6675bab25395a45ab83b",
@@ -559251,7 +559251,7 @@
       "js/sz-golf-course.js": "b99b3695dab632393f2db9b9f33a9a93a1777c364f37741b2b86549f563c8673",
       "js/sz-ground-surface.js": "6c1fa2d206626fb271c7d1fab13ee8ecf7b6b4002e83deb50f1ac8a2fcc7ba68",
       "js/sz-ground.js": "926fdc1df4d5d945b281298aaa0e3dfaebf15752d602510a1d90b7ce7bdd3bf1",
-      "js/sz-interchange-levels.js": "a0e87cc1e44f7837c0e6cecb370df57c7a7963fbbec0af2f15cce5f54fa4294b",
+      "js/sz-interchange-levels.js": "f1e28458d98fae2223981678302d947347b3e4d4389294395af88f0d1b4abd7f",
       "js/sz-intersection-control.js": "d10996f0fa6d9f6ba5f6f5506145200e5f5115f726b6371907fe976019360871",
       "js/sz-landmarks/bay-opera.js": "b7a8f2d0534c44b50be4c987ad05d98bb15e12ada1ec246c9e92a5bee0b044a6",
       "js/sz-landmarks/chunjian.js": "fdbbd2b876691d789b525f81535612b08faf6fcb31fc44d023b837ac8c3d8bdc",
@@ -559627,16 +559627,16 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7906,
-    "metadataBytes": 19328762,
-    "numericBytes": 45462192,
-    "uncompressedBytes": 64791008,
+    "metadataBytes": 19328924,
+    "numericBytes": 45247848,
+    "uncompressedBytes": 64576824,
     "lossless": true,
-    "compressedBytes": 17486201,
-    "compressedSha256": "ae55a217c72c7e97e6a9eec1b7a2f4006d1d7a5d85c58591694329926b313d4e"
+    "compressedBytes": 17422596,
+    "compressedSha256": "b6ebdd8f6e02811b640a92fc1e8621f871a47fbbcd9ea5ac23224b74dbdcbef5"
   },
-  "outputBytes": 17543746,
-  "outputSha256": "d665f500f2b522203f90351abe0f8b1a10cd1154403a0b89f8355bd65df6a542",
-  "seconds": 766.5,
+  "outputBytes": 17491225,
+  "outputSha256": "5d1b6d2d6239f3e1a4201dc07c105e9318caad4ab2793459d6c48e4a2609a0fe",
+  "seconds": 728.8,
   "elevatedCut": {
     "version": 3,
     "links": 28,
@@ -559730,7 +559730,7 @@
     "heightSource": "estimate"
   },
   "groundRebuild": {
-    "basePayloadSha256": "794ec9d25c11ac491e66444fd6937ecfc330ebd85b1536a34d2aea3b17b10a01",
+    "basePayloadSha256": "3df16010cb128190863bbef637a5b213c769ae6023c09b74845e7f383a6a2732",
     "changedSections": [
       "terrain",
       "terrainSurface",
@@ -561014,8 +561014,10 @@
     "links": 91,
     "tunnelLinks": 6,
     "deckY": 18,
-    "cutM2": 272711.045,
-    "wallTriangles": 21074,
+    "curvedWays": 4,
+    "maxDeckY": 59,
+    "cutM2": 239517.177,
+    "wallTriangles": 18548,
     "heightSource": "estimate"
   }
 }

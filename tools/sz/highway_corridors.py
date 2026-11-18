@@ -1,4 +1,4 @@
-"""为城市包内 G4 和红荔下穿生成与实体地形一致的估计设计断面。"""
+"""为城市包内高速和下穿生成与实体地形一致的估计设计断面。"""
 
 import heapq
 import json
@@ -17,7 +17,17 @@ from waterfront import _clip_terrain
 # 皇岗端由源节点接入城市地面路，两条短分支需沿同一 source way 继续放坡。
 G4_TERMINAL_WAYS = {'way/74017036', 'way/974372190', 'way/974372191', 'way/1573392908'}
 G4_SOURCE = Path(__file__).resolve().parents[2] / 'data/source/g4-mainline.json'
-NANPING = {'cutVersion': 2, 'name': '南坪快速', 'highway': 'trunk', 'groundDatumM': 8, 'riseM': 10, 'heightSource': 'estimate'}
+NANPING = {
+    'cutVersion': 3, 'name': '南坪快速', 'highway': 'trunk', 'groundDatumM': 8, 'riseM': 10,
+    'heightSource': 'estimate',
+    # 塘朗山北口至南坪立交。参考旧版地形和桥面标高，两端接回既有断面。
+    'deckCurves': {
+        'way/221018208': [[0, 18], [1, 42.3]],
+        'way/581971317': [[0, 42.3], [0.57, 59], [1, 18]],
+        'way/227775714': [[0, 18], [0.43, 57], [1, 39.5]],
+        'way/581971316': [[0, 39.5], [1, 18]],
+    },
+}
 NANPING_HEADROOM_M = 5.2
 
 HONGLI = {
@@ -205,8 +215,18 @@ def _apply_g4(surface, graph, spec):
                  'wallTriangles': walls['triangles'], 'heightSource': spec['heightSource']}
 
 
+def _nanping_height(curve, fraction, floor):
+    if not curve:
+        return floor
+    for (start, y), (end, next_y) in zip(curve, curve[1:]):
+        if fraction <= end:
+            t = max(0, (fraction - start) / (end - start))
+            return y + (next_y - y) * t * t * (3 - 2 * t)
+    return curve[-1][1]
+
+
 def _apply_nanping(surface, graph):
-    """南坪快速车道保持水平，洞外按实际路幅切开山体，洞内留住覆土。"""
+    """洞外沿设计纵断面按路幅裁山，洞内保留覆土。"""
     main = [(edge, meta) for edge, meta in zip(graph['links'], graph['metadata'], strict=True)
             if graph['names'][edge[2]] == NANPING['name'] and meta['highway'] == NANPING['highway']]
     if not main:
@@ -224,6 +244,7 @@ def _apply_nanping(surface, graph):
         points = _source_points(graph, edge)
         length = LineString(points).length
         stations = _resample(points, length)
+        curve = NANPING['deckCurves'].get(meta['osmId'])
         half_width = deck_width(edge) / 2 + 0.75
         for node, at, inner in [(edge[0], points[0], points[1]), (edge[1], points[-1], points[-2])]:
             if node not in tunnel_nodes:
@@ -233,18 +254,19 @@ def _apply_nanping(surface, graph):
             portal_sections.append((*at, dx / run, dz / run, half_width))
         spans = []
         run_points = []
-        for (_, x, z), (_, xx, zz) in zip(stations, stations[1:]):
+        for (d, x, z), (next_d, xx, zz) in zip(stations, stations[1:]):
             dx, dz = xx - x, zz - z
             run = math.hypot(dx, dz)
             if run <= 1e-8:
                 continue
-            probes = (sampler(x + t * dx + offset * dz / run, z + t * dz - offset * dx / run)
+            probes = ((sampler(x + t * dx + offset * dz / run, z + t * dz - offset * dx / run),
+                       _nanping_height(curve, (d + t * (next_d - d)) / length, floor))
                       for t in (-0.4, 0, 0.5, 1, 1.4)
                       for offset in (-half_width, -half_width / 2, 0, half_width / 2, half_width))
-            if any(y is not None and y > floor + 0.025 for y in probes):
+            if any(y is not None and y > deck_y + 0.025 for y, deck_y in probes):
                 if not run_points:
-                    run_points.append((x, z))
-                run_points.append((xx, zz))
+                    run_points.append((x, z, _nanping_height(curve, d / length, floor)))
+                run_points.append((xx, zz, _nanping_height(curve, next_d / length, floor)))
             elif run_points:
                 spans.append(run_points)
                 run_points = []
@@ -252,14 +274,15 @@ def _apply_nanping(surface, graph):
             spans.append(run_points)
         for span in spans:
             # 连续裁一段，拐角用斜接。两端多留 2 m，覆盖相邻道路的实际搭接断面。
+            xy = [(x, z) for x, z, _ in span]
             endpoints = []
-            for tip, inner in [(span[0], span[1]), (span[-1], span[-2])]:
+            for tip, inner in [(xy[0], xy[1]), (xy[-1], xy[-2])]:
                 dx, dz = tip[0] - inner[0], tip[1] - inner[1]
                 stretch = 2.0 / math.hypot(dx, dz)
                 endpoints.append((tip[0] + dx * stretch, tip[1] + dz * stretch))
-            line = LineString([endpoints[0], *span, endpoints[1]])
+            line = LineString([endpoints[0], *xy, endpoints[1]])
             cuts.append(line.buffer(half_width, cap_style='flat', join_style='mitre', mitre_limit=2))
-            samples.extend((x, z, floor) for x, z in span)
+            samples.extend(span)
 
     def opening_floor(x, z):
         # 洞口截面只补门楣上方的山体，车行净空向下留给铺装与洞门。
@@ -277,7 +300,9 @@ def _apply_nanping(surface, graph):
     if walls['positions']:
         cut['cutWalls'] = merge_cut_walls(surface.get('cutWalls'), walls, mask)
     return cut, {'links': len(main), 'tunnelLinks': sum(meta['tunnel'] for _, meta in main),
-                 'deckY': floor, 'cutM2': round(area, 3), 'wallTriangles': walls['triangles'],
+                 'deckY': floor, 'curvedWays': len(NANPING['deckCurves']),
+                 'maxDeckY': max(y for curve in NANPING['deckCurves'].values() for _, y in curve),
+                 'cutM2': round(area, 3), 'wallTriangles': walls['triangles'],
                  'heightSource': NANPING['heightSource']}
 
 

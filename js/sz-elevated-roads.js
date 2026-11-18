@@ -99,7 +99,7 @@ export const SHENZHEN_INTERCHANGES = Object.freeze([
 ]);
 
 const LIMITATIONS = [
-  '普通车行高架桥面抬升 4.8 m，南坪快速主线统一抬升 10 m，南光高速高架主线抬升 10.3 m。',
+  '普通车行高架桥面抬升 4.8 m，南坪快速平段抬升 10 m，塘朗山北口后的高架采用分段纵断面，南光高速高架主线抬升 10.3 m。',
   'bridge 且 layer=0 的链路只有在跨越地面道路时抬升 4.8 m，跨水或涵洞保持贴地；判断用地面边折线与结构面走廊相交，不是实测净空。',
   '匝道与地面道路共享节点处按地形高程落地，坡度按实际生成纵断面检查，不是测量坡度。',
   'layer<0 的非隧道链路按 0 抬升派生贴地结构面，不设护栏；只有纵坡不超过 12% 且两端能接地面或结构面时才接入车行。',
@@ -724,7 +724,17 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
     urban.start + Math.max(0, distance - urban.delayStart),
     urban.end + Math.max(0, length - distance - urban.delayEnd)
   ));
-  let deckHeightAt = highway ? distance => highway[0] + (highway[1] - highway[0]) * distance / length
+  const curve = highway?.[4];
+  // 与构建期裁山共用控制点。接点处坡度回到零，让高架自然接回相邻断面。
+  let deckHeightAt = curve ? distance => {
+    const fraction = distance / length;
+    const next = curve.findIndex(([t], i) => i > 0 && fraction <= t);
+    if (next < 0) return curve.at(-1)[1];
+    const [start, y] = curve[next - 1];
+    const [end, nextY] = curve[next];
+    const t = (fraction - start) / (end - start);
+    return y + (nextY - y) * t * t * (3 - 2 * t);
+  } : highway ? distance => highway[0] + (highway[1] - highway[0]) * distance / length
     : urban
     ? distance => startGround + (endGround - startGround) * distance / length + riseAt(distance)
     : reviewed?.heightAt ?? (reviewed
@@ -750,7 +760,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
       const info = split[side];
       if (!info || gradeBudget === null || gradeBudget <= baseGrade) return null;
       const peer = graph.metadata[info.joinIndex];
-      const targetY = peer.nanpingDeckY ?? groundY + roadDeckRise(2, peer);
+      const targetY = peer.highwayProfile?.[info.joinSide === 'start' ? 0 : 1] ?? groundY + roadDeckRise(2, peer);
       const rise = targetY - baseY;
       const rampM = 1.5 * Math.abs(rise) / (gradeBudget - baseGrade);
       if (Math.abs(rise) <= 0.05 || rampM > length
@@ -1522,7 +1532,8 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     const metadata = graph.metadata[index];
     const link = graph.links[index];
     if (Number.isFinite(metadata?.nanpingDeckY) && !metadata.tunnel) {
-      for (const node of link.slice(0, 2)) nanpingNodes.set(node, metadata.nanpingDeckY);
+      nanpingNodes.set(link[0], metadata.highwayProfile[0]);
+      nanpingNodes.set(link[1], metadata.highwayProfile[1]);
     } else if (metadata?.tunnel && !Number.isFinite(metadata.nanpingDeckY)) {
       otherTunnelNodes.add(link[0]);
       otherTunnelNodes.add(link[1]);
