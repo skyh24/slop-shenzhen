@@ -5,10 +5,11 @@ const test = require('node:test');
 
 const root = join(__dirname, '..');
 const geodataSource = readFileSync(join(root, 'js/sz-geodata.js'), 'utf8');
+const interchangeSource = readFileSync(join(root, 'js/sz-interchange-levels.js'), 'utf8');
 const uri = (source) => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 let sequence = 0;
 
-// 用 data: URL 独立求值 js/sz-geodata.js，只把 './sz-data-format.js' 换成可观察的 stub：
+// 用 data: URL 独立求值 js/sz-geodata.js，把 './sz-data-format.js' 换成可观察的 stub：
 // 第一次请求失败，第二次成功，用来复现“城市包失败 → 启动页提示 → 页内重试”的整条链路。
 function stubDataFormat({ failEveryRead = false, readErrorCode = 'request' } = {}) {
   const marker = `geodata-stub-${++sequence}`;
@@ -36,6 +37,7 @@ function stubDataFormat({ failEveryRead = false, readErrorCode = 'request' } = {
 function loadGeodata(stubUrl, tag) {
   const replaced = geodataSource
     .replace(/(['"])[.]\/sz-data-format[.]js\1/, JSON.stringify(stubUrl))
+    .replace(/(['"])[.]\/sz-interchange-levels[.]js\1/, JSON.stringify(uri(interchangeSource)))
     .replace(/import[.]meta[.]url/g, JSON.stringify('https://example.test/js/sz-geodata.js'));
   assert.notEqual(replaced, geodataSource, 'js/sz-geodata.js keeps its static ./sz-data-format.js import');
   return import(uri(`// ${tag} ${++sequence}\n${replaced}`));

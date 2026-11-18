@@ -7,6 +7,7 @@ import {
   centerGradeBudget, createRoadProfile, measureRoadProfile, recordRoadProfileSeam, roadProfileHeight
 } from './sz-road-profile.js';
 import { polygonContainsInclusive } from './sz-polygon.js';
+import { interchangeRise } from './sz-interchange-levels.js';
 import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
 
 // 立交桥面高程没有实测纵断面，按 layer 的估算层高派生，接触面与显示几何共用同一批三角面。
@@ -73,6 +74,13 @@ export const SHENZHEN_INTERCHANGES = Object.freeze([
     name: '车公庙立交',
     source: 'OSM 车公庙立交 trunk_link 与香蜜湖路 bridge（快照见 data/source/sources.json）',
     area: Object.freeze({ minX: -3800, maxX: -2500, minZ: 500, maxZ: 1300 }),
+    heightSource: 'estimate'
+  }),
+  Object.freeze({
+    id: 'shennan-xinzhou',
+    name: '深南新洲立交',
+    source: 'OSM 深南大道、新洲路及连接匝道',
+    area: Object.freeze({ minX: -1250, maxX: -845, minZ: 260, maxZ: 680 }),
     heightSource: 'estimate'
   }),
   Object.freeze({
@@ -624,8 +632,9 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   const layer = Number.isFinite(metadata.layer) ? metadata.layer : 0;
   // bridge 且 layer=0 的链路可能因跨路被抬到 1 层；其余仍按 layer 计算。
   const lift = Number.isFinite(liftOverride) ? liftOverride : LAYER_HEIGHT_M * Math.max(0, layer);
-  const startLift = alignment?.startLift ?? lift;
-  const endLift = alignment?.endLift ?? lift;
+  const urban = metadata.interchangeApproach;
+  const startLift = urban ? interchangeRise(urban.start) : alignment?.startLift ?? lift;
+  const endLift = urban ? interchangeRise(urban.end) : alignment?.endLift ?? lift;
   const sharedStart = groundNodes.has(start);
   const sharedEnd = groundNodes.has(end);
   const fullStart = startGround + startLift;
@@ -667,7 +676,13 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   // 在两端分别扣除带方向的基准坡度；不移动源接点或改变桥梁层级。
   const startRampGrade = calibrated ? gradeBudget - signedBaseGrade : rampGrade;
   const endRampGrade = calibrated ? gradeBudget + signedBaseGrade : rampGrade;
-  let deckHeightAt = reviewed?.heightAt ?? (reviewed
+  const riseAt = distance => interchangeRise(Math.min(
+    urban.start + Math.max(0, distance - urban.delayStart),
+    urban.end + Math.max(0, length - distance - urban.delayEnd)
+  ));
+  let deckHeightAt = urban
+    ? distance => startGround + (endGround - startGround) * distance / length + riseAt(distance)
+    : reviewed?.heightAt ?? (reviewed
     ? (d => {
       const [a, b] = reviewed.portalHeights;
       const run = delta => Math.min(length / 2, Math.max(4, Math.abs(delta) / 0.05));
@@ -766,7 +781,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
       maxGrade = Math.max(maxGrade, Math.abs((b[side].y ?? b.y) - (a[side].y ?? a.y)) / Math.max(EPSILON, run));
     }
   }
-  const isApproach = (a, b) => !reviewed && !crossing && (
+  const isApproach = (a, b) => urban ? Math.min(riseAt(a.d), riseAt(b.d)) < lift - EPSILON : !reviewed && !crossing && (
     (sharedStart && a.d * startRampGrade < startLift - EPSILON)
     || (sharedEnd && (length - b.d) * endRampGrade < endLift - EPSILON)
     || (splitStart && a.d < splitStart.rampM - EPSILON)
@@ -863,6 +878,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
     tunnel: metadata.tunnel === true,
     layer,
     effectiveLiftM: lift,
+    urbanApproach: Boolean(urban),
     startNode: start,
     endNode: end,
     sharedStart,
@@ -1322,9 +1338,12 @@ function pushDeckExtension(record, side) {
   const x = end.x + ux * DECK_OVERLAP_M;
   const z = end.z + uz * DECK_OVERLAP_M;
   const half = record.width / 2;
-  const outer = { x, z, y: end.y, d: end.d + (side === 'start' ? -1 : 1) * DECK_OVERLAP_M,
-    left: { x: x + end.nx * half, z: z + end.nz * half, y: end.left.y ?? end.y },
-    right: { x: x - end.nx * half, z: z - end.nz * half, y: end.right.y ?? end.y } };
+  // 有坡接缝沿本身切线搭接，平搭接会在坡面上多造一层同位置的台阶。
+  const sharedGround = side === 'start' ? record.sharedStart : record.sharedEnd;
+  const dy = record.urbanApproach && !sharedGround ? (end.y - inner.y) * DECK_OVERLAP_M / run : 0;
+  const outer = { x, z, y: end.y + dy, d: end.d + (side === 'start' ? -1 : 1) * DECK_OVERLAP_M,
+    left: { x: x + end.nx * half, z: z + end.nz * half, y: (end.left.y ?? end.y) + dy },
+    right: { x: x - end.nx * half, z: z - end.nz * half, y: (end.right.y ?? end.y) + dy } };
   const a = side === 'start' ? outer : end;
   const b = side === 'start' ? end : outer;
   measureRoadProfile(record.gradeProfile, [a, b], () => 'overlap');
@@ -1497,10 +1516,12 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     const crossing = extraCrossing?.sourceIds.has(metadata.osmId) ? extraCrossing : null;
     const profile = roadProfiles.get(index);
     // 分区只用于归属统计，不再决定是否生成结构面。
-    const owner = crossing ?? interchanges.find(entry => polylineIntersectsArea(points, entry.area));
+    const urban = metadata.interchangeApproach;
+    const owner = crossing ?? interchanges.find(entry => entry.id === urban?.id)
+      ?? interchanges.find(entry => polylineIntersectsArea(points, entry.area));
     const layer = Number.isFinite(metadata.layer) ? metadata.layer : 0;
     const g4 = g4Bridges.has(index);
-    let liftOverride = g4 ? layer * LAYER_CLEARANCE_M : null;
+    let liftOverride = urban ? interchangeRise(Infinity) : g4 ? layer * LAYER_CLEARANCE_M : null;
     let raisedForCrossing = false;
     // bridge 且 layer=0：跨越地面道路时抬 1 层，跨水/涵洞保持贴地。
     if (metadata.bridge === true && layer === 0 && !profile && !crossing) {
@@ -1516,8 +1537,8 @@ export function planElevatedRoads(graph, terrainSurface, options) {
       startLift: g4LayersAt.get(link[0])?.has(layer) ? layer * LAYER_CLEARANCE_M : null,
       endLift: g4LayersAt.get(link[1])?.has(layer) ? layer * LAYER_CLEARANCE_M : null
     } : null;
-    const record = planLink(graph, link, index, metadata, profile || crossing ? terrainHeight : groundHeight,
-      groundNodes, profile, crossing, liftOverride, groundIndex, layerSplits.get(index), junctionTapers.get(index), alignment);
+    const record = planLink(graph, link, index, metadata, profile || crossing || urban ? terrainHeight : groundHeight,
+      groundNodes, profile, crossing, liftOverride, groundIndex, urban ? null : layerSplits.get(index), junctionTapers.get(index), alignment);
     if (record === null) {
       skippedLinks++;
       continue;

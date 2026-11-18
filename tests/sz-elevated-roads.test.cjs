@@ -15,6 +15,7 @@ const tslStub = { normalWorld: { mul: () => ({}) }, positionWorld: { add: () => 
 const roadSection = loadModule(read('sz-road-section.js'));
 const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
   './sz-road-profile.js': loadModule(read('sz-road-profile.js')),
+  './sz-interchange-levels.js': loadModule(read('sz-interchange-levels.js')),
   'three/webgpu': {}, 'three/tsl': tslStub,
   './sz-roads.js': roads,
   './sz-road-section.js': roadSection,
@@ -86,10 +87,10 @@ test('every non-ground non-tunnel structure link gets a deck, with or without in
   assert.equal(plan.statistics.tunnelLinks, 1);
   assert.ok(plan.links.every(link => link.tunnel === false));
   assert.equal(plan.interchanges.length, 0);
-  // 旧调用（不传 options）仍按三块立交统计归属，但选区不再由矩形决定。
+  // 旧调用（不传 options）仍按配置立交统计归属，但选区不再由矩形决定。
   const unfiltered = elevated.planElevatedRoads(fixtureGraph(), surface);
   assert.equal(unfiltered.links.length, 5);
-  assert.equal(unfiltered.interchanges.length, 3);
+  assert.equal(unfiltered.interchanges.length, 4);
   assert.ok(unfiltered.links.every(link => link.interchangeId === 'generic'));
   assert.equal(unfiltered.statistics.generic, 5);
 });
@@ -339,6 +340,7 @@ test('built elevated roads expose meshes, contact surfaces and the same drivable
   const fake = fakeElevatedThree();
   const module = loadModule(read('sz-elevated-roads.js'), { imports: {
     './sz-road-profile.js': loadModule(read('sz-road-profile.js')),
+    './sz-interchange-levels.js': loadModule(read('sz-interchange-levels.js')),
     'three/webgpu': fake, 'three/tsl': tslStub,
     './sz-roads.js': roads,
     './sz-road-section.js': roadSection,
@@ -508,5 +510,50 @@ test('a named same-level continuation keeps a shared corner and tapers four lane
   for (const point of [a, a.left, a.right]) {
     assert.equal(heightAt(point.x, point.z, wide.surfaceId), a.y);
     assert.equal(heightAt(point.x, point.z, narrow.surfaceId), b.y);
+  }
+});
+
+test('urban interchange decks share one level across short source edges and restore the ground crossing', () => {
+  const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
+  const { applyInterchangeLevels } = loadModule(read('sz-interchange-levels.js'));
+  const terrain = raw.terrainSurface;
+  const graph = applyInterchangeLevels(raw.roadGraph, terrain.interchangeLevels);
+  const plan = elevated.planElevatedRoads(graph, terrain);
+  const targetWays = new Set(['way/996625934', 'way/996625935', 'way/245389549', 'way/1050511757', 'way/40955120']);
+  const deckRows = plan.links.filter(deck => targetWays.has(deck.osmId));
+  assert.equal(deckRows.length, 12);
+  for (const deck of deckRows) {
+    assert.equal(deck.layer, 1);
+    assert.equal(deck.effectiveLiftM, 4.8);
+    assert.ok(plan.driveLinks.includes(deck), deck.osmId);
+    assert.ok(deck.gradeProfile.maxGrade <= MAX_GRADE, deck.osmId);
+    for (const seam of deck.gradeProfile.seams) {
+      assert.equal(seam.status, 'aligned', deck.osmId);
+      assert.ok(Math.abs(seam.deltaM) < 0.01, deck.osmId);
+    }
+  }
+  const heightAt = controllerSurfaces.createSurfaceHeightAt(plan.surfaces);
+  const eastApproach = plan.links.find(deck => deck.osmId === 'way/996625933');
+  const eastSeam = deckRows.find(deck => deck.startNode === eastApproach.endNode);
+  const [a, b] = eastSeam.frames;
+  const t = 3 / Math.hypot(b.x - a.x, b.z - a.z);
+  const x = a.x + (b.x - a.x) * t;
+  const z = a.z + (b.z - a.z) * t;
+  assert.ok(Math.abs(heightAt(x, z, eastApproach.surfaceId) - heightAt(x, z, eastSeam.surfaceId)) < 0.02);
+  const main = plan.links.find(deck => deck.osmId === 'way/96334028');
+  assert.ok(main.frames.every(frame => Math.abs(frame.y - 12.8) < 0.01));
+
+  const index = graph.metadata.findIndex(meta => meta.osmId === 'way/853206474');
+  const crossing = graph.links[index];
+  assert.ok(roads.isGroundRoad(graph.metadata[index]));
+  assert.equal(raw.roadGraph.metadata[index].tunnel, true);
+  assert.ok(!plan.links.some(deck => deck.index === index));
+  const layout = roads.createRoadSurfaceLayout({ ...graph, links: [crossing], metadata: [graph.metadata[index]] }, terrain);
+  const pavement = roads.createRoadHeightSampler(layout.chunks, terrain.grid);
+  const [start, end] = roads.roadLinkPoints(graph, crossing);
+  for (let i = 1; i < 20; i++) {
+    const x = start.x + (end.x - start.x) * i / 20;
+    const z = start.z + (end.z - start.z) * i / 20;
+    assert.ok(Math.abs(pavement(x, z) - 8) < 0.01, `ground crossing at ${x},${z}`);
   }
 });

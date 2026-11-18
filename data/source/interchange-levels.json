@@ -1,0 +1,18 @@
+[
+  {
+    "id": "chegongmiao",
+    "name": "车公庙立交",
+    "area": { "minX": -3450, "maxX": -2860, "minZ": 550, "maxZ": 1690 },
+    "groundArea": { "minX": -3530, "maxX": -2820, "minZ": 475, "maxZ": 1570 },
+    "groundY": 8,
+    "groundWays": ["way/40954711", "way/412444952", "way/866494166"]
+  },
+  {
+    "id": "shennan-xinzhou",
+    "name": "深南新洲立交",
+    "area": { "minX": -1200, "maxX": -890, "minZ": 365, "maxZ": 480 },
+    "groundArea": { "minX": -1270, "maxX": -845, "minZ": 260, "maxZ": 560 },
+    "groundY": 8,
+    "groundWays": ["way/853206474"]
+  }
+]

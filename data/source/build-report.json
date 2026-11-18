@@ -358729,8 +358729,8 @@
   },
   "terrainSurface": {
     "chunks": 1264,
-    "vertices": 733121,
-    "triangles": 1112238,
+    "vertices": 754840,
+    "triangles": 1148870,
     "areaKm2": 279.029742,
     "areaErrorM2": -2.86e-06,
     "seconds": 5.08,
@@ -559173,13 +559173,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "e1a814dac5f86abb1ad85246996e16625af6219cd9130cbbd7a8aa1ce1aaee03",
-    "bytes": 268938,
-    "decodedBytes": 1253289,
+    "fingerprint": "b36d4aac785e5fd7a74d89f89d0e543e20ef7d0f99e0030cd3ed077f264bee50",
+    "bytes": 268916,
+    "decodedBytes": 1253226,
     "files": {
-      "js/sz-regional/e1a814dac5f86abb1ad8/waterfront.json.gz": "0e63ccc47f1dd648732ba095edf96658e084f6fe8a5e766632d29c9ef139fecb",
-      "js/sz-regional/e1a814dac5f86abb1ad8/metro.json.gz": "6dd6375f36b6d6e2e25b8e5fb882792f0b6d8e4d9bff0f7c0a43880bc707f386",
-      "js/sz-regional/e1a814dac5f86abb1ad8/drone.json.gz": "5f862535bc5090a94ed7b63033f1fbf6ab1c1b1df45fc2237db02d1003797689"
+      "js/sz-regional/b36d4aac785e5fd7a74d/waterfront.json.gz": "bbeb99d028394df67db943d124a2a783c25ed44e0bed5427854092b29f479fbf",
+      "js/sz-regional/b36d4aac785e5fd7a74d/metro.json.gz": "70c1e7119ee610df5d91d1411947e9a8f447b8e810ed04f1d5fed943fe48ca74",
+      "js/sz-regional/b36d4aac785e5fd7a74d/drone.json.gz": "44288a8321617d49b6b61473c2112148eed7c61f734e3bf3d5aa12b8034829ba"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -559215,15 +559215,16 @@
       "js/sz-drone-choreography.js": "4d6283f31889df2a6918d45072ca7548e665768802ebb35c752c4a3bb86b2b04",
       "js/sz-drone-formations.js": "b748ea4a6b94e7035940e7b4ebcef29fd6c6621b6a049da5dfb809060165accc",
       "js/sz-drone-routes.js": "c90d72fde184c5b12ecd1879fe0a198a16679da4d81dbb4bee22dd7612b8bf6f",
-      "js/sz-elevated-roads.js": "b6380f1b908d74d04bf175ec08c020c885ad5f935e29c8f49428d9aa08923b7f",
+      "js/sz-elevated-roads.js": "5b0895537954614311ee828de853302f4aa47982c8dae2f10f350797d66f1d51",
       "js/sz-facade-look.js": "0ca6eb053a653f2ebb5c021ffb5545194c028909c3863e6659e409c762bfbdc6",
       "js/sz-facade-nodes.js": "75157aec5399cea05ded5dae953bd049c3d84e490eee239f163dfaa9e9223872",
       "js/sz-facade-profiles.js": "69bba93370dde7fa8a9e90fb9727b736cfca447c9a2ef849e329cc275e285c37",
-      "js/sz-geodata.js": "bf4588164f4d975988ec49a2681e4b9d870fab46c6cf415b6a8b0d4dff9aa91e",
+      "js/sz-geodata.js": "8e6683938713e5bcbe647a5e6033837fd0629254a6dd768e8b908f5ccb331f47",
       "js/sz-geometry.js": "8823c7e3325e4787048055faf827fd546da537666252837dda440104ae095fbf",
       "js/sz-golf-course.js": "b99b3695dab632393f2db9b9f33a9a93a1777c364f37741b2b86549f563c8673",
       "js/sz-ground-surface.js": "6c1fa2d206626fb271c7d1fab13ee8ecf7b6b4002e83deb50f1ac8a2fcc7ba68",
       "js/sz-ground.js": "926fdc1df4d5d945b281298aaa0e3dfaebf15752d602510a1d90b7ce7bdd3bf1",
+      "js/sz-interchange-levels.js": "d39e6f76a8a0983a87f1f3a04bfafe33407821ddad3780b6bfa1a092765ecce5",
       "js/sz-intersection-control.js": "d10996f0fa6d9f6ba5f6f5506145200e5f5115f726b6371907fe976019360871",
       "js/sz-landmarks/bay-opera.js": "b7a8f2d0534c44b50be4c987ad05d98bb15e12ada1ec246c9e92a5bee0b044a6",
       "js/sz-landmarks/chunjian.js": "fdbbd2b876691d789b525f81535612b08faf6fcb31fc44d023b837ac8c3d8bdc",
@@ -559599,16 +559600,16 @@
     "format": "SZC1",
     "version": 1,
     "columns": 7902,
-    "metadataBytes": 19325191,
-    "numericBytes": 41457016,
-    "uncompressedBytes": 60782256,
+    "metadataBytes": 19325682,
+    "numericBytes": 42219824,
+    "uncompressedBytes": 61545560,
     "lossless": true,
-    "compressedBytes": 16391848,
-    "compressedSha256": "f72e5ece7eee86d4cc4ddc31a792a34062a0dff812669653709b99da603be6fd"
+    "compressedBytes": 16647135,
+    "compressedSha256": "ff6398c3d83cfca090ecfc3c5946a03788afcf655f2e544d724324191e18caa1"
   },
-  "outputBytes": 16566038,
-  "outputSha256": "24a5d8105349d25c9debbf5591bb5966d007327a6c0fdcd1260383ddfe98e338",
-  "seconds": 50.0,
+  "outputBytes": 16824039,
+  "outputSha256": "80d692d338e4271f318b5c72f61e0f95c5512764dc29aa1e589d36a99e8f0d99",
+  "seconds": 49.7,
   "elevatedCut": {
     "version": 2,
     "links": 18,
@@ -559647,5 +559648,39 @@
     ],
     "restoredRoofM2": 248.22,
     "cutM2": 8.273
-  }
+  },
+  "interchangeLevels": [
+    {
+      "id": "chegongmiao",
+      "groundY": 8,
+      "heightSource": "estimate",
+      "changedTerrainChunks": [
+        "-8,0",
+        "-7,0",
+        "-6,0",
+        "-8,1",
+        "-7,1",
+        "-6,1",
+        "-8,2",
+        "-7,2",
+        "-6,2",
+        "-8,3",
+        "-7,3",
+        "-6,3"
+      ],
+      "restoredOpeningsM2": 0
+    },
+    {
+      "id": "shennan-xinzhou",
+      "groundY": 8,
+      "heightSource": "estimate",
+      "changedTerrainChunks": [
+        "-3,0",
+        "-2,0",
+        "-3,1",
+        "-2,1"
+      ],
+      "restoredOpeningsM2": 233.1
+    }
+  ]
 }
