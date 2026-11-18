@@ -4,15 +4,20 @@
 窄源宽加宽、裁切后三角面减少且坐标有限。pytest 与 unittest 都能直接运行。
 """
 
+import json
 import math
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from shapely.geometry import Point  # noqa: E402
-from elevated_cut import apply_elevated_cut  # noqa: E402
+from shapely.geometry import Point, box  # noqa: E402
+from commercial_paving import cut_ground_openings  # noqa: E402
+from elevated_cut import apply_elevated_cut, build_cut_walls  # noqa: E402
+from interchange_levels import apply_interchange_levels  # noqa: E402
 
 from tunnel_portals import (COVER_MAX_M, COVER_MIN_M, MIN_TUNNEL_WIDTH_M,  # noqa: E402
                             CORRIDOR_MARGIN_M, _SurfaceSampler, apply_tunnel_portal_cut,
@@ -91,6 +96,33 @@ def tunnel_graph(shared_start=True, shared_end=True, layer=1, width=10.0):
 
 
 class ElevatedCutTest(unittest.TestCase):
+    def test_interchange_restores_legacy_cut_without_removing_other_walls(self):
+        cut = box(110, 90, 116, 96)
+        obsolete = build_cut_walls(cut, [(113, 93, 14)], flat(18))
+        nearby = build_cut_walls(box(120, 90, 126, 96), [(123, 93, 7)], flat(12))
+        outside = build_cut_walls(box(135, 90, 141, 96), [(138, 93, 14)], flat(18))
+        source, _ = cut_ground_openings(terrain_surface(flat(8)), cut)
+        source['cutWalls'] = {**obsolete, 'positions': obsolete['positions'] + nearby['positions'] + outside['positions'],
+                              'triangles': obsolete['triangles'] + nearby['triangles'] + outside['triangles']}
+        spec = {'id': 'interchange', 'groundY': 8, 'groundWays': [],
+                'groundArea': {'minX': 105, 'minZ': 85, 'maxX': 130, 'maxZ': 105}}
+        source['interchangeLevels'] = [spec]
+        payload = {'terrainSurface': source, 'roadGraph': GraphBuilder().graph()}
+        report = {'terrainSurface': {}, 'interchangeLevels': [{'id': 'interchange', 'groundY': 8}]}
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / 'levels.json'
+            config.write_text(json.dumps([spec]))
+            with patch('interchange_levels.SOURCE', config):
+                self.assertIsNone(_SurfaceSampler(source)(113, 93))
+                apply_interchange_levels(payload, report)
+                restored = payload['terrainSurface']
+                self.assertEqual(_SurfaceSampler(restored)(113, 93), 8)
+                self.assertEqual(restored['cutWalls']['positions'], nearby['positions'] + outside['positions'])
+                self.assertEqual(report['interchangeLevels'][0]['removedCutWallTriangles'], obsolete['triangles'])
+                self.assertEqual(report['interchangeLevels'][0]['restoredElevatedCutM2'], cut.area)
+                apply_interchange_levels(payload, report)
+                self.assertIs(payload['terrainSurface'], restored)
+
     def test_g4_cuts_side_slope_to_rendered_deck_width(self):
         graph = GraphBuilder()
         graph.names[0] = '京港澳高速'

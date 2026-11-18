@@ -20,26 +20,33 @@ SEAM_OVERLAP_M = 0.075
 
 
 def _restore_roof(surface, mask, datum):
-    """复原旧版洞口裁掉的新洞顶范围，只补现有三角面未覆盖的部分。"""
+    """补回被旧裁口移除的地面，只填现有三角面未覆盖的部分。"""
     grid = surface['grid']
     step, x0, z0, columns = grid['step'], grid['x0'], grid['z0'], grid['nx'] - 1
     chunks, area = [], 0
     for chunk in surface['chunks']:
         ox, oz = chunk['origin']
         size = surface['chunkSize']
-        if not mask.intersects(box(ox, oz, ox + size, oz + size)):
+        clipped = mask.intersection(box(ox, oz, ox + size, oz + size))
+        if clipped.area <= 1e-8:
             chunks.append(chunk)
             continue
+        min_x, min_z, max_x, max_z = clipped.bounds
+        column_range = range(max(0, math.floor((min_x - x0) / step)), min(columns, math.ceil((max_x - x0) / step)))
+        row_range = range(max(0, math.floor((min_z - z0) / step)), min(grid['nz'] - 1, math.ceil((max_z - z0) / step)))
+        ranges_by_cell = dict(zip(chunk['cellRanges'][::3], zip(chunk['cellRanges'][1::3], chunk['cellRanges'][2::3])))
+        candidate_cells = {row * columns + column for row in row_range for column in column_range}
         positions, kinds = chunk['positions'].copy(), chunk['kinds'].copy()
         indices, ranges = [], []
         changed = False
-        for cell, start, count in zip(chunk['cellRanges'][::3], chunk['cellRanges'][1::3], chunk['cellRanges'][2::3]):
+        for cell in sorted(candidate_cells.union(ranges_by_cell)):
+            start, count = ranges_by_cell.get(cell, (0, 0))
             begin = len(indices)
             faces = chunk['indices'][start:start + count]
             indices.extend(faces)
-            x, z = x0 + cell % columns * step, z0 + cell // columns * step
-            piece = mask.intersection(box(x, z, x + step, z + step))
-            if piece.area > 1e-8:
+            if cell in candidate_cells:
+                x, z = x0 + cell % columns * step, z0 + cell // columns * step
+                piece = clipped.intersection(box(x, z, x + step, z + step))
                 polygons = [Polygon([(ox + positions[v * 3], oz + positions[v * 3 + 2])
                                      for v in faces[i:i + 3]]) for i in range(0, count, 3)]
                 missing = piece.difference(unary_union(polygons))
@@ -54,7 +61,8 @@ def _restore_roof(surface, mask, datum):
                             positions.extend((px - ox, datum, pz - oz))
                         area += face.area
                         changed = True
-            ranges.extend((cell, begin, len(indices) - begin))
+            if len(indices) > begin:
+                ranges.extend((cell, begin, len(indices) - begin))
         chunks.append({**chunk, 'positions': positions, 'kinds': kinds, 'indices': indices, 'cellRanges': ranges}
                       if changed else chunk)
     return {**surface, 'chunks': chunks}, area

@@ -358729,8 +358729,8 @@
   },
   "terrainSurface": {
     "chunks": 1264,
-    "vertices": 754840,
-    "triangles": 1148870,
+    "vertices": 754864,
+    "triangles": 1148878,
     "areaKm2": 279.029742,
     "areaErrorM2": -2.86e-06,
     "seconds": 5.08,
@@ -559173,13 +559173,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "b36d4aac785e5fd7a74d89f89d0e543e20ef7d0f99e0030cd3ed077f264bee50",
-    "bytes": 268916,
+    "fingerprint": "48817bb7c5bd0165e01cbdccac39310bd7c5d3bbf5d806b78531672586d23c5a",
+    "bytes": 268915,
     "decodedBytes": 1253226,
     "files": {
-      "js/sz-regional/b36d4aac785e5fd7a74d/waterfront.json.gz": "bbeb99d028394df67db943d124a2a783c25ed44e0bed5427854092b29f479fbf",
-      "js/sz-regional/b36d4aac785e5fd7a74d/metro.json.gz": "70c1e7119ee610df5d91d1411947e9a8f447b8e810ed04f1d5fed943fe48ca74",
-      "js/sz-regional/b36d4aac785e5fd7a74d/drone.json.gz": "44288a8321617d49b6b61473c2112148eed7c61f734e3bf3d5aa12b8034829ba"
+      "js/sz-regional/48817bb7c5bd0165e01c/waterfront.json.gz": "1f3da76894b03a363f7a1d82ba7ef634b1bbb0f9b165e43812b1e0637b532d9a",
+      "js/sz-regional/48817bb7c5bd0165e01c/metro.json.gz": "f0c1b4d5d6d6f46cd91c68557b61999145eb047849afcbf386cbc0c4b2ec7e13",
+      "js/sz-regional/48817bb7c5bd0165e01c/drone.json.gz": "ce9b53017ca0faa4121d268a3ae8956f99432740edf8ea6e5433cf2411effd89"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -559601,22 +559601,22 @@
     "version": 1,
     "columns": 7902,
     "metadataBytes": 19325682,
-    "numericBytes": 42219824,
-    "uncompressedBytes": 61545560,
+    "numericBytes": 42219896,
+    "uncompressedBytes": 61545632,
     "lossless": true,
-    "compressedBytes": 16647135,
-    "compressedSha256": "ff6398c3d83cfca090ecfc3c5946a03788afcf655f2e544d724324191e18caa1"
+    "compressedBytes": 16647347,
+    "compressedSha256": "e09fbbbca6a6ab771b8b56b77abdc02ecfff4edb7d8172296a8db4b4e4395efe"
   },
-  "outputBytes": 16824039,
-  "outputSha256": "80d692d338e4271f318b5c72f61e0f95c5512764dc29aa1e589d36a99e8f0d99",
-  "seconds": 49.7,
+  "outputBytes": 16824383,
+  "outputSha256": "40cab5d8ff3bad7339a53684967f7234d047f388d37d0032949fb1261f17f19f",
+  "seconds": 45.1,
   "elevatedCut": {
     "version": 2,
     "links": 18,
     "spans": 21,
     "cutM2": 34345.162,
     "removedM2": 34345.162,
-    "wallTriangles": 2144
+    "wallTriangles": 2136
   },
   "keyuanUnderpass": {
     "heightSource": "estimate",
@@ -559668,7 +559668,9 @@
         "-7,3",
         "-6,3"
       ],
-      "restoredOpeningsM2": 0
+      "restoredOpeningsM2": 0,
+      "removedCutWallTriangles": 8,
+      "restoredElevatedCutM2": 53.098
     },
     {
       "id": "shennan-xinzhou",
