@@ -434,15 +434,15 @@ test('facade shader fits whole window bays inside each wall, keeps corners solid
   const profiles = facadeProfiles.FACADE_PROFILES;
   const material = evaluator.materials.createBuildingMaterial();
   const colorAt = (fid, u, v) => {
-    evaluator.state.meta.current = [fid, seed, wallLength, buildingHeight];
+    evaluator.state.meta.current = [fid, seed, wallLength, profiles[fid].name === 'villa' ? 9.6 : buildingHeight];
     evaluator.state.normal.current = [0, 0, 1];
     evaluator.state.uv.current = [u, v];
     evaluator.bump();
     return Array.from(material.colorNode.values);
   };
   // 窗中心：幕墙/办公取 0.3 避开中间竖挺，住宅取 0.3 落在宽窗内，小窗取 0.5。
-  const windowOffset = [0.3, 0.3, 0.3, 0.3, 0.5, 0.3, 0.5, 0.3, 0.5];
-  const windowCellV = [0.5, 0.5, 0.5, 0.5, 0.5, 0.7, 0.5, 0.5, 0.5];
+  const windowOffset = [0.3, 0.3, 0.3, 0.3, 0.5, 0.3, 0.5, 0.3, 0.5, 0.3];
+  const windowCellV = [0.5, 0.5, 0.5, 0.5, 0.5, 0.7, 0.5, 0.5, 0.5, 0.5];
   profiles.forEach((profile, fid) => {
     const { margin, bayWidth } = fittedBay(profile);
     const midFloorV = profile.groundHeight + profile.floorHeight * (1 + 0.5);

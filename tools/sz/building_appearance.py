@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 import json
 import math
 import random
+import re
 from pathlib import Path
 from statistics import median, quantiles
 
@@ -127,6 +128,14 @@ def _apply_building_heights(payload, osm, report, tags_by_id, foundations):
     groups = {}
     identities = Counter(b['id'])
     roles = enums['buildingRole']
+    # 只在有住宅同伴证据的具名小区内补识别楼栋，不用区域用途给所有杂物房拔高。
+    compound_samples = defaultdict(list)
+    for i, (compound_id, _) in residential_compounds.items():
+        if (enums['category'][b['cat'][i]] == 'residential'
+                and enums['heightSource'][b['src'][i]] in RELIABLE
+                and b['minH'][i] == 0 and b['lm'][i] < 0
+                and tags_by_id.get(b['id'][i], {}).get('building') not in LOW_RESIDENTIAL):
+            compound_samples[compound_id].append((packaged_polygon(b['rings'][i]).area, b['h'][i], b['id'][i]))
 
     def record(i, method, data=None, height=None, protection=None):
         row = groups.setdefault(method, {**(data or {}), 'buildings': []})
@@ -180,7 +189,8 @@ def _apply_building_heights(payload, osm, report, tags_by_id, foundations):
         elif (place and place[1] in {'historic', 'village'} or tags_to_check & HISTORIC_BUILDINGS
               or tags.get('historic') not in (None, 'no')):
             local_default = ('historic-or-low-rise', 8 if area < 160 else 12)
-        elif place or category == 'public' or tags.get('amenity') in PUBLIC_AMENITIES or _category(use_tag) == 'public':
+        elif (place and not (place[1] == 'public' and category == 'residential')
+              or category == 'public' or tags.get('amenity') in PUBLIC_AMENITIES or _category(use_tag) == 'public'):
             local_default = (place[1] if place else 'public', 8 if area < 160 else 12)
         if local_default:
             if source == 'estimate':
@@ -195,10 +205,22 @@ def _apply_building_heights(payload, osm, report, tags_by_id, foundations):
                explicit_category if explicit_category != 'unknown' else category)
         # 只给已识别的住宅主体估层，区域用途本身不能把附属设施变成住宅。
         compound = residential_compounds.get(i)
+        if (source == 'estimate' and compound and use == 'unknown' and size > 0 and role in {'main', 'unknown'}
+                and building_type in {None, 'yes'} and not tags.get('amenity') and not tags.get('shop')
+                and re.search(r'(?:\d+[栋幢座号]|[阁苑庭]|[A-Z][栋座]?)$', tags.get('name', ''))
+                and len(compound_samples[compound[0]]) >= 3):
+            use = 'residential'
+            b['cat'][i] = enums['category'].index('residential')
         if source == 'estimate' and compound and use == 'residential' and size > 0 and role in {'main', 'unknown'}:
             compound_id, levels = compound
-            height = round(levels * LEVEL_HEIGHT, 1)
-            record(i, f'residential-compound:{compound_id}', {'levels': levels, 'heightM': height}, height)
+            peers = [row for row in compound_samples[compound_id] if 0.5 <= area / row[0] <= 2]
+            if len(peers) >= 3:
+                height = round(median(row[1] for row in peers), 1)
+                record(i, f'residential-peers:{compound_id}', {'heightM': height,
+                       'samples': [[identity, value] for _, value, identity in peers]}, height)
+            else:
+                height = round(levels * LEVEL_HEIGHT, 1)
+                record(i, f'residential-compound:{compound_id}', {'levels': levels, 'heightM': height}, height)
             continue
         if use == 'unknown':
             use = region_use.get(i, use)
@@ -252,6 +274,10 @@ def _apply_building_heights(payload, osm, report, tags_by_id, foundations):
 
 def apply_building_appearance(payload, osm, report):
     b, enums = payload['buildings'], payload['enums']
+    # 旧包的前八个外观索引不动，只追加本轮支持的具名预设。
+    for name in FACADES:
+        if name not in enums['facade']:
+            enums['facade'].append(name)
     tags_by_id = {row['id']: row['tags'] for row in osm['buildings']}
     retail_areas, protected = set(), set()
     for region in payload['mapRegions']['regions']:
@@ -278,3 +304,47 @@ def apply_building_appearance(payload, osm, report):
     report['retailBuildings'] = {'groundFloor': sum(mode == 1 for mode in retail.values()),
                                  'retailBuilding': sum(mode == 2 for mode in retail.values())}
     _apply_building_heights(payload, osm, report, tags_by_id, foundations)
+    villa_regions = {i for region in payload['mapRegions']['regions']
+                     if region['type'] == 'residential' and '别墅' in (region.get('name') or '')
+                     for i in region['buildingRefs']}
+    villas, estimated_villas = [], []
+    for i, identity in enumerate(b['id']):
+        tags = tags_by_id.get(identity, {})
+        kind = tags.get('building')
+        source = enums['heightSource'][b['src'][i]]
+        if (kind not in {'house', 'detached', 'terrace', 'semidetached_house'}
+                and not (i in villa_regions and kind in {None, 'yes'})):
+            continue
+        if (b['lm'][i] >= 0 or b['minH'][i] > 0 or tags.get('building:part')
+                or tags.get('amenity') or b['lv'][i] not in {-1, 0, 3}
+                or enums['buildingRole'][b['role'][i]] not in {'main', 'unknown'}):
+            continue
+        shape = packaged_polygon(b['rings'][i])
+        if not shape.is_valid or len(shape.interiors) or not 45 <= shape.area <= 600:
+            continue
+        if source == 'estimate' and b['lv'][i] <= 0:
+            # 三层墙体加屋顶的外观估计，不回填为来源层数或实测楼高。
+            b['h'][i] = 11.4
+            estimated_villas.append(identity)
+        if not 6 <= b['h'][i] <= 16:
+            continue
+        b['cat'][i] = enums['category'].index('residential')
+        b['facade'][i] = enums['facade'].index('villa')
+        villas.append(identity)
+    report['residentialVillas'] = {'appearanceSource': 'design', 'estimatedHeightM': 11.4,
+                                  'estimatedStoreys': 3, 'buildings': sorted(set(villas))}
+    estimated_ids = set(estimated_villas)
+    for group in report['heightEstimate']['groups'].values():
+        group['buildings'] = [identity for identity in group['buildings'] if identity not in estimated_ids]
+    report['heightEstimate']['groups']['villa-design'] = {
+        'heightM': 11.4, 'levels': 3, 'buildings': sorted(estimated_ids)}
+    named = [region for region in payload['mapRegions']['regions'] if region['type'] == 'residential'
+             and region['level'] == 'place' and region.get('name')]
+    refs = sorted({i for region in named for i in region['buildingRefs']})
+    classified = Counter((enums['heightSource'][b['src'][i]], enums['category'][b['cat'][i]]) for i in refs)
+    report['residentialHeightCoverage'] = {'namedCompounds': len(named), 'memberRecords': len(refs),
+        'bySourceAndCategory': [{'heightSource': source, 'category': category, 'count': count}
+                                for (source, category), count in sorted(classified.items())],
+        'unknownEstimatedRecords': [b['id'][i] for i in refs if enums['category'][b['cat'][i]] == 'unknown'
+                                    and enums['heightSource'][b['src'][i]] == 'estimate'],
+        'note': 'Unknown-use records require identification; coverage does not establish true storeys.'}

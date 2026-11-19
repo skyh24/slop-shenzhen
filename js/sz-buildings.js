@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
-import { GeoBuilder, addWalls, addFlatPolygon, readTriangles } from './sz-geometry.js';
+import { GeoBuilder, addWalls, addFlatPolygon, readTriangles, planResidentialRoof, addSolidTriangle } from './sz-geometry.js';
 import { createBuildingMaterial, createK11SouthWallMaterial } from './sz-materials.js';
 import { facadeIndex } from './sz-facade-profiles.js';
 import { createBuildingEnvelopePlan } from './sz-building-envelope.js';
@@ -379,6 +379,7 @@ function roofEquipmentPositions(bounds, seed, index) {
  *  输出：{ parapet, equipment }；设备 { x, z, sizeX, sizeZ, height, yaw } 的完整底面落在屋顶有效区域内
  *  （扣除内院、距边界 ≥0.5 m、设备之间 ≥0.5 m），放不下就缩小、换位置或跳过。 */
 export function roofPlan(building, polygon) {
+  if (building.facade === 'villa') return { parapet: 0, equipment: [] };
   const parapet = building.height >= PARAPET_MIN_HEIGHT_M ? PARAPET_HEIGHT_M : 0;
   const equipment = [];
   if (!polygon || polygon.outer.length < 3 || building.height < ROOF_EQUIPMENT_MIN_HEIGHT_M) {
@@ -517,6 +518,8 @@ export function buildCityBlocks(scene, options = {}) {
   const group = new THREE.Group();
   group.name = 'ShenzhenCityBlocks';
   const batches = new Map();
+  const villaRoofs = new Map();
+  const villaMaterials = [];
   const foundations = new GeoBuilder();
   let k11Walls = null;
   const colliders = [];
@@ -538,8 +541,13 @@ export function buildCityBlocks(scene, options = {}) {
     const isK11South = building.id === 'way/1215840986';
     const wallBatch = isK11South ? (k11Walls ??= new GeoBuilder(true)) : batch;
     const facade = facadeIndex(building.facade);
+    // 有相交邻楼的联排先保留普通平顶；独立别墅按同一组顶面生成实体、显示与接触。
+    const villaRoof = building.facade === 'villa' && building.polygons.length === 1
+      && !envelopes.has(building.polygons[0])
+      ? planResidentialRoof(building.polygons[0], placement.minY, placement.maxY, buildingSeed(building.id)) : null;
+    if (building.facade === 'villa') detailSkipIds.add(building.id);
     // 普通超高层不自动套同一种灯光秀，地标灯光由各自模型负责。
-    const meta = [facade, buildingSeed(building.id) * 10, 0, building.height];
+    const meta = [facade, buildingSeed(building.id) * 10, 0, villaRoof ? villaRoof.eaveY - placement.baseY : building.height];
     const candidateIndex = candidateByBuilding.get(buildingIndex);
     const podium = candidateIndex === undefined ? null
       : podiumPlan(candidates[candidateIndex], occupancy[candidateIndex], placement, roadClearance);
@@ -571,12 +579,29 @@ export function buildCityBlocks(scene, options = {}) {
       if (placement.foundationBottomY !== null) {
         addWalls(foundations, rings, placement.foundationBottomY, placement.baseY);
       }
-      addWalls(wallBatch, rings, placement.minY, placement.maxY, meta, placement.baseY, replaceEdge, envelopes.get(polygon)?.wall, !podium && !replaceEdge ? storefront : null);
-      addCap(polygon, rings, placement.maxY, 1, index);
+      addWalls(wallBatch, rings, placement.minY, villaRoof?.eaveY ?? placement.maxY, meta, placement.baseY, replaceEdge, envelopes.get(polygon)?.wall, !podium && !replaceEdge ? storefront : null);
+      if (villaRoof) {
+        const key = `${Math.floor(building.cx / renderChunkSize)},${Math.floor(building.cz / renderChunkSize)}:${villaRoof.kind}`;
+        if (!villaRoofs.has(key)) villaRoofs.set(key, { kind: villaRoof.kind, batch: new GeoBuilder() });
+        const roofBatch = villaRoofs.get(key).batch;
+        const start = roofBatch.idx.length;
+        for (const triangle of villaRoof.triangles) addSolidTriangle(roofBatch, triangle);
+        const triangles = readTriangles(roofBatch, start);
+        surfaces.push({ id: `${building.id}:roof:${index}`, heightSource: 'design', triangles });
+        for (const [j, triangle] of triangles.entries()) {
+          const outer = triangle.map(({ x, z }) => ({ x, z })), top = triangle.map(p => p.y);
+          colliders.push({ type: 'building-roof', name: `${building.id}:roof:${j}`, sourceId: building.id,
+            polygon: { outer, holes: [] }, roofPanel: { outer, bottom: top.map(() => villaRoof.eaveY), top },
+            minX: Math.min(...outer.map(p => p.x)), maxX: Math.max(...outer.map(p => p.x)),
+            minZ: Math.min(...outer.map(p => p.z)), maxZ: Math.max(...outer.map(p => p.z)),
+            minY: villaRoof.eaveY, maxY: Math.max(...top), heightSource: 'design' });
+        }
+        for (const triangle of villaRoof.sides) addSolidTriangle(wallBatch, triangle, meta, placement.baseY, true);
+      } else addCap(polygon, rings, placement.maxY, 1, index);
       if (building.minHeight > 0) addCap(polygon, rings, placement.minY, -1, index);
     }
     // 原多棱柱的并集即组合体量。保留各源碰撞体的足迹和竖向范围，屋顶支撑取裁切后的显示三角面。
-    colliders.push(...placement.colliders);
+    colliders.push(...placement.colliders.map(collider => villaRoof ? { ...collider, maxY: villaRoof.eaveY } : collider));
     if (podium) {
       const rings = [podium.outer, ...podium.holes].map(flatRing);
       const top = Math.fround(placement.minY + podium.height);
@@ -659,6 +684,15 @@ export function buildCityBlocks(scene, options = {}) {
     group.add(mesh);
   }
   const k11Material = k11Walls?.count ? createK11SouthWallMaterial() : null;
+  const roofColors = { gable: 0x91533c, hipped: 0x53636a, terrace: 0xb7ab92 };
+  for (const [key, { kind, batch }] of villaRoofs) {
+    const roofMaterial = new THREE.MeshStandardNodeMaterial({ color: roofColors[kind], roughness: 0.87 });
+    villaMaterials.push(roofMaterial);
+    const mesh = new THREE.Mesh(batch.build(), roofMaterial);
+    mesh.name = `ShenzhenVillaRoofs:${key}`;
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    group.add(mesh);
+  }
   if (k11Material) {
     const mesh = new THREE.Mesh(k11Walls.build(), k11Material);
     mesh.name = 'ShenzhenBuildings:K11EcoastSouth';
@@ -693,6 +727,7 @@ export function buildCityBlocks(scene, options = {}) {
       k11Material?.dispose();
       programMaterial?.dispose();
       compactMaterial?.dispose();
+      for (const roofMaterial of villaMaterials) roofMaterial.dispose();
       roofPlans.clear();
       envelopes.clear();
       duplicateIds.clear();

@@ -93,6 +93,96 @@ export function readTriangles(batch, firstIndex) {
   return triangles;
 }
 
+// 别墅屋面沿实际足迹分片：两坡、四坡和带平台的折坡顶均由平面下包络生成。
+// 顶点同时交给显示、屋面接触和斜顶碰撞；不外扩足迹，也不覆盖内院。
+export function planResidentialRoof(polygon, minY, maxY, seed) {
+  const ring = polygon.outer;
+  let axis = { x: 1, z: 0 }, longest = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], b = ring[(i + 1) % ring.length];
+    const length = Math.hypot(b.x - a.x, b.z - a.z);
+    if (length > longest) { longest = length; axis = { x: (b.x - a.x) / length, z: (b.z - a.z) / length }; }
+  }
+  const center = ring.reduce((p, q) => ({ x: p.x + q.x / ring.length, z: p.z + q.z / ring.length }), { x: 0, z: 0 });
+  const local = p => ({ u: (p.x - center.x) * axis.x + (p.z - center.z) * axis.z,
+    v: -(p.x - center.x) * axis.z + (p.z - center.z) * axis.x });
+  const points = ring.map(local);
+  const us = points.map(p => p.u), vs = points.map(p => p.v);
+  const loU = Math.min(...us), hiU = Math.max(...us), loV = Math.min(...vs), hiV = Math.max(...vs);
+  const half = Math.max(0.5, (hiV - loV) / 2);
+  const rise = Math.min(2.1, (maxY - minY) * 0.16);
+  const eaveY = Math.fround(maxY - rise);
+  const kind = ['gable', 'hipped', 'terrace'][Math.floor(seed * 997) % 3];
+  const slope = rise / (kind === 'terrace' ? Math.min(1.4, half) : half);
+  const planes = [p => (hiV - p.v) * slope, p => (p.v - loV) * slope];
+  if (kind !== 'gable') planes.push(p => (hiU - p.u) * slope, p => (p.u - loU) * slope);
+  if (kind === 'terrace') planes.push(() => rise);
+  const value = (p, plane) => eaveY + plane(local(p));
+  const height = p => Math.min(...planes.map(plane => value(p, plane)));
+  const clip = (ring, distance) => {
+    const result = [];
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length], da = distance(a), db = distance(b);
+      if (da >= -1e-8) result.push(a);
+      if ((da > 0) !== (db > 0) && Math.abs(da - db) > 1e-9) {
+        const t = da / (da - db);
+        result.push({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t });
+      }
+    }
+    return result;
+  };
+  const triangles = [], sides = [];
+  for (const triangle of triangulateFootprint(polygon)) for (const plane of planes) {
+    let piece = triangle;
+    for (const other of planes) {
+      if (other === plane) continue;
+      piece = clip(piece, p => value(p, other) - value(p, plane));
+      if (piece.length < 3) break;
+    }
+    for (let i = 1; i + 1 < piece.length; i++) {
+      const tri = [piece[0], piece[i], piece[i + 1]].map(p => ({ x: Math.fround(p.x), y: Math.fround(value(p, plane)), z: Math.fround(p.z) }));
+      const [a, b, c] = tri;
+      if (Math.abs((b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x)) > 1e-6) triangles.push(tri);
+    }
+  }
+  for (const [index, source] of [polygon.outer, ...(polygon.holes ?? [])].entries()) {
+    const area = source.reduce((sum, a, i) => {
+      const b = source[(i + 1) % source.length]; return sum + a.x * b.z - b.x * a.z;
+    }, 0);
+    const boundary = (area > 0) === (index === 0) ? source : [...source].reverse();
+    for (let i = 0; i < boundary.length; i++) {
+      const a = boundary[i], b = boundary[(i + 1) % boundary.length], cuts = [0, 1];
+      for (let j = 0; j < planes.length; j++) for (let k = j + 1; k < planes.length; k++) {
+        const da = value(a, planes[j]) - value(a, planes[k]), db = value(b, planes[j]) - value(b, planes[k]);
+        if (da * db < 0) cuts.push(da / (da - db));
+      }
+      cuts.sort((a, b) => a - b);
+      for (let j = 1; j < cuts.length; j++) {
+        const point = t => ({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t });
+        const p = point(cuts[j - 1]), q = point(cuts[j]);
+        const lowP = { ...p, y: eaveY }, lowQ = { ...q, y: eaveY };
+        const topP = { ...p, y: height(p) }, topQ = { ...q, y: height(q) };
+        if (Math.max(topP.y, topQ.y) > eaveY + 1e-6) sides.push([lowP, topQ, lowQ], [lowP, topP, topQ]);
+      }
+    }
+  }
+  return { kind, eaveY, triangles, sides };
+}
+
+export function addSolidTriangle(batch, triangle, meta = null, uvOriginY = 0, wall = false) {
+  let [a, b, c] = triangle;
+  const normal = () => ({ x: (b.y - a.y) * (c.z - a.z) - (b.z - a.z) * (c.y - a.y),
+    y: (b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z),
+    z: (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) });
+  let n = normal();
+  if (!wall && n.y < 0) { [b, c] = [c, b]; n = normal(); }
+  const length = Math.hypot(n.x, n.y, n.z);
+  if (length < 1e-8) return;
+  const ids = [a, b, c].map(p => batch.vertex(p.x, p.y, p.z, n.x / length, n.y / length, n.z / length,
+    wall ? Math.hypot(p.x - a.x, p.z - a.z) : p.x, wall ? p.y - uvOriginY : p.z, meta));
+  batch.tri(...ids);
+}
+
 function signedArea(ring) {
   let a = 0;
   const n = ring.length / 2;
