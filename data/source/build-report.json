@@ -315958,8 +315958,8 @@
   },
   "terrainSurface": {
     "chunks": 1264,
-    "vertices": 791842,
-    "triangles": 1166826,
+    "vertices": 824753,
+    "triangles": 1203097,
     "areaKm2": 279.029368,
     "areaErrorM2": -3.46e-06,
     "seconds": 5.21,
@@ -516425,13 +516425,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "5d914704fc8d9e96d7bcf3533c1bc9c52b2b2b9f0a1c8aefc11c9fa8b973153d",
-    "bytes": 269032,
+    "fingerprint": "bb145ecd4c387d63cc37f2507c69a31837b706d32cfdb3a5afa0106853419091",
+    "bytes": 269026,
     "decodedBytes": 1255916,
     "files": {
-      "js/sz-regional/5d914704fc8d9e96d7bc/waterfront.json.gz": "2b5cb23676f5d2a4190a48b5c0b029068fe6f72e8e2cb98b8592da8885b1f8b7",
-      "js/sz-regional/5d914704fc8d9e96d7bc/metro.json.gz": "0878f17933668f8c4b0c66dc66f2b92424242a159317a65e421781587aac8749",
-      "js/sz-regional/5d914704fc8d9e96d7bc/drone.json.gz": "236dc02a3e0726c9d3d6a8a87412f1ba20de7fed12b990a96a5cd7ab56bae6b7"
+      "js/sz-regional/bb145ecd4c387d63cc37/waterfront.json.gz": "18176b3b2a24bd6fb065b2c9f8798500772c62464ac79181fa823ce7555d7435",
+      "js/sz-regional/bb145ecd4c387d63cc37/metro.json.gz": "d2357f52d16f51c8b0b5b10e64b5a14cb57979768a2fbcf0f3f01cd936e998f3",
+      "js/sz-regional/bb145ecd4c387d63cc37/drone.json.gz": "ebe69dd684a0c9180d93f0733c7e9d3af0977f0c777082d7ec8b23c9dca28994"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -516856,16 +516856,16 @@
     "format": "SZC1",
     "version": 1,
     "columns": 8064,
-    "metadataBytes": 19479113,
-    "numericBytes": 45041416,
-    "uncompressedBytes": 64520584,
+    "metadataBytes": 19479230,
+    "numericBytes": 46081816,
+    "uncompressedBytes": 65561096,
     "lossless": true,
-    "compressedBytes": 17506932,
-    "compressedSha256": "9850502f697eceddacc5795c21cb636733b9a04fa4fd6c56eb504a8edc60db19"
+    "compressedBytes": 17962113,
+    "compressedSha256": "2db2b7426a95eda3dfd122dc0d392d773b7df265add38d329a92f5bf292ee1ab"
   },
-  "outputBytes": 17593154,
-  "outputSha256": "e9ab7b50a2516626fb27004d1f26cc8a9c2ffccc9db49a374365275978f0b309",
-  "seconds": 348.4,
+  "outputBytes": 18117130,
+  "outputSha256": "0b3e12c62ef50a8292e76ca6b6e690361d0f7aadd23d95d58e606ca05a2ed876",
+  "seconds": 222.1,
   "elevatedCut": {
     "version": 3,
     "links": 28,
@@ -518291,11 +518291,13 @@
       "guimiao-east",
       "yanjiang-dongbin-east",
       "yanjiang-dongbin-west",
-      "yanjiang-dongbin-west-port-feeder"
+      "yanjiang-dongbin-west-port-feeder",
+      "binhai-superhq-west",
+      "binhai-superhq-east"
     ],
-    "links": 38,
-    "restoredM2": 22586.249,
-    "cutM2": 25071.966,
+    "links": 44,
+    "restoredM2": 34763.735,
+    "cutM2": 34956.892,
     "heightSource": "estimate"
   }
 }

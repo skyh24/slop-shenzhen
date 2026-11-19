@@ -618,13 +618,27 @@ def _apply_road_corridor_profiles(surface, payload, spec, *, extension=False):
     return cut, {**stats, 'routes': counts, 'heightSource': spec['heightSource']}
 
 
+def _preserve_tunnel_headroom(surface, covers):
+    """洞顶保留完整净空，避免引道降坡把共边顶点拉到洞底，形成封口斜面。"""
+    by_height = {}
+    for mask, minimum in covers:
+        if not mask.is_empty:
+            by_height.setdefault(minimum, []).append(mask)
+    grades = [(unary_union(by_height[minimum]), lambda point, y, minimum=minimum: max(y, minimum))
+              for minimum in sorted(by_height, reverse=True)]
+    if not grades:
+        return surface
+    result, _, _ = _clip_terrain(surface, {}, grades, grade_step=8)
+    return result
+
+
 def _apply_tunnel_corridors(surface, payload, spec):
     routes = spec['tunnelReferenceRoutes']
     records = [row for row in payload['roadStructures']['records'] if row['route'] in routes]
     if {row['route'] for row in records} != set(routes):
         raise ValueError('Missing reviewed tunnel corridor profiles')
     ground = lambda x, z: ground_height(payload['terrain'], x, z)
-    corridors, openings = [], []
+    corridors, openings, covers = [], [], []
     for row in records:
         if payload['roadGraph']['metadata'][row['index']]['osmId'] != row['way']:
             raise ValueError('Tunnel corridor source link mismatch')
@@ -636,6 +650,8 @@ def _apply_tunnel_corridors(surface, payload, spec):
         for a, b in zip(frames, frames[1:]):
             d, x, y, z = [(a[i] + b[i]) / 2 for i in range(4)]
             if cover[1] > cover[0] and cover[0] <= d <= cover[1]:
+                covers.append((strip([a, b], extra=0.6), max(a[2], b[2])
+                               + payload['roadStructures']['tunnelClearanceM'] + 0.3))
                 continue
             if ground(x, z) > y + 0.025:
                 openings.append(strip([a, b], extra=0.6))
@@ -644,6 +660,7 @@ def _apply_tunnel_corridors(surface, payload, spec):
     dry = unary_union([_polygon(rings) for rings in payload['land']]).difference(water)
     restored, added = _restore_roof(surface, unary_union(corridors).intersection(dry), ground)
     cut, removed = cut_ground_openings(restored, unary_union(openings))
+    cut = _preserve_tunnel_headroom(cut, covers)
     cut['tunnelCorridorRoutes'] = routes
     return cut, {'routes': routes, 'links': len(records), 'restoredM2': round(added, 3),
                  'cutM2': round(removed, 3), 'heightSource': spec['heightSource']}
@@ -686,6 +703,21 @@ def apply_highway_corridors(payload, report):
         surface['roadCorridorExtensionVersion'] = 4
     if surface.get('tunnelCorridorRoutes') != corridor_spec['tunnelReferenceRoutes']:
         surface, report['tunnelCorridors'] = _apply_tunnel_corridors(surface, payload, corridor_spec)
+    if surface.get('underpassRoofVersion') != 1:
+        covers = []
+        for profile in [surface.get('keyuanUnderpass'), surface.get('hongliUnderpass')]:
+            if not profile:
+                continue
+            for edge, meta in zip(graph['links'], graph['metadata'], strict=True):
+                if meta['osmId'] not in profile['tunnels']:
+                    continue
+                line = LineString(_source_points(graph, edge))
+                min_x, _, max_x, _ = line.bounds
+                mask = line.buffer(max(9, edge[3]) / 2 + 0.9, cap_style='flat').intersection(
+                    box(min_x - 30, profile['northPortalZ'], max_x + 30, profile['southPortalZ']))
+                covers.append((mask, profile['boreFloorM'] + NANPING_HEADROOM_M + 0.3))
+        surface = _preserve_tunnel_headroom(surface, covers)
+        surface['underpassRoofVersion'] = 1
     payload['terrainSurface'] = surface
     report['terrainSurface'].update(vertices=sum(len(chunk['kinds']) for chunk in surface['chunks']),
                                     triangles=sum(len(chunk['indices']) // 3 for chunk in surface['chunks']))

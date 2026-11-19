@@ -456,11 +456,25 @@ test('Nanping bores and the Hongli underpass join the adjoining road profiles', 
   assert.ok(bores.find(bore => bore.osmId === 'way/221018213').startDeckY >= 43);
   assert.ok(bores.find(bore => bore.osmId === 'way/221892582').startDeckY > 110);
   const underpass = profiledUnderpassPortals(graph, geo.terrainSurface.hongliUnderpass);
+  const ground = groundSurface.createGroundSurfaceSampler(geo.terrainSurface);
+  const profile = geo.terrainSurface.hongliUnderpass;
   assert.equal(underpass.size, 2);
   for (const [index, portals] of underpass) {
     const bore = plan.drive.links.find(link => link.index === index);
     assert.ok(bore, graph.metadata[index].osmId);
     assert.equal(portals.size, 2);
+    // 包含洞门共边及两侧车道，防止接点同高但地形三角面仍封住洞口。
+    for (const frame of bore.frames.filter(frame => frame.z >= profile.northPortalZ
+      && frame.z <= profile.southPortalZ)) {
+      for (const offset of [-0.35, 0, 0.35]) {
+        const z = frame.z + frame.nz * bore.width * offset;
+        if (z < profile.northPortalZ || z > profile.southPortalZ) continue;
+        const height = ground(frame.x + frame.nx * bore.width * offset,
+          z);
+        assert.ok(height !== null && height >= frame.ceilingY - 0.01,
+          `${bore.osmId}: roof obstructs ${frame.d} at ${offset}: ${height}`);
+      }
+    }
     for (const [node, peers] of portals) {
       const y = node === bore.startNode ? bore.startDeckY : bore.endDeckY;
       for (const peer of peers) {
@@ -824,13 +838,15 @@ test('whole-city tunnel lamps use emissive material with valid vertex groups', (
 });
 
 
-test('Guimiao and Yanjiang Dongbin restore continuous profiled bores and open approaches', () => {
+test('reviewed tunnel corridors restore continuous bores and open approaches including SuperHQ', () => {
   const { gunzipSync } = require('node:zlib');
   const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
   const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
   const { applyCorridorRoadProfiles } = loadModule(read('sz-interchange-levels.js'));
   const { geo } = decodeCityPayload(raw);
-  assert.equal(geo.terrainSurface.tunnelCorridorRoutes.length, 5);
+  assert.equal(geo.terrainSurface.tunnelCorridorRoutes.length, 7);
+  assert.ok(geo.terrainSurface.tunnelCorridorRoutes.includes('binhai-superhq-west'));
+  assert.ok(geo.terrainSurface.tunnelCorridorRoutes.includes('binhai-superhq-east'));
   const graph = applyCorridorRoadProfiles(geo.roadGraph, geo.terrainSurface, geo.roadStructures);
   const plan = tunnels.planSzTunnels(graph, geo.terrainSurface, { wholeCity: true });
   const byIndex = new Map(plan.links.map(link => [link.index, link]));
