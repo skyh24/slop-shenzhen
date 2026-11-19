@@ -123,8 +123,16 @@ def _paired_strip(first, second, max_gap, same_direction=False):
 
 
 def _flower_beds(grass):
-    gap = 16
-    for lawn in _polys(grass.buffer(-1.0)):
+    half_length, gap, width_fraction = 8, 16, 0.75
+    # 同一套 16 米长、16 米留草间隔；S 形横向包络按每截绿带宽度收至 3/4。
+    template = []
+    for step in range(25):
+        u = step / 24
+        bend = math.sin(2 * math.pi * u) * 0.8
+        span = 0.10 + 1.05 * math.sin(math.pi * u) ** 0.8
+        template.append((u, bend - span, bend + span))
+    extent = max(abs(y) for _, left, right in template for y in (left, right))
+    for lawn in _polys(grass):
         if lawn.area < 115:
             continue
         box = list(lawn.minimum_rotated_rectangle.exterior.coords)
@@ -133,36 +141,24 @@ def _flower_beds(grass):
         origin = lawn.centroid.coords[0]
         aligned = rotate(lawn, -angle, origin=origin, use_radians=True)
         min_x, min_z, max_x, max_z = aligned.bounds
-        if max_x - min_x < 22:
+        if max_x - min_x < 25:
             continue
-        last_end = min_x - gap
-        count = 0
-        for station in range(math.ceil(min_x + 10), math.floor(max_x - 9), 4):
-            half_length = 9 + 2 * (count % 3)
-            if station - half_length < last_end + gap:
-                continue
-            sections = aligned.intersection(LineString([(station, min_z - 1), (station, max_z + 1)]))
-            section = max(_lines(sections), key=lambda line: line.length, default=None)
-            if section is None or section.length < 5.5:
-                continue
-            center = section.centroid.y
-            width = min(8.5, section.length * 0.38)
-            turn = (-1) ** count
-            for scale in (1.0, 0.76):
-                sides = [[], []]
-                for step in range(19):
-                    u = step / 18
-                    x = station + (2 * u - 1) * half_length * scale
-                    bend = math.sin(2 * math.pi * u) * width * 0.95 * turn
-                    span = width * (0.085 + 0.80 * math.sin(math.pi * u) ** 0.8)
-                    for points, side in zip(sides, (-1, 1)):
-                        points.append((x, center + scale * (bend + side * span)))
-                bed = Polygon(sides[0] + sides[1][::-1])
-                if aligned.covers(bed):
-                    yield rotate(bed, angle, origin=origin, use_radians=True)
-                    last_end = station + half_length * scale
-                    count += 1
+        for station in range(math.ceil(min_x + 10), math.floor(max_x - 9), half_length * 2 + gap):
+            sides = [[], []]
+            for u, left, right in template:
+                x = station + (2 * u - 1) * half_length
+                sections = aligned.intersection(LineString([(x, min_z - 1), (x, max_z + 1)]))
+                section = max(_lines(sections), key=lambda line: line.length, default=None)
+                if section is None or section.length < 7.5:
                     break
+                center = section.centroid.y
+                scale = section.length * width_fraction / (2 * extent)
+                for points, offset in zip(sides, (left, right)):
+                    points.append((x, center + offset * scale))
+            else:
+                bed = Polygon(sides[0] + sides[1][::-1])
+                if aligned.buffer(-0.99).covers(bed):
+                    yield rotate(bed, angle, origin=origin, use_radians=True)
 
 
 def compile_arterial_medians(payload, osm, manifest, report):

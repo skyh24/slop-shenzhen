@@ -317343,7 +317343,7 @@
       }
     ],
     "features": 29,
-    "planarTriangles": 37592,
+    "planarTriangles": 43760,
     "medianShrubsEstimated": 276,
     "signalApproaches": 4,
     "signalTimingSource": "user-defined-game-simulation"
@@ -344271,8 +344271,8 @@
           "way/996657789",
           "way/996762393"
         ],
-        "flowerAreaM2": 25125.54,
-        "flowerBeds": 282
+        "flowerAreaM2": 32466.56,
+        "flowerBeds": 340
       },
       {
         "road": "滨海大道",
@@ -516425,13 +516425,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "a193de31ab6a8cf878e1bd4f842303e16372201f8163598721551df8a29c250b",
-    "bytes": 269008,
+    "fingerprint": "c1066d8f963990a6614f16f7e70002ba71afb027a5252844cb75239fccb024a2",
+    "bytes": 269014,
     "decodedBytes": 1255868,
     "files": {
-      "js/sz-regional/a193de31ab6a8cf878e1/waterfront.json.gz": "3babba6ea40f157042ecacda613bc10898340d5d880b91e4f029a55510b5329e",
-      "js/sz-regional/a193de31ab6a8cf878e1/metro.json.gz": "910898d62d3cead09421e8c69cea229e9bff2599b7d1e7d7ef83674c4900a56e",
-      "js/sz-regional/a193de31ab6a8cf878e1/drone.json.gz": "1b587d0d2d4a7b3f378e42ec5bfc60471b55aeb88b292757b68001a32e3ea64a"
+      "js/sz-regional/c1066d8f963990a6614f/waterfront.json.gz": "daa6816a60c5191bcfc0c370e1d93585e99ed2450835fef1cd8a6a66609392c5",
+      "js/sz-regional/c1066d8f963990a6614f/metro.json.gz": "dff734d2501137c451d2ab947e7bf0b330dd8e33639f45f940f95658ead75178",
+      "js/sz-regional/c1066d8f963990a6614f/drone.json.gz": "a46cbee679bb8849554d88d5776043ed4ca47ea1230a208d1fa28638826d807f"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -516450,7 +516450,7 @@
       "js/sz-building-layout.js": "3a2b4c3fe9d87563e8eb05a95e96bdc34b37be3afc086425d1dae36c3c7e4dac",
       "js/sz-building-plan.js": "94f31c0612ea838424f46a9809e7417575f6af3cd7bf9b31860c2e1d416d01e0",
       "js/sz-building-signs.js": "2a7e85c69669e691f8d8a6a5eb09f313c48486bee6b7bb9c6b9431e1222e33ad",
-      "js/sz-buildings.js": "c863c231c848fa3c1048fb3030fa3c11392dbe27315d67072b2709a00cf50e51",
+      "js/sz-buildings.js": "b77e7d3212199cb2aadf838e64245b17d3a0fdd2e7f00f9f9f722bd87acb9137",
       "js/sz-cbd-program.js": "fae4cea9c236df0f89ceb3cb4f3f097b5b21d8cf0eb6c880311a741ac67e75f3",
       "js/sz-city-config.js": "b1b4ec387c705b5830abb149aabfee1de028e8e0cd081101376ad6278cd60b5c",
       "js/sz-controller-surfaces.js": "0c3242d581331b7ca43826a0f080499629783c9fc410e116ab472a9fd1ae226e",
@@ -516857,15 +516857,15 @@
     "version": 1,
     "columns": 8064,
     "metadataBytes": 19445536,
-    "numericBytes": 45236392,
-    "uncompressedBytes": 64681976,
+    "numericBytes": 45532456,
+    "uncompressedBytes": 64978040,
     "lossless": true,
-    "compressedBytes": 17480931,
-    "compressedSha256": "45f787e6f0ff1a606cecbd27eabb9b9ccb2f545430d4d1a31a6fcc471f75423b"
+    "compressedBytes": 17553047,
+    "compressedSha256": "8daee22e2a42ecf2eaa54476495d80e1310b62169fe44af0d0517d71197d416f"
   },
-  "outputBytes": 17531922,
-  "outputSha256": "f1d75d45c79a5612ba6abb3c6c0f048ac3449b1e22affb8573d5b3144a7d060e",
-  "seconds": 255.7,
+  "outputBytes": 17601502,
+  "outputSha256": "b8463da5f30306bbe1b2ba336fd55f679ec53084fd16a4844833af3c39f9b46f",
+  "seconds": 83.8,
   "elevatedCut": {
     "version": 3,
     "links": 28,

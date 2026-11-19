@@ -46,9 +46,9 @@ const ROOF_EQUIPMENT_SHRINK_STEPS = [1, 0.75, 0.55, 0.35];
 const ROOF_EQUIPMENT_GRID_MAX = 12;
 const flatRing = ring => ring.flatMap(p => [p.x, p.z]);
 const COMPACT_HEIGHT_M = 3.2;
-const COMPACT_AREA_M2 = 40;
-const NARROW_AREA_M2 = 120;
-const NARROW_WIDTH_M = 3.5;
+const COMPACT_AREA_M2 = 80;
+const NARROW_AREA_M2 = 160;
+const NARROW_WIDTH_M = 7;
 const COMPACT_MAX_DIAGONAL_M = 32;
 // 深南香蜜立交的两个已核轮廓沿用原场景设计，其中较大的轮廓不满足通用尺寸条件。
 const REVIEWED_COMPACT_IDS = new Set([
@@ -67,14 +67,17 @@ function fitsNarrowStrip(ring) {
       const across = (dx * (p.z - a.z) - dz * (p.x - a.x)) / length;
       min = Math.min(min, across);
       max = Math.max(max, across);
-      if (max - min > NARROW_WIDTH_M) return false;
+      if (max - min > NARROW_WIDTH_M + 1e-6) return false;
     }
     return true;
   });
 }
 
 function isCompactBlock(building) {
-  if (building.heightSource !== 'estimate' || building.minHeight !== 0 || building.landmark
+  // 低可信遥感预测也可能把小附属轮廓估成高楼；源高度和层数仍受保护。
+  const uncertainHeight = building.heightSource === 'estimate' || (building.heightSource === 'globfp'
+    && ['unknown', 'low'].includes(building.confidence?.height ?? 'unknown'));
+  if (!uncertainHeight || building.minHeight !== 0 || building.landmark
     || building.name || building.levels > 0 || building.category !== 'unknown' || building.retailFloors
     || building.foundation || (building.role && !['main', 'unknown'].includes(building.role))
     || building.polygons.length !== 1 || building.polygons[0].holes.length > 0) return false;
@@ -481,7 +484,8 @@ export function buildCityBlocks(scene, options = {}) {
   const buildings = sourceBuildings.map(building => {
     if (skipIds.has(building.id) || !isCompactBlock(building)) return building;
     compactIds.add(building.id);
-    return { ...building, sourceHeight: building.height, height: Math.min(building.height, COMPACT_HEIGHT_M) };
+    return { ...building, sourceHeight: building.height, sourceHeightSource: building.heightSource,
+      heightSource: 'estimate', height: Math.min(building.height, COMPACT_HEIGHT_M) };
   });
   const retailRegions = options.retail?.regions !== undefined ? options.retail.regions
     : cityContext ? GEO?.mapRegions?.regions : undefined;
