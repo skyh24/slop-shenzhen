@@ -228,7 +228,10 @@ async function initApp() {
     cruiseCurbs: roadFrontage.curbColliders,
     // 场所公开上跨面按登记顺序并入接触候选；其余结构面各自的入口不变。
     surfaces: [...cityBlocks.surfaces, ...themeParks.surfaces, ...places.standable, ...landmarks.surfaces, ...elevatedRoads.surfaces, ...tunnels.surfaces, ...summit.surfaces, ...(waterfront?.surfaces ?? [])],
-    nearTraffic: traffic.nearColliders, nearWalkers: nearTalentPeople, nearRegional: regional.colliders, flightSettings: GEO.airCruises?.flight,
+    nearTraffic: traffic.nearColliders, nearWalkers: nearTalentPeople, nearRegional: (x, z, r, pending) => {
+      const nearby = regional.colliders(x, z, r, pending);
+      return landmarks.wheelMotion?.appendColliders(nearby, x, z, r) ?? nearby;
+    }, flightSettings: GEO.airCruises?.flight,
     driveDeckIds: elevatedRoads.drive.surfaces.map(surface => surface.id),
     groundIdentity: waterfrontPaths.groundIdentity,
     // 单车按实际地面承托与实体碰撞通行，不再被区域用途标签拦住。
@@ -358,6 +361,7 @@ async function initApp() {
     tunnels.dispose();
     roadLandscape.dispose();
     districts.dispose();
+    landmarks.dispose();
     northStation?.dispose();
     streetscape.dispose();
     themeParks.dispose();
@@ -957,6 +961,7 @@ async function initApp() {
     drones.update(dt, cameraSystem.camera.position);
     if (!droneWatch.update(dt)) cameraSystem.update(dt, elapsed, now / 1000, cruise.entity);
     qa.applyCamera(cameraSystem.camera);
+    landmarks.wheelMotion?.update(dt, cameraSystem.camera.position, active.position);
     streetLamps.update(cameraSystem.camera.position);
     trees.update(cameraSystem.camera.position);
     vegetation.update(cameraSystem.camera.position);

@@ -357,7 +357,7 @@
     {
       "id": "mixc-world", "name": "深圳万象天地", "phase": 1,
       "center": [22.54521, 113.95132],
-      "osm": { "site": "way/586124738", "parts": { "centralShops": "way/533679847", "eastShops": "way/1268947103", "southShops": "way/1268947086", "bridges": ["way/1268947093", "way/1268947084"] } },
+      "osm": { "site": "way/586124738", "parts": { "elephant": "node/11786223160", "fountain": "node/11786223130", "centralShops": "way/533679847", "eastShops": "way/1268947103", "southShops": "way/1268947086", "bridges": ["way/1268947093", "way/1268947084"] } },
       "status": "partial", "sources": ["https://www.hygj.cn/newsdetail.aspx?id=100000294955565"]
     },
     {

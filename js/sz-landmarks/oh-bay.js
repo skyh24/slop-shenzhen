@@ -35,8 +35,10 @@ export const wheel = {
       }
       for (let i = 0; i < 56; i++) {
         const angle = i * Math.PI / 28;
-        beam(`oh-bay:rim:${side}:${i}`, rim(angle, side * 1.9), rim(angle + Math.PI / 28, side * 1.9), 0.85);
-        beam(`oh-bay:spoke:${side}:${i}`, p(0, side * 3.7, hub), rim(angle, side * 1.9), 0.20, 0.20, 'landmarkEdge');
+        const start = parts.length;
+        beam(`oh-bay:rim:${side}:${i}`, rim(angle, side * 1.9), rim(angle + Math.PI / 28, side * 1.9), 0.85, 0.85, 'bayWheelRim');
+        beam(`oh-bay:spoke:${side}:${i}`, p(0, side * 3.7, hub), rim(angle, side * 1.9), 0.20, 0.20, 'bayWheelWire');
+        for (let j = start; j < parts.length; j++) parts[j].wheelMotion = 'rim';
       }
     }
     beam('oh-bay:axle', p(0, -6.5, hub), p(0, 6.5, hub), 5.4);
@@ -45,9 +47,11 @@ export const wheel = {
       const u = radius * Math.cos(a), y = base + hub + radius * Math.sin(a);
       const outer = ellipse(at, u, 0, 2.5, 2.55), inner = ellipse(at, u, 0, 2.5 * 0.72, 2.55 * 0.72);
       const pod = `oh-bay:cabin:${i}`;
+      const start = parts.length;
       parts.push(loftPart(pod + ':sill', hall, inner, outer, y - 2.1, y - 1.35, 'bayWheelSteel'),
         loftPart(pod + ':panorama', hall, outer, outer, y - 1.35, y + 1.35, 'bayCabinGlass', { smoothSides: true }),
         loftPart(pod + ':cap', hall, outer, inner, y + 1.35, y + 2.1, 'bayWheelSteel', { heightSource: i === 7 ? 'osm' : 'estimate' }));
+      for (let j = start; j < parts.length; j++) parts[j].wheelMotion = i;
     }
     parts.push(volume('oh-bay:boarding', hall, rect(at, 0, 0, 21, 7.4), base, base + hub - radius - 2.14, 'shoppingParkStone'));
     return parts;

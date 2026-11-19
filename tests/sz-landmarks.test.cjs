@@ -38,6 +38,7 @@ const shopping = loadModule(readLandmark('shopping-park-shell.js'), { imports: {
 const retailSections = loadModule(readLandmark('retail-sections.js'));
 const retailImports = { './parts.js': parts, './model-profile.js': profiles, './retail-sections.js': retailSections };
 const ohBay = loadModule(readLandmark('oh-bay.js'), { imports: retailImports });
+retailImports['./mixc-elephant.js'] = loadModule(readLandmark('mixc-elephant.js'), { imports: retailImports });
 const mixc = loadModule(readLandmark('mixc-world.js'), { imports: retailImports });
 const newModels = [ohBay.wheel, ohBay.eastShore, ...ohBay.haifu, mixc, tencentTowers, library, diwang, kk100, exchange, shopping];
 const dji = loadModule(readLandmark('dji-sky-city.js'), { imports: { '../building-collision.js': collision, './parts.js': parts } });
@@ -992,4 +993,56 @@ test('MixC World keeps both third-floor crossings supported through their landin
     assert.equal(atPoint(doorX, 130.9, y + 0.02, y + 1.85).length, 0);
     assert.ok(atPoint(doorX - 4, 130.9, y + 0.02, y + 1.85).length);
   }
+});
+
+test('Bay Glory pauses at distance and advances its moving contacts with upright cabins',
+  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+    const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
+    const imports = { 'three/webgpu': THREE };
+    const render = loadModule(readLandmark('render.js'), { imports: {
+      ...imports, '../sz-geometry.js': loadModule(read('sz-geometry.js'), { imports })
+    } });
+    const { buildWheelMotion } = loadModule(readLandmark('wheel-motion.js'), { imports: {
+      ...imports, './render.js': render, '../building-collision.js': collision
+    } });
+    const material = new THREE.MeshBasicMaterial();
+    const motion = buildWheelMotion(byLandmark.get('oh-bay-wheel'), () => material);
+    const cabin = motion.group.children.find(m => m.isInstancedMesh);
+    const matrix = new THREE.Matrix4();
+    const centerOfFirst = () => {
+      cabin.getMatrixAt(0, matrix);
+      assert.equal(matrix.elements[5], 1);
+      return new THREE.Vector3().setFromMatrixPosition(matrix).add(cabin.position);
+    };
+    const far = new THREE.Vector3(0, 8, 0), initial = centerOfFirst();
+    motion.update(180, far, far);
+    assert.equal(initial.distanceTo(centerOfFirst()), 0);
+    motion.update(180, far, initial);
+    const moved = centerOfFirst();
+    assert.ok(Math.abs(moved.y - initial.y - 56.65) < 0.01);
+    const hitsFirst = p => motion.appendColliders([], p.x, p.z, 1).some(c => {
+      if (c.name !== 'oh-bay:cabin:0:panorama') return false;
+      const bits = c.sectionAt(p.y - 0.2, p.y + 0.2);
+      return bits && collision.polygonContains(bits, p.x, p.z);
+    });
+    assert.ok(hitsFirst(moved));
+    assert.equal(hitsFirst(initial), false);
+    motion.update(1, far, far);
+    assert.ok(moved.distanceTo(centerOfFirst()) < 1e-6);
+    motion.update(1, moved, far);
+    assert.ok(moved.distanceTo(centerOfFirst()) > 0.4);
+  });
+
+test('MixC elephant has an open terrace notch and a continuous trunk facing the fountain', () => {
+  const model = byLandmark.get('mixc-world');
+  const terrace = model.find(p => p.id.startsWith('mixc:elephant-terrace:'));
+  const trunk = model.filter(p => p.id.startsWith('mixc:elephant:trunk:'));
+  const crossing = trunk.find(p => p.minY <= terrace.maxY && p.maxY >= terrace.maxY);
+  assert.ok(crossing && trunk[0].minY < terrace.minY - 12);
+  const x = (crossing.minX + crossing.maxX) / 2, z = (crossing.minZ + crossing.maxZ) / 2;
+  const original = byId.get('way/1268947103').polygons[0];
+  assert.ok(collision.polygonContains(original, x, z));
+  assert.ok(crossing.polygon.outer.every(p => !collision.polygonContains(terrace.polygon, p.x, p.z)));
+  for (let i = 1; i < trunk.length; i++) assert.equal(trunk[i].minY, trunk[i - 1].maxY);
+  assert.ok(model.find(p => p.id.includes('elephant:tip:')).maxX > crossing.maxX);
 });

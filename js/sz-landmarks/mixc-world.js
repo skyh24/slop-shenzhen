@@ -1,5 +1,6 @@
 import { baseAt, spanPart } from './parts.js';
 import { rect, volume } from './model-profile.js';
+import { elephantParts, trunkOpening } from './mixc-elephant.js';
 import { cutRing } from './retail-sections.js';
 
 export const sourceIds = ['way/533679847', 'way/1268947103', 'way/1268947086'];
@@ -17,8 +18,8 @@ export function build(source, terrain, { groundHeight } = {}) {
     parts.push(spanPart(id, building, { ...a, y: y + 1.10 }, { ...b, y: y + 1.10 },
       0.13, 0.13, 1.10, 'mixcBalustrade'));
   };
-  function shops(building, upper, label) {
-    const ring = building.polygons[0].outer, floor = baseAt(building, terrain);
+  function shops(building, upper, label, ring = building.polygons[0].outer) {
+    const floor = baseAt(building, terrain);
     const id = 'mixc:' + label;
     parts.push(volume(id + ':windows', building, ring, floor, base + 4.9, 'shoppingParkStorefront'),
       volume(id + ':lintel', building, ring, base + 4.9, base + 5.3, 'shoppingParkStone'),
@@ -45,7 +46,16 @@ export function build(source, terrain, { groundHeight } = {}) {
     parts.push(volume('mixc:fascia:' + i, middle, rect(at, left + 5.1, 131.04, 9.9, 0.36),
       roofY - 0.95, roofY - 0.55, i % 2 ? 'shoppingParkStone' : 'operaCopper'));
   }
-  shops(east, cutRing(east.polygons[0].outer, 'x', -10569.4, true), 'east');
+  const eastOutline = trunkOpening(east.polygons[0].outer);
+  const eastUpper = cutRing(eastOutline, 'x', -10569.4, true);
+  const terrace = cutRing(eastUpper, 'x', -10526.5, true);
+  const seat = deckY + 5.5;
+  shops(east, cutRing(eastUpper, 'x', -10526.5, false), 'east', eastOutline);
+  parts.push(volume('mixc:water-plaza-front', east, terrace, deckY, seat - 0.35, 'mixcWaterFacade'),
+    volume('mixc:elephant-terrace', east, terrace, seat - 0.35, seat, 'shoppingParkStone', { roofContact: true }),
+    ...elephantParts(east, base, seat));
+  rail('mixc:elephant-parapet:south', east, { x: -10513.32, z: 108.75 }, { x: -10513.12, z: 134.0 }, seat);
+  rail('mixc:elephant-parapet:north', east, { x: -10513.40, z: 103.0 }, { x: -10513.36, z: 105.75 }, seat);
   shops(south, cutRing(south.polygons[0].outer, 'z', 157.6, true), 'south');
   for (const { id, from, to, width } of links) {
     const a = { x: from[0], z: from[1], y: deckY }, b = { x: to[0], z: to[1], y: deckY };
