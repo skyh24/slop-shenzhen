@@ -4,6 +4,8 @@ import * as universityTownLibrary from './university-town-library.js';
 import * as diwang from './diwang.js';
 import * as kk100 from './kk100.js';
 import * as stockExchange from './stock-exchange.js';
+import { wheel, eastShore, westShore, haifu } from './oh-bay.js';
+import * as mixcWorld from './mixc-world.js';
 import * as shoppingParkShell from './shopping-park-shell.js';
 import { sourceIds as skyCityIds, build as buildSkyCity } from './dji-sky-city.js';
 import { sourceIds as pingAnIds, build as buildPingAn } from './ping-an.js';
@@ -16,7 +18,7 @@ import { sourceIds as upperhillsIds, build as buildUpperhills } from './upperhil
 import { sourceIds as nonferrousIds, optionalSkipIds as nonferrousDuplicates, build as buildNonferrous } from './nonferrous-tower.js';
 import { sourceIds as pressIds, optionalSkipIds as pressDuplicates, build as buildPress } from './press-tower.js';
 import { sourceIds as iecIds, optionalSkipIds as iecDuplicates, build as buildIec } from './iec-xiangmihu.js';
-import { sourceIds as superHqIds, optionalSkipIds as superHqSkips, build as buildSuperHq } from './super-hq.js';
+import { sourceIds as superHqIds, optionalSkipIds as superHqSkips, build as buildSuperHq, planForecourt } from './super-hq.js';
 import * as qianhaiMuseum from './qianhai-museum.js';
 import * as bayOpera from './bay-opera.js';
 import * as mocape from './mocape.js';
@@ -37,6 +39,11 @@ const definitions = [
   { id: 'diwang', ...diwang },
   { id: 'kk100', ...kk100 },
   { id: 'shenzhen-stock-exchange', ...stockExchange },
+  ...haifu,
+  { id: 'oh-bay-wheel', ...wheel },
+  { id: 'oh-bay-east-shore', ...eastShore },
+  { id: 'oh-bay-west-shore', ...westShore },
+  { id: 'mixc-world', ...mixcWorld },
   { id: 'shopping-park-shell', ...shoppingParkShell },
   { id: 'dji-sky-city', sourceIds: skyCityIds, build: buildSkyCity },
   { id: 'ping-an', sourceIds: pingAnIds, build: buildPingAn },
@@ -56,7 +63,10 @@ const definitions = [
   { id: 'press-tower', sourceIds: pressIds, optionalSkipIds: pressDuplicates, build: buildPress },
   { id: 'iec-xiangmihu', site: 'iec-xiangmihu', sourceIds: iecIds, optionalSkipIds: iecDuplicates, build: buildIec },
   { id: 'shenzhen-north', sourceIds: northIds, build: buildNorth },
-  { id: 'super-hq', site: 'super-hq', sourceIds: superHqIds, optionalSkipIds: superHqSkips, build: buildSuperHq }
+  { id: 'super-hq', site: 'super-hq', sourceIds: superHqIds, optionalSkipIds: superHqSkips, build: (source, terrain, context) => {
+    const parts = buildSuperHq(source, terrain, context);
+    return parts.length ? { parts, ...planForecourt(context.sites.site.polygons[0]) } : parts;
+  } }
 ];
 
 // 场地接管清单和地标计划放在一起：两者都是「谁不再按通用楼渲染」的判定，同源同处便于核对；
@@ -87,11 +97,11 @@ export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, grou
     // 已核场地与玩家活动地面一同传入；贴地接驳用显示面，楼体估高仍用原地形。
     const context = { sites: sites[definition.site] ?? sites[definition.id] ?? {}, heightAt, groundHeight, roadHeight, northRail };
     const model = definition.build(source, terrain, context);
-    const { parts, patches = [], signs = [], trim = [], approaches = [], reservesField } = Array.isArray(model) ? { parts: model } : model;
+    const { parts, patches = [], trees = [], signs = [], trim = [], approaches = [], reservesField } = Array.isArray(model) ? { parts: model } : model;
     if (parts.length === 0) continue;
     for (const id of sourceIds) skipIds.add(id);
     for (const id of definition.optionalSkipIds ?? []) if (source.has(id)) skipIds.add(id);
-    plans.push({ id: definition.id, parts, patches, signs, reservesField, approaches: definition.approaches?.(source) ?? approaches,
+    plans.push({ id: definition.id, parts, patches, trees, signs, reservesField, approaches: definition.approaches?.(source) ?? approaches,
       trim: definition.trim?.(parts, source) ?? trim });
   }
   // 场地接管与地标接管合并成一份 skipIds：超级总部/西丽场地轮廓内的旧通用楼不再单独渲染。

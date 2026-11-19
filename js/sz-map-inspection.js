@@ -78,7 +78,11 @@ function wireMapInspection(map) {
       nearest = landmark;
       distance = d;
     }
-    return nearest;
+    if (nearest) return nearest;
+    const x = (point.x - map.viewCenterX) * map.viewZoom;
+    const y = (point.z - map.viewCenterZ) * map.viewZoom;
+    return map.landmarkLabelHits?.find(({ label: { box } }) =>
+      x >= box[0] && y >= box[1] && x <= box[2] && y <= box[3])?.lm ?? null;
   }
 
   function pick(point, pointerType) {
@@ -89,15 +93,18 @@ function wireMapInspection(map) {
     if (map.pickTransportStation?.(point)) return;
     const pin = visiblePin(point);
     const region = pin ? null : map.regionLayer()?.hit(point.x, point.z, map.viewZoom, map.mapLayersVisible) ?? null;
-    selected = { x: pin?.x ?? point.x, z: pin?.z ?? point.z, landmarkId: pin?.id,
+    const retail = region?.type === 'retail' && region.name;
+    const destination = pin ?? (retail && NYC_LANDMARKS.find(lm => lm.sourceId && region.sourceIds?.includes(lm.sourceId)));
+    selected = { x: destination?.x ?? point.x, z: destination?.z ?? point.z, landmarkId: destination?.id,
+      retail: Boolean(retail),
       label: pin?.name ?? (region ? label(region) : STR.map.selectedPoint),
       region: pointerType === 'mouse' ? null : region };
     feedback = '';
     updateSelection();
-    return true;
+    return pin || retail ? 'destination' : 'point';
   }
 
-  function travel() {
+  function travel(mode) {
     if (!selected || map.isPlanningDrive) return;
     const target = selected;
     const { x, z, landmarkId } = target;
@@ -112,7 +119,7 @@ function wireMapInspection(map) {
       updateSelection();
       map.renderFullMap();
     };
-    const arrived = map.onTeleport?.(x, z, undefined, { landmarkId, current: () => selected === target });
+    const arrived = map.onTeleport?.(x, z, undefined, { landmarkId, mode, retail: target.retail, current: () => selected === target });
     if (arrived?.then) arrived.then(finish);
     else finish(arrived);
   }
@@ -206,8 +213,8 @@ function wireMapInspection(map) {
         && e.pointerType === lastTap.type && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) <= 12;
       const picked = pick(point, e.pointerType);
       if (!picked) lastTap = null;
-      else if (doubleTap && !map.isPlanningDrive) {
-        travel();
+      else if (picked === 'destination' || doubleTap) {
+        travel(picked === 'destination' && map.controllerManager?.activeMode === 'helicopter' ? 'helicopter' : 'person');
         lastTap = null;
       } else {
         lastTap = { time: e.timeStamp, x: e.clientX, y: e.clientY, type: e.pointerType };

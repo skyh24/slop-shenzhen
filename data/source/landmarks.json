@@ -350,7 +350,15 @@
     {
       "id": "oh-bay", "name": "欢乐港湾", "phase": 1,
       "center": [22.546311, 113.881011],
-      "osm": { "site": "way/771513760" }, "status": "osm"
+      "osm": { "site": "way/771513760", "parts": { "wheel": "node/7851738804", "reception": "way/914175455", "eastShore": "way/902736738", "westShore": "way/902736740", "promenades": ["way/883893845", "way/906499274", "way/953927345", "way/1137845935"], "haifu": ["way/777460294", "way/777460295", "way/1269043225", "way/777460296", "way/777460297", "way/1269043226", "way/777460298", "way/777460299", "way/1269043227"] } },
+      "heights": { "wheel": 128 }, "status": "partial",
+      "sources": ["https://appdetail.baoanone.com/cms/content/2021-04/19/content_43095.html", "https://www.archdaily.cn/cn/966840/shen-zhen-bao-an-huan-le-gang-wan-dong-an-laguardow-architects"]
+    },
+    {
+      "id": "mixc-world", "name": "深圳万象天地", "phase": 1,
+      "center": [22.54521, 113.95132],
+      "osm": { "site": "way/586124738", "parts": { "elephant": "node/11786223160", "fountain": "node/11786223130", "centralShops": "way/533679847", "eastShops": "way/1268947103", "southShops": "way/1268947086", "bridges": ["way/1268947093", "way/1268947084"] } },
+      "status": "partial", "sources": ["https://www.hygj.cn/newsdetail.aspx?id=100000294955565"]
     },
     {
       "id": "taizi-bay", "name": "蛇口太子湾", "phase": 1,

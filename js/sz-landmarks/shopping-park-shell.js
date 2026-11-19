@@ -4,7 +4,7 @@ import { createBuildingEnvelopePlan } from '../sz-building-envelope.js';
 
 export const sourceIds = ['way/238825588', 'way/539435437'];
 
-// 购物公园沿弧形一侧的柱廊与塔楼尺寸。全部为米，y 为世界坐标。
+// 福田 COCO Park 一期东南圆筒与柱廊。尺寸为建成照片估计，详见入口来源卡。
 const COLONNADE = {
   columnWidth: 0.7,
   columnOffset: 2.0,
@@ -19,18 +19,20 @@ const COLONNADE = {
   glassThickness: 0.12,
   glassBottom: 0.15,
   glassTop: 5.2,
+  foldOutset: 0.85,
   canopyDepth: 4.0,
   canopyThickness: 0.28,
   canopyOffset: 2.0
 };
 
-// 塔楼：48 边内切椭圆，三段收分，顶点落在源足迹之内；冠部外挑一圈压顶。
-const TOWER = {
+// 圆筒仅略高于裙房。72.6 米的源估高仍留在源记录，模型采用独立估值。
+const ROTUNDA = {
   sides: 48,
-  taper: [1, 0.965, 0.92, 0.9],
+  height: 21.5,
+  taper: [1, 0.997, 0.993, 0.988],
   fitMargin: 0.995,
-  crownScale: 0.925,
-  crownHeight: 0.7
+  crownScale: 0.998,
+  crownHeight: 1.55
 };
 
 const SOUTHEAST = { x: Math.SQRT1_2, z: Math.SQRT1_2 };
@@ -72,8 +74,8 @@ function ringDistance(ring, x, z) {
 }
 
 function ellipseRing(cx, cz, rx, rz, scale) {
-  return Array.from({ length: TOWER.sides }, (_, i) => {
-    const angle = i * Math.PI * 2 / TOWER.sides;
+  return Array.from({ length: ROTUNDA.sides }, (_, i) => {
+    const angle = i * Math.PI * 2 / ROTUNDA.sides;
     return { x: cx + Math.cos(angle) * rx * scale, z: cz + Math.sin(angle) * rz * scale };
   });
 }
@@ -91,7 +93,7 @@ function fitScale(cx, cz, rx, rz, polygon) {
     if (ringInside(ellipseRing(cx, cz, rx, rz, mid), polygon)) low = mid;
     else high = mid;
   }
-  return low * TOWER.fitMargin;
+  return low * ROTUNDA.fitMargin;
 }
 
 // 沿方向射线求源足迹的外边界距离，用于补裙房顶洞边缘的窄环。
@@ -183,6 +185,18 @@ function squareRing(cx, cz, dirX, dirZ, outX, outZ, half) {
   return [at(-half, -half), at(half, -half), at(half, half), at(-half, half)];
 }
 
+function foldedGlass(podium, edge, edgeIndex, base) {
+  const { a, b } = shiftedSegment(edge, 0.17);
+  const mid = { x: (a.x + b.x) / 2 + edge.outX * COLONNADE.foldOutset,
+    z: (a.z + b.z) / 2 + edge.outZ * COLONNADE.foldOutset };
+  const top = base + podium.height - 0.75;
+  const depth = top - (base + COLONNADE.height + COLONNADE.beamHeight);
+  if (depth <= 0) return [];
+  return [[a, mid], [mid, b]].map(([from, to], i) => spanPart(
+    `${podium.id}:folded-glass:${edgeIndex}:${i}`, podium, { ...from, y: top }, { ...to, y: top },
+    0.14, 0.14, depth, 'shoppingParkGlass'));
+}
+
 // 柱廊：每段沿弧长均布方柱，柱间配通长梁、首层玻璃带；雨棚与补缝走 trim，不生成碰撞。
 function colonnadeParts(podium, podiumRing, upperRing, base, trim) {
   const parts = [];
@@ -210,7 +224,7 @@ function colonnadeParts(podium, podiumRing, upperRing, base, trim) {
       }
       if (ring.some(p => polygonContains(podium.polygons[0], p.x, p.z))) continue;
       const id = podium.id + ':colonnade:column:' + index;
-      const column = footprintParts({ ...podium, polygons: [{ outer: ring, holes: [] }] }, 0, 'shoppingParkBase', {
+      const column = footprintParts({ ...podium, polygons: [{ outer: ring, holes: [] }] }, 0, 'shoppingParkStone', {
         id, min: base, max: top, derived: true, heightSource: 'estimate'
       })[0];
       parts.push({ ...column, id });
@@ -231,8 +245,9 @@ function colonnadeParts(podium, podiumRing, upperRing, base, trim) {
       parts.push(spanPart(podium.id + ':colonnade:glass:' + edgeIndex, podium,
         { ...glass.a, y: base + COLONNADE.glassTop }, { ...glass.b, y: base + COLONNADE.glassTop },
         COLONNADE.glassThickness, COLONNADE.glassThickness,
-        COLONNADE.glassTop - COLONNADE.glassBottom, 'shoppingParkGlass',
+        COLONNADE.glassTop - COLONNADE.glassBottom, 'shoppingParkStorefront',
         { heightSource: 'estimate', baseSourceId: podium.id }));
+      parts.push(...foldedGlass(podium, edge, edgeIndex, base));
 
       // 雨棚悬挑 4 米，顶面略低于梁底；分段接缝交替 4 毫米，避免共面顶面打架。
       const mx = (edge.a.x + edge.b.x) / 2, mz = (edge.a.z + edge.b.z) / 2;
@@ -269,20 +284,49 @@ function soffitTrim(podium, upperRing, cx, cz, rx, rz, fit, roofY, trim) {
   }
 }
 
+// 沿开口庭院内缘示意屋顶种植带。只在现有裙房顶轮廓内落位。
+function terracePlanting(podium, upper, base) {
+  const polygon = podium.polygons[0];
+  return edgesOf(polygon.outer).flatMap((edge, i) => {
+    const mx = (edge.a.x + edge.b.x) / 2, mz = (edge.a.z + edge.b.z) / 2;
+    if (mx < -614 || mx > -558 || mz < 1067 || mz > 1151 || edge.length < 5) return [];
+    const ring = [0.13, 0.87].flatMap((t, end) => (end ? [3.4, 1.3] : [1.3, 3.4]).map(offset => ({
+      x: edge.a.x + edge.dx * t - edge.outX * offset,
+      z: edge.a.z + edge.dz * t - edge.outZ * offset
+    })));
+    if (!ringInside(ring, polygon) || ring.some(p => polygonContains(upper.polygons[0], p.x, p.z))) return [];
+    return footprintParts({ ...podium, polygons: [{ outer: ring, holes: [] }] }, base, 'cultureRoofGarden', {
+      id: `${podium.id}:terrace-planting:${i}`, min: podium.height, max: podium.height + 0.48, derived: true, bottomFace: false
+    });
+  });
+}
+
+function rotundaSigns(cx, cz, rx, rz, scale, top) {
+  return [0.23, 1.32].map(angle => {
+    const x = Math.cos(angle), z = Math.sin(angle);
+    return { style: 'cocoParkWordmark', x: cx + x * (rx * scale + 0.16), y: top - 0.77,
+      z: cz + z * (rz * scale + 0.16), yaw: Math.atan2(x / rx, z / rz), width: 12.4, height: 1.38 };
+  });
+}
+
 // 裙房顶面裁剪与同源接触三角沿用原逻辑：只挖掉塔楼实际占用的顶面。
 export function build(sources, terrain) {
   const [podium, upper] = sourceIds.map(id => sources.get(id));
-  if (!podium || !upper || upper.height <= podium.height) return [];
+  const shellTop = ROTUNDA.height - ROTUNDA.crownHeight;
+  if (!podium || !upper || shellTop <= podium.height || COLONNADE.height >= podium.height) return [];
   const base = baseAt(podium, terrain);
   const podiumRing = podium.polygons[0].outer;
   const upperRing = upper.polygons[0].outer;
-  const lowerParts = footprintParts(podium, base, 'shoppingParkBase');
+  const storefronts = footprintParts(podium, base, 'shoppingParkStorefront', {
+    id: `${podium.id}:storefront`, max: COLONNADE.height, derived: true, topFace: false
+  });
+  const lowerParts = footprintParts(podium, base, 'shoppingParkBase', { min: COLONNADE.height, bottomFace: false });
   const { envelopes } = createBuildingEnvelopePlan([podium, upper], building => building === podium
     ? { minY: base + podium.minHeight, maxY: Math.fround(base + podium.height) }
-    : { minY: Math.fround(base + podium.height), maxY: Math.fround(base + upper.height) }, new Set(), [sourceIds]);
+    : { minY: Math.fround(base + podium.height), maxY: Math.fround(base + ROTUNDA.height) }, new Set(), [sourceIds]);
   const trim = [];
-  const parts = lowerParts.map(part => ({ ...part, roofPieces: envelopes.get(part.polygon)?.cap(part.maxY, 1) }));
-  parts.push(...colonnadeParts(podium, podiumRing, upperRing, base, trim));
+  const parts = [...storefronts, ...lowerParts.map(part => ({ ...part, roofPieces: envelopes.get(part.polygon)?.cap(part.maxY, 1) }))];
+  parts.push(...colonnadeParts(podium, podiumRing, upperRing, base, trim), ...terracePlanting(podium, upper, base));
 
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const p of upperRing) {
@@ -292,24 +336,25 @@ export function build(sources, terrain) {
   const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
   const rx = (maxX - minX) / 2, rz = (maxZ - minZ) / 2;
   const fit = fitScale(cx, cz, rx, rz, upper.polygons[0]);
+  if (!(fit > 0)) return [];
   const podiumTop = base + podium.height;
-  const upperTop = base + upper.height;
-  const sections = TOWER.taper.map((scale, i) => ({
-    y: podiumTop + (upperTop - podiumTop) * i / (TOWER.taper.length - 1),
+  const upperTop = base + ROTUNDA.height;
+  const sections = ROTUNDA.taper.map((scale, i) => ({
+    y: podiumTop + (shellTop - podium.height) * i / (ROTUNDA.taper.length - 1),
     ring: ellipseRing(cx, cz, rx, rz, fit * scale)
   }));
   // 段间不封顶/封底，只有首段封底、冠部封顶，避免接高处出现重复水平面。
   const tower = sections.slice(0, -1).map((section, i) => loftPart(upper.id + ':tower:' + i, upper,
     section.ring, sections[i + 1].ring, section.y, sections[i + 1].y, 'shoppingParkGlass', {
-      baseSourceId: podium.id, heightSource: upper.heightSource, uvOriginY: base,
+      baseSourceId: podium.id, uvOriginY: base,
       smoothSides: true, bottomFace: i === 0, topFace: false
     }));
-  const crownRing = ellipseRing(cx, cz, rx, rz, fit * TOWER.crownScale);
+  const crownScale = fit * ROTUNDA.crownScale;
+  const crownRing = ellipseRing(cx, cz, rx, rz, crownScale);
   const crown = footprintParts({ ...upper, polygons: [{ outer: crownRing, holes: [] }] }, 0, 'landmarkEdge', {
-    id: upper.id + ':crown', min: upperTop - TOWER.crownHeight, max: upperTop, derived: true,
-    heightSource: upper.heightSource
+    id: upper.id + ':crown', min: base + shellTop, max: upperTop, derived: true, baseSourceId: podium.id
   })[0];
   parts.push(...tower, { ...crown, id: upper.id + ':crown' });
   soffitTrim(podium, upperRing, cx, cz, rx, rz, fit, podiumTop, trim);
-  return { parts, trim };
+  return { parts, trim, signs: rotundaSigns(cx, cz, rx, rz, crownScale, upperTop) };
 }

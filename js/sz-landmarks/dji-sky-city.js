@@ -32,7 +32,7 @@ const BRIDGE_VISIBLE_SPAN = [31.5, 32.4];
 const CORE_STYLE = 'djiGuard';
 const FIN_STYLE = 'djiBrace';
 const BRACE_STYLE = 'djiSteel';
-const TRUSS_STYLE = 'djiGuard';
+const EDGE_LIGHT = 'djiEdgeLight';
 // 吊索和护栏用同一种低亮度夜间轮廓材质。
 const NIGHT_STEEL = 'djiBridgeEdge';
 
@@ -175,7 +175,7 @@ function bridgeParts(source, buildings, terrain, towerSolids) {
     const hB = bridgeTruss(b);
     for (const side of [-1, 1]) {
       add('bridge-edge-beam', axis(a, yA, side * (wA / 2 + eA / 2)), axis(b, yB, side * (wB / 2 + eB / 2)),
-        eA, eB, blend(...BRIDGE_EDGE_DEPTH, mid), TRUSS_STYLE, 'design');
+        eA, eB, blend(...BRIDGE_EDGE_DEPTH, mid), EDGE_LIGHT, 'design');
       add('bridge-guard', axis(a, yA + hA, side * (wA / 2 + eA - 0.075)),
         axis(b, yB + hB, side * (wB / 2 + eB - 0.075)), 0.15, 0.15, Math.max(hA, hB), NIGHT_STEEL, 'design');
     }
@@ -212,7 +212,7 @@ function wingGap(wing, direction, base, bridgeY, bridge) {
   return ratio.map(t => blend(bottom, top, t) - base);
 }
 
-// 每个悬浮块的长立面上，两根斜杆从顶边两角收到底边中央，加一根顶部横杆；照片比例，估计值。
+// 每个悬浮块的长立面上，两根斜杆从顶边两角收至上部中央，加一根顶部横杆；照片比例，估计值。
 function facadeBraces(wing, volume, solids) {
   const ring = volume.polygon.outer;
   const normals = outwardNormals(ring);
@@ -222,7 +222,9 @@ function facadeBraces(wing, volume, solids) {
   }));
   const offset = BRACE_PROUD - BRACE_THICKNESS / 2;
   const capY = volume.maxY - 0.4;
-  const footY = volume.minY + 1.9;
+  const sillY = volume.minY + 0.5;
+  // 照片中斜撑收在悬挑盒上部，下方为通高竖框与连续办公楼层。
+  const footY = capY - Math.min((capY - sillY) * 0.35, 19);
   const placement = { baseSourceId: volume.baseSourceId };
   const braces = [];
   for (let i = 0; i < ring.length; i++) {
@@ -244,11 +246,11 @@ function facadeBraces(wing, volume, solids) {
     const knee = at(0.5, footY);
     for (const t of [0.045, 0.955]) {
       braces.push(spanPart(`${volume.id}:v-brace:${i}:${braces.length}`, wing, at(t, capY), knee,
-        BRACE_THICKNESS, BRACE_THICKNESS, BRACE_DEPTH, BRACE_STYLE, placement));
+        BRACE_THICKNESS, BRACE_THICKNESS, BRACE_DEPTH, EDGE_LIGHT, placement));
     }
     braces.push(spanPart(`${volume.id}:crossbar:${i}`, wing, at(0.045, capY), at(0.955, capY),
-      BRACE_THICKNESS, BRACE_THICKNESS, CROSSBAR_DEPTH, BRACE_STYLE, placement));
-    // 照片里的 V 撑是 Y 形：顶横杆中点还有一根竖杆落到 V 底；竖杆在平面内没有长度，用细 loft 建。
+      BRACE_THICKNESS, BRACE_THICKNESS, CROSSBAR_DEPTH, EDGE_LIGHT, placement));
+    // 中竖框穿过斜撑交点到底边；竖杆在平面内没有长度，用细 loft 建。
     const section = y => {
       const centre = at(0.5, y);
       const half = BRACE_THICKNESS / 2;
@@ -256,8 +258,8 @@ function facadeBraces(wing, volume, solids) {
         x: centre.x + dx * u + normal.x * v, z: centre.z + dz * u + normal.z * v
       }));
     };
-    braces.push(loftPart(`${volume.id}:v-brace-mid:${i}`, wing, section(footY), section(capY),
-      footY, capY, BRACE_STYLE, placement));
+    braces.push(loftPart(`${volume.id}:v-brace-mid:${i}`, wing, section(sillY), section(capY),
+      sillY, capY, BRACE_STYLE, placement));
   }
   return braces;
 }
@@ -285,7 +287,8 @@ function spineFins(core, base) {
       }));
       // loftPart 要求逆时针环；竖挺截面固定，按环方向校正。
       if (signedArea(quad) < 0) quad.reverse();
-      fins.push(loftPart(`${core.id}:fin:${fins.length}`, core, quad, quad, base, base + core.height, FIN_STYLE));
+      fins.push(loftPart(`${core.id}:fin:${fins.length}`, core, quad, quad, base, base + core.height, FIN_STYLE,
+        { uvOriginY: base + core.height }));
     }
   }
   return fins;

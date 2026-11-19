@@ -30,8 +30,14 @@ const styles = {
   stockExchangeTower: { metal: 0xc0c7c9, glass: 0x738795, roof: 0x8f999d, bay: 5.54, floor: 8.1, fin: 0.19, sill: 0.15, lit: 0.11, rough: 0.25, glow: 0xd6e4ee, wash: 0.12 },
   stockExchangePodium: { metal: 0xa7b0b4, glass: 0x5c7179, roof: 0x818b90, bay: 2.55, floor: 8.8, fin: 0.23, sill: 0.13, lit: 0.18, rough: 0.27, glow: 0xe9e6d1, wash: 0.11 },
   stockExchangeLobby: { metal: 0xadb5b5, glass: 0x5b6b76, roof: 0x9ea6a7, bay: 4.15, floor: 7.0, fin: 0.12, sill: 0.14, lit: 0.14, rough: 0.29, glow: 0xffdfb7 },
-  shoppingParkBase: { metal: 0xb1a7a0, glass: 0x546779, roof: 0x9e9a96, bay: 5.4, floor: 4.4, fin: 0.2, sill: 0.29, lit: 0.14, rough: 0.35, glow: 0xffd6aa, wash: 0.16 },
-  shoppingParkGlass: { metal: 0x8d9ba6, glass: 0x345575, roof: 0x717d86, bay: 3.5, floor: 4.1, fin: 0.12, sill: 0.11, lit: 0.11, rough: 0.26, glow: 0xd5e9ff, wash: 0.20 },
+  mixcWaterFacade: { metal: 0xc19b71, glass: 0x758e9a, roof: 0xa0a4a3, bay: 1.48, floor: 5.5, fin: 0.38, sill: 0.09,
+    lit: 0.18, rough: 0.35, glow: 0xffdfb2, wash: 0.09 },
+  shoppingParkBase: { metal: 0xc1b29e, glass: 0x667784, roof: 0x9a958a, bay: 4.3, floor: 3.55, fin: 0.27, sill: 0.39,
+    lit: 0.12, rough: 0.33, frameRoughness: 0.76, frameMetalness: 0.06, glow: 0xffdbb5, wash: 0.16 },
+  shoppingParkStorefront: { metal: 0x68625b, glass: 0x736759, roof: 0x897f72, bay: 2.15, floor: 5.4, fin: 0.095, sill: 0.24,
+    lit: 0.26, rough: 0.27, glow: 0xffd5a4, wash: 0.4 },
+  shoppingParkGlass: { metal: 0xa9b2b5, glass: 0x58748a, roof: 0x777f86, bay: 1.38, floor: 3.6, fin: 0.14, sill: 0.08,
+    lit: 0.12, rough: 0.27, glow: 0xddeeff, wash: 0.25, edgeTint: 0.58 },
   djiCore: { metal: 0xadb5ba, glass: 0x5f6c75, roof: 0x8d959a, bay: 0.67, floor: 4.5, fin: 0.54, sill: 0.04, lit: 0.045, rough: 0.3, glow: 0xe9eff5 },
   djiWing: { ...chunsunGlass, bay: 1.54, floor: 4.5, fin: 0.052, sill: 0.065,
     rough: 0.61, frameRoughness: 0.65, glassMetalness: 0.12, frameMetalness: 0.15, edgeTint: 0.17, wash: 0.085 },
@@ -78,6 +84,32 @@ function facadeMaterial(style, programEmission) {
   const glow = uniform(new THREE.Color(style.glow)).mul(office.add(style.wash ?? 0))
     .mul(glass).mul(sceneUniforms.night);
   material.emissiveNode = programEmission ? programEmission(glow, glass) : glow;
+  return material;
+}
+
+// 悬挑盒按各自底面起算楼层。玻璃内的灯光分组亮灭，钢框和层间楼板留暗。
+function djiWingMaterial() {
+  const style = styles.djiWing;
+  const material = facadeMaterial(style);
+  const level = uv().y.div(style.floor);
+  const bay = uv().x.div(style.bay);
+  const soft = max(fwidth(level), 0.018);
+  const pane = paneMaskNode(bay, 0.45, max(fwidth(bay), 0.025));
+  const row = paneMaskNode(level, 0.32, soft);
+  const ceiling = smoothstep(0.47, 0.76, fract(level));
+  const room = cellNoiseNode(bay.div(4), level);
+  const occupied = smoothstep(0.12, 0.39, room);
+  const fixtures = paneMaskNode(bay, 0.22, max(fwidth(bay), 0.04));
+  const ceilingLight = ceiling.mul(fixtures.mul(0.85).add(0.25));
+  const office = row.mul(pane).mul(occupied).mul(ceilingLight.add(0.19));
+  const wall = smoothstep(0.1, 0.65, abs(normalWorldGeometry.y)).oneMinus();
+  const sill = smoothstep(0.35, 0.85, uv().y).oneMinus();
+  const corner = smoothstep(0.18, 0.54, uv().x).oneMinus();
+  const rim = max(sill, corner.mul(0.8));
+  const interior = mix(color(0xcaddf2), color(0xffedcf), room);
+  material.emissiveNode = interior.mul(office).add(color(0x30465b).mul(pane).mul(0.48))
+    .add(color(0xffbe71).mul(rim).mul(1.65))
+    .mul(wall).mul(sceneUniforms.night);
   return material;
 }
 
@@ -262,6 +294,7 @@ export function createLandmarkMaterial(name, programEmission = null) {
     material.colorNode = mix(material.colorNode, louvers, end);
     return material;
   }
+  if (name === 'djiWing') return djiWingMaterial();
   if (Object.hasOwn(styles, name)) {
     return facadeMaterial(styles[name], CBD_GLASS_STYLES.has(name) ? programEmission : null);
   }
@@ -278,11 +311,44 @@ export function createLandmarkMaterial(name, programEmission = null) {
     case 'cultureSkylight': return crownMaterial(0x6686a0, 0.24, 0.27, 0.33);
     case 'operaCopper': return new THREE.MeshStandardMaterial({ color: 0x975d4f, roughness: 0.65, metalness: 0.21 });
     case 'landmarkEdge': return crownMaterial(0xc0c6c7, 0.39, 0.29, 0.30);
+    case 'elephantQuilt': {
+      const mat = new THREE.MeshStandardNodeMaterial({ roughness: 0.82 });
+      const seam = smoothstep(0.44, 0.50, abs(fract(positionWorld.x.mul(1.18)).sub(0.5)));
+      mat.colorNode = mix(color(0xf5f3ed), color(0xcacbc7), seam.mul(0.65));
+      return mat;
+    }
+    case 'elephantPearl': return new THREE.MeshStandardMaterial({ color: 0xf5f3ed, roughness: 0.78 });
+    case 'elephantEar': return new THREE.MeshStandardMaterial({ color: 0xd5d9d6, roughness: 0.85 });
+    case 'elephantFold': return new THREE.MeshStandardMaterial({ color: 0xd3d6d1, roughness: 0.83 });
+    case 'elephantEye': return new THREE.MeshStandardMaterial({ color: 0x202023, roughness: 0.42 });
+    case 'elephantBlush': return new THREE.MeshStandardMaterial({ color: 0xf0aaa9, roughness: 0.76 });
+    case 'bayWheelSteel': return nightSurface(0xe2e6e5, 0.36, 0.30, 0xffffff, 0.55);
+    case 'bayWheelRim': return nightSurface(0xe2e6e5, 0.36, 0.30, 0xffffff, 2.1);
+    case 'bayWheelWire': return nightSurface(0xbcc8cc, 0.45, 0.22, 0xffffff, 0.82);
+    case 'bayCabinGlass': return nightSurface(0x366977, 0.22, 0.51, 0xffffff, 0.20);
+    case 'mixcBalustrade': return new THREE.MeshStandardMaterial({ color: 0xa7c6c8, transparent: true, opacity: 0.62,
+      depthWrite: false, roughness: 0.27, metalness: 0.18 });
+    case 'mixcStair': {
+      const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.81 });
+      const nosing = smoothstep(0.82, 0.95, fract(positionWorld.x.mul(2.15)));
+      material.colorNode = mix(color(0xa69c8f), color(0xdad4c6), nosing);
+      return material;
+    }
+    case 'shoppingParkStone': return new THREE.MeshStandardMaterial({ color: 0xc4b6a3, roughness: 0.83 });
     case 'tencentSpine': return nightSurface(0x2a4359, 0.32, 0.38, 0x486b8c, 0.02);
     case 'tencentRoof': return new THREE.MeshStandardMaterial({ color: 0x3e4b55, roughness: 0.84 });
     case 'libraryDeck': return new THREE.MeshStandardMaterial({ color: 0xadada1, roughness: 0.86 });
     case 'libraryShell': return libraryShellMaterial();
-    case 'djiBrace': return crownMaterial(0xbfcbd1, 0.64, 0.14, 0.18);
+    case 'djiBrace': {
+      // 竖挺的 v=0 在各自塔顶，暖光沿金属肋向下衰减。
+      const crownWash = smoothstep(-7.5, -0.35, uv().y);
+      return nightSurface(0x8699a5, 0.64, 0.14, 0xffce91, crownWash.mul(1.9).add(0.035));
+    }
+    case 'djiEdgeLight': {
+      // 斜撑与连桥边梁共用贴在梁侧的细灯槽，余下钢面保持暗色。
+      const strip = smoothstep(0.16, 0.55, uv().y).oneMinus();
+      return nightSurface(0x8795a0, 0.54, 0.20, 0xffbd73, strip.mul(2.35));
+    }
     case 'djiDeck': return new THREE.MeshStandardMaterial({ color: 0x596570, metalness: 0.13, roughness: 0.7 });
     case 'djiGuard': return crownMaterial(0x506575, 0.65, 0.15, 0.035);
     case 'djiSteel': return crownMaterial(0x9faeb8, 0.62, 0.16, 0.14);

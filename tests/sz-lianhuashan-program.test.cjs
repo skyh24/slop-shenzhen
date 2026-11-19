@@ -126,3 +126,61 @@ test('the program clock loops continuously and honors pause, hidden tabs, replay
   program.update(10);
   assert.equal(program.time, 0);
 });
+
+test('five roof beams sweep repeatably and the Ping An crown bursts only in the final three APEC seconds', async () => {
+  const THREE = await import('three/webgpu');
+  const { uniform } = await import('three/tsl');
+  const { createCbdProgram } = await import('../js/sz-cbd-program.js');
+  const { dayPhase } = await import('../js/sz-day-phase.js');
+  const { partCollider } = await import('../js/sz-landmarks/parts.js');
+  const { buildings, geo } = await loadData();
+  const sources = new Map(buildings.map(b => [b.id, b]));
+  const colliders = [];
+  for (const id of ['civic-center', 'ping-an']) {
+    const model = await import('../js/sz-landmarks/' + id + '.js');
+    const result = model.build(sources, geo.terrain);
+    for (const p of result.parts ?? result) colliders.push({ ...partCollider(p), landmarkId: id });
+  }
+  dayPhase.wire({ night: () => 0.86 });
+  const scene = new THREE.Scene(), program = createCbdProgram({ x: 0, y: 113, z: -1030 }, uniform(0.86));
+  program.mountSearchlights(scene, colliders);
+  const group = scene.getObjectByName('cbd-searchlights');
+  const wash = group.getObjectByName('civic-roof-sweep'), burst = group.getObjectByName('ping-an-crown-burst');
+  const matrix = new THREE.Matrix4();
+  const pose = (mesh, i) => { mesh.getMatrixAt(i, matrix); return matrix.clone(); };
+  assert.equal(group.visible, false);
+  program.start();
+  assert.equal(wash.count, 5);
+  const starts = Array.from({ length: wash.count }, (_, i) => pose(wash, i));
+  assert.equal(new Set(starts.map(m => m.elements[12])).size, 5);
+  program.update(96.99);
+  assert.equal(burst.visible, false);
+  for (const [i, start] of starts.entries()) {
+    const next = pose(wash, i);
+    assert.notDeepEqual(next.elements.slice(4, 7), start.elements.slice(4, 7));
+    assert.deepEqual(next.elements.slice(12, 15), start.elements.slice(12, 15));
+    assert.ok(Math.abs(Math.atan2(next.elements[4], next.elements[5])) < 43 * Math.PI / 180);
+  }
+  program.update(0.01);
+  assert.equal(burst.visible, true);
+  assert.equal(burst.count, 24);
+  const crown = colliders.find(part => part.name.endsWith(':diamond-crown'));
+  for (let i = 0; i < burst.count; i++) assert.equal(pose(burst, i).elements[13], crown.maxY);
+  program.toggleSpeed();
+  program.update(1);
+  program.togglePause();
+  const paused = pose(wash, 0);
+  program.update(20);
+  assert.deepEqual(pose(wash, 0), paused);
+  assert.equal(burst.visible, true);
+  program.togglePause();
+  program.update(0.5);
+  assert.equal(program.time, 100);
+  assert.equal(burst.visible, false);
+  program.replay();
+  assert.deepEqual(pose(wash, 0), starts[0]);
+  program.stop();
+  assert.equal(group.visible, false);
+  program.dispose();
+  assert.equal(group.parent, null);
+});

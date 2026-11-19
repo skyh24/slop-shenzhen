@@ -17,8 +17,18 @@ const terrain = loadModule(read('sz-terrain.js'));
 const nightUniform = { value: 1 };
 const materialsStub = { sceneUniforms: { night: nightUniform } };
 const dayPhase = dayPhaseStub(() => nightUniform.value, () => 1.25);
+function venueImports(three) {
+  return {
+    './sz-apec-venue.js': loadModule(read('sz-apec-venue.js'), { imports: { 'three/webgpu': three } }),
+    './sz-theme-parks/flowers.js': loadModule(read('sz-theme-parks/flowers.js'), { imports: {
+      'three/webgpu': three, '../sz-polygon.js': polygonModule, '../sz-landmarks/parts.js': {},
+      '../sz-pedestrian-tracks.js': {}, './parts.js': {}, './sites.js': { EXPO_SERVICE_WALK: [] }
+    } })
+  };
+}
+
 const apec = loadModule(read('sz-apec.js'), {
-  imports: { 'three/webgpu': {}, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
+  imports: { ...venueImports({}), 'three/webgpu': {}, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
     './sz-materials.js': materialsStub, './sz-day-phase.js': dayPhase }
 });
 
@@ -158,7 +168,8 @@ test('the runtime builds instanced banners signs and flower beds under the theme
   });
   const fakeDocument = { createElement: () => ({ width: 0, height: 0, getContext: () => context }) };
   const module = loadModule(read('sz-apec.js'), {
-    imports: { 'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
+    imports: { ...venueImports(THREE),
+      'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
       './sz-materials.js': materialsStub, './sz-day-phase.js': dayPhase },
     globals: { document: fakeDocument }
   });
@@ -168,6 +179,7 @@ test('the runtime builds instanced banners signs and flower beds under the theme
     const model = module.buildApecTheme(scene, {
       lampSites,
       terrain: null,
+      anchors: { iecFlowerSea: { x: -500, z: 201, radiusXM: 14.5, radiusZM: 4.8, yaw: 0.17, conform: true } },
       landmarks: [
         { id: 'convention-center', x: 100, z: 100 },
         { id: 'iec-xiangmihu', x: -500, z: 200 },
@@ -181,8 +193,12 @@ test('the runtime builds instanced banners signs and flower beds under the theme
     assert.equal(model.group.visible, true);
     assert.equal(model.group.name, 'shenzhen-apec-theme');
     assert.equal(model.statistics.banners.count, 2);
-    assert.equal(model.statistics.flowers.built, 680);
+    assert.equal(model.statistics.flowers.built, 1220);
+    assert.equal(model.group.getObjectByName('apec-venue-foliage').count, 920);
     assert.equal(model.statistics.signs.length, 3);
+    const letters = model.group.getObjectByName('apec-venue-letters');
+    assert.equal(letters.geometry.type, 'ExtrudeGeometry');
+    assert.ok(letters.geometry.getAttribute('color').count > 0);
     assert.equal(model.statistics.meshes, model.group.children.length);
     const banners = model.group.getObjectByName('apec-banners');
     assert.ok(banners.isInstancedMesh);
@@ -238,7 +254,8 @@ test('a non-APEC date starts with the theme hidden', { skip: !threeDir }, async 
   const { pathToFileURL: toUrl } = require('node:url');
   const THREE = await import(toUrl(join(threeDir, 'build', 'three.webgpu.js')));
   const module = loadModule(read('sz-apec.js'), {
-    imports: { 'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
+    imports: { ...venueImports(THREE),
+      'three/webgpu': THREE, './sz-strings.js': strings, './sz-terrain.js': terrain, './sz-polygon.js': polygonModule,
       './sz-materials.js': materialsStub, './sz-day-phase.js': dayPhase }
   });
   const scene = new THREE.Scene();

@@ -35,7 +35,13 @@ const shopping = loadModule(readLandmark('shopping-park-shell.js'), { imports: {
   './parts.js': parts, '../building-collision.js': collision,
   '../sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map() }) }
 } });
-const newModels = [tencentTowers, library, diwang, kk100, exchange, shopping];
+const retailSections = loadModule(readLandmark('retail-sections.js'));
+const retailImports = { './parts.js': parts, './model-profile.js': profiles, './retail-sections.js': retailSections };
+const ohBay = loadModule(readLandmark('oh-bay.js'), { imports: { ...retailImports,
+  './oh-bay-promenades.js': loadModule(readLandmark('oh-bay-promenades.js')) } });
+retailImports['./mixc-elephant.js'] = loadModule(readLandmark('mixc-elephant.js'), { imports: retailImports });
+const mixc = loadModule(readLandmark('mixc-world.js'), { imports: retailImports });
+const newModels = [ohBay.wheel, ohBay.eastShore, ohBay.westShore, ...ohBay.haifu, mixc, tencentTowers, library, diwang, kk100, exchange, shopping];
 const dji = loadModule(readLandmark('dji-sky-city.js'), { imports: { '../building-collision.js': collision, './parts.js': parts } });
 const pingAn = loadModule(readLandmark('ping-an.js'), { imports: { './parts.js': parts } });
 const chunsun = loadModule(readLandmark('chunsun.js'), { imports: { './parts.js': parts } });
@@ -74,7 +80,7 @@ const upperhills = loadUpperhills({});
 const loadPlan = (cultureModule, upperhillsModule = upperhills, iecModule = iec, superHqModule = superHq) => loadModule(readLandmark('layout.js'), { imports: {
   './qianhai-museum.js': museum, './bay-opera.js': opera, './mocape.js': mocape,
   './tencent-towers.js': tencentTowers, './university-town-library.js': library, './diwang.js': diwang, './kk100.js': kk100,
-  './stock-exchange.js': exchange, './shopping-park-shell.js': shopping,
+  './oh-bay.js': ohBay, './mixc-world.js': mixc, './stock-exchange.js': exchange, './shopping-park-shell.js': shopping,
   './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun,
   './civic-center.js': civic, './chunjian.js': stadium, './sports-venues.js': sports, './shenzhen-bay-culture-square.js': cultureModule,
   './convention-center.js': convention, './upperhills.js': upperhillsModule, './nonferrous-tower.js': nonferrous,
@@ -167,13 +173,16 @@ test('the cultural landmarks preserve the verified sites, roof profiles and entr
   assert.equal(geo.landmarks.find(row => row.id === 'bay-opera').height, 50);
 });
 
-test('the shopping park podium grows a southeast colonnade and a round upper shell', () => {
+test('the COCO Park rotunda retains the mall scale and clears the southeast colonnade', () => {
   const shell = byLandmark.get('shopping-park-shell');
   assert.ok(shell.length > 30, 'shell parts: ' + shell.length);
   assert.ok(shopping.sourceIds.every(id => plan.skipIds.has(id)));
   const podium = shell.find(part => part.id === 'way/238825588:0');
-  assert.ok(podium);
-  const base = podium.minY;
+  const storefront = shell.find(part => part.id === 'way/238825588:storefront:0');
+  const base = storefront.minY;
+  assert.equal(storefront.maxY, podium.minY);
+  assert.equal(storefront.topFace, false);
+  assert.equal(podium.bottomFace, false);
 
   // 圆筒：三段收分的内切椭圆，只有首段封底，段间不封顶。
   const tower = shell.filter(part => part.loft && part.id.startsWith('way/539435437:tower:'));
@@ -195,15 +204,17 @@ test('the shopping park podium grows a southeast colonnade and a round upper she
 
   const crown = shell.find(part => part.id === 'way/539435437:crown');
   assert.equal(crown.style, 'landmarkEdge');
-  assert.equal(crown.maxY, top);
-  assert.ok(crown.maxY - crown.minY >= 0.5 && crown.maxY - crown.minY <= 0.7);
-  assert.equal(shell.filter(part => part.maxY === top && part.topFace !== false).length, 1);
+  assert.equal(crown.minY, top);
+  assert.equal(crown.maxY - base, 21.5);
+  assert.equal(crown.heightSource, 'estimate');
+  assert.equal(crown.sourceHeight, byId.get(shopping.sourceIds[1]).height);
+  assert.equal(shell.filter(part => part.maxY === crown.maxY && part.topFace !== false).length, 1);
 
   // 东南柱廊：12 根 0.7 米方柱，全部有碰撞、四角都在原裙房轮廓之外。
   const columns = shell.filter(part => part.id.includes(':colonnade:column:'));
   assert.ok(columns.length >= 8 && columns.length <= 20, 'columns: ' + columns.length);
   for (const column of columns) {
-    assert.equal(column.style, 'shoppingParkBase');
+    assert.equal(column.style, 'shoppingParkStone');
     assert.equal(column.minY, base);
     assert.ok(Math.abs(column.maxY - (base + 5.4)) < 1e-4);
     assert.equal(parts.partCollider(column).polygon.outer.length, 4);
@@ -221,7 +232,7 @@ test('the shopping park podium grows a southeast colonnade and a round upper she
   const glass = shell.filter(part => part.id.includes(':colonnade:glass:'));
   assert.ok(glass.length >= 8);
   for (const part of glass) {
-    assert.equal(part.style, 'shoppingParkGlass');
+    assert.equal(part.style, 'shoppingParkStorefront');
     assert.ok(Math.abs(part.minY - (base + 0.15)) < 1e-4);
     assert.ok(Math.abs(part.maxY - (base + 5.2)) < 1e-4);
     for (const p of part.polygon.outer) {
@@ -236,11 +247,30 @@ test('the shopping park podium grows a southeast colonnade and a round upper she
     assert.ok(Math.abs(beam.minY - (base + 5.4)) < 1e-4);
     assert.ok(Math.abs(beam.maxY - (base + 5.85)) < 1e-4);
   }
+  const folds = shell.filter(part => part.id.includes(':folded-glass:'));
+  assert.equal(folds.length, beams.length * 2);
+  assert.ok(folds.every(part => part.minY >= beams[0].maxY && part.maxY < podium.maxY));
+  // 中心二路西侧的既有前场走线，按步行者尺寸采样全部专模部件。
+  const personRadius = 0.48;
+  const groundParts = shell.filter(part => part.minY < base + 1.8 && part.maxY > base);
+  for (let i = 0; i <= 100; i++) {
+    const x = -467.2 - 21.4 * i / 100, z = 1175.7 - 11.5 * i / 100;
+    const blocker = groundParts.find(part => collision.polygonBoxOverlaps(part.polygon, x, z, personRadius, personRadius));
+    assert.equal(blocker?.id, undefined, `blocked at ${x}, ${z}`);
+  }
+  const planters = shell.filter(part => part.id.includes(':terrace-planting:'));
+  assert.ok(planters.length >= 6);
+  for (const part of planters) {
+    assert.equal(part.minY, podium.maxY);
+    assert.ok(part.polygon.outer.every(({ x, z }) => collision.polygonContains(podium.polygon, x, z)
+      && !collision.polygonContains(upperFootprint, x, z)));
+  }
   // 雨棚只存在于 trim，不进入实体部件，因此不生成碰撞与可站面。
   assert.equal(shell.filter(part => part.style === 'landmarkEdge'
     && part.minY > base + 5 && part.maxY < base + 5.5).length, 0);
 
   const shoppingPlan = plan.plans.find(landmark => landmark.id === 'shopping-park-shell');
+  assert.ok(shoppingPlan.signs.length === 2 && shoppingPlan.signs.every(sign => sign.style === 'cocoParkWordmark'));
   const canopy = shoppingPlan.trim.filter(item => item.size[2] === 4.0);
   assert.equal(canopy.length, beams.length);
   for (const item of canopy) assert.ok(item.y - item.size[1] / 2 >= 5, 'canopy clears the street');
@@ -368,6 +398,10 @@ test('DJI reads as two towers: dark core spine, vertical fins, facade V braces a
   const crossbars = actual.filter(part => part.id.includes(':crossbar:'));
   assert.ok(braces.length >= 36 && braces.length % 2 === 0);
   assert.equal(crossbars.length, braces.length / 2);
+  const litBeams = actual.filter(part => part.id.includes(':bridge-edge-beam:'));
+  assert.ok([...braces, ...crossbars, ...litBeams].every(part => part.style === 'djiEdgeLight'));
+  assert.ok(braces.every(part => part.maxY - part.minY <= 21));
+  assert.ok(fins.every(part => Math.abs(part.uvOriginY - part.maxY) < 0.001));
   const middles = actual.filter(part => part.id.includes(':v-brace-mid:'));
   assert.equal(middles.length, crossbars.length);
   assert.ok(middles.every(part => part.style === 'djiSteel' && part.heightSource === 'estimate'));
@@ -920,3 +954,125 @@ test('sports field markings use the active terrain and sloped goal frames render
     mesh.geometry.dispose();
     material.dispose();
   });
+
+test('Bay Glory binds the wheel separately from reception and leaves lanes between the East Shore pavilions', () => {
+  const wheel = byLandmark.get('oh-bay-wheel');
+  const base = parts.baseAt(byId.get('way/914175455'), geo.terrain);
+  assert.equal(wheel.filter(p => p.id.endsWith(':panorama')).length, 28);
+  assert.equal(wheel.filter(p => p.id.includes(':spoke:')).length, 112);
+  assert.ok(Math.abs(Math.max(...wheel.map(p => p.maxY)) - base - 128) < 0.001);
+  const blocks = byLandmark.get('oh-bay-east-shore').filter(p => p.id.includes(':shops:'));
+  assert.equal(blocks.length, 4);
+  for (const tower of ohBay.haifu) {
+    const shell = byLandmark.get(tower.id);
+    const roofs = tower.sourceIds.map(id => shell.find(p => p.sourceId === id && p.id.includes(':planting:')).maxY);
+    assert.ok(roofs[0] < roofs[1] && roofs[1] < roofs[2]);
+  }
+  for (let i = 1; i < blocks.length; i++) assert.ok(blocks[i].minX - blocks[i - 1].maxX >= 7.99);
+});
+
+test('both waterfront promenades have recessed shopfronts beneath supported terraces', () => {
+  for (const [side, count] of [['east', 4], ['west', 3]]) {
+    const model = byLandmark.get('oh-bay-' + side + '-shore');
+    const shore = plan.plans.find(p => p.id === 'oh-bay-' + side + '-shore');
+    assert.equal(shore.signs.length, count);
+    assert.equal(shore.patches.length, 2);
+    const entrance = side === 'east' ? [-17702.6, 125.6] : [-18439.1, -113.2];
+    assert.ok(shore.patches.some(p => collision.polygonContains({ outer: p.ring, holes: [] }, ...entrance)));
+    const shops = model.filter(p => p.id.includes(':shops:'));
+    assert.equal(shops.length, count);
+    for (const [index, shop] of shops.entries()) {
+      const prefix = `oh-bay:${side}:${index}:`;
+      const piers = model.filter(p => p.id.startsWith(prefix + 'pier:'));
+      const terrace = model.find(p => p.id.startsWith(prefix + 'terrace:'));
+      assert.ok(piers.length >= 2);
+      for (const pier of piers) {
+        const x = (pier.minX + pier.maxX) / 2, z = (pier.minZ + pier.maxZ) / 2;
+        assert.equal(collision.polygonContains(shop.polygon, x, z), false, pier.id);
+        assert.equal(collision.polygonContains(terrace.polygon, x, z), true, pier.id);
+        assert.equal(pier.maxY, terrace.minY);
+      }
+    }
+  }
+});
+
+test('MixC World keeps both third-floor crossings supported through their landings and the streets below open', () => {
+  const model = byLandmark.get('mixc-world');
+  const y = model.find(p => p.id === 'mixc:bridge:1268947084').maxY;
+  const atPoint = (x, z, bottom, top) => model.filter(p => {
+    const section = contactPolygon(p, bottom, top);
+    return section && collision.polygonContains(section, x, z);
+  });
+  for (const [a, b] of [
+    [[-10584, 133], [-10584, 155]], [[-10584, 109.05], [-10572, 109.05]],
+    [[-10606.7, 138], [-10606.7, 133]], [[-10606.7, 133], [-10584, 133]],
+    [[-10584, 133], [-10584, 109.05]]
+  ]) {
+    for (let i = 0; i <= 40; i++) {
+      const x = a[0] + (b[0] - a[0]) * i / 40, z = a[1] + (b[1] - a[1]) * i / 40;
+      assert.ok(atPoint(x, z, y - 0.1, y + 0.02).length, 'missing deck at ' + [x, z]);
+      assert.equal(atPoint(x, z, y + 0.02, y + 1.85).length, 0, "blocked gallery at " + [x, z]);
+    }
+  }
+  for (const [x, z] of [[-10584, 144], [-10577.5, 109.05]]) {
+    assert.equal(atPoint(x, z, y - 9.5, y - 1).length, 0);
+  }
+  assert.ok(model.find(p => p.id === 'mixc:stair').climbableFromGround);
+  for (let i = 0; i < 6; i++) {
+    const doorX = -10646.65 + i * 10.15 + 9.15;
+    assert.equal(atPoint(doorX, 130.9, y + 0.02, y + 1.85).length, 0);
+    assert.ok(atPoint(doorX - 4, 130.9, y + 0.02, y + 1.85).length);
+  }
+});
+
+test('Bay Glory pauses at distance and advances its moving contacts with upright cabins',
+  { skip: !process.env.SZ_THREE_PACKAGE_DIR }, async () => {
+    const THREE = await import(pathToFileURL(join(process.env.SZ_THREE_PACKAGE_DIR, 'build/three.webgpu.js')));
+    const imports = { 'three/webgpu': THREE };
+    const render = loadModule(readLandmark('render.js'), { imports: {
+      ...imports, '../sz-geometry.js': loadModule(read('sz-geometry.js'), { imports })
+    } });
+    const { buildWheelMotion } = loadModule(readLandmark('wheel-motion.js'), { imports: {
+      ...imports, './render.js': render, '../building-collision.js': collision
+    } });
+    const material = new THREE.MeshBasicMaterial();
+    const motion = buildWheelMotion(byLandmark.get('oh-bay-wheel'), () => material);
+    const cabin = motion.group.children.find(m => m.isInstancedMesh);
+    const matrix = new THREE.Matrix4();
+    const centerOfFirst = () => {
+      cabin.getMatrixAt(0, matrix);
+      assert.equal(matrix.elements[5], 1);
+      return new THREE.Vector3().setFromMatrixPosition(matrix).add(cabin.position);
+    };
+    const far = new THREE.Vector3(0, 8, 0), initial = centerOfFirst();
+    motion.update(180, far, far);
+    assert.equal(initial.distanceTo(centerOfFirst()), 0);
+    motion.update(180, far, initial);
+    const moved = centerOfFirst();
+    assert.ok(Math.abs(moved.y - initial.y - 56.65) < 0.01);
+    const hitsFirst = p => motion.appendColliders([], p.x, p.z, 1).some(c => {
+      if (c.name !== 'oh-bay:cabin:0:panorama') return false;
+      const bits = c.sectionAt(p.y - 0.2, p.y + 0.2);
+      return bits && collision.polygonContains(bits, p.x, p.z);
+    });
+    assert.ok(hitsFirst(moved));
+    assert.equal(hitsFirst(initial), false);
+    motion.update(1, far, far);
+    assert.ok(moved.distanceTo(centerOfFirst()) < 1e-6);
+    motion.update(1, moved, far);
+    assert.ok(moved.distanceTo(centerOfFirst()) > 0.4);
+  });
+
+test('MixC elephant has an open terrace notch and a continuous trunk facing the fountain', () => {
+  const model = byLandmark.get('mixc-world');
+  const terrace = model.find(p => p.id.startsWith('mixc:elephant-terrace:'));
+  const trunk = model.filter(p => p.id.startsWith('mixc:elephant:trunk:'));
+  const crossing = trunk.find(p => p.minY <= terrace.maxY && p.maxY >= terrace.maxY);
+  assert.ok(crossing && trunk[0].minY < terrace.minY - 12);
+  const x = (crossing.minX + crossing.maxX) / 2, z = (crossing.minZ + crossing.maxZ) / 2;
+  const original = byId.get('way/1268947103').polygons[0];
+  assert.ok(collision.polygonContains(original, x, z));
+  assert.ok(crossing.polygon.outer.every(p => !collision.polygonContains(terrace.polygon, p.x, p.z)));
+  for (let i = 1; i < trunk.length; i++) assert.equal(trunk[i].minY, trunk[i - 1].maxY);
+  assert.ok(model.find(p => p.id.includes('elephant:tip:')).maxX > crossing.maxX);
+});

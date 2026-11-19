@@ -1,10 +1,11 @@
 import * as THREE from 'three/webgpu';
+import { buildWheelMotion } from './wheel-motion.js';
 import { planSzLandmarks } from './layout.js';
 import { createLandmarkMaterial } from './materials.js';
 import { partCollider } from './parts.js';
 import { renderLandmark, renderLandmarkTrim } from './render.js';
 import { addSportsGround } from './sports-ground.js';
-import { tencentSignMaterial } from './tencent-signs.js';
+import { landmarkSignMaterial } from './signs.js';
 
 export function buildSzLandmarks(scene, { buildings, terrain, terrainSurface, sites = {}, heightAt, groundHeight, roadHeight, northRail, programEmission = null }) {
   const { plans, skipIds } = planSzLandmarks(buildings, terrain, sites, { heightAt, groundHeight, roadHeight, northRail });
@@ -20,11 +21,18 @@ export function buildSzLandmarks(scene, { buildings, terrain, terrainSurface, si
     if (!materials.has(style)) materials.set(style, createLandmarkMaterial(style, programEmission));
     return materials.get(style);
   };
+  let wheelMotion;
   for (const plan of plans) {
-    const result = renderLandmark(plan, materialFor);
+    let fixed = plan;
+    if (plan.id === 'oh-bay-wheel') {
+      wheelMotion = buildWheelMotion(plan.parts, materialFor);
+      scene.add(wheelMotion.group);
+      fixed = { ...plan, parts: plan.parts.filter(p => p.wheelMotion === undefined) };
+    }
+    const result = renderLandmark(fixed, materialFor);
     group.add(result.group);
     for (const sign of plan.signs) {
-      if (!materials.has(sign.style)) materials.set(sign.style, tencentSignMaterial(sign.style));
+      if (!materials.has(sign.style)) materials.set(sign.style, landmarkSignMaterial(sign.style));
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(sign.width, sign.height), materials.get(sign.style));
       mesh.name = sign.style;
       mesh.position.set(sign.x, sign.y, sign.z);
@@ -40,7 +48,7 @@ export function buildSzLandmarks(scene, { buildings, terrain, terrainSurface, si
     for (const [style, items] of trimStyles) result.group.add(renderLandmarkTrim(items, materialFor(style)));
     addSportsGround(result.group, plan.patches, terrainSurface, materialFor);
     // 碰撞体仍是显示同源的 partCollider，只多带一个 landmarkId，供夜景灯带按专模分组。
-    for (const part of plan.parts) colliders.push({ ...partCollider(part), landmarkId: plan.id });
+    for (const part of fixed.parts) colliders.push({ ...partCollider(part), landmarkId: plan.id });
     surfaces.push(...result.surfaces);
     heights.set(plan.id, {
       base: Math.min(...plan.parts.map(part => part.minY)),
@@ -49,12 +57,13 @@ export function buildSzLandmarks(scene, { buildings, terrain, terrainSurface, si
   }
   scene.add(group);
   // 只为已建的地标前场保留净通行带；不挪动有现场来源的树。
-  const reservesApproach = (x, z, radius) => fields.some(reserves => reserves(x, z)) || approaches.some(({ from, to, halfWidth }) => {
+  const reservesApproach = (x, z, radius) => fields.some(reserves => reserves(x, z, radius)) || approaches.some(({ from, to, halfWidth }) => {
     const dx = to.x - from.x, dz = to.z - from.z;
     const t = Math.max(0, Math.min(1, ((x - from.x) * dx + (z - from.z) * dz) / (dx * dx + dz * dz)));
     return Math.hypot(x - from.x - dx * t, z - from.z - dz * t) < halfWidth + radius;
   });
-  return { group, colliders, surfaces, skipIds, heights, reservesApproach, dispose() {
+  return { group, trees: plans.flatMap(plan => plan.trees), wheelMotion, colliders, surfaces, skipIds, heights, reservesApproach, dispose() {
+    if (wheelMotion) group.add(wheelMotion.group);
     group.traverse(o => {
       if (o.isInstancedMesh) o.dispose();
       if (o.isMesh) o.geometry.dispose();

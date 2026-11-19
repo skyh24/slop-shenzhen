@@ -1,6 +1,8 @@
 // APEC 2026 深圳城市氛围：道旗、会场标识、花坛与转播车。
 // 只用文字和中国红 / APEC 紫配色，不画 APEC 官方会徽；所有贴图在运行时用 canvas 画出，不加载外部素材。
 import * as THREE from 'three/webgpu';
+import { createVenueLetters } from './sz-apec-venue.js';
+import { createFlowerCrown } from './sz-theme-parks/flowers.js';
 import { STR } from './sz-strings.js';
 import { terrainHeight } from './sz-terrain.js';
 import { landmarkCenter } from './sz-polygon.js';
@@ -24,6 +26,7 @@ export const APEC_COLORS = {
 export const BANNER_WIDTH_M = 0.9;
 export const BANNER_HEIGHT_M = 1.6;
 export const BANNER_BOTTOM_M = 3.25;
+const VENUE_FLOWERS = [0x971e36, 0xf6ad27, 0xcb3550, 0xf4a7b0, 0xffeed9];
 const FLOWER_COLORS = [0xc8102e, 0x6d3f8f, 0xd9b45b, 0xf0e8dc];
 
 // ---------- 纯函数：日期、路名、布点（不依赖渲染器，可在 node 测试） ----------
@@ -138,8 +141,8 @@ export function apecSignSites({ landmarks = [], buildings = [], area = null, anc
       baseY: gate && Number.isFinite(gate.baseY) ? gate.baseY : null,
       yaw: gate && Number.isFinite(gate.yaw) ? gate.yaw : 0,
       widthM: gate?.widthM ?? 10,
-      heightM: 1.8,
-      mountM: gate?.mountM ?? 1.1,
+      heightM: gate?.heightM ?? 1.8,
+      mountM: gate?.mountM ?? 0.3,
       source: gate ? 'landmark-model-gate' : 'landmark-center+illustrative-offset'
     });
   }
@@ -188,7 +191,7 @@ export function apecFlowerBeds({ landmarks = [], area = null, anchors = null } =
     const baseY = sea && Number.isFinite(sea.baseY) ? sea.baseY : null;
     beds.push({ id: 'iec-xiangmihu-flower-sea', landmark: 'iec-xiangmihu', label: STR.apecTheme.flowerSea,
       x: baseX, z: baseZ, baseY, radiusXM: sea?.radiusXM ?? 18, radiusZM: sea?.radiusZM ?? 12,
-      conform: sea?.conform, count: sea?.conform ? 56 : 220, seed: 11,
+      conform: sea?.conform, yaw: sea?.yaw ?? 0, count: sea?.conform ? 920 : 220, seed: 11,
       source: sea ? 'landmark-model-lawn' : 'illustrative' });
     if (!sea?.conform) beds.push({ id: 'iec-xiangmihu-lake-bed', landmark: 'iec-xiangmihu', label: STR.apecTheme.flowerSea,
       x: baseX + 38, z: baseZ + 26, baseY, radiusXM: 26, radiusZM: 8, count: 160, seed: 12,
@@ -393,22 +396,41 @@ function buildBannerLayer(group, geometry, material, sites) {
   };
 }
 
-function buildSignLayer(group, geometry, textureFor, signs, groundY) {
+function buildSignLayer(group, geometry, textureFor, signs, groundY, lit) {
   if (signs.length === 0) return null;
   const materials = [];
   const objects = [];
   for (const sign of signs) {
+    const signGroup = new THREE.Group();
+    signGroup.name = `apec-sign:${sign.id}`;
+    const signBaseY = Number.isFinite(sign.baseY) ? sign.baseY : groundY(sign.x, sign.z);
+    signGroup.position.set(sign.x, signBaseY, sign.z);
+    signGroup.rotation.y = sign.yaw;
+    if (sign.kind === 'venue-gate') {
+      geometry.venueLetters = createVenueLetters(sign.text, sign.widthM, sign.heightM);
+      const lettersMaterial = new THREE.MeshStandardNodeMaterial({
+        vertexColors: true, roughness: 0.48, emissive: 0x72a38c, emissiveIntensity: 0.03
+      });
+      const letters = new THREE.Mesh(geometry.venueLetters, lettersMaterial);
+      letters.position.y = sign.mountM;
+      letters.name = 'apec-venue-letters';
+      const plinthMaterial = new THREE.MeshStandardNodeMaterial({ color: 0x565953, roughness: 0.84 });
+      const plinth = new THREE.Mesh(geometry.truckBody, plinthMaterial);
+      plinth.scale.set(sign.widthM + 0.35, sign.mountM + 0.55, 0.78);
+      plinth.position.set(0, sign.mountM - plinth.scale.y / 2, 0.13);
+      signGroup.add(letters, plinth);
+      group.add(signGroup);
+      objects.push(signGroup);
+      materials.push(lettersMaterial, plinthMaterial);
+      lit.push([lettersMaterial, 0.03, 0.65]);
+      continue;
+    }
     const texture = textureFor(sign);
     const material = new THREE.MeshStandardNodeMaterial({
       map: texture, emissive: 0xffffff, emissiveMap: texture, emissiveIntensity: 0.08, roughness: 0.7
     });
     const frameMaterial = new THREE.MeshStandardNodeMaterial({ color: APEC_COLORS.apecPurple, roughness: 0.68 });
     const postMaterial = new THREE.MeshStandardNodeMaterial({ color: APEC_COLORS.pole, roughness: 0.62, metalness: 0.4 });
-    const signGroup = new THREE.Group();
-    signGroup.name = `apec-sign:${sign.id}`;
-    const signBaseY = Number.isFinite(sign.baseY) ? sign.baseY : groundY(sign.x, sign.z);
-    signGroup.position.set(sign.x, signBaseY, sign.z);
-    signGroup.rotation.y = sign.yaw;
     const board = new THREE.Mesh(geometry.signBoard, material);
     board.name = `apec-sign-board:${sign.id}`;
     board.scale.set(sign.widthM, sign.heightM, 1);
@@ -426,6 +448,7 @@ function buildSignLayer(group, geometry, textureFor, signs, groundY) {
     signGroup.add(frame, board, ...posts);
     group.add(signGroup);
     materials.push(material, frameMaterial, postMaterial);
+    lit.push([material, 0.08, 0.95]);
     objects.push(signGroup);
   }
   return { objects, materials };
@@ -449,18 +472,48 @@ function buildFlowerLayer(group, geometry, beds, groundY, groundHeight) {
     const sites = flowerSites({ x: bed.x, z: bed.z }, {
       radiusXM: bed.radiusXM, radiusZM: bed.radiusZM, count: bed.count, seed: bed.seed
     });
-    const patch = new THREE.InstancedMesh(geometry.flower, flowerMaterial, sites.length);
+    let foliage;
+    if (bed.conform) {
+      geometry.venueBloom ??= createFlowerCrown();
+      geometry.venueLeaves ??= new THREE.IcosahedronGeometry(0.52);
+      const leaves = new THREE.MeshStandardNodeMaterial({ color: 0x567644, roughness: 0.95 });
+      foliage = new THREE.InstancedMesh(geometry.venueLeaves, leaves, sites.length);
+      foliage.name = 'apec-venue-foliage';
+      group.add(foliage);
+      materials.push(leaves);
+      objects.push(foliage);
+    }
+    const patch = new THREE.InstancedMesh(bed.conform ? geometry.venueBloom : geometry.flower, flowerMaterial, sites.length);
     patch.name = `apec-flowers:${bed.id}`;
     const matrix = new THREE.Matrix4();
     const quaternion = new THREE.Quaternion();
     const yAxis = new THREE.Vector3(0, 1, 0);
     sites.forEach((site, index) => {
       quaternion.setFromAxisAngle(yAxis, site.rotation);
+      let tint = FLOWER_COLORS[site.colorIndex];
+      let size = site.scale;
+      let lift = 0.1;
+      if (bed.conform) {
+        // 沿字牌横轴铺弧形色带，靠字的一层粉白花稍高，前缘用深红和金黄收边。
+        const u = site.x - bed.x, v = site.z - bed.z;
+        const band = v / bed.radiusZM + 0.2 * (u / bed.radiusXM) ** 2;
+        const shade = band > 0.62 ? 0 : band > 0.18 ? 1 : band > -0.12 ? 2 : index % 4 ? 3 : 4;
+        tint = VENUE_FLOWERS[shade];
+        lift = band < -0.12 ? 0.37 : 0.22;
+        size *= 0.68;
+        site.x = bed.x + u * Math.cos(bed.yaw) + v * Math.sin(bed.yaw);
+        site.z = bed.z - u * Math.sin(bed.yaw) + v * Math.cos(bed.yaw);
+      }
       const y = bed.conform ? groundHeight?.(site.x, site.z) ?? groundY(site.x, site.z) : centerY;
-      matrix.compose(new THREE.Vector3(site.x, y + 0.1, site.z), quaternion,
-        new THREE.Vector3(site.scale, site.scale, site.scale));
+      matrix.compose(new THREE.Vector3(site.x, y + lift, site.z), quaternion,
+        new THREE.Vector3(size, bed.conform ? size * 0.42 : size, size));
       patch.setMatrixAt(index, matrix);
-      patch.setColorAt(index, new THREE.Color(FLOWER_COLORS[site.colorIndex]));
+      if (foliage) {
+        matrix.compose(new THREE.Vector3(site.x, y + lift * 0.45, site.z), quaternion,
+          new THREE.Vector3(size * 1.4, lift * 1.7, size * 1.4));
+        foliage.setMatrixAt(index, matrix);
+      }
+      patch.setColorAt(index, new THREE.Color(tint));
     });
     patch.instanceColor.needsUpdate = true;
     if (bed.conform) bedMaterial.dispose();
@@ -554,11 +607,10 @@ export function buildApecTheme(scene, {
     }
     return signTextures.get(key);
   };
-  const signs = buildSignLayer(group, geometries, textureFor, plan.signs, groundY);
+  const signs = buildSignLayer(group, geometries, textureFor, plan.signs, groundY, lit);
   if (signs) {
     layers.push(signs);
     materials.push(...signs.materials);
-    for (let i = 0; i < signs.materials.length; i += 3) lit.push([signs.materials[i], 0.08, 0.95]);
   }
   const trucks = buildTruckLayer(group, geometries, plan.trucks, groundY);
   if (trucks) { layers.push(trucks); materials.push(...trucks.materials); }

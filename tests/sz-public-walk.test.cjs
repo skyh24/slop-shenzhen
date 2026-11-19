@@ -94,7 +94,7 @@ test('bounded detour sweeps the body and never borrows a service driveway', { sk
 });
 
 test('Zhongxin 2 retains an exterior route longer than 200 m with no road crossing', { skip: !threeDir }, async () => {
-  const { THREE, buildZhongxinWalk, createWalkSweep, tracks } = await setup();
+  const { THREE, buildZhongxinWalk, createWalkSweep, COCO_PARK_FRONTAGE, tracks } = await setup();
   const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
   const scene = new THREE.Scene();
   const pilot = buildZhongxinWalk(scene, raw.roadGraph, raw.terrainSurface);
@@ -113,6 +113,8 @@ test('Zhongxin 2 retains an exterior route longer than 200 m with no road crossi
   assert.equal(pilot.areaAt(route.at(-1).x, route.at(-1).z).kind, 'frontage');
   const clear = createWalkSweep(pilot, 'zhongxin-2-west', [planter], barrier, pilot.bounds);
   assert.ok(route.slice(1).every((point, i) => clear(route[i], point, 0.86)));
+  const [arrival, forecourt] = COCO_PARK_FRONTAGE.map(([x, z]) => ({ x, z }));
+  assert.ok(clear(arrival, forecourt, 0.48));
   assert.ok(route.every(point => Number.isFinite(point.y)));
   assert.equal(scene.children.includes(pilot.group), true);
 });

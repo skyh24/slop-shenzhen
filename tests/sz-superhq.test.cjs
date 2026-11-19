@@ -261,6 +261,61 @@ function terrainHeightAt(vertex) {
   return height;
 }
 
+test('forecourt loops meet the axis, stay on land and clear station entrances and tree crowns', async () => {
+  const { createCitySpatial } = await import('../js/sz-spatial.js');
+  const spatial = createCitySpatial(geo);
+  const polygon = polygonOf('site');
+  const { patches, trees, reservesField } = model.planForecourt(polygon);
+  assert.ok(patches.length && trees.length);
+  assert.ok(patches.every(patch => patch.ring.every(p => collision.polygonContains(polygon, p.x, p.z))));
+  const paths = patches.filter(patch => patch.style === 'superHqParkPaving');
+  const entrances = built.filter(part => part.sourceId === stationSource && part.id.includes(':plinth'));
+  const links = new Map();
+  const key = p => [p.x, p.z].map(Math.fround).join(',');
+  const connect = (a, b) => {
+    if (!links.has(a)) links.set(a, new Set());
+    links.get(a).add(b);
+  };
+  for (const { ring } of paths) {
+    // 相邻纵向条和转弯扇段的端边编号不同，用共边判断连通。
+    for (let j = 0; j < ring.length; j++) {
+      const a = key(ring[j]), b = key(ring[(j + 1) % ring.length]);
+      connect(a, b);
+      connect(b, a);
+    }
+    const x = ring.reduce((n, p) => n + p.x / ring.length, 0);
+    const z = ring.reduce((n, p) => n + p.z / ring.length, 0);
+    assert.ok(Number.isFinite(spatial.groundHeight(x, z)) && reservesField(x, z));
+    assert.ok(spatial.nearestRoads(x, z, 30).every(hit => hit.distance > hit.road.w / 2 + 3));
+    assert.ok(entrances.every(part => outsideDistance(part.polygon, x, z) > 3));
+  }
+  const axis = built.filter(part => part.sourceId === axesSource && part.roofContact);
+  const gateEdges = new Map(axis.flatMap(part => part.polygon.outer.map((p, i) =>
+    [key(p), part.top[i] - spatial.groundHeight(p.x, p.z)])));
+  let loops = 0;
+  while (links.size) {
+    const pending = [links.keys().next().value];
+    let shared = 0;
+    while (pending.length) {
+      const k = pending.pop(), neighbors = links.get(k);
+      if (!neighbors) continue;
+      links.delete(k);
+      pending.push(...neighbors);
+      if (gateEdges.has(k)) {
+        assert.ok(Math.abs(gateEdges.get(k)) < 0.15, 'the axis step stays below fifteen centimetres');
+        shared++;
+      }
+    }
+    assert.equal(shared, 4, 'both six-metre openings meet the central paving edge to edge');
+    loops++;
+  }
+  assert.equal(loops, 2);
+  for (const t of trees) {
+    assert.ok(!reservesField(t.x, t.z, t.crown / 2), t.id);
+    assert.ok(entrances.every(part => outsideDistance(part.polygon, t.x, t.z) > t.crown / 2), t.id);
+  }
+});
+
 test('the exhibition hall is a low two-storey pavilion on its parcel', () => {
   const hall = built.filter(part => part.sourceId === exhibitionSource);
   assert.ok(hall.length >= 5);
@@ -329,9 +384,11 @@ test('real Three draws the same parts the collision uses, within the triangle an
       }
       assert.ok(triangles < 200000, `triangle count ${triangles}`);
       assert.ok(triangles > 1000);
-      // 可行走面只来自 roofContact 部件，且高程来源已解析。
+      // 轴带只为声明可通行的面板提供支撑；其他封顶实体也可提供屋面。
       const walkable = realParts.filter(part => part.roofContact);
-      assert.equal(surfaces.length, walkable.length);
+      const axes = realParts.filter(part => part.sourceId === axesSource);
+      const axisIds = new Set(axes.map(part => part.id));
+      assert.equal(surfaces.filter(surface => axisIds.has(surface.id)).length, axes.filter(part => part.roofContact).length);
       assert.ok(surfaces.every(surface => ['design', 'estimate'].includes(surface.heightSource)
         && surface.triangles.length > 0));
       const surfaceIds = new Set(surfaces.map(surface => surface.id));

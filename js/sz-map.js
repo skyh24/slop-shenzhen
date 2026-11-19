@@ -1208,12 +1208,13 @@ class NYCMapSystem {
       for (const [x, y] of positions) {
         const box = [x - 2, y - 11, x + width + 2, y + 3];
         if (box[0] < -w / 2 || box[2] > w / 2 || box[1] < -h / 2 || box[3] > h / 2 || overlaps(placed, box)) continue;
-        pin.label = { x, y };
+        pin.label = { x, y, box };
         placed.push(box);
         break;
       }
     }
 
+    this.landmarkLabelHits = pins.filter(pin => pin.label);
     this.regions?.drawLabels(ctx, v, this.mapLayersVisible, placed, FONT, (c, name) => this.textWidth(c, name));
 
     const fontPx = Math.max(9, Math.min(12, Math.round(9.5 * Math.sqrt(Math.max(s, 0.4)))));

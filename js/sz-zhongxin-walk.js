@@ -10,15 +10,14 @@ const FRONTAGE_SOURCES = ['way/1489119789', 'node/5219780653'];
 const PERSON_RADIUS_M = 0.48;
 const KEEP_RIGHT_M = 0.38;
 
+// 传送落点在转角内侧的直段，沿 OSM 步道朝向区级活动名录所列东南门。
+export const COCO_PARK_FRONTAGE = [[-467.2, 1175.7], [-488.6, 1164.2]];
 // 路缘外的样段设计线。道路宽度来自现有断面，外边线和铺装材质为模拟。
 const SIDEWALK = [
   [-522, 1006], [-516, 1014], [-512.6, 1023], [-512.6, 1041],
   [-511.7, 1052], [-508.2, 1063], [-502.5, 1075], [-470.4, 1134],
   [-467.2, 1142], [-465.3, 1152], [-463.4, 1171], [-464.1, 1177.4]
 ];
-// OSM 步道端点接入 COCO Park 主入口，福田区活动名录记录东南门。
-// 铺装只覆盖门外接驳，源用地内部、门槛及营业时间保持待核。
-const FRONTAGE = [[-464.1, 1177.4], [-488.6, 1164.2]];
 export const COCO_PARK_ENTRANCE = { id: 'node/5219780653', buildingId: 'way/238825588',
   x: -490.62, z: 1163.08, access: 'public-retail-entrance',
   evidence: 'https://www.szft.gov.cn/bmxx/qwtj/tzgg/content/post_12556615.html' };
@@ -54,7 +53,7 @@ function area(kind, rows, sourceIds) {
 
 export function buildZhongxinWalk(scene, graph, terrain, style) {
   // 入口外缘保留约一米缓冲，用于身体扫掠；路线锚点止于源墙面外。
-  const points = [SIDEWALK[0], ...SIDEWALK, ...FRONTAGE.slice(1), [-489.65, 1163.65]];
+  const points = [SIDEWALK[0], ...SIDEWALK, COCO_PARK_FRONTAGE[1], [-489.65, 1163.65]];
   points[0] = [-522.8, 1004.95];
   const rows = strip(points);
   const seam = SIDEWALK.length;

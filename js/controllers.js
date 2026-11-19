@@ -150,6 +150,10 @@ function buildingContact(c, x, y, z, body, contact) {
   if (y + body.bottom >= c.maxY - SURFACE_CONTACT_EPSILON_M
     || y + body.top <= (c.minY ?? 0) + SURFACE_CONTACT_EPSILON_M) return false;
   if (x + body.extX <= c.minX || x - body.extX >= c.maxX || z + body.extZ <= c.minZ || z - body.extZ >= c.maxZ) return false;
+  if (c.sectionAt) {
+    const polygon = c.sectionAt(y + body.bottom, y + body.top);
+    return polygon !== null && polygonContact(polygon, x, z, body, contact);
+  }
   if (c.polygon) {
     const bottom = y + body.bottom;
     const top = y + body.top;

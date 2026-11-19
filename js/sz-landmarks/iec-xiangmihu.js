@@ -65,8 +65,9 @@ function wingParts(source, levels, role, north) {
   const crown = inset(outer, center, north ? 0.66 : 0.71);
   return [
     solid(source, role + ':plinth', glazing, footing, base + 4, 'iecStone'),
-    solid(source, role + ':curtain-wall', glazing, base + 4, eave, 'iecGlass'),
-    solid(source, role + ':eave', outer, eave - 0.7, eave + 1.35, 'iecRoof', { sourceOutline: true }),
+    solid(source, role + ':curtain-wall', glazing, base + 4, eave, 'iecHallGlass'),
+    solid(source, role + ':eave', outer, eave - 0.35, eave + 1.35, 'iecWingEave', { sourceOutline: true }),
+    { ...solid(source, role + ':under-eave-light', inset(outer, center, 0.997), eave - 0.72, eave - 0.35, 'iecSoffit'), topFace: false },
     loftPart(prefix + role + ':raised-roof', source, shoulder, crown, eave + 1.35, roof - 1.25, 'iecSkylight'),
     solid(source, role + ':crown', crown, roof - 1.25, roof, 'iecSkylight',
       { heightSource: north ? 'estimate' : 'design' })
@@ -160,7 +161,7 @@ export function build(source, terrain, { sites, groundHeight } = {}) {
 }
 
 export const IEC_STYLES = Object.freeze([
-  'iecRoof', 'iecGlass', 'iecStone', 'iecPlaza', 'iecHotel', 'iecGreen', 'iecSkylight', 'iecSoffit'
+  'iecRoof', 'iecGlass', 'iecStone', 'iecPlaza', 'iecHotel', 'iecGreen', 'iecSkylight', 'iecHallGlass', 'iecWingEave', 'iecSoffit'
 ]);
 
 function facadeStyle(style) {
@@ -189,17 +190,41 @@ function facadeStyle(style) {
   material.roughnessNode = mix(float(0.74), mix(float(0.42), float(style.rough ?? 0.24), pane), wall);
   const lit = mix(float(style.lit * 0.24), step(noise, style.lit), detail).mul(0.5);
   material.emissiveNode = color(style.glow).mul(lit).mul(pane).mul(wall).mul(sceneUniforms.night);
+  if (style.eaveWash) {
+    // 双厅幕墙局部坐标从石基顶起算。檐下约两层为暖黄透光带，竖框附近较亮。
+    const upper = smoothstep(18, 27, coord.y);
+    const fins = paneMaskNode(bay, 0.43, wX).oneMinus();
+    const wash = upper.mul(fins.mul(0.78).add(0.22)).mul(wall);
+    material.emissiveNode = material.emissiveNode.add(color(0xffae4a).mul(wash).mul(sceneUniforms.night));
+  }
   return material;
 }
 
-function skylightMaterial() {
-  const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.32, metalness: 0.23 });
-  const u = positionWorld.x.mul(0.986).sub(positionWorld.z.mul(0.168)).div(5.4);
-  const v = positionWorld.z.mul(0.986).add(positionWorld.x.mul(0.168)).div(2.2);
-  const rail = cell => smoothstep(0.445, 0.5, abs(fract(cell).sub(0.5)))
-    .mul(smoothstep(0.1, 0.55, fwidth(cell)).oneMinus());
-  const ribs = max(rail(u), rail(v));
-  material.colorNode = mix(color(0x7898ab), color(0xc6cbc9), ribs);
+// 瓦缝沿双厅轴线排布，用像素覆盖率把远处细瓦过渡成整片玻璃。
+function wingTileMaterial(eave) {
+  const material = new THREE.MeshStandardNodeMaterial();
+  const u = positionWorld.x.mul(0.986).sub(positionWorld.z.mul(0.168)).div(2.6);
+  const v = positionWorld.z.mul(0.986).add(positionWorld.x.mul(0.168)).div(1.25);
+  const column = u.add(floor(v).mod(2).mul(0.5));
+  const soft = max(fwidth(u), fwidth(v));
+  const near = smoothstep(0.16, 0.64, soft).oneMinus();
+  const tile = paneMaskNode(column, 0.477, max(fwidth(u), 0.009))
+    .mul(paneMaskNode(v, 0.458, max(fwidth(v), 0.015)));
+  const glaze = mix(float(0.87), tile, near);
+  const tint = mix(float(0.52), cellNoiseNode(column, v), near);
+  const glass = eave ? mix(color(0x231d23), color(0x524046), tint)
+    : mix(color(0x571726), color(0xaa3645), tint);
+  const grazing = abs(dot(cameraPosition.sub(positionWorld).normalize(), normalWorldGeometry)).oneMinus().pow(2);
+  const sheen = grazing.mul(sceneUniforms.night.oneMinus()).mul(eave ? 0.16 : 0.36);
+  material.colorNode = mix(color(0x211c24), mix(glass, color(0xb0bcc8), sheen), glaze);
+  material.roughnessNode = mix(float(0.65), float(0.24), glaze);
+  material.metalness = 0.23;
+  if (!eave) {
+    // 一组瓦下共用一条洗顶灯，亮部渐入暗红，细瓦缝退远后仍能读出大块玻璃的层次。
+    const wash = sin(v.mul(0.32)).mul(0.5).add(0.5).pow(2);
+    material.emissiveNode = color(0xd5253a).mul(sceneUniforms.night)
+      .mul(glaze).mul(tint.mul(0.23).add(0.12)).mul(wash.mul(1.6).add(0.64));
+  }
   return material;
 }
 
@@ -242,8 +267,9 @@ export function createIecMaterial(name) {
   switch (name) {
     case 'iecRoof':
       return roofMaterial();
+    case 'iecHallGlass':
     case 'iecGlass':
-      return facadeStyle({ frame: 0x7d8f97, glass: 0x46606d, roof: 0x7a888b, bay: 2.6, floor: 6.4,
+      return facadeStyle({ eaveWash: name === 'iecHallGlass', frame: 0x7d8f97, glass: 0x46606d, roof: 0x7a888b, bay: 2.6, floor: 6.4,
         fin: 0.09, sill: 0.06, lit: 0.1, rough: 0.2, glow: 0xeedfc5 });
     case 'iecStone':
       return new THREE.MeshStandardNodeMaterial({ color: 0xc3c2ba, roughness: 0.76, metalness: 0.03 });
@@ -255,10 +281,12 @@ export function createIecMaterial(name) {
     case 'iecGreen':
       return greenMaterial();
     case 'iecSkylight':
-      return skylightMaterial();
+      return wingTileMaterial(false);
+    case 'iecWingEave':
+      return wingTileMaterial(true);
     case 'iecSoffit':
-      return new THREE.MeshStandardNodeMaterial({ color: 0x725e4a, roughness: 0.7,
-        emissiveNode: color(0xffbd80).mul(sceneUniforms.night).mul(0.22) });
+      return new THREE.MeshStandardNodeMaterial({ color: 0xc39e64, roughness: 0.7,
+        emissiveNode: color(0xffbe62).mul(sceneUniforms.night).mul(2.4) });
     default:
       throw new Error(`Unknown IEC material: ${name}`);
   }

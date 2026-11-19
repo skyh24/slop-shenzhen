@@ -265,7 +265,7 @@ test('landmark materials keep a night emissive channel on every lit surface', { 
   // 夜景统一后的自发光覆盖面：立面 wash、珍珠立面、冠灯、屋面与场馆材质都必须挂上夜间通道。
   const lit = ['shoppingParkBase', 'shoppingParkGlass', 'stockExchangeTower', 'operaPearl', 'landmarkEdge',
     'pressTowerSteel', 'civicStone', 'civicTowerRed', 'civicTowerYellow', 'stadiumRoof',
-    'conventionRoof', 'conventionSkylight'];
+    'conventionRoof', 'conventionSkylight', 'djiWing', 'djiEdgeLight', 'djiBrace'];
   for (const name of lit) {
     const material = materials.createLandmarkMaterial(name);
     assert.ok(material.emissiveNode, `${name} keeps an emissive node for the night channel`);

@@ -498,13 +498,120 @@ function axisSpanParts(source, terrain, stations, strips, normal, label) {
   return parts;
 }
 
+// 临湾前场是按参考图拟合的园林。两条回游步道各自从绿轴的两个开口出入。
+const FORECOURT_GATES = [[49, 55], [81, 87]];
+const gardenPoint = (frame, u, v) => along(along(frame.center, frame.longAxis, u), frame.shortAxis, v);
+
+function forecourtFits(polygon, frame) {
+  return [-283, 283].every(u => [36, 119].every(v => {
+    const p = gardenPoint(frame, u, v);
+    return inRing(polygon.outer, p.x, p.z);
+  }));
+}
+
+export function planForecourt(polygon) {
+  const frame = siteFrame(polygon);
+  if (!frame || !forecourtFits(polygon, frame)) return {};
+  const patches = [], trees = [], paths = [];
+  const lawn = 'superHqParkVerge', meadow = 'superHqParkLawn', paving = 'superHqParkPaving';
+  const styles = [lawn, paving, meadow, paving, lawn];
+  const addPath = (a, b) => paths.push([a, b]);
+  for (const side of [-1, 1]) {
+    const world = (u, v) => gardenPoint(frame, side * u, v);
+    // 东西两侧的曲线独立起伏。每一横断面同时给出铺装边缘和草坪边缘，接缝共顶点。
+    const section = t => {
+      const bend = Math.sin(Math.PI * t);
+      // 南入口绕至地铁雨棚北侧，越过站口后逐渐放宽成草坪。
+      const opening = Math.max(0, 1 - t / 0.36) ** 2;
+      const mid = 74 - 6 * opening + bend * (3 + 11 * Math.sin((2.4 * t + 0.35 * side) * Math.PI));
+      const half = 22 - 6 * (t + opening) + bend * (3 * Math.cos(2 * Math.PI * t + side));
+      return { u: AXIS_HALF + 220 * t, mid, half,
+        edges: [mid - half - 14, mid - half - 3, mid - half + 3,
+          mid + half - 3, mid + half + 3, 115 + 4 * Math.sin(Math.PI * 2 * t) * side] };
+    };
+    let previous;
+    for (let i = 0; i <= 32; i++) {
+      const row = section(i / 32);
+      const points = row.edges.map(v => world(row.u, v));
+      const centers = [world(row.u, row.mid - row.half), world(row.u, row.mid + row.half)];
+      if (previous) {
+        for (const [j, style] of styles.entries()) patches.push({ style,
+          ring: [previous.points[j], points[j], points[j + 1], previous.points[j + 1]] });
+        centers.forEach((p, j) => addPath(previous.centers[j], p));
+      }
+      previous = { points, centers };
+    }
+    // 半圆回转处把两条六米支路接起来，外围草岸由窄到宽过渡。
+    const end = section(1);
+    const cap = (angle, radius) => world(end.u + radius * Math.sin(angle), end.mid - radius * Math.cos(angle));
+    let last;
+    for (let i = 0; i <= 16; i++) {
+      const a = Math.PI * i / 16;
+      const rim = [end.half - 3, end.half + 3, end.half + 14 + (end.edges[5] - end.mid - end.half - 14) * i / 16].map(r => cap(a, r));
+      if (last) {
+        patches.push({ style: meadow, ring: [world(end.u, end.mid), last.rim[0], rim[0]] },
+          { style: paving, ring: [last.rim[0], rim[0], rim[1], last.rim[1]] },
+          { style: lawn, ring: [last.rim[1], rim[1], rim[2], last.rim[2]] });
+        addPath(last.center, cap(a, end.half));
+      }
+      last = { rim, center: cap(a, end.half) };
+    }
+
+    // 回转端和临街草坡用疏密相间的小树丛收边。
+    for (const [i, angle] of [0.30, 0.54, 0.77, 1.44, 1.68, 2.27, 2.51, 2.76].entries()) {
+      trees.push({ ...cap(angle, end.half + 10 + 1.7 * Math.cos(2 * i)), id: `super-hq:bend:${side}:${i}`,
+        height: 7.5 + i % 4, crown: 6.4 + i % 3, speciesName: i < 3 ? 'camphor' : 'bauhinia',
+        positionSource: 'simulated-park', appearanceSource: 'visual-estimate' });
+    }
+    for (const u of [55, 62, 69, 110, 117, 155, 162, 219, 227]) {
+      const row = section((u - AXIS_HALF) / 220);
+      const v = row.edges[5] - 5.4 - 1.5 * Math.cos(u);
+      if (v - row.edges[4] < 7) continue;
+      trees.push({ ...world(u, v), id: `super-hq:street-lawn:${side}:${u}`, height: 9 + Math.sin(u),
+        crown: 7 + Math.cos(u), speciesName: 'camphor', positionSource: 'simulated-park',
+        appearanceSource: 'visual-estimate' });
+    }
+
+    // 树丛落在园路外缘，草坪中央只留少量孤植，给湾向视线留出空地。
+    for (let grove = 0; grove < 13; grove++) {
+      const count = 2 + grove % 3;
+      for (let j = 0; j < count; j++) {
+        const t = (grove + 0.28 + j * 0.32) / 14;
+        const { u, mid, half } = section(t);
+        const flank = grove % 2 === 0 ? side : -side;
+        const v = mid + flank * (half + 10.1 + 1.8 * Math.sin(grove + 2 * j));
+        const p = world(u, v);
+        trees.push({ ...p, id: `super-hq:grove:${side}:${grove}:${j}`, height: 8.4 + 2.2 * Math.cos(grove + j),
+          crown: 7.3 + 1.4 * Math.sin(grove + j), speciesName: ['camphor', 'ficus', 'bauhinia'][grove % 3],
+          positionSource: 'simulated-park', appearanceSource: 'visual-estimate' });
+      }
+      if (grove % 4 === 2) {
+        const { u, mid } = section((grove + 0.5) / 14);
+        trees.push({ ...world(u, mid - 2 * side), id: `super-hq:lawn:${side}:${grove}`,
+          height: 10.5, crown: 9, speciesName: 'ficus', positionSource: 'simulated-park', appearanceSource: 'visual-estimate' });
+      }
+    }
+  }
+  const extent = ringBounds(patches.flatMap(patch => patch.ring));
+  const reservesField = (x, z, radius = 0) => {
+    if (x < extent.minX - radius || x > extent.maxX + radius
+      || z < extent.minZ - radius || z > extent.maxZ + radius) return false;
+    return paths.some(([a, b]) => edgeDistance(a.x, a.z, b.x, b.z, x, z) <= 3 + radius);
+  };
+  return { patches, trees, reservesField };
+}
+
 function axisParts(source, terrain, plan) {
   const { frame, polygon } = plan;
   const { center, longAxis, shortAxis } = frame;
   const parts = [];
   // 南北绿轴：连续穿过双塔之间，在连廊下形成中央绿轴。
   const stations = axisStations(polygon.outer, center, shortAxis, longAxis, AXIS_HALF, FIT.axisSpacingM);
-  const plaza = (a, b) => Math.max(Math.abs(a.t), Math.abs(b.t)) <= FIT.greenPlazaM;
+  const gates = forecourtFits(polygon, frame) ? FORECOURT_GATES : [];
+  for (const t of gates.flat()) stations.push({ t, center: along(center, shortAxis, t) });
+  stations.sort((a, b) => a.t - b.t);
+  const plaza = (a, b) => Math.max(Math.abs(a.t), Math.abs(b.t)) <= FIT.greenPlazaM
+    || gates.some(([from, to]) => a.t >= from && b.t <= to);
   for (let i = 1; i < stations.length; i++) {
     const a = stations[i - 1], b = stations[i];
     parts.push(...axisSpanParts(source, terrain, [a, b], plaza(a, b) ? PLAZA_STRIPS : AXIS_STRIPS,
@@ -760,6 +867,20 @@ function pavingMaterial() {
   return material;
 }
 
+function parkMaterial(name) {
+  const path = name === 'superHqParkPaving';
+  const material = path ? pavingMaterial() : new THREE.MeshStandardNodeMaterial({ roughness: 0.97 });
+  if (!path) {
+    const verge = name === 'superHqParkVerge';
+    const drift = sin(positionWorld.x.mul(0.073).add(sin(positionWorld.z.mul(0.12)).mul(1.7)))
+      .mul(sin(positionWorld.z.mul(0.092))).mul(0.5).add(0.5);
+    material.colorNode = mix(color(verge ? 0x57743d : 0x6c924b), color(verge ? 0x769050 : 0x8da85c), drift);
+  }
+  material.polygonOffset = true;
+  material.polygonOffsetFactor = material.polygonOffsetUnits = -3;
+  return material;
+}
+
 function plantingMaterial() {
   const material = new THREE.MeshStandardNodeMaterial({ metalness: 0.02, roughness: 0.92 });
   const wave = positionWorld.x.mul(0.083).add(positionWorld.z.mul(0.061));
@@ -803,6 +924,7 @@ export function createSuperHqMaterial(name) {
     case 'superHqStone': return stoneMaterial();
     case 'superHqPaving': return pavingMaterial();
     case 'superHqGreen': return plantingMaterial();
+    case 'superHqParkLawn': case 'superHqParkVerge': case 'superHqParkPaving': return parkMaterial(name);
     case 'superHqSign': return signMaterial();
     default: throw new Error(`Unknown Super HQ material: ${name}`);
   }

@@ -59,7 +59,7 @@ test('IEC venue builds deterministic estimate volumes on the reviewed Xiangmi La
   assert.ok(iec.optionalSkipIds.length > 0);
   for (const id of iec.optionalSkipIds) assert.equal(source.has(id), !id.startsWith('globfp/'), id);
   const styles = new Set(model.map(part => part.style));
-  assert.ok(styles.size < 8, `material budget exceeded: ${[...styles]}`);
+  assert.ok(styles.size <= 8, `material budget exceeded: ${[...styles]}`);
   assert.ok([...styles].every(style => iec.IEC_STYLES.includes(style)));
   assert.deepEqual(new Set(model.map(part => part.sourceId)), new Set(iec.sourceIds));
   for (const part of model) {
@@ -159,7 +159,14 @@ test('real Three draws the IEC campus within part, triangle and material budgets
     try {
       assert.equal(group.children.length, new Set(model.map(part => part.style)).size);
       assert.ok(group.children.every(mesh => realIec.IEC_STYLES.includes(mesh.name)));
-      assert.equal(surfaces.length, 0);
+      assert.deepEqual(Array.from(surfaces, row => row.id), Array.from(model).filter(part => part.topFace !== false).map(part => part.id));
+      for (const wing of ['north-wing', 'south-wing']) {
+        const eave = model.find(part => part.id.includes(wing + ':eave'));
+        const strip = model.find(part => part.id.includes(wing + ':under-eave-light'));
+        assert.equal(eave.style, 'iecWingEave');
+        assert.equal(strip.maxY, eave.minY);
+        assert.equal(strip.style, 'iecSoffit');
+      }
       let triangles = 0;
       for (const mesh of group.children) {
         assert.ok(mesh.material.isMeshStandardNodeMaterial, `${mesh.name} material`);

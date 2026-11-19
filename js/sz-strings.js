@@ -26,8 +26,8 @@ export const STR = {
     selectedPoint: '地图选点',
     go: '前往',
     playerLocation: name => `当前位置：${name}`,
-    clickHint: '移动鼠标查看区域 · 点击选点 · 滚轮缩放',
-    touchHint: '点按查看区域或选点 · 拖动平移 · 用 ＋ / － 缩放',
+    clickHint: '点击地标或商圈前往 · 双击空地步行 · 滚轮缩放',
+    touchHint: '点按地标或商圈前往 · 连点两下空地步行 · 拖动平移',
     noArrival: '附近找不到安全落点',
     scale: metres => metres >= 1000 ? `${metres / 1000} 公里` : `${metres} 米`,
     roadInitials: {
@@ -153,6 +153,7 @@ export const STR = {
   bayWaterfront: { destination: '中湾阅海广场', walk: '观海步道' },
   tollStation: '收费站',
   districts: {
+    cocoPark: '星河 COCO Park',
     minghua: '明华轮', seaWorld: '海上世界', b10: 'OCAT · B10', octLoft: 'OCT-LOFT',
     ningnan: '寧南', nantouGate: '嶺南重鎮', nantouPaifang: '城古頭南', closed: '暂不开放',
     shops: { sea: ['海岸小食', '饮品补给', '港湾餐桌'], oct: ['独立出版', '工艺小铺', '厂房咖啡'],
@@ -167,9 +168,12 @@ export const STR = {
     filters: { all: '全选', landmark: '地标', retail: '商圈', park: '公园',
       culture: '文化街区', amusement: '游乐场', sports: '体育场' },
     cocoParkApproach: 'COCO Park 一期东南门前场',
-    cocoParkApproachDetail: '福华三路北侧步行起点',
+    cocoParkApproachDetail: '中心二路西侧步行起点',
     cocoParkEntrance: '一期东南门前场',
-    walkOnly: '仅步行模式可用',
+    waterfrontSites: {
+      'oh-bay-east-shore': '欢乐港湾 · 商业东岸', 'oh-bay-west-shore': '欢乐港湾 · 商业西岸',
+      'oh-bay-wheel': '欢乐港湾 · 湾区之光摩天轮', 'mixc-world': '万象天地 · 水广场抱抱象'
+    },
     parkWalk: '前往有来源的园内步行区',
     parkPath: '步行抵达日出剧场步道',
     parkFlight: '飞至公园上空',

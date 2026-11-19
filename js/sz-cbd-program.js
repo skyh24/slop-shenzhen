@@ -1,6 +1,7 @@
 // 原创节目以山顶视线为取样基准。纹理颜色只由参与楼宇的真实玻璃片元读取。
 import * as THREE from 'three/webgpu';
 import { clamp, float, Fn, If, positionWorld, texture, uniform, vec2, vec3 } from 'three/tsl';
+import { buildCbdSearchlights } from './sz-cbd-searchlights.js';
 import { dayPhase } from './sz-day-phase.js';
 
 export const CBD_PROGRAM_DURATION = 108;
@@ -171,12 +172,14 @@ export function createCbdProgram(origin, night) {
     })();
   }
 
+  let searchlights;
   let total = 0;
   let paused = false;
   let playbackRate = 1;
   let lastFrame = -1;
   function render(force = false) {
     const cue = cbdCue(total);
+    if (enabled.value) searchlights?.update(cue.time, cue.index === 2 ? CBD_CUES[3] - cue.time : 0);
     const frame = Math.floor(cue.time * SAMPLE_RATE);
     if (!force && frame === lastFrame) return;
     lastFrame = frame;
@@ -193,6 +196,11 @@ export function createCbdProgram(origin, night) {
   render(true);
   return {
     emission,
+    mountSearchlights(scene, colliders) {
+      searchlights?.dispose();
+      searchlights = buildCbdSearchlights(scene, colliders, night);
+    },
+    dispose() { searchlights?.dispose(); atlas.dispose(); },
     get active() { return enabled.value === 1; },
     get paused() { return paused; },
     get playbackRate() { return playbackRate; },
@@ -204,13 +212,14 @@ export function createCbdProgram(origin, night) {
     start() { playbackRate = 1; enabled.value = 1; this.replay(); },
     replay() { total = 0; paused = false; render(true); },
     togglePause() { paused = !paused; },
-    stop() { enabled.value = 0; paused = false; },
+    stop() { enabled.value = 0; paused = false; searchlights?.hide(); },
     // 播放步长由入口帧时钟给出：隐藏期间和恢复首帧为 0，这里只保证非负。
     update(dt) {
       const step = Number.isFinite(dt) ? Math.max(0, dt) : 0;
       if (!this.active || paused || document.hidden || step === 0) return;
       total += step * playbackRate;
       if (dayPhase.channel('deepNight') > 0) render();
+      else searchlights?.hide();
     }
   };
 }
