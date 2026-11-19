@@ -317343,7 +317343,7 @@
       }
     ],
     "features": 29,
-    "planarTriangles": 43760,
+    "planarTriangles": 35840,
     "medianShrubsEstimated": 276,
     "signalApproaches": 4,
     "signalTimingSource": "user-defined-game-simulation"
@@ -344271,8 +344271,8 @@
           "way/996657789",
           "way/996762393"
         ],
-        "flowerAreaM2": 32466.56,
-        "flowerBeds": 340
+        "flowerAreaM2": 19058.46,
+        "flowerBeds": 175
       },
       {
         "road": "滨海大道",
@@ -516425,13 +516425,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "c2b648cf4bbe676841e005510a65bdd5cd4604b951852148f3dc3915df3f1403",
-    "bytes": 269019,
+    "fingerprint": "ee0803e8a02f39c5af5c18e98f7ee6647112c911df615a88e502aaa2755e1f3f",
+    "bytes": 269021,
     "decodedBytes": 1255868,
     "files": {
-      "js/sz-regional/c2b648cf4bbe676841e0/waterfront.json.gz": "8fcb66e627ed79259d07eaa60769d9591b9a482e11293b93301cb8ba64a785af",
-      "js/sz-regional/c2b648cf4bbe676841e0/metro.json.gz": "e0eaa91b6d68fb2433e2be86a7e9b7a62005731c788479e3318d90ef43ab3ba7",
-      "js/sz-regional/c2b648cf4bbe676841e0/drone.json.gz": "1137b1a8c204c55643c39461fb89d96e63c252e7a8973ff144e8e01d495007e2"
+      "js/sz-regional/ee0803e8a02f39c5af5c/waterfront.json.gz": "b045cf77cb6f797a5e50c678ba64237f6cfd8d9a7932eb927131bc8297058bec",
+      "js/sz-regional/ee0803e8a02f39c5af5c/metro.json.gz": "62cd16cf37b45a18372b5f894bb91c5c584bf5ef60bef1497efb964050b3d7e6",
+      "js/sz-regional/ee0803e8a02f39c5af5c/drone.json.gz": "4a83b42d3506ad8fab0a09b039ead381787235797c82bbb2442219693065bc6c"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -516535,7 +516535,7 @@
       "js/sz-retail-frontage.js": "b69d189d41bf7eeaeeb599d057b18908cf9fda02d45c1f6b19438e3e21bd729e",
       "js/sz-retail-signs.js": "4cd54c1bbb7bc0583d25c811159ffcfa3f072d7cefaf014ce8ced39f4ecee71e",
       "js/sz-road-building-clearance.js": "00b3c907dbcd210c288e9780e33d9ef8adf9058b84239c84ddbaada7135da63d",
-      "js/sz-road-frontage.js": "270b5ee23d50db72f73908768d94b5feb218cfd8a57f3517e2ed3d497309040b",
+      "js/sz-road-frontage.js": "450f28d6597083d25ca212f058b16bdd91ff941676bee074b0348e4290160800",
       "js/sz-road-landscape.js": "4b15c0754e25f88efab814112b93e9195bcb7d872ba97d32da406b346bd81110",
       "js/sz-road-markings.js": "da2ca29f8043c6a44870d1e959505678255762f268c096417074899cbd485530",
       "js/sz-road-material.js": "2b87b12d8a643b397968a0e6ec0fd7a5c01c140e666e59ed070b2767ab4caf6d",
@@ -516543,7 +516543,7 @@
       "js/sz-road-profile.js": "f9f52d1d1ea9bd3fe66330602d87862b7656c8c1dce1838f30f2908a8759d9c7",
       "js/sz-road-section.js": "3e8403fb160960a4c26964e3d37b9b758b2cebf31bf2d6a4b4147c8ec6bf6bf8",
       "js/sz-roads.js": "549160bfff2603e6e18d7761eac28827576b8eb0b68eab9549d9ed68f1fd549f",
-      "js/sz-scene-site.js": "3e03668bd7912cfa62dd572d7ad30a91fefdf346da00756590ac5ce144f09a63",
+      "js/sz-scene-site.js": "3d9079304d555637b7d485a065592793df3a6cd82cb37ebd224e424fcbd8754b",
       "js/sz-scene-style.js": "fbc7b6cdb08a25dfb7f8ff773e3b4bddce309d2973bce2d256a45b06f1fef027",
       "js/sz-sea.js": "1c69243a4c3f9002bdde397b10bed63b840074df52df9118f88215680393d5a7",
       "js/sz-section-frame.js": "94ed096ace331504e2870cc07033d61b07b6340380a46299d268bcf68c0a9968",
@@ -516856,16 +516856,16 @@
     "format": "SZC1",
     "version": 1,
     "columns": 8064,
-    "metadataBytes": 19445536,
-    "numericBytes": 45532456,
-    "uncompressedBytes": 64978040,
+    "metadataBytes": 19445551,
+    "numericBytes": 45152296,
+    "uncompressedBytes": 64597896,
     "lossless": true,
-    "compressedBytes": 17553077,
-    "compressedSha256": "534d60f4a30d8a509bcc5fbdc5e3ffbf04b0562bde3c63a621bbf61eb5e3306d"
+    "compressedBytes": 17460747,
+    "compressedSha256": "14bb0174e01d10835b5c17802b1a6bf0d1b1555cc2284ccf709a564d0f03619f"
   },
-  "outputBytes": 17601506,
-  "outputSha256": "34dd15a53350e4f98f8a06413d06a3cf38d47385f689d1672f3b22f37fad9f7c",
-  "seconds": 57.4,
+  "outputBytes": 17511960,
+  "outputSha256": "89fda963cf000f820683ba10dc919d1024b0a580a4bbddd537a1f502c85d121d",
+  "seconds": 64.5,
   "elevatedCut": {
     "version": 3,
     "links": 28,
