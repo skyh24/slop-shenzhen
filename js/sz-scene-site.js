@@ -50,7 +50,7 @@ import { sceneUniforms } from './sz-materials.js';
 export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, startup, offline = false, captureExpoLayout }) {
   const GEO = qa.measureBuild('mountainTunnels', () => prepareMountainTunnels(CITY_GEO));
   const frontageLight = { ...COCO_PARK_ENTRANCE, night: sceneUniforms.night };
-  const ground = qa.measureBuild('ground', () => buildSzGround(scene, GEO.terrainSurface, { frontageLight }));
+  const ground = qa.measureBuild('ground', () => buildSzGround(scene, GEO.terrainSurface, { frontageLight, buildings: REAL_BUILDINGS }));
   const sea = !offline && qa.measureBuild('sea', () => buildSzSea(scene, GEO.seaSurface));
   markInit('ground');
   await showLoadingStage(startup.roads, 'roads');

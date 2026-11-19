@@ -11,6 +11,32 @@ const source = readFileSync(join(root, 'js/sz-ground-surface.js'), 'utf8').repla
 const modulePromise = import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
+test('stone requires a continuous at-grade sidewalk edge and stops at a shared corner', { skip: !threeDir }, async () => {
+  const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
+  const { createFrontageFinish } = loadModule(readFileSync(join(root, 'js/sz-frontage-finish.js'), 'utf8'));
+  function mesh(points, triangles) {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points.flatMap(([x, z]) => [x, 8, z]), 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(points.length * 3), 3));
+    geometry.setAttribute('paved', new THREE.Float32BufferAttribute(points.map(() => 2), 1));
+    geometry.setIndex(triangles);
+    return { geometry };
+  }
+  const a = mesh([[0, 0], [2, 0], [2, 2], [0, 2]], [0, 1, 2, 0, 2, 3]);
+  const b = mesh([[2, 0], [4, 0], [4, 2], [2, 2], [6, 2], [5, 4]], [0, 1, 2, 0, 2, 3, 2, 4, 5]);
+  const connect = createFrontageFinish([a, b], new THREE.Color(0x888888), new THREE.Color(0xcccccc));
+  const bounds = { minX: -1, minZ: -1, maxX: 7, maxZ: 5 };
+  const faceKinds = ({ geometry }) => [...geometry.index.array].map(i => geometry.attributes.paved.getX(i));
+  connect(bounds, () => 12);
+  connect(bounds, (x, z) => (x < 0 || (x === 0 && z === 0)) ? 8 : null);
+  assert.ok([...faceKinds(a), ...faceKinds(b)].every(k => k === -1));
+  connect(bounds, x => x === 0 ? 8.15 : null);
+  assert.deepEqual(faceKinds(a), Array(6).fill(2));
+  assert.deepEqual(faceKinds(b), [...Array(6).fill(2), -1, -1, -1]);
+  connect(bounds, (x, z) => z === 2 ? 8 : null);
+  assert.ok(faceKinds(b).every(k => k === 2));
+});
+
 test('rendered Shenzhen Bay water keeps the Hong Kong pylon island and the park dry', { skip: !threeDir }, async () => {
   const read = name => readFileSync(join(root, 'js', name), 'utf8');
   const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));

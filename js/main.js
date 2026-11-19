@@ -267,6 +267,9 @@ async function initApp() {
   // 环境人群复用纽约 PersonRig；行走位置是沿路侧模拟步行带，非全城实测人行道。
   pedestrians = qa.stage('pedestrians', () => createSzPedestrians(scene, roadGraph, {
     ...site,
+    onPavementBuilt: (bounds, heightAt) => ground.connectFrontages(bounds,
+      (x, z) => heightAt(x, z) ?? roadFrontage.sidewalkHeight(x, z)
+        ?? (publicWalk.pedestrianSurface.allows(x, z, 0) ? publicWalk.heightAt(x, z) : null)),
     publicRoute: qa.measureBuild('pedestrianPublicWalk', () => publicWalk.route(colliders)),
     publicWalkSurface: publicWalk.pedestrianSurface,
     // 场所行人排除从登记表取；其余场地/路侧排除仍沿用各自入口。
