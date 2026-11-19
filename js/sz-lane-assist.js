@@ -13,12 +13,10 @@ function laneCenters(edge, model) {
   if (section.estimated || section.narrow) return [];
   const width = sign === 1 ? section.forwardLaneWidthM : section.backwardLaneWidthM;
   if (width < model.hx * 2 + 0.45) return [];
-  const offsets = laneOffsets(section);
+  const offsets = laneOffsets(section, sign);
   // laneOffsets 以行驶方向右侧为正、末位最靠路缘；换回 laneFrame 的左侧为正，并保留原有次序。
   if (offsets?.length) return offsets.map(offset => -offset).reverse();
-  // 无车道数据时沿用旧规则：双向已核实路不换道，其余退回断面中心数组。
-  if (section.twoWay && section.reviewed) return [];
-  return sign === 1 ? section.forwardCentersM : section.backwardCentersM;
+  return [];
 }
 
 function laneFrame(segment, x, z) {

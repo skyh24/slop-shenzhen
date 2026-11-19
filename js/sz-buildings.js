@@ -582,7 +582,7 @@ export function buildCityBlocks(scene, options = {}) {
         polygon: { outer: podium.outer, holes: podium.holes },
         minX: Math.min(...podium.outer.map(p => p.x)), maxX: Math.max(...podium.outer.map(p => p.x)),
         minZ: Math.min(...podium.outer.map(p => p.z)), maxZ: Math.max(...podium.outer.map(p => p.z)),
-        minY: placement.minY, maxY: top, heightSource: 'estimate', baseSource: 'dem-footprint-bounds-center'
+        minY: placement.minY, maxY: top, heightSource: 'estimate', baseSource: placement.baseSource
       });
       allBlocks.push({ ...building, id: `${building.id}:podium`, isPodium: true,
         baseY: placement.baseY, minY: placement.minY, maxY: top });

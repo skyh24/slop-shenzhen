@@ -21,7 +21,7 @@ const building = { id:'way/123', cx:0, cz:0, minX:-20,maxX:20,minZ:-20,maxZ:20,
   height:100,minHeight:40,heightSource:'osm-height',polygons:[{outer,holes:[hole]}] };
 
 test('building walls and colliders share source part heights and retain open courtyards', () => {
-  const placement = buildingPlacement(building, grid);
+  const placement = buildingPlacement(building, { ...grid, heights: [0, 100, 100, 200] });
   const builder = new GeoBuilder(true);
   addWalls(builder, [outer,hole].map(r=>r.flatMap(p=>[p.x,p.z])), placement.minY, placement.maxY, [0,0,0,100], placement.baseY);
   const positions = builder.pos.view();
@@ -35,8 +35,24 @@ test('building walls and colliders share source part heights and retain open cou
   assert.equal(Math.min(...Array.from(builder.uv.view()).filter((_,i)=>i%2===1)),40);
 });
 
+test('a grounded building on a slope meets its lowest actual corner with level walls and collision', () => {
+  const slope = { ...grid, heights: [0, 100, 100, 200] };
+  const corners = [{ x: -20, z: 5 }, { x: -5, z: -20 }, { x: 20, z: -5 }, { x: 5, z: 20 }];
+  const placement = buildingPlacement({ ...building, minHeight: 0, polygons: [{ outer: corners, holes: [] }] }, slope);
+  const walls = new GeoBuilder(true);
+  addWalls(walls, [corners.flatMap(p => [p.x, p.z])], placement.minY, placement.maxY, [0, 0, 0, 100], placement.baseY);
+  const heights = Array.from(walls.pos.view()).filter((_, i) => i % 3 === 1);
+  // 旋转足迹最低角是 8.75 m；包围框最低角是 8 m，中心是 10 m。
+  assert.deepEqual([...new Set(heights)].sort((a, b) => a - b), [8.75, 108.75]);
+  assert.equal(placement.colliders[0].minY, 8.75);
+  assert.equal(placement.colliders[0].maxY, 108.75);
+});
+
 test('building placement fails when terrain is unknown and facade seed uses identity', () => {
   assert.throws(()=>buildingPlacement({...building,cx:1000},grid),/Missing building terrain/);
+  const uncovered = [{ x: -101, z: 0 }, ...outer];
+  assert.throws(() => buildingPlacement({ ...building, minHeight: 0, polygons: [{ outer: uncovered, holes: [] }] }, grid),
+    /Missing building terrain/);
   assert.equal(buildingSeed('way/123'),buildingSeed('way/123'));
   assert.notEqual(buildingSeed('way/123'),buildingSeed('way/124'));
 });

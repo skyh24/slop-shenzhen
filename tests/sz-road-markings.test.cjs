@@ -45,7 +45,11 @@ test('deck paint distinguishes single ramps, measured wide ramps and tagged carr
   assert.equal(plan(7, 2, 0).lines[2].color, 'yellow');
   // 源宽只增不减：宽桥面不能被车道数压窄；双向的两排中心必须分居中心线两侧。
   assert.equal(plan(16, 0, 1).pavementWidthM, 16);
-  assert.equal(plan(61.8, 19, 1).pavementWidthM, 61.8);
+  const wide = plan(61.8, 19, 1);
+  assert.equal(wide.pavementWidthM, 61.8);
+  assert.equal(wide.laneCount, 5);
+  assert.deepEqual(Array.from(wide.lines.slice(0, 2), line => line.offset), [-8.125, 8.125]);
+  assert.equal(plan(18, 5, 0).laneCount, 5);
   const opposing = plan(16, 0, 0);
   assert.equal(opposing.travelWidthM, opposing.laneCount * 3.25);
   assert.ok(opposing.forwardCentersM.every(center => center < 0));
@@ -119,7 +123,7 @@ test('edge and lane paint follow a changing asymmetric section after trimming a 
   for (const strip of edges) {
     for (const [x, z] of [[strip.ax, strip.az], [strip.bx, strip.bz]]) {
       const edge = 14 - (2 + 2 * x / 120);
-      const expected = edge + (strip.kind === 'edge-right' ? 11.62 : 0.38);
+      const expected = edge + (strip.kind === 'edge-right' ? 9 : 0.38);
       assert.ok(Math.abs(z - expected) < 1e-8);
     }
   }
@@ -158,10 +162,6 @@ test('estimated lane counts are tagged apart from OSM lanes', () => {
   const oneWay = sectionFor(13, 0, 1);
   assert.equal(oneWay.laneCount, 4);
   assert.deepEqual(Array.from(oneWay.routeOffsetsM), [0]);
-  const wide = sectionFor(52, 16, 1);
-  assert.equal(wide.laneCount, 8);
-  assert.equal(wide.routeOffsetsM.length, 16);
-  assert.equal(wide.routeOffsetsM[0], -24.375);
   const sourced = sectionFor(13, 4, 0);
   assert.equal(sourced.estimated, false);
   assert.equal(sourced.laneSource, 'osm-lanes');
@@ -171,6 +171,22 @@ test('estimated lane counts are tagged apart from OSM lanes', () => {
   assert.equal(statistics.estimatedLaneLinks, 1);
   assert.equal(statistics.osmLaneLinks, 0);
   assert.deepEqual({ ...statistics.laneSources }, { 'width-estimate': 1 });
+});
+
+test('wide carriageways cap at five centered lanes and route on the painted lanes', () => {
+  const points = [{ x: 0, z: 0 }, { x: 120, z: 0 }];
+  for (const [width, lanes, expected] of [[4, 1, 1], [6.5, 2, 2], [9.75, 3, 3], [13, 4, 4], [52, 16, 5]]) {
+    const section = sectionFor(width, lanes, 1);
+    const { strips } = createMarkingLayout(graphFor(points, { width, lanes, direction: 1 }));
+    const rows = strips.filter(strip => strip.ax === 0).sort((a, b) => a.az - b.az);
+    assert.equal(rows.length, expected + 1);
+    assert.equal(rows[0].az, -rows.at(-1).az);
+    assert.equal(section.sourceLaneCount, lanes);
+    assert.equal(section.routeOffsetsM.length, expected);
+    for (const [i, offset] of section.routeOffsetsM.entries()) {
+      assert.ok(Math.abs(offset - (rows[i].az + rows[i + 1].az) / 2) <= 0.2);
+    }
+  }
 });
 
 test('estimated two-way odd lane counts still put the yellow center line on the road centerline', () => {
@@ -338,17 +354,32 @@ test('the narrow-road boundary follows the 7 m rule and the estimated lane count
   assert.equal(plan(10, 0).narrow, false);
 });
 
-test('a side ramp stops at the main roadway without interrupting the through lane line', () => {
+test('diagonal branches stop at the main roadway even when both roads have the same width and class', () => {
+  for (const [width, lanes, highway] of [[4, 1, 'primary_link'], [13, 4, 'primary']]) {
+    const graph = {
+      nodes: [-80, 0, 0, 0, 80, 0, 65, 22], names: ['Main road', 'Side road'],
+      links: [[0, 1, 0, 13, 4, 1, []], [1, 2, 0, 13, 4, 1, []], [1, 3, 1, width, lanes, 1, []]],
+      metadata: [GROUND, { ...GROUND, osmId: 'way/2' }, { ...GROUND, osmId: 'way/3', highway }]
+    };
+    const { strips } = createMarkingLayout(graph);
+    const center = strips.filter(strip => strip.kind === 'lane' && strip.offset === 0);
+    assert.ok(center.some(strip => strip.bx === 0 && strip.bz === 0));
+    assert.ok(center.some(strip => strip.ax === 0 && strip.az === 0));
+    const branchLines = strips.filter(strip => strip.az !== strip.bz);
+    assert.ok(branchLines.length > 0);
+    assert.ok(branchLines.every(strip => Math.min(strip.az, strip.bz) > 6.5));
+  }
+});
+
+test('the inner edge lines of two shallow ramps start beyond the shared pavement at a fork', () => {
   const graph = {
-    nodes: [-80, 0, 0, 0, 80, 0, 65, 22], names: ['Main road', 'Side ramp'],
-    links: [[0, 1, 0, 13, 4, 1, []], [1, 2, 0, 13, 4, 1, []], [1, 3, 1, 4, 1, 1, []]],
-    metadata: [GROUND, { ...GROUND, osmId: 'way/2' }, { ...GROUND, osmId: 'way/3', highway: 'primary_link' }]
+    nodes: [-45, 0, 0, 0, 80, -4, 80, 4], names: [''],
+    links: [[0, 1, 0, 6.5, 2, 1, []], [1, 2, 0, 3.2, 1, 1, []], [1, 3, 0, 3.2, 1, 1, []]],
+    metadata: [1, 2, 3].map(id => ({ ...GROUND, osmId: `way/${id}`, highway: 'primary_link' }))
   };
   const { strips } = createMarkingLayout(graph);
-  const center = strips.filter(strip => strip.kind === 'lane' && strip.offset === 0);
-  assert.ok(center.some(strip => strip.bx === 0 && strip.bz === 0));
-  assert.ok(center.some(strip => strip.ax === 0 && strip.az === 0));
-  const rampLines = strips.filter(strip => strip.az !== strip.bz);
-  assert.ok(rampLines.length > 0);
-  assert.ok(rampLines.every(strip => Math.min(strip.az, strip.bz) > 6.5));
+  const branches = strips.filter(strip => strip.kind.startsWith('edge') && strip.ax > 0);
+  assert.ok(branches.some(strip => strip.az > 0) && branches.some(strip => strip.az < 0));
+  assert.ok(branches.every(strip => strip.az * strip.bz > 0 && strip.ax > 30),
+    'no inner edge crosses the other branch before the carriageways separate');
 });

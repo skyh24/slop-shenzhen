@@ -1008,11 +1008,11 @@ function reviewedJunctionNeighbors(graph, driveLinks) {
   return neighbors;
 }
 
-// 非核实的同高合流：两条桥面在同一节点以相同高度相接、且在交汇前横向错开（不是同一条缎带续接），
-// 说明各自是独立车道/匝道。交汇重叠段的护栏必须让位，否则会立进相邻桥面的车道里。
+// 同节点、同高的斜接支路按主线断面识别；其余同高合流再按端点前的横向错开判断。
+// 只有实际重叠的车行面让出护栏，显示和碰撞一起开口。
 const MERGE_LATERAL_M = 1;
 const MERGE_APPROACH_M = 20;
-function mergeNeighbors(records) {
+function mergeNeighbors(records, metadata) {
   const byNode = new Map();
   for (const record of records) {
     if (record.reviewed) continue;
@@ -1038,19 +1038,27 @@ function mergeNeighbors(records) {
   };
   const neighbors = new Map();
   for (const peers of byNode.values()) {
+    if (peers.length < 2) continue;
+    for (const arm of peers) {
+      const { record, side } = arm;
+      const tip = side === 'start' ? record.points[0] : record.points.at(-1);
+      const approach = approachPoint(record, side, MERGE_APPROACH_M);
+      const dx = approach.x - tip.x, dz = approach.z - tip.z;
+      const length = Math.hypot(dx, dz) || 1;
+      Object.assign(arm, { dx: dx / length, dz: dz / length, approach, kind: metadata[record.index]?.highway,
+        name: record.name, width: record.width });
+    }
+    const mainByHeight = peers.length >= 3 ? new Map(peers.map(arm => [arm,
+      throughRoadArms(peers.filter(other => Math.abs(arm.y - other.y) <= ELEVATED_JOIN_TOLERANCE_M))])) : null;
     for (let i = 0; i < peers.length; i++) {
       for (let j = i + 1; j < peers.length; j++) {
         const a = peers[i], b = peers[j];
         if (a.record === b.record || a.record.seamPeers.includes(b.record.index)
           || Math.abs(a.y - b.y) > ELEVATED_JOIN_TOLERANCE_M) continue;
-        const end = a.side === 'start' ? a.record.points[0] : a.record.points[a.record.points.length - 1];
-        const pa = approachPoint(a.record, a.side, MERGE_APPROACH_M);
-        const pb = approachPoint(b.record, b.side, MERGE_APPROACH_M);
-        const ux = end.x - pa.x, uz = end.z - pa.z;
-        const run = Math.hypot(ux, uz) || 1;
-        const dx = pb.x - pa.x, dz = pb.z - pa.z;
-        const along = (dx * ux + dz * uz) / run;
-        if (Math.hypot(dx - ux * along / run, dz - uz * along / run) <= MERGE_LATERAL_M) continue;
+        const isSideJoin = [mainByHeight?.get(a), mainByHeight?.get(b)]
+          .some(main => main && main.includes(a) !== main.includes(b));
+        const dx = b.approach.x - a.approach.x, dz = b.approach.z - a.approach.z;
+        if (!isSideJoin && Math.abs(dx * a.dz - dz * a.dx) <= MERGE_LATERAL_M) continue;
         for (const [from, to] of [[a.record, b.record], [b.record, a.record]]) {
           if (!neighbors.has(from)) neighbors.set(from, new Set());
           neighbors.get(from).add(to);
@@ -1819,7 +1827,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     && !record.dangling && record.connectedStart && record.connectedEnd
     && record.maxGrade <= (record.reviewed ? 0.05 : ELEVATED_DRIVE_MAX_GRADE) + 1e-6);
   const junctionNeighbors = reviewedJunctionNeighbors(graph, driveLinks);
-  for (const [record, peers] of mergeNeighbors(records)) {
+  for (const [record, peers] of mergeNeighbors(records, graph.metadata)) {
     const merged = junctionNeighbors.get(record) ?? new Set();
     for (const peer of peers) merged.add(peer);
     junctionNeighbors.set(record, merged);

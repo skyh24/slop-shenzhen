@@ -364,14 +364,10 @@ test('real sample podiums clear the carriageway and never overlap a neighbour fo
         `podium ${podium.name} covers ${covered.toFixed(3)} m of ${SAMPLE_ROAD_OSM_ID}`);
     }
   }
-  const verticalRange = building => {
-    const baseY = terrain.terrainHeight(geo.terrain, building.cx, building.cz);
-    return [baseY + building.minHeight, baseY + building.height];
-  };
   for (const podium of podiums) {
     for (const obstacle of [sampleBuilding, ...neighbours]) {
       if (obstacle.id === podium.sourceId) continue;
-      const [minY, maxY] = verticalRange(obstacle);
+      const { minY, maxY } = layout.buildingPlacement(obstacle, geo.terrain);
       // 完全在裙房之上或之下的体量不参与平面避让。
       if (maxY <= podium.minY || minY >= podium.maxY) continue;
       assert.equal(polygonsOverlap(podium.polygon, obstacle.polygons[0]), false,
