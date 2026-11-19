@@ -810,5 +810,5 @@ test('an elevated expressway entrance joins the right lane of a marked mainline'
   const pieces = routeSegments({ edge: ramp, segment: 0, distance: 20 }, { hx: 1 }, () => 0, 0.1);
   const entered = pieces.find(piece => piece.edge === main);
   assert.ok(entered);
-  assert.equal(entered.laneOffset, 3.25);
+  assert.ok(Math.abs(entered.laneOffset - 9.8 / 3) < 1e-8);
 });

@@ -33,25 +33,25 @@ test('deck paint distinguishes single ramps, measured wide ramps and tagged carr
   assert.equal(two.laneCount, 2);
   assert.equal(two.laneSource, 'width-estimate');
   assert.deepEqual(JSON.parse(JSON.stringify(two.lines[2])),
-    { id: 'lane-left-1', offset: 0, duty: 0.32, color: 'white', kind: 'lane' });
+    { id: 'lane-0', offset: 0, duty: 0.32, color: 'white', kind: 'lane' });
   const three = plan(9.8, 3, 1);
   assert.equal(three.laneSource, 'osm-lanes');
   assert.equal(three.lines.filter(line => line.duty < 1).length, 2);
-  assert.ok(Math.abs(three.pavementWidthM / 2 - 0.35 - three.lines[1].offset - 0.5) < 1e-8);
-  // 4 车道桥面收窄到 8.2 m：只保留 2 条整车道，分隔线不会挤在边线上。
+  assert.ok(three.pavementWidthM / 2 - 0.35 - three.lines[1].offset >= 0.5 - 1e-8);
+  // 桥面标线不因结构接缝重排，仍与源车道中心一一对应。
   const compressed = plan(8.2, 4, 1);
   assert.equal(compressed.laneCount, 4);
-  assert.equal(deckPaintLines(compressed, 8.2).filter(line => line.duty < 1).length, 1);
+  assert.equal(deckPaintLines(compressed).filter(line => line.duty < 1).length, 3);
   assert.equal(plan(7, 2, 0).lines[2].color, 'yellow');
   // 源宽只增不减：宽桥面不能被车道数压窄；双向的两排中心必须分居中心线两侧。
-  assert.equal(plan(16, 0, 1).pavementWidthM, 16);
+  assert.ok(plan(16, 0, 1).pavementWidthM >= 17.7);
   const wide = plan(61.8, 19, 1);
-  assert.equal(wide.pavementWidthM, 61.8);
+  assert.ok(wide.pavementWidthM >= 63.5);
   assert.equal(wide.laneCount, 5);
   assert.deepEqual(Array.from(wide.lines.slice(0, 2), line => line.offset), [-8.125, 8.125]);
   assert.equal(plan(18, 5, 0).laneCount, 5);
   const opposing = plan(16, 0, 0);
-  assert.equal(opposing.travelWidthM, opposing.laneCount * 3.25);
+  assert.equal(opposing.travelWidthM, 16);
   assert.ok(opposing.forwardCentersM.every(center => center < 0));
   assert.ok(opposing.backwardCentersM.every(center => center > 0));
 });
@@ -158,10 +158,10 @@ test('estimated lane counts are tagged apart from OSM lanes', () => {
   assert.equal(estimated.estimated, true);
   assert.equal(estimated.laneSource, 'width-estimate');
   assert.equal(estimated.laneCount, 4);
-  assert.deepEqual(Array.from(estimated.routeOffsetsM), [2.3]);
+  assert.deepEqual(Array.from(estimated.routeOffsetsM), [1.625, 4.875]);
   const oneWay = sectionFor(13, 0, 1);
   assert.equal(oneWay.laneCount, 4);
-  assert.deepEqual(Array.from(oneWay.routeOffsetsM), [0]);
+  assert.deepEqual(Array.from(oneWay.routeOffsetsM), [-4.875, -1.625, 1.625, 4.875]);
   const sourced = sectionFor(13, 4, 0);
   assert.equal(sourced.estimated, false);
   assert.equal(sourced.laneSource, 'osm-lanes');

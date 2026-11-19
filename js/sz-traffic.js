@@ -245,9 +245,8 @@ export function routeSegments(marker, model, random, laneChoice, preferred = nul
       elevatedSeen = true;
     }
     used.add(edge.sourceIndex);
-    // 高速主线沿有标注的车道行驶，入口优先接右侧车道。
-    const useLanes = !edge.elevated || edge.highway === 'motorway';
-    const offsets = (useLanes ? laneOffsets(edge.section, edge.sign) : null) ?? edge.section.defaultOffsetsM;
+    // 桥面与地面沿同一组标线车道行驶，入口优先接右侧车道。
+    const offsets = laneOffsets(edge.section, edge.sign) ?? edge.section.defaultOffsetsM;
     const halfWidth = edge.section.travelWidthM / 2;
     const lanes = offsets.filter(offset => Math.abs(offset) + model.hx + 0.08 <= halfWidth);
     let offset = lanes[Math.min(lanes.length - 1, Math.floor(laneChoice * lanes.length))] ?? 0;
@@ -601,7 +600,7 @@ function startLaneChange(actor, leaderLimit) {
   const reject = why => { actor.laneAbort = { reject: why }; statistics.laneChangeIneligible++; };
   if (!edge) return reject('no-edge');
   if (actor.junction.reservation) return reject('reservation');
-  const lanes = !edge.elevated || edge.highway === 'motorway' ? laneOffsets(edge.section, edge.sign) : null;
+  const lanes = laneOffsets(edge.section, edge.sign);
   if (!lanes) return reject('no-lanes');
   if (lanes.length < 2) return reject('single-lane');
   const usable = lanes.filter(offset => Math.abs(offset) + actor.model.hx + 0.08 <= edge.section.travelWidthM / 2);

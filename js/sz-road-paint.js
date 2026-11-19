@@ -47,6 +47,7 @@ function buildChunks(strips, roadHeight) {
 
 function addDeckStrip(cells, deck, section, frames, triangles, openings, statistics, count = true, paintRange = null) {
   if (!frames || frames.length < 2 || !triangles) return;
+  const lines = deckPaintLines(section);
   for (let i = 1; i < frames.length; i++) {
     // 桥面分成两个三角面。标线在同一条对角线处切开，弯坡上也贴着实际桥面。
     const triangle = (i - 1) * 2;
@@ -60,23 +61,15 @@ function addDeckStrip(cells, deck, section, frames, triangles, openings, statist
     const phase = deck.stationOffsetM ?? 0;
     const widthA = a.widthM ?? Math.hypot(leftA.x - rightA.x, leftA.z - rightA.z);
     const widthB = b.widthM ?? Math.hypot(leftB.x - rightB.x, leftB.z - rightB.z);
-    // 斜接处按断面净宽排车道，再映射到斜接边；不能把斜接对角长度当成新增车道。
-    const linesA = deckPaintLines(section, widthA);
-    const linesB = new Map(deckPaintLines(section, widthB).map(line => [line.id, line]));
+    // 标线横位沿源车行断面保持不变，再映射到桥面的斜接边。
     const vertex = (p, q, t, station, color, duty) => {
       cell.position.push(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t + HEIGHT, p.z + (q.z - p.z) * t);
       cell.paint.push(station + phase, 10, duty);
       cell.color.push(color.r, color.g, color.b);
     };
-    const ids = new Set([...linesA.map(line => line.id), ...linesB.keys()]);
-    for (const id of ids) {
-      // 渐变段窄端放不下的车道线随该条车道一起结束，不能折到边线处叠成一条粗白带。
-      const aLine = linesA.find(line => line.id === id);
-      const bLine = linesB.get(id);
-      if (!aLine || !bLine) continue;
-      const source = aLine;
-      const offsetA = aLine.offset;
-      const offsetB = bLine.offset;
+    for (const source of lines) {
+      const offsetA = source.offset;
+      const offsetB = source.offset;
       const side = offsetA < 0 ? 'left' : 'right';
       const duty = source.duty === 1 && openings?.get(i - 1)?.has(side) ? 0.32 : source.duty;
       const color = colorFor(source.color);

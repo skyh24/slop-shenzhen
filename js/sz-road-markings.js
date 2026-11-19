@@ -1,5 +1,5 @@
 import { isGroundRoad, roadSectionPoints } from './sz-roads.js';
-import { ESTIMATED_LANE_WIDTH_M, getRoadSection, throughRoadArms } from './sz-road-section.js';
+import { getRoadSection, throughRoadArms } from './sz-road-section.js';
 import { sectionMiteredLine, sectionNormal } from './sz-section-frame.js';
 
 // 深圳地面道路标线：按 [23 号文档](../../docs/23-BUILDING-AND-STREET-PLAN.md) 第 7 节收束线型。
@@ -17,36 +17,18 @@ const LINE_STOP_GAP = 0.6;
 const STOP_CLEARANCE = CROSSWALK_SETBACK + CROSSWALK_DEPTH + STOP_BAR_GAP + STOP_WIDTH + LINE_STOP_GAP;
 const SAMPLE_STEP = 20;
 
-export function deckPaintLines(section, widthM = section.pavementWidthM) {
-  // 桥面在节点处会收窄。按当前宽度能容纳的整车道数重排标线：4 车道收到 8.2 m 时
-  // 只保留 2 车道和中心线，而不是把四条车道压成四条 1.8 m 的细缝。
-  const barrier = section.barrierWidthM ?? 0.35;
-  const half = Math.max(0, widthM - 2 * barrier) / 2;
-  const minimum = section.twoWay ? 2 : 1;
-  const visible = Math.min(section.laneCount,
-    Math.max(minimum, Math.floor((half * 2 + 0.25) / ESTIMATED_LANE_WIDTH_M)));
-  const travel = Math.min(half * 2, visible * ESTIMATED_LANE_WIDTH_M);
-  const forward = section.twoWay ? Math.ceil(visible / 2) : visible;
-  const backward = section.twoWay ? visible - forward : 0;
-  const split = section.twoWay ? travel * (forward / visible - 0.5) : 0;
-  const forwardWidth = section.twoWay ? travel / 2 + split : travel;
-  const backwardWidth = section.twoWay ? travel / 2 - split : travel;
-  const forwardLane = forward ? forwardWidth / forward : 0;
-  const backwardLane = backward ? backwardWidth / backward : 0;
-  const edge = Math.min(travel / 2, half - LINE_WIDTH / 2);
+export function deckPaintLines(section) {
+  // 桥面与地面读取同一断面，不随接缝重排车道或把护栏厚度扣入车行宽度。
+  const edge = section.travelWidthM / 2;
   const lines = [{ id: 'edge-left', offset: -edge, duty: 1, color: 'white', kind: 'edge' },
     { id: 'edge-right', offset: edge, duty: 1, color: 'white', kind: 'edge' }];
   const dividers = [];
-  for (let i = 1; i < forward; i++) {
-    dividers.push({ id: `lane-left-${i}`, offset: -travel / 2 + i * forwardLane,
+  for (const [i, offset] of section.dividerOffsetsM.entries()) {
+    dividers.push({ id: `lane-${i}`, offset,
       duty: 0.32, color: 'white', kind: 'lane' });
   }
-  for (let i = 1; i < backward; i++) {
-    dividers.push({ id: `lane-right-${i}`, offset: travel / 2 - i * backwardLane,
-      duty: 0.32, color: 'white', kind: 'lane' });
-  }
-  if (section.twoWay && backward > 0) {
-    dividers.push({ id: 'center', offset: split, duty: 0.32, color: 'yellow', kind: 'center' });
+  if (section.twoWay) {
+    dividers.push({ id: 'center', offset: section.splitM, duty: 0.32, color: 'yellow', kind: 'center' });
   }
   lines.push(...dividers.sort((a, b) => a.offset - b.offset));
   return lines;
