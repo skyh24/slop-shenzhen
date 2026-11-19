@@ -1635,7 +1635,8 @@ test('boarding from beside a bridge rail shifts only as far as a clear pose on t
   assert.equal(controller.setMode('car'), true);
   const car = controller.getActiveEntity();
   assert.equal(car._support.surfaceId, 'deck');
-  assert.ok(Math.hypot(car.position.x - position.x, car.position.z - position.z) <= 0.5);
+  const shift = Math.hypot(car.position.x - position.x, car.position.z - position.z);
+  assert.ok(shift <= 0.5 + 1e-9, `Unexpected deck shift: ${shift} m`);
   assert.ok(car.position.x < position.x);
   assert.equal(car.heading, position.heading);
 });

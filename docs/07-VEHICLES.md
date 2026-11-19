@@ -45,7 +45,7 @@
 | 华强北 | `huaqiangbei` |
 | 腾讯大厦 | `tencent-towers` |
 
-地标组合例子：`/?qa=1&driveFrom=civic-center&driveTo=press-tower`。它用于设置端点，不代表该组合已验收。日常只跑一个短样段，例如车公庙深南大道辅路：`/?qa=1&driveFrom=-3245,817&driveTo=-3135,798`。此段已在桌面 Ego 浏览器自动出发并到站，正式路线 111.63 米，终点速度为零（局部 L5）；不遍历全部地标组合。
+地标组合例子：`/?qa=1&driveFrom=civic-center&driveTo=press-tower`。它用于设置端点，不代表该组合已验收。车公庙深南大道辅路回归入口：`/?qa=1&driveFrom=-3245,817&driveTo=-3135,798`。旧工作树在桌面 Ego 到站停车（111.63 米）；11 月 19 日全量重建后的同坐标返回无合法路线，当前不能作为自动驾驶成功示例。
 
 `__szQA().urlDrive` 与 DOM 中 `#qa-drive-result` 的 JSON 记录端点、实际路线、当前状态和错误；后者另含里程和车位。到站状态为 `arrived`，人工接管、受阻和出发失败分别保留实际状态。地标未知、坐标格式错误或无合法路线会返回 `failed` 与错误原因。该入口只在本机回环地址的 QA 模式启用。
 

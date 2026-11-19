@@ -731,7 +731,9 @@ test('Culture Square replaces its source box with nine distinct stone volumes an
       }
     }
     assert.equal(roofNormals.size, 0);
-    assert.equal(rendered.surfaces.length, 0);
+    const stoneCaps = stone.filter(part => part.loftSkin.top);
+    assert.equal(stoneCaps.length, 9);
+    assert.deepEqual(Array.from(rendered.surfaces, surface => surface.id).sort(), Array.from(stoneCaps, part => part.id).sort());
     for (const mesh of rendered.group.children) mesh.geometry.dispose();
     material.dispose();
     const paving = museum.createCulturePavingMask();

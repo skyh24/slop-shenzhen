@@ -37,10 +37,12 @@ async function setup({ plan = manifest, mismatch = false } = {}) {
     }
   });
   async function drain() {
-    for (let i = 0; i < 12; i++) {
+    const deadline = Date.now() + 5000;
+    do {
       await new Promise(resolve => setImmediate(resolve));
       for (const fn of frames.splice(0)) fn();
-    }
+      assert.ok(Date.now() < deadline, 'Regional stream did not settle');
+    } while (stream.statistics.loading || frames.length);
   }
   return { stream, drain, requests, warnings, live: () => live };
 }

@@ -94,7 +94,12 @@ test('real Three draws and collides with the same curved recess, slabs and suppo
       new THREE.Vector3(dx, dy, dz).normalize()).intersectObjects(group.children)[0];
 
     try {
-      assert.equal(surfaces.length, 0);
+      assert.equal(surfaces.length, parts.length);
+      for (const surface of surfaces) {
+        const part = parts.find(candidate => candidate.id === surface.id);
+        assert.ok(part && surface.triangles.length > 0);
+        assert.ok(surface.triangles.every(triangle => triangle.every(vertex => Math.abs(vertex.y - part.maxY) < 1e-4)));
+      }
       assert.equal(parts.filter(p => /^nonferrous:upper-balcony:/.test(p.id)).length, 11);
       assert.equal(parts.filter(p => /^nonferrous:middle-balcony:/.test(p.id)).length, 4);
       assert.equal(parts.filter(p => /^nonferrous:south-gallery-pier:/.test(p.id)).length, 7);
