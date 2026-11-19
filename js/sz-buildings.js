@@ -7,7 +7,7 @@ import { createBuildingEnvelopePlan } from './sz-building-envelope.js';
 import { createBuildingDetailPlan, retailBuildingIdsFromRegions } from './sz-building-plan.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
-import { ringArea, ringContains, polygonContains, orientedBoxRing } from './sz-polygon.js';
+import { ringArea, signedRingArea, ringContains, polygonContains, orientedBoxRing } from './sz-polygon.js';
 import { createRetailFrontage } from './sz-retail-frontage.js';
 import { visitGroundRoadFootprints } from './sz-roads.js';
 
@@ -490,14 +490,30 @@ export function buildCityBlocks(scene, options = {}) {
   const retailIds = options.retailIds !== undefined ? new Set(options.retailIds)
     : retailBuildingIdsFromRegions(retailRegions, buildings);
   const detailSkipIds = new Set([...skipIds, ...compactIds]);
-  const retailFront = indexRetailFronts(buildings, retailIds, detailSkipIds);
-  const candidates = collectPodiumCandidates(buildings);
-  const occupancy = candidates.length ? buildPodiumOccupancy(buildings, terrain, roadGraph, entrances, candidates) : [];
+  // 先固定最终会生成的源体量，避免被场所接管或占道筛除的轮廓参与裁墙。
+  const placements = new Map(), roadConflicts = [];
+  const renderBuildings = buildings.filter(building => {
+    if (skipIds.has(building.id)) return false;
+    const placement = buildingPlacement(building, terrain);
+    if (roadClearance && !building.landmark && /^(?:globfp|overture)\//.test(building.id)) {
+      const conflict = building.polygons.map(polygon =>
+        roadClearance(polygon, ringBounds(polygon.outer), placement.minY, placement.maxY)).find(Boolean);
+      if (conflict) {
+        roadConflicts.push({ buildingId: building.id, road: conflict });
+        return false;
+      }
+    }
+    placements.set(building, placement);
+    return true;
+  });
+  const retailFront = indexRetailFronts(renderBuildings, retailIds, detailSkipIds);
+  const candidates = collectPodiumCandidates(renderBuildings);
+  const occupancy = candidates.length ? buildPodiumOccupancy(renderBuildings, terrain, roadGraph, entrances, candidates) : [];
   const candidateByBuilding = new Map(candidates.map((candidate, index) => [candidate.buildingIndex, index]));
-  const { envelopes, duplicateIds } = createBuildingEnvelopePlan(buildings,
-    building => buildingPlacement(building, terrain), skipIds, options.envelopeGroups);
-  const frontage = options.retail && buildings.some(building => building.retailFloors)
-    ? createRetailFrontage(buildings, options.retail) : null;
+  const { envelopes, duplicateIds, statistics: envelopeStatistics } = createBuildingEnvelopePlan(renderBuildings,
+    building => placements.get(building), skipIds, options.envelopeGroups);
+  const frontage = options.retail && renderBuildings.some(building => building.retailFloors)
+    ? createRetailFrontage(renderBuildings, options.retail) : null;
   const group = new THREE.Group();
   group.name = 'ShenzhenCityBlocks';
   const batches = new Map();
@@ -506,21 +522,12 @@ export function buildCityBlocks(scene, options = {}) {
   const colliders = [];
   const surfaces = [];
   const allBlocks = [];
-  const roadConflicts = [];
   const roofPlans = new Map();
   const programIds = [];
-  for (let buildingIndex = 0; buildingIndex < buildings.length; buildingIndex++) {
-    const building = buildings[buildingIndex];
-    if (skipIds.has(building.id) || duplicateIds.has(building.id)) continue;
-    const placement = buildingPlacement(building, terrain);
-    if (roadClearance && !building.landmark && /^(?:globfp|overture)\//.test(building.id)) {
-      const conflict = building.polygons.map(polygon =>
-        roadClearance(polygon, ringBounds(polygon.outer), placement.minY, placement.maxY)).find(Boolean);
-      if (conflict) {
-        roadConflicts.push({ buildingId: building.id, road: conflict });
-        continue;
-      }
-    }
+  for (let buildingIndex = 0; buildingIndex < renderBuildings.length; buildingIndex++) {
+    const building = renderBuildings[buildingIndex];
+    if (duplicateIds.has(building.id)) continue;
+    const placement = placements.get(building);
     const compact = compactIds.has(building.id);
     const participant = !compact && programEmission && programParticipant(building);
     if (participant) programIds.push(building.id);
@@ -596,11 +603,12 @@ export function buildCityBlocks(scene, options = {}) {
       const top = Math.fround(placement.maxY + roof.parapet);
       const clip = envelope ? (...args) => envelope.wall(...args, true) : null;
       addWalls(batch, [boundary, boundary], placement.maxY, top, meta, placement.baseY, null, clip);
+      const winding = signedRingArea(roofPolygon.outer) > 0 ? 1 : -1;
       for (let i = 0; i < roofPolygon.outer.length; i++) {
         const a = roofPolygon.outer[i], b = roofPolygon.outer[(i + 1) % roofPolygon.outer.length];
         const dx = b.x - a.x, dz = b.z - a.z, length = Math.hypot(dx, dz);
         if (length < 0.05) continue;
-        const spans = clip?.(a.x, a.z, b.x, b.z, dz / length, -dx / length, length, placement.maxY, top)
+        const spans = clip?.(a.x, a.z, b.x, b.z, winding * dz / length, -winding * dx / length, length, placement.maxY, top)
           ?? [{ u0: 0, u1: length, y0: placement.maxY, y1: top }];
         for (const [part, { u0, u1, y0, y1 }] of spans.entries()) {
           const outer = [u0, u1].map(u => ({ x: Math.fround(a.x + dx * (u / length)), z: Math.fround(a.z + dz * (u / length)) }));
@@ -673,7 +681,7 @@ export function buildCityBlocks(scene, options = {}) {
     buildings: sourceBuildings, terrain, skipIds: detailSkipIds, duplicateIds, roadConflicts, roofPlans,
     retailBuildingIds, envelopePlans: envelopes
   });
-  return { group, colliders, surfaces, allBlocks, roadConflicts, roofPlans, envelopePlans: envelopes, duplicateIds, programIds,
+  return { group, colliders, surfaces, allBlocks, roadConflicts, roofPlans, envelopePlans: envelopes, envelopeStatistics, duplicateIds, programIds,
     retailIds, detailPlan, retailDoors: frontage?.doors ?? [], retailBuildingIds,
     roofs: allBlocks.filter(block => !block.isPodium && block.height >= ROOF_EQUIPMENT_MIN_HEIGHT_M).length,
     update() {},
