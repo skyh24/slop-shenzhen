@@ -132,6 +132,10 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, { ...site, northRail: GEO.shenzhenNorthRail, programEmission: cbdProgram.emission }));
   const iec = landmarks.group.getObjectByName('ShenzhenLandmark:iec-xiangmihu')
     ? buildIecGrounds(scene, { ...site, roadSurfaces: roads.surfaces, water: GEO.water, paths: GEO.iecPaths }) : null;
+  if (iec) {
+    places.register({ id: 'iec-grounds', ground: { heightSource: 'rendered-terrain', sample: iec.heightAt } });
+    places.applyGrounds(surfaceAtlas);
+  }
   const northStation = landmarks.heights?.has('shenzhen-north')
     ? qa.measureBuild('northStation', () => buildNorthStation(scene, GEO.shenzhenNorthRail, site)) : null;
   // 北站场地：地面层、公开上跨面、树灯预留、行人排除、模式限制与公共步行线路在同一处登记。

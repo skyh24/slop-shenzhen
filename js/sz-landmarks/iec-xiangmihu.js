@@ -1,4 +1,4 @@
-// 深圳国际交流中心一期。场馆使用 2026-10-27 OSM 足迹；几何依据及许可口径见 HANDOFF。
+// 深圳国际交流中心一期。源足迹和设计高度见地标来源表，立面和檐廊细节按参考图估计。
 import * as THREE from 'three/webgpu';
 import { abs, cameraPosition, color, dot, float, floor, fract, fwidth, max, mix, normalWorldGeometry,
   positionWorld, sin, smoothstep, step, uv, vec2 } from 'three/tsl';
@@ -41,7 +41,8 @@ function inset(ring, center, ratio) {
 function solid(source, name, outer, low, high, style, options = {}) {
   const id = prefix + name;
   const [part] = footprintParts({ ...source, polygons: [{ outer: ccw(outer), holes: options.holes ?? [] }] },
-    low, style, { id, min: 0, max: high - low, derived: true, roofContact: options.contact });
+    low, style, { id, min: 0, max: high - low, derived: true, roofContact: options.contact,
+      topFace: options.topFace, bottomFace: options.bottomFace });
   return { ...part, heightSource: options.heightSource ?? 'estimate', baseSource: 'terrain-local-sample',
     layoutSource: options.sourceOutline ? 'osm-footprint' : 'derived' };
 }
@@ -53,6 +54,36 @@ function sourceHeights(source, sample) {
   return { base: center, footing: Math.min(center, ...values) - 0.5 };
 }
 
+function facadeStack(source, role, wall, ledge, bottom, top, floors, style) {
+  const parts = [];
+  let low = bottom;
+  for (const [i, floor] of floors.entries()) {
+    const bandBottom = floor.y - floor.depth;
+    parts.push(solid(source, role + ':glass:' + i, wall, low, bandBottom, style,
+      { topFace: false, bottomFace: false }));
+    parts.push(solid(source, role + ':floor:' + i, ledge, bandBottom, floor.y, 'iecStone'));
+    low = floor.y;
+  }
+  parts.push(solid(source, role + ':glass:top', wall, low, top, style, { topFace: false, bottomFace: false }));
+  return parts;
+}
+
+function wingColumns(source, role, ring, low, high) {
+  return ring.flatMap((a, edge) => {
+    const b = ring[(edge + 1) % ring.length];
+    const length = Math.hypot(b.x - a.x, b.z - a.z);
+    const ux = (b.x - a.x) / length, uz = (b.z - a.z) / length;
+    const bays = Math.round(length / 7.6);
+    return Array.from({ length: bays }, (_, i) => {
+      const span = (i + 0.5) * length / bays;
+      const p = (u, v) => point(a.x + ux * (span + u) - uz * v, a.z + uz * (span + u) + ux * v);
+      return solid(source, role + ':pier:' + edge + ':' + i,
+        [p(-0.46, -0.5), p(0.46, -0.5), p(0.46, 0.5), p(-0.46, 0.5)], low, high, 'iecStone',
+        { topFace: false, bottomFace: false });
+    });
+  });
+}
+
 function wingParts(source, levels, role, north) {
   const outer = ccw(source.polygons[0].outer);
   const center = point(source.cx, source.cz);
@@ -60,12 +91,20 @@ function wingParts(source, levels, role, north) {
   const eave = base + (north ? 35.5 : 36.8);
   const roof = base + design.wing;
   // 航拍可辨双翼宽檐、抬高的内屋盖和连续采光带。各翼局部檐高与退进为估计。
-  const glazing = inset(outer, center, 0.93);
-  const shoulder = inset(outer, center, north ? 0.82 : 0.84);
-  const crown = inset(outer, center, north ? 0.66 : 0.71);
+  const glazing = inset(outer, center, 0.94);
+  const walkway = inset(outer, center, 0.985);
+  const shoulder = inset(outer, center, 0.88);
+  const crown = inset(outer, center, north ? 0.73 : 0.76);
+  const plinth = base + 0.7;
+  const arcade = base + 8.1;
   return [
-    solid(source, role + ':plinth', glazing, footing, base + 4, 'iecStone'),
-    solid(source, role + ':curtain-wall', glazing, base + 4, eave, 'iecGlass'),
+    solid(source, role + ':plinth', walkway, footing, plinth, 'iecStone'),
+    solid(source, role + ':recessed-lobby', inset(outer, center, 0.86), plinth, arcade - 0.85, 'iecGlass',
+      { topFace: false, bottomFace: false }),
+    ...wingColumns(source, role, inset(outer, center, 0.952), plinth, arcade - 0.85),
+    solid(source, role + ':arcade-canopy', outer, arcade - 0.85, arcade, 'iecStone'),
+    ...facadeStack(source, role, glazing, walkway, arcade, eave - 0.7,
+      [{ y: base + 17.5, depth: 0.7 }, { y: base + 26.9, depth: 0.7 }], 'iecGlass'),
     solid(source, role + ':eave', outer, eave - 0.7, eave + 1.35, 'iecRoof', { sourceOutline: true }),
     loftPart(prefix + role + ':raised-roof', source, shoulder, crown, eave + 1.35, roof - 1.25, 'iecSkylight'),
     solid(source, role + ':crown', crown, roof - 1.25, roof, 'iecSkylight',
@@ -78,10 +117,12 @@ function hotelParts(source, { base, footing }) {
   const outer = source.polygons[0].outer;
   const stack = inset(outer, center, 0.95);
   const [podium, eave, top] = [design.hotelPodium, design.hotelEave, design.hotelFrame].map(h => base + h);
+  const floors = Array.from({ length: 19 }, (_, i) => ({ y: podium + (i + 1) * 3.65, depth: 0.54 }));
   const rows = [
     solid(source, 'hotel:podium', outer, footing, podium - 0.9, 'iecHotel', { sourceOutline: true, heightSource: 'design' }),
     solid(source, 'hotel:podium-eave', outer, podium - 0.9, podium, 'iecRoof'),
-    solid(source, 'hotel:guestroom-bar', stack, podium, eave - 1.15, 'iecHotel'),
+    ...facadeStack(source, 'hotel:guestroom-bar', stack, inset(outer, center, 0.985),
+      podium, eave - 1.15, floors, 'iecHotel'),
     solid(source, 'hotel:upper-eave', outer, eave - 1.15, eave, 'iecRoof', { heightSource: 'design' }),
     solid(source, 'hotel:roof-pavilion', inset(outer, center, 0.82), eave, top - 0.95, 'iecHotel'),
     solid(source, 'hotel:roof-frame', outer, top - 0.95, top, 'iecRoof', { heightSource: 'design' })
@@ -139,8 +180,21 @@ function middleParts(source, levels) {
     const low = lift ? base + lift : footing;
     const top = base + lift + height;
     const outer = row.polygons[0].outer;
-    parts.push(solid(row, role + ':volume', outer, low, top - 0.75, 'iecGlass', { sourceOutline: true }));
-    parts.push(solid(row, role + ':roof', outer, top - 0.75, top, 'iecRoof'));
+    parts.push(solid(row, role + ':volume', outer, low, top - 0.75, 'iecGlass',
+      { sourceOutline: true, topFace: false }));
+    parts.push(solid(row, role + ':roof', outer, top - 0.75, top, 'iecRoof', { bottomFace: false }));
+    if (id === LAKE_HALL) {
+      // 向湖的礼厅门框和次檐沿源足迹东侧落位。玻璃仍封闭，外部挑檐下保留开口。
+      const a = outer[1], b = outer[2];
+      const length = Math.hypot(b.x - a.x, b.z - a.z);
+      const ux = (b.x - a.x) / length, uz = (b.z - a.z) / length;
+      const at = (u, v) => point((a.x + b.x) / 2 + ux * u - uz * v, (a.z + b.z) / 2 + uz * u + ux * v);
+      const rect = (u0, u1, v0, v1) => [at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)];
+      for (const u of [-12.6, 12.6]) parts.push(solid(row, role + ':portal-pier:' + u,
+        rect(u - 0.85, u + 0.85, 0.1, 2.1), footing, base + 17.9, 'iecStone', { topFace: false }));
+      parts.push(solid(row, role + ':portal-lintel', rect(-13.45, 13.45, 0.1, 2.1), base + 17.9, base + 19.7, 'iecStone'));
+      parts.push(solid(row, role + ':lake-canopy', rect(-14.6, 14.6, -0.14, 5.2), base + 5.8, base + 6.55, 'iecRoof'));
+    }
   }
   return parts;
 }
@@ -171,8 +225,6 @@ function facadeStyle(style) {
   const wX = max(fwidth(bay), 0.004);
   const wY = max(fwidth(level), 0.004);
   const detail = smoothstep(0.2, 0.75, max(wX, wY)).oneMinus();
-  // 竖向层间挑板仍要离格心的归一化距离。
-  const y = abs(fract(level).sub(0.5));
   const pane = mix(float((1 - style.fin) * (1 - style.sill)),
     paneMaskNode(bay, 0.5 - style.fin / 2, wX).mul(paneMaskNode(level, 0.5 - style.sill / 2, wY)), detail);
   const noise = cellNoiseNode(bay, level);
@@ -182,9 +234,7 @@ function facadeStyle(style) {
   const tint = color(style.glass).mul(mix(float(0.95), noise.mul(0.2).add(0.85), detail));
   const glazing = mix(tint, color(0xa6becd), fresnel.mul(sceneUniforms.night.oneMinus()).mul(0.3));
   const facade = mix(color(style.frame), glazing, pane);
-  // 酒店层间挑板用幕墙坐标模拟，远处随像素覆盖率衰减。
-  const slab = style.slab ? smoothstep(0.31, 0.43, y).mul(detail) : float(0);
-  material.colorNode = mix(color(style.roof), mix(facade, color(0xbab5a6), slab), wall);
+  material.colorNode = mix(color(style.roof), facade, wall);
   material.metalnessNode = mix(float(0.12), mix(float(0.34), float(0.22), pane), wall);
   material.roughnessNode = mix(float(0.74), mix(float(0.42), float(style.rough ?? 0.24), pane), wall);
   const lit = mix(float(style.lit * 0.24), step(noise, style.lit), detail).mul(0.5);
@@ -204,15 +254,17 @@ function skylightMaterial() {
 }
 
 function plazaMaterial() {
-  const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.82, metalness: 0.04 });
-  const gx = positionWorld.x.div(3.2);
-  const gz = positionWorld.z.div(3.2);
+  const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.68, metalness: 0.03 });
+  const gx = positionWorld.x.mul(0.986).sub(positionWorld.z.mul(0.168)).div(2.8);
+  const gz = positionWorld.x.mul(0.168).add(positionWorld.z.mul(0.986)).div(1.6);
   const joint = cell => smoothstep(0.455, 0.5, abs(fract(cell).sub(0.5)))
     .mul(smoothstep(0.12, 0.6, fwidth(cell)).oneMinus());
   const seam = max(joint(gx), joint(gz));
-  const upper = smoothstep(0.1, 0.5, normalWorldGeometry.y);
-  material.colorNode = mix(color(0x9a9b95), mix(color(0xcac9c1), color(0xa9aaa2), seam), upper);
-  material.roughnessNode = mix(float(0.86), mix(float(0.8), float(0.62), seam), upper);
+  // 石板的色差和浅灰纹理随像素尺寸衰减，远景保持安静的连续色块。
+  const vein = sin(gx.mul(14).add(gz.mul(3.5)).add(sin(gz.mul(9.5)).mul(2)))
+    .mul(0.5).add(0.5).pow(12).mul(smoothstep(0.035, 0.15, max(fwidth(gx), fwidth(gz))).oneMinus());
+  const variation = cellNoiseNode(gx, gz).mul(0.21).add(vein.mul(0.23));
+  material.colorNode = mix(mix(color(0xe7dfd2), color(0xb0ada8), variation), color(0xa8a39a), seam.mul(0.75));
   return material;
 }
 
@@ -230,8 +282,9 @@ function roofMaterial() {
 
 function greenMaterial() {
   const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.94, metalness: 0.02 });
-  const stripes = sin(positionWorld.x.mul(0.36).add(positionWorld.z.mul(0.21))).mul(0.5).add(0.5);
-  material.colorNode = mix(color(0x38502f), color(0x5d7a3c), stripes.mul(0.7).add(0.3));
+  const stripes = sin(positionWorld.x.mul(0.9).add(positionWorld.z.mul(0.35))).mul(0.5).add(0.5);
+  const variation = sin(positionWorld.x.mul(0.11).sub(positionWorld.z.mul(0.22))).mul(0.14).add(0.53);
+  material.colorNode = mix(color(0x456c36), color(0x89a95c), variation.add(stripes.mul(0.08)));
   return material;
 }
 
@@ -243,15 +296,15 @@ export function createIecMaterial(name) {
     case 'iecRoof':
       return roofMaterial();
     case 'iecGlass':
-      return facadeStyle({ frame: 0x7d8f97, glass: 0x46606d, roof: 0x7a888b, bay: 2.6, floor: 6.4,
-        fin: 0.09, sill: 0.06, lit: 0.1, rough: 0.2, glow: 0xeedfc5 });
+      return facadeStyle({ frame: 0xb2a78d, glass: 0x506569, roof: 0x7a888b, bay: 1.72, floor: 8.6,
+        fin: 0.16, sill: 0.045, lit: 0.1, rough: 0.23, glow: 0xf0d8ac });
     case 'iecStone':
       return new THREE.MeshStandardNodeMaterial({ color: 0xc3c2ba, roughness: 0.76, metalness: 0.03 });
     case 'iecPlaza':
       return plazaMaterial();
     case 'iecHotel':
-      return facadeStyle({ frame: 0x9aa2a0, glass: 0x4d6570, roof: 0x848b88, bay: 3.4, floor: 3.6,
-        fin: 0.07, sill: 0.23, slab: true, lit: 0.13, rough: 0.3, glow: 0xffd8a8 });
+      return facadeStyle({ frame: 0xb7aea0, glass: 0x4c6368, roof: 0x848b88, bay: 3.4, floor: 3.1,
+        fin: 0.09, sill: 0.11, lit: 0.13, rough: 0.3, glow: 0xffd8a8 });
     case 'iecGreen':
       return greenMaterial();
     case 'iecSkylight':
