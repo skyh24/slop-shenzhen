@@ -534535,13 +534535,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "a60ae1c957a12654adea5d3522c80b8ba64e7d452b06937440b84e31a0f60ac3",
-    "bytes": 268622,
+    "fingerprint": "777cea9560fe1dacf00e850bb7b23be79187476ff31605482689b9873b4fbf34",
+    "bytes": 268623,
     "decodedBytes": 1252107,
     "files": {
-      "js/sz-regional/a60ae1c957a12654adea/waterfront.json.gz": "d24d6adee26066a0d84124a95fa0d9db7c6a7fead49631366ef58ee90ca1d51e",
-      "js/sz-regional/a60ae1c957a12654adea/metro.json.gz": "34786cf716252c137db7885ec8936105a0dd7a5e8dc89ce142da859dc294496b",
-      "js/sz-regional/a60ae1c957a12654adea/drone.json.gz": "68aabef6dfd85d711192c5c4f048bd8d0921dca012d2635c0323917e47f7123f"
+      "js/sz-regional/777cea9560fe1dacf00e/waterfront.json.gz": "22388ecbfc5ebd4457d4bd38a5ef6b32fa7c1cfd4869e7e1b8bccda434d67ef8",
+      "js/sz-regional/777cea9560fe1dacf00e/metro.json.gz": "0e11fbdb184cffa4dd5478d803560069657e1400adf0253326da5217e56d81cb",
+      "js/sz-regional/777cea9560fe1dacf00e/drone.json.gz": "d0582afd7e58a91cfd4d74393246157128cc78d4d6b0a64a435acdc047c7caa9"
     },
     "rules": {
       "data/source/bay-headlands.json": "17b5b48723f919c14a1b48454d301907a080f2f54c2a1fe29d18b9da9f749bd7",
@@ -534568,12 +534568,12 @@
       "js/sz-cbd-searchlights.js": "51d335c1eefff0f6f19f293d8bf1ef702eec26c2467df5417fa04618ceda4d9a",
       "js/sz-city-config.js": "11c9dc6a91c0468c8efd9b4004b505e7fbe07674b3a42552504fc63977f2fde3",
       "js/sz-controller-surfaces.js": "0c3242d581331b7ca43826a0f080499629783c9fc410e116ab472a9fd1ae226e",
-      "js/sz-data-format.js": "c03e173967bc4b18909078e249a8d6aaa39a99cc82dea03ea5a0ba8bb9e6666c",
+      "js/sz-data-format.js": "196edea56bcdb8b05972228bcf2e24783609454197848ca7b2a2b3023f1ea622",
       "js/sz-day-phase.js": "17a931b66b9245af93425affe46978a1e1493bf5c697b8fe6f0a6da2b21dd581",
       "js/sz-detail-residency.js": "d751ba24f4d5bd46a740878db4114ddcfdd9e5234cbe92e0801a448d38656d89",
       "js/sz-districts/facades.js": "99e13d1a9d24517c9f3fcdc5eff10a153d19fde2eafb4bd757271b68ea8c685b",
       "js/sz-districts/ground.js": "e90887c1bbba6a89e0e657759ac9212a6ea8cd495cec6d0bd3c1e8f1a6cacb9f",
-      "js/sz-districts/index.js": "cf7ca3da1c68fd0fbe797477b488800305fcc2ca20ee927f074ef8190cd9be4e",
+      "js/sz-districts/index.js": "474923e8293d91ec4dd35373d7b509dd5023195f94eec14cb3c4da07a5e94297",
       "js/sz-districts/kit.js": "7d31a3b286264cf13c6d2306003a1cb928f4dde13272b37601e20ea4f705134a",
       "js/sz-districts/minghua.js": "e1120e5e532b2de8f23a4f0e5f116f780b602afa5cf9a6b9f971e836b7dfe0a8",
       "js/sz-districts/nantou.js": "ffe2607bed27b2538e61c2be6e693642d1f6a54305f106569a88419b276b0e98",
@@ -534695,7 +534695,7 @@
       "js/sz-tree-crown.js": "122d076fe81943681ac338cf74921b294c60593123b4886ba95d65ad81bd5b65",
       "js/sz-trees.js": "948e9a8abcc7598cee84bf0d086b6eed52e52de39c5366eda52b6cf457dfabf2",
       "js/sz-tunnels.js": "b62e41b347046a5485292e1f3c59f5160716f27404adb07b9143914d04af9b11",
-      "js/sz-urban-paving.js": "eb474e194c812de5ba2fe011b73664d79097674f179497ca2f17566b27906020",
+      "js/sz-urban-paving.js": "0b210709a77f2c53101739fad2d6fecba11c95789cacc30a4ba0257397ea1a2d",
       "js/sz-vegetation-layout.js": "732425135858fae7a294b4775cbafd2fc6742dd4e158f213f4e971b1d24241f0",
       "js/sz-vegetation.js": "16cf3897a203552a6733a18cd6c00e54cb77801ddcec8efac78fe3974c98bdc9",
       "js/sz-vehicles.js": "d71ace885289d72640c2805b3c82c9eaa8211d481ede485fb6f033267cdb7034",
@@ -534982,10 +534982,10 @@
     "numericBytes": 45737384,
     "uncompressedBytes": 65221352,
     "lossless": true,
-    "compressedBytes": 18092245,
-    "compressedSha256": "b7f80ee236353b7c47b96fec4a18cde7920ffce9f5c088bc1e2a8576d19db599"
+    "compressedBytes": 18092243,
+    "compressedSha256": "286647bec9d894fa17738741b9eacdf64f400dc90046112d922a6bf9889eab5f"
   },
-  "outputBytes": 18421140,
-  "outputSha256": "aff55104223f1eb80ceca1552dad515ea399a3b99d3e99fdbfe0cade577ae602",
-  "seconds": 429.5
+  "outputBytes": 18421143,
+  "outputSha256": "f356b5cd0d40a410b1875cc9ba3c6518ad8cd49cf5fcbc508c6ecada42d50f1d",
+  "seconds": 114.5
 }

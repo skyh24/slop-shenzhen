@@ -109,6 +109,24 @@ def landmark_entries(landmarks):
     return out
 
 
+def compact_browser_city(compressed):
+    """只改传输顺序，地形坐标不做差分或量化，旧共享包保留作数据管线输入。"""
+    city = json.loads(gzip.decompress(compressed))
+    surface = city['terrainSurface']
+    def deltas(values):
+        return [value - values[i - 1] if i else value for i, value in enumerate(values)]
+
+    for chunk in surface['chunks']:
+        positions = chunk['positions']
+        cells = chunk['cellRanges']
+        chunk['positions'] = [positions[i::3] for i in range(3)]
+        chunk['indices'] = deltas(chunk['indices'])
+        chunk['cellRanges'] = [deltas(cells[::3]), deltas(cells[1::3]), cells[2::3]]
+    surface['transportEncoding'] = 'columns-v1'
+    return gzip.compress(json.dumps(city, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode(),
+                         compresslevel=9, mtime=0)
+
+
 def write_fast_package(payload, raw, sources):
     validation = audit_payload(payload, raw, sources)
     packed, stats = encode_city(payload)
@@ -747,6 +765,8 @@ def main():
                       help='apply the reviewed Shenzhen Bay waterfront to an unmodified verified city package')
     mode.add_argument('--rebuild-drive-rules', action='store_true',
                       help='refresh navigation rules from the verified OSM snapshot without rebuilding geometry')
+    mode.add_argument('--stage-compact-release', type=Path, metavar='STORE',
+                      help='stage a verified local release with lossless terrain columns')
     mode.add_argument('--repack-existing', action='store_true',
                     help='validate the snapshot and repack SZC1; migrate legacy road preview out of both packages')
     mode.add_argument('--audit-road-preview', action='store_true',
@@ -822,6 +842,14 @@ def main():
         ap.error('--urban-paving-pilot-only requires --rebuild-urban-paving')
     if args.refresh_frontage_crossing_axes and not args.rebuild_road_frontage:
         ap.error('--refresh-frontage-crossing-axes requires --rebuild-road-frontage')
+
+    if args.stage_compact_release:
+        from release import THREE, release_files, store_version
+        files = release_files(ROOT, ROOT / f'.agents/three-{THREE}')
+        name = 'js/sz-city.json.gz'
+        files[name] = compact_browser_city(files[name])
+        print(store_version(args.stage_compact_release, files))
+        return
 
     if args.publish_building_comparison:
         directory = args.publish_building_comparison.resolve()

@@ -140,9 +140,25 @@ export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupie
   const ground = buildDistrictGround(group, site, active, roads, basin);
   const { colliders, skipIds } = buildTollCanopies(kit, site, byId, carriagewayOccupied, decks);
   const heights = new Map(), trees = [], arrivals = {}, shops = [];
-  const reserveEntries = (x, z, radius = 0) => shops.some(shop =>
-    distanceToRing([shop.approach, shop.mouth], x, z) < 1.05 + radius);
+  const entryGroups = [];
+  function reserveEntries(x, z, radius = 0) {
+    const reach = 1.05 + radius;
+    return entryGroups.some(group => x >= group.minX - reach && x <= group.maxX + reach
+      && z >= group.minZ - reach && z <= group.maxZ + reach
+      && group.segments.some(segment => distanceToRing(segment, x, z) < reach));
+  }
   for (const kind of active) {
+    const entries = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity, segments: [] };
+    entryGroups.push(entries);
+    function registerShop(shop) {
+      shops.push({ ...shop, district: kind });
+      const segment = [shop.approach, shop.mouth];
+      entries.segments.push(segment);
+      for (const { x, z } of segment) {
+        entries.minX = Math.min(entries.minX, x); entries.maxX = Math.max(entries.maxX, x);
+        entries.minZ = Math.min(entries.minZ, z); entries.maxZ = Math.max(entries.maxZ, z);
+      }
+    }
     const focus = DISTRICT_FOCUS[kind];
     const view = kit.district(LANDMARK_IDS[kind], focus);
     const nearby = site.buildings.filter(b => b.minX <= focus.x + 240 && b.maxX >= focus.x - 240
@@ -168,7 +184,7 @@ export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupie
           : OCT_STREET_FRONTS[id] ?? front,
         displayFront: OCT_STREET_FRONTS[id],
         shopGrade: id === 'way/135951438' ? { x: -14802, z: 6588 } : null,
-        registerShop: shop => shops.push({ ...shop, district: kind }),
+        registerShop,
         terrace: (kind === 'oct' && id === 'way/435827461') || (kind === 'sea' && id === 'way/492141834')
       });
       skipIds.add(id);

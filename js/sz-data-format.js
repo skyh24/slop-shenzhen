@@ -570,6 +570,43 @@ export async function decodeFastCity(input) {
   return payload;
 }
 
+// 传输分列只存在于压缩发布包；返回值与原 JSON 共用校验、地形与接触查询。
+function restoreTerrainColumns(raw) {
+  const surface = raw?.terrainSurface;
+  if (!surface || !Object.hasOwn(surface, 'transportEncoding')) return raw;
+  requireData(surface.transportEncoding === 'columns-v1' && Array.isArray(surface.chunks), 'terrain encoding');
+  function accumulate(values) {
+    requireData(Array.isArray(values), 'terrain delta column');
+    let sum = 0;
+    for (let i = 0; i < values.length; i++) {
+      const delta = values[i];
+      sum += delta;
+      requireData(Number.isSafeInteger(delta) && Number.isSafeInteger(sum) && sum >= 0, 'terrain delta');
+      values[i] = sum;
+    }
+  }
+  function interleave(columns, ranges) {
+    requireData(Array.isArray(columns) && columns.length === 3 && columns.every(Array.isArray)
+      && columns.every(column => column.length === columns[0].length), 'terrain column lengths');
+    const [a, b, c] = columns;
+    if (ranges) { accumulate(a); accumulate(b); }
+    const output = new Array(a.length * 3);
+    for (let i = 0; i < a.length; i++) {
+      requireData(ranges ? Number.isSafeInteger(c[i]) && c[i] > 0
+        : Number.isFinite(a[i]) && Number.isFinite(b[i]) && Number.isFinite(c[i]), 'terrain column value');
+      output[3 * i] = a[i]; output[3 * i + 1] = b[i]; output[3 * i + 2] = c[i];
+    }
+    return output;
+  }
+  for (const chunk of surface.chunks) {
+    chunk.positions = interleave(chunk.positions, false);
+    accumulate(chunk.indices);
+    chunk.cellRanges = interleave(chunk.cellRanges, true);
+  }
+  delete surface.transportEncoding;
+  return raw;
+}
+
 // 下载和解压后按魔数解析 JSON 或 SZC1；语义校验统一由 decodeCityPayload 做一次。
 export async function readCityPayload(url, fetcher = fetch, metrics = null) {
   const startedAt = nowMs();
@@ -606,7 +643,7 @@ export async function readCityPayload(url, fetcher = fetch, metrics = null) {
   if (metrics) metrics.decompressMs = decompressedAt - downloadedAt;
   let raw;
   try {
-    raw = fast ? await decodeFastCity(unpacked) : JSON.parse(text);
+    raw = fast ? await decodeFastCity(unpacked) : restoreTerrainColumns(JSON.parse(text));
   } catch (error) {
     throw cityDataError('invalid', `City data parse failed: ${error.message}`, error);
   }

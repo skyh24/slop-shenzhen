@@ -90,3 +90,18 @@ test('SZC1 preserves rendered terrain, triangle topology and contact heights acr
     for (let z = minZ; z <= maxZ; z += 131) assert.equal(sampleB(x, z), sampleA(x, z));
   }
 });
+
+test('terrain transport restores signed deltas and exact coordinates before city validation', async () => {
+  const { readCityPayload } = await modulePromise;
+  const read = surface => readCityPayload('fixture', () => new Response(JSON.stringify({ terrainSurface: surface })));
+  const chunk = { id: 'coast', positions: [[-0.25, 15], [4.123456789, 0], [0, -9.75]],
+    indices: [1, -1, 1], cellRanges: [[7, 1], [0, 3], [3, 6]] };
+  const surface = { transportEncoding: 'columns-v1', chunks: [chunk] };
+  assert.deepEqual((await read(surface)).terrainSurface, { chunks: [{ id: 'coast',
+    positions: [-0.25, 4.123456789, 0, 15, 0, -9.75], indices: [1, 0, 1], cellRanges: [7, 0, 3, 8, 3, 6] }] });
+  for (const fault of [{ positions: [[1], [], []] }, { indices: [1, -2] }, { indices: ['1'] },
+    { cellRanges: [[0], [0], [null]] }]) {
+    await assert.rejects(read({ ...surface, chunks: [{ ...chunk, ...fault }] }), { code: 'invalid' });
+  }
+  await assert.rejects(read({ ...surface, transportEncoding: 'columns-v2' }), { code: 'invalid' });
+});

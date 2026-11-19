@@ -1,4 +1,5 @@
 import { createWalkSweep, routeAroundObstacles } from './sz-public-walk.js';
+import { spatialIndex } from './sz-spatial.js';
 
 const PERSON_RADIUS = 0.48;
 
@@ -32,8 +33,16 @@ export function createUrbanPavingWalk(data, heightAt) {
     reserves: (x, z, pad) => routes.some(route => route.reserves(x, z, pad)),
     trees: (data?.trees ?? []).map(tree => ({ ...tree, positionSource: 'simulated-park' })),
     connect(colliders, carriageway) {
+      if (!routes.length) return [];
+      const obstacles = colliders.filter(c => c.polygon && Number.isFinite(c.minX) && Number.isFinite(c.maxX)
+        && Number.isFinite(c.minZ) && Number.isFinite(c.maxZ));
+      const nearby = spatialIndex(obstacles, c => [{ x: c.minX, z: c.minZ }, { x: c.maxX, z: c.maxZ }]);
       return routes.flatMap(route => {
-        const sweep = createWalkSweep(route, route.id, colliders, carriageway, route.bounds);
+        const { minX, maxX, minZ, maxZ } = route.bounds;
+        // 外扩一毫米只保护网格边界的舍入，扫掠仍按原范围精判。
+        const radius = Math.max(maxX - minX, maxZ - minZ) / 2 + 0.001;
+        const candidates = [...nearby((minX + maxX) / 2, (minZ + maxZ) / 2, radius)];
+        const sweep = createWalkSweep(route, route.id, candidates, carriageway, route.bounds);
         const points = routeAroundObstacles(route.points, sweep, PERSON_RADIUS + route.lateralM);
         if (!points) return [];
         return [{ id: 'public-walk:' + route.id, points: points.map(p => ({ ...p, y: heightAt(p.x, p.z) })),
