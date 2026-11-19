@@ -40,6 +40,7 @@ export const PLAYER_SPEED_LIMITS = Object.freeze({
 });
 const PERSON_STEP_UP = 0.38;
 const CONTACT_EPSILON = 1e-5;
+const DECK_MODE_SEARCH_RADIUS = 3;
 
 // 同一角色只有一套上下车状态：步行 → 上车过渡 → 乘坐 → 下车过渡 → 步行。
 const OCCUPANT_STATES = Object.freeze({ WALKING: 'walking', BOARDING: 'boarding', SEATED: 'seated', ALIGHTING: 'alighting' });
@@ -388,7 +389,7 @@ class ThirdPersonControllerManager {
       && (this.occupant.state === OCCUPANT_STATES.BOARDING || this.occupant.state === OCCUPANT_STATES.SEATED);
   }
 
-  // 优先原地切换，飞行转地面模式受阻时才搜索附近路面。
+  // 优先原地切换；车行桥面与飞行返回地面的备选落点采用不同边界。
   setMode(mode, destination = null) {
     if (!Object.hasOwn(this.entities, mode)) return false;
     const previous = this.activeMode;
@@ -446,13 +447,32 @@ class ThirdPersonControllerManager {
       if (active.type === 'helicopter' && this.surfaceResolver.isFlightRoadDeck?.(previous.surfaceId)
         && !active.landedRoadDecks?.has(previous.surfaceId)) return null;
       const support = this.supportedFootprint(x, z, body, { _support: previous });
-      if (!support || Math.abs(support.height - previous.height) > CONTACT_EPSILON) return null;
+      if (!support || Math.abs(support.height - previous.height) > CONTACT_EPSILON
+        || this.arrivalBlocked(mode, x, support.height, z, body)) {
+        return active.type !== 'helicopter' && (mode === 'car' || mode === 'cyclist') && this.isDriveDeck(previous.surfaceId)
+          ? this.findNearbyDeckModePosition(x, z, heading, body, previous.surfaceId) : null;
+      }
       height = support.height;
       surfaceId = support.surfaceId;
     }
-    if (this.arrivalBlocked(mode, x, height, z, body)) return null;
+    if (flying && this.arrivalBlocked(mode, x, height, z, body)) return null;
     return { x, y: height, z, heading, surfaceId,
       takeoff: flying && active.type !== 'helicopter' && previous ? { x, z, support: previous } : null };
+  }
+
+  findNearbyDeckModePosition(x, z, heading, body, surfaceId) {
+    for (let distance = 0.5; distance <= DECK_MODE_SEARCH_RADIUS; distance += 0.5) {
+      for (let direction = 0; direction < 8; direction++) {
+        const angle = heading + direction * Math.PI / 4;
+        const nextX = x + Math.sin(angle) * distance;
+        const nextZ = z + Math.cos(angle) * distance;
+        const support = this.supportedFootprint(nextX, nextZ, body, null, false, surfaceId, true);
+        if (support && !this.arrivalBlocked(body.mode, nextX, support.height, nextZ, body)) {
+          return { x: nextX, y: support.height, z: nextZ, heading, surfaceId };
+        }
+      }
+    }
+    return null;
   }
 
   isDriveDeck(surfaceId) {
@@ -959,7 +979,7 @@ class ThirdPersonControllerManager {
     })?.height ?? null;
   }
 
-  supportedFootprint(x, z, body, entity, landingOnRoad = false, surfaceId = null) {
+  supportedFootprint(x, z, body, entity, landingOnRoad = false, surfaceId = null, sameSurface = false) {
     body.supportedSlabs = null;
     const previous = entity?._support;
     const options = { previousY: previous?.height ?? null, previousSurfaceId: previous?.surfaceId ?? null, mode: body.mode };
@@ -994,7 +1014,7 @@ class ThirdPersonControllerManager {
     // 逐点仍按本模式的承托解析与抬脚/落地阈值判定；共用的只是探针坐标与“缺点即整体不成立”。
     const grounded = sampleFootprint(x, z, sin, cos, probes, (sampleX, sampleZ, px, pz) => {
       const support = this.surfaceResolver.resolve(sampleX, sampleZ, options);
-      if (!support) return null;
+      if (!support || (sameSurface && support.surfaceId !== surfaceId)) return null;
       const maxRise = landingOnRoad ? Math.hypot(px, pz) * FLIGHT_LANDING_MAX_GRADE : 1.5;
       if (Math.abs(support.height - center.height) > maxRise) return null;
       if (landingOnRoad && !this.isRoadContact(sampleX, sampleZ, support.height)) return null;

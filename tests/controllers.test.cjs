@@ -1621,6 +1621,42 @@ test('switching from flight prefers the highest clear drivable deck below the ai
   }
 });
 
+test('boarding from beside a bridge rail shifts only as far as a clear pose on the same deck', () => {
+  const { controller } = teleportHarness('person', [
+    { type: 'elevated-barrier', minX: 2.7, maxX: 3, minZ: -12, maxZ: 12, minY: 17, maxY: 20 }
+  ]);
+  controller.entities.car = teleportHarness('car').ent;
+  controller.driveDeckIds = new Set(['deck']);
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => 8,
+    surfaces: [{ ...supportSurface('deck', (x, z) => 18 + z * 0.04, { x0: -3, x1: 3 }), modes: ['person', 'car'] }]
+  });
+  const position = { x: 2, y: 18, z: 0, heading: 0, surfaceId: 'deck' };
+  controller.setMode('person', position);
+  assert.equal(controller.setMode('car'), true);
+  const car = controller.getActiveEntity();
+  assert.equal(car._support.surfaceId, 'deck');
+  assert.ok(Math.hypot(car.position.x - position.x, car.position.z - position.z) <= 0.5);
+  assert.ok(car.position.x < position.x);
+  assert.equal(car.heading, position.heading);
+});
+
+test('a blocked bridge switch keeps the pedestrian in place even with clear ground and a deck below', () => {
+  const { controller } = teleportHarness('person', [
+    { type: 'vehicle', minX: -5, maxX: 5, minZ: -8, maxZ: 8, minY: 18.1, maxY: 20 }
+  ]);
+  controller.entities.car = teleportHarness('car').ent;
+  controller.driveDeckIds = new Set(['upper', 'lower']);
+  controller.surfaceResolver = createSurfaceResolver({ groundHeight: () => 8,
+    surfaces: ['upper', 'lower'].map((id, index) => ({ ...supportSurface(id, () => 18 - index * 1.25), modes: ['person', 'car'] }))
+  });
+  controller.setMode('person', { x: 0, y: 18, z: 0, heading: 0, surfaceId: 'upper' });
+  assert.equal(controller.setMode('car'), false);
+  assert.equal(controller.activeMode, 'person');
+  assert.deepEqual({ ...controller.getActiveEntity()._support }, { height: 18, surfaceId: 'upper' });
+  const { x, y, z } = controller.getActiveEntity().position;
+  assert.deepEqual([x, y, z], [0, 18, 0]);
+});
+
 // 车辆支撑对照样段：同一组几何分别走玩家、自动驾驶和环境车三条流程，各模式保留自己的阈值。
 function carFootprintBody(heading = 0, { hx = 0.95, hz = 2.4 } = {}) {
   return { car: true, mode: 'car', hx, hz, sin: Math.sin(heading), cos: Math.cos(heading),
