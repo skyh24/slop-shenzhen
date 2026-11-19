@@ -223,7 +223,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     reserveWalk: (x, z, r) => places.reservesWalk(x, z, r) || waterfront?.reserves(x, z, r)
       || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || site.reserveBayWalk(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
     reserveView: summit.group ? summitViewObstructed : null,
-    observedTrees: streetscape.observedTrees, pilotTrees: [...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees, ...districts.trees, ...urbanPaving.trees],
+    observedTrees: streetscape.observedTrees, pilotTrees: [...(landmarks.trees ?? []), ...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees, ...districts.trees, ...urbanPaving.trees],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds),
     arterialTreeAllowed: createArterialTreeFilter(nearRoadsForFrontage, roadFrontage.arterialMedianAt)
   };

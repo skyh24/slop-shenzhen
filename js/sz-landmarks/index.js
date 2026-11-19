@@ -57,12 +57,12 @@ export function buildSzLandmarks(scene, { buildings, terrain, terrainSurface, si
   }
   scene.add(group);
   // 只为已建的地标前场保留净通行带；不挪动有现场来源的树。
-  const reservesApproach = (x, z, radius) => fields.some(reserves => reserves(x, z)) || approaches.some(({ from, to, halfWidth }) => {
+  const reservesApproach = (x, z, radius) => fields.some(reserves => reserves(x, z, radius)) || approaches.some(({ from, to, halfWidth }) => {
     const dx = to.x - from.x, dz = to.z - from.z;
     const t = Math.max(0, Math.min(1, ((x - from.x) * dx + (z - from.z) * dz) / (dx * dx + dz * dz)));
     return Math.hypot(x - from.x - dx * t, z - from.z - dz * t) < halfWidth + radius;
   });
-  return { group, wheelMotion, colliders, surfaces, skipIds, heights, reservesApproach, dispose() {
+  return { group, trees: plans.flatMap(plan => plan.trees), wheelMotion, colliders, surfaces, skipIds, heights, reservesApproach, dispose() {
     if (wheelMotion) group.add(wheelMotion.group);
     group.traverse(o => {
       if (o.isInstancedMesh) o.dispose();

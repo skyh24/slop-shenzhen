@@ -4,6 +4,7 @@ import { GeoBuilder, triangulateFootprint } from '../sz-geometry.js';
 // 场地只换地面的外观：把草地、跑道和白线裁到正式地面三角面上。
 // 顶点沿原三角面插值，不另设一套接触高度，也不覆盖道路的几何或碰撞。
 const rank = {
+  superHqParkLawn: 0, superHqParkVerge: 0, superHqParkPaving: 0,
   sportsApron: 0, sportsInfield: 1, sportsTrack: 1,
   sportsTurf: 2, sportsTurfLight: 2, sportsTrackLine: 3, sportsPitchLine: 3
 };
