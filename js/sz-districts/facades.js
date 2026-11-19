@@ -100,7 +100,8 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
   const style = DISTRICT_STYLE[kind];
   const seed = buildingSeed(building.id);
   const wall = options.wall ?? style.walls[Math.floor(seed * style.walls.length)];
-  const old = buildingPlacement(building, terrain);
+  // 街区专模的门槛和首层净空沿用已校核的基准。
+  const old = buildingPlacement(building, terrain, { useFootprintCorners: false });
   // 这一处缓坡沿街的设计铺面以街面标高为准，原轮廓和总高不变。
   const grade = options.shopGrade && heightAt(options.shopGrade.x, options.shopGrade.z);
   const base = Number.isFinite(grade) && Math.abs(old.baseY - grade) < 0.3 ? grade : old.baseY;

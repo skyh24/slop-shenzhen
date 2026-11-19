@@ -12,10 +12,10 @@ function lowestOuterCorner(building, grid) {
   return low;
 }
 
-export function buildingPlacement(building, grid) {
+export function buildingPlacement(building, grid, { useFootprintCorners = true } = {}) {
   const foundationBottomY = building.foundation?.bottomY ?? null;
   // 普通落地体块保持水平，底面落在实际外轮廓的最低角；架空件和专模保留原基准。
-  const groundAtCorners = building.minHeight === 0 && !building.landmark
+  const groundAtCorners = useFootprintCorners && building.minHeight === 0 && !building.landmark
     && building.role !== 'bridge' && building.role !== 'canopy';
   const baseY = building.foundation?.baseY ?? (groundAtCorners
     ? lowestOuterCorner(building, grid) : terrainHeight(grid, building.cx, building.cz));
