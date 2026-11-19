@@ -38,6 +38,7 @@ import { buildThemeParks } from './sz-theme-parks/index.js';
 import { buildShenzhenBayBridge, buildYanjiangExpressway } from './sz-landmarks/shenzhen-bay-bridge.js';
 import { buildSzElevatedRoads } from './sz-elevated-roads.js';
 import { buildSzTunnels } from './sz-tunnels.js';
+import { prepareRoadJunctions } from './sz-road-junctions.js';
 import { buildRoadLandscape } from './sz-road-landscape.js';
 import { buildCityBlocks } from './sz-buildings.js';
 import { buildBuildingSigns } from './sz-building-signs.js';
@@ -48,7 +49,7 @@ import { sceneUniforms } from './sz-materials.js';
 
 // 离线规划与正式场景共用地面、建筑、桥梁及树冠的生成顺序和接触面。
 export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, startup, offline = false, captureExpoLayout }) {
-  const GEO = qa.measureBuild('mountainTunnels', () => prepareMountainTunnels(CITY_GEO));
+  const GEO = qa.measureBuild('mountainTunnels', () => prepareRoadJunctions(prepareMountainTunnels(CITY_GEO)));
   const frontageLight = { ...COCO_PARK_ENTRANCE, night: sceneUniforms.night };
   const ground = qa.measureBuild('ground', () => buildSzGround(scene, GEO.terrainSurface, { frontageLight }));
   const sea = !offline && qa.measureBuild('sea', () => buildSzSea(scene, GEO.seaSurface));

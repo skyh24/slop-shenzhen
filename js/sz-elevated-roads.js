@@ -1,8 +1,9 @@
 import * as THREE from 'three/webgpu';
 import { normalWorld, positionWorld } from 'three/tsl';
+import { clipRoadJunctionOverlap } from './sz-road-junctions.js';
 import { isGroundRoad, roadLinkPoints } from './sz-roads.js';
 import { createGroundSurfaceSampler } from './sz-ground-surface.js';
-import { deckLaneProfile, throughRoadArms } from './sz-road-section.js';
+import { applyRoadJoinFrames, deckLaneProfile, throughRoadArms } from './sz-road-section.js';
 import {
   centerGradeBudget, createRoadProfile, measureRoadProfile, recordRoadProfileSeam, roadProfileHeight
 } from './sz-road-profile.js';
@@ -335,7 +336,8 @@ function createGroundHeightWithFallback(sampler) {
   const cache = new Map();
   const offsets = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.707, 0.707], [-0.707, 0.707], [0.707, -0.707], [-0.707, -0.707]];
   return (x, z) => {
-    const key = `${Math.round(x / 5)},${Math.round(z / 5)}`;
+    // 横坡与洞口相邻采样不能共用 5 m 粗格缓存，否则会把另一侧高度借到接缝。
+    const key = `${x},${z}`;
     if (cache.has(key)) return cache.get(key);
     let height = sampler(x, z);
     if (!Number.isFinite(height)) {
@@ -670,7 +672,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   const length = polylineLength(points);
   if (length <= EPSILON) return null;
   const [start, end] = [link[0], link[1]];
-  const highway = metadata.highwayProfile;
+  const highway = metadata.highwayProfile ?? metadata.junctionProfile;
   const startGround = alignment?.startGround ?? groundHeight(points[0].x, points[0].z);
   const endGround = alignment?.endGround ?? groundHeight(points.at(-1).x, points.at(-1).z);
   if (!reviewed && (!Number.isFinite(startGround) || !Number.isFinite(endGround))) return null;
@@ -701,8 +703,8 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   // 高架/匝道桥面按每方向 1–4 车道派生宽度。6.5 m 匝道读成 2 车道，
   // 不再用统一最小宽度把单车道撑成一条没有分隔线的空白带。
   const laneProfile = reviewed ? null : deckLaneProfile(link);
-  const width = reviewed?.widthM ?? laneProfile?.widthM ?? Math.max(link[3], 6.5);
-  const frames = stationFrames(stations, width);
+  const width = reviewed?.widthM ?? metadata.junctionWidthM ?? laneProfile?.widthM ?? Math.max(link[3], 6.5);
+  const frames = applyRoadJoinFrames(stationFrames(stations, width), metadata);
   if (!reviewed && taper) {
     applyDeckTaper(frames, width, taper.start, taper.end, length);
     for (const [side, seam] of Object.entries(taper.seams)) {
@@ -1321,12 +1323,13 @@ function buildApron(record, side, groundHeight) {
   const groundEnd = groundHeight(ox, oz);
   if (!Number.isFinite(groundEnd)) return null;
   const drop = end.y - groundEnd;
-  if (drop <= 0.05) return { side, lengthM: 0, grade: 0, atGrade: true, endY: end.y, frames: [], triangleStart: record.topTriangles.length };
+  if (Math.abs(drop) <= 0.05) return { side, lengthM: 0, grade: 0, atGrade: true, endY: end.y, frames: [], triangleStart: record.topTriangles.length };
+  if (drop < 0) return null;
   const required = drop / APRON_MAX_GRADE;
   if (required > APRON_MAX_M + 1e-6) return null;
   const length = Math.max(APRON_MIN_M, Math.min(APRON_MAX_M, required));
   const steps = Math.max(2, Math.ceil(length / DECK_STEP_M));
-  const half = record.width / 2;
+  const half = Math.hypot(end.left.x - end.right.x, end.left.z - end.right.z) / 2;
   const nx = end.nx;
   const nz = end.nz;
   const apronFrames = [];
@@ -1348,8 +1351,9 @@ function buildApron(record, side, groundHeight) {
       const leftGround = groundHeight(left.x, left.z);
       const rightGround = groundHeight(right.x, right.z);
       if (!Number.isFinite(leftGround) || !Number.isFinite(rightGround)) return null;
-      left.y = Math.max(y, leftGround);
-      right.y = Math.max(y, rightGround);
+      // 左右缘分别回落到各自的地面标高，不能用中心高度把低侧路缘悬空。
+      left.y = Math.max((end.left.y ?? end.y) * (1 - t) + leftGround * t, leftGround);
+      right.y = Math.max((end.right.y ?? end.y) * (1 - t) + rightGround * t, rightGround);
     }
     apronFrames.push({ x, z, y, left, right, nx, nz, d: end.d + length * t });
     if (i > 0) {
@@ -1393,7 +1397,7 @@ function buildApron(record, side, groundHeight) {
 /** 端部搭接段：沿端头切向外推 DECK_OVERLAP_M，与节点处相邻桥面/地面路的接触面重叠，
  *  避免车辆在链路交接处因支撑高度跳变 >1.5 m 被判定“无支撑”而刹停（round 30/34 诊断）。
  *  只在端头已接通、且该端没有引道时补：引道本身从端头连续下坡，不需要额外搭接。 */
-function pushDeckExtension(record, side) {
+function pushDeckExtension(record, side, graph) {
   const frames = record.frames;
   if (frames.length < 2) return;
   const end = side === 'start' ? frames[0] : frames[frames.length - 1];
@@ -1404,10 +1408,10 @@ function pushDeckExtension(record, side) {
   const uz = (end.z - inner.z) / run;
   const x = end.x + ux * DECK_OVERLAP_M;
   const z = end.z + uz * DECK_OVERLAP_M;
-  const half = record.width / 2;
+  const half = Math.hypot(end.left.x - end.right.x, end.left.z - end.right.z) / 2;
   // 有坡接缝沿本身切线搭接，平搭接会在坡面上多造一层同位置的台阶。
   const sharedGround = side === 'start' ? record.sharedStart : record.sharedEnd;
-  const dy = record.urbanApproach && !sharedGround ? (end.y - inner.y) * DECK_OVERLAP_M / run : 0;
+  const dy = !sharedGround ? (end.y - inner.y) * DECK_OVERLAP_M / run : 0;
   const outer = { x, z, y: end.y + dy, d: end.d + (side === 'start' ? -1 : 1) * DECK_OVERLAP_M,
     left: { x: x + end.nx * half, z: z + end.nz * half, y: (end.left.y ?? end.y) + dy },
     right: { x: x - end.nx * half, z: z - end.nz * half, y: (end.right.y ?? end.y) + dy } };
@@ -1418,14 +1422,14 @@ function pushDeckExtension(record, side) {
   const topB = { ...b.left, y: b.left.y ?? end.y };
   const topC = { ...b.right, y: b.right.y ?? end.y };
   const topD = { ...a.right, y: a.right.y ?? end.y };
-  if (record.contactSurface === false) {
-    pushTriangle(record.geometry, topA, topD, topC);
-    pushTriangle(record.geometry, topA, topC, topB);
-  } else pushTopQuad(record.geometry, record.topTriangles, topA, topD, topC, topB);
-  record.areaM2 += triangleArea2D(topA, topB, topC) + triangleArea2D(topA, topC, topD);
-  const girderDepth = GIRDER_DEPTH_M;
-  pushVerticalWall(record.geometry, topA, topB, topA.y - girderDepth, topB.y - girderDepth);
-  pushVerticalWall(record.geometry, topC, topD, topC.y - girderDepth, topD.y - girderDepth);
+  const triangles = clipRoadJunctionOverlap(graph, record.index, side === 'start' ? 0 : 1,
+    [[topA, topD, topC], [topA, topC, topB]]);
+  for (const triangle of triangles) {
+    pushTriangle(record.geometry, ...triangle);
+    if (record.contactSurface !== false) record.topTriangles.push(triangle);
+    record.areaM2 += triangleArea2D(...triangle);
+  }
+
 }
 
 // 约 2 km 网格分桶：同一桶的桥面放一个 chunk，减少 draw call；桶数超过上限时网格逐级加粗。
@@ -1515,7 +1519,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
   // reviewed/crossing 桥面沿用原始地形采样：水面返回 null 是步行桥断面的一部分，
   // 不能拿补采样值把桥头横坡拉平。全城派生记录才用带兜底的采样。
   const terrainHeight = createGroundSurfaceSampler(terrainSurface);
-  const groundHeight = createGroundHeightWithFallback(terrainHeight);
+  const groundHeight = createGroundHeightWithFallback((x, z) => terrainHeight(x, z) ?? graph.junctionGround?.(x, z));
   const groundNodes = new Set();
   const groundSignatures = new Set();
   const groundIndex = createGroundRoadIndex();
@@ -1622,7 +1626,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
       liftOverride = raisedForCrossing ? DECK_RISE_M : 0;
     }
     // 同层支线共用京港澳接点的高度基准和层高；跨层缓降仍用邻段的目标高度。
-    const highway = metadata.highwayProfile;
+    const highway = metadata.highwayProfile ?? metadata.junctionProfile;
     const alignment = highway ? { g4: true,
       startGround: highway[0] - (highway[2] ? nominalLift : 0),
       endGround: highway[1] - (highway[3] ? nominalLift : 0)
@@ -1636,8 +1640,8 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     const makeRecord = groundCrossings => planLink(graph, link, index, metadata,
       profile || crossing || urban ? terrainHeight : groundHeight, groundNodes, profile, crossing,
       liftOverride, groundIndex, urban || highway ? null : highwayJoins.get(index),
-      metadata.explicitCorridorProfile ? null : junctionTapers.get(index), alignment,
-      metadata.explicitCorridorProfile ? null : groundCrossings);
+      metadata.explicitCorridorProfile || metadata.junctionProfile ? null : junctionTapers.get(index), alignment,
+      metadata.explicitCorridorProfile || metadata.junctionProfile ? null : groundCrossings);
     const record = makeRecord();
     if (record === null) {
       skippedLinks++;
@@ -1750,10 +1754,10 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     if (record.reviewed?.walk) continue;
     const hasApron = side => record.aprons.some(apron => apron.side === side);
     if (!hasApron('start') && record.connectedStart && !record.splitStart && !record.noStartExtension) {
-      pushDeckExtension(record, 'start');
+      pushDeckExtension(record, 'start', graph);
     }
     if (!hasApron('end') && record.connectedEnd && !record.noEndExtension && !record.splitEnd) {
-      pushDeckExtension(record, 'end');
+      pushDeckExtension(record, 'end', graph);
     }
   }
   for (const record of records) {
@@ -1853,6 +1857,7 @@ export function planElevatedRoads(graph, terrainSurface, options) {
   const cutWalls = terrainSurface?.cutWalls ?? { positions: [], triangles: 0 };
   // 护栏和桥墩的接触体都来自显示几何同一批顶点；桥面本身仍只登记顶面三角面。
   const colliders = [...records, ...walking].flatMap(record => [...record.barrierColliders, ...record.pierColliders, ...record.slabColliders]);
+  colliders.push(...(cutWalls.colliders ?? []));
   const interchangeSummaries = interchanges.map(entry => {
     const list = recordsByInterchange.get(entry.id);
     const drive = list.filter(record => driveLinks.includes(record));

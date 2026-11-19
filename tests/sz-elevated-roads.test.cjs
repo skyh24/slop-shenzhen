@@ -14,6 +14,7 @@ const controllerSurfaces = loadModule(read('sz-controller-surfaces.js'));
 const tslStub = { normalWorld: { mul: () => ({}) }, positionWorld: { add: () => ({}) } };
 const roadSection = loadModule(read('sz-road-section.js'));
 const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
+    './sz-road-junctions.js': require('./helpers/road-junctions.cjs'),
   './sz-road-profile.js': loadModule(read('sz-road-profile.js')),
   './sz-interchange-levels.js': loadModule(read('sz-interchange-levels.js')),
   'three/webgpu': {}, 'three/tsl': tslStub,
@@ -373,6 +374,7 @@ function fakeElevatedThree() {
 test('built elevated roads expose meshes, contact surfaces and the same drivable decks', () => {
   const fake = fakeElevatedThree();
   const module = loadModule(read('sz-elevated-roads.js'), { imports: {
+    './sz-road-junctions.js': require('./helpers/road-junctions.cjs'),
     './sz-road-profile.js': loadModule(read('sz-road-profile.js')),
     './sz-interchange-levels.js': loadModule(read('sz-interchange-levels.js')),
     'three/webgpu': fake, 'three/tsl': tslStub,
@@ -697,4 +699,17 @@ test('urban interchange decks share one level across short source edges and rest
     const z = start.z + (end.z - start.z) * i / 20;
     assert.ok(Math.abs(pavement(x, z) - 8) < 0.01, `ground crossing at ${x},${z}`);
   }
+});
+
+test('nearby ground junctions retain their own height on a cross slope', () => {
+  const slope = JSON.parse(JSON.stringify(surface));
+  const p = slope.chunks[0].positions;
+  for (let i = 0; i < p.length; i += 3) p[i + 1] = 10 + p[i] * 0.2;
+  const graph = { nodes: [100, 100, 100, 200, 102, 200, 102, 300], names: [''],
+    links: [[0, 1, 0, 8, 2, 1, []], [1, 2, 0, 8, 2, 1, []], [2, 3, 0, 8, 2, 1, []]],
+    metadata: [{ heightSource: 'terrain' }, { heightSource: 'estimate', bridge: true, layer: 1 }, { heightSource: 'terrain' }] };
+  const plan = elevated.planElevatedRoads(graph, slope, { interchanges: [] });
+  const record = plan.links.find(link => link.index === 1);
+  assert.ok(Math.abs(record.startDeckY - 30) < 1e-6);
+  assert.ok(Math.abs(record.endDeckY - 30.4) < 1e-6);
 });

@@ -1,8 +1,9 @@
 import * as THREE from 'three/webgpu';
+import { clipRoadJunctionOverlap, roadJunctionWallIntervals } from './sz-road-junctions.js';
 import { isGroundRoad, roadLinkPoints } from './sz-roads.js';
 import { createGroundSurfaceSampler } from './sz-ground-surface.js';
 import { polygonContains } from './sz-polygon.js';
-import { deckLaneProfile } from './sz-road-section.js';
+import { applyRoadJoinFrames, deckLaneProfile, ROAD_TUNNEL_CLEARANCE_M } from './sz-road-section.js';
 import { createSzRoadSurfaceMaterial } from './sz-road-material.js';
 import { HIGH_DECK_TUNNEL_APPROACH_M, highwayProfileHeight, tunnelStructurePortals } from './sz-interchange-levels.js';
 import { createRoadProfile, measureRoadProfile, recordRoadProfileSeam } from './sz-road-profile.js';
@@ -546,7 +547,7 @@ function buildChunks(records) {
 // true 时走这一套全城规则。
 // ---------------------------------------------------------------------------
 
-export const TUNNEL_CLEARANCE_M = 5.2;
+export const TUNNEL_CLEARANCE_M = ROAD_TUNNEL_CLEARANCE_M;
 export const TUNNEL_MIN_WIDE_WIDTH_M = 9;
 export const TUNNEL_BORE_MIN_DEPTH_M = 0.6;
 export const TUNNEL_OPEN_MIN_DEPTH_M = 0.05;
@@ -636,6 +637,18 @@ function tunnelFrameAt(frames, distance) {
   return frames[frames.length - 1];
 }
 
+function tunnelWallSegments(graph, index, a, b, side) {
+  const at = t => {
+    const frame = tunnelFrameAt([a, b], a.d + (b.d - a.d) * t);
+    for (const edge of ['left', 'right']) frame[edge] = {
+      x: a[edge].x + (b[edge].x - a[edge].x) * t,
+      z: a[edge].z + (b[edge].z - a[edge].z) * t };
+    return frame;
+  };
+  return roadJunctionWallIntervals(graph, index, a, b, a[side], b[side])
+    .map(([from, to]) => [at(from), at(to)]);
+}
+
 // 洞门：0.8 m 厚、比洞宽每侧外扩 1.2 m、总高 5.2 + 0.9 m 的门形框，洞口断面保持开敞。
 function tunnelPortalBox(list, frame, n0, n1, y0, y1) {
   const t = { x: -frame.nz, z: frame.nx };
@@ -659,7 +672,7 @@ function tunnelPortalBox(list, frame, n0, n1, y0, y1) {
 }
 
 function tunnelPortal(list, frame, flow, width, baseHeight) {
-  const half = width / 2;
+  const half = Math.hypot(frame.left.x - frame.right.x, frame.left.z - frame.right.z) / 2;
   const outer = half + TUNNEL_PORTAL_WING_M;
   const floorY = frame.floorY;
   const ceilingY = frame.ceilingY;
@@ -714,9 +727,9 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
   const lengthM = polylineLength(points);
   const sourceWidth = Number.isFinite(link[3]) ? link[3] : 0;
   const corridor = metadata.tunnelCorridor;
-  const alignment = metadata.nanpingMainline || corridor ? metadata.highwayProfile : null;
+  const alignment = metadata.junctionProfile ?? (metadata.nanpingMainline || corridor ? metadata.highwayProfile : null);
   const mountain = metadata.mountainTunnel;
-  const width = mountain?.width ?? (corridor ? sourceWidth
+  const width = metadata.junctionWidthM ?? mountain?.width ?? (corridor ? sourceWidth
     : alignment ? deckLaneProfile(link).widthM : Math.max(sourceWidth, TUNNEL_MIN_WIDE_WIDTH_M));
   const startNode = link[0];
   const endNode = link[1];
@@ -844,6 +857,7 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
       right: { x: station.x - nx * half, z: station.z - nz * half }
     };
   });
+  applyRoadJoinFrames(frames, metadata);
   record.frames = frames;
   record.depthM = depthM;
   record.startGroundHeight = startGround;
@@ -877,7 +891,7 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
       const strips = portal === frames[0]
         ? [[outsideLeft, outsideRight, right], [outsideLeft, right, left]]
         : [[left, right, outsideRight], [left, outsideRight, outsideLeft]];
-      record.pavementTriangles.push(...strips);
+      record.pavementTriangles.push(...clipRoadJunctionOverlap(graph, index, portal === frames[0] ? 0 : 1, strips));
     }
   }
   // 洞身段：相邻两站覆盖高差中点为「地形 - 路面 > 5.6 m」的区间；以上开敞引道只铺路面。
@@ -949,10 +963,12 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
           frame[side].z + frame.nz * sign * probeWidth) ?? (corridor ? frame.floorY + frame.sep : frame.floorY));
         const yA = topAt(a), yB = topAt(b);
         if (Math.max(yA - a.floorY, yB - b.floorY) < 0.04) continue;
-        cityQuad(concrete, { ...a[side], y: a.floorY }, { ...b[side], y: b.floorY },
-          { ...b[side], y: yB }, { ...a[side], y: yA },
-          { x: -sign * (a.nx + b.nx), y: 0, z: -sign * (a.nz + b.nz) });
-        colliders.push(wallCollider({ ...a, ceilingY: yA }, { ...b, ceilingY: yB }, side));
+        for (const [u, v] of tunnelWallSegments(graph, index, { ...a, ceilingY: yA }, { ...b, ceilingY: yB }, side)) {
+          cityQuad(concrete, { ...u[side], y: u.floorY }, { ...v[side], y: v.floorY },
+            { ...v[side], y: v.ceilingY }, { ...u[side], y: u.ceilingY },
+            { x: -sign * (u.nx + v.nx), y: 0, z: -sign * (u.nz + v.nz) });
+          colliders.push(wallCollider(u, v, side));
+        }
       }
     }
   }
@@ -977,9 +993,14 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
       cityQuad(concrete, ceilingLeftA, ceilingLeftB, ceilingRightB, ceilingRightA, DOWN);
       const inwardLeft = { x: -(a.nx + b.nx), y: 0, z: -(a.nz + b.nz) };
       const inwardRight = { x: a.nx + b.nx, y: 0, z: a.nz + b.nz };
-      cityQuad(concrete, leftA, leftB, ceilingLeftB, ceilingLeftA, inwardLeft);
-      cityQuad(concrete, rightA, rightB, ceilingRightB, ceilingRightA, inwardRight);
-      colliders.push(wallCollider(a, b, 'left'), wallCollider(a, b, 'right'), tunnelSlabCollider(a, b));
+      for (const side of ['left', 'right']) {
+        for (const [u, v] of tunnelWallSegments(graph, index, a, b, side)) {
+          cityQuad(concrete, { ...u[side], y: u.floorY }, { ...v[side], y: v.floorY },
+            { ...v[side], y: v.ceilingY }, { ...u[side], y: u.ceilingY }, side === 'left' ? inwardLeft : inwardRight);
+          colliders.push(wallCollider(u, v, side));
+        }
+      }
+      colliders.push(tunnelSlabCollider(a, b));
     }
     // 灯带：洞身内每 12 m 一条，贴在洞顶下方。
     for (let k = Math.ceil((runStartM + 0.001) / TUNNEL_LIGHT_SPACING_M);
@@ -1006,7 +1027,7 @@ function planCityTunnel(graph, link, index, metadata, groundHeight, groundNodes,
   }
   record.portalCount = record.portals.length;
   // 通行判定包含设计引道的实际纵坡；连通性在链路之间再判。
-  if (profile || corridor || deckPortals || mountain) record.maxGrade = record.gradeProfile.maxGrade;
+  if (profile || corridor || deckPortals || mountain || alignment) record.maxGrade = record.gradeProfile.maxGrade;
   record.drivable = record.maxGrade <= TUNNEL_DRIVE_MAX_GRADE + EPSILON;
   if (!record.drivable) record.blockedReason = 'grade';
   return record;
@@ -1468,7 +1489,8 @@ export function buildSzTunnels(scene, options = {}) {
   const createSurfaceMaterial = () => {
     if (!surfaceMaterial) {
       surfaceMaterial = new THREE.MeshStandardNodeMaterial({ vertexColors: true, color: 0x6b6e73, roughness: 0.95, metalness: 0,
-        emissive: 0x34383e, emissiveIntensity: 0.35 });
+        emissive: 0x34383e, emissiveIntensity: 0.35,
+        polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
       materials.push(surfaceMaterial);
     }
     return surfaceMaterial;

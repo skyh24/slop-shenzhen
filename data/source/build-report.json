@@ -516425,13 +516425,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "91689ff2d071c5c2c237398e11f2a96d87affe9fd0c3af77d156615ea6c74b8e",
-    "bytes": 269030,
-    "decodedBytes": 1255916,
+    "fingerprint": "f8fddbcbf358e07b5e138246177f9017b9fda010df726b1ef6b2ae43b13bbf7a",
+    "bytes": 268973,
+    "decodedBytes": 1255566,
     "files": {
-      "js/sz-regional/91689ff2d071c5c2c237/waterfront.json.gz": "4431f7d59ab69ff16a5d546904df935ae1f08827fd1fbfea3ddd75664fab88f9",
-      "js/sz-regional/91689ff2d071c5c2c237/metro.json.gz": "aa6e8350cce286df19992e4afc4fa06a3448f94912fddcd171defd59dbb178fe",
-      "js/sz-regional/91689ff2d071c5c2c237/drone.json.gz": "69e9e2163653393c0f9bb53d821fb402472b706ffe5da225c0c4f76bb596bd98"
+      "js/sz-regional/f8fddbcbf358e07b5e13/waterfront.json.gz": "7caa14ae15317f1c3b76c45ced90cfe0609d6ddb1d10ea3b9eaf5d3962f7c150",
+      "js/sz-regional/f8fddbcbf358e07b5e13/metro.json.gz": "34e70c379eec940c78d684345b17329f25cda858866e965c450f2ceb9e7fd2ab",
+      "js/sz-regional/f8fddbcbf358e07b5e13/drone.json.gz": "74033fba2e5507250ea60ec48efa58a8ef7c2a186d95de9f6177cd6448e8ba84"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -516468,7 +516468,7 @@
       "js/sz-drone-choreography.js": "4d6283f31889df2a6918d45072ca7548e665768802ebb35c752c4a3bb86b2b04",
       "js/sz-drone-formations.js": "b748ea4a6b94e7035940e7b4ebcef29fd6c6621b6a049da5dfb809060165accc",
       "js/sz-drone-routes.js": "c90d72fde184c5b12ecd1879fe0a198a16679da4d81dbb4bee22dd7612b8bf6f",
-      "js/sz-elevated-roads.js": "6200f7b00d8032ebae709554095d43a1fb5755d3be3e5fec8ebc7579f20e83bc",
+      "js/sz-elevated-roads.js": "cef708201a34e527888de372a9fb8dc426dba7aff506b794011bdb82f5a590c0",
       "js/sz-facade-look.js": "0ca6eb053a653f2ebb5c021ffb5545194c028909c3863e6659e409c762bfbdc6",
       "js/sz-facade-nodes.js": "75157aec5399cea05ded5dae953bd049c3d84e490eee239f163dfaa9e9223872",
       "js/sz-facade-profiles.js": "5c77204644bee3fdd3a23231496bd13efcc8e841393b6675bab25395a45ab83b",
@@ -516477,7 +516477,7 @@
       "js/sz-golf-course.js": "b99b3695dab632393f2db9b9f33a9a93a1777c364f37741b2b86549f563c8673",
       "js/sz-ground-surface.js": "6c1fa2d206626fb271c7d1fab13ee8ecf7b6b4002e83deb50f1ac8a2fcc7ba68",
       "js/sz-ground.js": "7d9fb17c0dcaf7350daa3508ad56bf260ee79731eaac8b8e91c2158d51acc9bc",
-      "js/sz-interchange-levels.js": "aa1d18db64ca7f40b89486456f38ba5a20b1e478e11659f1f8337667df03a429",
+      "js/sz-interchange-levels.js": "477697e8b81a6b78e3a79edb913b9d96b3b7af3f3e2f04e97c7e0b2b9c499380",
       "js/sz-intersection-control.js": "d10996f0fa6d9f6ba5f6f5506145200e5f5115f726b6371907fe976019360871",
       "js/sz-landmarks/bay-opera.js": "b7a8f2d0534c44b50be4c987ad05d98bb15e12ada1ec246c9e92a5bee0b044a6",
       "js/sz-landmarks/chunjian.js": "fdbbd2b876691d789b525f81535612b08faf6fcb31fc44d023b837ac8c3d8bdc",
@@ -516536,14 +516536,15 @@
       "js/sz-retail-signs.js": "4cd54c1bbb7bc0583d25c811159ffcfa3f072d7cefaf014ce8ced39f4ecee71e",
       "js/sz-road-building-clearance.js": "00b3c907dbcd210c288e9780e33d9ef8adf9058b84239c84ddbaada7135da63d",
       "js/sz-road-frontage.js": "270b5ee23d50db72f73908768d94b5feb218cfd8a57f3517e2ed3d497309040b",
+      "js/sz-road-junctions.js": "c2e232a675db547d4bf0f28fac6481fff9bdd99df86193ccc94dab1f1cfa95c4",
       "js/sz-road-landscape.js": "4b15c0754e25f88efab814112b93e9195bcb7d872ba97d32da406b346bd81110",
       "js/sz-road-markings.js": "da2ca29f8043c6a44870d1e959505678255762f268c096417074899cbd485530",
       "js/sz-road-material.js": "2b87b12d8a643b397968a0e6ec0fd7a5c01c140e666e59ed070b2767ab4caf6d",
       "js/sz-road-paint.js": "4a1c623972911185565cbca1df3fdea72ea3722af198c4b2b5c788f952f29d22",
       "js/sz-road-profile.js": "f9f52d1d1ea9bd3fe66330602d87862b7656c8c1dce1838f30f2908a8759d9c7",
-      "js/sz-road-section.js": "3e8403fb160960a4c26964e3d37b9b758b2cebf31bf2d6a4b4147c8ec6bf6bf8",
-      "js/sz-roads.js": "549160bfff2603e6e18d7761eac28827576b8eb0b68eab9549d9ed68f1fd549f",
-      "js/sz-scene-site.js": "3e03668bd7912cfa62dd572d7ad30a91fefdf346da00756590ac5ce144f09a63",
+      "js/sz-road-section.js": "53dc8da52e3389cb967d1a4b70f1b69dd5e41b02908558a51b4f3eb47fe1a2e7",
+      "js/sz-roads.js": "7c3e4a14f7a1ae4fcaab0035da514e88748143824f84ee2be7db1a226bb98438",
+      "js/sz-scene-site.js": "6162a77fbf02c1c7a18d191bfd50b328b05cb398bbbbaa39bc1ffe2bd4e875ef",
       "js/sz-scene-style.js": "fbc7b6cdb08a25dfb7f8ff773e3b4bddce309d2973bce2d256a45b06f1fef027",
       "js/sz-sea.js": "1c69243a4c3f9002bdde397b10bed63b840074df52df9118f88215680393d5a7",
       "js/sz-section-frame.js": "94ed096ace331504e2870cc07033d61b07b6340380a46299d268bcf68c0a9968",
@@ -516572,7 +516573,7 @@
       "js/sz-theme-parks/sites.js": "1de1f26ca47954345088529af856539d8356eb78ebd576b662606b35ff50f5f7",
       "js/sz-tree-crown.js": "fe307786aba22098be4a3b3d8e3e32aa1015b2ad67ba46c31cb5efe92282fb74",
       "js/sz-trees.js": "948e9a8abcc7598cee84bf0d086b6eed52e52de39c5366eda52b6cf457dfabf2",
-      "js/sz-tunnels.js": "046a3a19a5f2dce1e3a948f240e5bdb63c29ea58bc7d48b54a53d2bf2dbdd095",
+      "js/sz-tunnels.js": "b62e41b347046a5485292e1f3c59f5160716f27404adb07b9143914d04af9b11",
       "js/sz-urban-paving.js": "eb474e194c812de5ba2fe011b73664d79097674f179497ca2f17566b27906020",
       "js/sz-vegetation-layout.js": "732425135858fae7a294b4775cbafd2fc6742dd4e158f213f4e971b1d24241f0",
       "js/sz-vegetation.js": "16cf3897a203552a6733a18cd6c00e54cb77801ddcec8efac78fe3974c98bdc9",
@@ -516836,8 +516837,8 @@
       "restSpots": 9
     },
     "shore": {
-      "walkRoutes": 120,
-      "colliders": 11430
+      "walkRoutes": 119,
+      "colliders": 11428
     },
     "drone": [
       {
@@ -516856,16 +516857,16 @@
     "format": "SZC1",
     "version": 1,
     "columns": 8064,
-    "metadataBytes": 19479602,
+    "metadataBytes": 19479481,
     "numericBytes": 46132672,
-    "uncompressedBytes": 65612328,
+    "uncompressedBytes": 65612208,
     "lossless": true,
-    "compressedBytes": 17973552,
-    "compressedSha256": "fc846aae9ead2300ef541cb127f0e72cfa4da90112d2026d82d58291faaa951a"
+    "compressedBytes": 17973497,
+    "compressedSha256": "1eac514777a3b6e2562c56f9a7cb6c2ba03fc4c50c401f1692bc2ff2d2ef5486"
   },
-  "outputBytes": 18126961,
-  "outputSha256": "b8c1949d841b777fb8fc78307ee7a018bc179e9160a5c4823266a84291930c5d",
-  "seconds": 380.7,
+  "outputBytes": 18126846,
+  "outputSha256": "f5ca5495fcb082a08392a80fac43033a391ba2c926a6e0a66e952387d5f1658d",
+  "seconds": 58.9,
   "elevatedCut": {
     "version": 3,
     "links": 28,

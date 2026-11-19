@@ -872,7 +872,7 @@ test('the player controller drives from ground through the sourced Chegongmiao d
   const { geo } = load('sz-data-format.js').decodeCityPayload(JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz')))));
   const graph = geo.roadGraph;
   const groundSurface = load('sz-ground-surface.js');
-  const plan = load('sz-elevated-roads.js', { 'three/webgpu': {}, 'three/tsl': {}, './sz-roads.js': roads,
+  const plan = load('sz-elevated-roads.js', { './sz-road-junctions.js': require('./helpers/road-junctions.cjs'), 'three/webgpu': {}, 'three/tsl': {}, './sz-roads.js': roads,
     './sz-road-profile.js': load('sz-road-profile.js'),
     './sz-interchange-levels.js': load('sz-interchange-levels.js'),
     './sz-ground-surface.js': groundSurface, './sz-controller-surfaces.js': surface,

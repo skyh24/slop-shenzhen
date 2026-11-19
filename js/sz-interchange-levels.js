@@ -84,6 +84,26 @@ export function tunnelStructurePortals(graph, underpass) {
       portals.get(index).set(node, [...new Set(combined)]);
     }
   }
+  // 通用接续只认共享源节点和同标高，不以路名或立交名单决定连接资格。
+  const decks = new Map();
+  graph.links.forEach((link, index) => {
+    const meta = graph.metadata[index], profile = meta.junctionProfile ?? meta.highwayProfile;
+    if (meta.tunnel || !profile) return;
+    for (const [side, node] of link.slice(0, 2).entries()) {
+      if (!decks.has(node)) decks.set(node, []);
+      decks.get(node).push({ index, y: profile[side] });
+    }
+  });
+  graph.links.forEach((link, index) => {
+    const meta = graph.metadata[index], profile = meta.junctionProfile ?? meta.highwayProfile;
+    if (!meta.tunnel || !profile) return;
+    for (const [side, node] of link.slice(0, 2).entries()) {
+      const peers = decks.get(node)?.filter(peer => Math.abs(peer.y - profile[side]) < 0.01).map(peer => peer.index);
+      if (!peers?.length) continue;
+      if (!portals.has(index)) portals.set(index, new Map());
+      portals.get(index).set(node, [...new Set([...(portals.get(index).get(node) ?? []), ...peers])]);
+    }
+  });
   return portals;
 }
 
