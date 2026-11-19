@@ -130,6 +130,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   const parkOmissions = reviewedParkOmissions(lianhuashan, site.buildings);
   const cbdProgram = offline ? {} : createCbdProgram({ ...SUMMIT_ARRIVAL, y: SUMMIT_ARRIVAL.y + 1.68 }, sceneUniforms.night);
   const landmarks = qa.stage('landmarks', () => buildSzLandmarks(scene, { ...site, northRail: GEO.shenzhenNorthRail, programEmission: cbdProgram.emission }));
+  if (!offline) cbdProgram.mountSearchlights(scene, landmarks.colliders);
   const iec = landmarks.group.getObjectByName('ShenzhenLandmark:iec-xiangmihu')
     ? buildIecGrounds(scene, { ...site, roadSurfaces: roads.surfaces, water: GEO.water, paths: GEO.iecPaths }) : null;
   const northStation = landmarks.heights?.has('shenzhen-north')

@@ -361,6 +361,7 @@ async function initApp() {
     tunnels.dispose();
     roadLandscape.dispose();
     districts.dispose();
+    cbdProgram.dispose?.();
     landmarks.dispose();
     northStation?.dispose();
     streetscape.dispose();
