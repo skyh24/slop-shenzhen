@@ -26,7 +26,13 @@ test('the production pack fits all three parks and preserves ground access', asy
   const { distanceToRing, polygonContainsInclusive, ringArea } = await import('../js/sz-polygon.js');
   const { buildThemeParks, planThemeParks } = await import('../js/sz-theme-parks/index.js');
   const raw = JSON.parse(gunzipSync(readFileSync(resolve(__dirname, '../js/sz-city.json.gz'))));
-  const { geo, buildings } = decodeCityPayload(raw);
+  const { geo: decoded, buildings } = decodeCityPayload(raw);
+  const { applyCorridorRoadProfiles } = await import('../js/sz-interchange-levels.js');
+  const { applyShennanKejiCrossing } = await import('../js/sz-shennan-keji.js');
+  const { prepareMountainTunnels } = await import('../js/sz-mountain-tunnels.js');
+  const { prepareRoadJunctions } = await import('../js/sz-road-junctions.js');
+  const roadGraph = applyShennanKejiCrossing(applyCorridorRoadProfiles(decoded.roadGraph, decoded.terrainSurface, decoded.roadStructures));
+  const geo = prepareRoadJunctions(prepareMountainTunnels({ ...decoded, roadGraph }));
   const scene = new Scene();
   const groundHeight = createGroundSurfaceSampler(geo.terrainSurface);
   const isWater = (x, z) => geo.water.some(p => polygonContainsInclusive(p, x, z));

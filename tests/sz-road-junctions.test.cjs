@@ -72,8 +72,9 @@ test('a tunnel fork aligns the through carriageway and opens the shared side wal
     [{ highway: 'motorway', tunnel: true, layer: -1, highwayProfile: [0, 0, true, true] },
       { highway: 'motorway', tunnel: true, layer: -1, highwayProfile: [0, 0, true, true] },
       { highway: 'motorway_link', tunnel: true, layer: -1, highwayProfile: [0, 0, true, true] }])).roadGraph;
-  assert.equal(graph.metadata[0].junctionSections[1].widthM, 11.45);
-  assert.equal(graph.metadata[1].junctionSections[0].widthM, 11.45);
+  const fullWidth = graph.links[0][3] + 2 * (0.5 + 0.35);
+  assert.equal(graph.metadata[0].junctionSections[1].widthM, fullWidth);
+  assert.equal(graph.metadata[1].junctionSections[0].widthM, fullWidth);
   const { roadJunctionWallIntervals } = require('./helpers/road-junctions.cjs');
   const kept = roadJunctionWallIntervals(graph, 1, { x: 80, z: 0 }, { x: 90, z: 2.5 },
     { x: 79, z: 5.6 }, { x: 89, z: 8.1 });

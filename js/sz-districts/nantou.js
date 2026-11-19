@@ -121,7 +121,7 @@ export function buildSouthPaifang(kit, heightAt, clear) {
     const start = side < 0 ? 7.35 : 7.45, end = side < 0 ? 14.15 : 9.18;
     const wallX = side * (start + end) / 2;
     const length = end - start;
-    const offset = -2.1;
+    const offset = side < 0 ? -2.1 : 4;
     if (![start, (start + end) / 2, end].every(u => clear(f.at(side * u, offset), y, 3))) continue;
     block(wallX, offset, -0.15, 2.36, length, 1.24, 'oldBrick', `nantou:design-wall:${side}`);
     block(wallX, offset, -0.15, 0.65, length + 0.05, 1.34, 'granite');

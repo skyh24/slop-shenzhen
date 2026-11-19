@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "checkedAt": "2026-11-19T04:57:55.287250+00:00",
+  "checkedAt": "2026-11-19T06:36:07.635035+00:00",
   "encodingValidation": "passed",
   "realityValidation": "incomplete",
   "recentObservationWindow": [
     2025,
     2026
   ],
-  "payloadSha256": "47931ec9ba9ce8de31d7d0de971c272e53459d28c64ffe4397596a9d704f2ea1",
+  "payloadSha256": "c954faef8f30ddc917110971b2aa89b6d7517dbc23ab216007a6b4d29a61c63c",
   "sourceIntegrity": [
     {
       "id": "osm-guangdong",
@@ -187,10 +187,6 @@
       "way/349913945",
       "way/349913950",
       "way/351753210",
-      "way/361193171",
-      "way/361193172",
-      "way/361193173",
-      "way/361193176",
       "way/579823008",
       "way/579823010",
       "way/579823011",
@@ -229,15 +225,6 @@
       "way/1110959408",
       "way/1151596328",
       "way/1151596329",
-      "way/1183693910",
-      "way/1183693911",
-      "way/1183693912",
-      "way/1183693914",
-      "way/1183693930",
-      "way/1183693934",
-      "way/1183697006",
-      "way/1183697024",
-      "way/1183697026",
       "way/1190750258",
       "way/1190750261",
       "way/1191352734",
@@ -251,7 +238,6 @@
       "way/1262090522",
       "way/1262090523",
       "way/1262090524",
-      "way/1262456873",
       "way/1266682181",
       "way/1268556454",
       "way/1268556455",
@@ -627,11 +613,11 @@
     "format": "SZC1",
     "version": 1,
     "columns": 8061,
-    "metadataBytes": 19483978,
+    "metadataBytes": 19483914,
     "numericBytes": 45737384,
-    "uncompressedBytes": 65221416,
+    "uncompressedBytes": 65221352,
     "lossless": true,
-    "compressedBytes": 18093558,
-    "compressedSha256": "c9fe30f0bcc94848b238ab117967a32fa032e2592322a94ac84f313550dbb2c0"
+    "compressedBytes": 18092245,
+    "compressedSha256": "b7f80ee236353b7c47b96fec4a18cde7920ffce9f5c088bc1e2a8576d19db599"
   }
 }
