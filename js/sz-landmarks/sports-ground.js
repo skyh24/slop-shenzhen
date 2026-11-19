@@ -31,7 +31,7 @@ function clip(ground, mask) {
   return ring;
 }
 
-function venueTriangles(surface, area) {
+function venueTriangles(surface, area, acceptsKind) {
   const { grid, chunkSize } = surface;
   const result = [];
   for (const chunk of surface.chunks) {
@@ -39,6 +39,8 @@ function venueTriangles(surface, area) {
     if (!overlaps(area, [ox - grid.step, oz - grid.step, ox + chunkSize + grid.step, oz + chunkSize + grid.step])) continue;
     const { positions, indices } = chunk;
     for (let j = 0; j < indices.length; j += 3) {
+      if (acceptsKind && (!acceptsKind(chunk.kinds[indices[j]]) || !acceptsKind(chunk.kinds[indices[j + 1]])
+        || !acceptsKind(chunk.kinds[indices[j + 2]]))) continue;
       const points = [0, 1, 2].map(i => {
         const k = indices[j + i] * 3;
         return { x: ox + positions[k], y: positions[k + 1], z: oz + positions[k + 2] };
@@ -50,9 +52,9 @@ function venueTriangles(surface, area) {
   return result;
 }
 
-export function planSportsGround(patches, surface) {
+export function planSportsGround(patches, surface, acceptsKind) {
   if (!patches.length || !surface) return [];
-  const ground = venueTriangles(surface, bounds(patches.flatMap(p => p.ring)));
+  const ground = venueTriangles(surface, bounds(patches.flatMap(p => p.ring)), acceptsKind);
   const result = [];
   for (const { ring, style } of patches) {
     for (const triangle of triangulateFootprint({ outer: ring })) {
@@ -72,9 +74,9 @@ export function planSportsGround(patches, surface) {
   return result;
 }
 
-export function addSportsGround(group, patches, surface, materialFor) {
+export function addSportsGround(group, patches, surface, materialFor, acceptsKind) {
   const batches = new Map();
-  for (const { style, points } of planSportsGround(patches, surface)) {
+  for (const { style, points } of planSportsGround(patches, surface, acceptsKind)) {
     if (!batches.has(style)) batches.set(style, new GeoBuilder());
     const batch = batches.get(style);
     const [a, b, c] = points;
@@ -86,7 +88,7 @@ export function addSportsGround(group, patches, surface, materialFor) {
     const mesh = new THREE.Mesh(batch.build(), materialFor(style));
     mesh.name = style;
     mesh.receiveShadow = true;
-    mesh.renderOrder = 1 + rank[style];
+    mesh.renderOrder = 1 + (rank[style] ?? 0);
     group.add(mesh);
   }
 }

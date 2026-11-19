@@ -5,6 +5,7 @@ import { GEO as CITY_GEO, REAL_BUILDINGS } from './sz-geodata.js';
 import { prepareMountainTunnels } from './sz-mountain-tunnels.js';
 import { createSceneStyle } from './sz-scene-style.js';
 import { createGroundSurfaceSampler, buildSzGround } from './sz-ground.js';
+import { buildBayHeadlands } from './sz-bay-headlands.js';
 import { createBayPathLookup } from './sz-bay-waterfront.js';
 import { createWaterfrontPaths, relocatedBayPathIds } from './sz-waterfront.js';
 import { buildSzSea } from './sz-sea.js';
@@ -117,6 +118,8 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     .add({ id: 'road-landscape', heightSource: 'rendered-terrain', sample: roadLandscape.pathHeight });
   site.surfaceAtlas = surfaceAtlas;
   site.heightAt = (x, z) => surfaceAtlas.heightAt(x, z);
+  const bayHeadlands = buildBayHeadlands(scene, GEO, site);
+  places.register({ id: 'bay-headlands', walkReserve: bayHeadlands.reserves, lampReserve: bayHeadlands.reserves });
   const districts = qa.measureBuild('districts', () => buildSzDistricts(scene, site,
     { water: GEO.water, roads: roads.surfaces, carriagewayOccupied, decks: elevatedRoads.links }));
   surfaceAtlas.add({ id: 'districts', heightSource: 'rendered-terrain', sample: districts.heightAt });
@@ -189,7 +192,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   const buildingDetails = !offline && qa.stage('details', () =>
     buildBuildingDetails(scene, { detailPlan: cityBlocks.detailPlan }));
   markInit('blocks');
-  const buildings = [...landmarks.colliders, ...cityBlocks.colliders, ...summit.colliders, ...districts.colliders, ...themeParks.colliders, ...(northStation?.colliders ?? [])];
+  const buildings = [...landmarks.colliders, ...bayHeadlands.colliders, ...cityBlocks.colliders, ...summit.colliders, ...districts.colliders, ...themeParks.colliders, ...(northStation?.colliders ?? [])];
   site.colliders = buildings;
   const streetscape = qa.stage('streetscape', () => buildSzStreetscape(scene, GEO.streetscape, site.terrainSurface, site));
   // 离线的选址复用同一批实体，运行时只在确有局部用途时才查询。
@@ -223,7 +226,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     reserveWalk: (x, z, r) => places.reservesWalk(x, z, r) || waterfront?.reserves(x, z, r)
       || districts.reserves(x, z, r) || landmarks.reservesApproach?.(x, z, r) || urbanPaving.reserves(x, z, r) || waterfrontPaths.reserves(x, z, r) || site.reserveBayWalk(x, z, r) || roadLandscape.walkAt(x, z, r).length > 0 || roadFrontage.reserveWalk(x, z, r),
     reserveView: summit.group ? summitViewObstructed : null,
-    observedTrees: streetscape.observedTrees, pilotTrees: [...(landmarks.trees ?? []), ...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees, ...districts.trees, ...urbanPaving.trees],
+    observedTrees: streetscape.observedTrees, pilotTrees: [...bayHeadlands.trees, ...(landmarks.trees ?? []), ...themeParks.trees, ...publicWalk.trees, ...(waterfront?.pilotTrees ?? []), ...roadLandscape.trees, ...districts.trees, ...urbanPaving.trees],
     streetTreeSideAllowed: planStreetTreeSides(site.roadGraph, minorRoadBounds),
     arterialTreeAllowed: createArterialTreeFilter(nearRoadsForFrontage, roadFrontage.arterialMedianAt)
   };
@@ -269,7 +272,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     reserveWalk: (x, z, r) => treeSite.reserveWalk(x, z, r) || site.reserveBayWalk(x, z, r)
   }, trees.colliders));
   colliders.push(...vegetation.colliders);
-  return { site, places, sea, ground, roads, roadGraph, elevatedRoads, tunnels, roadLandscape, roadFrontage, roadPaint,
+  return { site, places, sea, ground, roads, bayHeadlands, roadGraph, elevatedRoads, tunnels, roadLandscape, roadFrontage, roadPaint,
     publicWalk, districts, carriagewayOccupied, deckOccupied, bayPaths, pilotBayPaths, parkBayPaths, waterfrontPaths, urbanPaving, summit, parkOmissions, cbdProgram,
     landmarks, iec, northStation, bridge, yanjiang, themeParks, cityBlocks, lightShow, buildingSigns, buildingDetails,
     streetscape, talentPark, waterfront, trees, vegetation, streetLamps, apecTheme, apecCity, futianStation, xiliConstruction, colliders };

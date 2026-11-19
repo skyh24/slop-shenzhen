@@ -174,7 +174,7 @@ async function initApp() {
   markInit('lighting');
 
   await showLoadingStage(STR.startup.ground, 'ground');
-  const { site, places, sea, ground, roads, roadGraph, elevatedRoads, tunnels, roadLandscape, roadFrontage, roadPaint,
+  const { site, places, sea, ground, roads, bayHeadlands, roadGraph, elevatedRoads, tunnels, roadLandscape, roadFrontage, roadPaint,
     publicWalk, districts, carriagewayOccupied, bayPaths, pilotBayPaths, parkBayPaths, waterfrontPaths, urbanPaving, summit, parkOmissions, cbdProgram,
     landmarks, iec, northStation, bridge, yanjiang, themeParks, cityBlocks, lightShow, buildingSigns, buildingDetails,
     streetscape, talentPark, waterfront, trees, vegetation, streetLamps, apecTheme, apecCity, futianStation, xiliConstruction, colliders } = await prepareSceneSite(scene, {
@@ -358,6 +358,7 @@ async function initApp() {
     audioSystem.dispose();
     pedestrians.dispose();
     publicWalk.dispose();
+    bayHeadlands.dispose();
     tunnels.dispose();
     roadLandscape.dispose();
     districts.dispose();
