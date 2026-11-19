@@ -1036,6 +1036,9 @@ async function initApp() {
   qa.markMilestone('ready');
   regional.start();
   qa.reportRegionalStartup(regional.statistics.startup);
+  // URL 行车验收等首帧与区域模块就绪后，复用地图的选点、规划与出发流程。
+  if (qa.enabled) void qa.startUrlDrive({ planner: drivePlanner, start: startMapDrive,
+    locations: teleportEntries, map: mapSystem });
 }
 
 initApp().catch(error => {

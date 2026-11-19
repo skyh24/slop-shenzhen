@@ -27,6 +27,53 @@ test('the QA session installs only on loopback hosts with ?qa=1', () => {
   assert.equal(sessionFor('?qa=1', '127.0.0.1').enabled, true);
 });
 
+test('URL drive accepts landmark arrivals and coordinates and queues the production departure once', async () => {
+  const session = sessionFor('?qa=1&driveFrom=civic-center&driveTo=120,250');
+  const snaps = [];
+  const route = { from: { x: 11, z: 22 }, to: { x: 119, z: 249 }, length: 300,
+    edges: [{ osmId: 'way/1' }] };
+  let departures = 0;
+  const map = { setDrivePath(value) { assert.equal(value, route); } };
+  const options = { locations: { 'civic-center': { x: 10, z: 20 } }, map,
+    planner: () => ({ snap(x, z) {
+      snaps.push([x, z]);
+      return { level: 'elevated', levels: [{ level: 'elevated', x, z }, { level: 'ground', x, z }] };
+    }, route(from, to) {
+      assert.equal(from.level, 'ground');
+      assert.equal(to.level, 'ground');
+      return route;
+    } }),
+    start: async value => { assert.equal(value, route); departures++; return true; } };
+  await session.startUrlDrive(options);
+  await session.startUrlDrive(options);
+  assert.deepEqual(snaps, [[10, 20], [120, 250]]);
+  assert.equal(departures, 1);
+  assert.equal(session.urlDrive.status, 'queued');
+  assert.equal(map.driveRoute, route);
+  assert.deepEqual([map.waypoint.x, map.waypoint.z], [119, 249]);
+});
+
+test('URL drive rejects incomplete or invalid endpoints and stays disabled on public URLs', async () => {
+  const options = { locations: {}, planner: () => assert.fail('invalid requests must not plan') };
+  for (const search of ['?qa=1&driveFrom=1,2', '?qa=1&driveFrom=,2&driveTo=3,4',
+    '?qa=1&driveFrom=unknown&driveTo=3,4']) {
+    const session = sessionFor(search);
+    await session.startUrlDrive(options);
+    assert.equal(session.urlDrive.status, 'failed');
+    assert.ok(session.urlDrive.error);
+  }
+  assert.equal(sessionFor('?qa=1&driveFrom=1,2&driveTo=3,4', 'example.test').urlDrive, null);
+});
+
+test('URL drive reports an unavailable route without attempting departure', async () => {
+  const session = sessionFor('?qa=1&driveFrom=1,2&driveTo=3,4');
+  await session.startUrlDrive({ locations: {},
+    planner: () => ({ snap: () => ({ candidates: [] }), route: () => null }),
+    start: () => assert.fail('an unavailable route must not depart') });
+  assert.equal(session.urlDrive.status, 'failed');
+  assert.equal(session.urlDrive.error, 'No drivable route between the endpoints');
+});
+
 test('the QA camera and chunk options keep their documented parsing', () => {
   const session = sessionFor('?qa=1&cam=1,2,3,4,5,6&chunks=500');
   assert.equal(session.camera.join(','), '1,2,3,4,5,6');

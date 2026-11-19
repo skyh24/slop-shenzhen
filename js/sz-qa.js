@@ -69,6 +69,8 @@ class QaSession {
     this.cruiseEvidence = this.enabled && query.get('cruiseEvidence') === '1';
     this.railEvidence = this.enabled && query.get('railEvidence') === '1';
     this.railRecord = this.railEvidence && query.get('record') === '1';
+    this.urlDrive = this.enabled && (query.has('driveFrom') || query.has('driveTo'))
+      ? { from: query.get('driveFrom'), to: query.get('driveTo'), status: 'pending', error: null } : null;
     this.startup = {};
     this.startupAt = {};
     this.compilation = {};
@@ -82,6 +84,46 @@ class QaSession {
     this.runtime = null;
     this.publishTalent = this.enabled && query.get('telemetry') === 'talent';
     this.nextTalentSample = 0;
+  }
+
+  // 地标使用已有的临路抵达点，坐标使用本项目 x/z 米制坐标；两者都经正式规划器吸附。
+  async startUrlDrive({ planner, start, locations, map }) {
+    const request = this.urlDrive;
+    if (!request || request.status !== 'pending') return;
+    request.status = 'planning';
+    try {
+      const resolve = value => {
+        if (!value) throw new Error('Both driveFrom and driveTo are required');
+        if (Object.hasOwn(locations, value)) return locations[value];
+        const parts = value.split(',');
+        if (parts.length !== 2 || parts.some(part => !part.trim() || !Number.isFinite(Number(part)))) {
+          throw new Error('Unknown drive landmark or invalid x,z coordinates: ' + value);
+        }
+        return { x: Number(parts[0]), z: Number(parts[1]) };
+      };
+      const from = resolve(request.from), to = resolve(request.to);
+      const drive = planner();
+      // 地标和二维坐标默认从地面上/下车，多层重叠时不误选头顶桥面。
+      const snap = point => {
+        const hit = drive.snap(point.x, point.z);
+        return hit?.levels?.find(level => level.level === 'ground') ?? hit;
+      };
+      const startPoint = snap(from), endPoint = snap(to);
+      if (!startPoint || !endPoint) throw new Error('No supported road near a drive endpoint');
+      const route = drive.route(startPoint, endPoint);
+      if (!route) throw new Error('No drivable route between the endpoints');
+      request.route = { from: [route.from.x, route.from.z], to: [route.to.x, route.to.z], length: route.length,
+        wayIds: [...new Set(route.edges.map(edge => edge.osmId))] };
+      map.driveRoute = route;
+      map.setDrivePath(route);
+      map.waypoint = { x: route.to.x, z: route.to.z, name: to.name ?? request.to };
+      if (!await start(route)) throw new Error('Drive departure could not be queued');
+      request.status = 'queued';
+    } catch (error) {
+      request.status = 'failed';
+      request.error = error.message;
+      console.error('[qa drive]', request.error);
+    }
   }
 
   // 跳过某个构建阶段时返回占位对象，否则执行构建函数。
@@ -163,6 +205,12 @@ class QaSession {
 
   endFrame(token, now, renderer) {
     if (!token) return;
+    if (this.driveOutput) {
+      const { autoDrive, controllerManager } = this.runtime;
+      this.driveOutput.textContent = JSON.stringify({ ...this.urlDrive,
+        status: this.urlDrive.status === 'queued' ? autoDrive.status : this.urlDrive.status,
+        ...autoDrive.statistics, position: controllerManager.entities.car.position.toArray() });
+    }
     this.sampleTalent(now, renderer);
     if (this.railOutput && now >= this.nextRailSample) this.sampleRailEvidence(now, renderer);
     if (this.previousFrameAt !== null) {
@@ -317,6 +365,12 @@ class QaSession {
     window.__szXili = modules.xili;
     this.installDebug(runtime);
     this.installSnapshot(runtime);
+    if (this.urlDrive) {
+      this.driveOutput = document.createElement('script');
+      this.driveOutput.type = 'application/json';
+      this.driveOutput.id = 'qa-drive-result';
+      document.body.append(this.driveOutput);
+    }
     if (this.railEvidence) this.installRailEvidence(runtime);
     if (this.publishTalent && modules.waterfront) {
       const surface = document.createElement('script');
@@ -520,6 +574,8 @@ class QaSession {
           to: [mapSystem.driveRoute.to.x, mapSystem.driveRoute.to.z], length: mapSystem.driveRoute.length,
           wayIds: [...new Set(mapSystem.driveRoute.edges.map(edge => edge.osmId))],
           stops: mapSystem.driveRoute.stops.map(stop => stop.approach.osmNodeId) } },
+      urlDrive: this.urlDrive && { ...this.urlDrive,
+        status: this.urlDrive.status === 'queued' ? autoDrive.status : this.urlDrive.status },
       sea: sea && { heightM: sea.heightM, triangles: sea.triangles, verticalDatum: sea.mesh.userData.source.verticalDatum },
       streetscape: streetscape.statistics && { ...streetscape.statistics, arrival: streetscapeArrival,
         activePaths: streetscape.pathAt(controllerManager.getActiveEntity().position.x, controllerManager.getActiveEntity().position.z) },
