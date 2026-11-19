@@ -324,6 +324,26 @@ test('pavement ribbons are 2.2 m light grey bands that narrow against buildings'
   assert.ok(built.statistics.pavementAreaM2 > 0);
 });
 
+test('street furniture does not cut pavement slabs while its walk collision remains solid', () => {
+  const graph = straightGraph(120);
+  const tree = { ...collider(41.8, 5.45, 42.2, 5.75), type: 'tree' };
+  const pole = { ...collider(65.1, 5.45, 65.3, 5.75), type: 'street-lamp' };
+  const wall = collider(85, 4, 95, 8);
+  const obstacles = [tree, pole, wall];
+  const built = buildWalkTracks(graph, { heightAt: flatHeight, colliders: obstacles,
+    colliderGrid: createColliderGrid(obstacles), bounds: { minX: 0, maxX: 120, minZ: -20, maxZ: 20 } });
+  for (const item of [tree, pole, wall]) {
+    assert.equal(built.heightForPose((item.minX + item.maxX) / 2, 5.6, 0), null);
+  }
+  const { peds } = makeFactory(graph, { heightAt: flatHeight, colliders: obstacles });
+  peds.update(0, { x: 60, y: 0, z: 0 }, 0);
+  for (const x of [39, 42, 45, 62, 65.2, 68]) {
+    assert.ok(Number.isFinite(peds.pavementHeightAt(x, 5.6)), `continuous pavement at ${x}`);
+  }
+  assert.equal(peds.pavementHeightAt(90, 5.6), null, 'buildings still cut pavement');
+  assertPavementOutsideBarrier(built.pavement, createCarriagewayBarrier(graph));
+});
+
 test('sidewalk curbs close the rendered step without adding contact outside the top', () => {
   const graph = straightGraph(200);
   const built = buildWalkTracks(graph, { heightAt: flatHeight });
