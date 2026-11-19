@@ -30,8 +30,12 @@ const styles = {
   stockExchangeTower: { metal: 0xc0c7c9, glass: 0x738795, roof: 0x8f999d, bay: 5.54, floor: 8.1, fin: 0.19, sill: 0.15, lit: 0.11, rough: 0.25, glow: 0xd6e4ee, wash: 0.12 },
   stockExchangePodium: { metal: 0xa7b0b4, glass: 0x5c7179, roof: 0x818b90, bay: 2.55, floor: 8.8, fin: 0.23, sill: 0.13, lit: 0.18, rough: 0.27, glow: 0xe9e6d1, wash: 0.11 },
   stockExchangeLobby: { metal: 0xadb5b5, glass: 0x5b6b76, roof: 0x9ea6a7, bay: 4.15, floor: 7.0, fin: 0.12, sill: 0.14, lit: 0.14, rough: 0.29, glow: 0xffdfb7 },
-  shoppingParkBase: { metal: 0xb1a7a0, glass: 0x546779, roof: 0x9e9a96, bay: 5.4, floor: 4.4, fin: 0.2, sill: 0.29, lit: 0.14, rough: 0.35, glow: 0xffd6aa, wash: 0.16 },
-  shoppingParkGlass: { metal: 0x8d9ba6, glass: 0x345575, roof: 0x717d86, bay: 3.5, floor: 4.1, fin: 0.12, sill: 0.11, lit: 0.11, rough: 0.26, glow: 0xd5e9ff, wash: 0.20 },
+  shoppingParkBase: { metal: 0xc1b29e, glass: 0x667784, roof: 0x9a958a, bay: 4.3, floor: 3.55, fin: 0.27, sill: 0.39,
+    lit: 0.12, rough: 0.33, frameRoughness: 0.76, frameMetalness: 0.06, glow: 0xffdbb5, wash: 0.16 },
+  shoppingParkStorefront: { metal: 0x68625b, glass: 0x736759, roof: 0x897f72, bay: 2.15, floor: 5.4, fin: 0.095, sill: 0.24,
+    lit: 0.26, rough: 0.27, glow: 0xffd5a4, wash: 0.4 },
+  shoppingParkGlass: { metal: 0xa9b2b5, glass: 0x58748a, roof: 0x777f86, bay: 1.38, floor: 3.6, fin: 0.14, sill: 0.08,
+    lit: 0.12, rough: 0.27, glow: 0xddeeff, wash: 0.25, edgeTint: 0.58 },
   djiCore: { metal: 0xadb5ba, glass: 0x5f6c75, roof: 0x8d959a, bay: 0.67, floor: 4.5, fin: 0.54, sill: 0.04, lit: 0.045, rough: 0.3, glow: 0xe9eff5 },
   djiWing: { ...chunsunGlass, bay: 1.54, floor: 4.5, fin: 0.052, sill: 0.065,
     rough: 0.61, frameRoughness: 0.65, glassMetalness: 0.12, frameMetalness: 0.15, edgeTint: 0.17, wash: 0.085 },
@@ -278,6 +282,7 @@ export function createLandmarkMaterial(name, programEmission = null) {
     case 'cultureSkylight': return crownMaterial(0x6686a0, 0.24, 0.27, 0.33);
     case 'operaCopper': return new THREE.MeshStandardMaterial({ color: 0x975d4f, roughness: 0.65, metalness: 0.21 });
     case 'landmarkEdge': return crownMaterial(0xc0c6c7, 0.39, 0.29, 0.30);
+    case 'shoppingParkStone': return new THREE.MeshStandardMaterial({ color: 0xc4b6a3, roughness: 0.83 });
     case 'tencentSpine': return nightSurface(0x2a4359, 0.32, 0.38, 0x486b8c, 0.02);
     case 'tencentRoof': return new THREE.MeshStandardMaterial({ color: 0x3e4b55, roughness: 0.84 });
     case 'libraryDeck': return new THREE.MeshStandardMaterial({ color: 0xadada1, roughness: 0.86 });

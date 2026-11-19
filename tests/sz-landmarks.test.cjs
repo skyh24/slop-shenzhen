@@ -167,13 +167,16 @@ test('the cultural landmarks preserve the verified sites, roof profiles and entr
   assert.equal(geo.landmarks.find(row => row.id === 'bay-opera').height, 50);
 });
 
-test('the shopping park podium grows a southeast colonnade and a round upper shell', () => {
+test('the COCO Park rotunda retains the mall scale and clears the southeast colonnade', () => {
   const shell = byLandmark.get('shopping-park-shell');
   assert.ok(shell.length > 30, 'shell parts: ' + shell.length);
   assert.ok(shopping.sourceIds.every(id => plan.skipIds.has(id)));
   const podium = shell.find(part => part.id === 'way/238825588:0');
-  assert.ok(podium);
-  const base = podium.minY;
+  const storefront = shell.find(part => part.id === 'way/238825588:storefront:0');
+  const base = storefront.minY;
+  assert.equal(storefront.maxY, podium.minY);
+  assert.equal(storefront.topFace, false);
+  assert.equal(podium.bottomFace, false);
 
   // 圆筒：三段收分的内切椭圆，只有首段封底，段间不封顶。
   const tower = shell.filter(part => part.loft && part.id.startsWith('way/539435437:tower:'));
@@ -195,15 +198,17 @@ test('the shopping park podium grows a southeast colonnade and a round upper she
 
   const crown = shell.find(part => part.id === 'way/539435437:crown');
   assert.equal(crown.style, 'landmarkEdge');
-  assert.equal(crown.maxY, top);
-  assert.ok(crown.maxY - crown.minY >= 0.5 && crown.maxY - crown.minY <= 0.7);
-  assert.equal(shell.filter(part => part.maxY === top && part.topFace !== false).length, 1);
+  assert.equal(crown.minY, top);
+  assert.equal(crown.maxY - base, 21.5);
+  assert.equal(crown.heightSource, 'estimate');
+  assert.equal(crown.sourceHeight, byId.get(shopping.sourceIds[1]).height);
+  assert.equal(shell.filter(part => part.maxY === crown.maxY && part.topFace !== false).length, 1);
 
   // 东南柱廊：12 根 0.7 米方柱，全部有碰撞、四角都在原裙房轮廓之外。
   const columns = shell.filter(part => part.id.includes(':colonnade:column:'));
   assert.ok(columns.length >= 8 && columns.length <= 20, 'columns: ' + columns.length);
   for (const column of columns) {
-    assert.equal(column.style, 'shoppingParkBase');
+    assert.equal(column.style, 'shoppingParkStone');
     assert.equal(column.minY, base);
     assert.ok(Math.abs(column.maxY - (base + 5.4)) < 1e-4);
     assert.equal(parts.partCollider(column).polygon.outer.length, 4);
@@ -221,7 +226,7 @@ test('the shopping park podium grows a southeast colonnade and a round upper she
   const glass = shell.filter(part => part.id.includes(':colonnade:glass:'));
   assert.ok(glass.length >= 8);
   for (const part of glass) {
-    assert.equal(part.style, 'shoppingParkGlass');
+    assert.equal(part.style, 'shoppingParkStorefront');
     assert.ok(Math.abs(part.minY - (base + 0.15)) < 1e-4);
     assert.ok(Math.abs(part.maxY - (base + 5.2)) < 1e-4);
     for (const p of part.polygon.outer) {
@@ -236,11 +241,30 @@ test('the shopping park podium grows a southeast colonnade and a round upper she
     assert.ok(Math.abs(beam.minY - (base + 5.4)) < 1e-4);
     assert.ok(Math.abs(beam.maxY - (base + 5.85)) < 1e-4);
   }
+  const folds = shell.filter(part => part.id.includes(':folded-glass:'));
+  assert.equal(folds.length, beams.length * 2);
+  assert.ok(folds.every(part => part.minY >= beams[0].maxY && part.maxY < podium.maxY));
+  // 中心二路西侧的既有前场走线，按步行者尺寸采样全部专模部件。
+  const personRadius = 0.48;
+  const groundParts = shell.filter(part => part.minY < base + 1.8 && part.maxY > base);
+  for (let i = 0; i <= 100; i++) {
+    const x = -467.2 - 21.4 * i / 100, z = 1175.7 - 11.5 * i / 100;
+    const blocker = groundParts.find(part => collision.polygonBoxOverlaps(part.polygon, x, z, personRadius, personRadius));
+    assert.equal(blocker?.id, undefined, `blocked at ${x}, ${z}`);
+  }
+  const planters = shell.filter(part => part.id.includes(':terrace-planting:'));
+  assert.ok(planters.length >= 6);
+  for (const part of planters) {
+    assert.equal(part.minY, podium.maxY);
+    assert.ok(part.polygon.outer.every(({ x, z }) => collision.polygonContains(podium.polygon, x, z)
+      && !collision.polygonContains(upperFootprint, x, z)));
+  }
   // 雨棚只存在于 trim，不进入实体部件，因此不生成碰撞与可站面。
   assert.equal(shell.filter(part => part.style === 'landmarkEdge'
     && part.minY > base + 5 && part.maxY < base + 5.5).length, 0);
 
   const shoppingPlan = plan.plans.find(landmark => landmark.id === 'shopping-park-shell');
+  assert.ok(shoppingPlan.signs.length === 2 && shoppingPlan.signs.every(sign => sign.style === 'cocoParkWordmark'));
   const canopy = shoppingPlan.trim.filter(item => item.size[2] === 4.0);
   assert.equal(canopy.length, beams.length);
   for (const item of canopy) assert.ok(item.y - item.size[1] / 2 >= 5, 'canopy clears the street');

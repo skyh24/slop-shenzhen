@@ -1,12 +1,14 @@
 import { STR } from './sz-strings.js';
 import { populateTeleportMenu } from './sz-ui.js';
+import { COCO_PARK_FRONTAGE } from './sz-zhongxin-walk.js';
 
 // 来源与配准边界见 data/source/coco-park-entrance-evidence.md。
-// 一期东南门外的模拟走线沿现有地面，起点在福华三路北侧，终点停在门外。
+// 沿中心二路西侧已接入的前场铺装，落点朝向东南门外。
+const [[startX, startZ], [stopX, stopZ]] = COCO_PARK_FRONTAGE;
 const COCO_PARK_APPROACH = {
   id: 'coco-park-southeast-approach',
-  start: { x: -498.3, z: 1201.7, heading: Math.PI, exact: true },
-  stop: { x: -498.3, z: 1177.2 }
+  start: { x: startX, z: startZ, heading: Math.atan2(stopX - startX, stopZ - startZ), exact: true },
+  stop: { x: stopX, z: stopZ }
 };
 
 // 地点 ID 已由城市包或场地模块绑定；类别只影响菜单筛选。
