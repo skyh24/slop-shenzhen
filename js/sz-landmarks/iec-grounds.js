@@ -94,8 +94,9 @@ export function buildIecGrounds(scene, { terrain, terrainSurface, groundHeight, 
   const parkHeight = buildPath(parkPath, 'park-path');
   drawGround(group, terrainSurface, prefix + 'lake-forecourt-lawn', [lakePark.osmId],
     ellipse(-2950, -153, 18, 30), green, roadSurfaces);
-  drawGround(group, terrainSurface, prefix + 'south-lawn', [site.osmId],
-    ellipse(-3018, 53, 16, 8), green, roadSurfaces);
+  const lawn = { x: -3018, z: 53 };
+  const southLawn = drawGround(group, terrainSurface, prefix + 'south-lawn', [site.osmId],
+    ellipse(lawn.x, lawn.z, 16, 8), green, roadSurfaces);
 
   // 用裁地时的同一水体环。两处缺竣工水位，各自按岸线最低地面派生。
   const waters = [];
@@ -129,17 +130,16 @@ export function buildIecGrounds(scene, { terrain, terrainSurface, groundHeight, 
     }
     return null;
   }
-  const sceneryAt = (x, z) => Number.isFinite(publicHeight(x, z) ?? forecourt(x, z) ?? parkHeight(x, z));
-  const flower = { x: -3119, z: 76 };
-  const sign = entryPoint(-19, 13);
+  const sceneryAt = (x, z) => Number.isFinite(publicHeight(x, z) ?? forecourt(x, z) ?? parkHeight(x, z) ?? southLawn(x, z));
+  const sign = { x: lawn.x - Math.sin(entry.yaw) * 1.6, z: lawn.z - Math.cos(entry.yaw) * 1.6 };
   const groundAnchor = point => ({ ...point, baseY: groundHeight(point.x, point.z) });
   const anchors = {
-    iecGate: { ...groundAnchor(sign), yaw: entry.yaw, widthM: 4.8, mountM: 1.1 },
-    iecFlowerSea: { ...groundAnchor(flower), radiusXM: 4, radiusZM: 2.5, conform: true },
+    iecGate: { ...groundAnchor(sign), yaw: entry.yaw, widthM: 24, heightM: 2.65, mountM: 0.32 },
+    iecFlowerSea: { ...groundAnchor(lawn), yaw: entry.yaw, radiusXM: 14.5, radiusZM: 4.8, conform: true },
     iecFlags: [-10, -6, 6, 10].map(u => groundAnchor(entryPoint(u, 13))),
     iecRobotSites: {
       iecGate: { ...groundAnchor(entryPoint(18, 16)), radiusXM: 1.8, radiusZM: 1.0 },
-      iecFlowerSea: { ...groundAnchor({ x: flower.x - 6, z: flower.z }), radiusXM: 1.7, radiusZM: 1.0 }
+      iecFlowerSea: { ...groundAnchor({ x: lawn.x - 18, z: lawn.z }), radiusXM: 1.7, radiusZM: 1.0 }
     }
   };
 
