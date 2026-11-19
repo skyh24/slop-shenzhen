@@ -431,7 +431,6 @@ export function createSzPedestrians(scene, graph, options = {}) {
     }
     region = { ...built, center: { x: focus.x, z: focus.z }, bounds };
     applyPavement(built.pavement);
-    cfg.onPavementBuilt?.(bounds, pavementHeightAt);
     statistics.regionBuilds++;
     statistics.regionBuildMs = (typeof performance === 'object' && performance?.now ? performance.now() : Date.now()) - started;
     statistics.tracks = built.tracks.length;

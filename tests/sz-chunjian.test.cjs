@@ -349,8 +349,7 @@ test('Chunjian rendered hall roof shields the exact ground raycast cut', { skip:
   const THREE = await import(pathToFileURL(join(threeDir, 'build/three.webgpu.js')));
   const TSL = await import(pathToFileURL(join(threeDir, 'build/three.tsl.js')));
   const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
-  const { buildSzGround } = loadModule(read('sz-ground.js'), { imports: { ...imports, './sz-ground-surface.js': groundSurface,
-    './sz-frontage-finish.js': loadModule(read('sz-frontage-finish.js')) } });
+  const { buildSzGround } = loadModule(read('sz-ground.js'), { imports: { ...imports, './sz-ground-surface.js': groundSurface } });
   const { renderLandmark } = loadModule(read('sz-landmarks/render.js'), { imports: {
     ...imports, '../sz-geometry.js': loadModule(read('sz-geometry.js'), { imports })
   } });

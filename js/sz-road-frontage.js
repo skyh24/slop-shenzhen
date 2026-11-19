@@ -252,7 +252,7 @@ function addMedianShrubs(group, foliage, sites, contactHeight, low = false) {
 export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeight, roadHeight, style: sceneStyle } = {}) {
   const control = createIntersectionControl(source, graph);
   const statistics = { triangleCount: 0, curbTriangles: 0, curbSegments: 0, signals: 0, shrubs: 0, shennanFlowerBeds: 0 };
-  const empty = { group: null, control, sidewalkHeight: () => null, contactHeight: () => null, shennanMedianHeight: () => null,
+  const empty = { group: null, control, contactHeight: () => null, shennanMedianHeight: () => null,
     medianHeight: () => null, arterialMedianAt: () => false, plantingAt: () => false, colliders: [], curbColliders: [],
     detailedRoadIds: [], walkLegs: [], reserveWalk: () => false, statistics, update() {}, dispose() {} };
   if (!source) return empty;
@@ -278,7 +278,6 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const arterialSamplers = [];
   const arterialTops = [];
   const samplers = [];
-  const sidewalks = [];
   const planting = [];
   const curbColliders = [];
   const plantingSurfaces = [];
@@ -336,9 +335,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
         addCurbColliders(curbColliders, chunk.wallPositions, chunk.origin, feature.id);
       }
     }
-    const sample = arterial || feature.riseM || useTreatment || feature.kind === 'sidewalk'
-      ? createRoadHeightSampler(layout.chunks, terrain.grid) : null;
-    if (feature.kind === 'sidewalk') sidewalks.push(sample);
+    const sample = arterial || feature.riseM || useTreatment ? createRoadHeightSampler(layout.chunks, terrain.grid) : null;
     if (arterial) arterialSamplers.push(sample);
     if (feature.riseM || useTreatment) {
       (arterial ? arterialTops : samplers).push(sample);
@@ -398,14 +395,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   statistics.shrubs = addMedianShrubs(group, foliage, sites.filter(([x, z]) => shennanMedianHeight(x, z) === null), contactHeight);
   statistics.islandPlants = addMedianShrubs(group, foliage, source.features.flatMap(f => f.plantSites ?? []), contactHeight, true);
   scene.add(group);
-  function sidewalkHeight(x, z) {
-    for (const sample of sidewalks) {
-      const top = sample(x, z);
-      if (top !== null) return top;
-    }
-    return null;
-  }
-  return { group, control, contactHeight, sidewalkHeight, shennanMedianHeight, medianHeight, colliders: [...hardware.colliders, ...planting], curbColliders,
+  return { group, control, contactHeight, shennanMedianHeight, medianHeight, colliders: [...hardware.colliders, ...planting], curbColliders,
     arterialMedianAt: (x, z) => arterialSamplers.some(sample => sample(x, z) !== null),
     signalOrigins: hardware.origins, statistics, walkLegs: legs, reserveWalk,
     plantingAt: (x, z) => plantingSurfaces.some(sample => sample(x, z) !== null),
