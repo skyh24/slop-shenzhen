@@ -113,7 +113,20 @@ export function buildDistrictGround(root, site, activeKinds, roadSurfaces, wet) 
     // 路径条带可能与广场重叠，按地块分别取显示三角面的高度，不用近似地高替代。
     const heightSamplers = features.map(feature => createRoadHeightSampler(
       chunks.filter(chunk => chunk.id.startsWith(`${feature.id}:`)), site.terrainSurface.grid));
-    rows.push({ kind, features, heightSamplers, points: routes[kind].map(route => route.points.map(toPoint)) });
+    rows.push({ kind, features, material, heightSamplers, points: routes[kind].map(route => route.points.map(toPoint)) });
+  }
+  function addShopFloors(kind, shops) {
+    const row = rows.find(r => r.kind === kind);
+    const trianglesXZ = shops.filter(s => s.district === kind)
+      .flatMap(s => trianglesOf({ outer: s.floorRing, holes: [] }));
+    if (!trianglesXZ.length) return;
+    const { chunks } = createRoadPolygonLayout({ id: kind + ':shop-floors', trianglesXZ }, site.terrainSurface, null, roadSurfaces);
+    for (const chunk of chunks) {
+      const mesh = pavingMesh(chunk.positions, chunk.origin, row.material, chunk.id);
+      root.add(mesh);
+      owned.push(mesh.geometry);
+    }
+    row.heightSamplers.push(createRoadHeightSampler(chunks, site.terrainSurface.grid));
   }
   function heightAt(x, z) {
     for (const { kind, heightSamplers } of rows) {
@@ -168,7 +181,7 @@ export function buildDistrictGround(root, site, activeKinds, roadSurfaces, wet) 
     }
     return output;
   }
-  return { heightAt, reserves, publicRoutes, routes: Object.fromEntries(rows.map(r => [r.kind, r.points])),
+  return { heightAt, reserves, publicRoutes, addShopFloors, routes: Object.fromEntries(rows.map(r => [r.kind, r.points])),
     dispose() { for (const item of owned) item.dispose(); } };
 }
 

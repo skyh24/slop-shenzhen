@@ -458,11 +458,13 @@ function indexRetailFronts(buildings, retailIds, skipIds) {
  *  输出：{ group, colliders, surfaces, allBlocks, roofs, roofPlans, retailIds, detailPlan, update, dispose }。
  *  约束：所有体量都由共享包足迹+高度派生；heightSource 保留源数据，新增细节标 estimate。 */
 export function buildCityBlocks(scene, options = {}) {
-  const sourceBuildings = options.buildings !== undefined ? options.buildings : REAL_BUILDINGS;
-  if (!Array.isArray(sourceBuildings)) throw new Error('City blocks require a building list');
+  const input = options.buildings !== undefined ? options.buildings : REAL_BUILDINGS;
+  if (!Array.isArray(input)) throw new Error('City blocks require a building list');
   // 注入局部建筑集合时，地形、路网、入口和商圈索引都不得再隐式回落到全城 GEO；
   // 缺省生产调用（未传 buildings 或传入同一份 REAL_BUILDINGS）仍使用共享包。
-  const cityContext = options.buildings === undefined || sourceBuildings === REAL_BUILDINGS;
+  const cityContext = options.buildings === undefined || input === REAL_BUILDINGS;
+  const sourceBuildings = options.buildingOverrides?.size
+    ? input.map(b => options.buildingOverrides.get(b.id) ?? b) : input;
   const terrain = options.terrain !== undefined ? options.terrain
     : cityContext ? GEO?.terrain : undefined;
   if (!terrain) throw new Error('Missing terrain for city blocks');

@@ -90,6 +90,7 @@ export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, grou
   const source = new Map(buildings.map(building => [building.id, building]));
   const skipIds = new Set();
   const plans = [];
+  const buildingOverrides = new Map();
   for (const definition of definitions) {
     // 快照缺少部件时保留原通用建筑。只有全套地标几何可生成时才接管源对象。
     const sourceIds = definition.sourceIds ?? [];
@@ -99,6 +100,7 @@ export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, grou
     const model = definition.build(source, terrain, context);
     const { parts, patches = [], trees = [], signs = [], trim = [], approaches = [], reservesField } = Array.isArray(model) ? { parts: model } : model;
     if (parts.length === 0) continue;
+    for (const building of model.buildingOverrides ?? []) buildingOverrides.set(building.id, building);
     for (const id of sourceIds) skipIds.add(id);
     for (const id of definition.optionalSkipIds ?? []) if (source.has(id)) skipIds.add(id);
     plans.push({ id: definition.id, parts, patches, trees, signs, reservesField, approaches: definition.approaches?.(source) ?? approaches,
@@ -106,5 +108,5 @@ export function planSzLandmarks(buildings, terrain, sites = {}, { heightAt, grou
   }
   // 场地接管与地标接管合并成一份 skipIds：超级总部/西丽场地轮廓内的旧通用楼不再单独渲染。
   for (const id of siteTakeoverIds(buildings, sites)) skipIds.add(id);
-  return { plans, skipIds };
+  return { plans, skipIds, buildingOverrides };
 }

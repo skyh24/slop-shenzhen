@@ -180,7 +180,7 @@ test('reviewed toll roofs keep the ramps and Qianhai decks open beneath the sour
   districts.dispose();
 });
 
-test('six reviewed OCT blocks use a two-story burgundy brick design over their source footprints', async () => {
+test('six reviewed OCT shop rows have three stories over their source footprints', async () => {
   const { districts, buildings } = await load();
   for (const id of ['way/435827461', 'way/435827469', 'way/532810249', 'way/435827467', 'way/532810264', 'way/532810267']) {
     const source = buildings.find(b => b.id === id);
@@ -188,45 +188,34 @@ test('six reviewed OCT blocks use a two-story burgundy brick design over their s
     assert.equal(house.heightSource, 'estimate');
     assert.equal(house.layoutSource, 'scene-design-height');
     assert.deepEqual(house.polygon, source.polygons[0]);
-    assert.ok(Math.abs(house.maxY - (8 + 8.1)) < 0.001);
+    assert.ok(Math.abs(house.maxY - (8 + 12.15)) < 0.001);
   }
-  for (const style of ['burgundyBrick', 'darkBurgundyBrick']) {
+  for (const style of ['ivory', 'tan']) {
     const mesh = districts.group.getObjectByName(`oct-loft:${style}`);
-    assert.ok(mesh.isMesh && mesh.geometry.getAttribute('position').count > 0 && mesh.material.colorNode);
+    assert.ok(mesh.isMesh && mesh.geometry.getAttribute('position').count > 0);
   }
 });
 
-test('three OCT blocks have street-facing display windows over solid walls', async () => {
-  const { districts, buildings, blocked, contact } = await load();
-  const { Matrix4 } = await import('three/webgpu');
-  const detail = districts.group.getObjectByName('oct-loft:detail');
-  const matrix = new Matrix4();
-  const shutters = [];
-  for (const mesh of detail.children.filter(mesh => mesh.isInstancedMesh && mesh.material.color.getHex() === 0xa7b2b1)) {
-    for (let i = 0; i < mesh.count; i++) {
-      mesh.getMatrixAt(i, matrix);
-      const m = matrix.elements;
-      if (Math.abs(m[5] - 0.21) > 0.001 || Math.abs(Math.hypot(m[8], m[10]) - 0.22) > 0.001) continue;
-      shutters.push({ x: m[12], z: m[14], nx: m[8] / 0.22, nz: m[10] / 0.22 });
-    }
-  }
+test('open shops face the reviewed OCT frontages and the public lanes in Nantou', async () => {
+  const { districts } = await load();
   for (const [id, facing] of [['way/435827467', 'north'], ['way/532810264', 'east'], ['way/532810267', 'north']]) {
-    const source = buildings.find(b => b.id === id);
-    const windows = shutters.filter(p => p.x >= source.minX - 0.2 && p.x <= source.maxX + 0.2
-      && p.z >= source.minZ - 0.2 && p.z <= source.maxZ + 0.2);
-    assert.ok(windows.length >= 2, `${id} has multiple closed display windows`);
-    assert.ok(!districts.shops.some(shop => shop.id === id), `${id} has no new entrance`);
-    for (const { x, z, nx, nz } of windows) {
-      assert.ok(facing === 'east' ? nx > 0.85 : nz < -0.85, `${id} display faces the selected street`);
-      const outside = [x + nx * 0.65, z + nz * 0.65];
-      const inside = [x - nx * 0.65, z - nz * 0.65];
-      const outsideY = contact(...outside);
-      assert.ok(Number.isFinite(outsideY) && !blocked(...outside, outsideY), `${id} keeps clear ground outside the display`);
-      assert.ok(blocked(...inside, contact(...inside)), `${id} retains its wall behind the display`);
+    const shops = districts.shops.filter(shop => shop.id === id);
+    assert.ok(shops.length >= 2, `${id} has multiple open bays`);
+    for (const { mouth, approach } of shops) {
+      const dx = approach.x - mouth.x, dz = approach.z - mouth.z;
+      assert.ok(facing === 'east' ? dx > Math.abs(dz) : -dz > Math.abs(dx));
     }
   }
-  for (const [id, count] of [['way/435827461', 8], ['way/435827469', 1], ['way/532810249', 1]]) {
-    assert.equal(districts.shops.filter(shop => shop.id === id).length, count, `${id} keeps its walk-in shops`);
+  const lanes = districts.routes.nantou;
+  const shops = districts.shops.filter(shop => shop.district === 'nantou');
+  assert.equal(new Set(shops.map(shop => shop.id)).size, 7);
+  const { distanceToRing } = await import('../js/sz-polygon.js');
+  for (const { id, mouth, interior } of shops) {
+    assert.notEqual(id, 'way/533923392');
+    const dx = (mouth.x - interior.x) / 1.55, dz = (mouth.z - interior.z) / 1.55;
+    const onLane = Array.from({ length: 42 }, (_, i) => ({ x: mouth.x + dx * i / 2, z: mouth.z + dz * i / 2 }))
+      .some(p => lanes.some(line => line.some((b, i) => i && distanceToRing([line[i - 1], b], p.x, p.z) < 0.5)));
+    assert.ok(onLane, `${id} opens toward a mapped lane`);
   }
 });
 
@@ -323,7 +312,8 @@ test('open retail bays have clear terrain inside their source footprint and clos
     }
     return prev;
   };
-  for (const { id, approach, interior } of districts.shops) {
+  for (const { id, district, approach, interior } of districts.shops) {
+    if (district !== 'sea') assert.ok(Number.isFinite(districts.heightAt(interior.x, interior.z)), id);
     const y = checkPath(id, approach, interior);
     assert.ok(blocked(interior.x, interior.z, y + 3.6), `${id} retains its solid upper shell`);
   }

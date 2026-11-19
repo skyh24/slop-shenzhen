@@ -1,6 +1,7 @@
 import { buildingPlacement, buildingSeed } from '../sz-building-layout.js';
 import { polygonBoxOverlaps } from '../building-collision.js';
 import { polygonContainsInclusive, signedRingArea } from '../sz-polygon.js';
+import { recessedShopRing, shopFurniture, shopOpenings } from '../sz-shopfront.js';
 import { STR } from '../sz-strings.js';
 import { frame, railing, solid } from './kit.js';
 
@@ -9,52 +10,6 @@ const DISTRICT_STYLE = {
   oct: { walls: ['loft', 'brick', 'concrete', 'chalk'], trim: 'concrete', metal: 'steel', bays: 3.35 },
   nantou: { walls: ['oldBrick', 'tan', 'chalk', 'brick'], trim: 'granite', metal: 'green', bays: 2.55 }
 };
-
-function shopOpenings(building, poly, ordered, base, heightAt, kind, { front, entryClear }) {
-  const openings = new Map();
-  const outline = [poly.outer, ...poly.holes].flatMap(ring => ring.map((a, i) =>
-    ({ outer: [a, ring[(i + 1) % ring.length]], holes: [] })));
-  const cuts = [];
-  const level = h => Number.isFinite(h) && Math.abs(h - base) < 0.13;
-  for (let edge = 0; edge < ordered.length; edge++) {
-    const a = ordered[(edge + 1) % ordered.length], b = ordered[edge];
-    const length = Math.hypot(a.x - b.x, a.z - b.z);
-    if (length < (kind === 'nantou' ? 4.5 : 5.5)) continue;
-    const f = frame(a.x, a.z, b.x - a.x, b.z - a.z);
-    const count = Math.max(1, Math.round(length / (kind === 'sea' ? 6.7 : kind === 'oct' ? 6.0 : 5.1)));
-    const bay = length / count;
-    const w = Math.min(5.2, bay * 0.76), d = kind === 'nantou' ? 2.35 : 2.55;
-    for (let i = 0; i < count; i++) {
-      const u = (i + 0.5) * bay;
-      if (!front(f.at(u, 0.8))) continue;
-      const sides = [-w / 2, 0, w / 2];
-      const probes = sides.flatMap(offset => [0.27, 1.2].map(v => f.at(u + offset, v)));
-      if (!probes.every(p => {
-        const y = heightAt(p.x, p.z);
-        return level(y) && entryClear(p, y, 2.6, building.id);
-      })) continue;
-      const interior = sides.flatMap(offset => [-0.12, -d].map(v => f.at(u + offset, v)));
-      if (!interior.every(p => polygonContainsInclusive(poly, p.x, p.z) && level(heightAt(p.x, p.z)))) continue;
-      // 拐角、内院或不规则外墙可能从铺面内部切过。除临街开口外，凹槽须完整落在源轮廓内。
-      const center = f.at(u, -(d + 0.06) / 2);
-      if (!polygonContainsInclusive(poly, center.x, center.z)
-        || [...outline, ...cuts].some(p => polygonBoxOverlaps(p, center.x, center.z, w / 2, (d - 0.06) / 2, f.c, -f.s))) continue;
-      const clearApproach = v => {
-        const p = f.at(u, v);
-        const y = heightAt(p.x, p.z);
-        return level(y) && entryClear(p, y, 1.9, building.id, 0.55);
-      };
-      let step = 3;
-      while (step <= 12 && clearApproach(step * 0.4)) step++;
-      if (step <= 4) continue;
-      const opening = { f, u, w, d, approach: (step - 1) * 0.4 };
-      if (!openings.has(edge)) openings.set(edge, []);
-      openings.get(edge).push(opening);
-      cuts.push({ outer: [f.at(u + w / 2, 0), f.at(u + w / 2, -d), f.at(u - w / 2, -d), f.at(u - w / 2, 0)], holes: [] });
-    }
-  }
-  return openings;
-}
 
 function openShop(kit, building, f, u, y, w, d, top, kind, i, style) {
   const finish = kind === 'sea' ? ['blue', 'terra', 'green'][i % 3]
@@ -68,17 +23,9 @@ function openShop(kit, building, f, u, y, w, d, top, kind, i, style) {
   kit.lamp(f.at(u, -0.32), y + top - 0.54, 27, 8);
   kit.piece(f.at(u, -d + 0.014), y + (top + 0.05) / 2, w - 0.04, top - 0.15, 0.028, f,
     kind === 'sea' ? 'loft' : kind === 'oct' ? 'concrete' : 'tan');
-  const right = u + w * 0.34;
-  frameAt(f.at(right, -d + 0.55), 0, 1.0, w * 0.27, 0.60, 'wood');
-  kit.piece(f.at(right, -d + 0.55), y + 1.035, w * 0.30, 0.07, 0.67, f, 'stone');
-  const left = u - w * 0.32;
-  for (const [a, b] of [[0.28, 0.38], [0.78, 0.87], [1.33, 1.41]]) {
-    frameAt(f.at(left, -d + 0.20), a, b, w * 0.33, 0.29, style.metal);
-    for (let j = 0; j < 6; j++) {
-      kit.piece(f.at(left + (j - 2.5) * w * 0.048, -d + 0.20), y + b + 0.12,
-        0.12, 0.24, 0.20, f, ['terra', 'brass', 'green', 'ivory'][(i + j) % 4]);
-    }
-  }
+  shopFurniture(w, d, i, style.metal,
+    (du, v, lo, hi, width, depth, mat) => frameAt(f.at(u + du, v), lo, hi, width, depth, mat),
+    (du, v, h, width, tall, depth, mat) => kit.piece(f.at(u + du, v), y + h, width, tall, depth, f, mat));
   for (const side of [-1, 1]) {
     kit.piece(f.at(u + side * w / 2, 0.02), y + (top - 0.2) / 2, 0.13, top - 0.2, 0.15, f, finish);
   }
@@ -116,25 +63,24 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
     const ordered = signedRingArea(ring) > 0 ? ring : [...ring].reverse();
     const levelCount = building.levels > 0 ? building.levels : override ? options.floors : Math.round(height / 3.55);
     const story = height / Math.max(1, levelCount);
-    const baseFloor = kind === 'oct' && override ? 3.44 : 3.06;
+    const rowHouse = kind === 'oct' && override;
+    const baseFloor = rowHouse ? 3.44 : 3.06;
     const openings = options.open && building.minHeight === 0 && story >= baseFloor && height > baseFloor + 0.7
-      ? shopOpenings(building, poly, ordered, base, heightAt, kind, options) : new Map();
+      ? shopOpenings(building, poly, ordered, base, heightAt, {
+        front: options.entryFront ?? options.front, entryClear: options.entryClear,
+        spacing: kind === 'sea' ? 6.7 : kind === 'oct' ? 6 : 5.1,
+        depth: kind === 'nantou' ? 2.35 : 2.55, minLength: kind === 'nantou' ? 4.5 : 5.5
+      }) : new Map();
     const provenance = override ? 'scene-design-height' : 'osm-footprint';
     if (openings.size) {
-      const recess = ordered.flatMap((p, edge) => {
-        const bays = openings.get(edge) ?? [];
-        return [p, ...bays.slice().reverse().flatMap(({ f, u, w, d }) => {
-          const right = u + w / 2, left = u - w / 2;
-          return [f.at(right, 0), f.at(right, -d), f.at(left, -d), f.at(left, 0)];
-        })];
-      });
+      const recess = recessedShopRing(ordered, openings);
       kit.part(solid(`${id}:open-shop`, building, { outer: recess, holes: poly.holes }, bottom, base + baseFloor, wall));
       kit.part(solid(id, building, poly, base + baseFloor, roof, wall, provenance));
       let shopIndex = Math.floor(seed * 24);
       for (const bays of openings.values()) {
-        for (const { f, u, w, d, approach } of bays) {
+        for (const { f, u, w, d, approach, floorRing } of bays) {
           openShop(kit, building, f, u, base, w, d, baseFloor, kind, shopIndex++, style);
-          options.registerShop?.({ id: building.id, mouth: f.at(u, 0), interior: f.at(u, -1.55),
+          options.registerShop?.({ id: building.id, floorRing, mouth: f.at(u, 0), interior: f.at(u, -1.55),
             approach: f.at(u, approach) });
         }
       }
@@ -155,14 +101,14 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
       const count = Math.max(1, Math.round(length / style.bays));
       const bay = length / count;
       const shopBays = openings.get(j) ?? [];
-      kit.piece(f.at(length / 2, 0.035), roof - 0.22, length, 0.25, 0.13, f, style.trim, { detail: false });
+      kit.piece(f.at(length / 2, 0.035), roof - 0.22, length, 0.25, 0.13, f, rowHouse ? 'blue' : style.trim, { detail: false });
       if (kind === 'oct' && override && shopBays.length) {
-        // 联排铺面按开间分段；砖与灰墙的分缝延续到屋檐，仍使用原建筑轮廓。
+        // 联排铺面按开间分段；浅色墙面的分缝延续到屋檐，仍使用原建筑轮廓。
         for (const { u, w } of shopBays) {
           const upper = height - baseFloor - 0.45;
           const x = u - w / 2 - 0.10;
           kit.piece(f.at(x, 0.055), base + baseFloor + upper / 2, 0.22, upper, 0.16, f, style.trim);
-          kit.piece(f.at(u, 0.07), roof - 0.42, w + 0.34, 0.24, 0.19, f, wall === 'brick' ? 'loft' : 'brick');
+          kit.piece(f.at(u, 0.07), roof - 0.42, w + 0.34, 0.24, 0.19, f, 'blue');
         }
       }
       for (let k = 0; k < count; k++) {
@@ -181,7 +127,7 @@ export function restyleBlock(kit, building, terrain, heightAt, kind, options = {
             addDisplayWindow(kit, f, u, y, bay * 0.78, style.trim);
             continue;
           }
-          const window = bay * (floor === 0 && shop ? 0.83 : 0.62);
+          const window = bay * (rowHouse || (floor === 0 && shop) ? 0.83 : 0.62);
           const h = Math.min(story * (floor === 0 && shop ? 0.63 : 0.51), 2.6);
           if (y + h + 0.7 > roof) continue;
           const cy = y + (floor === 0 && shop ? h / 2 + 0.19 : story * 0.53);

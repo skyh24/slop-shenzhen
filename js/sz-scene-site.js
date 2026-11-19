@@ -173,7 +173,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
     pavementAt: (x, z) => pavementAtlas.heightAt(x, z)
   };
   const cityBlocks = qa.stage('blocks', () =>
-    buildCityBlocks(scene, { skipIds: sceneSkipIds, renderChunkSize: qa.chunkSize, retail,
+    buildCityBlocks(scene, { skipIds: sceneSkipIds, buildingOverrides: landmarks.buildingOverrides, renderChunkSize: qa.chunkSize, retail,
       programEmission: cbdProgram.emission, programParticipant: isCbdProgramBuilding,
       roadClearance: createRoadBuildingClearance(site.roadGraph, site.roadHeight, elevatedRoads.links) }));
   // 基础体量交给后续夜景和近景的排除身份只从 detailPlan 取，入口不再重拼一份 detailSkipIds。

@@ -41,6 +41,14 @@ export function landmarkSignMaterial(style) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(STR.teleport.waterfrontSites[style === 'bayEastFront' ? 'oh-bay-east-shore' : 'oh-bay-west-shore'], 384, 103, 720);
+  } else if (Object.hasOwn(STR.districts.mixcShops, style)) {
+    ctx.fillStyle = '#394a50';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '600 118px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#f1e9d5';
+    ctx.fillText(STR.districts.mixcShops[style], 384, 102, 720);
   } else if (style === 'cocoParkWordmark') {
     ctx.font = '700 137px "PingFang SC", "Microsoft YaHei", sans-serif';
     ctx.textAlign = 'center';

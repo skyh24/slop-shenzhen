@@ -8,7 +8,7 @@ import { addSportsGround } from './sports-ground.js';
 import { landmarkSignMaterial } from './signs.js';
 
 export function buildSzLandmarks(scene, { buildings, terrain, terrainSurface, sites = {}, heightAt, groundHeight, roadHeight, northRail, programEmission = null }) {
-  const { plans, skipIds } = planSzLandmarks(buildings, terrain, sites, { heightAt, groundHeight, roadHeight, northRail });
+  const { plans, skipIds, buildingOverrides } = planSzLandmarks(buildings, terrain, sites, { heightAt, groundHeight, roadHeight, northRail });
   const group = new THREE.Group();
   group.name = 'ShenzhenLandmarks';
   const colliders = [];
@@ -62,7 +62,7 @@ export function buildSzLandmarks(scene, { buildings, terrain, terrainSurface, si
     const t = Math.max(0, Math.min(1, ((x - from.x) * dx + (z - from.z) * dz) / (dx * dx + dz * dz)));
     return Math.hypot(x - from.x - dx * t, z - from.z - dz * t) < halfWidth + radius;
   });
-  return { group, trees: plans.flatMap(plan => plan.trees), wheelMotion, colliders, surfaces, skipIds, heights, reservesApproach, dispose() {
+  return { group, buildingOverrides, trees: plans.flatMap(plan => plan.trees), wheelMotion, colliders, surfaces, skipIds, heights, reservesApproach, dispose() {
     if (wheelMotion) group.add(wheelMotion.group);
     group.traverse(o => {
       if (o.isInstancedMesh) o.dispose();
