@@ -282,6 +282,16 @@ export function createLandmarkMaterial(name, programEmission = null) {
     case 'cultureSkylight': return crownMaterial(0x6686a0, 0.24, 0.27, 0.33);
     case 'operaCopper': return new THREE.MeshStandardMaterial({ color: 0x975d4f, roughness: 0.65, metalness: 0.21 });
     case 'landmarkEdge': return crownMaterial(0xc0c6c7, 0.39, 0.29, 0.30);
+    case 'bayWheelSteel': return nightSurface(0xe2e6e5, 0.36, 0.30, 0xffc59c, 0.72);
+    case 'bayCabinGlass': return nightSurface(0x366977, 0.22, 0.51, 0x89d6de, 0.28);
+    case 'mixcBalustrade': return new THREE.MeshStandardMaterial({ color: 0xa7c6c8, transparent: true, opacity: 0.62,
+      depthWrite: false, roughness: 0.27, metalness: 0.18 });
+    case 'mixcStair': {
+      const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.81 });
+      const nosing = smoothstep(0.82, 0.95, fract(positionWorld.x.mul(2.15)));
+      material.colorNode = mix(color(0xa69c8f), color(0xdad4c6), nosing);
+      return material;
+    }
     case 'shoppingParkStone': return new THREE.MeshStandardMaterial({ color: 0xc4b6a3, roughness: 0.83 });
     case 'tencentSpine': return nightSurface(0x2a4359, 0.32, 0.38, 0x486b8c, 0.02);
     case 'tencentRoof': return new THREE.MeshStandardMaterial({ color: 0x3e4b55, roughness: 0.84 });

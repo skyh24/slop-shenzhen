@@ -35,7 +35,11 @@ const shopping = loadModule(readLandmark('shopping-park-shell.js'), { imports: {
   './parts.js': parts, '../building-collision.js': collision,
   '../sz-building-envelope.js': { createBuildingEnvelopePlan: () => ({ envelopes: new Map() }) }
 } });
-const newModels = [tencentTowers, library, diwang, kk100, exchange, shopping];
+const retailSections = loadModule(readLandmark('retail-sections.js'));
+const retailImports = { './parts.js': parts, './model-profile.js': profiles, './retail-sections.js': retailSections };
+const ohBay = loadModule(readLandmark('oh-bay.js'), { imports: retailImports });
+const mixc = loadModule(readLandmark('mixc-world.js'), { imports: retailImports });
+const newModels = [ohBay.wheel, ohBay.eastShore, ...ohBay.haifu, mixc, tencentTowers, library, diwang, kk100, exchange, shopping];
 const dji = loadModule(readLandmark('dji-sky-city.js'), { imports: { '../building-collision.js': collision, './parts.js': parts } });
 const pingAn = loadModule(readLandmark('ping-an.js'), { imports: { './parts.js': parts } });
 const chunsun = loadModule(readLandmark('chunsun.js'), { imports: { './parts.js': parts } });
@@ -74,7 +78,7 @@ const upperhills = loadUpperhills({});
 const loadPlan = (cultureModule, upperhillsModule = upperhills, iecModule = iec, superHqModule = superHq) => loadModule(readLandmark('layout.js'), { imports: {
   './qianhai-museum.js': museum, './bay-opera.js': opera, './mocape.js': mocape,
   './tencent-towers.js': tencentTowers, './university-town-library.js': library, './diwang.js': diwang, './kk100.js': kk100,
-  './stock-exchange.js': exchange, './shopping-park-shell.js': shopping,
+  './oh-bay.js': ohBay, './mixc-world.js': mixc, './stock-exchange.js': exchange, './shopping-park-shell.js': shopping,
   './tencent-binhai.js': tencent, './dji-sky-city.js': dji, './ping-an.js': pingAn, './chunsun.js': chunsun,
   './civic-center.js': civic, './chunjian.js': stadium, './sports-venues.js': sports, './shenzhen-bay-culture-square.js': cultureModule,
   './convention-center.js': convention, './upperhills.js': upperhillsModule, './nonferrous-tower.js': nonferrous,
@@ -944,3 +948,48 @@ test('sports field markings use the active terrain and sloped goal frames render
     mesh.geometry.dispose();
     material.dispose();
   });
+
+test('Bay Glory binds the wheel separately from reception and leaves lanes between the East Shore pavilions', () => {
+  const wheel = byLandmark.get('oh-bay-wheel');
+  const base = parts.baseAt(byId.get('way/914175455'), geo.terrain);
+  assert.equal(wheel.filter(p => p.id.endsWith(':panorama')).length, 28);
+  assert.equal(wheel.filter(p => p.id.includes(':spoke:')).length, 112);
+  assert.ok(Math.abs(Math.max(...wheel.map(p => p.maxY)) - base - 128) < 0.001);
+  const blocks = byLandmark.get('oh-bay-east-shore').filter(p => p.id.includes(':shops:'));
+  assert.equal(blocks.length, 4);
+  for (const tower of ohBay.haifu) {
+    const shell = byLandmark.get(tower.id);
+    const roofs = tower.sourceIds.map(id => shell.find(p => p.sourceId === id && p.id.includes(':planting:')).maxY);
+    assert.ok(roofs[0] < roofs[1] && roofs[1] < roofs[2]);
+  }
+  for (let i = 1; i < blocks.length; i++) assert.ok(blocks[i].minX - blocks[i - 1].maxX >= 7.99);
+});
+
+test('MixC World keeps both third-floor crossings supported through their landings and the streets below open', () => {
+  const model = byLandmark.get('mixc-world');
+  const y = model.find(p => p.id === 'mixc:bridge:1268947084').maxY;
+  const atPoint = (x, z, bottom, top) => model.filter(p => {
+    const section = contactPolygon(p, bottom, top);
+    return section && collision.polygonContains(section, x, z);
+  });
+  for (const [a, b] of [
+    [[-10584, 133], [-10584, 155]], [[-10584, 109.05], [-10572, 109.05]],
+    [[-10606.7, 138], [-10606.7, 133]], [[-10606.7, 133], [-10584, 133]],
+    [[-10584, 133], [-10584, 109.05]]
+  ]) {
+    for (let i = 0; i <= 40; i++) {
+      const x = a[0] + (b[0] - a[0]) * i / 40, z = a[1] + (b[1] - a[1]) * i / 40;
+      assert.ok(atPoint(x, z, y - 0.1, y + 0.02).length, 'missing deck at ' + [x, z]);
+      assert.equal(atPoint(x, z, y + 0.02, y + 1.85).length, 0, "blocked gallery at " + [x, z]);
+    }
+  }
+  for (const [x, z] of [[-10584, 144], [-10577.5, 109.05]]) {
+    assert.equal(atPoint(x, z, y - 9.5, y - 1).length, 0);
+  }
+  assert.ok(model.find(p => p.id === 'mixc:stair').climbableFromGround);
+  for (let i = 0; i < 6; i++) {
+    const doorX = -10646.65 + i * 10.15 + 9.15;
+    assert.equal(atPoint(doorX, 130.9, y + 0.02, y + 1.85).length, 0);
+    assert.ok(atPoint(doorX - 4, 130.9, y + 0.02, y + 1.85).length);
+  }
+});
