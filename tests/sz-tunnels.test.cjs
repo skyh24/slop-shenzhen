@@ -318,7 +318,8 @@ function fakeTunnelsThree() {
     constructor(array, itemSize) { this.array = array; this.itemSize = itemSize; }
   }
   class FakeBufferGeometry {
-    constructor() { this.attributes = {}; }
+    constructor() { this.attributes = {}; this.groups = []; }
+    addGroup(start, count, materialIndex) { this.groups.push({ start, count, materialIndex }); }
     setAttribute(name, attribute) { this.attributes[name] = attribute; return this; }
     computeVertexNormals() {}
     computeBoundingBox() {}
@@ -795,4 +796,80 @@ test('steep or isolated whole-city tunnels stay out of the drive graph', () => {
   assert.equal(isolated.links[0].drivable, false);
   assert.equal(isolated.drive.links.length, 0);
   assert.equal(isolated.statistics.drivableLinks, 0);
+});
+
+
+test('whole-city tunnel lamps use emissive material with valid vertex groups', () => {
+  const fake = fakeTunnelsThree();
+  const module = loadTunnels(fake);
+  const built = module.buildSzTunnels(new fake.Group(), { graph: wholeCityGraph(), terrainSurface: SURFACE,
+    wholeCity: true, groundHeight: () => 10 });
+  const structures = built.meshes.filter(mesh => Array.isArray(mesh.material));
+  assert.ok(structures.length > 0);
+  let lamps = 0;
+  for (const mesh of structures) {
+    assert.equal(mesh.castShadow, true);
+    const vertexCount = mesh.geometry.attributes.position.array.length / 3;
+    assert.equal(mesh.geometry.groups.reduce((sum, group) => sum + group.count, 0), vertexCount);
+    for (const group of mesh.geometry.groups) {
+      assert.ok(group.start + group.count <= vertexCount);
+      if (group.materialIndex === 1) {
+        assert.ok(mesh.material[1].toneMapped === false || mesh.material[1].emissiveIntensity > 0);
+        lamps += group.count;
+      }
+    }
+  }
+  assert.ok(lamps > 0);
+  built.dispose();
+});
+
+
+test('Guimiao and Yanjiang Dongbin restore continuous profiled bores and open approaches', () => {
+  const { gunzipSync } = require('node:zlib');
+  const raw = JSON.parse(gunzipSync(readFileSync(join(__dirname, '../js/sz-city.json.gz'))));
+  const { decodeCityPayload } = loadModule(read('sz-data-format.js').replace('export async function', 'async function'));
+  const { applyCorridorRoadProfiles } = loadModule(read('sz-interchange-levels.js'));
+  const { geo } = decodeCityPayload(raw);
+  assert.equal(geo.terrainSurface.tunnelCorridorRoutes.length, 5);
+  const graph = applyCorridorRoadProfiles(geo.roadGraph, geo.terrainSurface, geo.roadStructures);
+  const plan = tunnels.planSzTunnels(graph, geo.terrainSurface, { wholeCity: true });
+  const byIndex = new Map(plan.links.map(link => [link.index, link]));
+  const ground = groundSurface.createGroundSurfaceSampler(geo.terrainSurface);
+  const nodes = new Map();
+  let open = 0, covered = 0;
+  for (const row of geo.roadStructures.records.filter(row => geo.terrainSurface.tunnelCorridorRoutes.includes(row.route))) {
+    const profile = graph.metadata[row.index].highwayProfile;
+    for (const [j, node] of graph.links[row.index].slice(0, 2).entries()) {
+      const key = `${row.route}:${node}`;
+      assert.ok(Math.abs((nodes.get(key) ?? profile[j]) - profile[j]) < 0.001, row.way);
+      nodes.set(key, profile[j]);
+    }
+    if (row.kind !== 'tunnel') continue;
+    const link = byIndex.get(row.index);
+    if (row.coverM[1] === 0) {
+      const structure = plan.tunnels.find(record => record.index === row.index);
+      assert.ok(structure.colliders.length > 0, `${row.way}: approach retaining walls`);
+    }
+    assert.ok(link?.drivable, `${row.way}: ${link?.blockedReason}`);
+    assert.ok(link.gradeProfile.maxGrade <= 0.111, row.way);
+    assert.ok(Math.abs(link.startDeckY - profile[0]) < 0.001, row.way);
+    assert.ok(Math.abs(link.endDeckY - profile[1]) < 0.001, row.way);
+    for (const [side, shared] of [['Start', row.sharedStart], ['End', row.sharedEnd]]) {
+      if (!shared) continue;
+      assert.equal(link[`shared${side}`], true, `${row.way}: ground handoff`);
+      assert.ok(link.structureNeighbors.includes('terrain'), `${row.way}: terrain neighbor`);
+      assert.ok(link.gradeProfile.seams.some(seam => seam.kind === 'terrain'
+        && seam.side === side.toLowerCase()), `${row.way}: shared terrain seam`);
+    }
+    for (const frame of link.frames) {
+      if (frame.d < 8 || frame.d > link.lengthM - 8) continue;
+      const roof = row.coverM[1] > row.coverM[0] && frame.d > row.coverM[0] + 4 && frame.d < row.coverM[1] - 4;
+      const terrain = ground(frame.x, frame.z);
+      if (roof) { covered++; assert.ok(terrain === null || terrain >= frame.ceilingY - 0.05, row.way); }
+      else if (frame.floorY < 7.8 && (frame.d < row.coverM[0] - 4 || frame.d > row.coverM[1] + 4)) {
+        open++; assert.ok(terrain === null || terrain <= frame.floorY + 0.05, `${row.way}: ${frame.d} terrain ${terrain}`);
+      }
+    }
+  }
+  assert.ok(open > 50 && covered > 1000);
 });

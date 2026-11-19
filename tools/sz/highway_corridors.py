@@ -12,9 +12,9 @@ from shapely.ops import substring, unary_union
 from commercial_paving import cut_ground_openings
 from elevated_cut import apply_elevated_cut, build_cut_walls, deck_width, merge_cut_walls
 from keyuan_underpass import _restore_roof
-from road_structures import ground_height, resolve_route
+from road_structures import ground_height, resolve_route, strip
 from tunnel_portals import _SurfaceSampler, _resample, _source_points, plan_tunnel_portal_mask
-from waterfront import _clip_terrain
+from waterfront import _clip_terrain, _polygon
 
 # 皇岗端由源节点接入城市地面路，两条短分支需沿同一 source way 继续放坡。
 G4_TERMINAL_WAYS = {'way/74017036', 'way/974372190', 'way/974372191', 'way/1573392908'}
@@ -618,6 +618,37 @@ def _apply_road_corridor_profiles(surface, payload, spec, *, extension=False):
     return cut, {**stats, 'routes': counts, 'heightSource': spec['heightSource']}
 
 
+def _apply_tunnel_corridors(surface, payload, spec):
+    routes = spec['tunnelReferenceRoutes']
+    records = [row for row in payload['roadStructures']['records'] if row['route'] in routes]
+    if {row['route'] for row in records} != set(routes):
+        raise ValueError('Missing reviewed tunnel corridor profiles')
+    ground = lambda x, z: ground_height(payload['terrain'], x, z)
+    corridors, openings = [], []
+    for row in records:
+        if payload['roadGraph']['metadata'][row['index']]['osmId'] != row['way']:
+            raise ValueError('Tunnel corridor source link mismatch')
+        values = row['stations']
+        frames = [values[i:i + 8] for i in range(0, len(values), 8)]
+        corridors.append(strip(frames, extra=0.6))
+        cover = row['coverM'] or [0, 0]
+        # 只切开露天降坡段；洞顶地面保持完整，洞内路面使用同一套断面。
+        for a, b in zip(frames, frames[1:]):
+            d, x, y, z = [(a[i] + b[i]) / 2 for i in range(4)]
+            if cover[1] > cover[0] and cover[0] <= d <= cover[1]:
+                continue
+            if ground(x, z) > y + 0.025:
+                openings.append(strip([a, b], extra=0.6))
+    # 先补回旧洞口规则误切的地面，再按连续纵断面重新挖开入口。
+    water = unary_union([_polygon(rings) for rings in [*payload['water'], *payload['seaSurface']['polygons']]])
+    dry = unary_union([_polygon(rings) for rings in payload['land']]).difference(water)
+    restored, added = _restore_roof(surface, unary_union(corridors).intersection(dry), ground)
+    cut, removed = cut_ground_openings(restored, unary_union(openings))
+    cut['tunnelCorridorRoutes'] = routes
+    return cut, {'routes': routes, 'links': len(records), 'restoredM2': round(added, 3),
+                 'cutM2': round(removed, 3), 'heightSource': spec['heightSource']}
+
+
 def apply_highway_corridors(payload, report):
     surface = payload['terrainSurface']
     graph = payload['roadGraph']
@@ -653,6 +684,8 @@ def apply_highway_corridors(payload, report):
         surface, report['roadCorridorExtensions'] = _apply_road_corridor_profiles(
             surface, payload, corridor_spec, extension=True)
         surface['roadCorridorExtensionVersion'] = 4
+    if surface.get('tunnelCorridorRoutes') != corridor_spec['tunnelReferenceRoutes']:
+        surface, report['tunnelCorridors'] = _apply_tunnel_corridors(surface, payload, corridor_spec)
     payload['terrainSurface'] = surface
     report['terrainSurface'].update(vertices=sum(len(chunk['kinds']) for chunk in surface['chunks']),
                                     triangles=sum(len(chunk['indices']) // 3 for chunk in surface['chunks']))

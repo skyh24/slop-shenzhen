@@ -7,7 +7,7 @@ import {
   centerGradeBudget, createRoadProfile, measureRoadProfile, recordRoadProfileSeam, roadProfileHeight
 } from './sz-road-profile.js';
 import { polygonContainsInclusive } from './sz-polygon.js';
-import { DECK_RISE_M, highDeckTunnelPortals, highwayProfileHeight, interchangeRise, profiledUnderpassPortals, roadDeckLayer, roadDeckRise } from './sz-interchange-levels.js';
+import { DECK_RISE_M, highwayProfileHeight, interchangeRise, tunnelStructurePortals, roadDeckLayer, roadDeckRise } from './sz-interchange-levels.js';
 import { createSurfaceHeightAt } from './sz-controller-surfaces.js';
 
 // 桥面抬升量以桥面顶为准，梁厚另计。接触面与显示几何共用同一批三角面。
@@ -1522,9 +1522,10 @@ export function planElevatedRoads(graph, terrainSurface, options) {
   const g4Bridges = new Set();
   const g4Nodes = new Set();
   const g4DeckAt = new Map();
-  const highTunnelNodes = new Set([...highDeckTunnelPortals(graph).values()].flatMap(ends => [...ends.keys()]));
+  const tunnelPortals = tunnelStructurePortals(graph, terrainSurface?.hongliUnderpass);
+  const highTunnelNodes = new Set([...tunnelPortals.values()].flatMap(ends => [...ends.keys()]));
   const underpassNodes = new Map();
-  for (const [tunnel, ends] of profiledUnderpassPortals(graph, terrainSurface?.hongliUnderpass)) {
+  for (const [tunnel, ends] of tunnelPortals) {
     for (const [node, peers] of ends) for (const peer of peers) underpassNodes.set(`${peer}:${node}`, tunnel);
   }
   const nanpingNodes = new Map();

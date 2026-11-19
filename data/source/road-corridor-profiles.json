@@ -582,5 +582,12 @@
         "node/3969348312": 12.8
       }
     }
+  ],
+  "tunnelReferenceRoutes": [
+    "guimiao-west",
+    "guimiao-east",
+    "yanjiang-dongbin-east",
+    "yanjiang-dongbin-west",
+    "yanjiang-dongbin-west-port-feeder"
   ]
 }
