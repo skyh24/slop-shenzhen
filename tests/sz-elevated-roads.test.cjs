@@ -77,6 +77,28 @@ function fixtureGraph() {
 const planFixture = options => elevated.planElevatedRoads(fixtureGraph(), surface, options);
 const byOsm = plan => new Map(plan.links.map(link => [link.osmId, link]));
 
+function assertShennanNanhaiConnection(plan) {
+  const links = byOsm(plan);
+  const exit = links.get('way/1467739161');
+  const rampIds = new Set(['way/143527684', 'way/1050921379', 'way/374801332', 'way/1467739161']
+    .map(way => links.get(way).surfaceId));
+  const heightAt = controllerSurfaces.createSurfaceHeightAt(plan.surfaces.filter(surface => rampIds.has(surface.id)));
+  assert.equal(exit.startDeckY, 10);
+  assert.equal(exit.endDeckY, 8);
+  for (const way of ['way/143527684', 'way/1050921379', 'way/374801332', 'way/1467739161']) {
+    const record = links.get(way);
+    assert.ok(plan.driveLinks.includes(record), way);
+    assert.ok(record.gradeProfile.maxGrade <= MAX_GRADE + 1e-6, way);
+    assert.ok(record.gradeProfile.seams.every(seam => seam.status === 'aligned'), way);
+  }
+  for (const way of ['way/1050921379', 'way/374801332']) {
+    const peer = links.get(way);
+    assert.equal(peer.endDeckY, exit.startDeckY);
+    const { x, z } = exit.frames[0];
+    assert.ok(Math.abs(heightAt(x, z, peer.surfaceId) - heightAt(x, z, exit.surfaceId)) < 0.001, way);
+  }
+}
+
 test('every non-ground non-tunnel structure link gets a deck, with or without interchange rectangles', () => {
   const plan = planFixture({ interchanges: [] });
   assert.deepEqual(Array.from(plan.links, link => link.index), [1, 2, 3, 5, 6]);
@@ -447,7 +469,8 @@ test('the real Shenzhen snapshot derives the whole-city deck network without any
   const corridors = plan.links.filter(deck => graph.metadata[deck.index].explicitCorridorProfile);
   const corridorJoins = new Map();
   const groundAt = groundSurface.createGroundSurfaceSampler(geo.terrainSurface);
-  assert.equal(corridors.length, 96);
+  assert.equal(corridors.length, 100);
+  assertShennanNanhaiConnection(plan);
   for (const deck of corridors) {
     assert.ok(plan.driveLinks.includes(deck), deck.osmId);
     assert.equal(deck.aprons.length, 0, deck.osmId);

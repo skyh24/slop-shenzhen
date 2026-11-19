@@ -697,13 +697,14 @@ def apply_highway_corridors(payload, report):
     if 'roadCorridorProfiles' not in surface:
         surface, report['roadCorridorProfiles'] = _apply_road_corridor_profiles(
             surface, payload, corridor_spec)
-    if surface.get('roadCorridorExtensionVersion') != 4:
+    if surface.get('roadCorridorExtensionVersion') != corridor_spec['extensionVersion']:
         surface, report['roadCorridorExtensions'] = _apply_road_corridor_profiles(
             surface, payload, corridor_spec, extension=True)
-        surface['roadCorridorExtensionVersion'] = 4
+        surface['roadCorridorExtensionVersion'] = corridor_spec['extensionVersion']
     if surface.get('tunnelCorridorRoutes') != corridor_spec['tunnelReferenceRoutes']:
         surface, report['tunnelCorridors'] = _apply_tunnel_corridors(surface, payload, corridor_spec)
-    if surface.get('underpassRoofVersion') != 1:
+    roof_version = [1, corridor_spec['extensionVersion']]
+    if surface.get('underpassRoofVersion') != roof_version:
         covers = []
         for profile in [surface.get('keyuanUnderpass'), surface.get('hongliUnderpass')]:
             if not profile:
@@ -717,7 +718,7 @@ def apply_highway_corridors(payload, report):
                     box(min_x - 30, profile['northPortalZ'], max_x + 30, profile['southPortalZ']))
                 covers.append((mask, profile['boreFloorM'] + NANPING_HEADROOM_M + 0.3))
         surface = _preserve_tunnel_headroom(surface, covers)
-        surface['underpassRoofVersion'] = 1
+        surface['underpassRoofVersion'] = roof_version
     payload['terrainSurface'] = surface
     report['terrainSurface'].update(vertices=sum(len(chunk['kinds']) for chunk in surface['chunks']),
                                     triangles=sum(len(chunk['indices']) // 3 for chunk in surface['chunks']))

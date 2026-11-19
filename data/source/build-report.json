@@ -315958,8 +315958,8 @@
   },
   "terrainSurface": {
     "chunks": 1264,
-    "vertices": 824753,
-    "triangles": 1203097,
+    "vertices": 824936,
+    "triangles": 1203109,
     "areaKm2": 279.029368,
     "areaErrorM2": -3.46e-06,
     "seconds": 5.21,
@@ -516425,13 +516425,13 @@
   },
   "regionalScene": {
     "version": 2,
-    "fingerprint": "bb145ecd4c387d63cc37f2507c69a31837b706d32cfdb3a5afa0106853419091",
-    "bytes": 269026,
+    "fingerprint": "91689ff2d071c5c2c237398e11f2a96d87affe9fd0c3af77d156615ea6c74b8e",
+    "bytes": 269030,
     "decodedBytes": 1255916,
     "files": {
-      "js/sz-regional/bb145ecd4c387d63cc37/waterfront.json.gz": "18176b3b2a24bd6fb065b2c9f8798500772c62464ac79181fa823ce7555d7435",
-      "js/sz-regional/bb145ecd4c387d63cc37/metro.json.gz": "d2357f52d16f51c8b0b5b10e64b5a14cb57979768a2fbcf0f3f01cd936e998f3",
-      "js/sz-regional/bb145ecd4c387d63cc37/drone.json.gz": "ebe69dd684a0c9180d93f0733c7e9d3af0977f0c777082d7ec8b23c9dca28994"
+      "js/sz-regional/91689ff2d071c5c2c237/waterfront.json.gz": "4431f7d59ab69ff16a5d546904df935ae1f08827fd1fbfea3ddd75664fab88f9",
+      "js/sz-regional/91689ff2d071c5c2c237/metro.json.gz": "aa6e8350cce286df19992e4afc4fa06a3448f94912fddcd171defd59dbb178fe",
+      "js/sz-regional/91689ff2d071c5c2c237/drone.json.gz": "69e9e2163653393c0f9bb53d821fb402472b706ffe5da225c0c4f76bb596bd98"
     },
     "rules": {
       "data/source/lianhuashan-summit.json": "704237ece1393c9a30f69b3b3ff08c52834f036b8cdaaaf14c299d89571832e3",
@@ -516856,16 +516856,16 @@
     "format": "SZC1",
     "version": 1,
     "columns": 8064,
-    "metadataBytes": 19479230,
-    "numericBytes": 46081816,
-    "uncompressedBytes": 65561096,
+    "metadataBytes": 19479602,
+    "numericBytes": 46132672,
+    "uncompressedBytes": 65612328,
     "lossless": true,
-    "compressedBytes": 17962113,
-    "compressedSha256": "2db2b7426a95eda3dfd122dc0d392d773b7df265add38d329a92f5bf292ee1ab"
+    "compressedBytes": 17973552,
+    "compressedSha256": "fc846aae9ead2300ef541cb127f0e72cfa4da90112d2026d82d58291faaa951a"
   },
-  "outputBytes": 18117130,
-  "outputSha256": "0b3e12c62ef50a8292e76ca6b6e690361d0f7aadd23d95d58e606ca05a2ed876",
-  "seconds": 222.1,
+  "outputBytes": 18126961,
+  "outputSha256": "b8c1949d841b777fb8fc78307ee7a018bc179e9160a5c4823266a84291930c5d",
+  "seconds": 380.7,
   "elevatedCut": {
     "version": 3,
     "links": 28,
@@ -518268,12 +518268,12 @@
     "heightSource": "estimate"
   },
   "roadCorridorExtensions": {
-    "links": 43,
+    "links": 47,
     "tunnelLinks": 0,
     "minDeckY": 5.14441,
     "maxDeckY": 52.04404,
-    "cutM2": 0.0,
-    "wallTriangles": 940,
+    "cutM2": 194.272,
+    "wallTriangles": 924,
     "routes": {
       "nanping-branch-longzhu-north": 5,
       "nanping-branch-longzhu-south": 6,
@@ -518281,7 +518281,9 @@
       "xiangmihu-north-before-underpass": 9,
       "xiangmihu-north-after-underpass": 6,
       "xiangmihu-south-before-underpass": 7,
-      "xiangmihu-south-after-underpass": 8
+      "xiangmihu-south-after-underpass": 8,
+      "shennan-nanhai-west-off": 3,
+      "shennan-nanhai-west-loop": 1
     },
     "heightSource": "estimate"
   },
