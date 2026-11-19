@@ -38,7 +38,12 @@ test('teleport destinations bind the retained buttons to Shenzhen roads on the r
     assert.ok(LANDMARK_SITES[key], key);
     assert.ok(Number.isFinite(point.heading), key);
     assert.ok(Number.isFinite(groundHeight(point.x, point.z)), key);
-    assert.ok(roadIds.has(point.sourceRoadId), key);
+    if (point.sourcePathId) {
+      const paths = { 'oh-bay-east-shore': 'way/906499274', 'oh-bay-west-shore': 'way/953927345',
+        'oh-bay-wheel': 'way/1375624734', 'mixc-world': 'way/1312420559' };
+      assert.equal(point.sourcePathId, paths[key], key);
+      assert.equal(LANDMARK_SITES[key].publicArrival.x, point.x, key);
+    } else assert.ok(roadIds.has(point.sourceRoadId), key);
   }
 });
 
@@ -83,14 +88,13 @@ test('map travel resolves a walking pose before closing and leaves the map open 
   const end = main.indexOf('  const openMapBtn', start);
   const handlers = new Map();
   const calls = [];
-  const landed = { x: -305.7, z: 521 };
-  let arrival = landed;
+  let flightClear = true;
   let map;
   let mode = 'helicopter';
   const walking = { x: 100, y: 8, z: 200, surfaceId: 'terrain' };
   const curb = { x: 111, y: 8, z: 200, heading: 1.5 };
   const feedback = {};
-  const approach = { x: -498.3, z: 1201.7, heading: Math.PI, exact: true,
+  const approach = { x: 100, z: 200, heading: Math.PI, exact: true,
     waypoint: { x: -498.3, z: 1177.2, name: 'Entrance forecourt' } };
   const teleportEntries = { ...TELEPORT_LOCATIONS, approach };
   const environment = {
@@ -128,16 +132,13 @@ test('map travel resolves a walking pose before closing and leaves the map open 
       get activeMode() { return mode; },
       findTeleportPosition: (x, z, heading, altitude, required, park, options) => {
         assert.equal(required, true);
+        if (options.mode === 'helicopter') return flightClear && { x, z, y: altitude, heading };
         assert.equal(altitude, 0);
         assert.equal(options.mode, 'person');
         assert.equal(options.exact, true);
         if (x === 100 && z === 200) return walking;
         if (x === curb.x && z === curb.z) return curb;
         return null;
-      },
-      teleportActiveTo: (x, z, heading, altitude, options) => {
-        calls.push(['teleport', x, z, heading, altitude, options.requireArrival, options.exact]);
-        return arrival;
       }
     },
     touchControls: { reset: () => calls.push(['touch']) },
@@ -161,28 +162,24 @@ test('map travel resolves a walking pose before closing and leaves the map open 
     GEO,
     STR: { map: { noArrival: 'No arrival' } },
     document: { getElementById: id => id === 'teleport-feedback' ? feedback : null },
-    teleportButtons: Object.keys(teleportEntries).map((key) => ({
-      dataset: { teleport: key },
-      addEventListener: (_event, handler) => handlers.set(key, handler)
-    })),
+    teleportButtons: Object.keys(teleportEntries).flatMap(key => ['person', 'helicopter'].map(travelMode => ({
+      dataset: { teleport: key, travelMode },
+      addEventListener: (_event, handler) => handlers.set(key + travelMode, handler)
+    }))),
     closePopovers: () => {}
   };
   vm.runInNewContext(main.slice(start, end), environment);
   for (const [name, point] of Object.entries(TELEPORT_LOCATIONS)) {
     calls.length = 0;
-    handlers.get(name)();
-    assert.deepEqual(calls, [
-      ['teleport', point.x, point.z, point.heading, null, true, false],
-      ['autoStop', 'manual'], ['touch'], ['gamepad'], ['camera'], ['selectCamera', 'chase', true]
-    ]);
-    assert.equal(map.waypoint.x, landed.x);
-    assert.equal(map.waypoint.z, landed.z);
+    handlers.get(name + 'helicopter')();
+    assert.deepEqual(calls[0], ['mode', 'helicopter', point.x, 60, point.z, point.heading]);
+    assert.equal(map.waypoint.x, point.x);
+    assert.ok(!calls.some(call => call[0] === 'map'));
   }
   calls.length = 0;
-  handlers.get('approach')();
-  assert.deepEqual(calls[0], ['teleport', approach.x, approach.z, approach.heading, null, true, true]);
+  handlers.get('approachperson')();
+  assert.deepEqual(calls[0], ['mode', 'person', 100, 8, 200, Math.PI]);
   assert.equal(map.waypoint, approach.waypoint);
-  assert.equal(mode, 'helicopter');
   assert.equal(map.open, true);
   calls.length = 0;
   assert.equal(map.onTeleport(100, 200), walking);
@@ -226,10 +223,11 @@ test('map travel resolves a walking pose before closing and leaves the map open 
   assert.equal(map.open, true);
   assert.deepEqual(calls, []);
   assert.equal(map.waypoint.name, 'Station');
-  arrival = null;
+  flightClear = false;
   calls.length = 0;
-  handlers.get('ping-an')();
-  assert.equal(calls.length, 1);
+  handlers.get('ping-anhelicopter')();
+  assert.equal(calls.length, 0);
+  assert.equal(mode, 'cyclist');
   assert.equal(feedback.hidden, false);
   assert.equal(feedback.textContent, 'No arrival');
   assert.equal(map.onTeleport(10000, 10000), null);

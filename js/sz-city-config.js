@@ -136,6 +136,28 @@ export function createCityConfig(geo, buildings = [], labels = STR) {
   const landmarks = geo.landmarks.filter(lm => lm.phase === 1 && spatial.inBounds(lm.x, lm.z))
     .map(lm => ({ ...lm, short: lm.short || lm.name, group: lm.district || '',
       height: Number.isFinite(lm.height) ? lm.height : null }));
+  // 标注瞄准临水立面、轮心或象头，步行落点取源步道上的点。区域包必须有对应建筑。
+  const publicFronts = [
+    ['oh-bay-east-shore', 'way/902736738', -17712, 79, -17702.6, 125.6, 'way/906499274'],
+    ['oh-bay-west-shore', 'way/902736740', -18445, -125, -18439.1, -113.2, 'way/953927345'],
+    ['oh-bay-wheel', 'way/914175455', -17638.1, 248.7, -17613.3, 187.9, 'way/1375624734'],
+    ['mixc-world', 'way/1268947103', -10515.3, 107.2, -10491.7, 127.5, 'way/1312420559']
+  ];
+  const frontSources = new Set(publicFronts.map(row => row[1]));
+  const frontBuildings = new Map(buildings.filter(b => frontSources.has(b.id)).map(b => [b.id, b]));
+  for (const [id, sourceId, x, z, px, pz, sourcePathId] of publicFronts) {
+    const building = frontBuildings.get(sourceId);
+    if (!building || !spatial.inBounds(px, pz)) continue;
+    const publicArrival = { x: px, z: pz, heading: Math.atan2(x - px, z - pz), sourcePathId };
+    let site = landmarks.find(lm => lm.id === id);
+    if (!site) {
+      site = { id, phase: 1 };
+      landmarks.push(site);
+    }
+    const name = STR.teleport.waterfrontSites[id];
+    Object.assign(site, { x, z, name, short: name, sourceId, publicArrival,
+      height: id === 'oh-bay-wheel' ? 128 : building.height });
+  }
   const landmarkSites = Object.fromEntries(landmarks.map(lm => [lm.id, lm]));
   const roads = spatial.roads.map(road => ({ ...road, raw: road.name,
     highway: ['motorway', 'motorway_link', 'trunk', 'trunk_link'].includes(road.highway),
@@ -248,7 +270,7 @@ export function createCityConfig(geo, buildings = [], labels = STR) {
   }
 
   const teleports = Object.fromEntries(landmarks.flatMap(lm => {
-    const arrival = findGroundArrival(lm);
+    const arrival = lm.publicArrival ?? findGroundArrival(lm);
     return arrival ? [[lm.id, { ...arrival, landmarkId: lm.id, name: lm.name }]] : [];
   }));
   const spawnTarget = landmarks.find(lm => lm.id === 'civic-center');

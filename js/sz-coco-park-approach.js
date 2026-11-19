@@ -13,10 +13,11 @@ const COCO_PARK_APPROACH = {
 
 // 地点 ID 已由城市包或场地模块绑定；类别只影响菜单筛选。
 const TELEPORT_CATEGORIES = {
-  retail: ['huaqiangbei', 'upperhills', 'dongmen', 'sea-world', 'kk100', 'oh-bay', 'taizi-bay', COCO_PARK_APPROACH.id],
+  landmark: ['oh-bay', 'oh-bay-east-shore', 'oh-bay-west-shore', 'oh-bay-wheel', 'mixc-world'],
+  retail: ['oh-bay-east-shore', 'oh-bay-west-shore', 'mixc-world', 'huaqiangbei', 'upperhills', 'dongmen', 'sea-world', 'kk100', 'oh-bay', 'taizi-bay', COCO_PARK_APPROACH.id],
   park: ['talent-park', 'lianhuashan', 'shenzhen-bay-park'],
   culture: ['oct-loft', 'nantou-ancient-city', 'dongmen', 'sea-world', 'shenzhen-bay-culture-square'],
-  amusement: ['window-of-world', 'oh-bay'],
+  amusement: ['oh-bay-wheel', 'window-of-world', 'oh-bay'],
   sports: ['chunjian', 'szu-yuanping-stadium', 'university-town-stadium', 'shenzhen-stadium', 'shenzhen-gymnasium']
 };
 
@@ -31,7 +32,7 @@ const MENU_REGIONS = {
 
 export function createTeleportMenu(locations, bayPark, locationLabel, walkEntries = {}, regions = []) {
   const { id, start, stop } = COCO_PARK_APPROACH;
-  const approach = { ...start, name: STR.teleport.cocoParkApproach,
+  const approach = { ...start, detail: STR.teleport.cocoParkApproachDetail, name: STR.teleport.cocoParkApproach,
     waypoint: { ...stop, name: STR.teleport.cocoParkEntrance } };
   const entries = { ...locations, [id]: approach, ...walkEntries };
   if (bayPark) entries[bayPark.id] = bayPark;
@@ -52,14 +53,5 @@ export function createTeleportMenu(locations, bayPark, locationLabel, walkEntrie
     categories.set(key, [category]);
   }
   const buttons = populateTeleportMenu(entries, locationLabel, categories);
-  const walkButton = buttons.find(button => button.dataset.teleport === id);
-  function syncWalkApproach(mode) {
-    for (const button of buttons) {
-      if (walkEntries[button.dataset.teleport]?.walkOnly) button.disabled = mode !== 'person';
-    }
-    walkButton.disabled = mode !== 'person';
-    walkButton.querySelector('.pop-sub').textContent = walkButton.disabled
-      ? STR.teleport.walkOnly : STR.teleport.cocoParkApproachDetail;
-  }
-  return { entries, buttons, syncWalkApproach };
+  return { entries, buttons };
 }

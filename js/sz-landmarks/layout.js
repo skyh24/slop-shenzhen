@@ -4,7 +4,7 @@ import * as universityTownLibrary from './university-town-library.js';
 import * as diwang from './diwang.js';
 import * as kk100 from './kk100.js';
 import * as stockExchange from './stock-exchange.js';
-import { wheel, eastShore, haifu } from './oh-bay.js';
+import { wheel, eastShore, westShore, haifu } from './oh-bay.js';
 import * as mixcWorld from './mixc-world.js';
 import * as shoppingParkShell from './shopping-park-shell.js';
 import { sourceIds as skyCityIds, build as buildSkyCity } from './dji-sky-city.js';
@@ -42,6 +42,7 @@ const definitions = [
   ...haifu,
   { id: 'oh-bay-wheel', ...wheel },
   { id: 'oh-bay-east-shore', ...eastShore },
+  { id: 'oh-bay-west-shore', ...westShore },
   { id: 'mixc-world', ...mixcWorld },
   { id: 'shopping-park-shell', ...shoppingParkShell },
   { id: 'dji-sky-city', sourceIds: skyCityIds, build: buildSkyCity },

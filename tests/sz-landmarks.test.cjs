@@ -37,10 +37,11 @@ const shopping = loadModule(readLandmark('shopping-park-shell.js'), { imports: {
 } });
 const retailSections = loadModule(readLandmark('retail-sections.js'));
 const retailImports = { './parts.js': parts, './model-profile.js': profiles, './retail-sections.js': retailSections };
-const ohBay = loadModule(readLandmark('oh-bay.js'), { imports: retailImports });
+const ohBay = loadModule(readLandmark('oh-bay.js'), { imports: { ...retailImports,
+  './oh-bay-promenades.js': loadModule(readLandmark('oh-bay-promenades.js')) } });
 retailImports['./mixc-elephant.js'] = loadModule(readLandmark('mixc-elephant.js'), { imports: retailImports });
 const mixc = loadModule(readLandmark('mixc-world.js'), { imports: retailImports });
-const newModels = [ohBay.wheel, ohBay.eastShore, ...ohBay.haifu, mixc, tencentTowers, library, diwang, kk100, exchange, shopping];
+const newModels = [ohBay.wheel, ohBay.eastShore, ohBay.westShore, ...ohBay.haifu, mixc, tencentTowers, library, diwang, kk100, exchange, shopping];
 const dji = loadModule(readLandmark('dji-sky-city.js'), { imports: { '../building-collision.js': collision, './parts.js': parts } });
 const pingAn = loadModule(readLandmark('ping-an.js'), { imports: { './parts.js': parts } });
 const chunsun = loadModule(readLandmark('chunsun.js'), { imports: { './parts.js': parts } });
@@ -964,6 +965,31 @@ test('Bay Glory binds the wheel separately from reception and leaves lanes betwe
     assert.ok(roofs[0] < roofs[1] && roofs[1] < roofs[2]);
   }
   for (let i = 1; i < blocks.length; i++) assert.ok(blocks[i].minX - blocks[i - 1].maxX >= 7.99);
+});
+
+test('both waterfront promenades have recessed shopfronts beneath supported terraces', () => {
+  for (const [side, count] of [['east', 4], ['west', 3]]) {
+    const model = byLandmark.get('oh-bay-' + side + '-shore');
+    const shore = plan.plans.find(p => p.id === 'oh-bay-' + side + '-shore');
+    assert.equal(shore.signs.length, count);
+    assert.equal(shore.patches.length, 2);
+    const entrance = side === 'east' ? [-17702.6, 125.6] : [-18439.1, -113.2];
+    assert.ok(shore.patches.some(p => collision.polygonContains({ outer: p.ring, holes: [] }, ...entrance)));
+    const shops = model.filter(p => p.id.includes(':shops:'));
+    assert.equal(shops.length, count);
+    for (const [index, shop] of shops.entries()) {
+      const prefix = `oh-bay:${side}:${index}:`;
+      const piers = model.filter(p => p.id.startsWith(prefix + 'pier:'));
+      const terrace = model.find(p => p.id.startsWith(prefix + 'terrace:'));
+      assert.ok(piers.length >= 2);
+      for (const pier of piers) {
+        const x = (pier.minX + pier.maxX) / 2, z = (pier.minZ + pier.maxZ) / 2;
+        assert.equal(collision.polygonContains(shop.polygon, x, z), false, pier.id);
+        assert.equal(collision.polygonContains(terrace.polygon, x, z), true, pier.id);
+        assert.equal(pier.maxY, terrace.minY);
+      }
+    }
+  }
 });
 
 test('MixC World keeps both third-floor crossings supported through their landings and the streets below open', () => {

@@ -33,6 +33,14 @@ export function landmarkSignMaterial(style) {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#198ab4';
     ctx.fillText('Tencent', 384, 102, 750);
+  } else if (style === 'bayEastFront' || style === 'bayWestFront') {
+    ctx.fillStyle = '#f0e7d4';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#344c49';
+    ctx.font = '600 124px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(STR.teleport.waterfrontSites[style === 'bayEastFront' ? 'oh-bay-east-shore' : 'oh-bay-west-shore'], 384, 103, 720);
   } else if (style === 'cocoParkWordmark') {
     ctx.font = '700 137px "PingFang SC", "Microsoft YaHei", sans-serif';
     ctx.textAlign = 'center';

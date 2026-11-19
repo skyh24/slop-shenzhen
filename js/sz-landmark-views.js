@@ -21,17 +21,17 @@ export function createLandmarkViews(landmarks, heights, heightAt, approaches, ga
     chunjian: [-1, 0],
     ...(Number.isFinite(gateYaw) && { 'iec-xiangmihu': [Math.sin(gateYaw), Math.cos(gateYaw)] })
   };
-  return new Map(landmarks.flatMap(({ id, x, z, name, height }) => {
+  return new Map(landmarks.flatMap(({ id, x, z, name, height, publicArrival: entrance }) => {
     const model = heights?.get(id);
     const base = model?.base ?? heightAt(x, z);
     const roof = model?.roof ?? (height > 0 && Number.isFinite(base) ? base + height : null);
     if (!Number.isFinite(roof) || !(roof > base)) return [];
     const approach = approaches[id];
-    const publicArrival = id === 'shenzhen-north' ? northArrival : null;
+    const publicArrival = id === 'shenzhen-north' ? northArrival : entrance;
     const direction = (publicArrival && [publicArrival.x - x, publicArrival.z - z]) ?? modelFront[id] ?? (approach && [approach.x - x, approach.z - z]);
     const length = direction ? Math.hypot(...direction) : 0;
     const front = length > 0 ? { x: direction[0] / length, z: direction[1] / length } : null;
-    return [[id, { x, y: (base + roof) / 2, z, name, base, roof, front, publicArrival, ...(publicArrival && { radius: 510, orbitLabel: STR.hsr.northOrbit }) }]];
+    return [[id, { x, y: (base + roof) / 2, z, name, base, roof, front, publicArrival, ...(id === 'shenzhen-north' && publicArrival && { radius: 510, orbitLabel: STR.hsr.northOrbit }) }]];
   }));
 }
 

@@ -58,11 +58,24 @@ export function createTeleportActions({ controllerManager, landmarkViews, parks,
     const park = options.stationVisit ? null : options.park ?? parkAt(parks, x, z);
     const exactWalk = (px, pz, direction) => !excludeGround(px, pz, 0.7) && controllerManager.findTeleportPosition(
       px, pz, direction, 0, true, null, { exact: true, mode: 'person' });
-    const shore = !options.stationVisit && !landmark && isWater(x, z) === false
+    const mode = options.mode === 'helicopter' ? 'helicopter' : 'person';
+    const shore = mode === 'person' && !options.exact && !options.stationVisit && !landmark && isWater(x, z) === false
       && !carriagewayOccupied(x, z, 0.58) && waterfrontArrival(x, z, heading);
     let destination;
-    if (options.stationVisit) {
+    if (mode === 'helicopter') {
+      destination = landmark && findLandmarkArrival(landmark, controllerManager,
+        findGroundArrival, roadHeight, flightStartAltitude, mode);
+      if (!destination) {
+        for (const altitude of [60, flightStartAltitude, controllerManager.maxFlightAltitude]) {
+          if (!Number.isFinite(altitude)) continue;
+          destination = controllerManager.findTeleportPosition(x, z, heading, altitude, true, null, { exact: true, mode });
+          if (destination) break;
+        }
+      }
+    } else if (options.stationVisit) {
       destination = stationArrival(x, z, options.stationVisit, exactWalk);
+    } else if (options.exact) {
+      destination = exactWalk(x, z, heading);
     } else if (landmark) {
       const front = findLandmarkArrival(landmark, controllerManager,
         findGroundArrival, roadHeight, flightStartAltitude, 'person');
@@ -78,14 +91,20 @@ export function createTeleportActions({ controllerManager, landmarkViews, parks,
       // 空地优先在点击位置落脚；车道或建筑内的点，改取附近可站的路缘外落点。
       if (isDry && !carriagewayOccupied(x, z, 0.58)) destination = exactWalk(x, z, heading);
       if (!destination && isDry) {
-        const roadside = findGroundArrival({ x, z }, 'person', { roadside: true, radius: 80,
+        const roadside = findGroundArrival({ x, z }, 'person', { roadside: true, radius: options.retail || options.fromMenu || options.landmarkId ? 500 : 80,
           isClear: point => !carriagewayOccupied(point.x, point.z, 0.58) && exactWalk(point.x, point.z, point.heading) });
         if (roadside) destination = exactWalk(roadside.x, roadside.z, roadside.heading);
       }
     }
-    if (!destination || excludeGround(destination.x, destination.z, 0.7) || !selectMode('person', { ...destination, heading: destination.heading ?? heading })) return null;
+    if (!destination && mode === 'person' && landmark && !options.exact) {
+      const roadside = findGroundArrival(landmark, mode, { roadside: true, radius: 500,
+        isClear: point => !carriagewayOccupied(point.x, point.z, 0.58) && exactWalk(point.x, point.z, point.heading) });
+      if (roadside) destination = exactWalk(roadside.x, roadside.z, Math.atan2(landmark.x - roadside.x, landmark.z - roadside.z));
+    }
+    if (!destination || (mode === 'person' && excludeGround(destination.x, destination.z, 0.7))
+      || !selectMode(mode, { ...destination, heading: destination.heading ?? heading })) return null;
     onArrival(destination, options, park, landmark);
-    closeMap();
+    if (!options.fromMenu) closeMap();
     return destination;
   }
 

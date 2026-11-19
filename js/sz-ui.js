@@ -68,7 +68,8 @@ export function populateTeleportMenu(locations, locationLabel, categories) {
   const feedback = document.getElementById('teleport-feedback');
   const existing = new Map([...menu.querySelectorAll('[data-teleport]')].map(button => [button.dataset.teleport, button]));
   for (const button of existing.values()) button.hidden = !locations[button.dataset.teleport];
-  const buttons = Object.entries(locations).map(([key, location]) => {
+  const rows = [];
+  const buttons = Object.entries(locations).flatMap(([key, location]) => {
     let button = existing.get(key);
     if (!button) {
       button = document.createElement('button');
@@ -84,23 +85,42 @@ export function populateTeleportMenu(locations, locationLabel, categories) {
       menu.insertBefore(button, feedback);
     }
     button.querySelector('.pop-name').textContent = location.name;
-    const detail = locationLabel(location.x, location.z);
+    const detail = location.detail ?? locationLabel(location.x, location.z);
     button.querySelector('.pop-sub').textContent = detail === location.name ? '' : detail;
-    return button;
+    const row = document.createElement('div');
+    row.className = 'teleport-destination';
+    row.dataset.destination = key;
+    button.before(row);
+    const walk = document.createElement('span');
+    walk.className = 'travel-mode-label';
+    walk.textContent = STR.modeButtons.person;
+    button.appendChild(walk);
+    button.dataset.travelMode = 'person';
+    button.setAttribute('aria-label', STR.teleport.entryLabel(location.name, walk.textContent));
+    const fly = document.createElement('button');
+    fly.type = 'button';
+    fly.className = 'pop-item teleport-flight';
+    fly.dataset.teleport = key;
+    fly.dataset.travelMode = 'helicopter';
+    fly.textContent = STR.modeButtons.helicopter;
+    fly.setAttribute('aria-label', STR.teleport.entryLabel(location.name, fly.textContent));
+    row.append(button, fly);
+    rows.push(row);
+    return [button, fly];
   });
 
   const filters = [...menu.querySelectorAll('[data-teleport-filter]')];
   const all = filters.find(button => button.dataset.teleportFilter === 'all');
   const groups = filters.filter(button => button !== all);
   const selection = new Set();
-  const show = [...buttons, document.getElementById('tp-talent-show')];
+  const show = [...rows, document.getElementById('tp-talent-show')];
   function apply() {
     all.setAttribute('aria-pressed', String(!selection.size));
     for (const button of groups) {
       button.setAttribute('aria-pressed', String(selection.has(button.dataset.teleportFilter)));
     }
     for (const button of show) {
-      const keys = button.dataset.teleport ? categories.get(button.dataset.teleport) : ['park'];
+      const keys = button.dataset.destination ? categories.get(button.dataset.destination) : ['park'];
       button.hidden = selection.size > 0 && !keys?.some(key => selection.has(key));
     }
   }

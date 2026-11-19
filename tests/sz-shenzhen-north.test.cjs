@@ -15,7 +15,7 @@ const layoutSource = readFileSync(layoutFile, 'utf8');
 const imports = Object.fromEntries([...layoutSource.matchAll(/import .* from '(\.\/[^']+)'/g)]
   .map(([, path]) => [path, { sourceIds: [], build: () => [] }]));
 const emptyBayModel = imports['./oh-bay.js'];
-imports['./oh-bay.js'] = { wheel: emptyBayModel, eastShore: emptyBayModel, haifu: [] };
+imports['./oh-bay.js'] = { wheel: emptyBayModel, eastShore: emptyBayModel, westShore: emptyBayModel, haifu: [] };
 imports['./sports-venues.js'] = { sportsLandmarks: [] };
 imports['./shenzhen-north.js'] = require('../js/sz-landmarks/shenzhen-north.js');
 imports['../building-collision.js'] = require('../js/building-collision.js');

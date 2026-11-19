@@ -465,9 +465,8 @@ async function initApp() {
   const streetscapeArrival = streetscape.findArrival(trees.colliders);
   const parkArrivals = createBayParkArrivals(bayPark, GEO.parks, bayArrival ?? streetscapeArrival,
     findGroundArrival, getLocationLabel);
-  const { entries: teleportEntries, buttons: teleportButtons, syncWalkApproach } = createTeleportMenu(
+  const { entries: teleportEntries, buttons: teleportButtons } = createTeleportMenu(
     TELEPORT_LOCATIONS, bayPark, getLocationLabel, districts.arrivals, GEO.mapRegions?.regions);
-  const parkButton = teleportButtons.find(button => button.dataset.teleport === bayPark?.id);
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
   const placeModeIndicator = createModeIndicator(document.getElementById('mode-switch'));
   touchControls.onAvailabilityChange = placeModeIndicator;
@@ -520,15 +519,6 @@ async function initApp() {
     const ent = controllerManager.getActiveEntity();
     if (elMode) elMode.textContent = ent.label;
     renderControlHints(elControlsHint, mode);
-    syncWalkApproach(mode);
-    if (parkButton) {
-      const entry = parkArrivals[mode];
-      const detail = entry?.detail ?? STR.teleport.parkUnavailable[mode];
-      parkButton.disabled = !entry;
-      parkButton.querySelector('.pop-sub').textContent = detail;
-      parkButton.setAttribute('aria-label', STR.teleport.entryLabel(bayPark.name, detail));
-    }
-
     // If currently on a static scenic camera, switch to 3rd-Person Chase so user sees their selected character/vehicle
     const currentCam = cameraSystem.getActivePreset();
     if (currentCam.category !== 'follow') {
@@ -732,7 +722,8 @@ async function initApp() {
     btn.addEventListener('click', () => {
       if (cruise.active || droneWatch.active) return;
       const key = btn.dataset.teleport;
-      const loc = key === bayPark?.id ? parkArrivals[controllerManager.activeMode] : teleportEntries[key];
+      const mode = btn.dataset.travelMode;
+      const loc = key === bayPark?.id ? parkArrivals[mode] : teleportEntries[key];
       const request = ++travelRequest;
       const current = () => request === travelRequest && !cruise.active && !droneWatch.active;
       const finish = arrived => {
@@ -743,7 +734,7 @@ async function initApp() {
         }
         if (arrived) closePopovers();
       };
-      const arrived = loc && teleportTo(loc.x, loc.z, loc.heading, { ...loc, current });
+      const arrived = loc && teleportFromMap(loc.x, loc.z, loc.heading, { ...loc, mode, current, fromMenu: true });
       if (arrived?.then) arrived.then(finish);
       else finish(arrived);
     });

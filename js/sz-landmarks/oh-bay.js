@@ -1,5 +1,6 @@
 import { baseAt, footprintParts, loftPart, spanPart } from './parts.js';
 import { ellipse, rect, volume } from './model-profile.js';
+import { promenadePatches } from './oh-bay-promenades.js';
 import { cutRing } from './retail-sections.js';
 
 // 轮心取 OSM node/7851738804；接待楼足迹单独放置。轮面方向与构件截面为估计。
@@ -58,30 +59,66 @@ export const wheel = {
   }
 };
 
-export const eastShore = {
-  sourceIds: ['way/902736738'],
-  build(source, terrain) {
-    const retail = source.get(this.sourceIds[0]);
-    const base = baseAt(retail, terrain), outline = retail.polygons[0].outer;
-    const parts = [];
-    // 在商业东岸源面内留三条通向水岸的开敞巷道。退台和花园轮廓按设计资料概化。
-    const cuts = [retail.minX - 1, -17816, -17736, -17660, retail.maxX + 1];
+// 仅在源轮廓朝水的长边内退橱窗。檐口沿原边，柱列与橱窗之间可实际穿行。
+function waterfrontArcade(block, id, retail, base, parts, signs, side) {
+  const storefront = [];
+  let signEdge = 0, shoreSign;
+  const winding = Math.sign(block.reduce((sum, a, i) => {
+    const b = block[(i + 1) % block.length];
+    return sum + a.x * b.z - b.x * a.z;
+  }, 0));
+  for (const [i, a] of block.entries()) {
+    const b = block[(i + 1) % block.length];
+    const dx = b.x - a.x, dz = b.z - a.z, length = Math.hypot(dx, dz);
+    storefront.push(a);
+    if (length < 13 || -winding * dx / length < 0.48) continue;
+    const at = (u, inset) => ({ x: a.x + (u * dx - inset * winding * dz) / length,
+      z: a.z + (u * dz + inset * winding * dx) / length });
+    storefront.push(at(3.8, 0), at(4.5, 3.2), at(length - 4.5, 3.2), at(length - 3.8, 0));
+    const bays = Math.max(1, Math.round((length - 9) / 8));
+    for (let j = 0; j <= bays; j++) {
+      const along = 4.5 + (length - 9) * j / bays;
+      parts.push(volume(id + ':pier:' + i + ':' + j, retail, rect(at, along, 0.65, 0.46, 0.58),
+        base, base + 4.5, 'shoppingParkStone'));
+    }
+    if (length > signEdge) {
+      signEdge = length;
+      shoreSign = { ...at(length / 2, 0.42), y: base + 5.58, yaw: Math.atan2(winding * dz, -winding * dx),
+        width: Math.min(8, length - 4), height: 0.84, style: side === 'east' ? 'bayEastFront' : 'bayWestFront' };
+    }
+    const fascia = rect(at, length / 2, 0.55, length - 4, 0.55);
+    parts.push(volume(id + ':fascia:' + i, retail, fascia, base + 4.13, base + 4.5, 'shoppingParkBase'),
+      volume(id + ':parapet:' + i, retail, rect(at, length / 2, 0.55, length - 4, 0.22),
+        base + 5.1, base + 6.05, 'operaPearl'));
+  }
+  if (shoreSign) signs.push(shoreSign);
+  return storefront;
+}
+
+function shorePavilions(side, sourceId, alleys) {
+  return { sourceIds: [sourceId], build(source, terrain) {
+    const retail = source.get(sourceId), base = baseAt(retail, terrain);
+    const outline = retail.polygons[0].outer, parts = [], signs = [];
+    const cuts = [retail.minX - 1, ...alleys, retail.maxX + 1];
     for (let i = 0; i + 1 < cuts.length; i++) {
       const block = cutRing(cutRing(outline, 'x', cuts[i] + (i ? 4 : 0), true),
         'x', cuts[i + 1] - (i < cuts.length - 2 ? 4 : 0), false);
-      if (block.length < 3) continue;
-      const id = `oh-bay:east:${i}`;
-      const upper = cutRing(block, 'x', cuts[i + 1] - 10, false);
+      const id = `oh-bay:${side}:${i}`;
+      const shops = waterfrontArcade(block, id, retail, base, parts, signs, side);
+      const upper = cutRing(shops, 'x', cuts[i + 1] - 10, false);
       const garden = cutRing(upper, 'x', cuts[i + 1] - 21, false);
-      parts.push(volume(id + ':shops', retail, block, base, base + 4.5, 'shoppingParkStorefront'),
-        volume(id + ':terrace', retail, block, base + 4.5, base + 5.1, 'operaPearl'),
+      parts.push(volume(id + ':shops', retail, shops, base, base + 4.5, 'shoppingParkStorefront'),
+        volume(id + ':terrace', retail, block, base + 4.5, base + 5.1, 'operaPearl', { roofContact: true }),
         volume(id + ':glazing', retail, upper, base + 5.1, base + retail.height - 0.5, 'shoppingParkGlass'),
         volume(id + ':eave', retail, upper, base + retail.height - 0.5, base + retail.height, 'operaPearl'),
         volume(id + ':garden', retail, garden, base + retail.height, base + retail.height + 0.22, 'cultureRoofGarden'));
     }
-    return parts;
-  }
-};
+    return { parts, signs, patches: promenadePatches(side) };
+  } };
+}
+
+export const eastShore = shorePavilions('east', 'way/902736738', [-17786, -17736, -17660]);
+export const westShore = shorePavilions('west', 'way/902736740', [-18476, -18372]);
 
 // 海府一号三组相邻源楼，每组由临海翼、中段和北翼拼合。保留北翼源高，向海分级退台。
 export const haifu = [

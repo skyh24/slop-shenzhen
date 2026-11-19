@@ -127,11 +127,28 @@ test('touch selects without travel, hover leaves selection intact, and drag and 
   assert.equal(arrive[0][0], 100);
   assert.equal(inspection.selection, null);
 
+  map.controllerManager = { activeMode: 'helicopter' };
+  canvas.fire('pointerdown', 265, 50);
+  canvas.fire('pointerup', 265, 50);
+  assert.equal(arrive.length, 2);
+  assert.equal(arrive[1][3].mode, 'helicopter');
+  assert.equal(inspection.selection, null);
+
+  map.viewCenterX = 0;
+  map.viewCenterZ = 0;
+  map.landmarkLabelHits = [{ lm: { id: 'shore', x: 2, z: 3, name: 'Shore' }, label: { box: [45, 6, 70, 26] } }];
+  map.controllerManager.activeMode = 'car';
+  canvas.fire('pointerdown', 34, 10);
+  canvas.fire('pointerup', 34, 10);
+  assert.equal(arrive[2][3].landmarkId, 'shore');
+  assert.equal(arrive[2][3].mode, 'person');
+  assert.equal(arrive[2][0], 2);
+
   map.isPlanningDrive = true;
   canvas.fire('pointerdown', 100, 25);
   canvas.fire('pointerup', 100, 25);
   flush();
   assert.equal(inspection.highlight, null);
   assert.deepEqual(drive, [[100, 25]]);
-  assert.equal(arrive.length, 1);
+  assert.equal(arrive.length, 3);
 });
