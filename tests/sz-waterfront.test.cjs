@@ -15,6 +15,7 @@ const roads = loadModule(read('sz-roads.js'), { imports: {
 } });
 const roadSection = loadModule(read('sz-road-section.js'));
 const elevated = loadModule(read('sz-elevated-roads.js'), { imports: {
+    './sz-road-junctions.js': require('./helpers/road-junctions.cjs'),
   './sz-road-profile.js': loadModule(read('sz-road-profile.js')),
   './sz-interchange-levels.js': loadModule(read('sz-interchange-levels.js')),
   'three/webgpu': {}, 'three/tsl': {}, './sz-roads.js': roads, './sz-ground-surface.js': ground,

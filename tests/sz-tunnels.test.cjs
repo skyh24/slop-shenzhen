@@ -44,6 +44,7 @@ const DEEP_INTERCHANGES = [{
 
 function loadTunnels(three = {}) {
   return loadModule(auditSource, { imports: {
+    './sz-road-junctions.js': require('./helpers/road-junctions.cjs'),
     'three/webgpu': three,
     './sz-roads.js': roads,
     './sz-ground-surface.js': groundSurface,
@@ -393,6 +394,7 @@ test('real THREE build raycasts the tunnel floor from inside the bore',
       'three/webgpu': THREE, './sz-road-material.js': { createSzRoadSurfaceMaterial: () => ({}) }, './sz-section-frame.js': sectionFrame
     } });
     const module = loadModule(auditSource, { imports: {
+    './sz-road-junctions.js': require('./helpers/road-junctions.cjs'),
       'three/webgpu': THREE,
       './sz-roads.js': realRoads,
       './sz-road-material.js': { createSzRoadSurfaceMaterial: () => new THREE.MeshStandardNodeMaterial({ color: 0x3b3d41 }) },

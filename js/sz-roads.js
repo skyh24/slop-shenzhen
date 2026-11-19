@@ -156,6 +156,14 @@ function overlaps(a, b) {
   return a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
 }
 
+function surfaceFootprint(points) {
+  const ring = convexHull(points);
+  return { bounds: boundsOf(ring), edges: ring.map((a, i) => {
+    const b = ring[(i + 1) % ring.length], length = Math.hypot(b.x - a.x, b.z - a.z);
+    return { x: a.x, z: a.z, nx: (a.z - b.z) / length, nz: (b.x - a.x) / length };
+  }) };
+}
+
 function footprintIndex(grid) {
   const columns = grid.nx - 1;
   const rows = grid.nz - 1;
@@ -163,12 +171,7 @@ function footprintIndex(grid) {
 
   function addFootprint(points, sources, riseAt) {
     if (points.length < 3) return;
-    const bounds = boundsOf(points);
-    const edges = points.map((a, i) => {
-      const b = points[(i + 1) % points.length];
-      const length = Math.hypot(b.x - a.x, b.z - a.z);
-      return { x: a.x, z: a.z, nx: (a.z - b.z) / length, nz: (b.x - a.x) / length };
-    });
+    const { bounds, edges } = surfaceFootprint(points);
     const footprint = { bounds, edges, sources, riseAt };
     const firstX = Math.max(0, Math.floor((bounds.minX - grid.x0) / grid.step));
     const lastX = Math.min(columns - 1, Math.floor((bounds.maxX - grid.x0) / grid.step));
@@ -317,6 +320,50 @@ function subtractFootprint(polygon, footprint, result) {
     if (hasArea(outside)) pieces.push(outside);
   }
   result.push(...(hasArea(inside) ? pieces : [polygon]));
+}
+
+// 接缝补面只填相邻路面外的缺口，裁切点保留原坡面高度；显示与接触共用结果。
+export function clipRoadSurfaceTriangles(triangles, masks) {
+  const footprints = masks.filter(ring => ring.length >= 3).map(surfaceFootprint);
+  const result = [];
+  for (const triangle of triangles) {
+    const bounds = boundsOf(triangle);
+    let pieces = [triangle];
+    for (const footprint of footprints) {
+      if (!overlaps(bounds, footprint.bounds)) continue;
+      const next = [];
+      for (const piece of pieces) subtractFootprint(piece, footprint, next);
+      pieces = next;
+      if (!pieces.length) break;
+    }
+    for (const piece of pieces) for (let i = 1; i + 1 < piece.length; i++) {
+      if (hasArea([piece[0], piece[i], piece[i + 1]])) result.push([piece[0], piece[i], piece[i + 1]]);
+    }
+  }
+  return result;
+}
+
+// 侧壁沿边界线裁去相邻通行面的内部部分，分岔洞段不再彼此竖墙封路。
+export function clipRoadBoundaryIntervals(a, b, masks) {
+  let kept = [[0, 1]];
+  for (const ring of masks) {
+    let lo = 0, hi = 1, intersects = true;
+    for (const edge of surfaceFootprint(ring).edges) {
+      const da = edgeDistance(edge, a), db = edgeDistance(edge, b);
+      if (da < -EPSILON && db < -EPSILON) { intersects = false; break; }
+      if (da < 0) lo = Math.max(lo, da / (da - db));
+      else if (db < 0) hi = Math.min(hi, da / (da - db));
+    }
+    if (!intersects || hi - lo < 1e-6) continue;
+    kept = kept.flatMap(([start, end]) => {
+      if (end <= lo || start >= hi) return [[start, end]];
+      const result = [];
+      if (start < lo) result.push([start, lo]);
+      if (end > hi) result.push([hi, end]);
+      return result;
+    });
+  }
+  return kept;
 }
 
 // 山路开敞引道与地面道路共用足迹裁切，保留原网格与未切到的三角面。

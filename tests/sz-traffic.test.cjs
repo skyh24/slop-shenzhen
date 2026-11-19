@@ -672,6 +672,7 @@ test('Chegongmiao route clears both junction guardrails and keeps its deck conta
   const graph = geo.roadGraph;
   const surfaces = load('sz-controller-surfaces.js');
   const { planElevatedRoads } = load('sz-elevated-roads.js', {
+    './sz-road-junctions.js': require('./helpers/road-junctions.cjs'),
     './sz-road-profile.js': load('sz-road-profile.js'),
     './sz-interchange-levels.js': load('sz-interchange-levels.js'),
     'three/webgpu': three,

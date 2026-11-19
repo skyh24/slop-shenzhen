@@ -1,3 +1,4 @@
+export const ROAD_TUNNEL_CLEARANCE_M = 5.2;
 export const ESTIMATED_LANE_WIDTH_M = 3.25;
 const MAX_LANES = 5;
 const DECK_SHOULDER_M = 0.5;
@@ -145,4 +146,67 @@ export function throughRoadArms(arms) {
     }
   }
   return pair;
+}
+
+// 连续车行边共用入口断面；地面端保持原路缘，桥隧端沿一段长度平顺过渡。
+export function prepareRoadJoinSections(graph) {
+  if (!graph || graph.joinSectionsPrepared) return graph;
+  const nodes = new Map(), metadata = graph.metadata.map(meta => ({ ...meta }));
+  const structured = meta => meta.bridge || meta.tunnel || meta.layer || meta.mountainTunnel;
+  graph.links.forEach((link, index) => {
+    const meta = metadata[index];
+    if (['footway', 'path', 'steps', 'cycleway', 'pedestrian'].includes(meta.highway)) return;
+    const points = [{ x: graph.nodes[link[0] * 2], z: graph.nodes[link[0] * 2 + 1] }];
+    for (let i = 0; i < link[6].length; i += 2) points.push({ x: link[6][i], z: link[6][i + 1] });
+    points.push({ x: graph.nodes[link[1] * 2], z: graph.nodes[link[1] * 2 + 1] });
+    for (const [side, node] of link.slice(0, 2).entries()) {
+      const p = side ? points.at(-1) : points[0], q = side ? points.at(-2) : points[1];
+      const run = Math.hypot(q.x - p.x, q.z - p.z);
+      if (!run) continue;
+      const structure = structured(meta);
+      const width = structure ? Math.max(meta.mountainTunnel?.width ?? 0, deckLaneProfile(link).widthM) : link[3];
+      if (structure) meta.junctionWidthM = width;
+      if (!nodes.has(node)) nodes.set(node, []);
+      nodes.get(node).push({ index, side, structure, width, kind: meta.highway, name: graph.names[link[2]], dx: (q.x - p.x) / run, dz: (q.z - p.z) / run });
+    }
+  });
+  for (const arms of nodes.values()) {
+    const pair = arms.length === 2 ? arms : throughRoadArms(arms);
+    if (!pair || !pair.some(arm => arm.structure)) continue;
+    const [a, b] = pair, ground = pair.find(arm => !arm.structure);
+    // 原地面断面优先；结构之间用两条切线的角平分线，左右墙不会在弯接点张开缝隙。
+    let dx = ground ? -ground.dx : a.dx - b.dx, dz = ground ? -ground.dz : a.dz - b.dz;
+    const run = Math.hypot(dx, dz);
+    if (run < 0.1) continue;
+    dx /= run; dz /= run;
+    const widthM = Math.max(a.width, b.width);
+    for (const arm of pair) {
+      if (!arm.structure) continue;
+      const sign = Math.sign(dx * arm.dx + dz * arm.dz) * (arm.side ? -1 : 1);
+      (metadata[arm.index].junctionSections ??= [null, null])[arm.side] = { nx: dz * sign, nz: -dx * sign, widthM };
+    }
+  }
+  return { ...graph, metadata, joinSectionsPrepared: true };
+}
+
+export function applyRoadJoinFrames(frames, metadata) {
+  if (!metadata.junctionSections || frames.length < 2) return frames;
+  const length = frames.at(-1).d;
+  for (const [side, section] of metadata.junctionSections.entries()) {
+    if (!section) continue;
+    const portal = side ? frames.at(-1) : frames[0], reach = Math.min(32, length / 2);
+    for (const frame of frames) {
+      const blend = Math.max(0, 1 - Math.abs(frame.d - portal.d) / reach);
+      if (!blend) continue;
+      const nx = frame.nx + (section.nx - frame.nx) * blend;
+      const nz = frame.nz + (section.nz - frame.nz) * blend;
+      const norm = Math.hypot(nx, nz);
+      const width = frame.widthM ?? Math.hypot(frame.left.x - frame.right.x, frame.left.z - frame.right.z);
+      frame.widthM = width + (section.widthM - width) * blend;
+      frame.nx = nx / norm; frame.nz = nz / norm;
+      frame.left = { ...frame.left, x: frame.x + frame.nx * frame.widthM / 2, z: frame.z + frame.nz * frame.widthM / 2 };
+      frame.right = { ...frame.right, x: frame.x - frame.nx * frame.widthM / 2, z: frame.z - frame.nz * frame.widthM / 2 };
+    }
+  }
+  return frames;
 }
