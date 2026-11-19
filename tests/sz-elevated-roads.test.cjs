@@ -100,6 +100,24 @@ function assertShennanNanhaiConnection(plan) {
   }
 }
 
+test('a ground bridge connection preserves the source carriageway and places rails outside it', () => {
+  const width = 9.8, centerZ = 100;
+  const graph = { nodes: [100, centerZ, 300, centerZ, 700, centerZ, 900, centerZ], names: ['Main road'],
+    links: [[0, 1, 0, width, 3, 1, []], [1, 2, 0, width, 3, 1, []], [2, 3, 0, width, 3, 1, []]],
+    metadata: [false, true, false].map((bridge, i) => ({ osmId: `way/${i}`, bridge,
+      highway: 'primary', tunnel: false, layer: bridge ? 1 : 0, heightSource: bridge ? 'unresolved' : 'terrain' })) };
+  const plan = elevated.planElevatedRoads(graph, surface, { interchanges: [] });
+  const deck = plan.links[0];
+  assert.ok(deck.sharedStart && deck.sharedEnd);
+  assert.ok(deck.frames.every(frame => frame.widthM >= width + 1.7 - 1e-8));
+  assert.equal(roadSection.getDeckSection(graph, deck).travelWidthM, width);
+  assert.ok(deck.barrierColliders.length);
+  for (const rail of deck.barrierColliders) {
+    assert.ok(rail.maxZ <= centerZ - width / 2 - 0.5 + 1e-8
+      || rail.minZ >= centerZ + width / 2 + 0.5 - 1e-8);
+  }
+});
+
 test('every non-ground non-tunnel structure link gets a deck, with or without interchange rectangles', () => {
   const plan = planFixture({ interchanges: [] });
   assert.deepEqual(Array.from(plan.links, link => link.index), [1, 2, 3, 5, 6]);
@@ -595,7 +613,7 @@ test('a wide bridge with a blocked centerline keeps piers where its footprint cl
 });
 
 
-test('a named same-level continuation keeps a shared corner and tapers four lanes to one', () => {
+test('a named same-level continuation keeps a shared corner without pinching the wider deck', () => {
   const graph = {
     nodes: [100, 100, 300, 100, 300, 300], names: ['Binhai Avenue'],
     links: [[0, 1, 0, 13, 4, 1, []], [1, 2, 0, 3.25, 1, 1, []]],
@@ -607,11 +625,12 @@ test('a named same-level continuation keeps a shared corner and tapers four lane
   const a = wide.frames.at(-1), b = narrow.frames[0];
   assert.deepEqual(a.left, b.left);
   assert.deepEqual(a.right, b.right);
-  assert.equal(a.widthM, narrow.width);
-  assert.equal(b.widthM, narrow.width);
+  assert.equal(a.widthM, wide.width);
+  assert.equal(b.widthM, wide.width);
+  assert.ok(wide.frames.every(frame => frame.widthM >= wide.width - 1e-8));
+  assert.ok(narrow.frames.every(frame => frame.widthM >= narrow.width - 1e-8));
   assert.equal(a.y, b.y);
   assert.ok(wide.noEndExtension && narrow.noStartExtension);
-  assert.ok(wide.frames.at(-5).left.z < wide.frames.at(-1).left.z);
   assert.ok(wide.barriers.some(rail => rail.side === 'left' && rail.endD === wide.lengthM));
   assert.ok(narrow.barriers.some(rail => rail.side === 'left' && rail.startD === 0));
   const heightAt = controllerSurfaces.createSurfaceHeightAt(plan.surfaces);

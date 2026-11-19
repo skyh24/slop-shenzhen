@@ -80,6 +80,27 @@ const deckLink = (overrides = {}) => ({ index: 1, osmId: 'way/900', surfaceId: D
 const emptyGraph = () => ({ nodes: [], nodeIds: ['node/1', 'node/2'], names: [], links: [], metadata: [],
   turnRestrictions: { rules: [] } });
 
+test('driving and ambient traffic stay in painted lanes across ground and structure seams', () => {
+  const graph = { nodes: [0, 0, 100, 0, 200, 0, 300, 0], nodeIds: [], names: ['Main road'],
+    links: [[0, 1, 0, 6.5, 0, 1, []], [1, 2, 0, 6.5, 0, 1, []], [2, 3, 0, 6.5, 0, 1, []]],
+    metadata: [groundRoad(1), { ...groundRoad(2), bridge: true, layer: 1 }, groundRoad(3)] };
+  const deck = deckLink({ index: 1, osmId: 'way/2', startNode: 1, endNode: 2, width: 8.2, lanes: 0,
+    points: [{ x: 100, z: 0 }, { x: 200, z: 0 }], startDeckY: 0, endDeckY: 0,
+    sharedStart: true, sharedEnd: true, structureNeighbors: ['terrain'] });
+  const network = traffic.createTrafficGraph(graph, { elevated: { links: [deck] } });
+  const planner = createDrivePlanner(network, graph, { model, roadHeight: () => 0, isClear: () => true });
+  const route = planner.route(planner.snap(20, -1.625), planner.snap(280, -1.625));
+  assert.ok(route?.surfaces.includes(DECK_SURFACE));
+  assert.ok(route.samples.every(point => Math.abs(Math.abs(point.z) - 1.625) < 1e-8));
+  const first = network.edges.find(edge => edge.sourceIndex === 0);
+  for (const choice of [0.1, 0.9]) {
+    const segments = traffic.routeSegments({ edge: first, segment: 0, distance: 20 }, model, () => 0, choice);
+    assert.ok(segments.some(piece => piece.edge.elevated));
+    assert.ok(segments.every(piece => Math.abs(Math.abs(piece.laneOffset) - 1.625) < 1e-8));
+    assert.ok(segments.every(piece => piece.laneOffset === segments[0].laneOffset));
+  }
+});
+
 test('cruise settles onto a straight lane without weaving at 36 to 120 km/h across frame rates', t => {
   for (const hz of [30, 60, 120]) for (const kmh of [36, 60, 80, 120]) {
     const roadHeight = () => 0;

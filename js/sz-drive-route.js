@@ -24,7 +24,7 @@ const FALLBACK_KPH = {
 };
 
 function speedLimit(edge, rules) {
-  const width = edge.elevated ? edge.section.pavementWidthM : edge.section.travelWidthM;
+  const width = edge.section.travelWidthM;
   const ramp = edge.highway?.endsWith('_link');
   const fallback = ramp ? 35 : FALLBACK_KPH[edge.highway] ?? 40;
   const posted = rules?.maxKph?.[edge.sign === -1 ? 'backward' : 'forward'] ?? rules?.maxKph?.both;
@@ -185,8 +185,7 @@ function validateSamples(samples, model, roadHeight, isClear, stops, roads) {
   // 窄车道按路宽再压一档限速：车身几乎占满铺装，只有慢速才能让四轮保持在同一块路面上。
   for (let i = 0; i < samples.length; i++) {
     const edge = samples[i].edge;
-    // 高架保留以桥面铺装宽分档的限速；护栏净宽用于车道和车身余量。
-    const width = edge?.elevated ? edge.section.pavementWidthM : edge?.section.travelWidthM ?? 0;
+    const width = edge?.section.travelWidthM ?? 0;
     if (edge?.rampSpeed) limits[i] = Math.min(limits[i], edge.rampSpeed);
     if (width > 0 && width < 6.5) limits[i] = Math.min(limits[i], width < 4.5 ? 4 : 5.5);
   }
@@ -233,15 +232,6 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
   const roads = new Map();
   const cells = new Map();
   const neighbors = new Map();
-  const structureSeams = new Set();
-  for (const edge of network.edges) {
-    for (const next of edge.next) {
-      if (edge.structureNeighbors || next.structureNeighbors) {
-        structureSeams.add(edge);
-        structureSeams.add(next);
-      }
-    }
-  }
   const detailed = new Set(detailedRoadIds);
   const canTurn = createTurnFilter(graph);
   const intersectionMargin = Math.hypot(model.hx, model.hz) + 0.35;
@@ -254,11 +244,10 @@ export function createDrivePlanner(network, graph, { model, roadHeight, isClear,
     const rules = graph.metadata[edge.sourceIndex]?.drive;
     if (!usableWidth(edge, model.hx) || !allowsCar(edge, rules, model)) continue;
     const { section } = edge;
-    // 双向路取本侧最靠路缘的车道，单向详细路沿用最右侧；无车道数据时退回默认偏移。
+    // 双向路取本侧最靠路缘的车道，单向详细路沿用最右侧；结构接缝也选车道中心。
     const offsets = (laneOffsets(section, edge.sign) ?? section.defaultOffsetsM)
       .filter(offset => Math.abs(offset) + model.hx + 0.12 <= section.travelWidthM / 2);
     const lane = edge.highway === 'motorway' || section.twoWay || detailed.has(edge.osmId) ? offsets.at(-1)
-      : structureSeams.has(edge) ? 0
       : offsets.reduce((best, offset) => best === undefined || Math.abs(offset) < Math.abs(best) ? offset : best, undefined);
     // 兜底车道同样必须落在本侧半幅内，否则该边不参与规划。
     if (lane === undefined || Math.abs(lane) > section.travelWidthM / 2) continue;

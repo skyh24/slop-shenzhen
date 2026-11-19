@@ -18,7 +18,9 @@ export function deckLaneProfile(link) {
     Math.max(1, tagged ? (twoWay ? Math.max(1, Math.round(tagged / 2)) : tagged) : estimated));
   const laneCount = countLanes(tagged || Math.floor(Number(sourceWidthM) / ESTIMATED_LANE_WIDTH_M), twoWay);
   const structuralLanes = Math.max(laneCount, structuralLanesPerDirection * (twoWay ? 2 : 1));
-  const designWidthM = structuralLanes * ESTIMATED_LANE_WIDTH_M + 2 * DECK_SHOULDER_M + 2 * DECK_BARRIER_M;
+  // 源车行宽度之外另留路肩与护栏，桥面不能从源道路里扣掉这部分空间。
+  const designWidthM = Math.max(Number(sourceWidthM) || 0, structuralLanes * ESTIMATED_LANE_WIDTH_M)
+    + 2 * DECK_SHOULDER_M + 2 * DECK_BARRIER_M;
   return {
     twoWay, perDirection: twoWay ? Math.ceil(laneCount / 2) : laneCount, laneCount,
     widthM: Math.max(Number.isFinite(sourceWidthM) ? sourceWidthM : 0, designWidthM),
@@ -38,16 +40,14 @@ function createSection(link, metadata, deck) {
   // 桥面车道数由 deckLaneProfile 在派生几何时一并定下，显示宽度和标线不再各自估算。
   const estimate = Math.floor(sourceWidthM / ESTIMATED_LANE_WIDTH_M);
   const uncappedCount = deck?.laneCount ?? (sourceLaneCount || estimate);
-  const laneCount = !deck && twoWay && pavementWidthM < 7 ? 2 : countLanes(uncappedCount, twoWay);
+  const laneCount = twoWay && sourceWidthM < 7 ? 2 : countLanes(uncappedCount, twoWay);
   const barrierWidthM = deck ? deck.barrierWidthM ?? DECK_BARRIER_M : 0;
   // 超宽铺装的多余空间留给两侧，标线和路线都使用同一套车道。
-  const travelWidthM = deck
-    ? Math.min(pavementWidthM - 2 * barrierWidthM, laneCount * ESTIMATED_LANE_WIDTH_M)
-    : reviewed ? Math.min(pavementWidthM, laneCount * metadata.crossSection.laneWidthM)
-    : uncappedCount > MAX_LANES ? Math.min(pavementWidthM, laneCount * ESTIMATED_LANE_WIDTH_M) : pavementWidthM;
+  const travelWidthM = reviewed ? Math.min(sourceWidthM, laneCount * metadata.crossSection.laneWidthM)
+    : (sourceLaneCount || estimate) > MAX_LANES ? Math.min(sourceWidthM, laneCount * ESTIMATED_LANE_WIDTH_M) : sourceWidthM;
   const forwardCount = twoWay ? Math.ceil(laneCount / 2) : direction === 1 ? laneCount : 0;
   const backwardCount = laneCount - forwardCount;
-  const splitM = twoWay ? deck ? travelWidthM * (forwardCount / laneCount - 0.5) : 0 : null;
+  const splitM = twoWay ? 0 : null;
   const forwardWidthM = twoWay ? travelWidthM / 2 + splitM : travelWidthM;
   const backwardWidthM = twoWay ? travelWidthM / 2 - splitM : travelWidthM;
   // 车道中心的断面坐标以本方向左侧为正；两向道路各方向的车道从本侧路缘向分界线排列。
@@ -68,9 +68,8 @@ function createSection(link, metadata, deck) {
     for (let i = 1; i < backwardCount; i++) dividerOffsetsM.push(travelWidthM / 2 - i * backwardLaneWidthM);
   }
   const estimated = sourceLaneCount === 0;
-  const defaultRightOffsetM = twoWay ? Math.min(pavementWidthM / 4, 2.3) : 0;
-  // 双向的普通路线沿用保守右偏距；未核单向车道数时不把标线估计用作自动驾驶车道。
-  const defaultOffsetsM = Object.freeze([defaultRightOffsetM]);
+  // 估计断面也沿画出的车道行驶，来源仍单独标记；不能回退到双车道的分隔线上。
+  const defaultOffsetsM = direction === -1 ? Object.freeze([...backwardCentersM]) : offsetsFromRight(forwardCentersM);
   const section = {
     sourceId: deck?.osmId ?? metadata.osmId ?? null,
     surfaceId: deck?.surfaceId ?? 'terrain',
@@ -89,16 +88,10 @@ function createSection(link, metadata, deck) {
   return Object.freeze(section);
 }
 
-// 已核实断面或 OSM 明确标注的车道才可信；纯宽度估计只画标线，不据此派车。
-function verifiedLanes(section) {
-  return Boolean(section.reviewed) || (section.laneSource === 'osm-lanes' && !section.estimated);
-}
-
 // 沿边行驶方向的车道中心偏移（米，正=行驶方向右侧）。数组按坐标升序：
 // 双向分别读取本侧。反向须先转换断面坐标，再按行驶方向从左往右排序。
-// 返回 null 表示断面车道不可信，调用方应回退到保守偏移。
+// 估计车道与已核车道共享横位，是否实测仍由 laneSource/estimated 表达。
 export function laneOffsets(section, sign = section.direction || 1) {
-  if (!verifiedLanes(section)) return null;
   return sign === 1 ? section.forwardOffsetsM : section.backwardOffsetsM;
 }
 

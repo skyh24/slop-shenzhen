@@ -5,7 +5,7 @@ const { join } = require('node:path');
 const { loadModule } = require('./helpers/module.cjs');
 
 const read = name => readFileSync(join(__dirname, '../js', name), 'utf8');
-const { getRoadSection, laneOffsets } = loadModule(read('sz-road-section.js'));
+const { deckLaneProfile, getDeckSection, getRoadSection, laneOffsets } = loadModule(read('sz-road-section.js'));
 
 const GROUND = { osmId: 'way/1', highway: 'primary', widthSource: 'estimate-from-class',
   heightSource: 'terrain', bridge: false, tunnel: false, layer: 0 };
@@ -56,13 +56,29 @@ test('one-way reviewed three lanes keep the whole carriageway in right offsets',
   assert.deepEqual([...section.routeOffsetsM], [...offsets]);
 });
 
-test('two-way estimated sections keep the conservative offset and draw no lanes', () => {
+test('estimated sections drive on the same lane centers that are painted', () => {
   const section = sectionFor(13, 0, 0);
   assert.equal(section.estimated, true);
   assert.equal(section.laneSource, 'width-estimate');
-  assert.equal(laneOffsets(section), null);
-  assert.deepEqual([...section.routeOffsetsM], [2.3]);
-  assert.deepEqual([...section.defaultOffsetsM], [2.3]);
+  assert.deepEqual([...laneOffsets(section)], [1.625, 4.875]);
+  assert.deepEqual([...section.routeOffsetsM], [1.625, 4.875]);
+  const oneWay = sectionFor(6.5, 0, 1);
+  assert.deepEqual([...laneOffsets(oneWay)], [-1.625, 1.625]);
+});
+
+test('ground and elevated carriageways share lane widths with barriers outside the source width', () => {
+  for (const [width, lanes, direction] of [[6.5, 0, 1], [9.8, 3, 1], [16, 0, 0], [18, 5, 0], [13, 4, -1]]) {
+    const graph = { links: [[0, 1, 0, width, lanes, direction, []]], metadata: [GROUND] };
+    const profile = deckLaneProfile(graph.links[0]);
+    const ground = getRoadSection(graph, 0);
+    const deck = getDeckSection(graph, { ...profile, index: 0, width: profile.widthM });
+    assert.equal(deck.travelWidthM, ground.travelWidthM);
+    assert.deepEqual([...deck.dividerOffsetsM], [...ground.dividerOffsetsM]);
+    for (const sign of direction === 0 ? [1, -1] : [direction]) {
+      assert.deepEqual([...laneOffsets(deck, sign)], [...laneOffsets(ground, sign)]);
+    }
+    assert.ok(deck.pavementWidthM / 2 - deck.barrierWidthM >= width / 2 + 0.5 - 1e-8);
+  }
 });
 
 test('two-way sections with explicit OSM lanes are eligible without a reviewed cross section', () => {

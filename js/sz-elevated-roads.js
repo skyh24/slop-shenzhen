@@ -439,13 +439,14 @@ function findJunctionTapers(graph, groundNodes, skip) {
           && a.direction === b.direction && (a.direction === 0 || a.side !== b.side);
         if (dot > (sameRoad ? 0.05 : -0.55)) continue;
 
-        const width = Math.min(a.width, b.width);
+        const width = Math.max(a.width, b.width);
+        const narrow = Math.min(a.width, b.width);
         const wide = Math.max(a.width, b.width);
-        if (!exclusive && (width / wide < 0.45 || wide - width < 0.5)) continue;
+        if (!exclusive && (narrow / wide < 0.45 || wide - narrow < 0.5)) continue;
         for (const end of [a, b]) {
           if (!tapers.has(end.index)) tapers.set(end.index, { start: end.width, end: end.width, seams: {} });
           const taper = tapers.get(end.index);
-          taper[end.side] = Math.min(taper[end.side], width);
+          taper[end.side] = Math.max(taper[end.side], width);
         }
         // 单一源道路的同层转弯使用共同的斜接断面。过短的边沿用搭接，避免内侧路缘折返。
         if (!sameRoad || a.layer <= 0) continue;
@@ -567,10 +568,10 @@ function applyDeckTaper(frames, width, startWidth, endWidth, length) {
   const fullHalf = width / 2;
   const startHalf = startWidth / 2;
   const endHalf = endWidth / 2;
-  if (startHalf >= fullHalf - EPSILON && endHalf >= fullHalf - EPSILON) return;
+  if (startHalf <= fullHalf + EPSILON && endHalf <= fullHalf + EPSILON) return;
   // 按各端的横移距离独立分配渐变；平滑曲线让路缘在渐变起止处都接回原方向。
-  const startTaper = startWidth < width ? Math.max(JUNCTION_TAPER_MIN_M, (width - startWidth) * 4) : 0;
-  const endTaper = endWidth < width ? Math.max(JUNCTION_TAPER_MIN_M, (width - endWidth) * 4) : 0;
+  const startTaper = startWidth > width ? Math.max(JUNCTION_TAPER_MIN_M, (startWidth - width) * 4) : 0;
+  const endTaper = endWidth > width ? Math.max(JUNCTION_TAPER_MIN_M, (endWidth - width) * 4) : 0;
   const scale = Math.min(1, length / (startTaper + endTaper));
   const mix = (distance, extent) => {
     const t = extent > EPSILON ? Math.min(1, distance / extent) : 1;
@@ -579,7 +580,7 @@ function applyDeckTaper(frames, width, startWidth, endWidth, length) {
   for (const frame of frames) {
     const startMix = mix(frame.d, startTaper * scale);
     const endMix = mix(length - frame.d, endTaper * scale);
-    const half = Math.min(startHalf + (fullHalf - startHalf) * startMix,
+    const half = Math.max(startHalf + (fullHalf - startHalf) * startMix,
       endHalf + (fullHalf - endHalf) * endMix);
     frame.widthM = half * 2;
     frame.left.x = frame.x + frame.nx * half;
@@ -700,8 +701,7 @@ function planLink(graph, link, index, metadata, groundHeight, groundNodes, revie
   const parkBridge = reviewed?.profile === 'park-footbridge-estimate';
   const stations = resample(points, DECK_STEP_M);
   if (stations.length < 2) return null;
-  // 高架/匝道桥面按每方向 1–4 车道派生宽度。6.5 m 匝道读成 2 车道，
-  // 不再用统一最小宽度把单车道撑成一条没有分隔线的空白带。
+  // 桥面另留路肩与护栏；车行范围和车道数继续读取源道路断面。
   const laneProfile = reviewed ? null : deckLaneProfile(link);
   const width = reviewed?.widthM ?? metadata.junctionWidthM ?? laneProfile?.widthM ?? Math.max(link[3], 6.5);
   const frames = applyRoadJoinFrames(stationFrames(stations, width), metadata);
