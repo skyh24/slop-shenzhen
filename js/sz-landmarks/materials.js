@@ -87,6 +87,32 @@ function facadeMaterial(style, programEmission) {
   return material;
 }
 
+// 悬挑盒按各自底面起算楼层。玻璃内的灯光分组亮灭，钢框和层间楼板留暗。
+function djiWingMaterial() {
+  const style = styles.djiWing;
+  const material = facadeMaterial(style);
+  const level = uv().y.div(style.floor);
+  const bay = uv().x.div(style.bay);
+  const soft = max(fwidth(level), 0.018);
+  const pane = paneMaskNode(bay, 0.45, max(fwidth(bay), 0.025));
+  const row = paneMaskNode(level, 0.32, soft);
+  const ceiling = smoothstep(0.47, 0.76, fract(level));
+  const room = cellNoiseNode(bay.div(4), level);
+  const occupied = smoothstep(0.12, 0.39, room);
+  const fixtures = paneMaskNode(bay, 0.22, max(fwidth(bay), 0.04));
+  const ceilingLight = ceiling.mul(fixtures.mul(0.85).add(0.25));
+  const office = row.mul(pane).mul(occupied).mul(ceilingLight.add(0.19));
+  const wall = smoothstep(0.1, 0.65, abs(normalWorldGeometry.y)).oneMinus();
+  const sill = smoothstep(0.35, 0.85, uv().y).oneMinus();
+  const corner = smoothstep(0.18, 0.54, uv().x).oneMinus();
+  const rim = max(sill, corner.mul(0.8));
+  const interior = mix(color(0xcaddf2), color(0xffedcf), room);
+  material.emissiveNode = interior.mul(office).add(color(0x30465b).mul(pane).mul(0.48))
+    .add(color(0xffbe71).mul(rim).mul(1.65))
+    .mul(wall).mul(sceneUniforms.night);
+  return material;
+}
+
 // 用世界坐标的交错板缝表达金属覆面；像素覆盖不足时淡出缝线，避免远景闪纹。
 function cultureCladding(tint, jointColor, spacing, glowColor, glow) {
   const material = new THREE.MeshStandardNodeMaterial({ metalness: 0.24, roughness: 0.54 });
@@ -268,6 +294,7 @@ export function createLandmarkMaterial(name, programEmission = null) {
     material.colorNode = mix(material.colorNode, louvers, end);
     return material;
   }
+  if (name === 'djiWing') return djiWingMaterial();
   if (Object.hasOwn(styles, name)) {
     return facadeMaterial(styles[name], CBD_GLASS_STYLES.has(name) ? programEmission : null);
   }
@@ -312,7 +339,16 @@ export function createLandmarkMaterial(name, programEmission = null) {
     case 'tencentRoof': return new THREE.MeshStandardMaterial({ color: 0x3e4b55, roughness: 0.84 });
     case 'libraryDeck': return new THREE.MeshStandardMaterial({ color: 0xadada1, roughness: 0.86 });
     case 'libraryShell': return libraryShellMaterial();
-    case 'djiBrace': return crownMaterial(0xbfcbd1, 0.64, 0.14, 0.18);
+    case 'djiBrace': {
+      // 竖挺的 v=0 在各自塔顶，暖光沿金属肋向下衰减。
+      const crownWash = smoothstep(-7.5, -0.35, uv().y);
+      return nightSurface(0x8699a5, 0.64, 0.14, 0xffce91, crownWash.mul(1.9).add(0.035));
+    }
+    case 'djiEdgeLight': {
+      // 斜撑与连桥边梁共用贴在梁侧的细灯槽，余下钢面保持暗色。
+      const strip = smoothstep(0.16, 0.55, uv().y).oneMinus();
+      return nightSurface(0x8795a0, 0.54, 0.20, 0xffbd73, strip.mul(2.35));
+    }
     case 'djiDeck': return new THREE.MeshStandardMaterial({ color: 0x596570, metalness: 0.13, roughness: 0.7 });
     case 'djiGuard': return crownMaterial(0x506575, 0.65, 0.15, 0.035);
     case 'djiSteel': return crownMaterial(0x9faeb8, 0.62, 0.16, 0.14);

@@ -398,6 +398,10 @@ test('DJI reads as two towers: dark core spine, vertical fins, facade V braces a
   const crossbars = actual.filter(part => part.id.includes(':crossbar:'));
   assert.ok(braces.length >= 36 && braces.length % 2 === 0);
   assert.equal(crossbars.length, braces.length / 2);
+  const litBeams = actual.filter(part => part.id.includes(':bridge-edge-beam:'));
+  assert.ok([...braces, ...crossbars, ...litBeams].every(part => part.style === 'djiEdgeLight'));
+  assert.ok(braces.every(part => part.maxY - part.minY <= 21));
+  assert.ok(fins.every(part => Math.abs(part.uvOriginY - part.maxY) < 0.001));
   const middles = actual.filter(part => part.id.includes(':v-brace-mid:'));
   assert.equal(middles.length, crossbars.length);
   assert.ok(middles.every(part => part.style === 'djiSteel' && part.heightSource === 'estimate'));
