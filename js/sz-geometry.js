@@ -21,13 +21,14 @@ class GrowArray {
   }
 }
 
-// 带索引的顶点缓冲；每个顶点：位置、法线、uv，外加可选的 vec4 属性 meta
+// 带索引的顶点缓冲；可选 meta 保存通用 vec4，建筑另加共用的层高和首层高度。
 export class GeoBuilder {
-  constructor(withMeta = false) {
+  constructor(withMeta = false, withFloors = false) {
     this.pos = new GrowArray(Float32Array);
     this.nrm = new GrowArray(Float32Array);
     this.uv = new GrowArray(Float32Array);
     this.meta = withMeta ? new GrowArray(Float32Array) : null;
+    this.floors = withFloors ? new GrowArray(Float32Array) : null;
     this.idx = new GrowArray(Uint32Array);
   }
 
@@ -51,8 +52,14 @@ export class GeoBuilder {
     this.uv.length += 2;
     if (this.meta) {
       this.meta.reserve(4);
-      this.meta.data.set(meta, this.meta.length);
+      for (let j = 0; j < 4; j++) this.meta.data[this.meta.length + j] = meta[j];
       this.meta.length += 4;
+    }
+    if (this.floors) {
+      this.floors.reserve(2);
+      this.floors.data[this.floors.length] = meta[4];
+      this.floors.data[this.floors.length + 1] = meta[5];
+      this.floors.length += 2;
     }
     return i;
   }
@@ -70,6 +77,7 @@ export class GeoBuilder {
     g.setAttribute('normal', new THREE.BufferAttribute(this.nrm.view(), 3));
     g.setAttribute('uv', new THREE.BufferAttribute(this.uv.view(), 2));
     if (this.meta) g.setAttribute('bmeta', new THREE.BufferAttribute(this.meta.view(), 4));
+    if (this.floors) g.setAttribute('bfloors', new THREE.BufferAttribute(this.floors.view(), 2));
     g.setIndex(new THREE.BufferAttribute(this.idx.view(), 1));
     g.computeBoundingSphere();
     g.computeBoundingBox();
@@ -142,7 +150,8 @@ export function addFlatPolygon(b, rings, y, meta, uvScale = 1, facing = 1) {
 }
 
 // 外墙：u 是每面墙自己的累计长度（米，从墙角 0 起，便于按墙拟合整数开间），v 是离地高度（米）。
-// meta 为 [立面编号, 种子, 0, 楼高]；顶点级 meta.z 改写为该面墙的长度，meta.w 保持楼高。
+// meta 前四项为立面编号、种子、墙长占位、楼高；建筑可附加标准层高和首层高度。
+// 顶点级 meta.z 改写为该面墙的长度，meta.w 保持楼高。
 export function addWalls(b, rings, y0, y1, meta, uvOriginY = 0, replaceEdge = null, clipEdge = null, retailFront = null) {
   // 每面墙复用同一份 meta 数组，GeoBuilder 会立刻拷贝数值，不能跨顶点保留引用。
   const wallMeta = meta ? meta.slice() : null;

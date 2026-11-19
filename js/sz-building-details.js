@@ -3,7 +3,7 @@ import { GeoBuilder } from './sz-geometry.js';
 import { buildingPlacement, buildingSeed } from './sz-building-layout.js';
 import { polygonBoxOverlaps } from './building-collision.js';
 import { polygonContains, ringArea, signedRingArea, orientedBoxRing } from './sz-polygon.js';
-import { facadeIndex, facadeProfile, fitFacadeBays, FACADE_GRID, FACADE_PROFILES,
+import { facadeIndex, facadeProfile, fitFacadeBays, fitFacadeFloors, FACADE_GRID, FACADE_PROFILES,
   FACADE_SAMPLE_PROFILES } from './sz-facade-profiles.js';
 import { createBuildingMaterial } from './sz-materials.js';
 
@@ -230,21 +230,6 @@ function blockedByNeighbours(spans, building, x, z, w, d, cs, sn, y0, y1) {
 
 // ---------------- 单栋细节规划（纯函数，按 building.id 固定种子） ----------------
 
-function floorMetrics(building, profile) {
-  const top = building.height;
-  const bottom = Number.isFinite(building.minHeight) ? building.minHeight : 0;
-  const extent = Math.max(0, top - bottom);
-  const levels = Number.isInteger(building.levels) && building.levels > 0 ? building.levels : -1;
-  let floorHeight = profile.floorHeight;
-  if (levels > 0) {
-    const fromLevels = extent / levels;
-    // 层数是源数据，但换算出的层高只用于外观节奏；明显不合理时回退立面表，不改楼高。
-    if (Number.isFinite(fromLevels) && fromLevels >= 2.2 && fromLevels <= 8) floorHeight = fromLevels;
-  }
-  const floors = levels > 0 ? levels : Math.max(1, Math.round(extent / floorHeight));
-  return { floorHeight, floors: clamp(floors, 1, 200) };
-}
-
 function roofSampler(polygon, polygonEdges) {
   const center = polygon.outer.reduce((acc, point) => ({ x: acc.x + point.x / polygon.outer.length, z: acc.z + point.z / polygon.outer.length }),
     { x: 0, z: 0 });
@@ -425,7 +410,7 @@ function planBalconies(building, edges, placement, rand, profile, options) {
   if (Math.hypot(building.cx - player.x, building.cz - player.z) > BALCONY_RADIUS) return { balconies, usedEdges };
   const wallEdges = edges.filter(edge => edge.length >= 4).sort((a, b) => b.length - a.length);
   const sample = options.sample?.balconyDepth ? options.sample : null;
-  const facade = sample ? { ...profile, ...sample } : profile;
+  const facade = { ...profile, ...sample, ...fitFacadeFloors(building, profile) };
   const { floorHeight, groundHeight, sill, winRatioH } = facade;
   const rowOrigin = placement.baseY + groundHeight;
   // 高楼保留最靠近入口的一排标准窗，架空层跳过未落在实体墙上的窗排。
@@ -465,7 +450,7 @@ function planBalconies(building, edges, placement, rand, profile, options) {
   return { balconies, usedEdges };
 }
 
-function planAcUnits(building, wallEdges, placement, rand, profile, floorHeight, floors, options, usedEdges) {
+function planAcUnits(building, wallEdges, placement, rand, profile, floorHeight, groundHeight, floors, options, usedEdges) {
   const units = [];
   if (!profile.airConditioner && building.category !== 'residential') return units;
   const player = options.playerPosition;
@@ -484,8 +469,8 @@ function planAcUnits(building, wallEdges, placement, rand, profile, floorHeight,
       if (units.length >= MAX_AC_UNITS) return units;
       if (rand() > 0.38) continue;
       const floor = 2 + Math.floor(rand() * Math.max(1, floors - 2));
-      const y = placement.minY + floorHeight * (floor - 1) + floorHeight * 0.45;
-      if (y + 0.5 > placement.maxY - 0.4) continue;
+      const y = placement.baseY + groundHeight + floorHeight * (floor - 2 + 0.45);
+      if (y - 0.5 < placement.minY || y + 0.5 > placement.maxY - 0.4) continue;
       const t = 0.8 + step / 2 + rand() * columnSpan;
       const wx = edge.ax + edge.ux * t;
       const wz = edge.az + edge.uz * t;
@@ -562,7 +547,7 @@ export function planBuildingDetails(building, placement, options = {}) {
       && span.y0 <= y0 + 1e-6 && span.y1 >= y1 - 1e-6);
   };
   const rand = createRandom(buildingSeed(building.id));
-  const { floorHeight, floors } = floorMetrics(building, profile);
+  const { floorHeight, groundHeight, floors } = fitFacadeFloors(building, profile);
   const allowFacadeDetails = options.allowFacadeDetails !== false;
   const allowRoofEquipment = options.allowRoofEquipment !== false;
   const parapet = baseRoof?.parapet > 0 ? { height: 0, parts: [] }
@@ -576,7 +561,7 @@ export function planBuildingDetails(building, placement, options = {}) {
   if (allowFacadeDetails) {
     const plan = planBalconies(building, edges, placement, rand, profile, planOptions);
     balconies = plan.balconies;
-    acUnits = planAcUnits(building, edges, placement, rand, profile, floorHeight, floors, planOptions, plan.usedEdges);
+    acUnits = planAcUnits(building, edges, placement, rand, profile, floorHeight, groundHeight, floors, planOptions, plan.usedEdges);
     if (!options.retailBuildingIds?.has(building.id)) {
       canopy = planCanopy(building, edges, placement, floorHeight, planOptions, plan.usedEdges);
     }
@@ -596,7 +581,7 @@ export function planBuildingDetails(building, placement, options = {}) {
   }
   return {
     id: building.id, facade, bucket, roofY: placement.maxY, baseY: placement.minY,
-    floorHeight, floors, parapet, roofParts: roof.parts, aerialLights: roof.aerialLights,
+    floorHeight, groundHeight, floors, parapet, roofParts: roof.parts, aerialLights: roof.aerialLights,
     balconies, acUnits, canopy, ...(sample && { appearanceSource: sample.appearanceSource })
   };
 }
@@ -773,8 +758,8 @@ function appendPlanGeometry(builders, doorBuilder, plan, building, baseY) {
   for (const part of plan.roofParts) appendRoofPart(b, part, plan.roofY);
   for (const balcony of plan.balconies) appendBalcony(b, balcony);
   if (plan.balconies.length) {
-    const profile = { ...facadeProfile(plan.facade), ...FACADE_SAMPLE_PROFILES[building.id] };
-    const meta = [facadeIndex(plan.facade), buildingSeed(building.id) * 10, 0, building.height];
+    const profile = { ...facadeProfile(plan.facade), ...FACADE_SAMPLE_PROFILES[building.id], floorHeight: plan.floorHeight };
+    const meta = [facadeIndex(plan.facade), buildingSeed(building.id) * 10, 0, building.height, plan.floorHeight, plan.groundHeight];
     for (const balcony of plan.balconies) appendBalconyDoor(doorBuilder, balcony, meta, profile, baseY);
   }
   for (const unit of plan.acUnits) appendAcUnit(b, unit);
@@ -974,7 +959,7 @@ export function buildBuildingDetails(scene, options = {}) {
       } else if (!minimal) {
         fullDetailBuildings++;
       }
-      if (plan.balconies.length) doorBuilder ??= new GeoBuilder(true);
+      if (plan.balconies.length) doorBuilder ??= new GeoBuilder(true, true);
       budget -= appendPlanGeometry(builders, doorBuilder, plan, building, placement.baseY);
       record.buildingCount++;
       record.parapetParts += plan.parapet.parts.length;

@@ -1,6 +1,6 @@
 // 普通楼外观按名称选择；包内索引只用来解码名称。前八项与 Python 生成器的枚举由回归测试对照。
 // 中性预设处理缺省或未知用途，兼容包里已有的外观估计。
-// 这些是外观参数，不是逐楼实测的层数、用途或建成年份；窗层节奏只作外观估计。
+// 这些是外观参数，不是逐楼实测的层数、用途或建成年份；缺失或矛盾的层数才按预设估计窗层。
 // 字段：bayWidth/floorHeight 为米；winRatioW/H 是窗占开间/层高的比例；sill 是窗台相对层底的比例；
 // glazing 0 实体墙 → 1 玻璃幕墙；warmth 是夜灯偏暖比例；litShare 是模拟亮灯比例；
 // groundStyle 0 大堂 / 1 店面 / 2 单元入口 / 3 工业门洞；cornerMargin 墙角留白米数。
@@ -114,3 +114,18 @@ export const FACADE_SAMPLE_PROFILES = {
     winRatioW: 0.91, winRatioH: 0.78, sill: 0.15, glazing: 0.9, wallColor: 0x8297a0
   }
 };
+
+// 总层数包含首层；标准窗、阳台和空调共用同一竖向网格，架空部分只裁切，不另起一套窗层。
+export function fitFacadeFloors(building, profile = facadeProfile(building.facade)) {
+  const sample = FACADE_SAMPLE_PROFILES[building.id];
+  const nominal = sample?.floorHeight ?? profile.floorHeight;
+  const height = Math.max(0.1, building.height);
+  const levels = building.levels;
+  const plausible = Number.isInteger(levels) && levels > 0 && levels <= 200
+    && height / levels >= 2.2 && height / levels <= 8;
+  const floors = plausible ? levels : Math.min(200, Math.max(1, Math.round(height / nominal)));
+  const groundHeight = floors === 1 ? height
+    : Math.min(profile.groundHeight, height - (floors - 1) * 2.2);
+  const floorHeight = floors === 1 ? nominal : (height - groundHeight) / (floors - 1);
+  return { floors, groundHeight: Math.fround(groundHeight), floorHeight: Math.fround(floorHeight) };
+}

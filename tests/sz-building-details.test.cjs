@@ -334,8 +334,8 @@ test('the two facade samples keep source placement and stream their estimated de
   assert.ok(lobby.canopy.y - 0.68 > 5);
   const placement = layout.buildingPlacement(home, grid);
   const residence = details.planBuildingDetails(home, placement, { playerPosition: focus });
-  const { facadeProfile, fitFacadeBays, FACADE_SAMPLE_PROFILES } = loadModule(read('sz-facade-profiles.js'));
-  const sampleFacade = { ...facadeProfile(home.facade), ...FACADE_SAMPLE_PROFILES[home.id] };
+  const { facadeProfile, fitFacadeBays, fitFacadeFloors, FACADE_SAMPLE_PROFILES } = loadModule(read('sz-facade-profiles.js'));
+  const sampleFacade = { ...facadeProfile(home.facade), ...FACADE_SAMPLE_PROFILES[home.id], ...fitFacadeFloors(home) };
   assert.equal(residence.appearanceSource, 'estimate');
   assert.equal(residence.roofY, home.height);
   assert.equal(residence.floors, 48);
@@ -355,7 +355,7 @@ test('the two facade samples keep source placement and stream their estimated de
   for (const heights of columns.values()) {
     assert.ok(heights[0] > residence.canopy.y + 1);
     assert.ok(heights.at(-1) + 1 < home.height);
-    assert.ok(heights.slice(1).every((y, index) => Math.abs(y - heights[index] - 6.2) < 1e-8));
+    assert.ok(heights.slice(1).every((y, index) => Math.abs(y - heights[index] - 2 * residence.floorHeight) < 1e-8));
   }
   const far = details.planBuildingDetails(home, placement, { playerPosition: { x: 400, z: 0 } });
   assert.equal(far.balconies.length, 0);
@@ -531,7 +531,7 @@ test('levels drive floor rhythm without changing the building height', () => {
   const placement = layout.buildingPlacement(building, grid);
   const plan = details.planBuildingDetails(building, placement, { playerPosition: { x: 0, z: 0 } });
   assert.equal(plan.floors, 20);
-  assert.equal(plan.floorHeight, 3);
+  assert.ok(Math.abs(plan.groundHeight + 19 * plan.floorHeight - 60) < 0.00001);
   assert.equal(plan.roofY, placement.maxY);
   assert.equal(placement.maxY - placement.minY, building.height);
 });
@@ -574,7 +574,7 @@ test('streamed balcony doors match the wall UV, facade row and triangle budget',
     const width = walls.bmeta.array[wallIndex * 4 + 2];
     const fit = fitFacadeBays(width, profile);
     const u = (x - ax) * -nz + (z - az) * nx;
-    const row = (y - placement.baseY - profile.groundHeight) / profile.floorHeight;
+    const row = (y - placement.baseY - plan.groundHeight) / plan.floorHeight;
     const bay = (u - fit.margin) / fit.width;
     close(row, Math.round(row));
     close(bay - Math.floor(bay), 0.5);
@@ -582,7 +582,7 @@ test('streamed balcony doors match the wall UV, facade row and triangle budget',
     close(u, uv.array[vertex * 2]);
     close(y - placement.baseY, uv.array[vertex * 2 + 1]);
     close(bmeta.array[vertex * 4 + 2], width);
-    assert.ok(y > placement.minY && y + (profile.sill + profile.winRatioH) * profile.floorHeight <= placement.maxY);
+    assert.ok(y > placement.minY && y + (profile.sill + profile.winRatioH) * plan.floorHeight <= placement.maxY);
   }
   const budget = stream.statistics.triangles - 1;
   const capped = details.buildBuildingDetails(makeScene(), { ...options, maxChunkTriangles: budget });
@@ -731,7 +731,7 @@ test('facade presets drive the same detail planner with office, village and unkn
     const placement = layout.buildingPlacement(building, FLAT_GRID());
     const plan = details.planBuildingDetails(building, placement, options);
     const profile = profiles.facadeProfile(facade);
-    assert.equal(plan.floorHeight, profile.floorHeight);
+    assert.ok(Math.abs(plan.groundHeight + (plan.floors - 1) * plan.floorHeight - building.height) < 0.00001);
     assert.equal(plan.floors, Math.round(building.height / profile.floorHeight));
     assert.equal(plan.roofY, placement.maxY);
     assert.equal(plan.acUnits.length > 0, profile.airConditioner);
@@ -864,4 +864,18 @@ test('releasing one chunk keeps the shared detail materials alive for the others
     'releasing one chunk must not dispose the shared materials');
   result.dispose();
   assert.ok(materials.every(material => material.disposed));
+});
+
+test('raised residential walls keep AC units within the shared floor grid and solid height', () => {
+  const details = loadDetails(stubThree());
+  const building = makeBuilding({ id: 'way/raised-ac', x: 0, z: 0, half: 20, height: 60,
+    minHeight: 25, facade: 'residential_tower', levels: 12, category: 'residential' });
+  const placement = layout.buildingPlacement(building, FLAT_GRID());
+  const plan = details.planBuildingDetails(building, placement, { playerPosition: { x: 0, z: 0 } });
+  assert.ok(plan.acUnits.length > 0);
+  for (const unit of plan.acUnits) {
+    assert.ok(unit.y - unit.h / 2 >= placement.minY);
+    const row = (unit.y - placement.baseY - plan.groundHeight) / plan.floorHeight - 0.45;
+    assert.ok(Math.abs(row - Math.round(row)) < 1e-8);
+  }
 });

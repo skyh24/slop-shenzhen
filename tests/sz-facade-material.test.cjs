@@ -238,7 +238,11 @@ function createFacadeEvaluator() {
       call.setLayout = () => call;
       return call;
     },
-    attribute: (name) => name === 'bground' ? state.bground : state.meta,
+    attribute: (name) => name === 'bground' ? state.bground : name === 'bfloors' ? new Node(() => {
+      if (state.floorGrid) return state.floorGrid;
+      const p = facadeProfiles.FACADE_PROFILES[state.meta.current[0]];
+      return [p.floorHeight, p.groundHeight];
+    }) : state.meta,
     uv: () => state.uv,
     vec2: (...args) => vector(args, 2),
     vec3: (...args) => vector(args, 3),
@@ -658,9 +662,56 @@ test('ordinary residential balcony doors fill the lower right pane only on strea
   const [minX, maxX, minZ, maxZ] = sample.bounds;
   evaluator.state.position.current = [(minX + maxX) / 2, 20, (minZ + maxZ) / 2];
   evaluator.state.meta.current = [2, sample.materialSeed, wallLength, buildingHeight];
+  evaluator.state.floorGrid = [profile.floorHeight, profile.groundHeight];
   const atSample = (row, cellU, cellV, material) => readPane(row, 1, cellU, cellV, material, profile);
   assert.deepEqual(atSample(1, 0.86, 0.08, doors), atSample(1, 0.86, 0.5, regular),
     'the named sample uses its wider window and taller floor profile');
   assert.ok(atSample(1, 0.3, 0.08, doors).roughness > 0.7, 'the left window is still above its sill');
   assert.ok(atSample(2, 0.86, 0.08, regular).roughness > 0.7, 'the duplex window row without a slab has no door');
+});
+
+test('facade floors fit source levels and carry the identical grid through clipped walls', () => {
+  const { fitFacadeFloors, facadeProfile } = facadeProfiles;
+  const building = { facade: 'residential_tower', height: 60, levels: 12, minHeight: 8 };
+  const grid = fitFacadeFloors(building);
+  assert.equal(grid.floors, 12);
+  assert.ok(Math.abs(grid.groundHeight + 11 * grid.floorHeight - 60) < 0.00001);
+  assert.deepEqual(fitFacadeFloors({ ...building, minHeight: 0 }), grid);
+  assert.equal(fitFacadeFloors({ ...building, levels: 1200 }).floors, 20);
+  const single = fitFacadeFloors({ ...building, height: 3.2, levels: 1 });
+  assert.equal(single.floors, 1);
+  assert.equal(single.groundHeight, Math.fround(3.2));
+  const { GeoBuilder, addWalls } = loadGeometry();
+  const builder = new GeoBuilder(true, true);
+  addWalls(builder, [[0, 0, 12, 0, 12, 8, 0, 8]], 8, 60,
+    [2, 0.5, 0, 60, grid.floorHeight, grid.groundHeight], 0);
+  const attributes = builder.build().attributes;
+  for (let i = 0; i < attributes.bfloors.array.length; i += 2) {
+    assert.equal(attributes.bfloors.array[i], grid.floorHeight);
+    assert.equal(attributes.bfloors.array[i + 1], grid.groundHeight);
+  }
+  for (const name of ['residential_low', 'residential_tower', 'office']) {
+    const estimated = fitFacadeFloors({ height: 37, facade: name, levels: -1 });
+    assert.equal(estimated.floors, Math.round(37 / facadeProfile(name).floorHeight));
+    assert.ok(Math.abs(estimated.groundHeight + (estimated.floors - 1) * estimated.floorHeight - 37) < 0.00001);
+  }
+});
+
+test('residential shader repeats one window row per fitted source floor', () => {
+  const { materials, state, bump } = createFacadeEvaluator();
+  const building = { facade: 'residential_tower', height: 60, levels: 12 };
+  const grid = facadeProfiles.fitFacadeFloors(building);
+  state.meta.current = [2, 0.5, 14.4, building.height];
+  state.floorGrid = [grid.floorHeight, grid.groundHeight];
+  state.uv.current = [2.848, 0];
+  const material = materials.createBuildingMaterial();
+  const runs = [];
+  let previous = false;
+  for (let y = grid.groundHeight + 0.1; y < 59; y += 0.04) {
+    state.uv.current = [2.848, y]; bump();
+    const open = material.roughnessNode.values[0] < 0.5;
+    if (open && !previous) runs.push(y);
+    previous = open;
+  }
+  assert.equal(runs.length, 11, 'twelve storeys have eleven upper window rows and one ground floor');
 });

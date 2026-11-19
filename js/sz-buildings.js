@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { GEO, REAL_BUILDINGS } from './sz-geodata.js';
 import { GeoBuilder, addWalls, addFlatPolygon, readTriangles } from './sz-geometry.js';
 import { createBuildingMaterial, createK11SouthWallMaterial } from './sz-materials.js';
-import { facadeIndex } from './sz-facade-profiles.js';
+import { facadeIndex, fitFacadeFloors } from './sz-facade-profiles.js';
 import { createBuildingEnvelopePlan } from './sz-building-envelope.js';
 import { createBuildingDetailPlan, retailBuildingIdsFromRegions } from './sz-building-plan.js';
 import { polygonBoxOverlaps } from './building-collision.js';
@@ -529,14 +529,15 @@ export function buildCityBlocks(scene, options = {}) {
     const participant = !compact && programEmission && programParticipant(building);
     if (participant) programIds.push(building.id);
     const key = `${Math.floor(building.cx / renderChunkSize)},${Math.floor(building.cz / renderChunkSize)}${compact ? ':compact' : participant ? ':program' : ''}`;
-    if (!batches.has(key)) batches.set(key, new GeoBuilder(true));
+    if (!batches.has(key)) batches.set(key, new GeoBuilder(true, true));
     const batch = batches.get(key);
     // K11 南馆仅换原外墙的材质，屋面、裙房、真实首层分段和碰撞继续走原楼管线。
     const isK11South = building.id === 'way/1215840986';
-    const wallBatch = isK11South ? (k11Walls ??= new GeoBuilder(true)) : batch;
+    const wallBatch = isK11South ? (k11Walls ??= new GeoBuilder(true, true)) : batch;
     const facade = facadeIndex(building.facade);
     // 普通超高层不自动套同一种灯光秀，地标灯光由各自模型负责。
-    const meta = [facade, buildingSeed(building.id) * 10, 0, building.height];
+    const floors = fitFacadeFloors(building);
+    const meta = [facade, buildingSeed(building.id) * 10, 0, building.height, floors.floorHeight, floors.groundHeight];
     const candidateIndex = candidateByBuilding.get(buildingIndex);
     const podium = candidateIndex === undefined ? null
       : podiumPlan(candidates[candidateIndex], occupancy[candidateIndex], placement, roadClearance);
