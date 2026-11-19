@@ -103,7 +103,7 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
     assert.ok(Math.abs(model.contactHeight(x, z) - groundHeight(x, z) - 0.15) < 0.002);
   }
   const pressTowerFlowers = model.group.children.filter(mesh => mesh.name.startsWith('深南大道-arterial-flowers:'));
-  assert.equal(raw.roadFrontage.features.find(feature => feature.id === '深南大道-arterial-flowers').surfaceOffsetM, 0.15);
+  assert.equal(raw.roadFrontage.features.find(feature => feature.id === '深南大道-arterial-flowers').surfaceOffsetM, 0.22);
   assert.ok(pressTowerFlowers.some(mesh => {
     const points = mesh.geometry.attributes.position;
     for (let i = 0; i < points.count; i += 3) {
@@ -200,23 +200,26 @@ test('pilot paint and raised surfaces stay on their own geometry and signal fixt
   assert.ok(model.statistics.curbTriangles >= model.statistics.curbSegments
     && model.statistics.curbTriangles <= model.statistics.curbSegments * 2);
   assert.ok(model.statistics.shennanFlowerBeds > 2);
-  const flowerBeds = model.group.getObjectByName('shennan-median:flower-beds');
-  const flowers = flowerBeds.geometry.attributes.position;
-  const verticesPerBed = 14 * 6;
-  assert.equal(flowers.count, model.statistics.shennanFlowerBeds * verticesPerBed);
-  let previousBed = null;
-  for (let start = 0; start < flowers.count; start += verticesPerBed) {
-    const end = start + verticesPerBed - 1;
-    const center = [flowers.getX(start) + flowers.getX(end), flowers.getZ(start) + flowers.getZ(end)].map(value => value / 2);
-    if (previousBed) assert.ok(Math.hypot(center[0] - previousBed[0], center[1] - previousBed[1]) >= 83.9);
-    previousBed = center;
-  }
-  for (let i = 0; i < flowers.count; i++) {
-    const x = flowers.getX(i) + flowerBeds.position.x;
-    const z = flowers.getZ(i) + flowerBeds.position.z;
-    assert.equal(roadHeight(x, z), null);
-    assert.ok(!reserveFlowerBed(x, z));
-    assert.ok(Math.abs(flowers.getY(i) - model.shennanMedianHeight(x, z) - 0.07) < 0.0002);
+  assert.equal(model.group.getObjectByName('shennan-median:flower-beds'), undefined,
+    'runtime must not add a second flower pattern');
+  const compiled = raw.roadFrontage.features.find(feature => feature.id === '深南大道-arterial-flowers');
+  assert.equal(model.statistics.shennanFlowerBeds, compiled.bedCount);
+  for (const mesh of pressTowerFlowers) {
+    assert.equal(mesh.userData.heightSource, 'planted-finish');
+    const flowers = mesh.geometry.attributes.position;
+    for (let i = 0; i < flowers.count; i++) {
+      const x = flowers.getX(i) + mesh.position.x;
+      const z = flowers.getZ(i) + mesh.position.z;
+      assert.ok(!reserveFlowerBed(x, z));
+      const top = model.shennanMedianHeight(x, z) ?? groundHeight(x, z) + 0.15;
+      assert.ok(Math.abs(flowers.getY(i) - top - 0.07) < 0.0002);
+    }
+    // 裁口顶点可在沥青边界上；以三角形内部验证花卉未盖住车行面。
+    for (let i = 0; i < flowers.count; i += 3) {
+      const x = mesh.position.x + (flowers.getX(i) + flowers.getX(i + 1) + flowers.getX(i + 2)) / 3;
+      const z = mesh.position.z + (flowers.getZ(i) + flowers.getZ(i + 1) + flowers.getZ(i + 2)) / 3;
+      assert.equal(roadHeight(x, z), null, `flower face at ${x}, ${z}`);
+    }
   }
   assert.ok(model.signalOrigins.every(p => p.minClearanceM >= 5.5));
   const arm = model.group.children.find(mesh => mesh.name === 'signals:arms');

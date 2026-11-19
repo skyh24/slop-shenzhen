@@ -80,10 +80,21 @@ test('ordinary blocks simplify tiny and rotated narrow outlines with one shared 
       minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs),
       polygons: [{ outer, holes: [] }], ...extra };
   };
-  const compact = [...interchange, fixture('test/tiny', 0, 6, 6), fixture('test/narrow', 40, 25, 3)];
+  const predicted = buildings.find(b => b.id === 'overture/d96863f3-ced3-4aad-b81b-b6ce349b30fb');
+  assert.equal(predicted.heightSource, 'estimate');
+  const remoteTiny = buildings.find(b => b.id === 'overture/1c0a157d-0830-4996-aaeb-d798b3b15af5');
+  assert.equal(remoteTiny.heightSource, 'globfp');
+  const screenshotBuildings = ['overture/ca628dd9-61c2-4978-898c-e0e582eb1e93',
+    'overture/84a55ad7-0641-4a13-addc-efe10cb06761'].map(id => buildings.find(b => b.id === id));
+  assert.deepEqual(screenshotBuildings.map(b => b.height), [94.6, 26.3]);
+  const compact = [...interchange, predicted, remoteTiny, ...screenshotBuildings, fixture('test/tiny', 0, 6, 6),
+    fixture('test/narrow', 40, 25, 6),
+    fixture('test/predicted-narrow', 440, 20, 7, { heightSource: 'globfp', confidence: { height: 'low' } })];
   const protectedBuildings = [
     fixture('test/wide', 80, 9, 9), fixture('test/long', 120, 40, 2),
     fixture('test/known-height', 160, 6, 6, { heightSource: 'osm-height' }),
+    fixture('test/measured-overture', 480, 6, 6, { heightSource: 'overture-height' }),
+    fixture('test/confident-prediction', 520, 6, 6, { heightSource: 'globfp', confidence: { height: 'medium' } }),
     fixture('test/known-use', 200, 6, 6, { category: 'residential' }),
     fixture('test/levels', 240, 6, 6, { levels: 2 }),
     fixture('test/raised', 280, 6, 6, { minHeight: 4 }),
@@ -98,7 +109,8 @@ test('ordinary blocks simplify tiny and rotated narrow outlines with one shared 
   for (const building of compact) {
     const block = blocks.allBlocks.find(row => row.id === building.id);
     const collider = blocks.colliders.find(row => row.sourceId === building.id);
-    assert.equal(block.sourceHeight, building.height);
+    assert.equal(block.sourceHeight, building.height, building.id);
+    assert.equal(block.sourceHeightSource, building.heightSource);
     assert.equal(block.height, 3.2);
     assert.equal(collider.polygon, building.polygons[0]);
     assert.equal(collider.maxY, Math.fround(block.baseY + 3.2));

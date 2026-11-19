@@ -120,12 +120,14 @@ function buildPalmFrond(rng) {
   const prims = [];
   const points = twigPoints(R, 0, 0, R(-0.08, 0.08), R(1.85, 2.05), 0.05, 14);
   prims.push({ type: 'twig', pts: points, w0: 0.02, w1: 0.006 });
-  let side = 1;
-  for (let t = 0.1; t < 1.0; t += R(0.045, 0.055)) {
+  // 羽叶两侧成对铺开；过短、过细的小叶会在常用观察距离缩成一根裸杆。
+  for (let t = 0.08; t < 1.0; t += R(0.028, 0.038)) {
     const { p, a } = pointAt(points, t);
-    side = -side;
-    const len = R(0.16, 0.3) * (1 - Math.max(0, t - 0.75) * 2.4);
-    prims.push({ type: 'oval', p, a: a + side * R(1.1, 1.5), len, wid: 0.16, skew: side * 0.08, t });
+    const len = R(0.42, 0.65) * (1 - Math.max(0, t - 0.65) * 2.0);
+    for (const side of [-1, 1]) {
+      prims.push({ type: 'oval', p, a: a + side * R(0.95, 1.3), len,
+        wid: 0.22, skew: side * 0.08, t });
+    }
   }
   prims.push({ type: 'oval', p: pointAt(points, 1).p, a: 0, len: 0.28, wid: 0.12, t: 1 });
   return prims;

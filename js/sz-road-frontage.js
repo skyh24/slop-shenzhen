@@ -249,81 +249,7 @@ function addMedianShrubs(group, foliage, sites, contactHeight, low = false) {
   return matrices.length;
 }
 
-const SHENNAN_BED_MIN_MEDIAN_WIDTH = 7.5;
-
-// 沿绿带主方向每 2 米取一条断面，用边界环的穿越点配对得到可用绿带区间。
-function medianBedRows(feature) {
-  const rings = feature.outlines ?? [];
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const ring of rings) for (let i = 0; i < ring.length; i += 2) {
-    minX = Math.min(minX, ring[i]); maxX = Math.max(maxX, ring[i]);
-    minZ = Math.min(minZ, ring[i + 1]); maxZ = Math.max(maxZ, ring[i + 1]);
-  }
-  const alongX = maxX - minX >= maxZ - minZ;
-  if ((alongX ? maxX - minX : maxZ - minZ) < 24) return [];
-  const from = alongX ? minX : minZ, to = alongX ? maxX : maxZ;
-  const rows = [];
-  for (let t = from + 2; t <= to - 2; t += 2) {
-    const hits = [];
-    for (const ring of rings) for (let i = 2; i < ring.length; i += 2) {
-      const ax = ring[i - 2], az = ring[i - 1], bx = ring[i], bz = ring[i + 1];
-      const a = alongX ? ax : az, b = alongX ? bx : bz;
-      if (a === b || (a > t) === (b > t)) continue;
-      const u = (t - a) / (b - a);
-      hits.push(alongX ? az + (bz - az) * u : ax + (bx - ax) * u);
-    }
-    hits.sort((a, b) => a - b);
-    for (let i = 0; i + 1 < hits.length; i += 2) {
-      const width = hits[i + 1] - hits[i];
-      if (width >= SHENNAN_BED_MIN_MEDIAN_WIDTH) rows.push({ t, x: alongX ? t : (hits[i] + hits[i + 1]) / 2,
-        z: alongX ? (hits[i] + hits[i + 1]) / 2 : t, width });
-    }
-  }
-  return rows;
-}
-
-function addShennanFlowerBeds(group, rows, medianHeight, material, reserveFlowerBed) {
-  if (rows.length < 3) return 0;
-  const origin = [rows[0].x, rows[0].z];
-  const vertices = [];
-  let count = 0, lastT = -Infinity;
-  for (let i = 1; i < rows.length - 1; i++) {
-    const { t, x, z, width } = rows[i];
-    if (t - lastT < 84 + (count % 4) * 14) continue;
-    const dx = rows[i + 1].x - rows[i - 1].x, dz = rows[i + 1].z - rows[i - 1].z;
-    if (dx * dx + dz * dz < 1e-6) continue;
-    const angle = Math.atan2(dz, dx);
-    const ux = Math.cos(angle), uz = Math.sin(angle);
-    const halfLength = 8.5 + (count % 4) * 2.5;
-    const halfWidth = Math.min(width * (0.24 + (count % 3) * 0.03), 8.5);
-    const turn = count % 2 === 0 ? 1 : -1;
-    const bed = [];
-    // 逐排采样绿带顶面。靠近端头或开口放不下时跳过整块花圃。
-    for (let j = 0; j <= 14; j++) {
-      const u = j / 14;
-      const along = (2 * u - 1) * halfLength;
-      const bend = Math.sin(2 * Math.PI * u) * halfWidth * 0.95 * turn;
-      const span = halfWidth * (0.085 + 0.80 * Math.sin(Math.PI * u) ** 0.8)
-        * (0.86 + 0.14 * Math.cos(u * Math.PI * 3 + count));
-      for (const side of [-1, 1]) {
-        const cross = bend + span * side;
-        const px = x + ux * along - uz * cross, pz = z + uz * along + ux * cross;
-        const y = medianHeight(px, pz);
-        if (Number.isFinite(y) && !reserveFlowerBed?.(px, pz)) bed.push([px - origin[0], y + 0.07, pz - origin[1]]);
-      }
-    }
-    if (bed.length !== 30) continue;
-    for (let j = 2; j < bed.length; j += 2) {
-      vertices.push(...bed[j - 2], ...bed[j - 1], ...bed[j], ...bed[j], ...bed[j - 1], ...bed[j + 1]);
-    }
-    count++;
-    lastT = t;
-  }
-  if (count) group.add(pavingMesh(vertices, origin, material, 'shennan-median:flower-beds'));
-  return count;
-}
-
-export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeight, roadHeight, style: sceneStyle, reserveFlowerBed } = {}) {
+export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeight, roadHeight, style: sceneStyle } = {}) {
   const control = createIntersectionControl(source, graph);
   const statistics = { triangleCount: 0, curbTriangles: 0, curbSegments: 0, signals: 0, shrubs: 0, shennanFlowerBeds: 0 };
   const empty = { group: null, control, contactHeight: () => null, shennanMedianHeight: () => null,
@@ -348,7 +274,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     row.medianSource?.positionSource === 'documented-median-between-osm-carriageways')
     .map(row => [`${row.id}:median`, row]));
   const medianSamplers = [];
-  const bedRows = [];
+  const flowerMeshes = [];
   const arterialSamplers = [];
   const arterialTops = [];
   const samplers = [];
@@ -372,6 +298,7 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     : null;
   for (const feature of source.features) {
     if (feature.id === 'shennan-civic-center:flower-band') continue;
+    if (feature.id === '深南大道-arterial-flowers') statistics.shennanFlowerBeds = feature.bedCount ?? 0;
     const corridor = medians.get(feature.id);
     const verifiedMedian = corridor && feature.kind === 'median'
       && feature.sourceIds.length >= 2 && feature.sourceIds.every(id => /^way\/\d+$/.test(id));
@@ -397,9 +324,10 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       if (planted) mesh.userData.planting = {
         form: corridor.medianSource.planting ?? 'open-lawn-and-low-flower-beds', positionSource: 'visual-estimate'
       };
-      mesh.userData.heightSource = feature.plantSites ? 'planted-finish'
+      mesh.userData.heightSource = feature.plantSites || feature.id === '深南大道-arterial-flowers' ? 'planted-finish'
         : offset || feature.vertexRisesM ? 'terrain-relative-design-estimate' : 'terrain';
       group.add(mesh);
+      if (feature.id === '深南大道-arterial-flowers') flowerMeshes.push(mesh);
       if (chunk.wallPositions) {
         group.add(pavingMesh(chunk.wallPositions, chunk.origin, walls, `${chunk.id}:curbs`));
         statistics.curbTriangles += chunk.wallPositions.length / 9;
@@ -413,7 +341,6 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
       (arterial ? arterialTops : samplers).push(sample);
       if (feature.solidPlanting) plantingSurfaces.push(sample);
       if (verifiedMedian) medianSamplers.push({ bounds: corridor.bounds, sample, planted });
-      if (planted) bedRows.push(...medianBedRows(feature));
       if (!useTreatment) {
         const triangles = addCurbWalls(group, feature, groundHeight, walls, feature.solidPlanting ? null : curbColliders);
         statistics.curbTriangles += triangles;
@@ -436,6 +363,16 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
     return null;
   }
   const shennanMedianHeight = (x, z) => medianHeight(x, z, true);
+  // 花圃平面只来自编译包；贴地时沿用各中央带已有的路沿顶高。
+  for (const mesh of flowerMeshes) {
+    const positions = mesh.geometry.attributes.position;
+    for (let i = 0; i < positions.count; i++) {
+      const y = shennanMedianHeight(positions.getX(i) + mesh.position.x, positions.getZ(i) + mesh.position.z);
+      if (y !== null) positions.setY(i, y + 0.07);
+    }
+    positions.needsUpdate = true;
+    mesh.geometry.computeBoundingSphere();
+  }
   function contactHeight(x, z) {
     let y = null;
     for (const sample of arterialTops) {
@@ -457,7 +394,6 @@ export function buildSzRoadFrontage(scene, source, graph, terrain, { groundHeigh
   const foliage = createCompactFoliage();
   statistics.shrubs = addMedianShrubs(group, foliage, sites.filter(([x, z]) => shennanMedianHeight(x, z) === null), contactHeight);
   statistics.islandPlants = addMedianShrubs(group, foliage, source.features.flatMap(f => f.plantSites ?? []), contactHeight, true);
-  statistics.shennanFlowerBeds = addShennanFlowerBeds(group, bedRows, shennanMedianHeight, flowers, reserveFlowerBed);
   scene.add(group);
   return { group, control, contactHeight, shennanMedianHeight, medianHeight, colliders: [...hardware.colliders, ...planting], curbColliders,
     arterialMedianAt: (x, z) => arterialSamplers.some(sample => sample(x, z) !== null),

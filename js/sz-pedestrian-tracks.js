@@ -903,6 +903,20 @@ export function buildWalkTracks(graph, options = {}) {
   const built = buildSidewalkTracks(graph, { ...cfg, colliderIndex, barrier });
   const connected = connectTracks(built.tracks, { ...cfg, colliderIndex, barrier });
   const legs = [...built.tracks, ...connected.connectors];
+  // 树干与灯杆保留人物碰撞，但不按避障采样整段切掉脚下铺装。
+  // 只复算活动区内的铺装边界；车行面、建筑及场地预留继续约束它。
+  let pavementLegs = legs, pavementIndex = colliderIndex;
+  if (cfg.pavement) {
+    const nearby = cfg.colliderGrid && bounds ? gatherColliders(cfg.colliderGrid, bounds) : cfg.colliders ?? [];
+    const obstacles = nearby.filter(item => !['tree', 'street-lamp'].includes(item.type));
+    if (obstacles.length !== nearby.length) {
+      pavementIndex = createColliderIndex(obstacles, bounds);
+      pavementIndex.nearRegional = cfg.nearRegional;
+      const paving = buildSidewalkTracks(graph, { ...cfg, colliderIndex: pavementIndex, barrier });
+      const corners = connectTracks(paving.tracks, { ...cfg, colliderIndex: pavementIndex, barrier });
+      pavementLegs = [...paving.tracks, ...corners.connectors];
+    }
+  }
   const local = cfg.localWalk ? localTracks(cfg.localWalk, bounds, (x, z) => {
     const y = cfg.localWalk.heightAt(x, z);
     if (!Number.isFinite(y) || barrier.contains(x, z, cfg.carriagewayClearanceM)
@@ -910,7 +924,7 @@ export function buildWalkTracks(graph, options = {}) {
     return y;
   }) : [];
   const pavement = cfg.pavement
-    ? buildPavementRibbons(legs, { ...cfg, colliderIndex, barrier })
+    ? buildPavementRibbons(pavementLegs, { ...cfg, colliderIndex: pavementIndex, barrier })
     : { positions: new Float32Array(0), colors: new Float32Array(0), statistics: { triangles: 0, areaM2: 0, clampedSamples: 0, carriagewaySkipped: 0 } };
   return {
     tracks: [...built.tracks, ...local],

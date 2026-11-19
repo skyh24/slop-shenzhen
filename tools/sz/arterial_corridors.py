@@ -123,46 +123,63 @@ def _paired_strip(first, second, max_gap, same_direction=False):
 
 
 def _flower_beds(grass):
-    gap = 16
-    for lawn in _polys(grass.buffer(-1.0)):
+    half_length, gap, width_fraction = 8, 32, 0.75
+    # 同一套 16 米长、32 米留草间隔；仅在全长至少 12 米宽的中央草坪排布。
+    template = []
+    for step in range(25):
+        u = step / 24
+        bend = math.sin(2 * math.pi * u) * 0.8
+        span = 0.10 + 1.05 * math.sin(math.pi * u) ** 0.8
+        template.append((u, bend - span, bend + span))
+    extent = max(abs(y) for _, left, right in template for y in (left, right))
+    if grass.is_empty:
+        return
+    # 整条中央带共用轴向与里程相位；不能按每块碎片各自旋转、重新起排。
+    box = list(grass.minimum_rotated_rectangle.exterior.coords)
+    a, b = max(zip(box, box[1:]), key=lambda edge: math.dist(*edge))
+    angle = (math.atan2(b[1] - a[1], b[0] - a[0]) + math.pi / 2) % math.pi - math.pi / 2
+    origin = (0, 0)
+    accepted = []
+    for aligned in _polys(rotate(grass, -angle, origin=origin, use_radians=True)):
+        lawn = aligned
         if lawn.area < 115:
             continue
-        box = list(lawn.minimum_rotated_rectangle.exterior.coords)
-        a, b = max(zip(box, box[1:]), key=lambda edge: math.dist(*edge))
-        angle = (math.atan2(b[1] - a[1], b[0] - a[0]) + math.pi / 2) % math.pi - math.pi / 2
-        origin = lawn.centroid.coords[0]
-        aligned = rotate(lawn, -angle, origin=origin, use_radians=True)
         min_x, min_z, max_x, max_z = aligned.bounds
-        if max_x - min_x < 22:
+        if max_x - min_x < 25:
             continue
-        last_end = min_x - gap
-        count = 0
-        for station in range(math.ceil(min_x + 10), math.floor(max_x - 9), 4):
-            half_length = 9 + 2 * (count % 3)
-            if station - half_length < last_end + gap:
-                continue
-            sections = aligned.intersection(LineString([(station, min_z - 1), (station, max_z + 1)]))
-            section = max(_lines(sections), key=lambda line: line.length, default=None)
-            if section is None or section.length < 5.5:
-                continue
-            center = section.centroid.y
-            width = min(8.5, section.length * 0.38)
-            turn = (-1) ** count
-            for scale in (1.0, 0.76):
-                sides = [[], []]
-                for step in range(19):
-                    u = step / 18
-                    x = station + (2 * u - 1) * half_length * scale
-                    bend = math.sin(2 * math.pi * u) * width * 0.95 * turn
-                    span = width * (0.085 + 0.80 * math.sin(math.pi * u) ** 0.8)
-                    for points, side in zip(sides, (-1, 1)):
-                        points.append((x, center + scale * (bend + side * span)))
-                bed = Polygon(sides[0] + sides[1][::-1])
-                if aligned.covers(bed):
-                    yield rotate(bed, angle, origin=origin, use_radians=True)
-                    last_end = station + half_length * scale
-                    count += 1
+        pitch = half_length * 2 + gap
+        # 固定里程相位，过街开口两侧不再各自从边界重新起排。
+        for station in range(math.ceil((min_x + 10) / pitch) * pitch, math.floor(max_x - 9), pitch):
+            sides = [[], []]
+            for u, left, right in template:
+                x = station + (2 * u - 1) * half_length
+                sections = aligned.intersection(LineString([(x, min_z - 1), (x, max_z + 1)]))
+                section = max(_lines(sections), key=lambda line: line.length, default=None)
+                if section is None or section.length < 12:
                     break
+                center = section.centroid.y
+                scale = section.length * width_fraction / (2 * extent)
+                for points, offset in zip(sides, (left, right)):
+                    points.append((x, center + offset * scale))
+            else:
+                bed = Polygon(sides[0] + sides[1][::-1])
+                if aligned.buffer(-0.99).covers(bed) and all(bed.distance(other) >= gap - 0.001 for other in accepted):
+                    accepted.append(bed)
+                    yield rotate(bed, angle, origin=origin, use_radians=True)
+
+
+def _shennan_flower_lawn(frontage, arterial_lawn):
+    # 已核中央带和自动推导中央带共用一次排布，不在浏览器再叠加另一套花圃。
+    medians = {row['id'] + ':median' for row in frontage['corridors']
+               if row['id'].startswith('shennan-') and row['id'] != 'shennan-civic-center'
+               and row.get('medianSource', {}).get('positionSource') == 'documented-median-between-osm-carriageways'}
+    lawns = [arterial_lawn]
+    for feature in frontage['features']:
+        if feature['id'] not in medians or len(feature['sourceIds']) < 2:
+            continue
+        coords = feature['trianglesXZ']
+        lawns.extend(Polygon(zip(coords[i:i + 6:2], coords[i + 1:i + 6:2])) for i in range(0, len(coords), 6))
+    return unary_union(lawns)
 
 
 def compile_arterial_medians(payload, osm, manifest, report):
@@ -235,11 +252,15 @@ def compile_arterial_medians(payload, osm, manifest, report):
             frontage['features'].append({**feature, 'id': name + suffix, 'arterialStyle': style})
             row = {'road': name, 'style': style, 'areaM2': round(island.area, 2), 'sourceWayIds': sorted(ids)}
             if planting_strips:
-                beds = list(_flower_beds(island.intersection(unary_union(planting_strips))))
+                lawn = _shennan_flower_lawn(frontage, island.intersection(unary_union(planting_strips)))
+                flower_roads, _ = ground_carriageway_mask(lawn, graph)
+                lawn = lawn.difference(unary_union([flower_roads.buffer(0.36), *passages, *buildings, *structure_masks]))
+                beds = list(_flower_beds(lawn))
                 flowers = unary_union(beds)
                 band = _encode_surface('flower-band', ids, flowers)
                 if band['trianglesXZ']:
-                    frontage['features'].append({**band, 'id': flower_id, 'surfaceOffsetM': rise})
+                    frontage['features'].append({**band, 'id': flower_id, 'surfaceOffsetM': rise + 0.07,
+                                                 'bedCount': len(beds)})
                     row.update(flowerAreaM2=round(flowers.area, 2), flowerBeds=len(beds))
             rows.append(row)
     report['arterialMedianDesign'] = {'placementSource': 'estimated-between-existing-osm-carriageways',

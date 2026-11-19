@@ -11,6 +11,27 @@ const source = readFileSync(join(root, 'js/sz-ground-surface.js'), 'utf8').repla
 const modulePromise = import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 const threeDir = process.env.SZ_THREE_PACKAGE_DIR;
+test('urban dry ground and forecourt stone share a finish while lawns retain their colour', { skip: !threeDir }, async () => {
+  const read = name => readFileSync(join(root, 'js', name), 'utf8');
+  const load = file => import(pathToFileURL(join(threeDir, 'build', file)));
+  const [THREE, TSL] = await Promise.all([load('three.webgpu.js'), load('three.tsl.js')]);
+  const imports = { 'three/webgpu': THREE, 'three/tsl': TSL };
+  const { buildSzGround } = loadModule(read('sz-ground.js'), { imports: {
+    ...imports, './sz-ground-surface.js': loadModule(read('sz-ground-surface.js'), { imports })
+  } });
+  const surface = { version: 1, chunkSize: 100, diagonal: 'ne-sw',
+    grid: { x0: 0, z0: 0, step: 25, nx: 4, nz: 2 }, chunks: [{
+      id: '0,0', origin: [0, 0], positions: [0, 8, 0, 0, 8, 25, 25, 8, 0, 25, 8, 0, 25, 8, 25, 50, 8, 0, 50, 8, 0, 50, 8, 25, 75, 8, 0],
+      indices: [0, 1, 2, 3, 4, 5, 6, 7, 8], kinds: [0, 0, 0, 10, 10, 10, 11, 11, 11], cellRanges: [0, 0, 3, 1, 3, 3, 2, 6, 3]
+    }] };
+  const ground = buildSzGround(new THREE.Scene(), surface, { buildings: [{ minX: 0, minZ: 0, maxX: 25, maxZ: 25, minHeight: 0 }] });
+  const { paved, color } = ground.meshes[0].geometry.attributes;
+  assert.deepEqual([...paved.array], [-1, -1, -1, -1, -1, -1, 0, 0, 0]);
+  assert.deepEqual(color.array.slice(0, 3), color.array.slice(9, 12));
+  assert.notDeepEqual(color.array.slice(0, 3), color.array.slice(18, 21));
+  ground.dispose();
+});
+
 test('rendered Shenzhen Bay water keeps the Hong Kong pylon island and the park dry', { skip: !threeDir }, async () => {
   const read = name => readFileSync(join(root, 'js', name), 'utf8');
   const loadThree = file => import(pathToFileURL(join(threeDir, 'build', file)));

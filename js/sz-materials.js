@@ -63,6 +63,7 @@ const packV = (fields, fallback = 0) => FACADE_PROFILES.map((p) => vec4(
 export function createBuildingMaterial(programEmission = null, { balconyDoors = false } = {}) {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.68, metalness: 0.06 });
   const meta = attribute('bmeta', 'vec4');
+  const floors = attribute('bfloors', 'vec2');
 
   const P0 = packV(['bayWidth', 'floorHeight', 'winRatioW', 'winRatioH']);
   const P1 = packV(['sill', 'glazing', 'warmth', 'litShare']);
@@ -86,14 +87,14 @@ export function createBuildingMaterial(programEmission = null, { balconyDoors = 
   const residentialSample = sampleMask(SHENZHEN_BAY_MANSION);
   const northLobby = sampleMask(HOUHAI_OFFICE).mul(step(normalWorldGeometry.z, num(-0.85)));
   const bayNominal = max(mix(p0.x, num(residence.bayWidth), residentialSample), num(0.6));
-  const floorHeight = max(mix(p0.y, num(residence.floorHeight), residentialSample), num(2));
+  const floorHeight = max(floors.x, num(2));
   const winW = mix(p0.z, num(residence.winRatioW), residentialSample);
   const winH = mix(p0.w, num(residence.winRatioH), residentialSample);
   const sill = mix(p1.x, num(residence.sill), residentialSample);
   const glazing = mix(p1.y, num(residence.glazing), residentialSample);
   const warmth = p1.z;
   const litShare = p1.w;
-  const groundHeight = max(mix(p2.x, num(FACADE_SAMPLE_PROFILES[HOUHAI_OFFICE].lobbyHeight), northLobby), num(2.2));
+  const groundHeight = mix(floors.y, num(FACADE_SAMPLE_PROFILES[HOUHAI_OFFICE].lobbyHeight), northLobby);
   const groundStyle = p2.y;
   const cornerNominal = p2.z;
   // 宽窗统一在一扇窗中间加竖挺表示成组窗/幕墙分格，不再单独画两扇窗。

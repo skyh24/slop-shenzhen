@@ -11,7 +11,7 @@
 | `sz-building-layout.js::buildingPlacement/buildingSeed` | 共用基底、高度换算和稳定种子 |
 | `sz-building-plan.js::retailBuildingIdsFromRegions/createBuildingDetailPlan` | 商圈归属、排除身份与近景输入包；同一批建筑对象和商圈区域只解释一次 |
 | `sz-buildings.js::buildCityBlocks/roofPlan` | 普通楼体、塔裙与基础屋顶；2.4km静态分块，返回 `detailPlan` |
-| `sz-facade-profiles.js::facadeIndex/facadeProfile` | 普通楼的立面、楼名层高及近景部件预设，和两个按已核对象绑定的外观样本 |
+| `sz-facade-profiles.js::facadeIndex/facadeProfile/fitFacadeFloors` | 普通楼的立面、楼名层高及近景部件预设，和两个按已核对象绑定的外观样本 |
 | `sz-materials.js::createBuildingMaterial` | 局部墙面整数窗格与共享日夜状态 |
 | `sz-building-details.js::planBuildingDetails/buildBuildingDetails` | 200m近景流式块、立面细节及屋顶设备避让；入口只接收 `detailPlan` |
 | `sz-building-signs.js::planBuildingSigns/planSignAtlas/buildBuildingSigns` | 墙面/屋顶选牌、共用图集与门牌示意 |
@@ -25,11 +25,12 @@
 
 ## 立面与部件共用规则
 
-- 无名称、用途、层数且仅有估高的普通单体，外包框对角线不超过 32 米时，足迹面积不超过 40 平方米，或能纳入 3.5 米宽的条带且面积不超过 120 平方米，就以最多 3.2 米的素面体块表示。保留原足迹与地面基准，显示、屋面接触、净空和碰撞共用简化高度。基础楼体把这些对象排除在门面、近景和夜景细节之外。地标、架空部件、内院、已标楼高或用途、商业门面和专项改造优先走原有模型。深南香蜜立交既有两个已核足迹走同一渲染路径。
+- 无名称、用途、层数的普通单体，只有估高或低可信／未知可信度的 GloBFP 预测时，外包框对角线不超过 32 米，足迹面积不超过 80 平方米，或能纳入 7 米宽的条带且面积不超过 160 平方米，就以最多 3.2 米的素面体块表示。保留原足迹与地面基准，显示、屋面接触、净空和碰撞共用简化高度；场景体量标为 `estimate`，包内原值和来源保留，运行时另记 `sourceHeight` 与 `sourceHeightSource`。基础楼体把这些对象排除在门面、近景和夜景细节之外。地标、架空部件、内院、已标高度或层数、明确用途、商业门面及中高可信预测保持原有高度。深南香蜜立交既有两个已核足迹走同一渲染路径。
 - 市民广场两侧各三座光塔按 `way/781536987` 至 `way/781536992` 绑定，采用无窗格的玻璃色和夜间发光。项目 OSM 快照六座均标记 `building:material=glass`、`roof:material=glass`、`height=20`，场景沿用该快照高度。[深圳市城管局](https://cgj.sz.gov.cn/xsmh/gysz/csgy/content/post_10774700.html)所列高度为 25 米，两处口径仍待核对。
 
 - 城市包 v2 解码后保留 `facade` 的字符串名称和 `category`、`heightSource` 等来源字段。渲染批次按预设名称取得着色索引，索引只在运行时使用。旧包已有外观估计继续采用原名称，缺省或 `null` 采用中性预设，拼错的预设名报错。
 - `FACADE_PROFILES` 单独维护米制开间、默认层高、首层表现、窗占比、配色和阳台/空调/水箱开关。外观部件默认关闭。共享近景材质按四个族合并，每个流式块释放自己的几何，共用材质由近景系统关闭时统一释放。
+- 立面、阳台门片、阳台和空调共用 `fitFacadeFloors` 的竖向网格。合理源层数优先（含首层，平均层高 2.2–8 米），缺失或矛盾时按用途预设估计整数层数；首层单独留高，其余层均分剩余楼高。每层只画一排窗，架空部分沿同一网格裁切，不重新起算。层数拟合只影响外观，保留楼高、来源、足迹和碰撞。
 - 新增普通楼仍走现有数据管线；同类型引用已有立面，外观变体在预设表扩展参数。建筑身份、开口、屋顶外形和开放权限仍从来源几何确定。深圳湾公馆的复式阳台和航天科技广场 A 座的北侧高大堂与雨棚各需明确对象绑定，共用预设表中的样本参数。其他地标继续使用各自的结构和公共地标部件。
 - 基础屋顶输出实际设备底面和屋面高度，近景按同一足迹与高度读取已占范围。水箱、天线和航空灯仅由近景生成；双层屋顶仍各按自己的面规划，门洞与首层接触不由外观部件生成。
 

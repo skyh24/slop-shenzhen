@@ -24,7 +24,7 @@ import { buildVegetationPilots } from './sz-vegetation.js';
 import { buildSzTrees } from './sz-trees.js';
 import { planWoodlandTrees } from './sz-woodlands.js';
 import { buildApecTheme } from './sz-apec.js';
-import { buildApecCityElements, reserveApecCivicLawn } from './sz-apec-city.js';
+import { buildApecCityElements } from './sz-apec-city.js';
 import { buildSzLightShow, planLandmarkBands } from './sz-light-show.js';
 import { createCbdProgram, isCbdProgramBuilding } from './sz-cbd-program.js';
 import { buildLianhuashanSummit, reviewedParkOmissions, summitViewObstructed, SUMMIT_ARRIVAL } from './sz-lianhuashan.js';
@@ -50,7 +50,7 @@ import { sceneUniforms } from './sz-materials.js';
 export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, startup, offline = false, captureExpoLayout }) {
   const GEO = qa.measureBuild('mountainTunnels', () => prepareMountainTunnels(CITY_GEO));
   const frontageLight = { ...COCO_PARK_ENTRANCE, night: sceneUniforms.night };
-  const ground = qa.measureBuild('ground', () => buildSzGround(scene, GEO.terrainSurface, { frontageLight }));
+  const ground = qa.measureBuild('ground', () => buildSzGround(scene, GEO.terrainSurface, { frontageLight, buildings: REAL_BUILDINGS }));
   const sea = !offline && qa.measureBuild('sea', () => buildSzSea(scene, GEO.seaSurface));
   markInit('ground');
   await showLoadingStage(startup.roads, 'roads');
@@ -71,7 +71,7 @@ export async function prepareSceneSite(scene, { qa, showLoadingStage, markInit, 
   const roadLandscape = qa.measureBuild('roadLandscape', () =>
     buildRoadLandscape(scene, GEO.roadStructures?.landscape, GEO.terrainSurface, ground.groundHeight));
   const roadFrontage = qa.measureBuild('frontage', () =>
-    buildSzRoadFrontage(scene, GEO.roadFrontage, roadGraph, GEO.terrainSurface, { ...site, reserveFlowerBed: reserveApecCivicLawn }));
+    buildSzRoadFrontage(scene, GEO.roadFrontage, roadGraph, GEO.terrainSurface, site));
   let pierBuildings;
   // 桥墩使用真实地面铺装及已接入步道的预留，保持桥下通行。
   const elevatedRoads = qa.stage('elevated', () =>

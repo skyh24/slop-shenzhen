@@ -7,17 +7,21 @@ from pathlib import Path
 from shapely import LineString, Point, Polygon, box, unary_union
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from road_frontage import _buffer, _junction_walk_surfaces
-from arterial_corridors import _flower_beds
+from road_frontage import _buffer, _encode_surface, _junction_walk_surfaces
+from arterial_corridors import _flower_beds, _shennan_flower_lawn
 
 
 class ShennanFlowerBedsTest(unittest.TestCase):
-    def test_repeats_wider_s_beds_with_doubled_turf_gaps(self):
-        lawn = box(0, -10, 190, 10).difference(box(81, -11, 99, 11))
+    def test_repeats_full_s_beds_with_double_turf_gaps_and_preserves_openings(self):
+        lawn = box(0, -10, 240, 10).difference(box(81, -11, 99, 11))
         beds = sorted(_flower_beds(lawn), key=lambda bed: bed.bounds[0])
-        self.assertEqual(len(beds), 4)
+        self.assertEqual(len(beds), 3)
         self.assertTrue(all(lawn.buffer(-0.99).covers(bed) for bed in beds))
-        self.assertTrue(all(a.distance(b) >= 15.99 for a, b in zip(beds, beds[1:])))
+        self.assertTrue(all(a.distance(b) >= 31.99 for a, b in zip(beds, beds[1:])))
+        self.assertTrue(all(abs(bed.bounds[2] - bed.bounds[0] - 16) < 1e-6 for bed in beds))
+        self.assertTrue(all(abs(bed.bounds[3] - bed.bounds[1] - 15) < 1e-6 for bed in beds))
+        self.assertAlmostEqual(beds[2].bounds[0] - beds[1].bounds[2], 32)
+        self.assertTrue(all(abs((bed.bounds[0] + 8) % 48) < 1e-6 for bed in beds))
         start, _, end, _ = beds[0].bounds
         quarters = [start + fraction * (end - start) for fraction in (0.25, 0.75)]
         centers = [beds[0].intersection(LineString([(x, -10), (x, 10)])).centroid.y for x in quarters]
@@ -26,9 +30,34 @@ class ShennanFlowerBedsTest(unittest.TestCase):
         middle = (start + end) / 2
         self.assertGreater(beds[0].intersection(LineString([(middle, -10), (middle, 10)])).length, 9)
 
+    def test_caps_each_cross_section_on_rotated_and_tapering_medians(self):
+        from shapely.affinity import rotate
+        lawn = Polygon([(0, -5), (190, -15), (190, 15), (0, 5)])
+        beds = list(_flower_beds(rotate(lawn, 31, origin=(0, 0))))
+        self.assertGreaterEqual(len(beds), 2)
+        for bed in beds:
+            aligned = rotate(bed, -31, origin=(0, 0))
+            self.assertTrue(lawn.buffer(0.001).covers(aligned))
+            for x, z in aligned.exterior.coords:
+                self.assertLessEqual(abs(z), (5 + x * 10 / 190) * 0.75 + 0.001)
+
     def test_leaves_narrow_and_short_medians_unplanted(self):
-        self.assertEqual(list(_flower_beds(box(0, -3.5, 190, 3.5))), [])
+        self.assertEqual(list(_flower_beds(box(0, -5.99, 190, 5.99))), [])
         self.assertEqual(list(_flower_beds(box(0, -10, 23, 10))), [])
+
+    def test_one_pattern_continues_across_compiled_median_boundaries(self):
+        median = _encode_surface('median', ['way/1', 'way/2'], box(110, -10, 240, 10), 0.15)
+        civic = _encode_surface('median', ['way/3', 'way/4'], box(300, -10, 500, 10), 0.15)
+        frontage = {'corridors': [{'id': name, 'medianSource': {
+            'positionSource': 'documented-median-between-osm-carriageways'}}
+            for name in ['shennan-sample', 'shennan-civic-center']],
+            'features': [{**median, 'id': 'shennan-sample:median'},
+                         {**civic, 'id': 'shennan-civic-center:median'}]}
+        lawn = _shennan_flower_lawn(frontage, box(0, -10, 110, 10))
+        beds = sorted(_flower_beds(lawn), key=lambda bed: bed.bounds[0])
+        self.assertEqual(len(beds), 4)
+        self.assertTrue(all(bed.bounds[2] < 240 for bed in beds))
+        self.assertTrue(all(abs(b.bounds[0] - a.bounds[2] - 32) < 1e-6 for a, b in zip(beds, beds[1:])))
 
 
 class HongshulinWalkSurfaceTest(unittest.TestCase):
