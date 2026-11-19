@@ -167,6 +167,12 @@ test('real Three draws the IEC campus within part, triangle and material budgets
         assert.equal(strip.maxY, eave.minY);
         assert.equal(strip.style, 'iecSoffit');
       }
+      for (const name of ['south-wing:arcade-canopy', 'north-wing:floor:1', 'hotel:guestroom-bar:floor:18']) {
+        const part = model.find(row => row.id === `iec-xiangmihu:${name}:0`);
+        const surface = surfaces.find(row => row.id === part.id);
+        assert.ok(surface?.triangles.length > 0, part.id);
+        assert.ok(surface.triangles.every(triangle => triangle.every(vertex => vertex.y === part.maxY)), part.id);
+      }
       let triangles = 0;
       for (const mesh of group.children) {
         assert.ok(mesh.material.isMeshStandardNodeMaterial, `${mesh.name} material`);

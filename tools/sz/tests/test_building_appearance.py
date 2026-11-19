@@ -13,6 +13,53 @@ from shapely.geometry import box
 
 
 class BuildingAppearanceTests(unittest.TestCase):
+    def test_named_unknown_apartments_use_matching_compound_peers_without_overwriting_sources(self):
+        rows = [(f'known-{i}', 100 + i * 30, 20, 22.4, 'osm-levels', {'building': 'apartments'})
+                for i in range(3)]
+        rows += [('missing', 200, 20, 10.2, 'estimate', {'building': 'yes', 'name': '9栋'}),
+                 ('shed', 230, 6, 8, 'estimate', {'building': 'shed', 'name': '门卫房'}),
+                 ('unknown', 250, 20, 12, 'estimate', {'building': 'yes'})]
+        region = {'id': 'osm:estate', 'name': '示例小区', 'type': 'residential', 'level': 'place',
+                  'areaM2': 15000, 'buildingRefs': list(range(6))}
+        payload, osm = self.fixture(rows, regions=[region])
+        report = {}
+        apply_building_appearance(payload, osm, report)
+        self.assertEqual(payload['buildings']['h'][:4], [22.4] * 4)
+        self.assertEqual(payload['buildings']['cat'][3], CATEGORIES.index('residential'))
+        self.assertEqual(payload['buildings']['src'][3], HEIGHT_SOURCES.index('estimate'))
+        self.assertEqual(payload['buildings']['lv'][3], -1)
+        self.assertEqual(report['heightEstimate']['groups']['residential-peers:osm:estate']['buildings'], ['missing'])
+        self.assertIn('unknown', report['residentialHeightCoverage']['unknownEstimatedRecords'])
+        self.assertEqual(payload['buildings']['cat'][5], CATEGORIES.index('unknown'))
+
+    def test_villa_design_estimates_three_storeys_and_preserves_sourced_two_storeys(self):
+        rows = [('villa', 100, 12, 8, 'estimate', {'building': 'detached'}),
+                ('known', 130, 12, 9.6, 'osm-levels', {'building': 'house', 'building:levels': '3'}),
+                ('two-storeys', 160, 12, 6.4, 'osm-levels', {'building': 'house', 'building:levels': '2'}),
+                ('apartment', 190, 12, 22.4, 'osm-levels', {'building': 'apartments'})]
+        payload, osm = self.fixture(rows)
+        payload['buildings']['lv'][2] = 2
+        report = {}
+        apply_building_appearance(payload, osm, report)
+        self.assertEqual(payload['buildings']['h'], [11.4, 9.6, 6.4, 22.4])
+        self.assertEqual([payload['enums']['facade'][index] for index in payload['buildings']['facade'][:2]], ['villa'] * 2)
+        self.assertNotEqual(payload['enums']['facade'][payload['buildings']['facade'][2]], 'villa')
+        self.assertEqual(report['residentialVillas']['appearanceSource'], 'design')
+        self.assertEqual(payload['buildings']['lv'][0], -1)
+
+    def test_campus_dormitories_use_residential_references_instead_of_public_low_default(self):
+        rows = [(f'known-{i}', 40 + i * 35, 20, 60, 'osm-levels', {'building': 'dormitory'})
+                for i in range(4)]
+        rows += [('dorm', 200, 20, 11, 'estimate', {'building': 'dormitory'}),
+                 ('school', 230, 20, 12, 'estimate', {'building': 'school'})]
+        region = {'id': 'osm:campus', 'name': '示例校园', 'type': 'public', 'level': 'place',
+                  'areaM2': 30000, 'buildingRefs': list(range(6))}
+        payload, osm = self.fixture(rows, regions=[region])
+        report = {}
+        apply_building_appearance(payload, osm, report)
+        self.assertGreaterEqual(payload['buildings']['h'][4], 24)
+        self.assertLess(payload['buildings']['h'][5], 20)
+
     def fixture(self, rows, regions=()):
         columns = dict(id=[], h=[], rings=[], minH=[], cat=[], facade=[], lm=[], lv=[], role=[], src=[])
         osm = {'buildings': []}
@@ -143,7 +190,8 @@ class BuildingAppearanceTests(unittest.TestCase):
         self.assertEqual(groups['protected-default:park:12']['areas']['osm:park'], ['park'])
         self.assertEqual(groups['protected-default:historic-or-low-rise:12']['areas']['way/219961346'], ['ancient'])
         self.assertEqual(groups['protected-default:public:12']['buildings'], ['school'])
-        self.assertEqual(groups['protected-default:low-residential:8']['buildings'], ['house'])
+        self.assertEqual(groups['villa-design']['buildings'], ['house'])
+        self.assertEqual(payload['buildings']['h'][3], 11.4)
         self.assertEqual(groups['protected-default:industrial:14']['buildings'], ['factory'])
         self.assertEqual(groups['existing-special-or-vertical-tag']['buildings'], ['landmark-part', 'with-levels'])
         self.assertEqual(payload['buildings']['h'][5:7], [18, 18])

@@ -70,6 +70,12 @@ export const FACADE_PROFILES = Object.freeze([
     sill: 0.24, glazing: 0.32, warmth: 0.5, litShare: 0.08,
     groundHeight: 4.2, groundStyle: 2, cornerMargin: 0.4, detailBucket: 2,
     wallA: 0xa7a7a1, trim: 0x92958e
+  },
+  {
+    name: 'villa', bayWidth: 3.1, floorHeight: 3.2, winRatioW: 0.66, winRatioH: 0.63,
+    sill: 0.23, glazing: 0.28, warmth: 0.88, litShare: 0.25,
+    groundHeight: 3.2, groundStyle: 2, cornerMargin: 0.55, detailBucket: 0,
+    residential: true, wallA: 0xd9c9ad, trim: 0xf0e6d2
   }
 ].map(profile => Object.freeze({ balcony: false, airConditioner: false, residential: false, waterTank: false, ...profile })));
 

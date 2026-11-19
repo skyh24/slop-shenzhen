@@ -49,7 +49,7 @@ ROAD_OVERLAP_SHARE = 0.5
 ROAD_CENTERLINE_MIN_LENGTH = 0.5
 
 # 立面类型编号，和 js/sz-materials.js 的 FACADE_PROFILES 顺序一一对应
-FACADES = ['glass_tower', 'office', 'residential_tower', 'residential_low', 'village', 'industrial', 'public', 'landmark']
+FACADES = ['glass_tower', 'office', 'residential_tower', 'residential_low', 'village', 'industrial', 'public', 'landmark', 'unknown', 'villa']
 CATEGORIES = ['unknown', 'residential', 'commercial', 'industrial', 'public']
 HEIGHT_SOURCES = ['landmark', 'osm-height', 'osm-levels', 'overture-height', 'overture-floors',
                   'globfp', 'estimate', 'published']
