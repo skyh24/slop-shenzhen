@@ -44,9 +44,21 @@ def _restore_obsolete_cuts(surface, core, datum):
 def apply_interchange_levels(payload, report):
     specs = json.loads(SOURCE.read_text())
     original = payload['terrainSurface']
+    previous_specs = {spec['id']: spec for spec in original.get('interchangeLevels', [])}
     leveled = original.get('interchangeLevels') == specs
     if 'interchangeLevels' in original and not leveled:
-        raise ValueError('Rebuild the base terrain before replacing interchange levels')
+        previous = original['interchangeLevels']
+        # 同标高地坪向外扩展可在现有三角面上增量压平；缩小或改层高仍须重建底座。
+        compatible = len(previous) == len(specs) and all(
+            {key: value for key, value in old.items() if key != 'groundArea'}
+            == {key: value for key, value in new.items() if key != 'groundArea'}
+            and box(new['groundArea']['minX'], new['groundArea']['minZ'],
+                    new['groundArea']['maxX'], new['groundArea']['maxZ']).covers(
+                box(old['groundArea']['minX'], old['groundArea']['minZ'],
+                    old['groundArea']['maxX'], old['groundArea']['maxZ']))
+            for old, new in zip(previous, specs, strict=True))
+        if not compatible:
+            raise ValueError('Rebuild the base terrain before replacing interchange levels')
 
     surface = original
     graph = payload['roadGraph']
@@ -57,7 +69,8 @@ def apply_interchange_levels(payload, report):
         datum = spec['groundY']
         surface, removed, restored = _restore_obsolete_cuts(surface, core, datum)
         audit = {'removedCutWallTriangles': removed, 'restoredElevatedCutM2': round(restored, 3)}
-        if leveled:
+        old_spec = previous_specs.get(spec['id'])
+        if old_spec == spec:
             previous = next((row for row in report.get('interchangeLevels', []) if row['id'] == spec['id']), {})
             rows.append({**previous, 'id': spec['id'], **(audit if removed else {})})
             continue
@@ -70,10 +83,17 @@ def apply_interchange_levels(payload, report):
             surface, area_m2 = _restore_roof(surface, corridor, datum)
             filled += area_m2
         blend = 65
+        old_area = old_spec['groundArea'] if old_spec else None
+        old_core = box(old_area['minX'], old_area['minZ'], old_area['maxX'], old_area['maxZ']) if old_area else None
 
         def grade(point, height):
             t = min(1, point.distance(core) / blend)
             weight = t * t * (3 - 2 * t)
+            if old_core is not None:
+                old_t = min(1, point.distance(old_core) / blend)
+                old_weight = old_t * old_t * (3 - 2 * old_t)
+                # 原地坪已应用一次过渡权重；只追加扩展区域的变化。
+                weight = weight / old_weight if old_weight > 0 else 0
             return datum + (height - datum) * weight
 
         surface, changed, _ = _clip_terrain(surface, {}, [(core.buffer(blend), grade)], grade_step=16)

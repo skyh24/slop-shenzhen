@@ -1061,32 +1061,6 @@ function mergeNeighbors(records) {
   return neighbors;
 }
 
-// 已确认的同层辅道允许重叠车行面互相让出护栏。行车拓扑仍使用源节点。
-function interchangeDeckNeighbors(records, metadata, neighbors) {
-  const decks = records.filter(road => metadata[road.index]?.interchangeApproach);
-  const bounds = new Map(decks.map(road => {
-    const edges = road.frames.flatMap(({ left, right }) => [left, right]);
-    return [road, {
-      minX: Math.min(...edges.map(p => p.x)), maxX: Math.max(...edges.map(p => p.x)),
-      minZ: Math.min(...edges.map(p => p.z)), maxZ: Math.max(...edges.map(p => p.z))
-    }];
-  }));
-  for (const road of decks) {
-    const { id, sharesDeck } = metadata[road.index].interchangeApproach;
-    if (!sharesDeck) continue;
-    const a = bounds.get(road);
-    for (const peer of decks) {
-      if (peer === road || metadata[peer.index].interchangeApproach.id !== id) continue;
-      const b = bounds.get(peer);
-      if (a.maxX < b.minX || b.maxX < a.minX || a.maxZ < b.minZ || b.maxZ < a.minZ) continue;
-      if (!neighbors.has(road)) neighbors.set(road, new Set());
-      if (!neighbors.has(peer)) neighbors.set(peer, new Set());
-      neighbors.get(road).add(peer);
-      neighbors.get(peer).add(road);
-    }
-  }
-}
-
 // 按实际桥面三角面索引，不用路名、共享节点或 layer 猜测上下关系。
 const PIER_DECK_CELL_M = 32;
 function createPierDeckKeepouts(records) {
@@ -1824,7 +1798,6 @@ export function planElevatedRoads(graph, terrainSurface, options) {
     for (const peer of peers) merged.add(peer);
     junctionNeighbors.set(record, merged);
   }
-  interchangeDeckNeighbors(records, graph.metadata, junctionNeighbors);
   const deckKeepout = createPierDeckKeepouts([...records, ...walking]);
   const carriagewayOccupied = options?.carriagewayOccupied ?? groundIndex.occupied;
   const pierOptions = { ...options, terrainHeight };
