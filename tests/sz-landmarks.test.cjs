@@ -40,6 +40,11 @@ const retailImports = { './parts.js': parts, './model-profile.js': profiles, './
 const ohBay = loadModule(readLandmark('oh-bay.js'), { imports: { ...retailImports,
   './oh-bay-promenades.js': loadModule(readLandmark('oh-bay-promenades.js')) } });
 retailImports['./mixc-elephant.js'] = loadModule(readLandmark('mixc-elephant.js'), { imports: retailImports });
+retailImports['../sz-shopfront.js'] = loadModule(read('sz-shopfront.js'), { imports: {
+  './building-collision.js': collision, './sz-polygon.js': polygonModule
+} });
+retailImports['../sz-polygon.js'] = polygonModule;
+retailImports['../sz-terrain.js'] = terrain;
 const mixc = loadModule(readLandmark('mixc-world.js'), { imports: retailImports });
 const newModels = [ohBay.wheel, ohBay.eastShore, ohBay.westShore, ...ohBay.haifu, mixc, tencentTowers, library, diwang, kk100, exchange, shopping];
 const dji = loadModule(readLandmark('dji-sky-city.js'), { imports: { '../building-collision.js': collision, './parts.js': parts } });
@@ -994,6 +999,35 @@ test('both waterfront promenades have recessed shopfronts beneath supported terr
         assert.equal(collision.polygonContains(terrace.polygon, x, z), true, pier.id);
         assert.equal(pier.maxY, terrace.minY);
       }
+    }
+  }
+});
+
+test('MixC ground-floor shop bays have counters, shelves and clear street approaches on all three blocks', async () => {
+  const { createCitySpatial } = await import('../js/sz-spatial.js');
+  const spatial = createCitySpatial(geo);
+  const { parts, approaches, signs, trim, buildingOverrides, patches } = mixc.build(byId, geo.terrain, { groundHeight: spatial.groundHeight });
+  const [annex] = buildingOverrides;
+  const area = b => Math.abs(polygonModule.signedRingArea(b.polygons[0].outer));
+  assert.equal(annex.height, byId.get(annex.id).height);
+  assert.ok(Math.abs(area(annex) + area(byId.get(mixc.sourceIds[2])) - area(byId.get(annex.id))) < 5);
+  assert.ok(collision.polygonContains(annex.polygons[0], -10510, 216));
+  assert.equal(approaches.length, signs.length);
+  assert.equal(patches.length, approaches.length);
+  for (const label of ['middle', 'east', 'south']) {
+    assert.ok(parts.filter(p => p.id.startsWith(`mixc:${label}:entry:`) && p.id.includes(':canopy:')).length >= 3);
+  }
+  assert.ok(trim.length >= approaches.length * 18);
+  for (const [index, { from, to }] of approaches.entries()) {
+    assert.ok(collision.polygonContains({ outer: patches[index].ring, holes: [] }, from.x, from.z));
+    for (let step = 0; step <= 16; step++) {
+      const x = from.x + (to.x - from.x) * step / 16, z = from.z + (to.z - from.z) * step / 16;
+      const ground = spatial.groundHeight(x, z);
+      assert.ok(Number.isFinite(ground));
+      assert.ok(!collision.polygonBoxOverlaps(annex.polygons[0], x, z, 0.42, 0.42));
+      const blockers = parts.filter(p => p.minY < ground + 1.9 && p.maxY > ground + 0.05
+        && collision.polygonBoxOverlaps(p.polygon, x, z, 0.42, 0.42));
+      assert.equal(blockers.length, 0, `shop ${index} blocked by ${blockers[0]?.id}`);
     }
   }
 });

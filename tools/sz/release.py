@@ -32,6 +32,7 @@ MIME = {'.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.gz
         '.json': 'application/json', '.md': 'text/plain', '': 'text/plain'}
 CACHE = 'public, max-age=31536000, immutable'
 SOURCE_MODULES = {
+    ('js/sz-bay-headlands.js', 'data/source/bay-headlands.json'),
     ('js/sz-lianhuashan.js', 'data/source/lianhuashan-summit.json'),
     ('js/sz-vegetation-layout.js', 'data/source/vegetation-pilots.json'),
 }

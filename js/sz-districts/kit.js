@@ -17,13 +17,11 @@ const PALETTE = {
   hull: 0xf0eee4, waterline: 0x883d30, navy: 0x273943, orange: 0xc97443,
   roof: 0x695e55, tile: 0x8d6755, leaf: 0x638044, soil: 0x504233,
   blossom: 0xcd6e6a, goldFlower: 0xe9b565, darkGlass: 0x344c53,
-  b10Screen: 0xb5b6ae, b10Reveal: 0xbfbdb3,
-  burgundyBrick: 0x93484a, darkBurgundyBrick: 0x763d42
+  b10Screen: 0xb5b6ae, b10Reveal: 0xbfbdb3
 };
 
 const MASONRY = {
   brick: [0.25, 0.082, 0xaea093], oldBrick: [0.32, 0.115, 0x9b8f7a],
-  burgundyBrick: [0.25, 0.082, 0xae8c81], darkBurgundyBrick: [0.25, 0.082, 0x97796e],
   granite: [0.86, 0.36, 0x685f54], tile: [0.19, 0.30, 0x604e43]
 };
 
@@ -34,12 +32,7 @@ const bounds = ring => ({
 
 export const point = ([x, z]) => ({ x, z });
 export function polygon(points) { return { outer: points.map(point), holes: [] }; }
-export function frame(x, z, dx, dz) {
-  const n = Math.hypot(dx, dz);
-  const c = dx / n, s = dz / n;
-  return { c, s, at: (u, v) => ({ x: x + c * u - s * v, z: z + s * u + c * v }) };
-}
-
+export { frame } from '../sz-shopfront.js';
 export function solid(id, source, polygon, minY, maxY, style, layoutSource = 'scene-design') {
   return { id, sourceId: source.id, sourceHeight: source.height, sourceHeightSource: source.heightSource,
     heightSource: layoutSource === 'osm-footprint' ? source.heightSource : 'estimate',

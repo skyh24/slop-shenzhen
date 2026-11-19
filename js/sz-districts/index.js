@@ -14,14 +14,14 @@ const B10 = 'way/435827468';
 // 以核对过的对象为白名单，保留未核实邻楼、原有高楼及车行路线。
 const OCT_BLOCKS = [
   ['way/333871652', 'brick', null, true], ['way/435827465', 'loft', null, false],
-  ['way/435827461', 'burgundyBrick', 2, true], ['way/435827469', 'darkBurgundyBrick', 2, true],
-  ['way/532810249', 'burgundyBrick', 2, true], ['way/532810260', 'loft', null, true],
-  ['way/435827467', 'darkBurgundyBrick', 2, false], ['way/435827466', 'chalk', null, false],
-  ['way/532810264', 'burgundyBrick', 2, true], ['way/532810266', 'chalk', null, true],
-  ['way/532810267', 'darkBurgundyBrick', 2, true]
+  ['way/435827461', 'ivory', 3, true], ['way/435827469', 'tan', 3, true],
+  ['way/532810249', 'ivory', 3, true], ['way/532810260', 'loft', null, true],
+  ['way/435827467', 'tan', 3, false], ['way/435827466', 'chalk', null, false],
+  ['way/532810264', 'ivory', 3, true], ['way/532810266', 'chalk', null, true],
+  ['way/532810267', 'tan', 3, true]
 ];
-// 按源墙朝向选展示面。435827467 只处理朝庭院的东北段。
-const OCT_DISPLAY_FRONTS = {
+// 按源墙朝向选开店面。435827467 只处理朝庭院的东北段。
+const OCT_STREET_FRONTS = {
   'way/435827467': (p, f) => f.c < -0.85 && p.x > -6954.5 && p.z < 446.7,
   'way/532810264': (_p, f) => f.s < -0.85,
   'way/532810267': (_p, f) => f.c < -0.85
@@ -79,6 +79,22 @@ const ARRIVALS = {
   oct: ['oct-loft-court', STR.districts.octWalk, -6816, 397, 0.06],
   nantou: ['nantou-south-axis', STR.districts.nantouWalk, -14273.06, 289.2, Math.PI]
 };
+// 从门口沿外法线找街巷，排除背街墙和仅在拐角处擦过的巷段。
+function facesLane(p, f, routes) {
+  const nx = -f.s, nz = f.c;
+  for (const line of routes) {
+    for (let i = 1; i < line.length; i++) {
+      const a = line[i - 1], b = line[i], dx = b.x - a.x, dz = b.z - a.z;
+      const cross = nx * dz - nz * dx;
+      if (Math.abs(cross) < Math.hypot(dx, dz) * 0.65) continue;
+      const x = a.x - p.x, z = a.z - p.z;
+      const outward = (x * dz - z * dx) / cross, t = (x * nz - z * nx) / cross;
+      if (outward >= 0 && outward <= 18 && t >= 0 && t <= 1) return true;
+    }
+  }
+  return false;
+}
+
 const LANDMARK_IDS = { sea: 'sea-world', oct: 'oct-loft', nantou: 'nantou-ancient-city' };
 
 function addRetailCanopy(kit, building, terrain) {
@@ -147,14 +163,17 @@ export function buildSzDistricts(scene, site, { water, roads, carriagewayOccupie
       const building = byId.get(id);
       if (!building) continue;
       restyleBlock(view, building, site.terrain, site.heightAt, kind, {
-        wall, floors, balconies, front, clear: nonBlocking, entryClear: allowed, open: kind !== 'nantou' || balconies,
-        displayFront: OCT_DISPLAY_FRONTS[id],
+        wall, floors, balconies, front, clear: nonBlocking, entryClear: allowed, open: id !== 'way/533923392',
+        entryFront: kind === 'nantou' ? (p, f) => facesLane(p, f, ground.routes.nantou)
+          : OCT_STREET_FRONTS[id] ?? front,
+        displayFront: OCT_STREET_FRONTS[id],
         shopGrade: id === 'way/135951438' ? { x: -14802, z: 6588 } : null,
         registerShop: shop => shops.push({ ...shop, district: kind }),
         terrace: (kind === 'oct' && id === 'way/435827461') || (kind === 'sea' && id === 'way/492141834')
       });
       skipIds.add(id);
     }
+    if (kind !== 'sea') ground.addShopFloors(kind, shops);
     if (kind === 'sea') {
       const waterY = 6.91;
       addBasin(view, basin, minghua, waterY, site.groundHeight);
