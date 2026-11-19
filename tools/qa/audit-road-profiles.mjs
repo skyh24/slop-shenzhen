@@ -29,7 +29,7 @@ try {
   const { geo } = decodeCityPayload(raw);
   // 与运行时同源：源图不再并入审核结构，桥面由通用剖面派生，隧道由全城洞身派生。
   const { applyCorridorRoadProfiles } = await import('../../js/sz-interchange-levels.js');
-  const graph = applyCorridorRoadProfiles(geo.roadGraph, geo.terrainSurface);
+  const graph = applyCorridorRoadProfiles(geo.roadGraph, geo.terrainSurface, geo.roadStructures);
   const isWater = createCitySpatial(geo).isWater;
   const elevated = planElevatedRoads(graph, geo.terrainSurface, { waterfront: geo.waterfront,
     extraCrossing: northBridgeProfile(geo.shenzhenNorthRail), parkFootbridges: geo.talentPark?.footbridges,

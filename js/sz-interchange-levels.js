@@ -26,7 +26,7 @@ export function highDeckTunnelPortals(graph) {
   const decks = new Map();
   for (const [index, meta] of graph.metadata.entries()) {
     const link = graph.links[index];
-    if (meta.tunnel || roadDeckLayer(meta, graph.names[link[2]]) !== 2) continue;
+    if (meta.tunnel || (!meta.explicitCorridorProfile && roadDeckLayer(meta, graph.names[link[2]]) !== 2)) continue;
     for (const node of link.slice(0, 2)) {
       if (!decks.has(node)) decks.set(node, []);
       decks.get(node).push(index);
@@ -34,10 +34,13 @@ export function highDeckTunnelPortals(graph) {
   }
   const portals = new Map();
   for (const [index, meta] of graph.metadata.entries()) {
-    if (!meta.tunnel || (!meta.nanpingMainline && !NANGUANG_BORES.has(meta.osmId))) continue;
+    if (!meta.tunnel || (!meta.tunnelCorridor && !meta.nanpingMainline && !NANGUANG_BORES.has(meta.osmId))) continue;
     const ends = new Map();
     for (const node of graph.links[index].slice(0, 2)) {
-      const peers = decks.get(node)?.filter(peer => graph.links[peer][2] === graph.links[index][2]);
+      const peers = decks.get(node)?.filter(peer => meta.tunnelCorridor
+        ? Math.abs(graph.metadata[peer].highwayProfile?.[graph.links[peer][0] === node ? 0 : 1]
+          - meta.highwayProfile[graph.links[index][0] === node ? 0 : 1]) < 0.01
+        : graph.links[peer][2] === graph.links[index][2]);
       if (peers?.length) ends.set(node, peers);
     }
     if (ends.size) portals.set(index, ends);
@@ -71,16 +74,20 @@ export function profiledUnderpassPortals(graph, underpass) {
   return portals;
 }
 
-const APPROACH_M = 64;
-// 车公庙南侧辅道从泰然八路及东侧街口接向 4.8 米平台。
-const CHEGONGMIAO_CONNECTOR_MIN_Z = new Map([
-  ['way/40953703', 1366], ['way/638856658', 1372], ['way/846895339', 1372]
-]);
-function isChegongmiaoConnector(meta, edge, nodes) {
-  const minZ = CHEGONGMIAO_CONNECTOR_MIN_Z.get(meta.osmId);
-  return minZ !== undefined && Math.min(nodes[edge[0] * 2 + 1], nodes[edge[1] * 2 + 1]) >= minZ;
+// 桥面和隧道共用同一份接点，兼容直接接续的纵断面与既有下穿引道。
+export function tunnelStructurePortals(graph, underpass) {
+  const portals = highDeckTunnelPortals(graph);
+  for (const [index, ends] of profiledUnderpassPortals(graph, underpass)) {
+    if (!portals.has(index)) portals.set(index, new Map());
+    for (const [node, peers] of ends) {
+      const combined = [...(portals.get(index).get(node) ?? []), ...peers];
+      portals.get(index).set(node, [...new Set(combined)]);
+    }
+  }
+  return portals;
 }
 
+const APPROACH_M = 64;
 // 两端各留 8 米竖曲线，中央等坡；有效引道长度沿源路里程计算。
 export function interchangeRise(distance) {
   const curveM = 8;
@@ -125,10 +132,8 @@ export function applyInterchangeLevels(graph, areas) {
   for (const area of areas) {
     const chegongmiao = area.id === 'chegongmiao';
     const bridgeWays = new Set();
-    const connectors = new Set();
     const groundWays = new Set(area.groundWays);
     for (const [index, meta] of metadata.entries()) {
-      if (chegongmiao && isChegongmiaoConnector(meta, links[index], graph.nodes)) connectors.add(index);
       if (meta.tunnel || (!meta.bridge && !(meta.layer > 0))) continue;
       if (!intersectsArea(edgeGeometry(graph, links[index]).points, area.area)) continue;
       if (meta.bridge) bridgeWays.add(meta.osmId);
@@ -136,7 +141,7 @@ export function applyInterchangeLevels(graph, areas) {
     }
     const lengths = new Map();
     for (const [index, meta] of metadata.entries()) {
-      if (connectors.has(index) || (!meta.tunnel && bridgeWays.has(meta.osmId) && !groundWays.has(meta.osmId))) {
+      if (!meta.tunnel && bridgeWays.has(meta.osmId) && !groundWays.has(meta.osmId)) {
         lengths.set(index, edgeGeometry(graph, links[index]).length);
       } else if (groundWays.has(meta.osmId)) {
         result[index] = { ...meta, layer: 0, bridge: false, tunnel: false, heightSource: 'terrain' };
@@ -191,8 +196,7 @@ export function applyInterchangeLevels(graph, areas) {
       const approach = { id: area.id, start: distance.get(a) ?? APPROACH_M, end: distance.get(b) ?? APPROACH_M,
         delayStart: extension?.side === 0 ? extension.delay : 0,
         delayEnd: extension?.side === 1 ? extension.delay : 0,
-        deckY: chegongmiao ? area.groundY + DECK_RISE_M : undefined,
-        sharesDeck: connectors.has(index) };
+        deckY: chegongmiao ? area.groundY + DECK_RISE_M : undefined };
       result[index] = { ...result[index], layer: 1, bridge: true, heightSource: 'estimate', interchangeApproach: approach };
     }
   }
@@ -211,10 +215,10 @@ export function highwayProfileHeight(profile, fraction) {
   return y + (nextY - y) * (fraction - start) / (end - start);
 }
 
-export function applyCorridorRoadProfiles(graph, terrain) {
+export function applyCorridorRoadProfiles(graph, terrain, structures) {
   const mapped = applyInterchangeLevels(graph, terrain?.interchangeLevels);
-  const { g4Profiles, hongliUnderpass, nanpingProfile, roadCorridorProfiles, roadCorridorExtensions } = terrain ?? {};
-  if (!g4Profiles && !hongliUnderpass && !nanpingProfile && !roadCorridorProfiles && !roadCorridorExtensions) return mapped;
+  const { g4Profiles, hongliUnderpass, nanpingProfile, roadCorridorProfiles, roadCorridorExtensions, tunnelCorridorRoutes } = terrain ?? {};
+  if (!g4Profiles && !hongliUnderpass && !nanpingProfile && !roadCorridorProfiles && !roadCorridorExtensions && !tunnelCorridorRoutes) return mapped;
   const nanpingLinks = new Map();
   const nanpingNodes = new Set();
   const nanpingName = mapped.names.indexOf(nanpingProfile?.name);
@@ -235,7 +239,7 @@ export function applyCorridorRoadProfiles(graph, terrain) {
     tunnelWays.has(mapped.metadata[index].osmId) ? link.slice(0, 2) : []));
   const links = nanpingName < 0 ? mapped.links : mapped.links.map((link, index) =>
     nanpingLinks.has(index) && link[2] !== nanpingName ? link.with(2, nanpingName) : link);
-  return { ...mapped, links, metadata: mapped.metadata.map((meta, index) => {
+  const profiled = { ...mapped, links, metadata: mapped.metadata.map((meta, index) => {
     const curve = nanpingLinks.get(index);
     if (curve) {
       const alignment = { ...meta, nanpingMainline: true, heightSource: 'estimate',
@@ -264,4 +268,24 @@ export function applyCorridorRoadProfiles(graph, terrain) {
     }
     return meta;
   }) };
+  const routes = new Set(tunnelCorridorRoutes);
+  const records = structures?.records?.filter(row => routes.has(row.route)) ?? [];
+  if (!records.length) return profiled;
+  const metadata = profiled.metadata.slice();
+  const corridorLinks = profiled.links.slice();
+  for (const row of records) {
+    const index = row.index;
+    if (metadata[index]?.osmId !== row.way) throw new Error('Tunnel corridor source link mismatch');
+    const stations = row.stations;
+    const length = stations.at(-8);
+    const curve = [];
+    for (let i = 0; i < stations.length; i += 8) curve.push([stations[i] / length, stations[i + 2]]);
+    const tunnel = row.kind === 'tunnel';
+    metadata[index] = { ...metadata[index], bridge: !tunnel, tunnel, layer: tunnel ? Math.min(-1, row.layer ?? -1) : 1,
+      heightSource: 'estimate', explicitCorridorProfile: true,
+      highwayProfile: [curve[0][1], curve.at(-1)[1], !row.sharedStart, !row.sharedEnd, curve],
+      ...(tunnel ? { tunnelCorridor: { coverM: row.coverM, clearanceM: structures.tunnelClearanceM } } : {}) };
+    corridorLinks[index] = profiled.links[index].with(3, row.widthM).with(4, row.lanes);
+  }
+  return { ...profiled, links: corridorLinks, metadata };
 }

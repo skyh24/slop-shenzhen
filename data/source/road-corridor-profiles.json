@@ -581,6 +581,82 @@
         "node/7973259245": 12.8,
         "node/3969348312": 12.8
       }
+    },
+    {
+      "id": "shennan-nanhai-west-off",
+      "pathNodes": [
+        "node/1570631273",
+        "node/1570631274",
+        "node/279077762",
+        "node/2132634022"
+      ],
+      "ways": [
+        "way/143527684",
+        "way/1050921379",
+        "way/1467739161"
+      ],
+      "groundEnds": [
+        "end"
+      ],
+      "controlsM": [
+        [
+          0,
+          12.8
+        ],
+        [
+          "node/1570631274",
+          12.8
+        ],
+        [
+          "node/279077762",
+          10
+        ],
+        [
+          "end",
+          8
+        ]
+      ]
+    },
+    {
+      "id": "shennan-nanhai-west-loop",
+      "pathNodes": [
+        "node/279077761",
+        "node/279077762"
+      ],
+      "ways": [
+        "way/374801332"
+      ],
+      "groundEnds": [
+        "start"
+      ],
+      "controlsM": [
+        [
+          0,
+          8
+        ],
+        [
+          70,
+          12.8
+        ],
+        [
+          190,
+          12.8
+        ],
+        [
+          "end",
+          10
+        ]
+      ]
     }
-  ]
+  ],
+  "tunnelReferenceRoutes": [
+    "guimiao-west",
+    "guimiao-east",
+    "yanjiang-dongbin-east",
+    "yanjiang-dongbin-west",
+    "yanjiang-dongbin-west-port-feeder",
+    "binhai-superhq-west",
+    "binhai-superhq-east"
+  ],
+  "extensionVersion": 5
 }

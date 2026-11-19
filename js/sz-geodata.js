@@ -49,7 +49,7 @@ async function loadCityData(url) {
       const raw = await readCityPayload(url, fetcher, metrics);
       const decoded = decodeCityPayload(raw, metrics);
       const { geo } = decoded;
-      geo.roadGraph = applyShennanKejiCrossing(applyCorridorRoadProfiles(geo.roadGraph, geo.terrainSurface));
+      geo.roadGraph = applyShennanKejiCrossing(applyCorridorRoadProfiles(geo.roadGraph, geo.terrainSurface, geo.roadStructures));
       pendingRetry = null;
       boot?.clear?.();
       return { raw, decoded, timings: pickTimings(metrics) };

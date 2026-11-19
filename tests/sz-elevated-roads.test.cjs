@@ -77,6 +77,28 @@ function fixtureGraph() {
 const planFixture = options => elevated.planElevatedRoads(fixtureGraph(), surface, options);
 const byOsm = plan => new Map(plan.links.map(link => [link.osmId, link]));
 
+function assertShennanNanhaiConnection(plan) {
+  const links = byOsm(plan);
+  const exit = links.get('way/1467739161');
+  const rampIds = new Set(['way/143527684', 'way/1050921379', 'way/374801332', 'way/1467739161']
+    .map(way => links.get(way).surfaceId));
+  const heightAt = controllerSurfaces.createSurfaceHeightAt(plan.surfaces.filter(surface => rampIds.has(surface.id)));
+  assert.equal(exit.startDeckY, 10);
+  assert.equal(exit.endDeckY, 8);
+  for (const way of ['way/143527684', 'way/1050921379', 'way/374801332', 'way/1467739161']) {
+    const record = links.get(way);
+    assert.ok(plan.driveLinks.includes(record), way);
+    assert.ok(record.gradeProfile.maxGrade <= MAX_GRADE + 1e-6, way);
+    assert.ok(record.gradeProfile.seams.every(seam => seam.status === 'aligned'), way);
+  }
+  for (const way of ['way/1050921379', 'way/374801332']) {
+    const peer = links.get(way);
+    assert.equal(peer.endDeckY, exit.startDeckY);
+    const { x, z } = exit.frames[0];
+    assert.ok(Math.abs(heightAt(x, z, peer.surfaceId) - heightAt(x, z, exit.surfaceId)) < 0.001, way);
+  }
+}
+
 test('every non-ground non-tunnel structure link gets a deck, with or without interchange rectangles', () => {
   const plan = planFixture({ interchanges: [] });
   assert.deepEqual(Array.from(plan.links, link => link.index), [1, 2, 3, 5, 6]);
@@ -447,7 +469,8 @@ test('the real Shenzhen snapshot derives the whole-city deck network without any
   const corridors = plan.links.filter(deck => graph.metadata[deck.index].explicitCorridorProfile);
   const corridorJoins = new Map();
   const groundAt = groundSurface.createGroundSurfaceSampler(geo.terrainSurface);
-  assert.equal(corridors.length, 96);
+  assert.equal(corridors.length, 100);
+  assertShennanNanhaiConnection(plan);
   for (const deck of corridors) {
     assert.ok(plan.driveLinks.includes(deck), deck.osmId);
     assert.equal(deck.aprons.length, 0, deck.osmId);
@@ -652,15 +675,18 @@ test('urban interchange decks share one level across short source edges and rest
   assert.ok(main.frames.every(frame => Math.abs(frame.y - 12.8) < 0.01));
 
   const connectors = new Set(['way/40953703', 'way/638856658', 'way/846895339']);
-  const southernDecks = plan.links.filter(deck => connectors.has(deck.osmId));
-  assert.equal(southernDecks.length, 5);
-  for (const deck of southernDecks) {
-    assert.ok(plan.driveLinks.includes(deck), deck.osmId);
-    assert.ok(deck.gradeProfile.maxGrade <= MAX_GRADE, deck.osmId);
-    assert.ok(deck.gradeProfile.seams.every(seam => seam.status === 'aligned'), deck.osmId);
-    assert.ok(deck.frames.every(frame => frame.y <= 12.8 + 1e-6), deck.osmId);
+  assert.ok(!plan.links.some(deck => connectors.has(deck.osmId)));
+  const groundLinks = graph.links.filter((link, index) => connectors.has(graph.metadata[index].osmId));
+  assert.equal(groundLinks.length, 8);
+  for (const [index, meta] of graph.metadata.entries()) {
+    if (!connectors.has(meta.osmId)) continue;
+    assert.ok(roads.isGroundRoad(meta), `${meta.osmId}:${index}`);
+    assert.equal(meta.interchangeApproach, undefined);
   }
-  const crossLink = southernDecks.find(deck => deck.osmId === 'way/846895339');
+  const groundLayout = roads.createRoadSurfaceLayout({
+    ...graph, links: groundLinks, metadata: graph.metadata.filter(meta => connectors.has(meta.osmId))
+  }, terrain);
+  const groundHeight = roads.createRoadHeightSampler(groundLayout.chunks, terrain.grid);
   const crossings = [
     [-3055.6192, 1558.6831, 'way/879817597'],
     [-3031.6384, 1600.2774, 'way/412445341'],
@@ -669,9 +695,17 @@ test('urban interchange decks share one level across short source edges and rest
   for (const [x, z, throughWay] of crossings) {
     const through = plan.links.find(deck => deck.osmId === throughWay && heightAt(x, z, deck.surfaceId) !== null);
     assert.ok(through);
-    assert.equal(heightAt(x, z, crossLink.surfaceId), 12.8);
-    assert.equal(heightAt(x, z, through.surfaceId), 12.8);
-    assert.ok(through.openings.size > 0);
+    const bridgeY = heightAt(x, z, through.surfaceId);
+    const groundY = groundHeight(x, z);
+    assert.equal(bridgeY, 12.8);
+    assert.ok(Math.abs(groundY - 8) < 0.01);
+    assert.ok(Math.abs(bridgeY - groundY - 4.8) < 0.01);
+    const lowerNodes = new Set(groundLinks.flatMap(link => link.slice(0, 2)));
+    assert.ok(!lowerNodes.has(through.startNode) && !lowerNodes.has(through.endNode));
+    for (const [station] of through.openings) {
+      const frame = through.frames[station];
+      assert.ok(Math.hypot(frame.x - x, frame.z - z) > 12, through.osmId);
+    }
   }
   assert.ok(raw.roadGraph.metadata.every((meta, i) => meta.osmId !== 'way/1126957193' || roads.isGroundRoad(graph.metadata[i])));
 
